@@ -416,7 +416,7 @@ impl<R: Reader>JPEGDecoder<R> {
 			let tc = tcth >> 4;
 			let th = tcth & 0x0F;
 
-			if tc != 0 || tc != 1 {
+			if tc != 0 && tc != 1 {
 				return Err(image::UnsupportedError)
 			}
 

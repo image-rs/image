@@ -9,8 +9,21 @@ use colortype;
 use hash::Crc32;
 use zlib::ZlibDecoder;
 
+use image;
+use image::ImageResult;
+use image::ImageDecoder;
+
 use super::filter::unfilter;
 use super::PNGSIGNATURE;
+
+macro_rules! io_try(
+    ($e:expr) => (
+    	match $e {
+    		Ok(e) => e,
+    		Err(_) => return Err(image::IoError)
+    	}
+    )
+)
 
 #[deriving(PartialEq)]
 enum PNGState {
@@ -21,14 +34,6 @@ enum PNGState {
 	HaveFirstIDat,
 	HaveLastIDat,
 	HaveIEND
-}
-
-enum PNGError {
-	UnknownCompressionMethod,
-	UnknownFilterMethod,
-	InvalidDimensions,
-	InvalidPixelValue,
-	InvalidPLTE
 }
 
 pub struct PNGDecoder<R> {
@@ -49,7 +54,8 @@ pub struct PNGDecoder<R> {
 	chunk_length: u32,
 	chunk_type: Vec<u8>,
 	bpp: uint,
-	rlength: uint
+	rlength: uint,
+	decoded_rows: u32,
 }
 
 impl<R: Reader> PNGDecoder<R> {
@@ -74,61 +80,8 @@ impl<R: Reader> PNGDecoder<R> {
 			chunk_type: Vec::new(),
 			bpp: 0,
 			rlength: 0,
+			decoded_rows: 0,
 		}
-	}
-
-	pub fn dimensions(&self) -> (u32, u32) {
-		(self.width, self.height)
-	}
-
-	pub fn color_type(&self) -> colortype::ColorType {
-		self.pixel_type
-	}
-
-	pub fn rowlen(&self) -> uint {
-		let bits = colortype::bits_per_pixel(self.pixel_type);
-		(bits * self.width as uint + 7) / 8
-	}
-
-	pub fn read_scanline(&mut self, buf: &mut [u8]) -> IoResult<uint> {
-		assert!(buf.len() >= self.previous.len());
-
-		if self.state == Start {
-			let _ = try!(self.read_metadata());
-		}
-
-		let filter  = try!(self.z.read_byte());
-
-		let mut read = 0;
-		while read < self.rlength {
-			let r = try!(self.z.read(buf.mut_slice_from(read)));
-			read += r;
-		}
-
-		unfilter(filter, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
-		slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
-
-		if self.palette.is_some() {
-			let s = (*self.palette.get_ref()).as_slice();
-			expand_palette(buf, s, self.rlength);
-		}
-
-		Ok(buf.len())
-	}
-
-	pub fn decode_image(&mut self) -> IoResult<Vec<u8>> {
-		if self.state == Start {
-			let _ = try!(self.read_metadata());
-		}
-
-		let row = self.rowlen();
-		let mut buf = Vec::from_elem(row * self.height as uint, 0u8);
-
-		for chunk in buf.as_mut_slice().mut_chunks(row) {
-			let _len = try!(self.read_scanline(chunk));
-		}
-
-		Ok(buf)
 	}
 
 	pub fn palette<'a>(&'a self) -> &'a [(u8, u8, u8)] {
@@ -138,13 +91,13 @@ impl<R: Reader> PNGDecoder<R> {
 		}
 	}
 
-	fn read_signature(&mut self) -> IoResult<bool> {
-		let png = try!(self.z.inner().r.read_exact(8));
+	fn read_signature(&mut self) -> ImageResult<bool> {
+		let png = io_try!(self.z.inner().r.read_exact(8));
 
 		Ok(png.as_slice() == PNGSIGNATURE)
 	}
 
-	fn parse_ihdr(&mut self, buf: Vec<u8>) -> Result<(), PNGError> {
+	fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
 		self.crc.update(buf.as_slice());
 		let mut m = MemReader::new(buf);
 
@@ -170,22 +123,22 @@ impl<R: Reader> PNGDecoder<R> {
 			(4, 16) => colortype::GreyA(16),
 			(6, 8)  => colortype::RGBA(8),
 			(6, 16) => colortype::RGBA(16),
-			(_, _)  => return Err(InvalidPixelValue)
+			(_, _)  => return Err(image::FormatError)
 		};
 
 		let compression_method = m.read_byte().unwrap();
 		if compression_method != 0 {
-			return Err(UnknownCompressionMethod)
+			return Err(image::UnsupportedError)
 		}
 
 		let filter_method = m.read_byte().unwrap();
 		if filter_method != 0 {
-			return Err(UnknownFilterMethod)
+			return Err(image::UnsupportedError)
 		}
 
 		self.interlace_method = m.read_byte().unwrap();
 		if self.interlace_method != 0 {
-			fail!("Interlace not implemented")
+			return Err(image::UnsupportedError)
 		}
 
 		let channels = match self.colour_type {
@@ -194,7 +147,7 @@ impl<R: Reader> PNGDecoder<R> {
 			3 => 1,
 			4 => 2,
 			6 => 4,
-			_ => fail!("unknown colour type")
+			_ => return Err(image::FormatError)
 		};
 
 		let bits_per_pixel = channels * self.bit_depth as uint;
@@ -206,13 +159,13 @@ impl<R: Reader> PNGDecoder<R> {
 		Ok(())
 	}
 
-	fn parse_plte(&mut self, buf: Vec<u8>) -> Result<(), PNGError> {
+	fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
 		self.crc.update(buf.as_slice());
 
 		let len = buf.len() / 3;
 
 		if len > 256 || len > (1 << self.bit_depth) || buf.len() % 3 != 0{
-			return Err(InvalidPLTE)
+			return Err(image::FormatError)
 		}
 
 		let p = Vec::from_fn(256, |i| {
@@ -233,18 +186,16 @@ impl<R: Reader> PNGDecoder<R> {
 		Ok(())
 	}
 
-	fn read_metadata(&mut self) -> IoResult<()> {
-		assert!(self.state == Start);
-
+	fn read_metadata(&mut self) -> ImageResult<()> {
 		if !try!(self.read_signature()) {
-			fail!("Wrong signature")
+			return Err(image::FormatError)
 		}
 
 		self.state = HaveSignature;
 
 		loop {
-			let length = try!(self.z.inner().r.read_be_u32());
-			let chunk = try!(self.z.inner().r.read_exact(4));
+			let length = io_try!(self.z.inner().r.read_be_u32());
+			let chunk  = io_try!(self.z.inner().r.read_exact(4));
 
 			self.chunk_length = length;
 			self.chunk_type   = chunk.clone();
@@ -253,30 +204,29 @@ impl<R: Reader> PNGDecoder<R> {
 
 			let s = {
 				let a = str::from_utf8_owned(self.chunk_type.clone());
-				if a.is_err() {
-					fail!("FIXME")
-				}
 				a.unwrap()
 			};
 
 			match (s.as_slice(), self.state) {
 				("IHDR", HaveSignature) => {
-					assert!(length == 13);
-					let d = try!(self.z.inner().r.read_exact(length as uint));
+					if length != 13 {
+						return Err(image::FormatError)
+					}
 
+					let d = io_try!(self.z.inner().r.read_exact(length as uint));
 					let _ = self.parse_ihdr(d);
+
 					self.state = HaveIHDR;
 				}
 
 				("PLTE", HaveIHDR) => {
-					let d = try!(self.z.inner().r.read_exact(length as uint));
+					let d = io_try!(self.z.inner().r.read_exact(length as uint));
 					let _ = self.parse_plte(d);
 					self.state = HavePLTE;
 				}
 
 				("tRNS", HavePLTE) => {
-					assert!(self.palette.is_some());
-					fail!("trns unimplemented")
+					return Err(image::UnsupportedError)
 				}
 
 				("IDAT", HaveIHDR) if self.colour_type != 3 => {
@@ -296,20 +246,91 @@ impl<R: Reader> PNGDecoder<R> {
 				}
 
 				_ => {
-					let b = try!(self.z.inner().r.read_exact(length as uint));
+					let b = io_try!(self.z.inner().r.read_exact(length as uint));
 					self.crc.update(b);
 				}
 			}
 
-			let chunk_crc = try!(self.z.inner().r.read_be_u32());
+			let chunk_crc = io_try!(self.z.inner().r.read_be_u32());
 			let crc = self.crc.checksum();
 
-			assert!(crc == chunk_crc);
+			if crc != chunk_crc {
+				return Err(image::FormatError)
+			}
 
 			self.crc.reset();
 		}
 
 		Ok(())
+	}
+}
+
+impl<R: Reader> ImageDecoder for PNGDecoder<R> {
+	fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
+		if self.state == Start {
+			let _ = try!(self.read_metadata());
+		}
+
+		Ok((self.width, self.height))
+	}
+
+	fn colortype(&mut self) -> ImageResult<colortype::ColorType> {
+		if self.state == Start {
+			let _ = try!(self.read_metadata());
+		}
+
+		Ok(self.pixel_type)
+	}
+
+	fn row_len(&mut self) -> ImageResult<uint> {
+		if self.state == Start {
+			let _ = try!(self.read_metadata());
+		}
+
+		let bits = colortype::bits_per_pixel(self.pixel_type);
+
+		Ok((bits * self.width as uint + 7) / 8)
+	}
+
+	fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+		if self.state == Start {
+			let _ = try!(self.read_metadata());
+		}
+
+		let filter  = io_try!(self.z.read_byte());
+
+		let mut read = 0;
+		while read < self.rlength {
+			let r = io_try!(self.z.read(buf.mut_slice_from(read)));
+			read += r;
+		}
+
+		unfilter(filter, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
+		slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
+
+		if self.palette.is_some() {
+			let s = (*self.palette.get_ref()).as_slice();
+			expand_palette(buf, s, self.rlength);
+		}
+
+		self.decoded_rows += 1;
+
+		Ok(self.decoded_rows)
+	}
+
+	fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+		if self.state == Start {
+			let _ = try!(self.read_metadata());
+		}
+
+		let rowlen  = try!(self.row_len());
+		let mut buf = Vec::from_elem(rowlen * self.height as uint, 0u8);
+
+		for chunk in buf.as_mut_slice().mut_chunks(rowlen) {
+			let _ = try!(self.read_scanline(chunk));
+		}
+
+		Ok(buf)
 	}
 }
 
@@ -362,7 +383,10 @@ impl<R: Reader> Reader for IDATReader<R> {
 				let chunk_crc = try!(self.r.read_be_u32());
 				let crc = self.crc.checksum();
 
-				assert!(crc == chunk_crc);
+				if crc != chunk_crc {
+					return Err(io::standard_error(io::InvalidInput))
+				}
+
 				self.crc.reset();
 
 				self.chunk_length = try!(self.r.read_be_u32());

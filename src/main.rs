@@ -41,10 +41,9 @@ fn main() {
 		Some("png") => {
 			let mut p = PNGDecoder::new(m);
 
-			let a = p.decode_image().unwrap();
-			let (b, c) = p.dimensions();
-			let d = p.color_type();
-			let _ = p.palette();
+			let a = p.read_image().unwrap();
+			let (b, c) = p.dimensions().unwrap();
+			let d = p.colortype().unwrap();
 
 			(a, b, c, d)
 		}

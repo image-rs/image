@@ -5,6 +5,8 @@ use std::os;
 use std::io::File;
 use std::io::MemReader;
 
+use image::ImageDecoder;
+
 use image::JPEGDecoder;
 use image::JPEGEncoder;
 use image::PNGDecoder;

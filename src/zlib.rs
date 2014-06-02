@@ -23,7 +23,7 @@ impl<R: Reader> ZlibDecoder<R> {
 
 	pub fn inner<'a>(&'a mut self) -> &'a mut R {
 		self.inflate.inner()
-	} 
+	}
 
 	fn read_header(&mut self) -> IoResult<()> {
 		let cmf = try!(self.inner().read_u8());
@@ -39,7 +39,7 @@ impl<R: Reader> ZlibDecoder<R> {
 
 		assert!((cmf as u16 * 256 + flg as u16) % 31 == 0);
 
-		Ok(()) 
+		Ok(())
 	}
 
 	fn read_checksum(&mut self) -> IoResult<()> {
@@ -63,7 +63,7 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
 						self.adler.update(buf.slice_to(n));
 
 						if self.inflate.eof() {
-							let _ = try!(self.read_checksum()); 
+							let _ = try!(self.read_checksum());
 							self.state = End;
 						}
 

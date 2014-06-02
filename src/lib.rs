@@ -16,11 +16,11 @@ pub use PPMEncoder  = ppm::PPMEncoder;
 pub use WebpDecoder = webp::WebpDecoder;
 
 pub mod vp8;
-pub mod hash;
 pub mod colortype;
 
 mod jpeg;
 mod png;
+mod hash;
 mod gif;
 mod webp;
 mod ppm;

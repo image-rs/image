@@ -1,9 +1,9 @@
 use std::io;
-use std::io::IoResult;
-use std::io::MemReader;
 use std::cmp;
 use std::str;
 use std::slice;
+use std::io::IoResult;
+use std::io::MemReader;
 
 use colortype;
 use hash::Crc32;

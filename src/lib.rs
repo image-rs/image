@@ -8,8 +8,10 @@ extern crate flate;
 extern crate collections;
 
 pub use ColorType = colortype::ColorType;
+
 pub use ImageDecoder = image::ImageDecoder;
 pub use ImageError = image::ImageError;
+pub use ImageResult = image::ImageResult;
 
 pub use JPEGDecoder = jpeg::JPEGDecoder;
 pub use JPEGEncoder = jpeg::JPEGEncoder;
@@ -18,8 +20,6 @@ pub use PNGEncoder  = png::PNGEncoder;
 pub use GIFDecoder  = gif::GIFDecoder;
 pub use PPMEncoder  = ppm::PPMEncoder;
 pub use WebpDecoder = webp::WebpDecoder;
-
-pub type ImageResult<T> = Result<T, ImageError>;
 
 pub mod vp8;
 pub mod colortype;

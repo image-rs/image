@@ -19,7 +19,7 @@ fn main() {
 	let file = if os::args().len() == 2 {
 		os::args().as_slice()[1].clone()
 	} else {
-		fail!("provide a file")
+		fail!("Please enter a file")
 	};
 
 	let mut fin = File::open(&Path::new(file.clone())).unwrap();
@@ -41,10 +41,9 @@ fn main() {
 		Some("png") => {
 			let mut p = PNGDecoder::new(m);
 
-			let a = p.decode_image().unwrap();
-			let (b, c) = p.dimensions();
-			let d = p.color_type();
-			let _ = p.palette();
+			let a = p.read_image().unwrap();
+			let (b, c) = p.dimensions().unwrap();
+			let d = p.colortype().unwrap();
 
 			(a, b, c, d)
 		}
@@ -53,19 +52,18 @@ fn main() {
 
 			//Decode first image only
 			//Call again to decode successive images
-			//Returns empty array when done
-			let a = g.decode_image().unwrap();
-			let (b, c) = g.dimensions();
-			let d = g.color_type();
-			let _ = g.delay();
+			//Returns ImageEnd when done
+			let a = g.read_image().unwrap();
+			let (b, c) = g.dimensions().unwrap();
+			let d = g.colortype().unwrap();
 
 			(a, b, c, d)
 		}
 		Some("webp") => {
 			let mut w = WebpDecoder::new(m);
-			let a = w.decode_image().unwrap();
-			let (b, c) = w.dimensions();
-			let d = w.color_type();
+			let a = w.read_image().unwrap();
+			let (b, c) = w.dimensions().unwrap();
+			let d = w.colortype().unwrap();
 
 			(a, b, c, d)
 

@@ -729,24 +729,35 @@ impl MacroBlock {
         }
 }
 
+///A Representation of the last decoded video frame
 #[deriving(Default, Show, Clone)]
 pub struct Frame {
+        ///The width of the luma plane
         pub width: u16,
+
+        ///The height of the luma plane
         pub height: u16,
 
+        ///The luma plane of the frame
         pub ybuf: Vec<u8>,
 
+        ///Indicates whether this frame is a keyframe
 	pub keyframe: bool,
-	pub version: u8,
+
+        version: u8,
+
+        ///Indicates whether this frame is intended for display
 	pub for_display: bool,
 
 	//Section 9.2
+        ///The pixel type of the frame as defined by Section 9.2
+        ///of the VP8 Specification
 	pub pixel_type: u8,
 
 	//Section 9.4 and 15
-	pub filter: u8,
-	pub filter_level: u8,
-	pub sharpness_level: u8,
+	filter: u8,
+	filter_level: u8,
+	sharpness_level: u8,
 }
 
 #[deriving(Default)]
@@ -1338,6 +1349,7 @@ impl<R: Reader> VP8Decoder<R> {
                 blocks
         }
 
+        ///Decodes the current frame and returns a reference to it
 	pub fn decode_frame<'a>(&'a mut self) -> IoResult<&'a Frame> {
 		let _ = try!(self.read_frame_header());
 

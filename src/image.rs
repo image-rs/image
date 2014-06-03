@@ -1,5 +1,6 @@
 use colortype::ColorType;
 
+/// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
 pub enum ImageError {
         ///The Image is not formatted properly
@@ -25,6 +26,7 @@ pub enum ImageError {
         ImageEnd
 }
 
+/// The trait that all decoders implement
 pub trait ImageDecoder {
         ///Return a tuple containing the width and height of the image
         fn dimensions(&mut self) -> ImageResult<(u32, u32)>;

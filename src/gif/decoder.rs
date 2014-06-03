@@ -24,6 +24,7 @@ static GRAPHICCONTROL: u8 = 0xF9;
 static COMMENT: u8 = 0xFE;
 static TRAILER: u8 = 0x3B;
 
+/// The Representation of a GIF decoder
 pub struct GIFDecoder <R> {
 	r: R,
 

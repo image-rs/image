@@ -1,3 +1,17 @@
+//!     An implementation of the VP8 Video Codec
+//!
+//!     This module contains a partial implementation of the
+//!     VP8 video format as defined in RFC-6386.
+//!
+//!     It decodes Keyframes only sans Loop Filtering.
+//!     VP8 is the underpinning of the Webp image format
+//!
+//!     # Related Links
+//!     * [rfc-6386](http://tools.ietf.org/html/rfc6386) - The VP8 Data Format and Decoding Guide
+//!     * [VP8.pdf](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/37073.pdf) - An overview of
+//!     of the VP8 format
+//!
+
 use std::io::IoResult;
 use std::default::Default;
 
@@ -777,6 +791,8 @@ struct Segment {
 	loopfilter_level: i8,
 }
 
+/// VP8 Decoder
+/// Only decodes keyframes
 pub struct VP8Decoder<R> {
         r: R,
 	b: BoolReader,
@@ -810,6 +826,8 @@ pub struct VP8Decoder<R> {
 }
 
 impl<R: Reader> VP8Decoder<R> {
+        /// Create a new decoder.
+        /// The reader must present a raw vp8 bitstream to the decoder
 	pub fn new(r: R) -> VP8Decoder<R> {
 		let f: Frame = Default::default();
 		let s: Segment = Default::default();
@@ -1349,7 +1367,7 @@ impl<R: Reader> VP8Decoder<R> {
                 blocks
         }
 
-        ///Decodes the current frame and returns a reference to it
+        /// Decodes the current frame and returns a reference to it
 	pub fn decode_frame<'a>(&'a mut self) -> IoResult<&'a Frame> {
 		let _ = try!(self.read_frame_header());
 

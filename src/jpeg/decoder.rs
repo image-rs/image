@@ -73,6 +73,9 @@ enum JPEGState {
 	End
 }
 
+/// The representation of a JPEG decoder
+///
+/// Does not support decoding progressive JPEG images
 pub struct JPEGDecoder<R> {
 	r: R,
 
@@ -105,6 +108,7 @@ pub struct JPEGDecoder<R> {
 }
 
 impl<R: Reader>JPEGDecoder<R> {
+	/// Create a new decoder that decodes from the stream ```r```
 	pub fn new(r: R) -> JPEGDecoder<R> {
 		let h: HuffTable  = Default::default();
 

@@ -1,3 +1,5 @@
+//! Encoding of PPM Images
+
 use std::io::IoResult;
 use std::num;
 use std::num::ToStrRadix;

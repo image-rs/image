@@ -23,14 +23,14 @@ pub use WebpDecoder = webp::WebpDecoder;
 
 pub mod vp8;
 pub mod colortype;
+pub mod jpeg;
+pub mod png;
+pub mod gif;
+pub mod webp;
+pub mod ppm;
 
-mod image;
-mod jpeg;
-mod png;
 mod hash;
-mod gif;
-mod webp;
-mod ppm;
+mod image;
 mod transform;
 mod deflate;
 mod zlib;

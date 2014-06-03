@@ -1,17 +1,40 @@
+//! Decoding and Encoding of JPEG Images
+//!
+//! JPEG (Joint Photographic Experts Group) is an image format that supports lossy compression.
+//! This module implements the Baseline JPEG standard.
+//!
+//! #Related Links
+//! * http://www.w3.org/Graphics/JPEG/itu-t81.pdf - The JPEG specification
+//!
+
 pub use self::decoder::JPEGDecoder;
 pub use self::encoder::JPEGEncoder;
 
 mod encoder;
 mod decoder;
 
+/// A representation of a JPEG component
 #[deriving(Clone)]
 pub struct Component {
+	/// The Component's identifier
 	pub id: u8,
+
+	/// Horizontal sampling factor
 	pub h: u8,
+
+	/// Vertical sampling factor
 	pub v: u8,
+
+	/// The quantization table selector
 	pub tq: u8,
+
+	/// Index to the Huffman DC Table
 	pub dc_table: u8,
+
+	/// Index to the AC Huffman Table
 	pub ac_table: u8,
+
+	/// The dc prediction of the component
 	pub dc_pred: i32
 }
 

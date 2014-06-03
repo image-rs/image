@@ -36,6 +36,9 @@ enum PNGState {
 	HaveIEND
 }
 
+/// The representation of a PNG decoder
+///
+/// Currently does not support decoding of interlaced images
 pub struct PNGDecoder<R> {
 	z: ZlibDecoder<IDATReader<R>>,
 	crc: Crc32,
@@ -44,21 +47,25 @@ pub struct PNGDecoder<R> {
 
 	width: u32,
 	height: u32,
+
 	bit_depth: u8,
 	colour_type: u8,
 	pixel_type: colortype::ColorType,
+
 	palette: Option<Vec<(u8, u8, u8)>>,
 
 	interlace_method: u8,
 
 	chunk_length: u32,
 	chunk_type: Vec<u8>,
+
 	bpp: uint,
 	rlength: uint,
 	decoded_rows: u32,
 }
 
 impl<R: Reader> PNGDecoder<R> {
+	/// Create a new decoder that decodes from the stream ```r```
 	pub fn new(r: R) -> PNGDecoder<R> {
 		let idat_reader = IDATReader::new(r);
 		PNGDecoder {

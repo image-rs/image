@@ -1,3 +1,11 @@
+//! A PNG Encoder
+//!
+//! This implementation uses the ```flate``` crate for compression
+//! and selects the filter type using the sum of absolute differences method.
+//!
+//! For each row the filter method that produces the lowest integer when its bytes
+//! are interpreted as signed numbers and summed is chosen as the filter.
+
 use std::slice;
 use std::io::IoResult;
 use std::io::MemWriter;
@@ -8,12 +16,14 @@ use hash::Crc32;
 use super::filter::filter;
 use super::PNGSIGNATURE;
 
+/// The representation of a PNG encoder
 pub struct PNGEncoder<W> {
 	w: W,
 	crc: Crc32
 }
 
 impl<W: Writer> PNGEncoder<W> {
+	/// Create a new encoder that writes its output to ```w```
 	pub fn new(w: W) -> PNGEncoder<W> {
 		PNGEncoder {
 			w: w,
@@ -21,6 +31,9 @@ impl<W: Writer> PNGEncoder<W> {
 		}
 	}
 
+	/// Encodes the image ```image```
+	/// that has dimensions ```width``` and ```height```
+	/// and ```ColorType``` ```c```
 	pub fn encode(&mut self,
 		      image: &[u8],
 		      width: u32,

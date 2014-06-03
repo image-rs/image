@@ -121,6 +121,7 @@ static LUMAID: u8 = 1;
 static CHROMABLUEID: u8 = 2;
 static CHROMAREDID: u8 = 3;
 
+/// The representation of a JPEG encoder
 pub struct JPEGEncoder<W> {
 	w: W,
 
@@ -137,6 +138,7 @@ pub struct JPEGEncoder<W> {
 }
 
 impl<W: Writer> JPEGEncoder<W> {
+	/// Create a new encoder that writes its output to ```w```
 	pub fn new(w: W) -> JPEGEncoder<W> {
 		let ld = build_huff_lut(STD_LUMA_DC_CODE_LENGTHS, STD_LUMA_DC_VALUES);
 		let la = build_huff_lut(STD_LUMA_AC_CODE_LENGTHS, STD_LUMA_AC_VALUES);
@@ -167,6 +169,75 @@ impl<W: Writer> JPEGEncoder<W> {
 			accumulator: 0,
 			nbits: 0,
 		}
+	}
+
+	/// Encodes the image ```image```
+	/// that has dimensions ```width``` and ```height```
+	/// and ```ColorType``` ```c```
+	/// The Image in encoded with subsampling ratio 4:2:2
+	pub fn encode(&mut self,
+		      image: &[u8],
+		      width: u32,
+		      height: u32,
+		      c: colortype::ColorType) -> IoResult<()> {
+
+		let n = colortype::num_components(c);
+		let num_components = if n == 1 || n == 2 {1}
+							 else {3};
+
+		let _ = try!(self.write_segment(SOI, None));
+
+		let buf = build_jfif_header();
+		let _   = try!(self.write_segment(APP0, Some(buf)));
+
+		let buf = build_frame_header(8, width as u16, height as u16, self.components.slice_to(num_components));
+		let _   = try!(self.write_segment(SOF0, Some(buf)));
+
+		assert!(self.tables.len() / 64 == 2);
+		let numtables = if num_components == 1 {1}
+				else {2};
+
+		let t = self.tables.clone();
+		for (i, table) in t.as_slice().chunks(64).enumerate().take(numtables) {
+			let buf = build_quantization_segment(8, i as u8, table);
+			let _   = try!(self.write_segment(DQT, Some(buf)));
+		}
+
+		let numcodes = STD_LUMA_DC_CODE_LENGTHS;
+		let values   = STD_LUMA_DC_VALUES;
+		let buf = build_huffman_segment(DCCLASS, LUMADESTINATION, numcodes, values);
+		let _   = try!(self.write_segment(DHT, Some(buf)));
+
+		let numcodes = STD_LUMA_AC_CODE_LENGTHS;
+		let values   = STD_LUMA_AC_VALUES;
+		let buf = build_huffman_segment(ACCLASS, LUMADESTINATION, numcodes, values);
+		let _   = try!(self.write_segment(DHT, Some(buf)));
+
+		if num_components == 3 {
+			let numcodes = STD_CHROMA_DC_CODE_LENGTHS;
+			let values   = STD_CHROMA_DC_VALUES;
+			let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION, numcodes, values);
+			let _   = try!(self.write_segment(DHT, Some(buf)));
+
+			let numcodes = STD_CHROMA_AC_CODE_LENGTHS;
+			let values   = STD_CHROMA_AC_VALUES;
+			let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION, numcodes, values);
+			let _   = try!(self.write_segment(DHT, Some(buf)));
+		}
+
+		let buf = build_scan_header(self.components.slice_to(num_components));
+		let _   = try!(self.write_segment(SOS, Some(buf)));
+
+		match c {
+			colortype::RGB(8)   => try!(self.encode_rgb(image, width as uint, height as uint, 3)),
+			colortype::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
+			colortype::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
+			colortype::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
+			_  => fail!("unimplemented!")
+		};
+
+		let _ = try!(self.pad_byte());
+		self.write_segment(EOI, None)
 	}
 
 	fn write_segment(&mut self, marker: u8, data: Option<Vec<u8>>) -> IoResult<()> {
@@ -339,71 +410,6 @@ impl<W: Writer> JPEGEncoder<W> {
 		}
 
 		Ok(())
-	}
-
-	pub fn encode(&mut self,
-		      image: &[u8],
-		      width: u32,
-		      height: u32,
-		      c: colortype::ColorType) -> IoResult<()> {
-
-		let n = colortype::num_components(c);
-		let num_components = if n == 1 || n == 2 {1}
-							 else {3};
-
-		let _ = try!(self.write_segment(SOI, None));
-
-		let buf = build_jfif_header();
-		let _   = try!(self.write_segment(APP0, Some(buf)));
-
-		let buf = build_frame_header(8, width as u16, height as u16, self.components.slice_to(num_components));
-		let _   = try!(self.write_segment(SOF0, Some(buf)));
-
-		assert!(self.tables.len() / 64 == 2);
-		let numtables = if num_components == 1 {1}
-				else {2};
-
-		let t = self.tables.clone();
-		for (i, table) in t.as_slice().chunks(64).enumerate().take(numtables) {
-			let buf = build_quantization_segment(8, i as u8, table);
-			let _   = try!(self.write_segment(DQT, Some(buf)));
-		}
-
-		let numcodes = STD_LUMA_DC_CODE_LENGTHS;
-		let values   = STD_LUMA_DC_VALUES;
-		let buf = build_huffman_segment(DCCLASS, LUMADESTINATION, numcodes, values);
-		let _   = try!(self.write_segment(DHT, Some(buf)));
-
-		let numcodes = STD_LUMA_AC_CODE_LENGTHS;
-		let values   = STD_LUMA_AC_VALUES;
-		let buf = build_huffman_segment(ACCLASS, LUMADESTINATION, numcodes, values);
-		let _   = try!(self.write_segment(DHT, Some(buf)));
-
-		if num_components == 3 {
-			let numcodes = STD_CHROMA_DC_CODE_LENGTHS;
-			let values   = STD_CHROMA_DC_VALUES;
-			let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION, numcodes, values);
-			let _   = try!(self.write_segment(DHT, Some(buf)));
-
-			let numcodes = STD_CHROMA_AC_CODE_LENGTHS;
-			let values   = STD_CHROMA_AC_VALUES;
-			let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION, numcodes, values);
-			let _   = try!(self.write_segment(DHT, Some(buf)));
-		}
-
-		let buf = build_scan_header(self.components.slice_to(num_components));
-		let _   = try!(self.write_segment(SOS, Some(buf)));
-
-		match c {
-			colortype::RGB(8)   => try!(self.encode_rgb(image, width as uint, height as uint, 3)),
-			colortype::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
-			colortype::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
-			colortype::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
-			_  => fail!("unimplemented!")
-		};
-
-		let _ = try!(self.pad_byte());
-		self.write_segment(EOI, None)
 	}
 }
 

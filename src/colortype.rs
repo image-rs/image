@@ -1,7 +1,7 @@
 //! Types and methods for representing and manipulating colors
 
 ///An enumeration over supported color types and their bit depths
-#[deriving(PartialEq, Show)]
+#[deriving(PartialEq, Show, Clone)]
 pub enum ColorType {
 	///Pixel is greyscale
 	Grey(u8),

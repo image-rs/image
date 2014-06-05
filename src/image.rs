@@ -1,7 +1,14 @@
+use std::io;
 use std::slice;
 
 use colortype;
 use colortype::ColorType;
+
+use png;
+use ppm;
+use gif;
+use jpeg;
+use webp;
 
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
@@ -30,6 +37,16 @@ pub enum ImageError {
 }
 
 pub type ImageResult<T> = Result<T, ImageError>;
+
+/// An enumeration of supported image formats.
+/// Not all formats support both encoding and decoding.
+pub enum ImageFormat {
+	PNG,
+	JPEG,
+	GIF,
+	WEBP,
+	PPM
+}
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
@@ -89,4 +106,100 @@ pub trait ImageDecoder {
 
                 Ok(buf)
         }
+}
+
+
+/// A Generic representation of an image
+#[deriving(Clone)]
+pub struct Image {
+	pixels:  Vec<u8>,
+	width:   u32,
+	height:  u32,
+	color:   ColorType,
+}
+
+impl Image {
+	/// Create a new image from ```r```.
+	pub fn load<R: Reader>(r: R, format: ImageFormat) -> ImageResult<Image> {
+		match format {
+			PNG  => decoder_to_image(png::PNGDecoder::new(r)),
+			GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
+			JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
+			WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
+			_    => Err(UnsupportedError),
+		}
+	}
+
+	/// Create a new image from a byte slice
+	pub fn load_from_memory(buf: &[u8], format: ImageFormat) -> ImageResult<Image> {
+		let b = io::BufReader::new(buf);
+
+		Image::load(b, format)
+	}
+
+	/// Encode this image and write it to ```w```
+	pub fn save<W: Writer>(&self, w: W, format: ImageFormat) -> io::IoResult<ImageResult<()>> {
+		let r = match format {
+			PNG  => {
+				let mut p = png::PNGEncoder::new(w);
+				try!(p.encode(self.pixels.as_slice(),
+					      self.width,
+					      self.height,
+					      self.color))
+				Ok(())
+			}
+			PPM  => {
+				let mut p = ppm::PPMEncoder::new(w);
+				try!(p.encode(self.pixels.as_slice(),
+					      self.width,
+					      self.height,
+					      self.color))
+				Ok(())
+			}
+			JPEG => {
+				let mut j = jpeg::JPEGEncoder::new(w);
+				try!(j.encode(self.pixels.as_slice(),
+					      self.width,
+					      self.height,
+					      self.color))
+				Ok(())
+			}
+			_    => Err(UnsupportedError),
+		};
+
+		Ok(r)
+	}
+
+	/// Return a reference to the pixel buffer of this image.
+	/// Its interpretation is dependent on the image's ```ColorType```.
+	pub fn raw_pixels<'a>(&'a self) -> &'a [u8] {
+		self.pixels.as_slice()
+	}
+
+	/// Returns a tuple of the image's width and height.
+	pub fn dimensions(&self) -> (u32, u32) {
+		(self.width, self.height)
+	}
+
+	/// The colortype of this image.
+	pub fn colortype(&self) -> ColorType {
+		self.color
+	}
+}
+
+fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {
+	let mut codec = codec;
+
+	let pixels = try!(codec.read_image());
+	let color  = try!(codec.colortype());
+	let (w, h) = try!(codec.dimensions());
+
+	let im = Image {
+		pixels:  pixels,
+		width:   w,
+		height:  h,
+		color:   color,
+	};
+
+	Ok(im)
 }

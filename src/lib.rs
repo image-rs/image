@@ -10,8 +10,12 @@ extern crate collections;
 pub use ColorType = colortype::ColorType;
 
 pub use ImageDecoder = image::ImageDecoder;
-pub use ImageError = image::ImageError;
-pub use ImageResult = image::ImageResult;
+pub use ImageError   = image::ImageError;
+pub use ImageResult  = image::ImageResult;
+pub use ImageFormat  = image::ImageFormat;
+pub use image::{PNG, JPEG, GIF, WEBP, PPM};
+
+pub use Image = image::Image;
 
 pub use JPEGDecoder = jpeg::JPEGDecoder;
 pub use JPEGEncoder = jpeg::JPEGEncoder;

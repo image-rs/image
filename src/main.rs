@@ -1,19 +1,10 @@
-extern crate time;
 extern crate image;
 
 use std::os;
 use std::io::File;
-use std::io::MemReader;
 
-use image::ImageDecoder;
-
-use image::JPEGDecoder;
-use image::JPEGEncoder;
-use image::PNGDecoder;
-use image::PNGEncoder;
-use image::GIFDecoder;
-use image::PPMEncoder;
-use image::WebpDecoder;
+use image::Image;
+use image::{PNG, JPEG, GIF, WEBP, PPM};
 
 fn main() {
 	let file = if os::args().len() == 2 {
@@ -22,91 +13,37 @@ fn main() {
 		fail!("Please enter a file")
 	};
 
-	let mut fin = File::open(&Path::new(file.clone())).unwrap();
-	let buf = fin.read_to_end().unwrap();
+	let fin = File::open(&Path::new(file.clone())).unwrap();
 
-	let m = MemReader::new(buf);
-
-	let now = time::precise_time_ns();
-	let (out, w, h, c) = match file.as_slice().split('.').last() {
-		Some("jpg") | Some("jpeg") => {
-			let mut j = JPEGDecoder::new(m);
-
-			let a = j.read_image().unwrap();
-			let (b, c) = j.dimensions().unwrap();
-			let d = j.colortype().unwrap();
-
-			(a, b, c, d)
-		}
-		Some("png") => {
-			let mut p = PNGDecoder::new(m);
-
-			let a = p.read_image().unwrap();
-			let (b, c) = p.dimensions().unwrap();
-			let d = p.colortype().unwrap();
-
-			(a, b, c, d)
-		}
-		Some("gif") => {
-			let mut g = GIFDecoder::new(m);
-
-			//Decode first image only
-			//Call again to decode successive images
-			//Returns ImageEnd when done
-			let a = g.read_image().unwrap();
-			let (b, c) = g.dimensions().unwrap();
-			let d = g.colortype().unwrap();
-
-			(a, b, c, d)
-		}
-		Some("webp") => {
-			let mut w = WebpDecoder::new(m);
-			let a = w.read_image().unwrap();
-			let (b, c) = w.dimensions().unwrap();
-			let d = w.colortype().unwrap();
-
-			(a, b, c, d)
-
-		}
-		_ => fail!("unimplemented image extension")
+	let imagetype = match file.as_slice().split('.').last() {
+		Some("jpg") |
+		Some("jpeg") => JPEG,
+		Some("png")  => PNG,
+		Some("gif")  => GIF,
+		Some("webp") => WEBP,
+		_ 	     => fail!("unimplemented image extension")
 	};
-	let after = time::precise_time_ns();
 
-	println!("{0} x {1} pixels", w, h);
-	println!("{}", c);
-	println!("{} bytes", out.len());
-	println!("decoded in {} ms", (after - now) / (1000 * 1000));
+	let im = Image::load(fin, imagetype).unwrap();
 
-	let t = out.clone();
+	println!("dimensions {}", im.dimensions());
+	println!("{}", im.colortype());
+	println!("{} bytes", im.raw_pixels().len());
+
+	let t = im.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.jpg", os::args().as_slice()[1]))).unwrap();
-
-		let now = time::precise_time_ns();
-		let _ = JPEGEncoder::new(fout).encode(t.as_slice(), w, h, c);
-		let after = time::precise_time_ns();
-
-		println!("encoded jpeg in {} ms", (after - now) / (1000 * 1000));
+		let _    = t.save(fout, JPEG);
 	});
 
-	let t = out.clone();
+	let t = im.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.ppm", os::args().as_slice()[1]))).unwrap();
-
-		let now = time::precise_time_ns();
-		let _ = PPMEncoder::new(fout).encode(t.as_slice(), w, h, c);
-		let after = time::precise_time_ns();
-
-		println!("encoded ppm in {} ms", (after - now) / (1000 * 1000));
+		let _    = t.save(fout, PPM);
 	});
 
-	let t = out.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
-
-		let now = time::precise_time_ns();
-		let _ = PNGEncoder::new(fout).encode(t.as_slice(), w, h, c);
-		let after = time::precise_time_ns();
-
-		println!("encoded png in {} ms", (after - now) / (1000 * 1000));
+		let _    = im.save(fout, PNG);
 	});
 }

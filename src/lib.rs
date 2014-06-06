@@ -8,6 +8,11 @@ extern crate flate;
 extern crate collections;
 
 pub use ColorType = colortype::ColorType;
+pub use Grey = colortype::Grey;
+pub use RGB = colortype::RGB;
+pub use Palette = colortype::Palette;
+pub use GreyA = colortype::GreyA;
+pub use RGBA = colortype::RGBA;
 
 pub use ImageDecoder = image::ImageDecoder;
 pub use ImageError   = image::ImageError;

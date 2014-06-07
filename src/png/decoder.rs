@@ -224,14 +224,14 @@ impl<R: Reader> PNGDecoder<R> {
 					}
 
 					let d = io_try!(self.z.inner().r.read_exact(length as uint));
-					let _ = self.parse_ihdr(d);
+					try!(self.parse_ihdr(d));
 
 					self.state = HaveIHDR;
 				}
 
 				("PLTE", HaveIHDR) => {
 					let d = io_try!(self.z.inner().r.read_exact(length as uint));
-					let _ = self.parse_plte(d);
+					try!(self.parse_plte(d));
 					self.state = HavePLTE;
 				}
 
@@ -307,7 +307,10 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 			let _ = try!(self.read_metadata());
 		}
 
-		let filter  = io_try!(self.z.read_byte());
+		let filter_type = match FromPrimitive::from_u8(io_try!(self.z.read_byte())) {
+			Some(v) => v,
+			_ => return Err(image::FormatError)
+		};
 
 		let mut read = 0;
 		while read < self.rlength {
@@ -315,7 +318,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 			read += r;
 		}
 
-		unfilter(filter, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
+		unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
 		slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
 
 		if self.palette.is_some() {

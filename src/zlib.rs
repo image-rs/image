@@ -31,10 +31,10 @@ impl<R: Reader> ZlibDecoder<R> {
 		let _cinfo = cmf >> 4;
 
 		let flg = try!(self.inner().read_u8());
-		let fdict  = (flg & 0b10000) == 0;
+		let fdict  = (flg & 0b100000) != 0;
 		if fdict {
 			let _dictid = try!(self.inner().read_be_u32());
-			fail!("unimplemented")
+			fail!("invalid png: zlib detected fdict true")
 		}
 
 		assert!((cmf as u16 * 256 + flg as u16) % 31 == 0);

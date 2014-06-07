@@ -131,7 +131,7 @@ fn select_filter(rowlength: uint, bpp: uint, previous: &[u8], current_s: &mut [u
 	let mut method = 0;
 
 	for (i, current) in current_s.mut_chunks(rowlength).enumerate() {
-		filter(i as u8 + 1, bpp, previous, current);
+		filter(FromPrimitive::from_u8(i as u8 + 1).unwrap(), bpp, previous, current);
 
 		let this_sum = sum_abs_difference(current);
 		if this_sum < sum {

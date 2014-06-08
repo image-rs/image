@@ -1,6 +1,7 @@
 use std::io;
 use std::slice;
 
+use pixels;
 use colortype;
 use colortype::ColorType;
 
@@ -108,11 +109,10 @@ pub trait ImageDecoder {
         }
 }
 
-
 /// A Generic representation of an image
 #[deriving(Clone)]
 pub struct Image {
-	pixels:  Vec<u8>,
+	pixels:  pixels::PixelBuf,
 	width:   u32,
 	height:  u32,
 	color:   ColorType,
@@ -142,38 +142,41 @@ impl Image {
 		let r = match format {
 			PNG  => {
 				let mut p = png::PNGEncoder::new(w);
-				try!(p.encode(self.pixels.as_slice(),
+				try!(p.encode(self.raw_pixels().as_slice(),
 					      self.width,
 					      self.height,
 					      self.color))
 				Ok(())
 			}
+
 			PPM  => {
 				let mut p = ppm::PPMEncoder::new(w);
-				try!(p.encode(self.pixels.as_slice(),
+				try!(p.encode(self.raw_pixels().as_slice(),
 					      self.width,
 					      self.height,
 					      self.color))
 				Ok(())
 			}
+
 			JPEG => {
 				let mut j = jpeg::JPEGEncoder::new(w);
-				try!(j.encode(self.pixels.as_slice(),
+				try!(j.encode(self.raw_pixels().as_slice(),
 					      self.width,
 					      self.height,
 					      self.color))
 				Ok(())
 			}
+
 			_    => Err(UnsupportedError),
 		};
 
 		Ok(r)
 	}
 
-	/// Return a reference to the pixel buffer of this image.
+	/// Return the pixel buffer of this image.
 	/// Its interpretation is dependent on the image's ```ColorType```.
-	pub fn raw_pixels<'a>(&'a self) -> &'a [u8] {
-		self.pixels.as_slice()
+	pub fn raw_pixels(& self) -> Vec<u8> {
+		self.pixels.to_bytes()
 	}
 
 	/// Returns a tuple of the image's width and height.
@@ -185,14 +188,37 @@ impl Image {
 	pub fn colortype(&self) -> ColorType {
 		self.color
 	}
+
+	/// Return a grayscale version of this image.
+	pub fn grayscale(&self) -> Image {
+		let pixels = pixels::grayscale(&self.pixels);
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  colortype::Grey(8),
+		}
+	}
+
+	/// Invert the colors of this image.
+	/// This method operates inplace.
+	pub fn invert(&mut self) {
+		pixels::invert(&mut self.pixels);
+	}
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {
 	let mut codec = codec;
 
-	let pixels = try!(codec.read_image());
 	let color  = try!(codec.colortype());
+	let buf    = try!(codec.read_image());
 	let (w, h) = try!(codec.dimensions());
+
+	let pixels = match pixels::PixelBuf::from_bytes(buf, color) {
+		Some(p) => p,
+		None    => return Err(UnsupportedColor)
+	};
 
 	let im = Image {
 		pixels:  pixels,

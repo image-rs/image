@@ -44,3 +44,4 @@ mod transform;
 mod deflate;
 mod zlib;
 mod lzw;
+mod pixels;

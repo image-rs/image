@@ -392,10 +392,19 @@ impl<R: Reader> Reader for IDATReader<R> {
 		let mut start = 0;
 
 		while start < len {
-			while self.chunk_length == 0 {
+			let m = cmp::min(len - start, self.chunk_length as uint);
+
+			let slice = buf.mut_slice(start, start + m);
+			let r = try!(self.r.read(slice));
+
+			start += r;
+
+			self.chunk_length -= r as u32;
+			self.crc.update(slice.as_slice());
+
+			if self.chunk_length == 0 {
 				let chunk_crc = try!(self.r.read_be_u32());
 				let crc = self.crc.checksum();
-
 				if crc != chunk_crc {
 					return Err(io::standard_error(io::InvalidInput))
 				}
@@ -415,18 +424,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 					}
 				}
 			}
-
-			let m = cmp::min(len - start, self.chunk_length as uint);
-
-			let slice = buf.mut_slice(start, start + m);
-			let r = try!(self.r.read(slice));
-
-			start += r;
-
-			self.chunk_length -= r as u32;
-			self.crc.update(slice.as_slice());
 		}
-
 		Ok(start)
 	}
 }

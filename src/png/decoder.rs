@@ -430,37 +430,41 @@ impl<R: Reader> Reader for IDATReader<R> {
 #[cfg(test)]
 mod tests {
 	extern crate glob;
-    extern crate core;
+   	extern crate core;
 
-    use image::{Image, ImageResult, PNG};
+   	use image::{Image, ImageResult, PNG};
 	use std::io::{File};
-	
+
 	/// Filters the testsuite images for certain features
 	fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
 		let ret: Vec<Path>;
 		//"../testsuites/PngSuite-2013jan13/*.png"
 		let pattern = Path::new("..").join_many(
 			["testsuites", "PngSuite-2013jan13", "*.png"]);
+
 		let mut paths = glob::glob(pattern.as_str().unwrap())
 			.filter(|ref p| p.filename_str().unwrap().starts_with(feature))
 			.filter(|ref p| p.filename_str().unwrap().contains(color_type));
+
 		if test_interlaced {
 			ret = paths.collect();
 		} else {
 			ret = paths.filter(|ref p| !p.filename_str().unwrap().slice_from(2).contains("i")).collect();
 		}
+
 		assert!(ret.len() > 0) // fail if no testimages are available
 		ret
 	}
-	
+
 	fn open_img(path: &Path) -> ImageResult<Image> {
 		Image::load(File::open(path), PNG)
 	}
-	
+
 	#[test]
 	/// Test image filters
 	fn test_filters() {
 		let images = get_testimages("f", "", false);
+
 		for path in images.iter() {
 			assert!(match open_img(path) {
 				Ok(_) => true,
@@ -472,6 +476,7 @@ mod tests {
 	/// Test basic formats filters
 	fn test_basic() {
 		let images = get_testimages("b", "2c", false);
+
 		for path in images.iter() {
 			assert!(match open_img(path) {
 				Ok(_) => true,
@@ -479,11 +484,12 @@ mod tests {
 			})
 		}
 	}
-	
+
 	#[test]
 	/// Chunk ordering
 	fn test_chunk_ordering() {
 		let images = get_testimages("o", "", false);
+
 		for path in images.iter() {
 			assert!(match open_img(path) {
 				Ok(_) => { true },
@@ -498,6 +504,7 @@ mod tests {
 		let images = get_testimages("x", "", true);
 		let num_images = images.len();
 		let mut fails = 0;
+
 		for path in images.iter() {
 			match open_img(path) {
 				Ok(_) => println!("corrupted file {} did not fail", path.display()),
@@ -506,6 +513,7 @@ mod tests {
 				}
 			}
 		}
+
 		assert_eq!(num_images, fails)
 	}
 }

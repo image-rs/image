@@ -1,14 +1,19 @@
+//! Types and functions for dealing with pixels.
+
 use std::mem;
 use std::num::Bounded;
+use std::default::Default;
 
 use colortype;
 use colortype::ColorType;
 
+///A type to hold a grayscale pixel
 #[packed]
-#[deriving(PartialEq, Clone, Show)]
+#[deriving(Default, PartialEq, Clone, Show, Copy)]
 pub struct Luma<T>(pub T);
 
-impl<T: Primitive + NumCast + Clone + Bounded> Luma<T> {
+impl<T: Primitive> Luma<T> {
+	/// Returns the channels of this pixel as a tuple
 	pub fn channel(&self) -> T {
 		match *self {
 			Luma(l) => l
@@ -16,17 +21,20 @@ impl<T: Primitive + NumCast + Clone + Bounded> Luma<T> {
 	}
 }
 
+/// A type to hold a grayscale pixel with an alha channel
 #[packed]
-#[deriving(PartialEq, Clone, Show)]
+#[deriving(Default, PartialEq, Clone, Show, Copy)]
 pub struct LumaA<T>(pub T, pub T);
 
-impl<T: Primitive + NumCast + Clone + Bounded> LumaA<T> {
+impl<T: Primitive> LumaA<T> {
+	/// Returns the channels of this pixel as a tuple
 	pub fn channels(&self) -> (T, T) {
 		match *self {
 			LumaA(l, a) => (l, a)
 		}
 	}
 
+	/// Returns the alpha channel of this pixel
 	pub fn alpha(&self) -> T {
 		match *self {
 			LumaA(_, a) => a
@@ -34,11 +42,13 @@ impl<T: Primitive + NumCast + Clone + Bounded> LumaA<T> {
 	}
 }
 
+/// A type to hold an RGB pixel
 #[packed]
-#[deriving(PartialEq, Clone, Show)]
+#[deriving(Default, PartialEq, Clone, Show, Copy)]
 pub struct Rgb<T>(pub T, pub T, pub T);
 
-impl<T: Primitive + NumCast + Clone + Bounded> Rgb<T> {
+impl<T: Primitive> Rgb<T> {
+	/// Returns the channels of this pixel as a tuple
 	pub fn channels(&self) -> (T, T, T) {
 		match *self {
 			Rgb(r, g, b) => (r, g, b)
@@ -46,17 +56,20 @@ impl<T: Primitive + NumCast + Clone + Bounded> Rgb<T> {
 	}
 }
 
+/// A type to hold an RGB pixel with an alpha channel
 #[packed]
-#[deriving(PartialEq, Clone, Show)]
+#[deriving(Default, PartialEq, Clone, Show, Copy)]
 pub struct Rgba<T>(pub T, pub T, pub T, pub T);
 
-impl<T: Primitive + NumCast + Clone + Bounded> Rgba<T> {
+impl<T: Primitive> Rgba<T> {
+	/// Returns the channels of this pixel as a tuple
 	pub fn channels(&self) -> (T, T, T, T) {
 		match *self {
 			Rgba(r, g, b, a) => (r, g, b, a)
 		}
 	}
 
+	/// Returns the alpha channel of this pixel
 	pub fn alpha(&self) -> T {
 		match *self {
 			Rgba(_, _, _, a) => a
@@ -64,15 +77,33 @@ impl<T: Primitive + NumCast + Clone + Bounded> Rgba<T> {
 	}
 }
 
-pub trait ConvertColor<T> {
+/// A trait that all pixels implement.
+pub trait Pixel<T> {
+	/// Convert this pixel to RGB
 	fn to_rgb(&self) -> Rgb<T>;
+
+	/// Convert this pixel to RGB with an alpha channel
 	fn to_rgba(&self) -> Rgba<T>;
+
+	/// Convert this pixel to luma
 	fn to_luma(&self) -> Luma<T>;
+
+	/// Convert this pixel to luma with an alpha channel
 	fn to_luma_alpha(&self) -> LumaA<T>;
+
+	/// Invert the color of this pixel
 	fn invert(&mut self);
+
+	/// Apply the function ```f``` to each channel of this pixel.
+	/// If there is an alpha channel it is not changed.
+	fn map(&self, f: |T| -> T) -> Self;
+
+	/// Apply the function ```f``` to each channel of this pixel and
+	/// ```other``` pairwise.
+	fn map2(&self, other: Self, f: |T, T| -> T) -> Self;
 }
 
-impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Rgb<T> {
+impl<T: Primitive> Pixel<T> for Rgb<T> {
 	fn to_luma(&self) -> Luma<T> {
 		let (r, g, b) = self.channels();
 
@@ -110,9 +141,30 @@ impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Rgb<T> {
 
 		*self = Rgb(r1, g1, b1)
 	}
+
+	fn map(&self, f: |a: T| -> T) -> Rgb<T> {
+		let (r, g, b) = self.channels();
+
+		let r1 = f(r);
+		let g1 = f(g);
+		let b1 = f(b);
+
+		Rgb(r1, g1, b1)
+	}
+
+	fn map2(&self, other: Rgb<T>, f: |a: T, b: T| -> T) -> Rgb<T> {
+		let (r1, g1, b1) = self.channels();
+		let (r2, g2, b2) = other.channels();
+
+		let r3 = f(r1, r2);
+		let g3 = f(g1, g2);
+		let b3 = f(b1, b2);
+
+		Rgb(r3, g3, b3)
+	}
 }
 
-impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Rgba<T> {
+impl<T: Primitive> Pixel<T> for Rgba<T> {
 	fn to_luma(&self) -> Luma<T> {
 		self.to_rgb().to_luma()
 	}
@@ -142,9 +194,30 @@ impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Rgba<T> {
 
 		*self = Rgba(max - r, max - g, max - b, a)
 	}
+
+	fn map(&self, f: |a: T| -> T) -> Rgba<T> {
+		let (r, g, b, a) = self.channels();
+
+		let r1 = f(r);
+		let g1 = f(g);
+		let b1 = f(b);
+
+		Rgba(r1, g1, b1, a)
+	}
+
+	fn map2(&self, other: Rgba<T>, f: |a: T, b: T| -> T) -> Rgba<T> {
+		let (r1, g1, b1, a1) = self.channels();
+		let (r2, g2, b2, _) = other.channels();
+
+		let r3 = f(r1, r2);
+		let g3 = f(g1, g2);
+		let b3 = f(b1, b2);
+
+		Rgba(r3, g3, b3, a1)
+	}
 }
 
-impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Luma<T> {
+impl<T: Primitive> Pixel<T> for Luma<T> {
 	fn to_luma(&self) -> Luma<T> {
 		self.clone()
 	}
@@ -175,9 +248,25 @@ impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for Luma<T> {
 
 		*self = Luma(l1)
 	}
+
+	fn map(&self, f: |a: T| -> T) -> Luma<T> {
+		let l  = self.channel();
+		let l1 = f(l);
+
+		Luma(l1)
+	}
+
+	fn map2(&self, other: Luma<T>, f: |a: T, b: T| -> T) -> Luma<T> {
+		let l1 = self.channel();
+		let l2 = other.channel();
+
+		let l3 = f(l1, l2);
+
+		Luma(l3)
+	}
 }
 
-impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for LumaA<T> {
+impl<T: Primitive> Pixel<T> for LumaA<T> {
 	fn to_luma(&self) -> Luma<T> {
 		let (l, _) = self.channels();
 		Luma(l)
@@ -210,8 +299,26 @@ impl<T: Primitive + NumCast + Clone + Bounded> ConvertColor<T> for LumaA<T> {
 
 		*self = LumaA(max - l, a)
 	}
+
+	fn map(&self, f: |a: T| -> T) -> LumaA<T> {
+		let (l, a) = self.channels();
+
+		let l1 = f(l);
+
+		LumaA(l1, a)
+	}
+
+	fn map2(&self, other: LumaA<T>, f: |a: T, b: T| -> T) -> LumaA<T> {
+		let (l1, a1) = self.channels();
+		let (l2, _)  = other.channels();
+
+		let l3 = f(l1, l2);
+
+		LumaA(l3, a1)
+	}
 }
 
+/// An abstraction over a vector of pixel types
 #[deriving(Clone, Show, PartialEq)]
 pub enum PixelBuf {
 	Luma8(Vec<Luma<u8>>),
@@ -228,16 +335,19 @@ pub enum PixelBuf {
 }
 
 impl PixelBuf {
+	/// Convert from a vector of bytes to a ```PixelBuf```
+	/// Returns ```None``` if the conversion cannot be done.
 	pub fn from_bytes(buf: Vec<u8>, color: ColorType) -> Option<PixelBuf> {
-		// This can be done safely by using iterators,
-		// but requires a copy of ```buf``` to be made,
-		// whereas mem::transmute() operates inplace and
-		// elides traversing the vector.
+		// This can be done safely by using iterators:
 		//
 		// buf.as_slice()
 		//    .chunks(3)
 		//    .map(|a| Rgb::<u8>(a[0], a[1], a[2]))
 		//    .collect();
+		//
+		// but requires a copy of ```buf``` to be made,
+		// whereas mem::transmute() operates inplace and
+		// elides traversing the vector.
 
 		match color {
 			colortype::RGB(8) => {
@@ -305,6 +415,7 @@ impl PixelBuf {
 		}
 	}
 
+	/// Convert from a ```PixelBuf``` to a vector of bytes
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut r = Vec::new();
 
@@ -349,6 +460,7 @@ impl PixelBuf {
 	}
 }
 
+/// Convert the ```PixelBuf``` pixels to graysacle
 pub fn grayscale(pixels: &PixelBuf) -> PixelBuf {
 	match *pixels {
 		Luma8(_)      => pixels.clone(),
@@ -370,19 +482,65 @@ pub fn grayscale(pixels: &PixelBuf) -> PixelBuf {
 	}
 }
 
-fn invert_pixels<A: Primitive + NumCast + Clone + Bounded, T: ConvertColor<A>>(pixels: &mut [T]) {
+fn invert_pixels<A: Primitive, T: Pixel<A>>(pixels: &mut [T]) {
 	for i in pixels.mut_iter() {
 		i.invert();
 	}
 }
 
-//Todo:: consider implementing a generic map function
-//that operates over T: ConvertColor or a future T: Pixel trait
+fn resize_nearest<A: Primitive, T: Pixel<A> + Default + Clone>(
+	pixels:  &[T],
+	width:   u32,
+	height:  u32,
+	nwidth:  u32,
+	nheight: u32) -> Vec<T> {
+
+
+	let d: T = Default::default();
+	let mut new_pixels = Vec::from_elem(nwidth as uint * nheight as uint, d.clone());
+
+	let scwidth  = nwidth as f64 / width as f64;
+	let scheight = nheight as f64 / height as f64;
+
+	for y in range(0, nheight as uint) {
+		for x in range(0, nwidth as uint) {
+			let p = y * nwidth as uint + x;
+			let n = (y as f64 / scheight) as uint * width as uint +
+				(x as f64 / scwidth) as uint;
+
+			new_pixels.as_mut_slice()[p] = pixels[n].clone();
+		}
+	}
+
+	new_pixels
+}
+
+//TODO: consider implementing a generic map function
+//that operates over T: Pixel trait
+
+/// Invert the pixels in ```PixelBuf``` pixels
 pub fn invert(pixels: &mut PixelBuf) {
 	match *pixels {
 		Luma8(ref mut p)  => invert_pixels(p.as_mut_slice()),
 		LumaA8(ref mut p) => invert_pixels(p.as_mut_slice()),
 		Rgb8(ref mut p)   => invert_pixels(p.as_mut_slice()),
 		Rgba8(ref mut p)  => invert_pixels(p.as_mut_slice()),
+	}
+}
+
+/// Resize this ```PixelBuf``` pixels.
+/// ```width``` and ```height``` are the original dimensions.
+/// ```nwidth``` and ```nheight``` are the new dimensions.
+pub fn resize(pixels:  &PixelBuf,
+	      width:   u32,
+	      height:  u32,
+	      nwidth:  u32,
+	      nheight: u32) -> PixelBuf {
+
+	match *pixels {
+		Luma8(ref p)  => Luma8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
+		LumaA8(ref p) => LumaA8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
+		Rgb8(ref p)   => Rgb8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
+		Rgba8(ref p)  => Rgba8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
 	}
 }

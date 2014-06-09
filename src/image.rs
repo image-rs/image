@@ -206,6 +206,24 @@ impl Image {
 	pub fn invert(&mut self) {
 		pixels::invert(&mut self.pixels);
 	}
+
+	/// Resize this image using nearest neighnour algorithm.
+	/// Returns a new image. Does not preserve aspect ratio.
+	///```width``` and ```height``` are the new image's dimensions
+	pub fn resize(&self, width: u32, height: u32) -> Image {
+		let pixels = pixels::resize(&self.pixels,
+					    self.width,
+					    self.height,
+					    width,
+					    height);
+
+		Image {
+			pixels: pixels,
+			width:  width,
+			height: height,
+			color:  self.color
+		}
+	}
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {

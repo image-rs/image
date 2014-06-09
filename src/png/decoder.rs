@@ -212,10 +212,8 @@ impl<R: Reader> PNGDecoder<R> {
 
 			self.crc.update(chunk);
 
-			let s = {
-				let a = str::from_utf8_owned(self.chunk_type.clone());
-				a.unwrap()
-			};
+			let s =  str::from_utf8_owned(self.chunk_type.clone())
+				.unwrap_or(String::from_str(""));
 
 			match (s.as_slice(), self.state) {
 				("IHDR", HaveSignature) => {

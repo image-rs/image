@@ -42,8 +42,10 @@ fn main() {
 		let _    = t.save(fout, PPM);
 	});
 
+	let t = im.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
-		let _    = im.save(fout, PNG);
+		let g = t.resize(800, 600, image::Lanczos3);
+		let _    = g.save(fout, PNG);
 	});
 }

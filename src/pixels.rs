@@ -1,9 +1,10 @@
 //! Types and functions for dealing with pixels.
 
 use std::mem;
+use std::num::cast;
 use std::num::Bounded;
-use std::default::Default;
 
+use sample;
 use colortype;
 use colortype::ColorType;
 
@@ -79,6 +80,7 @@ impl<T: Primitive> Rgba<T> {
 
 /// A trait that all pixels implement.
 pub trait Pixel<T> {
+	fn from_channels(&self, a: T, b: T, c: T, d: T) -> Self;
 	/// Convert this pixel to RGB
 	fn to_rgb(&self) -> Rgb<T>;
 
@@ -101,9 +103,17 @@ pub trait Pixel<T> {
 	/// Apply the function ```f``` to each channel of this pixel and
 	/// ```other``` pairwise.
 	fn map2(&self, other: Self, f: |T, T| -> T) -> Self;
+
+	/// Returns the channels of this pixes as a 4 tuple. If the pixel
+	/// has less than 4 channels the remainder is filled with the maximum value
+	fn channels4(&self) -> (T, T, T, T);
 }
 
 impl<T: Primitive> Pixel<T> for Rgb<T> {
+	fn from_channels(&self, a: T, b: T, c: T, _: T) -> Rgb<T> {
+		Rgb(a, b, c)
+	}
+
 	fn to_luma(&self) -> Luma<T> {
 		let (r, g, b) = self.channels();
 
@@ -111,7 +121,7 @@ impl<T: Primitive> Pixel<T> for Rgb<T> {
 			0.7154f32 * g.to_f32().unwrap() +
 			0.0721f32 * b.to_f32().unwrap();
 
-		Luma(NumCast::from(l).unwrap())
+		Luma(cast::<f32, T>(l).unwrap())
 	}
 
 	fn to_luma_alpha(&self) -> LumaA<T> {
@@ -162,9 +172,19 @@ impl<T: Primitive> Pixel<T> for Rgb<T> {
 
 		Rgb(r3, g3, b3)
 	}
+
+	fn channels4(&self) ->(T, T, T, T) {
+		let (r, g, b) = self.channels();
+
+		(r, g, b, Bounded::max_value())
+	}
 }
 
 impl<T: Primitive> Pixel<T> for Rgba<T> {
+	fn from_channels(&self, a: T, b: T, c: T, d: T) -> Rgba<T> {
+		Rgba(a, b, c, d)
+	}
+
 	fn to_luma(&self) -> Luma<T> {
 		self.to_rgb().to_luma()
 	}
@@ -215,9 +235,19 @@ impl<T: Primitive> Pixel<T> for Rgba<T> {
 
 		Rgba(r3, g3, b3, a1)
 	}
+
+	fn channels4(&self) ->(T, T, T, T) {
+		let (r, g, b, a) = self.channels();
+
+		(r, g, b, a)
+	}
 }
 
 impl<T: Primitive> Pixel<T> for Luma<T> {
+	fn from_channels(&self, a: T, _: T, _: T, _: T) -> Luma<T> {
+		Luma(a)
+	}
+
 	fn to_luma(&self) -> Luma<T> {
 		self.clone()
 	}
@@ -264,9 +294,20 @@ impl<T: Primitive> Pixel<T> for Luma<T> {
 
 		Luma(l3)
 	}
+
+	fn channels4(&self) ->(T, T, T, T) {
+		let l = self.channel();
+		let max: T = Bounded::max_value();
+
+		(l, max.clone(), max.clone(), max.clone())
+	}
 }
 
 impl<T: Primitive> Pixel<T> for LumaA<T> {
+	fn from_channels(&self, a: T, b: T, _: T, _: T) -> LumaA<T> {
+		LumaA(a, b)
+	}
+
 	fn to_luma(&self) -> Luma<T> {
 		let (l, _) = self.channels();
 		Luma(l)
@@ -315,6 +356,13 @@ impl<T: Primitive> Pixel<T> for LumaA<T> {
 		let l3 = f(l1, l2);
 
 		LumaA(l3, a1)
+	}
+
+	fn channels4(&self) ->(T, T, T, T) {
+		let (l, a) = self.channels();
+		let max: T = Bounded::max_value();
+
+		(l, a, max.clone(), max.clone())
 	}
 }
 
@@ -488,33 +536,6 @@ fn invert_pixels<A: Primitive, T: Pixel<A>>(pixels: &mut [T]) {
 	}
 }
 
-fn resize_nearest<A: Primitive, T: Pixel<A> + Default + Clone>(
-	pixels:  &[T],
-	width:   u32,
-	height:  u32,
-	nwidth:  u32,
-	nheight: u32) -> Vec<T> {
-
-
-	let d: T = Default::default();
-	let mut new_pixels = Vec::from_elem(nwidth as uint * nheight as uint, d.clone());
-
-	let scwidth  = nwidth as f64 / width as f64;
-	let scheight = nheight as f64 / height as f64;
-
-	for y in range(0, nheight as uint) {
-		for x in range(0, nwidth as uint) {
-			let p = y * nwidth as uint + x;
-			let n = (y as f64 / scheight) as uint * width as uint +
-				(x as f64 / scwidth) as uint;
-
-			new_pixels.as_mut_slice()[p] = pixels[n].clone();
-		}
-	}
-
-	new_pixels
-}
-
 //TODO: consider implementing a generic map function
 //that operates over T: Pixel trait
 
@@ -535,12 +556,20 @@ pub fn resize(pixels:  &PixelBuf,
 	      width:   u32,
 	      height:  u32,
 	      nwidth:  u32,
-	      nheight: u32) -> PixelBuf {
+	      nheight: u32,
+	      filter:  sample::FilterType) -> PixelBuf {
 
-	match *pixels {
-		Luma8(ref p)  => Luma8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
-		LumaA8(ref p) => LumaA8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
-		Rgb8(ref p)   => Rgb8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
-		Rgba8(ref p)  => Rgba8(resize_nearest(p.as_slice(), width, height, nwidth, nheight)),
+	let tmp = match *pixels {
+		Luma8(ref p)  => Luma8(sample::vertical_sample(p.as_slice(), height, width, nheight, filter)),
+		LumaA8(ref p) => LumaA8(sample::vertical_sample(p.as_slice(), height, width, nheight, filter)),
+		Rgb8(ref p)   => Rgb8(sample::vertical_sample(p.as_slice(), height, width, nheight, filter)),
+		Rgba8(ref p)  => Rgba8(sample::vertical_sample(p.as_slice(), height, width, nheight, filter)),
+	};
+
+	match tmp {
+		Luma8(ref p)  => Luma8(sample::horizontal_sample(p.as_slice(), width, nheight, nwidth, filter)),
+		LumaA8(ref p) => LumaA8(sample::horizontal_sample(p.as_slice(), width, nheight, nwidth, filter)),
+		Rgb8(ref p)   => Rgb8(sample::horizontal_sample(p.as_slice(), width, nheight, nwidth, filter)),
+		Rgba8(ref p)  => Rgba8(sample::horizontal_sample(p.as_slice(), width, nheight, nwidth, filter)),
 	}
 }

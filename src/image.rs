@@ -257,6 +257,22 @@ impl Image {
 			color:  self.color
 		}
 	}
+
+	/// Perfomrs a Gausian blur on this image.
+	/// ```sigma``` is a meausure of how much to blur by.
+	pub fn blur(&self, sigma: f32) -> Image {
+		let pixels = pixels::blur(&self.pixels,
+					  self.width,
+					  self.height,
+					  sigma);
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {

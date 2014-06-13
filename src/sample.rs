@@ -26,9 +26,9 @@ pub enum FilterType {
 	Lanczos3
 }
 
-struct Filter {
-	kernel:  fn(f32) -> f32,
-	support: f32
+pub struct Filter<'a> {
+	pub kernel:  |f32|: 'a -> f32,
+	pub support: f32
 }
 
 fn sinc(t: f32) -> f32 {
@@ -68,23 +68,24 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 	k / 6.0
 }
 
-fn gaussian(x: f32, r: f32) -> f32 {
+pub fn gaussian(x: f32, r: f32) -> f32 {
+	((2.0 * f32::consts::PI).sqrt() * r).recip() *
 	(-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
-fn lanczos3_kernel(x: f32) -> f32 {
+pub fn lanczos3_kernel(x: f32) -> f32 {
 	lanczos(x, 3.0)
 }
 
-fn gaussian_kernel(x: f32) -> f32 {
+pub fn gaussian_kernel(x: f32) -> f32 {
 	gaussian(x, 1.0)
 }
 
-fn catmullrom_kernel(x: f32) -> f32 {
+pub fn catmullrom_kernel(x: f32) -> f32 {
 	bc_cubic_spline(x, 0.0, 0.5)
 }
 
-fn triangle_kernel(x: f32) -> f32 {
+pub fn triangle_kernel(x: f32) -> f32 {
 	if x.abs() < 1.0 {
 		1.0 - x
 	} else {
@@ -92,38 +93,13 @@ fn triangle_kernel(x: f32) -> f32 {
 	}
 }
 
-fn box_kernel(x: f32) -> f32 {
+pub fn box_kernel(x: f32) -> f32 {
 	if x.abs() <= 0.5 {
 		1.0
 	} else {
 		0.0
 	}
 }
-
-static NearestFilter: Filter = Filter {
-	kernel:  box_kernel,
-	support: 0.5
-};
-
-static TriangleFilter: Filter = Filter {
-	kernel:  triangle_kernel,
-	support: 1.0
-};
-
-static CatmullRomFilter: Filter = Filter {
-	kernel:  catmullrom_kernel,
-	support: 2.0
-};
-
-static GaussianFilter: Filter = Filter {
-	kernel:  gaussian_kernel,
-	support: 3.0
-};
-
-static Lanczos3Filter: Filter = Filter {
-	kernel:  lanczos3_kernel,
-	support: 3.0
-};
 
 fn clamp<N: Num + PartialOrd>(a: N, min: N, max: N) -> N {
 	if a > max { max }
@@ -136,16 +112,9 @@ pub fn horizontal_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	width:  u32,
 	height: u32,
 	nwidth: u32,
-	filter: FilterType) -> Vec<T> {
+	method: Filter) -> Vec<T> {
 
-	let method = match filter {
-		Nearest    => NearestFilter,
-		Triangle   => TriangleFilter,
-		CatmullRom => CatmullRomFilter,
-		Gaussian   => GaussianFilter,
-		Lanczos3   => Lanczos3Filter,
-	};
-
+	let method = &mut method;
 	let d: T = Default::default();
 
 	let mut vec = Vec::from_elem(nwidth as uint * height as uint, d.clone());
@@ -168,16 +137,9 @@ pub fn vertical_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	height:  u32,
 	width:   u32,
 	nheight: u32,
-	filter:  FilterType) -> Vec<T> {
+	method:  Filter) -> Vec<T> {
 
-	let method = match filter {
-		Nearest    => NearestFilter,
-		Triangle   => TriangleFilter,
-		CatmullRom => CatmullRomFilter,
-		Gaussian   => GaussianFilter,
-		Lanczos3   => Lanczos3Filter,
-	};
-
+	let method = &mut method;
 	let d: T = Default::default();
 
 	let mut vec = Vec::from_elem(width as uint * nheight as uint, d.clone());
@@ -199,7 +161,7 @@ fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 	outrow: &mut [T],
 	inlen:  u32,
 	outlen: u32,
-	filter: Filter,
+	filter: &mut Filter,
 	stride: uint) {
 
 	let max: P = Bounded::max_value();

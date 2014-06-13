@@ -45,7 +45,7 @@ fn main() {
 	let t = im.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
-		let g = t.resize(800, 600, image::Lanczos3);
+		let g = t.resize(1200, 1200, image::CatmullRom);
 		let _    = g.save(fout, PNG);
 	});
 }

@@ -659,41 +659,4 @@ pub fn blur(pixels:  &PixelBuf,
 		Rgb8(ref p)   => Rgb8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
 		Rgba8(ref p)  => Rgba8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
 	}
-}/// Performs a Gausian blur on this ```Pixelbuf```.
-/// ```width``` and ```height``` are the dimensions of the buffer.
-/// ```sigma``` is a meausure of how much to blur by.
-pub fn blur(pixels:  &PixelBuf,
-	    width:   u32,
-	    height:  u32,
-	    sigma:   f32) -> PixelBuf {
-
-	let sigma = if sigma < 0.0 {
-		1.0
-	} else {
-		sigma
-	};
-
-	let method = sample::Filter {
-		kernel:  |x| sample::gaussian(x, sigma),
-		support: 2.0 * sigma
-	};
-
-	let tmp = match *pixels {
-		Luma8(ref p)  => Luma8(sample::vertical_sample(p.as_slice(), height, width, height, method)),
-		LumaA8(ref p) => LumaA8(sample::vertical_sample(p.as_slice(), height, width, height, method)),
-		Rgb8(ref p)   => Rgb8(sample::vertical_sample(p.as_slice(), height, width, height, method)),
-		Rgba8(ref p)  => Rgba8(sample::vertical_sample(p.as_slice(), height, width, height, method)),
-	};
-
-	let method = sample::Filter {
-		kernel:  |x| sample::gaussian(x, sigma),
-		support: 2.0 * sigma
-	};
-
-	match tmp {
-		Luma8(ref p)  => Luma8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
-		LumaA8(ref p) => LumaA8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
-		Rgb8(ref p)   => Rgb8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
-		Rgba8(ref p)  => Rgba8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
-	}
 }

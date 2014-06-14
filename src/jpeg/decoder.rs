@@ -304,7 +304,8 @@ impl<R: Reader>JPEGDecoder<R> {
 
 		self.padded_width = 8 * ((self.width as uint + 7) / 8);
 
-		self.read_frame_components(self.num_components)
+        let num_components = self.num_components;
+		self.read_frame_components(num_components)
 	}
 
 	fn read_frame_components(&mut self, n: u8) -> ImageResult<()> {

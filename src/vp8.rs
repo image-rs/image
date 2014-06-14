@@ -1070,7 +1070,8 @@ impl<R: Reader> VP8Decoder<R> {
 		}
 
 		self.num_partitions = 1 << self.b.read_literal(2) as u8;
-		let _ = try!(self.init_partitions(self.num_partitions as uint));
+        let num_partitions = self.num_partitions as uint;
+		let _ = try!(self.init_partitions(num_partitions));
 
 		self.read_quantization_indices();
 

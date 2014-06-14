@@ -112,7 +112,7 @@ pub fn horizontal_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	width:  u32,
 	height: u32,
 	nwidth: u32,
-	method: Filter) -> Vec<T> {
+	mut method: Filter) -> Vec<T> {
 
 	let method = &mut method;
 	let d: T = Default::default();
@@ -137,7 +137,7 @@ pub fn vertical_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	height:  u32,
 	width:   u32,
 	nheight: u32,
-	method:  Filter) -> Vec<T> {
+	mut method:  Filter) -> Vec<T> {
 
 	let method = &mut method;
 	let d: T = Default::default();

@@ -292,6 +292,18 @@ impl Image {
 			color:  self.color
 		}
 	}
+
+	/// Filters this image with the specified 3x3 kernel.
+	pub fn filter3x3(&self, kernel: &[f32]) -> Image {
+		let pixels = pixels::filter3x3(&self.pixels, self.width, self.height, kernel);
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {

@@ -724,3 +724,21 @@ pub fn unsharpen(pixels:    &PixelBuf,
 
 	buf
 }
+
+/// Filters the pixelbuf with the specified 3x3 kernel.
+pub fn filter3x3(pixels:  &PixelBuf,
+	         width:   u32,
+	         height:  u32,
+	         kernel:  &[f32]) -> PixelBuf {
+
+	if kernel.len() != 9 {
+		return pixels.clone()
+	}
+
+	match *pixels {
+		Luma8(ref p)  => Luma8(sample::filter_3x3(p.as_slice(), width, height, kernel)),
+		LumaA8(ref p) => LumaA8(sample::filter_3x3(p.as_slice(), width, height, kernel)),
+		Rgb8(ref p)   => Rgb8(sample::filter_3x3(p.as_slice(), width, height, kernel)),
+		Rgba8(ref p)  => Rgba8(sample::filter_3x3(p.as_slice(), width, height, kernel)),
+	}
+}

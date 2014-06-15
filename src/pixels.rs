@@ -660,3 +660,67 @@ pub fn blur(pixels:  &PixelBuf,
 		Rgba8(ref p)  => Rgba8(sample::horizontal_sample(p.as_slice(), width, height, width, method)),
 	}
 }
+
+fn clamp<N: Num + PartialOrd>(a: N, min: N, max: N) -> N {
+	if a > max { max }
+	else if a < min { min }
+	else { a }
+}
+
+fn subtract_pixels<A: Primitive, T: Pixel<A> + Clone>(pixels: &[T], blurred: &mut [T], threshold: i32) {
+	let max: A = Bounded::max_value();
+
+	for (p, b) in pixels.iter().zip(blurred.mut_iter()) {
+		let a = p.map2(b.clone(), |c, d| {
+			let ic = cast::<A, i32>(c).unwrap();
+			let id = cast::<A, i32>(d).unwrap();
+
+			let diff = (ic - id).abs();
+
+			if diff > threshold {
+				let e = clamp(ic + diff, 0, cast::<A, i32>(max).unwrap());
+
+				cast::<i32, A>(e).unwrap()
+			} else {
+				c
+			}
+		});
+
+		*b = a;
+	}
+}
+
+/// Performs an unsharpen mask on ```pixels```
+/// ```sigma``` is the amount to blur the image by.
+/// ```threshold``` is a control of how much to sharpen.
+/// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+pub fn unsharpen(pixels:    &PixelBuf,
+	    	 width:     u32,
+	    	 height:    u32,
+	    	 sigma:     f32,
+	    	 threshold: i32) -> PixelBuf {
+
+	let mut buf = blur(pixels, width, height, sigma);
+
+	{
+		let blurred = &mut buf;
+
+		match (pixels, blurred) {
+			(&Luma8(ref p), &Luma8(ref mut b)) =>
+				subtract_pixels(p.as_slice(), b.as_mut_slice(), threshold),
+
+			(&LumaA8(ref p), &LumaA8(ref mut b)) =>
+				subtract_pixels(p.as_slice(), b.as_mut_slice(), threshold),
+
+			(&Rgb8(ref p), &Rgb8(ref mut b)) =>
+				subtract_pixels(p.as_slice(), b.as_mut_slice(), threshold),
+
+			(&Rgba8(ref p), &Rgba8(ref mut b)) =>
+				subtract_pixels(p.as_slice(), b.as_mut_slice(), threshold),
+
+			(_, _) => fail!("blur operation returned different pixel types")
+		}
+	}
+
+	buf
+}

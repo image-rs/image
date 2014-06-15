@@ -273,6 +273,25 @@ impl Image {
 			color:  self.color
 		}
 	}
+
+	/// Performs an unsharpen mask on ```pixels```
+	/// ```sigma``` is the amount to blur the image by.
+	/// ```threshold``` is a control of how much to sharpen.
+	/// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+	pub fn unsharpen(&self, sigma: f32, threshold: i32) -> Image {
+		let pixels = pixels::unsharpen(&self.pixels,
+					       self.width,
+					       self.height,
+					       sigma,
+					       threshold);
+
+	    	Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {

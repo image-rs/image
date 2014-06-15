@@ -225,3 +225,75 @@ fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 							  cast::<f32, P>(clamp(t4, 0.0, max)).unwrap());
 	}
 }
+
+pub fn filter_3x3<P: Primitive, T: Pixel<P> + Default + Clone>(
+	pixels: &[T],
+	width:  u32,
+	height: u32,
+	kernel: &[f32]) -> Vec<T> {
+
+	let taps = [
+		-(width as i64 - 1),
+		-(width as i64),
+		-(width as i64 + 1),
+        	-1,
+        	0,
+        	1,
+        	width as i64 - 1,
+        	width as i64,
+        	width as i64 + 1
+        ];
+
+        let d: T = Default::default();
+	let mut out = Vec::from_elem(width as uint * height as uint, d.clone());
+
+        let max: P = Bounded::max_value();
+	let max = cast::<P, f32>(max).unwrap();
+
+	let sum = kernel.iter().fold(0.0, |a, f| a + *f);
+	let sum = if sum == 0.0 { 1.0 }
+		  else { sum };
+
+	for y in range(1, height as uint - 1) {
+		for x in range(1, width as uint - 1) {
+			let index = (y * width as uint) + x;
+
+			let mut t1 = 0.0;
+			let mut t2 = 0.0;
+			let mut t3 = 0.0;
+			let mut t4 = 0.0;
+
+			for (&k, &tap) in kernel.iter().zip(taps.iter()) {
+				let p = pixels[(index as i64 + tap) as uint].clone();
+
+				let (k1, k2, k3, k4) = p.channels4();
+
+				let (a, b, c, d) = (cast::<P, f32>(k1).unwrap(),
+					    	    cast::<P, f32>(k2).unwrap(),
+					    	    cast::<P, f32>(k3).unwrap(),
+					    	    cast::<P, f32>(k4).unwrap());
+
+				let (a1, b1, c1, d1) = (a * k, b * k, c * k, d * k);
+
+				t1 += a1;
+				t2 += b1;
+				t3 += c1;
+				t4 += d1;
+			}
+
+			t1 /= sum;
+			t2 /= sum;
+			t3 /= sum;
+			t4 /= sum;
+
+			let tmp: T = Default::default();
+
+			out.as_mut_slice()[index] = tmp.from_channels(cast::<f32, P>(clamp(t1, 0.0, max)).unwrap(),
+							              cast::<f32, P>(clamp(t2, 0.0, max)).unwrap(),
+							              cast::<f32, P>(clamp(t3, 0.0, max)).unwrap(),
+							              cast::<f32, P>(clamp(t4, 0.0, max)).unwrap());
+		}
+	}
+
+	out
+}

@@ -51,8 +51,12 @@ fn main() {
 
 	let t = im.clone();
 	spawn(proc() {
-		let fout = File::create(&Path::new(format!("{}2.png", os::args().as_slice()[1]))).unwrap();
-		let g = t.unsharpen(1.0, 3);
+		let fout = File::create(&Path::new(format!("{}3.png", os::args().as_slice()[1]))).unwrap();
+
+		let f = &[-1.0, -1.0, -1.0, -1.0, 8.0, -1.0, -1.0, -1.0, -1.0];
+
+		let g = t.filter3x3(f);
+
 		let _    = g.save(fout, PNG);
 	});
 }

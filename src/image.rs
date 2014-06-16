@@ -111,7 +111,7 @@ pub trait ImageDecoder {
 }
 
 /// A Generic representation of an image
-#[deriving(Clone)]
+#[deriving(Clone, Show)]
 pub struct Image {
 	pixels:  pixels::PixelBuf,
 	width:   u32,
@@ -296,6 +296,30 @@ impl Image {
 	/// Filters this image with the specified 3x3 kernel.
 	pub fn filter3x3(&self, kernel: &[f32]) -> Image {
 		let pixels = pixels::filter3x3(&self.pixels, self.width, self.height, kernel);
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	/// Adjust this image's contrast
+	pub fn adjust_contrast(&self, contrast: f32) -> Image {
+		let pixels = pixels::adjust_contrast(&self.pixels, contrast);
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	/// Brighten this image.
+	pub fn brighten(&self, value: i32) -> Image {
+		let pixels = pixels::brighten(&self.pixels, value);
 
 		Image {
 			pixels: pixels,

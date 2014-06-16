@@ -53,9 +53,7 @@ fn main() {
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}3.png", os::args().as_slice()[1]))).unwrap();
 
-		let f = &[-1.0, -1.0, -1.0, -1.0, 8.0, -1.0, -1.0, -1.0, -1.0];
-
-		let g = t.filter3x3(f);
+		let g = t.brighten(50);
 
 		let _    = g.save(fout, PNG);
 	});

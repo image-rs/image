@@ -742,3 +742,48 @@ pub fn filter3x3(pixels:  &PixelBuf,
 		Rgba8(ref p)  => Rgba8(sample::filter_3x3(p.as_slice(), width, height, kernel)),
 	}
 }
+
+fn contrast<A: Primitive, T: Pixel<A>>(p: &[T], contrast: f32) -> Vec<T> {
+	let max: A = Bounded::max_value();
+	let max = cast::<A, f32>(max).unwrap();
+
+	let percent = ((100.0 + contrast) / 100.0).powi(2);
+
+	p.iter().map(|a| a.map(|b| {
+		let c = cast::<A, f32>(b).unwrap();
+		let d = ((c / max - 0.5) * percent  + 0.5) * max;
+		let e = clamp(d, 0.0, max);
+
+		cast::<f32, A>(e).unwrap()
+	})).collect()
+}
+
+pub fn adjust_contrast(pixels: &PixelBuf, c: f32) -> PixelBuf {
+	match *pixels {
+		Luma8(ref p)  => Luma8(contrast(p.as_slice(), c)),
+		LumaA8(ref p) => LumaA8(contrast(p.as_slice(), c)),
+		Rgb8(ref p)   => Rgb8(contrast(p.as_slice(), c)),
+		Rgba8(ref p)  => Rgba8(contrast(p.as_slice(), c)),
+	}
+}
+
+fn bright<A: Primitive, T: Pixel<A>>(p: &[T], v: i32) -> Vec<T> {
+	let max: A = Bounded::max_value();
+	let max = cast::<A, i32>(max).unwrap();
+
+	p.iter().map(|a| a.map(|b| {
+		let c = cast::<A, i32>(b).unwrap();
+		let d = clamp(c + v, 0, max);
+
+		cast::<i32, A>(d).unwrap()
+	})).collect()
+}
+
+pub fn brighten(pixels: &PixelBuf, c: i32) -> PixelBuf {
+	match *pixels {
+		Luma8(ref p)  => Luma8(bright(p.as_slice(), c)),
+		LumaA8(ref p) => LumaA8(bright(p.as_slice(), c)),
+		Rgb8(ref p)   => Rgb8(bright(p.as_slice(), c)),
+		Rgba8(ref p)  => Rgba8(bright(p.as_slice(), c)),
+	}
+}

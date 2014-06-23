@@ -38,6 +38,7 @@ pub struct Component {
 	pub dc_pred: i32
 }
 
+/// The permutation of dct coefficients.
 pub static UNZIGZAG: [u8, ..64] = [
 	 0,  1,  8, 16,  9,  2,  3, 10,
 	17, 24, 32, 25, 18, 11,  4,  5,
@@ -49,6 +50,9 @@ pub static UNZIGZAG: [u8, ..64] = [
 	53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
+/// Given an array containing the number of codes of each code length,
+/// this function generates the huffman codes lengths and their respective
+/// code lengths as specified by the JPEG spec.
 pub fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
 	let mut huffsize = Vec::from_elem(256, 0u8);
 	let mut huffcode = Vec::from_elem(256, 0u16);

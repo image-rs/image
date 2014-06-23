@@ -7,10 +7,12 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::io::IoResult;
-use std::io::MemWriter;
+use std::io::{
+	IoResult,
+	MemWriter
+};
 
-use colortype;
+use imaging::colortype;
 use hash::Crc32;
 
 use super::filter::filter;

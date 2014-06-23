@@ -5,16 +5,16 @@ use std::slice;
 use std::io::IoResult;
 use std::io::MemReader;
 
-use colortype;
-use hash::Crc32;
-use zlib::ZlibDecoder;
-
 use image;
 use image::ImageResult;
 use image::ImageDecoder;
+use imaging::colortype;
 
 use super::filter::unfilter;
 use super::PNGSIGNATURE;
+
+use hash::Crc32;
+use zlib::ZlibDecoder;
 
 macro_rules! io_try(
     ($e:expr) => (
@@ -423,6 +423,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 				}
 			}
 		}
+
 		Ok(start)
 	}
 }
@@ -430,90 +431,97 @@ impl<R: Reader> Reader for IDATReader<R> {
 #[cfg(test)]
 mod tests {
 	extern crate glob;
-   	extern crate core;
+        extern crate core;
 
-   	use image::{Image, ImageResult, PNG};
-	use std::io::{File};
+        use std::io::File;
 
-	/// Filters the testsuite images for certain features
-	fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
-		let ret: Vec<Path>;
-		//"../testsuites/PngSuite-2013jan13/*.png"
-		let pattern = Path::new("..").join_many(
-			["testsuites", "PngSuite-2013jan13", "*.png"]);
+        use image::{
+        	ImageDecoder,
+        	ImageResult
+        };
+        use super::PNGDecoder;
 
-		let mut paths = glob::glob(pattern.as_str().unwrap())
-			.filter(|ref p| p.filename_str().unwrap().starts_with(feature))
-			.filter(|ref p| p.filename_str().unwrap().contains(color_type));
+        /// Filters the testsuite images for certain features
+        fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
+                //"./codecs/testdata/pngsuite/*.png"
+                let pattern = Path::new(".").join_many(["codecs", "testdata", "pngsuite", "*.png"]);
 
-		if test_interlaced {
-			ret = paths.collect();
-		} else {
-			ret = paths.filter(|ref p| !p.filename_str().unwrap().slice_from(2).contains("i")).collect();
-		}
+                let mut paths = glob::glob(pattern.as_str().unwrap())
+                        .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
+                        .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 
-		assert!(ret.len() > 0) // fail if no testimages are available
-		ret
-	}
+                let ret: Vec<Path> = if test_interlaced {
+                        paths.collect()
+                } else {
+                        paths.filter(|ref p| !p.filename_str()
+                        		       .unwrap()
+                        		       .slice_from(2)
+                        		       .contains("i"))
+                        		       .collect()
+                };
 
-	fn open_img(path: &Path) -> ImageResult<Image> {
-		Image::load(File::open(path), PNG)
-	}
+                assert!(ret.len() > 0) // fail if no testimages are available
+                ret
+        }
 
-	#[test]
-	/// Test image filters
-	fn test_filters() {
-		let images = get_testimages("f", "", false);
+        fn load_image(path: &Path) -> ImageResult<Vec<u8>> {
+                PNGDecoder::new(File::open(path)).read_image()
+        }
 
-		for path in images.iter() {
-			assert!(match open_img(path) {
-				Ok(_) => true,
-				Err(err) => { println!("file {}, failed with {}", path.display(), err); false }
-			})
-		}
-	}
-	#[test]
-	/// Test basic formats filters
-	fn test_basic() {
-		let images = get_testimages("b", "2c", false);
+        #[test]
+        /// Test image filters
+        fn test_filters() {
+                let images = get_testimages("f", "", false);
 
-		for path in images.iter() {
-			assert!(match open_img(path) {
-				Ok(_) => true,
-				Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
-			})
-		}
-	}
+                for path in images.iter() {
+                        assert!(match load_image(path) {
+                                Ok(_) => true,
+                                Err(err) => { println!("file {}, failed with {}", path.display(), err); false }
+                        })
+                }
+        }
+        #[test]
+        /// Test basic formats filters
+        fn test_basic() {
+                let images = get_testimages("b", "2c", false);
 
-	#[test]
-	/// Chunk ordering
-	fn test_chunk_ordering() {
-		let images = get_testimages("o", "", false);
+                for path in images.iter() {
+                        assert!(match load_image(path) {
+                                Ok(_) => true,
+                                Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
+                        })
+                }
+        }
 
-		for path in images.iter() {
-			assert!(match open_img(path) {
-				Ok(_) => { true },
-				Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
-			})
-		}
-	}
+        #[test]
+        /// Chunk ordering
+        fn test_chunk_ordering() {
+                let images = get_testimages("o", "", false);
 
-	#[test]
-	/// Test corrupted images, they should all fail
-	fn test_corrupted() {
-		let images = get_testimages("x", "", true);
-		let num_images = images.len();
-		let mut fails = 0;
+                for path in images.iter() {
+                        assert!(match load_image(path) {
+                                Ok(_) => { true },
+                                Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
+                        })
+                }
+        }
 
-		for path in images.iter() {
-			match open_img(path) {
-				Ok(_) => println!("corrupted file {} did not fail", path.display()),
-				Err(_) => {
-					fails += 1;
-				}
-			}
-		}
+        #[test]
+        /// Test corrupted images, they should all fail
+        fn test_corrupted() {
+                let images = get_testimages("x", "", true);
+                let num_images = images.len();
+                let mut fails = 0;
 
-		assert_eq!(num_images, fails)
-	}
+                for path in images.iter() {
+                        match load_image(path) {
+                                Ok(_) => println!("corrupted file {} did not fail", path.display()),
+                                Err(_) => {
+                                        fails += 1;
+                                }
+                        }
+                }
+
+                assert_eq!(num_images, fails)
+        }
 }

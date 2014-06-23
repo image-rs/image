@@ -724,21 +724,21 @@ impl BoolReader {
 }
 
 struct MacroBlock {
-	bpred: [i8, ..16],
-        complexity: [u8, ..9],
-        luma_mode: i8,
-        chroma_mode: i8,
-        segmentid: u8,
+	bpred:        [i8, ..16],
+        complexity:   [u8, ..9],
+        luma_mode:    i8,
+        chroma_mode:  i8,
+        segmentid:    u8,
 }
 
 impl MacroBlock {
         fn new() -> MacroBlock {
                 MacroBlock {
-                        bpred: [0i8, ..16],
-                        complexity: [0u8, ..9],
-                        luma_mode: 0,
-                        chroma_mode: 0,
-                        segmentid: 0,
+                        bpred:        [0i8, ..16],
+                        complexity:   [0u8, ..9],
+                        luma_mode:    0,
+                        chroma_mode:  0,
+                        segmentid:    0,
                 }
         }
 }

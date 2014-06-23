@@ -4,23 +4,35 @@ use std::io::IoResult;
 use std::num;
 use std::num::ToStrRadix;
 
-use colortype;
-use colortype::{Grey, Palette, GreyA, RGB, RGBA};
+use imaging::colortype;
+use imaging::colortype::{
+	Grey,
+	Palette,
+	GreyA,
+	RGB,
+	RGBA
+};
 
+/// A representation of a PPM encoder.
 pub struct PPMEncoder<W> {
 	w: W
 }
 
 impl<W: Writer> PPMEncoder<W> {
+	/// Create a new PPMEncoder from the Writer ```w```.
+	/// This function takes ownership of the Writer.
 	pub fn new(w: W) -> PPMEncoder<W> {
 		PPMEncoder {w: w}
 	}
 
-	pub fn encode(&mut self, im: &[u8], w: u32, h: u32, c: colortype::ColorType) -> IoResult<()> {
+	/// Encode the buffer ```im``` as a PPM image.
+	/// ```width``` and ```height``` are the dimensions of the buffer.
+	/// ```color``` is the buffers ColorType.
+	pub fn encode(&mut self, im: &[u8], width: u32, height: u32, color: colortype::ColorType) -> IoResult<()> {
 		let _ = try!(self.write_magic_number());
-		let _ = try!(self.write_metadata(w, h, c));
+		let _ = try!(self.write_metadata(width, height, color));
 
-		self.write_image(im, c, w, h)
+		self.write_image(im, color, width, height)
 	}
 
 	fn write_magic_number(&mut self) -> IoResult<()> {

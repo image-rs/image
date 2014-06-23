@@ -1,16 +1,32 @@
-use std::io;
-use std::slice;
+use std::{
+	io,
+	slice
+};
 
-use sample;
-use pixels;
-use colortype;
-use colortype::ColorType;
+use imaging::{
+	sample,
+	colorops,
+	affine,
+	pixelbuf,
+	colortype,
+};
 
-use png;
-use ppm;
-use gif;
-use jpeg;
-use webp;
+use imaging::colortype::ColorType;
+
+use imaging::pixelbuf::{
+	Luma8,
+	LumaA8,
+	Rgb8,
+	Rgba8
+};
+
+use codecs::{
+	png,
+	jpeg,
+	webp,
+	gif,
+	ppm,
+};
 
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
@@ -43,10 +59,19 @@ pub type ImageResult<T> = Result<T, ImageError>;
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 pub enum ImageFormat {
+	/// An Image in PNG Format
 	PNG,
+
+	/// An Image in JPEG Format
 	JPEG,
+
+	/// An Image in GIF Format
 	GIF,
+
+	/// An Image in WEBP Format
 	WEBP,
+
+	/// An Image in PPM Format
 	PPM
 }
 
@@ -113,7 +138,7 @@ pub trait ImageDecoder {
 /// A Generic representation of an image
 #[deriving(Clone, Show)]
 pub struct Image {
-	pixels:  pixels::PixelBuf,
+	pixels:  pixelbuf::PixelBuf,
 	width:   u32,
 	height:  u32,
 	color:   ColorType,
@@ -192,7 +217,12 @@ impl Image {
 
 	/// Return a grayscale version of this image.
 	pub fn grayscale(&self) -> Image {
-		let pixels = pixels::grayscale(&self.pixels);
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(colorops::grayscale(p.as_slice())),
+	                LumaA8(ref p) => Luma8(colorops::grayscale(p.as_slice())),
+	                Rgb8(ref p)   => Luma8(colorops::grayscale(p.as_slice())),
+	                Rgba8(ref p)  => Luma8(colorops::grayscale(p.as_slice())),
+        	};
 
 		Image {
 			pixels: pixels,
@@ -205,55 +235,51 @@ impl Image {
 	/// Invert the colors of this image.
 	/// This method operates inplace.
 	pub fn invert(&mut self) {
-		pixels::invert(&mut self.pixels);
+		match self.pixels {
+	                Luma8(ref mut p)  => colorops::invert(p.as_mut_slice()),
+	                LumaA8(ref mut p) => colorops::invert(p.as_mut_slice()),
+	                Rgb8(ref mut p)   => colorops::invert(p.as_mut_slice()),
+	                Rgba8(ref mut p)  => colorops::invert(p.as_mut_slice()),
+        	}
 	}
 
 	/// Resize this image using the specified filter algorithm.
 	/// Returns a new image. The image's aspect ratio is preserved.
-	///```width``` and ```height``` are the new image's dimensions
-	pub fn resize(&self, width: u32, height: u32, filter: sample::FilterType) -> Image {
+	///```nwidth``` and ```nheight``` are the new image's dimensions
+	pub fn resize(&self, nwidth: u32, nheight: u32, filter: sample::FilterType) -> Image {
 		let ratio  = self.width as f32 / self.height as f32;
-		let nratio = width as f32 / height as f32;
+		let nratio = nwidth as f32 / nheight as f32;
 
 		let scale = if nratio > ratio {
-			height as f32 / self.height as f32
+			nheight as f32 / self.height as f32
 		} else {
-			width as f32 / self.width as f32
+			nwidth as f32 / self.width as f32
 		};
 
-		let width  = (self.width as f32 * scale) as u32;
-		let height = (self.height as f32 * scale) as u32;
+		let width2  = (self.width as f32 * scale) as u32;
+		let height2 = (self.height as f32 * scale) as u32;
 
-		let pixels = pixels::resize(&self.pixels,
-					    self.width,
-					    self.height,
-					    width,
-					    height,
-					    filter);
-
-		Image {
-			pixels: pixels,
-			width:  width,
-			height: height,
-			color:  self.color
-		}
+		self.resize_exact(width2, height2, filter)
 	}
 
 	/// Resize this image using the specified filter algorithm.
 	/// Returns a new image. Does not preserve aspect ratio.
-	///```width``` and ```height``` are the new image's dimensions
-	pub fn resize_exact(&self, width: u32, height: u32, filter: sample::FilterType) -> Image {
-		let pixels = pixels::resize(&self.pixels,
-					    self.width,
-					    self.height,
-					    width,
-					    height,
-					    filter);
+	///```nwidth``` and ```nheight``` are the new image's dimensions
+	pub fn resize_exact(&self, nwidth: u32, nheight: u32, filter: sample::FilterType) -> Image {
+		let width   = self.width;
+		let height  = self.height;
+
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
+	                LumaA8(ref p) => LumaA8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
+	                Rgb8(ref p)   => Rgb8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
+	                Rgba8(ref p)  => Rgba8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
+        	};
 
 		Image {
 			pixels: pixels,
-			width:  width,
-			height: height,
+			width:  nwidth,
+			height: nheight,
 			color:  self.color
 		}
 	}
@@ -261,10 +287,15 @@ impl Image {
 	/// Perfomrs a Gausian blur on this image.
 	/// ```sigma``` is a meausure of how much to blur by.
 	pub fn blur(&self, sigma: f32) -> Image {
-		let pixels = pixels::blur(&self.pixels,
-					  self.width,
-					  self.height,
-					  sigma);
+		let width   = self.width;
+		let height  = self.height;
+
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(sample::blur(p.as_slice(), width, height, sigma)),
+	                LumaA8(ref p) => LumaA8(sample::blur(p.as_slice(), width, height, sigma)),
+	                Rgb8(ref p)   => Rgb8(sample::blur(p.as_slice(), width, height, sigma)),
+	                Rgba8(ref p)  => Rgba8(sample::blur(p.as_slice(), width, height, sigma)),
+        	};
 
 		Image {
 			pixels: pixels,
@@ -279,11 +310,15 @@ impl Image {
 	/// ```threshold``` is a control of how much to sharpen.
 	/// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
 	pub fn unsharpen(&self, sigma: f32, threshold: i32) -> Image {
-		let pixels = pixels::unsharpen(&self.pixels,
-					       self.width,
-					       self.height,
-					       sigma,
-					       threshold);
+		let width   = self.width;
+		let height  = self.height;
+
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
+	                LumaA8(ref p) => LumaA8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
+	                Rgb8(ref p)   => Rgb8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
+	                Rgba8(ref p)  => Rgba8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
+        	};
 
 	    	Image {
 			pixels: pixels,
@@ -295,7 +330,19 @@ impl Image {
 
 	/// Filters this image with the specified 3x3 kernel.
 	pub fn filter3x3(&self, kernel: &[f32]) -> Image {
-		let pixels = pixels::filter3x3(&self.pixels, self.width, self.height, kernel);
+		let width   = self.width;
+		let height  = self.height;
+
+		if kernel.len() != 9 {
+                	return self.clone()
+        	}
+
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(sample::filter3x3(p.as_slice(), width, height, kernel)),
+	                LumaA8(ref p) => LumaA8(sample::filter3x3(p.as_slice(), width, height, kernel)),
+	                Rgb8(ref p)   => Rgb8(sample::filter3x3(p.as_slice(), width, height, kernel)),
+	                Rgba8(ref p)  => Rgba8(sample::filter3x3(p.as_slice(), width, height, kernel)),
+	        };
 
 		Image {
 			pixels: pixels,
@@ -305,9 +352,16 @@ impl Image {
 		}
 	}
 
-	/// Adjust this image's contrast
-	pub fn adjust_contrast(&self, contrast: f32) -> Image {
-		let pixels = pixels::adjust_contrast(&self.pixels, contrast);
+	/// Adjust the contrast of ```pixels```
+	/// ```contrast``` is the amount to adjust the contrast by.
+	/// Negative values decrease the constrast and positive values increase the constrast.
+	pub fn adjust_contrast(&self, c: f32) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(colorops::contrast(p.as_slice(), c)),
+	                LumaA8(ref p) => LumaA8(colorops::contrast(p.as_slice(), c)),
+	                Rgb8(ref p)   => Rgb8(colorops::contrast(p.as_slice(), c)),
+	                Rgba8(ref p)  => Rgba8(colorops::contrast(p.as_slice(), c)),
+        	};
 
 		Image {
 			pixels: pixels,
@@ -317,9 +371,101 @@ impl Image {
 		}
 	}
 
-	/// Brighten this image.
+	/// Brighten ```pixels```
+	/// ```value``` is the amount to brighten each pixel by.
+	/// Negative values decrease the brightness and positive values increase it.
 	pub fn brighten(&self, value: i32) -> Image {
-		let pixels = pixels::brighten(&self.pixels, value);
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(colorops::brighten(p.as_slice(), value)),
+	                LumaA8(ref p) => LumaA8(colorops::brighten(p.as_slice(), value)),
+	                Rgb8(ref p)   => Rgb8(colorops::brighten(p.as_slice(), value)),
+	                Rgba8(ref p)  => Rgba8(colorops::brighten(p.as_slice(), value)),
+        	};
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	///Flip this image vertically
+	pub fn flipv(&self) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
+	                LumaA8(ref p) => LumaA8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
+	                Rgb8(ref p)   => Rgb8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
+	                Rgba8(ref p)  => Rgba8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
+        	};
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	///Flip this image horizontally
+	pub fn fliph(&self) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
+	                LumaA8(ref p) => LumaA8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
+	                Rgb8(ref p)   => Rgb8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
+	                Rgba8(ref p)  => Rgba8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
+        	};
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	///Rotate this image 90 degrees clockwise.
+	pub fn rotate90(&self) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(affine::rotate90(p.as_slice(), self.width, self.height)),
+	                LumaA8(ref p) => LumaA8(affine::rotate90(p.as_slice(), self.width, self.height)),
+	                Rgb8(ref p)   => Rgb8(affine::rotate90(p.as_slice(), self.width, self.height)),
+	                Rgba8(ref p)  => Rgba8(affine::rotate90(p.as_slice(), self.width, self.height)),
+        	};
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	///Rotate this image 180 degrees clockwise.
+	pub fn rotate180(&self) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(affine::rotate180(p.as_slice(), self.width, self.height)),
+	                LumaA8(ref p) => LumaA8(affine::rotate180(p.as_slice(), self.width, self.height)),
+	                Rgb8(ref p)   => Rgb8(affine::rotate180(p.as_slice(), self.width, self.height)),
+	                Rgba8(ref p)  => Rgba8(affine::rotate180(p.as_slice(), self.width, self.height)),
+        	};
+
+		Image {
+			pixels: pixels,
+			width:  self.width,
+			height: self.height,
+			color:  self.color
+		}
+	}
+
+	///Rotate this image 270 degrees clockwise.
+	pub fn rotate270(&self) -> Image {
+		let pixels = match self.pixels {
+	                Luma8(ref p)  => Luma8(affine::rotate270(p.as_slice(), self.width, self.height)),
+	                LumaA8(ref p) => LumaA8(affine::rotate270(p.as_slice(), self.width, self.height)),
+	                Rgb8(ref p)   => Rgb8(affine::rotate270(p.as_slice(), self.width, self.height)),
+	                Rgba8(ref p)  => Rgba8(affine::rotate270(p.as_slice(), self.width, self.height)),
+        	};
 
 		Image {
 			pixels: pixels,
@@ -337,9 +483,9 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {
 	let buf    = try!(codec.read_image());
 	let (w, h) = try!(codec.dimensions());
 
-	let pixels = match pixels::PixelBuf::from_bytes(buf, color) {
-		Some(p) => p,
-		None    => return Err(UnsupportedColor)
+	let pixels = match pixelbuf::PixelBuf::from_bytes(buf, color) {
+		Ok(p) => p,
+		_     => return Err(UnsupportedColor)
 	};
 
 	let im = Image {

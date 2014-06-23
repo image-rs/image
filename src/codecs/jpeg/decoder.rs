@@ -2,10 +2,9 @@ use std::cmp;
 use std::slice;
 use std::iter::range_step;
 use std::default::Default;
+use std::collections::smallintmap::SmallIntMap;
 
-use collections::smallintmap::SmallIntMap;
-
-use colortype;
+use imaging::colortype;
 use transform;
 
 use image;

@@ -1,12 +1,12 @@
 use std::slice;
 use std::io::MemReader;
 
-use colortype;
-use lzw::LZWReader;
-
 use image;
 use image::ImageResult;
 use image::ImageDecoder;
+use imaging::colortype;
+
+use lzw::LZWReader;
 
 macro_rules! io_try(
 	($e:expr) => (
@@ -45,6 +45,8 @@ pub struct GIFDecoder <R> {
 }
 
 impl<R: Reader> GIFDecoder<R> {
+	/// Create a new GIFDecoder from the Reader ```r```.
+	/// This function takes ownership of the Reader.
 	pub fn new(r: R) -> GIFDecoder<R> {
 		GIFDecoder {
 			r: r,

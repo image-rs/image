@@ -45,7 +45,7 @@ fn main() {
 	let t = im.clone();
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
-		let g = t.resize(1200, 1200, image::CatmullRom);
+		let g = t.resize_exact(1200, 1200, image::Nearest);
 		let _    = g.save(fout, PNG);
 	});
 
@@ -53,7 +53,7 @@ fn main() {
 	spawn(proc() {
 		let fout = File::create(&Path::new(format!("{}3.png", os::args().as_slice()[1]))).unwrap();
 
-		let g = t.brighten(50);
+		let g = t.rotate90();
 
 		let _    = g.save(fout, PNG);
 	});

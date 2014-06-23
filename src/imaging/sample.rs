@@ -1,12 +1,16 @@
+//! Functions and filters for the sampling of pixels.
+
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
 
 use std::f32;
-use std::num::cast;
-use std::num::Bounded;
+use std::num::{
+        cast,
+        Bounded
+};
 use std::default::Default;
 
-use pixels::Pixel;
+use imaging::pixel::Pixel;
 
 /// Available Sampling Filters
 pub enum FilterType {
@@ -26,11 +30,16 @@ pub enum FilterType {
 	Lanczos3
 }
 
+/// A Representation of a seperable filter.
 pub struct Filter<'a> {
+	/// The filter's filter function.
 	pub kernel:  |f32|: 'a -> f32,
+
+	/// The window on which this filter operates.
 	pub support: f32
 }
 
+// sinc function: the ideal sampling filter.
 fn sinc(t: f32) -> f32 {
 	let a = t * f32::consts::PI;
 
@@ -41,6 +50,7 @@ fn sinc(t: f32) -> f32 {
 	}
 }
 
+// lanczos kernel function. A windowed sinc function.
 fn lanczos(x: f32, t: f32) -> f32 {
 	if x.abs() < t {
 		sinc(x) * sinc(x / t)
@@ -49,6 +59,8 @@ fn lanczos(x: f32, t: f32) -> f32 {
 	}
 }
 
+// Calculate a splice based on the b and c parameters.
+// from authors Mitchell and Netravali.
 fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 	let a = x.abs();
 
@@ -68,23 +80,32 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 	k / 6.0
 }
 
+/// The Gaussian Function.
+/// ```r``` is the standard deviation.
 pub fn gaussian(x: f32, r: f32) -> f32 {
 	((2.0 * f32::consts::PI).sqrt() * r).recip() *
 	(-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
+/// Calculate the lanczos kernel with a window of 3
 pub fn lanczos3_kernel(x: f32) -> f32 {
 	lanczos(x, 3.0)
 }
 
+/// Calculate the gaussian function with a
+/// standard deviation of 1.0
 pub fn gaussian_kernel(x: f32) -> f32 {
 	gaussian(x, 1.0)
 }
 
+/// Calculate the Catmull-Rom cubic spline.
+/// Also known as a form of BiCubic sampling in two dimensions.
 pub fn catmullrom_kernel(x: f32) -> f32 {
 	bc_cubic_spline(x, 0.0, 0.5)
 }
 
+/// Calculate the triangle function.
+/// Also known as BiLinear sampling in two dimensions.
 pub fn triangle_kernel(x: f32) -> f32 {
 	if x.abs() < 1.0 {
 		1.0 - x
@@ -93,6 +114,9 @@ pub fn triangle_kernel(x: f32) -> f32 {
 	}
 }
 
+/// Calculate the box kernel.
+/// When applied in two dimensions with a support of 0.5
+/// it is equivalent to nearest neighbor sampling.
 pub fn box_kernel(x: f32) -> f32 {
 	if x.abs() <= 0.5 {
 		1.0
@@ -107,14 +131,19 @@ fn clamp<N: Num + PartialOrd>(a: N, min: N, max: N) -> N {
 	else { a }
 }
 
-pub fn horizontal_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
+// Sample the rows of ```pixels`` using the provided filter.
+// The height of ```pixels``` remains unchanged.
+// ```width``` is the current width of ```pixels```.
+// ```height``` is the current height of ```pixels```.
+// ```nwidth``` is the desired width of ```pixels```
+// ```method``` is the filter to use for sampling.
+fn horizontal_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	pixels: &[T],
 	width:  u32,
 	height: u32,
 	nwidth: u32,
-	mut method: Filter) -> Vec<T> {
+	method: &mut Filter) -> Vec<T> {
 
-	let method = &mut method;
 	let d: T = Default::default();
 
 	let mut vec = Vec::from_elem(nwidth as uint * height as uint, d.clone());
@@ -132,14 +161,19 @@ pub fn horizontal_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	vec
 }
 
-pub fn vertical_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
+// Sample the columns of ```pixels`` using the provided filter.
+// The width of ```pixels``` remains unchanged.
+// ```width``` is the current width of ```pixels```.
+// ```height``` is the current height of ```pixels```.
+// ```nheight``` is the desired height of ```pixels```
+// ```method``` is the filter to use for sampling.
+fn vertical_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	pixels:  &[T],
 	height:  u32,
 	width:   u32,
 	nheight: u32,
-	mut method:  Filter) -> Vec<T> {
+	method:  &mut Filter) -> Vec<T> {
 
-	let method = &mut method;
 	let d: T = Default::default();
 
 	let mut vec = Vec::from_elem(width as uint * nheight as uint, d.clone());
@@ -156,6 +190,8 @@ pub fn vertical_sample<P: Primitive, T: Pixel<P> + Default + Clone>(
 	vec
 }
 
+//Performs a 1 - dimensional convultion of ```inrow`` using the Filter
+//``filter`` and store the result in ```outrow```
 fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 	inrow:  &[T],
 	outrow: &mut [T],
@@ -169,6 +205,7 @@ fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 
 	let ratio = inlen as f32 / outlen as f32;
 
+	//Scale the filter when downsampling.
 	let filter_scale = if ratio > 1.0 {
 		ratio
 	} else {
@@ -177,6 +214,7 @@ fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 
 	let filter_radius = (filter.support * filter_scale).ceil();
 
+	//TODO: Precalculate the filter weights once per row and column
 	for outx in range(0, outlen as uint) {
 		let inputx = (outx as f32 + 0.5) * ratio;
 
@@ -226,12 +264,17 @@ fn convolve1d<P: Primitive, T: Pixel<P> + Default>(
 	}
 }
 
-pub fn filter_3x3<P: Primitive, T: Pixel<P> + Default + Clone>(
+/// Perform a 3x3 box filter on ```pixels```.
+/// ```width``` is the width of pixels.
+/// ```height``` is the height of pixels.
+/// ```kernel``` is an array of the filter weights of length 9.
+pub fn filter3x3<P: Primitive, T: Pixel<P> + Default + Clone>(
 	pixels: &[T],
 	width:  u32,
 	height: u32,
 	kernel: &[f32]) -> Vec<T> {
 
+	// The kernel's input positions relative to the current pixel.
 	let taps = [
 		-(width as i64 - 1),
 		-(width as i64),
@@ -263,6 +306,9 @@ pub fn filter_3x3<P: Primitive, T: Pixel<P> + Default + Clone>(
 			let mut t3 = 0.0;
 			let mut t4 = 0.0;
 
+			//TODO: There is no need to recalculate the kernel for each pixel.
+			//Only a subtract and addition is needed for pixels after the first
+			//in each row.
 			for (&k, &tap) in kernel.iter().zip(taps.iter()) {
 				let p = pixels[(index as i64 + tap) as uint].clone();
 
@@ -296,4 +342,108 @@ pub fn filter_3x3<P: Primitive, T: Pixel<P> + Default + Clone>(
 	}
 
 	out
+}
+
+/// Resize ```pixels```.
+/// ```width``` and ```height``` are the original dimensions.
+/// ```nwidth``` and ```nheight``` are the new dimensions.
+/// ```filter``` is the sampling filter to use.
+pub fn resize<A: Primitive, T: Pixel<A> + Default + Clone>(
+	pixels:  &[T],
+	width:   u32,
+	height:  u32,
+	nwidth:  u32,
+	nheight: u32,
+	filter:  FilterType) -> Vec<T> {
+
+        let mut method = match filter {
+                Nearest    =>   Filter {
+	                kernel:  |x| box_kernel(x),
+	                support: 0.5
+                },
+                Triangle   => Filter {
+                        kernel:  |x| triangle_kernel(x),
+                        support: 1.0
+                },
+                CatmullRom => Filter {
+                        kernel:  |x| catmullrom_kernel(x),
+                        support: 2.0
+                },
+                Gaussian   => Filter {
+                        kernel:  |x| gaussian_kernel(x),
+                        support: 3.0
+                },
+                Lanczos3   => Filter {
+                        kernel:  |x| lanczos3_kernel(x),
+                        support: 3.0
+                },
+        };
+
+        let tmp = vertical_sample(pixels, height, width, nheight, &mut method);
+
+	horizontal_sample(tmp.as_slice(), width, nheight, nwidth, &mut method)
+}
+
+/// Perfomrs a Gausian blur on ```pixels```
+/// ```width``` and ```height``` are the dimensions of the buffer.
+/// ```sigma``` is a meausure of how much to blur by.
+pub fn blur<A: Primitive, T: Pixel<A> + Default + Clone>(
+	pixels:  &[T],
+	width:   u32,
+        height:  u32,
+        sigma:   f32) -> Vec<T> {
+
+        let sigma = if sigma < 0.0 {
+                1.0
+        } else {
+                sigma
+        };
+
+        let mut method = Filter {
+                kernel:  |x| gaussian(x, sigma),
+                support: 2.0 * sigma
+        };
+
+        // Keep width and height the same for horizontal and
+        // vertical sampling.
+        let tmp = vertical_sample(pixels, height, width, height, &mut method);
+
+        horizontal_sample(tmp.as_slice(), width, height, width, &mut method)
+}
+
+/// Performs an unsharpen mask on ```pixels```
+/// ```sigma``` is the amount to blur the image by.
+/// ```threshold``` is the threshold for the difference between
+/// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+pub fn unsharpen<A: Primitive, T: Pixel<A> + Clone + Default>(
+	pixels:    &[T],
+	width:     u32,
+	height:    u32,
+	sigma:     f32,
+	threshold: i32) -> Vec<T> {
+
+	let mut tmp = blur(pixels, width, height, sigma);
+
+        let max: A = Bounded::max_value();
+
+        for (p, b) in pixels.iter().zip(tmp.mut_iter()) {
+                let a = p.map2(b.clone(), |c, d| {
+                        let ic = cast::<A, i32>(c).unwrap();
+                        let id = cast::<A, i32>(d).unwrap();
+
+                        let diff = (ic - id).abs();
+
+                        if diff > threshold {
+                                let e = clamp(ic + diff, 0, cast::<A, i32>(max).unwrap());
+
+                                cast::<i32, A>(e).unwrap()
+                        } else {
+                                c
+                        }
+                });
+
+                *b = a;
+        }
+
+        tmp
 }

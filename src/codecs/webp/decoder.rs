@@ -2,14 +2,14 @@ use std::slice;
 use std::io::MemReader;
 use std::default::Default;
 
-use colortype;
-
-use vp8::Frame;
-use vp8::VP8Decoder;
-
 use image;
 use image::ImageResult;
 use image::ImageDecoder;
+
+use imaging::colortype;
+
+use codecs::vp8::Frame;
+use codecs::vp8::VP8Decoder;
 
 macro_rules! io_try(
 	($e:expr) => (
@@ -20,6 +20,7 @@ macro_rules! io_try(
 	)
 )
 
+/// A Representaion of a Webp Image format decoder.
 pub struct WebpDecoder<R> {
 	r: R,
 	frame: Frame,
@@ -28,6 +29,8 @@ pub struct WebpDecoder<R> {
 }
 
 impl<R: Reader> WebpDecoder<R> {
+	/// Create a new WebpDecoder from the Reader ```r```.
+	/// This function takes ownership of the Reader.
 	pub fn new(r: R) -> WebpDecoder<R> {
 		let f: Frame = Default::default();
 

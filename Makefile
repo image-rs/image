@@ -73,36 +73,37 @@ endif
 all: $(DEFAULT)
 
 help:
-	$(Q)echo "--- rust-empty (0.4 004)" \
-	&& echo "make run               - Runs executable" \
-	&& echo "make exe               - Builds main executable" \
-	&& echo "make lib               - Both static and dynamic library" \
-	&& echo "make rlib              - Static library" \
-	&& echo "make dylib             - Dynamic library" \
-	&& echo "make test              - Tests library internally and externally" \
-	&& echo "make test-internal     - Tests library internally" \
-	&& echo "make test-external     - Tests library externally" \
-	&& echo "make bench             - Benchmarks library internally and externally" \
-	&& echo "make bench-internal    - Benchmarks library internally" \
-	&& echo "make bench-external    - Benchmarks library externally" \
-	&& echo "make doc               - Builds documentation for library" \
-	&& echo "make git-ignore        - Setup files to be ignored by Git" \
-	&& echo "make examples          - Builds examples" \
-	&& echo "make cargo-lite-exe    - Setup executable package" \
-	&& echo "make cargo-lite-lib    - Setup library package" \
-	&& echo "make cargo-exe         - EXPERIMENTAL: Setup executable package" \
-	&& echo "make cargo-lib         - EXPERIMENTAL: Setup library package" \
-	&& echo "make rust-ci-lib       - Setup Travis CI Rust library" \
-	&& echo "make rust-ci-exe       - Setup Travis CI Rust executable" \
-	&& echo "make rusti             - Setup 'rusti.sh' for interactive Rust" \
-	&& echo "make loc               - Count lines of code in src folder" \
-	&& echo "make nightly-install   - Installs Rust nightly built" \
-	&& echo "make nightly-uninstall - Uninstalls Rust nightly built" \
-	&& echo "make clean             - Deletes binaries and documentation." \
-	&& echo "make clear-project     - WARNING: Deletes project files except 'Makefile'" \
-	&& echo "make clear-git         - WARNING: Deletes Git setup" \
-	&& echo "make symlink-info      - Symlinked libraries dependency info" \
-	&& echo "make target-dir        - Creates directory for current target"
+	$(Q)echo "--- rust-empty (0.5 005)"
+	$(Q)echo "make run               - Runs executable"
+	$(Q)echo "make exe               - Builds main executable"
+	$(Q)echo "make lib               - Both static and dynamic library"
+	$(Q)echo "make rlib              - Static library"
+	$(Q)echo "make dylib             - Dynamic library"
+	$(Q)echo "make test              - Tests library internally and externally"
+	$(Q)echo "make test-internal     - Tests library internally"
+	$(Q)echo "make test-external     - Tests library externally"
+	$(Q)echo "make bench             - Benchmarks library internally and externally"
+	$(Q)echo "make bench-internal    - Benchmarks library internally"
+	$(Q)echo "make bench-external    - Benchmarks library externally"
+	$(Q)echo "make doc               - Builds documentation for library"
+	$(Q)echo "make git-ignore        - Setup files to be ignored by Git"
+	$(Q)echo "make examples          - Builds examples"
+	$(Q)echo "make cargo-lite-exe    - Setup executable package"
+	$(Q)echo "make cargo-lite-lib    - Setup library package"
+	$(Q)echo "make cargo-exe         - EXPERIMENTAL: Setup executable package"
+	$(Q)echo "make cargo-lib         - EXPERIMENTAL: Setup library package"
+	$(Q)echo "make rust-ci-lib       - Setup Travis CI Rust library"
+	$(Q)echo "make rust-ci-exe       - Setup Travis CI Rust executable"
+	$(Q)echo "make rusti             - Setup 'rusti.sh' for interactive Rust"
+	$(Q)echo "make watch             - Setup 'watch.sh' for compilation on save"
+	$(Q)echo "make loc               - Count lines of code in src folder"
+	$(Q)echo "make nightly-install   - Installs Rust nightly build"
+	$(Q)echo "make nightly-uninstall - Uninstalls Rust nightly build"
+	$(Q)echo "make clean             - Deletes binaries and documentation."
+	$(Q)echo "make clear-project     - WARNING: Deletes project files except 'Makefile'"
+	$(Q)echo "make clear-git         - WARNING: Deletes Git setup"
+	$(Q)echo "make symlink-info      - Symlinked libraries dependency info"
+	$(Q)echo "make target-dir        - Creates directory for current target"
 
 .PHONY: \
 		bench \
@@ -126,7 +127,8 @@ help:
 		target-dir \
 		test \
 		test-internal \
-		test-external
+	    test-external \
+		watch
 
 nightly-install:
 	$(Q)cd ~ \
@@ -187,7 +189,7 @@ cargo-exe: $(EXE_ENTRY_FILE)
 	( \
 		name=$${PWD##/*/} ; \
 		readme=$$((test -e README.md && echo -e "readme = \"README.md\"") || ("")) ; \
-		echo -e "[project]\n\nname = \"$$name\"\nversion = \"0.0\"\n$$readme\nauthors = [\"Your Name <your@email.com>\"]\ntags = []\n\n[[bin]]\n\nname = \"$$name\"\npath = \"$(EXE_ENTRY_FILE)\"\n" > Cargo.toml \
+		echo -e "[package]\n\nname = \"$$name\"\nversion = \"0.0\"\n$$readme\nauthors = [\"Your Name <your@email.com>\"]\ntags = []\n\n[[bin]]\n\nname = \"$$name\"\npath = \"$(EXE_ENTRY_FILE)\"\n" > Cargo.toml \
 		&& echo "--- Created 'Cargo.toml' for executable" \
 		&& cat Cargo.toml \
 	)
@@ -201,7 +203,7 @@ cargo-lib: $(EXE_ENTRY_FILE)
 	( \
 		name=$${PWD##/*/} ; \
 		readme=$$((test -e README.md && echo -e "readme = \"README.md\"") || ("")) ; \
-		echo -e "[project]\n\nname = \"$$name\"\nversion = \"0.0\"\n$$readme\nauthors = [\"Your Name <your@email.com>\"]\ntags = []\n\n[[lib]]\n\nname = \"$$name\"\npath = \"$(LIB_ENTRY_FILE)\"\n" > Cargo.toml \
+		echo -e "[package]\n\nname = \"$$name\"\nversion = \"0.0\"\n$$readme\nauthors = [\"Your Name <your@email.com>\"]\ntags = []\n\n[[lib]]\n\nname = \"$$name\"\npath = \"$(LIB_ENTRY_FILE)\"\n" > Cargo.toml \
 		&& echo "--- Created 'Cargo.toml' for executable" \
 		&& cat Cargo.toml \
 	)
@@ -318,7 +320,7 @@ git-ignore:
 	) \
 	|| \
 	( \
-		echo -e ".DS_Store\n*~\n*#\n*.o\n*.so\n*.swp\n*.dylib\n*.dSYM\n*.dll\n*.rlib\n*.dummy\n*.exe\n*-test\n/bin/main\n/bin/test-internal\n/bin/test-external\n/doc/\n/target/\n/build/\n/.rust/\nrusti.sh\n/examples/*\n!/examples/*.rs" > .gitignore \
+		echo -e ".DS_Store\n*~\n*#\n*.o\n*.so\n*.swp\n*.dylib\n*.dSYM\n*.dll\n*.rlib\n*.dummy\n*.exe\n*-test\n/bin/main\n/bin/test-internal\n/bin/test-external\n/doc/\n/target/\n/build/\n/.rust/\nrusti.sh\nwatch.sh\n/examples/**\n!/examples/*.rs\n!/examples/assets/" > .gitignore \
 		&& echo "--- Created '.gitignore' for git" \
 		&& cat .gitignore \
 	)
@@ -327,7 +329,7 @@ examples: $(EXAMPLE_FILES)
 
 $(EXAMPLE_FILES): lib examples-dir
 	$(Q)$(COMPILER) --target "$(TARGET)" $(COMPILER_FLAGS) $@ -L "target/$(TARGET)/lib" --out-dir examples/ \
-	&& echo "--- Built examples"
+	&& echo "--- Built '$@' (make $@)"
 
 $(EXE_ENTRY_FILE): | src/
 	$(Q)test -e $(EXE_ENTRY_FILE) \
@@ -362,8 +364,10 @@ clean:
 clear-project:
 	$(Q)rm -f ".symlink-info"
 	$(Q)rm -f "cargo-lite.conf"
+	$(Q)rm -f "Cargo.toml"
 	$(Q)rm -f ".travis.yml"
 	$(Q)rm -f "rusti.sh"
+	$(Q)rm -f "watch.sh"
 	$(Q)rm -rf "target/"
 	$(Q)rm -rf "src/"
 	$(Q)rm -rf "bin/"
@@ -442,6 +446,86 @@ rusti: $(TARGET_LIB_DIR)
 		&& chmod +x rusti.sh \
 		&& echo "--- Created 'rusti.sh'" \
 		&& echo "--- Type './rusti.sh' to start interactive Rust" \
+	)
+
+# borrowed from http://stackoverflow.com/q/649246/1256624
+define WATCH_SCRIPT
+#!/bin/bash
+
+#written by zzmp
+
+# This script will recompile a rust project using `make`
+# every time something in the specified directory changes.
+
+# Watch files in infinite loop
+watch () {
+  UNAME=$$(uname)
+  if [ -e "$$2" ]; then
+    echo "Watching files in $$2.."
+    CTIME=$$(date "+%s")
+    while :; do
+      sleep 1
+      for f in `find $$2 -type f -name "*.rs"`; do
+        if [[ $$UNAME == "Darwin" ]]; then
+          st_mtime=$$(stat -f "%m" "$$f")
+        elif [[ $$UNAME == "FreeBSD" ]]; then
+          st_mtime=$$(stat -f "%m" "$$f")
+        else
+          st_mtime=$$(stat -c "%Y" "$$f")
+        fi
+        if [ $$st_mtime -gt $$CTIME ]; then
+          CTIME=$$(date "+%s")
+          echo "~~~ Rebuilding"
+          $$1
+          if [ ! $$? -eq 0 ]; then
+            echo ""
+          fi
+        fi
+      done
+    done
+  else
+    echo "$$2 is not a valid directory"
+  fi
+}
+
+# Capture user input with defaults
+CMD=$${1:-make}
+DIR=$${2:-src}
+
+if [ $${CMD:0:2} = '-h' ]; then
+echo '
+This script will recompile a rust project using `make`
+every time something in the specified directory changes.
+
+Use: ./watch.sh [CMD] [DIR]
+Example: ./watch.sh "make run" src
+
+CMD: Command to execute
+     Complex commands may be passed as strings
+     `make` by default
+DIR: Directory to watch
+     src by default
+
+If DIR is supplied, CMD must be as well.\n'
+else
+  watch "$$CMD" "$$DIR"
+fi
+
+endef
+export WATCH_SCRIPT
+
+watch: $(TARGET_LIB_DIR)
+	$(Q)( \
+		test -e watch.sh \
+		&& echo "--- The file 'watch.sh' already exists" \
+	) \
+	|| \
+	( \
+		echo -e "$$WATCH_SCRIPT" > watch.sh \
+		&& chmod +x watch.sh \
+		&& echo "--- Created 'watch.sh'" \
+		&& echo "--- Type './watch.sh' to start compilation on save" \
+		&& echo "--- Type './watch.sh -h' for more options" \
 	)
 
 loc:

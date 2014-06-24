@@ -3,6 +3,8 @@ use std::{
 	slice
 };
 
+use std::ascii::StrAsciiExt;
+
 use imaging::{
 	sample,
 	colorops,
@@ -145,6 +147,29 @@ pub struct Image {
 }
 
 impl Image {
+	/// Open the image located at the path specified.
+	/// The image's format is determined from the path's file extension.
+	pub fn open(path: &Path) -> ImageResult<Image> {
+		let fin = match io::File::open(path) {
+			Ok(f)  => f,
+			Err(_) => return Err(IoError)
+		};
+
+		let ext    = path.extension_str()
+				 .map_or("".to_string(), |s| s.to_ascii_lower());
+
+		let format = match ext.as_slice()		{
+			"jpg" |
+			"jpeg" => JPEG,
+			"png"  => PNG,
+			"gif"  => GIF,
+			"webp" => WEBP,
+			_      => return Err(UnsupportedError)
+		};
+
+		Image::load(fin, format)
+	}
+
 	/// Create a new image from ```r```.
 	pub fn load<R: Reader>(r: R, format: ImageFormat) -> ImageResult<Image> {
 		match format {

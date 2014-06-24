@@ -353,7 +353,7 @@ impl<R: Reader> HuffReader<R> {
 	}
 
 	pub fn guarantee(&mut self, n: u8) -> IoResult<()> {
-		while self.num_bits < n as u8 {
+		while self.num_bits < n {
 			let byte = try!(self.r.read_u8());
 
 			self.bits |= byte as u32 << self.num_bits;

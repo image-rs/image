@@ -876,7 +876,7 @@ impl<R: Reader> VP8Decoder<R> {
 						let prob = COEFF_UPDATE_PROBS[i][j][k][t];
 						if self.b.read_bool(prob) != 0 {
 							let v = self.b.read_literal(8);
-							self.token_probs[i][j][k][t] = v as u8;
+							self.token_probs[i][j][k][t] = v;
 						}
 					}
 				}
@@ -1008,7 +1008,7 @@ impl<R: Reader> VP8Decoder<R> {
 					self.b.read_literal(8)
 				} else {
 					255
-				} as u8;
+				};
 			}
 		}
 	}
@@ -1069,8 +1069,8 @@ impl<R: Reader> VP8Decoder<R> {
 			self.read_loop_filter_adjustments();
 		}
 
-		self.num_partitions = 1 << self.b.read_literal(2) as u8;
-        let num_partitions = self.num_partitions as uint;
+		self.num_partitions = 1 << self.b.read_literal(2);
+                let num_partitions = self.num_partitions as uint;
 		let _ = try!(self.init_partitions(num_partitions));
 
 		self.read_quantization_indices();
@@ -1280,8 +1280,8 @@ impl<R: Reader> VP8Decoder<R> {
                                 abs_value = -abs_value;
                         }
 
-                        block[ZIGZAG[i] as uint] = abs_value as i32 * if ZIGZAG[i] > 0 { acq }
-                                                                      else { dcq } as i32;
+                        block[ZIGZAG[i] as uint] = abs_value * if ZIGZAG[i] > 0 { acq }
+                                                               else { dcq } as i32;
 
                         has_coefficients = true;
                 }

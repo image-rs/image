@@ -6,6 +6,8 @@
 #![crate_type = "rlib"]
 
 #![deny(missing_doc)]
+#![warn(unnecessary_qualification)]
+#![warn(unnecessary_typecast)]
 #![feature(macro_rules)]
 
 extern crate flate;

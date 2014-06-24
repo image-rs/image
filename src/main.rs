@@ -4,7 +4,7 @@ use std::os;
 use std::io::File;
 
 use image::Image;
-use image::{PNG, JPEG, GIF, WEBP, PPM};
+use image::{PNG, JPEG, PPM};
 
 fn main() {
 	let file = if os::args().len() == 2 {
@@ -13,18 +13,7 @@ fn main() {
 		fail!("Please enter a file")
 	};
 
-	let fin = File::open(&Path::new(file.clone())).unwrap();
-
-	let imagetype = match file.as_slice().split('.').last() {
-		Some("jpg") |
-		Some("jpeg") => JPEG,
-		Some("png")  => PNG,
-		Some("gif")  => GIF,
-		Some("webp") => WEBP,
-		_ 	     => fail!("unimplemented image extension")
-	};
-
-	let im = Image::load(fin, imagetype).unwrap();
+	let im = Image::open(&Path::new(file.clone())).unwrap();
 
 	println!("dimensions {}", im.dimensions());
 	println!("{}", im.colortype());

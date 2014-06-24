@@ -344,10 +344,10 @@ impl<W: Writer> JPEGEncoder<W> {
 		let mut y_dcprev   = 0;
 		let mut dct_yblock = [0i32, ..64];
 
-		for y in range_step(0, height as uint, 8) {
-			for x in range_step(0, width as uint, 8) {
+		for y in range_step(0, height, 8) {
+			for x in range_step(0, width, 8) {
 				//RGB -> YCbCr
-				copy_blocks_grey(image, x, y, width as uint, bpp, &mut yblock);
+				copy_blocks_grey(image, x, y, width, bpp, &mut yblock);
 
 				//Level shift and fdct
 				//Coeffs are scaled by 8
@@ -377,14 +377,14 @@ impl<W: Writer> JPEGEncoder<W> {
 		let mut dct_cb_block = [0i32, ..64];
 		let mut dct_cr_block = [0i32, ..64];
 
-		let mut yblock = [0u8, ..64];
+		let mut yblock   = [0u8, ..64];
 		let mut cb_block = [0u8, ..64];
 		let mut cr_block = [0u8, ..64];
 
-		for y in range_step(0, height as uint, 8) {
-			for x in range_step(0, width as uint, 8) {
+		for y in range_step(0, height, 8) {
+			for x in range_step(0, width, 8) {
 				//RGB -> YCbCr
-				copy_blocks_ycbcr(image, x, y, width as uint, bpp, &mut yblock, &mut cb_block, &mut cr_block);
+				copy_blocks_ycbcr(image, x, y, width, bpp, &mut yblock, &mut cb_block, &mut cr_block);
 
 				//Level shift and fdct
 				//Coeffs are scaled by 8
@@ -506,7 +506,7 @@ fn build_quantization_segment(precision: u8,
 	let p = if precision == 8 {0}
 			else {1};
 
-	let pqtq = (p << 4) | identifier as u8;
+	let pqtq = (p << 4) | identifier;
 	let _    = m.write_u8(pqtq);
 
 	for i in range(0u, 64) {
@@ -600,7 +600,7 @@ fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
 	let (huffsize, huffcode) = derive_codes_and_sizes(bits);
 
 	for (i, &v) in huffval.iter().enumerate() {
-		lut.as_mut_slice()[v as uint] = (huffsize.as_slice()[i as uint], huffcode.as_slice()[i as uint]);
+		lut.as_mut_slice()[v as uint] = (huffsize.as_slice()[i], huffcode.as_slice()[i]);
 	}
 
 	lut

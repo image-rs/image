@@ -349,7 +349,7 @@ fn expand_image(palete: &[(u8, u8, u8)],
 	for y in range(0, height) {
 		for x in range(0, width) {
 			let index = indices[y * width + x];
-			if trans_index == Some(index as u8) {
+			if trans_index == Some(index) {
 				continue
 			}
 

@@ -362,15 +362,15 @@ static CONST2: i32 = 35468;
 
 pub fn idct4x4(block: &mut [i32]) {
         for i in range(0u, 4) {
-                let a1 = block[0 + i] as i32 + block[8 + i] as i32;
-                let b1 = block[0 + i] as i32 - block[8 + i] as i32;
+                let a1 = block[0 + i] + block[8 + i];
+                let b1 = block[0 + i] - block[8 + i];
 
-                let t1 = (block[4 + i] as i32 * CONST2) >> 16;
-                let t2 = block[12 + i] as i32 + ((block[12 + i] as i32 * CONST1) >> 16);
+                let t1 = (block[4 + i] * CONST2) >> 16;
+                let t2 = block[12 + i] + ((block[12 + i] * CONST1) >> 16);
                 let c1 = t1 - t2;
 
-                let t1 = block[4 + i] as i32 + ((block[4 + i] as i32 * CONST1) >> 16);
-                let t2 = (block[12 + i] as i32 * CONST2) >> 16;
+                let t1 = block[4 + i] + ((block[4 + i] * CONST1) >> 16);
+                let t2 = (block[12 + i] * CONST2) >> 16;
                 let d1 = t1 + t2;
 
                 block[4 * 0 + i] = a1 + d1;
@@ -380,15 +380,15 @@ pub fn idct4x4(block: &mut [i32]) {
         }
 
         for i in range(0u, 4) {
-                let a1 = block[4 * i + 0] as i32 + block[4 * i + 2] as i32;
-                let b1 = block[4 * i + 0] as i32 - block[4 * i + 2] as i32;
+                let a1 = block[4 * i + 0] + block[4 * i + 2];
+                let b1 = block[4 * i + 0] - block[4 * i + 2];
 
-                let t1 = (block[4 * i + 1] as i32 * CONST2) >> 16;
-                let t2 = block[4 * i + 3] as i32 + ((block[4 * i + 3] as i32 * CONST1) >> 16);
+                let t1 = (block[4 * i + 1] * CONST2) >> 16;
+                let t2 = block[4 * i + 3] + ((block[4 * i + 3] * CONST1) >> 16);
                 let c1 = t1 - t2;
 
-                let t1 = block[4 * i + 1] as i32 + ((block[4 * i + 1] as i32 * CONST1) >> 16);
-                let t2 = (block[4 * i + 3] as i32 * CONST2) >> 16;
+                let t1 = block[4 * i + 1] + ((block[4 * i + 1] * CONST1) >> 16);
+                let t2 = (block[4 * i + 3] * CONST2) >> 16;
                 let d1 = t1 + t2;
 
                 block[4 * i + 0] = (a1 + d1 + 4) >> 3;
@@ -401,10 +401,10 @@ pub fn idct4x4(block: &mut [i32]) {
 //14.3
 pub fn iwht4x4(block: &mut [i32]) {
         for i in range(0u, 4) {
-                let a1 = block[0 + i] as i32 + block[12 + i] as i32;
-                let b1 = block[4 + i] as i32 + block[8  + i] as i32;
-                let c1 = block[4 + i] as i32 - block[8  + i] as i32;
-                let d1 = block[0 + i] as i32 - block[12 + i] as i32;
+                let a1 = block[0 + i] + block[12 + i];
+                let b1 = block[4 + i] + block[8  + i];
+                let c1 = block[4 + i] - block[8  + i];
+                let d1 = block[0 + i] - block[12 + i];
 
                 block[0  + i] = a1 + b1;
                 block[4  + i] = c1 + d1;

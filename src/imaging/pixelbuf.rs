@@ -156,3 +156,14 @@ impl PixelBuf {
                 r
         }
 }
+
+impl Collection for PixelBuf {
+        fn len(&self) -> uint {
+                match *self {
+                        Luma8(ref p)  => p.len(),
+                        LumaA8(ref p) => p.len(),
+                        Rgb8(ref p)   => p.len(),
+                        Rgba8(ref p)  => p.len(),
+                }
+        }
+}

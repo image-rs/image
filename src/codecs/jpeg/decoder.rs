@@ -587,7 +587,7 @@ fn upsample_mcu(out: &mut [u8], xoffset: uint, width: uint, bpp: uint, mcu: &[u8
 	if mcu.len() == 64 {
 		for y in range(0u, 8) {
 			for x in range(0u, 8) {
-				out[xoffset + x + (y * width)] = mcu[x + y * 8] as u8
+				out[xoffset + x + (y * width)] = mcu[x + y * 8]
 			}
 		}
 	}

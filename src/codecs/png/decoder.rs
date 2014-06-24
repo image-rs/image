@@ -164,7 +164,7 @@ impl<R: Reader> PNGDecoder<R> {
 
 		self.rlength = (bits_per_pixel * self.width as uint + 7) / 8;
 		self.bpp = (bits_per_pixel + 7) / 8;
-		self.previous = Vec::from_elem(self.rlength as uint, 0u8);
+		self.previous = Vec::from_elem(self.rlength, 0u8);
 
 		Ok(())
 	}

@@ -1,6 +1,6 @@
 [package]
 
-name = "rust-image"
+name = "image"
 version = "0.0.0"
 authors = [
     "ccgn",

@@ -42,6 +42,8 @@ pub use image::{
 };
 
 pub use Image = image::Image;
+pub use SubImage = image::SubImage;
+pub use Tiles = image::Tiles;
 
 pub use JPEGDecoder = codecs::jpeg::JPEGDecoder;
 pub use JPEGEncoder = codecs::jpeg::JPEGEncoder;

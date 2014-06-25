@@ -1,9 +1,11 @@
 use std::{
 	io,
+	cmp,
 	slice
 };
 
 use std::ascii::StrAsciiExt;
+use std::default::Default;
 
 use imaging::{
 	sample,
@@ -13,6 +15,8 @@ use imaging::{
 	colortype,
 };
 
+
+use imaging::pixel::Pixel;
 use imaging::colortype::ColorType;
 
 use imaging::pixelbuf::{
@@ -499,6 +503,152 @@ impl Image {
 			color:  self.color
 		}
 	}
+
+	/// Return an immutable view into this image
+	pub fn crop<'a>(&'a self, x: u32, y: u32, width: u32, height: u32) -> SubImage<'a> {
+		let x = cmp::min(x, self.width);
+		let y = cmp::min(y, self.height);
+
+		let height = cmp::min(height, self.height - y);
+		let width  = cmp::min(width, self.width - x);
+
+		SubImage {
+			pixels:  &self.pixels,
+			color:   self.color,
+			xoffset: x,
+			yoffset: y,
+			width:   width,
+			height:  height,
+			vstride: self.width,
+		}
+	}
+
+	/// An iterator over rectangles in this image.
+	/// ```xstride``` and ```ystride``` are the length and width of each rectangle.
+	/// If the image's dimensions are not a multiple of stride
+	/// The subimage will be truncated.
+	pub fn tiles<'a>(&'a self, xstride: u32, ystride: u32) -> Tiles<'a> {
+		Tiles {
+			image: self,
+			x: 0,
+			y: 0,
+			xstride: xstride,
+			ystride: ystride,
+		}
+	}
+}
+
+/// An immutable view into another image.
+pub struct SubImage<'a> {
+	pixels:   &'a pixelbuf::PixelBuf,
+	color:    ColorType,
+	xoffset:  u32,
+	yoffset:  u32,
+	width:    u32,
+	height:   u32,
+	vstride:  u32,
+}
+
+impl<'a> SubImage<'a> {
+	/// Return the width and height of this subimage
+	pub fn dimensions(&self) -> (u32, u32) {
+		(self.width, self.height)
+	}
+
+	/// Convert this Subimage to an Image
+	pub fn to_image(&self) -> Image {
+		let pixels = match *self.pixels {
+			Luma8(ref p)  => Luma8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
+	                LumaA8(ref p) => LumaA8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
+	                Rgb8(ref p)   => Rgb8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
+	                Rgba8(ref p)  => Rgba8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
+        	};
+
+		Image {
+			pixels: pixels,
+			color:  self.color,
+			width:  self.width,
+			height: self.height,
+		}
+	}
+
+	/// Return an immutable view into this SubImage
+	pub fn crop(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<'a> {
+		let x = cmp::min(x, self.width);
+		let y = cmp::min(y, self.height);
+
+		let height = cmp::min(height, self.height - y);
+		let width  = cmp::min(width, self.width - x);
+
+		SubImage {
+			pixels:  self.pixels,
+			color:   self.color,
+			xoffset: self.xoffset + x,
+			yoffset: self.yoffset + y,
+			width:   width,
+			height:  height,
+			vstride: self.vstride,
+		}
+	}
+}
+
+///An iterator over nonoverlapping rectangles within an image.
+pub struct Tiles<'a> {
+	image:   &'a Image,
+	y:       u32,
+	x:       u32,
+	xstride: u32,
+	ystride: u32,
+}
+
+impl<'a> Iterator<SubImage<'a>> for Tiles<'a> {
+	fn next(&mut self) -> Option<SubImage<'a>> {
+		let (width, height) = self.image.dimensions();
+
+		if self.x > width {
+			self.x = 0;
+			self.y += self.ystride;
+		}
+
+		if self.y > height {
+			None
+		} else {
+			let sub = self.image.crop(self.x,
+						  self.y,
+						  self.xstride,
+						  self.ystride);
+			self.x += self.xstride;
+
+			Some(sub)
+		}
+	}
+}
+
+fn subimage_to_image<T: Primitive, P: Pixel<T> + Clone + Copy + Default>(
+	src:    &[P],
+	x0:     u32,
+	y0:     u32,
+	width:  u32,
+	height: u32,
+	stride: u32) -> Vec<P> {
+
+	let x0     = x0 as uint;
+	let y0     = y0 as uint;
+	let width  = width as uint;
+	let height = height as uint;
+	let stride = stride as uint;
+
+	let d: P = Default::default();
+	let mut dest = Vec::from_elem(width * height, d.clone());
+
+	for y in range(0, height) {
+		for x in range(0, width) {
+			let p = src[(y0 + y) * stride + x0 + x];
+			dest.as_mut_slice()[y * width + x] = p;
+		}
+	}
+
+	dest
 }
 
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {

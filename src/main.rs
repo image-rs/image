@@ -4,7 +4,7 @@ use std::os;
 use std::io::File;
 
 use image::Image;
-use image::{PNG, JPEG, PPM};
+use image::{PNG, JPEG};
 
 fn main() {
 	let file = if os::args().len() == 2 {
@@ -27,23 +27,11 @@ fn main() {
 
 	let t = im.clone();
 	spawn(proc() {
-		let fout = File::create(&Path::new(format!("{}.ppm", os::args().as_slice()[1]))).unwrap();
-		let _    = t.save(fout, PPM);
-	});
+		for (i, g) in t.tiles(100, 100).enumerate() {
+			let fout = File::create(&Path::new(format!("{0}_{1}.png", os::args().as_slice()[1], i))).unwrap();
 
-	let t = im.clone();
-	spawn(proc() {
-		let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
-		let g = t.resize_exact(1200, 1200, image::Nearest);
-		let _    = g.save(fout, PNG);
-	});
-
-	let t = im.clone();
-	spawn(proc() {
-		let fout = File::create(&Path::new(format!("{}3.png", os::args().as_slice()[1]))).unwrap();
-
-		let g = t.rotate90();
-
-		let _    = g.save(fout, PNG);
+			let h = g.to_image();
+			let _ = h.save(fout, PNG);
+		}
 	});
 }

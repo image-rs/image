@@ -295,7 +295,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
 		next_code.as_mut_slice()[bits] = code;
 	}
 
-	let mut lut = Vec::from_elem(1 << TABLESIZE, Nothing);
+	let mut lut = Vec::from_elem(1 << TABLESIZE as uint, Nothing);
 
 	for (i, &len) in lengths.iter().enumerate() {
 		if len == 0 {
@@ -303,31 +303,31 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
 		}
 
 		let code = next_code.as_slice()[len as uint];
-		let code = reverse(code) >> (16 - len);
+		let code = reverse(code) >> (16 - len) as uint;
 
 		if len <= TABLESIZE {
 			let r = TABLESIZE - len;
 
-			for j in range(0u16, 1 << r) {
-				let index = (j << len as u16) + code;
+			for j in range(0u16, 1 << r as uint) {
+				let index = (j << len as uint) + code;
 				lut.as_mut_slice()[index as uint] = Symbol(i as u16, len);
 			}
 		}
 		else {
-			let index = code & ((1 << TABLESIZE) - 1);
+			let index = code & ((1 << TABLESIZE as uint) - 1);
 
 			if lut.as_slice()[index as uint] == Nothing {
-				let mask  = (1 << max_overflow) - 1;
-				let array = Vec::from_elem(1 << max_overflow, Nothing);
+				let mask  = (1 << max_overflow as uint) - 1;
+				let array = Vec::from_elem(1 << max_overflow as uint, Nothing);
 
 				lut.as_mut_slice()[index as uint] = Table(mask, array);
 			}
 
-			let code = code >> TABLESIZE;
+			let code = code >> TABLESIZE as uint;
 			let r = max_len - len;
 
-			for j in range(0u16, 1 << r) {
-				let k = (j << (len - TABLESIZE)) + code;
+			for j in range(0u16, 1 << r as uint) {
+				let k = (j << (len - TABLESIZE) as uint) + code;
 				let s = Symbol(i as u16, len - TABLESIZE);
 
 				lut.as_mut_slice()[index as uint].put(k, s);
@@ -356,7 +356,7 @@ impl<R: Reader> HuffReader<R> {
 		while self.num_bits < n {
 			let byte = try!(self.r.read_u8());
 
-			self.bits |= byte as u32 << self.num_bits;
+			self.bits |= byte as u32 << self.num_bits as uint;
 			self.num_bits += 8;
 		}
 
@@ -366,19 +366,19 @@ impl<R: Reader> HuffReader<R> {
 	pub fn byte_align(&mut self) {
 		let n = self.bits & 0b111;
 
-		self.bits >>= n;
+		self.bits >>= n as uint;
 		self.num_bits -= n as u8;
 	}
 
 	pub fn consume(&mut self, n: u8) {
-		self.bits >>= n as u32;
+		self.bits >>= n as uint;
 		self.num_bits -= n;
 	}
 
 	pub fn receive(&mut self, n: u8) -> IoResult<u16> {
 		let _ = try!(self.guarantee(n));
 
-		let val = self.bits & ((1 << n) - 1);
+		let val = self.bits & ((1 << n as uint) - 1);
 		self.consume(n);
 
 		Ok(val as u16)
@@ -388,13 +388,13 @@ impl<R: Reader> HuffReader<R> {
 		let _ = try!(self.guarantee(1));
 
 		loop {
-			let index = self.bits & ((1 << TABLESIZE) - 1);
+			let index = self.bits & ((1 << TABLESIZE as uint) - 1);
 
 			let (val, size) = match table.as_slice()[index as uint] {
 				Symbol(val, size) => (val, size),
 
 				Table(mask, ref a) => {
-					let index = (self.bits >> TABLESIZE) & mask as u32;
+					let index = (self.bits >> TABLESIZE as uint) & mask as u32;
 
 					match a.as_slice()[index as uint] {
 						Symbol(val, size) => (val, size + TABLESIZE),

@@ -91,7 +91,7 @@ pub fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
 		}
 
 		let diff = huffsize.as_slice()[k] - size;
-		code <<= diff as u16;
+		code <<= diff as uint;
 
 		size += diff
 	}

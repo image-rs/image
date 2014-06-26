@@ -683,7 +683,7 @@ impl HuffDecoder {
 				}
 			}
 
-			self.bits |= (byte as u32 << (32 - 8)) >> self.num_bits as u32;
+			self.bits |= (byte as u32 << (32 - 8)) >> self.num_bits as uint;
 			self.num_bits += 8;
 		}
 
@@ -704,14 +704,14 @@ impl HuffDecoder {
 	pub fn receive<R: Reader>(&mut self, r: &mut R, ssss: u8) -> ImageResult<i32> {
 		let _ = try!(self.guarantee(r, ssss));
 
-		let bits = (self.bits & (0xFFFFFFFFu32 << (32 - ssss as u32))) >> (32 - ssss);
+		let bits = (self.bits & (0xFFFFFFFFu32 << (32 - ssss as uint))) >> (32 - ssss) as uint;
 		self.consume(ssss);
 
 		Ok(bits as i32)
 	}
 
 	fn consume(&mut self, n: u8) {
-		self.bits <<= n as u32;
+		self.bits <<= n as uint;
 		self.num_bits -= n;
 	}
 
@@ -777,7 +777,7 @@ fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
 
 		let r = 8 - huffsize.as_slice()[i] as uint;
 
-		for j in range(0, 1 << r) {
+		for j in range(0u, 1 << r) {
 			let index = (huffcode.as_slice()[i] << r) + j as u16;
 			lut.as_mut_slice()[index as uint] = (*v, huffsize.as_slice()[i]);
 		}

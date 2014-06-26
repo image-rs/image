@@ -100,15 +100,15 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 		let t3 = samples[y0 + 3] as i32 - samples[y0 + 4] as i32;
 
 		//Apply unsigned -> signed conversion
-		coeffs[y0 + 0] = (t10 + t11 - 8 * 128) << PASS1_BITS;
-		coeffs[y0 + 4] = (t10 - t11) << PASS1_BITS;
+		coeffs[y0 + 0] = (t10 + t11 - 8 * 128) << PASS1_BITS as uint;
+		coeffs[y0 + 4] = (t10 - t11) << PASS1_BITS as uint;
 
 		let mut z1 = (t12 + t13) * FIX_0_541196100;
 		//Add fudge factor here for final descale
-		z1 += 1 << (CONST_BITS - PASS1_BITS - 1);
+		z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
-		coeffs[y0 + 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS - PASS1_BITS);
-		coeffs[y0 + 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS - PASS1_BITS);
+		coeffs[y0 + 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS - PASS1_BITS) as uint;
+		coeffs[y0 + 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS - PASS1_BITS) as uint;
 
 		//Odd part
 		let t12 = t0 + t2;
@@ -116,7 +116,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 
 		let mut z1 = (t12 + t13) * FIX_1_175875602;
 		//Add fudge factor here for final descale
-		z1 += 1 << (CONST_BITS - PASS1_BITS - 1);
+		z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
 		let mut t12 = t12 * (-FIX_0_390180644);
 		let mut t13 = t13 * (-FIX_1_961570560);
@@ -135,10 +135,10 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 		t1 += z1 + t13;
 		t2 += z1 + t12;
 
-		coeffs[y0 + 1] = t0 >> (CONST_BITS - PASS1_BITS);
-		coeffs[y0 + 3] = t1 >> (CONST_BITS - PASS1_BITS);
-		coeffs[y0 + 5] = t2 >> (CONST_BITS - PASS1_BITS);
-		coeffs[y0 + 7] = t3 >> (CONST_BITS - PASS1_BITS);
+		coeffs[y0 + 1] = t0 >> (CONST_BITS - PASS1_BITS) as uint;
+		coeffs[y0 + 3] = t1 >> (CONST_BITS - PASS1_BITS) as uint;
+		coeffs[y0 + 5] = t2 >> (CONST_BITS - PASS1_BITS) as uint;
+		coeffs[y0 + 7] = t3 >> (CONST_BITS - PASS1_BITS) as uint;
 	}
 
 	//Pass 2: process columns
@@ -152,7 +152,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 		let t3 = coeffs[x + 8 * 3] + coeffs[x + 8 * 4];
 
 		//Add fudge factor here for final descale
-		let t10 = t0 + t3 + (1 << (PASS1_BITS - 1));
+		let t10 = t0 + t3 + (1 << (PASS1_BITS - 1) as uint);
 		let t12 = t0 - t3;
 		let t11 = t1 + t2;
 		let t13 = t1 - t2;
@@ -162,15 +162,15 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 		let t2 = coeffs[x + 8 * 2] - coeffs[x + 8 * 5];
 		let t3 = coeffs[x + 8 * 3] - coeffs[x + 8 * 4];
 
-		coeffs[x + 8 * 0] = (t10 + t11) >> PASS1_BITS;
-		coeffs[x + 8 * 4] = (t10 - t11) >> PASS1_BITS;
+		coeffs[x + 8 * 0] = (t10 + t11) >> PASS1_BITS as uint;
+		coeffs[x + 8 * 4] = (t10 - t11) >> PASS1_BITS as uint;
 
 		let mut z1 = (t12 + t13) * FIX_0_541196100;
 		//Add fudge factor here for final descale
-		z1 += 1 << (CONST_BITS + PASS1_BITS - 1);
+		z1 += 1 << (CONST_BITS + PASS1_BITS - 1) as uint;
 
-		coeffs[x + 8 * 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS + PASS1_BITS);
-		coeffs[x + 8 * 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS + PASS1_BITS);
+		coeffs[x + 8 * 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS + PASS1_BITS) as uint;
+		coeffs[x + 8 * 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS + PASS1_BITS) as uint;
 
 		//Odd part
 		let t12 = t0 + t2;
@@ -178,7 +178,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 
 		let mut z1 = (t12 + t13) * FIX_1_175875602;
 		//Add fudge factor here for final descale
-		z1 += 1 << (CONST_BITS - PASS1_BITS - 1);
+		z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
 		let mut t12 = t12 * (-FIX_0_390180644);
 		let mut t13 = t13 * (-FIX_1_961570560);
@@ -197,10 +197,10 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 		t1 += z1 + t13;
 		t2 += z1 + t12;
 
-		coeffs[x + 8 * 1] = t0 >> (CONST_BITS + PASS1_BITS);
-		coeffs[x + 8 * 3] = t1 >> (CONST_BITS + PASS1_BITS);
-		coeffs[x + 8 * 5] = t2 >> (CONST_BITS + PASS1_BITS);
-		coeffs[x + 8 * 7] = t3 >> (CONST_BITS + PASS1_BITS);
+		coeffs[x + 8 * 1] = t0 >> (CONST_BITS + PASS1_BITS) as uint;
+		coeffs[x + 8 * 3] = t1 >> (CONST_BITS + PASS1_BITS) as uint;
+		coeffs[x + 8 * 5] = t2 >> (CONST_BITS + PASS1_BITS) as uint;
+		coeffs[x + 8 * 7] = t3 >> (CONST_BITS + PASS1_BITS) as uint;
 	}
 }
 
@@ -211,7 +211,7 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
 		if coeffs[x + 8 * 1] == 0 && coeffs[x + 8 * 2] == 0 && coeffs[x + 8 * 3] == 0 &&
 		coeffs[x + 8 * 4] == 0 && coeffs[x + 8 * 5] == 0 && coeffs[x + 8 * 6] == 0 &&
 		coeffs[x + 8 * 7] == 0 {
-			let dcval = coeffs[x + 8 * 0] << PASS1_BITS;
+			let dcval = coeffs[x + 8 * 0] << PASS1_BITS as uint;
 
 			tmp[x + 8 * 0] = dcval;
 			tmp[x + 8 * 1] = dcval;
@@ -235,10 +235,10 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
 
 		let mut z2 = coeffs[x + 8 * 0];
 		let mut z3 = coeffs[x + 8 * 4];
-		z2 <<= CONST_BITS;
-		z3 <<= CONST_BITS;
+		z2 <<= CONST_BITS as uint;
+		z3 <<= CONST_BITS as uint;
 
-		z2 += 1 << (CONST_BITS - PASS1_BITS - 1);
+		z2 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
 		let t0 = z2 + z3;
 		let t1 = z2 - z3;
@@ -274,14 +274,14 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
 		t1 += z1 + z3;
 		t2 += z1 + z2;
 
-		tmp[x + 8 * 0] = (t10 + t3) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 7] = (t10 - t3) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 1] = (t11 + t2) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 6] = (t11 - t2) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 2] = (t12 + t1) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 5] = (t12 - t1) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 3] = (t13 + t0) >> (CONST_BITS - PASS1_BITS);
-		tmp[x + 8 * 4] = (t13 - t0) >> (CONST_BITS - PASS1_BITS);
+		tmp[x + 8 * 0] = (t10 + t3) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 7] = (t10 - t3) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 1] = (t11 + t2) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 6] = (t11 - t2) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 2] = (t12 + t1) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 5] = (t12 - t1) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 3] = (t13 + t0) >> (CONST_BITS - PASS1_BITS) as uint;
+		tmp[x + 8 * 4] = (t13 - t0) >> (CONST_BITS - PASS1_BITS) as uint;
 	}
 
 	for y in range(0u, 8) {
@@ -294,11 +294,11 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
 		let t2 = z1 + z2 * FIX_0_765366865;
 		let t3 = z1 - z3 * FIX_1_847759065;
 
-		let z2 = tmp[y0 + 0] + (1 << (PASS1_BITS + 2));
+		let z2 = tmp[y0 + 0] + (1 << (PASS1_BITS + 2) as uint);
 		let z3 = tmp[y0 + 4];
 
-		let t0 = (z2 + z3) << CONST_BITS;
-		let t1 = (z2 - z3) << CONST_BITS;
+		let t0 = (z2 + z3) << CONST_BITS as uint;
+		let t1 = (z2 - z3) << CONST_BITS as uint;
 
 		let t10 = t0 + t2;
 		let t13 = t0 - t2;
@@ -331,28 +331,28 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
 		t1 += z1 + z3;
 		t2 += z1 + z2;
 
-		let a = (t10 + t3) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t10 + t3) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 0] = level_shift_up(a);
 
-		let a = (t10 - t3) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t10 - t3) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 7] = level_shift_up(a);
 
-		let a = (t11 + t2) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t11 + t2) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 1] = level_shift_up(a);
 
-		let a = (t11 - t2) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t11 - t2) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 6] = level_shift_up(a);
 
-		let a = (t12 + t1) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t12 + t1) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 2] = level_shift_up(a);
 
-		let a = (t12 - t1) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t12 - t1) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 5] = level_shift_up(a);
 
-		let a = (t13 + t0) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t13 + t0) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 3] = level_shift_up(a);
 
-		let a = (t13 - t0) >> (CONST_BITS + PASS1_BITS + 3);
+		let a = (t13 - t0) >> (CONST_BITS + PASS1_BITS + 3) as uint;
 		samples[y0 + 4] = level_shift_up(a);
 	}
 }

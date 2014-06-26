@@ -255,7 +255,7 @@ impl<W: Writer> JPEGEncoder<W> {
 	}
 
 	fn write_bits(&mut self, bits: u16, size: u8) -> IoResult<()> {
-		self.accumulator |= bits as u32 << (32 - (self.nbits + size));
+		self.accumulator |= bits as u32 << (32 - (self.nbits + size)) as uint;
 		self.nbits += size;
 
 		while self.nbits >= 8 {
@@ -525,7 +525,7 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 		num_bits += 1;
 	}
 
-	let mask = (1 << num_bits as u16) - 1;
+	let mask = (1 << num_bits as uint) - 1;
 	let val  = if coefficient < 0 { (coefficient - 1) as u16 & mask }
 			   else {coefficient as u16 & mask};
 

@@ -843,7 +843,7 @@ impl<R: Reader> VP8Decoder<R> {
 			frame: f,
 			segments_enabled: false,
 			segments_update_map: false,
-			segment: [s, ..MAX_SEGMENTS],
+			segment: [s, ..MAX_SEGMENTS as uint],
 
                         partitions: [BoolReader::new(), BoolReader::new(),
                                      BoolReader::new(), BoolReader::new(),
@@ -945,23 +945,23 @@ impl<R: Reader> VP8Decoder<R> {
 
 	fn read_loop_filter_adjustments(&mut self) {
 		if self.b.read_flag() {
-			for _i in range(0, 4) {
+			for _i in range(0u, 4) {
 				let ref_frame_delta_update_flag = self.b.read_flag();
 
 				let _delta = if ref_frame_delta_update_flag {
 					self.b.read_magnitude_and_sign(6)
 				} else {
-					0
+					0i32
 				};
 			}
 
-			for _i in range(0, 4) {
+			for _i in range(0u, 4) {
 				let mb_mode_delta_update_flag = self.b.read_flag();
 
 				let _delta = if mb_mode_delta_update_flag {
 					self.b.read_magnitude_and_sign(6)
 				} else {
-					0
+					0i32
 				};
 			}
 		}
@@ -985,7 +985,7 @@ impl<R: Reader> VP8Decoder<R> {
 				self.segment[i].quantizer_level = if update {
 					self.b.read_magnitude_and_sign(7)
 				} else {
-					0
+					0i32
 				} as i8;
 			}
 
@@ -995,7 +995,7 @@ impl<R: Reader> VP8Decoder<R> {
 				self.segment[i].loopfilter_level = if update {
 					self.b.read_magnitude_and_sign(6)
 				} else {
-					0
+					0i32
 				} as i8;
 			}
 		}
@@ -1069,7 +1069,7 @@ impl<R: Reader> VP8Decoder<R> {
 			self.read_loop_filter_adjustments();
 		}
 
-		self.num_partitions = 1 << self.b.read_literal(2);
+		self.num_partitions = (1u << self.b.read_literal(2) as uint) as u8;
                 let num_partitions = self.num_partitions as uint;
 		let _ = try!(self.init_partitions(num_partitions));
 

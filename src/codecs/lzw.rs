@@ -29,10 +29,10 @@ pub struct LZWReader<R> {
 
 impl<R: Reader> LZWReader<R> {
 	pub fn new(r: R, size: u8) -> LZWReader<R> {
-		let mut dict = Vec::from_elem(1 << MAXCODESIZE, None);
+		let mut dict = Vec::from_elem(1 << MAXCODESIZE as uint, None);
 
-		for i in range(0, 1 << size) {
-			dict.as_mut_slice()[i as uint] = Some(vec![i as u8])
+		for i in range(0u, 1 << size as uint) {
+			dict.as_mut_slice()[i] = Some(vec![i as u8])
 		}
 
 		LZWReader {
@@ -47,9 +47,9 @@ impl<R: Reader> LZWReader<R> {
 			initial_size: size,
 			code_size: size + 1,
 
-			next_code: (1 << size as u16) + 2,
-			clear: 1 << size as u16,
-			end: (1 << size as u16) + 1,
+			next_code: (1 << size as uint) + 2,
+			clear: 1 << size as uint,
+			end: (1 << size as uint) + 1,
 
 			out: Vec::new(),
 			pos: 0,
@@ -62,14 +62,14 @@ impl<R: Reader> LZWReader<R> {
 		while self.num_bits < self.code_size {
 			let byte = try!(self.r.read_u8());
 
-			self.accumulator |= byte as u32 << self.num_bits;
+			self.accumulator |= byte as u32 << self.num_bits as uint;
 			self.num_bits += 8;
 		}
 
-		let mask = (1 << self.code_size) - 1;
+		let mask = (1 << self.code_size as uint) - 1;
 		let code = self.accumulator & mask;
 
-		self.accumulator >>= self.code_size;
+		self.accumulator >>= self.code_size as uint;
 		self.num_bits -= self.code_size;
 
 		Ok(code as u16)
@@ -82,7 +82,7 @@ impl<R: Reader> LZWReader<R> {
 			if code == self.clear {
 				self.code_size = self.initial_size + 1;
 				self.next_code = self.end + 1;
-				self.dict = Vec::from_elem(1 << MAXCODESIZE, None);
+				self.dict = Vec::from_elem(1 << MAXCODESIZE as uint, None);
 
 				for i in range(0u, 1 << self.initial_size as uint) {
 					self.dict.as_mut_slice()[i] = Some(vec![i as u8])
@@ -109,7 +109,7 @@ impl<R: Reader> LZWReader<R> {
 				self.dict.as_mut_slice()[self.next_code as uint] = Some(tmp);
 				self.next_code += 1;
 
-				if self.next_code >= 1 << self.code_size as u16 {
+				if self.next_code >= 1 << self.code_size as uint {
 					self.code_size += 1;
 				}
 			}

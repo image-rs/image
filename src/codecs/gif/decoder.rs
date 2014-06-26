@@ -136,7 +136,7 @@ impl<R: Reader> GIFDecoder<R> {
 		}
 
 		if local_table {
-			let n   = 1 << (table_size + 1);
+			let n   = 1 << (table_size + 1) as uint;
 			let buf = io_try!(self.r.read_exact(3 * n));
 			let mut b = Vec::from_elem(n, (0u8, 0u8, 0u8));
 
@@ -246,9 +246,9 @@ impl<R: Reader> GIFDecoder<R> {
 
 		let global_table = fields & 0x80 != 0;
 		let entries = if global_table {
-			1 << ((fields & 7) + 1)
+			1 << ((fields & 7) + 1) as uint
 		} else {
-			0
+			0u
 		};
 
 		if global_table {

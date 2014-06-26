@@ -174,7 +174,7 @@ impl<R: Reader> PNGDecoder<R> {
 
 		let len = buf.len() / 3;
 
-		if len > 256 || len > (1 << self.bit_depth) || buf.len() % 3 != 0{
+		if len > 256 || len > (1 << self.bit_depth as uint) || buf.len() % 3 != 0{
 			return Err(image::FormatError)
 		}
 

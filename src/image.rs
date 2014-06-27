@@ -151,6 +151,15 @@ pub struct Image {
 }
 
 impl Image {
+	fn new(buf: pixelbuf::PixelBuf, width: u32, height: u32, color: ColorType) -> Image {
+		Image {
+			pixels: buf,
+			width:  width,
+			height: height,
+			color:  color,
+		}
+	}
+
 	/// Open the image located at the path specified.
 	/// The image's format is determined from the path's file extension.
 	pub fn open(path: &Path) -> ImageResult<Image> {
@@ -253,12 +262,7 @@ impl Image {
 	                Rgba8(ref p)  => Luma8(colorops::grayscale(p.as_slice())),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  colortype::Grey(8),
-		}
+        	Image::new(pixels, self.width, self.height, colortype::Grey(8))
 	}
 
 	/// Invert the colors of this image.
@@ -305,12 +309,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  nwidth,
-			height: nheight,
-			color:  self.color
-		}
+        	Image::new(pixels, nwidth, nheight, self.color)
 	}
 
 	/// Perfomrs a Gausian blur on this image.
@@ -326,12 +325,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(sample::blur(p.as_slice(), width, height, sigma)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	/// Performs an unsharpen mask on ```pixels```
@@ -349,12 +343,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
         	};
 
-	    	Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+	    	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	/// Filters this image with the specified 3x3 kernel.
@@ -373,12 +362,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(sample::filter3x3(p.as_slice(), width, height, kernel)),
 	        };
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	/// Adjust the contrast of ```pixels```
@@ -392,12 +376,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(colorops::contrast(p.as_slice(), c)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	/// Brighten ```pixels```
@@ -411,12 +390,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(colorops::brighten(p.as_slice(), value)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	///Flip this image vertically
@@ -428,12 +402,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	///Flip this image horizontally
@@ -445,12 +414,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	///Rotate this image 90 degrees clockwise.
@@ -462,12 +426,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(affine::rotate90(p.as_slice(), self.width, self.height)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	///Rotate this image 180 degrees clockwise.
@@ -479,12 +438,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(affine::rotate180(p.as_slice(), self.width, self.height)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	///Rotate this image 270 degrees clockwise.
@@ -496,12 +450,7 @@ impl Image {
 	                Rgba8(ref p)  => Rgba8(affine::rotate270(p.as_slice(), self.width, self.height)),
         	};
 
-		Image {
-			pixels: pixels,
-			width:  self.width,
-			height: self.height,
-			color:  self.color
-		}
+        	Image::new(pixels, self.width, self.height, self.color)
 	}
 
 	/// Return an immutable view into this image
@@ -605,12 +554,12 @@ impl<'a> Iterator<SubImage<'a>> for Tiles<'a> {
 	fn next(&mut self) -> Option<SubImage<'a>> {
 		let (width, height) = self.image.dimensions();
 
-		if self.x > width {
+		if self.x >= width {
 			self.x = 0;
 			self.y += self.ystride;
 		}
 
-		if self.y > height {
+		if self.y >= height {
 			None
 		} else {
 			let sub = self.image.crop(self.x,

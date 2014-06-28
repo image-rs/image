@@ -26,19 +26,19 @@ pub use ImageFormat  = image::ImageFormat;
 pub use FilterType   = imaging::sample::FilterType;
 
 pub use imaging::sample::{
-        Triangle,
-        Nearest,
-        CatmullRom,
-        Gaussian,
-        Lanczos3
+    Triangle,
+    Nearest,
+    CatmullRom,
+    Gaussian,
+    Lanczos3
 };
 
 pub use image::{
-        PNG,
-        JPEG,
-        GIF,
-        WEBP,
-        PPM
+    PNG,
+    JPEG,
+    GIF,
+    WEBP,
+    PPM
 };
 
 pub use Image = image::Image;
@@ -55,12 +55,12 @@ pub use WebpDecoder = codecs::webp::WebpDecoder;
 
 ///Image Codecs
 pub mod codecs {
-        pub mod vp8;
-        pub mod jpeg;
-        pub mod png;
-        pub mod gif;
-        pub mod webp;
-        pub mod ppm;
+    pub mod vp8;
+    pub mod jpeg;
+    pub mod png;
+    pub mod gif;
+    pub mod webp;
+    pub mod ppm;
 }
 
 #[path = "codecs/hash.rs"]
@@ -80,12 +80,12 @@ mod lzw;
 
 ///Image Processing Functions
 pub mod imaging {
-        pub mod colortype;
-        pub mod pixel;
-        pub mod sample;
-        pub mod colorops;
-        pub mod pixelbuf;
-        pub mod affine;
+    pub mod colortype;
+    pub mod pixel;
+    pub mod sample;
+    pub mod colorops;
+    pub mod pixelbuf;
+    pub mod affine;
 }
 
 mod image;

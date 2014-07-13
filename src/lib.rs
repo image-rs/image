@@ -2,7 +2,7 @@
 //! Image encoders and decoders and basic image manipulation
 //! functions.
 
-#![crate_id = "image"]
+#![crate_name = "image"]
 #![crate_type = "rlib"]
 
 #![deny(missing_doc)]

@@ -1,4 +1,4 @@
-# Rust-Empty: An Makefile to get started with Rust
+# Rust-Empty: A Makefile to get started with Rust
 # https://github.com/bvssvni/rust-empty
 # 
 # The MIT License (MIT)
@@ -63,6 +63,9 @@ RLIB = target/$(RLIB_FILE)
 DYLIB_FILE = $(shell (rustc --crate-type=dylib --crate-file-name "$(LIB_ENTRY_FILE)" 2> /dev/null) || (echo "dummy.dylib"))
 DYLIB = target/$(DYLIB_FILE)
 
+EXE_FILE = $(shell (rustc --crate-type=bin --print-file-name "$(EXE_ENTRY_FILE)" 2> /dev/null) || (echo "main"))
+EXE = bin/$(EXE_FILE)
+
 # Use 'VERBOSE=1' to echo all commands, for example 'make help VERBOSE=1'.
 ifdef VERBOSE
   Q :=
@@ -73,7 +76,7 @@ endif
 all: $(DEFAULT)
 
 help:
-	$(Q)echo "--- rust-empty (0.6 001)"
+	$(Q)echo "--- rust-empty (0.7 000)"
 	$(Q)echo "make run               - Runs executable"
 	$(Q)echo "make exe               - Builds main executable"
 	$(Q)echo "make lib               - Both static and dynamic library"
@@ -88,8 +91,6 @@ help:
 	$(Q)echo "make doc               - Builds documentation for library"
 	$(Q)echo "make git-ignore        - Setup files to be ignored by Git"
 	$(Q)echo "make examples          - Builds examples"
-	$(Q)echo "make cargo-lite-exe    - Setup executable package"
-	$(Q)echo "make cargo-lite-lib    - Setup library package"
 	$(Q)echo "make cargo-exe         - Setup executable package"
 	$(Q)echo "make cargo-lib         - Setup library package"
 	$(Q)echo "make rust-ci-lib       - Setup Travis CI Rust library"
@@ -112,8 +113,6 @@ help:
 		bench-external \
 		cargo-lib \
 		cargo-exe \
-		cargo-lite-lib \
-		cargo-lite-exe \
 		clean \
 		clear-git \
 		clear-project \
@@ -158,30 +157,6 @@ nightly-uninstall:
 		fi \
 	)
 
-cargo-lite-exe: $(EXE_ENTRY_FILE)
-	$(Q)( \
-		test -e cargo-lite.conf \
-		&& echo "--- The file 'cargo-lite.conf' already exists" \
-	) \
-	|| \
-	( \
-		echo -e "deps = [\n]\n\n[build]\ncrate_root = \"$(EXE_ENTRY_FILE)\"\nrustc_args = []\n" > cargo-lite.conf \
-		&& echo "--- Created 'cargo-lite.conf' for executable" \
-		&& cat cargo-lite.conf \
-	)
-
-cargo-lite-lib: $(LIB_ENTRY_FILE)
-	$(Q)( \
-		test -e cargo-lite.conf \
-		&& echo "--- The file 'cargo-lite.conf' already exists" \
-	) \
-	|| \
-	( \
-		echo -e "deps = [\n]\n\n[build]\ncrate_root = \"$(LIB_ENTRY_FILE)\"\ncrate_type = \"library\"\nrustc_args = []\n" > cargo-lite.conf \
-		&& echo "--- Created 'cargo-lite.conf' for library" \
-		&& cat cargo-lite.conf \
-	)
-
 cargo-exe: $(EXE_ENTRY_FILE)
 	$(Q)( \
 		test -e Cargo.toml \
@@ -196,7 +171,7 @@ cargo-exe: $(EXE_ENTRY_FILE)
 		&& cat Cargo.toml \
 	)
 
-cargo-lib: $(EXE_ENTRY_FILE)
+cargo-lib: $(LIB_ENTRY_FILE)
 	$(Q)( \
 		test -e Cargo.toml \
 		&& echo "--- The file 'Cargo.toml' already exists" \
@@ -206,7 +181,7 @@ cargo-lib: $(EXE_ENTRY_FILE)
 		name=$${PWD##/*/} ; \
 		readme=$$((test -e README.md && echo -e "readme = \"README.md\"") || ("")) ; \
 		echo -e "[package]\n\nname = \"$$name\"\nversion = \"0.0.0\"\n$$readme\nauthors = [\"Your Name <your@email.com>\"]\ntags = []\n\n[[lib]]\n\nname = \"$$name\"\npath = \"$(LIB_ENTRY_FILE)\"\n" > Cargo.toml \
-		&& echo "--- Created 'Cargo.toml' for executable" \
+		&& echo "--- Created 'Cargo.toml' for library" \
 		&& cat Cargo.toml \
 	)
 
@@ -240,14 +215,14 @@ doc: $(SOURCE_FILES) | src/
 
 run: exe
 	$(Q)cd bin/ \
-	&& ./main
+	&& ./$(EXE_FILE)
 
 target-dir: $(TARGET_LIB_DIR)
 
-exe: bin/main | $(TARGET_LIB_DIR)
+exe: $(EXE) | $(TARGET_LIB_DIR)
 
-bin/main: $(SOURCE_FILES) | bin/ $(EXE_ENTRY_FILE)
-	$(Q)$(COMPILER) --target "$(TARGET)" $(COMPILER_FLAGS) $(EXE_ENTRY_FILE) -o bin/main -L "$(TARGET_LIB_DIR)" -L "target" \
+$(EXE): $(SOURCE_FILES) | bin/ $(EXE_ENTRY_FILE)
+	$(Q)$(COMPILER) --target "$(TARGET)" $(COMPILER_FLAGS) $(EXE_ENTRY_FILE) -o $(EXE) -L "$(TARGET_LIB_DIR)" -L "target" \
 	&& echo "--- Built executable" \
 	&& echo "--- Type 'make run' to run executable"
 
@@ -322,7 +297,7 @@ git-ignore:
 	) \
 	|| \
 	( \
-		echo -e ".DS_Store\n*~\n*#\n*.o\n*.so\n*.swp\n*.dylib\n*.dSYM\n*.dll\n*.rlib\n*.dummy\n*.exe\n*-test\n/bin/main\n/bin/test-internal\n/bin/test-external\n/doc/\n/target/\n/build/\n/.rust/\nrusti.sh\nwatch.sh\n/examples/**\n!/examples/*.rs\n!/examples/assets/" > .gitignore \
+		echo -e ".DS_Store\n*~\n*#\n*.o\n*.so\n*.swp\n*.old\n*.bak\n*.kate-swp\n*.dylib\n*.dSYM\n*.dll\n*.rlib\n*.dummy\n*.exe\n*-test\n/$(EXE)\n/bin/test-internal\n/bin/test-external\n/doc/\n/target/\n/build/\n/.rust/\nrusti.sh\nwatch.sh\n/examples/**\n!/examples/*.rs\n!/examples/assets/" > .gitignore \
 		&& echo "--- Created '.gitignore' for git" \
 		&& cat .gitignore \
 	)
@@ -351,21 +326,21 @@ $(LIB_ENTRY_FILE): | src/
 	$(Q)test -e $(LIB_ENTRY_FILE) \
 	|| \
 	( \
-		echo -e "#![crate_id = \"\"]\n#![deny(missing_doc)]\n\n//! Documentation goes here.\n" > $(LIB_ENTRY_FILE) \
+		name=$${PWD##/*/} ; \
+		echo -e "#![crate_name = \"$$name\"]\n#![deny(missing_doc)]\n\n//! Documentation goes here.\n" > $(LIB_ENTRY_FILE) \
 	)
 
 clean:
 	$(Q)rm -f "$(RLIB)"
 	$(Q)rm -f "$(DYLIB)"
 	$(Q)rm -rf "doc/"
-	$(Q)rm -f "bin/main"
+	$(Q)rm -f "$(EXE)"
 	$(Q)rm -f "bin/test-internal"
 	$(Q)rm -f "bin/test-external"
 	$(Q)echo "--- Deleted binaries and documentation"
 
 clear-project:
 	$(Q)rm -f ".symlink-info"
-	$(Q)rm -f "cargo-lite.conf"
 	$(Q)rm -f "Cargo.toml"
 	$(Q)rm -f ".travis.yml"
 	$(Q)rm -f "rusti.sh"
@@ -586,9 +561,12 @@ function build_deps {
 
         # Remember git directory to not build it twice
         git_dir[i]=$$current_git_dir
+        let i+=1
 
         # Visit the symlinks and build the dependencies
         build_deps
+        
+		echo "--- Building $$current_git_dir" \
 
         # First check for a 'build.sh' script with default settings.
         # Check for additional 'rust-empty.mk' file. \
@@ -606,11 +584,19 @@ function build_deps {
         ) \
         || \
         ( \
-            echo "--- Building $$current_git_dir" \
+			test -e Makefile \
             && $$MAKE clean \
             && $$MAKE \
-        )
-        let i+=1
+        ) \
+		|| \
+		( \
+			test -e Cargo.toml \
+			&& cargo build \
+		) \
+		|| \
+		( \
+			echo "--- ERROR: Missing Makefile in $$current_git_dir" \
+		)
     done
     cd $$current
 }

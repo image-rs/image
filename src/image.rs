@@ -1,69 +1,45 @@
-use std::{
-    io,
-    cmp,
-    slice
-};
-
-use std::ascii::StrAsciiExt;
+use std::mem;
+use std::slice;
 use std::default::Default;
+use std::iter::CloneableIterator;
 
-use imaging::{
-    sample,
-    colorops,
-    affine,
-    pixelbuf,
-    colortype,
-};
-
-
-use imaging::pixel::Pixel;
-use imaging::colortype::ColorType;
-
-use imaging::pixelbuf::{
-    Luma8,
-    LumaA8,
-    Rgb8,
-    Rgba8
-};
-
-use codecs::{
-    png,
-    jpeg,
-    webp,
-    gif,
-    ppm,
+use color;
+use color:: {
+    Pixel,
+    ColorType
 };
 
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
 pub enum ImageError {
-        ///The Image is not formatted properly
+    ///The Image is not formatted properly
     FormatError,
 
-        ///The Image's dimensions are either too small or too large
+    ///The Image's dimensions are either too small or too large
     DimensionError,
 
-        ///The Decoder does not support this image format
+    ///The Decoder does not support this image format
     UnsupportedError,
 
-        ///The Decoder does not support this color type
+    ///The Decoder does not support this color type
     UnsupportedColor,
 
-        ///Not enough data was provided to the Decoder
-        ///to decode the image
+    ///Not enough data was provided to the Decoder
+    ///to decode the image
     NotEnoughData,
 
-        ///An I/O Error occurred while decoding the image
+    ///An I/O Error occurred while decoding the image
     IoError,
 
-        ///The end of the image has been reached
-        ImageEnd
+    ///The end of the image has been reached
+    ImageEnd
 }
 
 pub type ImageResult<T> = Result<T, ImageError>;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
+#[deriving(PartialEq, Eq, Show)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,
@@ -83,541 +59,352 @@ pub enum ImageFormat {
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
-        ///Return a tuple containing the width and height of the image
-        fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
+    ///Return a tuple containing the width and height of the image
+    fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
 
-        ///Return the color type of the image e.g RGB(8) (8bit RGB)
-        fn colortype(&mut self) -> ImageResult<ColorType>;
+    ///Return the color type of the image e.g RGB(8) (8bit RGB)
+    fn colortype(&mut self) -> ImageResult<ColorType>;
 
-        ///Returns the length in bytes of one decoded row of the image
-        fn row_len(&mut self) -> ImageResult<uint>;
+    ///Returns the length in bytes of one decoded row of the image
+    fn row_len(&mut self) -> ImageResult<uint>;
 
-        ///Read one row from the image into buf
-        ///Returns the row index
-        fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
+    ///Read one row from the image into buf
+    ///Returns the row index
+    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
 
-        ///Decode the entire image and return it as a Vector
-        fn read_image(&mut self) -> ImageResult<Vec<u8>>;
+    ///Decode the entire image and return it as a Vector
+    fn read_image(&mut self) -> ImageResult<Vec<u8>>;
 
-        ///Decode a specific region of the image, represented by the rectangle
-        ///starting from ```x``` and ```y``` and having ```length``` and ```width```
-        fn load_rect(&mut self, x: u32, y: u32, length: u32, width: u32) -> ImageResult<Vec<u8>> {
-            let (w, h) = try!(self.dimensions());
+    ///Decode a specific region of the image, represented by the rectangle
+    ///starting from ```x``` and ```y``` and having ```length``` and ```width```
+    fn load_rect(&mut self, x: u32, y: u32, length: u32, width: u32) -> ImageResult<Vec<u8>> {
+        let (w, h) = try!(self.dimensions());
 
-            if length > h || width > w || x > w || y > h {
-                    return Err(DimensionError)
-            }
-
-            let c = try!(self.colortype());
-
-            let bpp = colortype::bits_per_pixel(c) / 8;
-            let rowlen  = try!(self.row_len());
-
-            let mut buf = Vec::from_elem(length as uint * width as uint * bpp, 0u8);
-            let mut tmp = Vec::from_elem(rowlen, 0u8);
-
-            loop {
-                let row = try!(self.read_scanline(tmp.as_mut_slice()));
-                if row - 1 == y {
-                        break
-                }
-            }
-
-            for i in range(0, length as uint) {
-                {
-                    let from = tmp.slice_from(x as uint * bpp)
-                                  .slice_to(width as uint * bpp);
-
-                    let to   = buf.mut_slice_from(i * width as uint * bpp)
-                                  .mut_slice_to(width as uint * bpp);
-
-                    slice::bytes::copy_memory(to, from);
-                }
-
-                let _ = try!(self.read_scanline(tmp.as_mut_slice()));
-            }
-
-            Ok(buf)
+        if length > h || width > w || x > w || y > h {
+            return Err(DimensionError)
         }
+
+        let c = try!(self.colortype());
+
+        let bpp = color::bits_per_pixel(c) / 8;
+
+        let rowlen  = try!(self.row_len());
+
+        let mut buf = Vec::from_elem(length as uint * width as uint * bpp, 0u8);
+        let mut tmp = Vec::from_elem(rowlen, 0u8);
+
+        loop {
+            let row = try!(self.read_scanline(tmp.as_mut_slice()));
+
+            if row - 1 == y {
+                break
+            }
+        }
+
+        for i in range(0, length as uint) {
+            {
+                let from = tmp.slice_from(x as uint * bpp)
+                              .slice_to(width as uint * bpp);
+
+                let to   = buf.mut_slice_from(i * width as uint * bpp)
+                              .mut_slice_to(width as uint * bpp);
+
+                slice::bytes::copy_memory(to, from);
+            }
+
+            let _ = try!(self.read_scanline(tmp.as_mut_slice()));
+        }
+
+        Ok(buf)
+    }
 }
 
-/// A Generic representation of an image
-#[deriving(Clone, Show)]
-pub struct Image {
-    pixels:  pixelbuf::PixelBuf,
-    width:   u32,
-    height:  u32,
-    color:   ColorType,
+/// Immutable pixel iterator
+pub struct Pixels<'a, I> {
+    image:  &'a I,
+    x:      u32,
+    y:      u32,
+    width:  u32,
+    height: u32
 }
 
-impl Image {
-    fn new(buf: pixelbuf::PixelBuf, width: u32, height: u32, color: ColorType) -> Image {
-        Image {
-            pixels: buf,
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, P)> for Pixels<'a, I> {
+    fn next(&mut self) -> Option<(u32, u32, P)> {
+        if self.x >= self.width {
+            self.x =  0;
+            self.y += 1;
+        }
+
+        if self.y >= self.height {
+            None
+        } else {
+            let pixel = self.image.get_pixel(self.x, self.y);
+            let p = (self.x, self.y, pixel);
+
+            self.x += 1;
+
+            Some(p)
+        }
+    }
+}
+
+/// Mutable pixel iterator
+pub struct MutPixels<'a, I> {
+    image:  &'a mut I,
+    x:      u32,
+    y:      u32,
+    width:  u32,
+    height: u32
+}
+
+impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> Iterator<(u32, u32, &'a mut P)> for MutPixels<'a, I> {
+    fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
+        if self.x >= self.width {
+            self.x =  0;
+            self.y += 1;
+        }
+
+        if self.y >= self.height {
+            None
+        } else {
+            let tmp = self.image.get_mut_pixel(self.x, self.y);
+
+            //error: lifetime of `self` is too short to guarantee its contents
+            //       can be safely reborrowed...
+            let ptr = unsafe {
+                mem::transmute(tmp)
+            };
+
+            let p = (self.x, self.y, ptr);
+
+            self.x += 1;
+
+            Some(p)
+        }
+    }
+}
+
+///A trait for manipulating images.
+pub trait GenericImage<P> {
+    ///The width and height of this image.
+    fn dimensions(&self) -> (u32, u32);
+
+    ///The bounding rectange of this image.
+    fn bounds(&self) -> (u32, u32, u32, u32);
+
+    ///Return the pixel located at (x, y)
+    fn get_pixel(&self, x: u32, y: u32) -> P;
+
+    ///Put a pixel at location (x, y)
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
+
+    ///Return an Iterator over the pixels of this image.
+    ///The iterator yeilds the coordiates of each pixel
+    ///along with their value
+    fn pixels(&self) -> Pixels<Self> {
+        let (width, height) = self.dimensions();
+
+        Pixels {
+            image:  self,
+            x:      0,
+            y:      0,
             width:  width,
             height: height,
-            color:  color,
         }
     }
+}
 
-    /// Open the image located at the path specified.
-    /// The image's format is determined from the path's file extension.
-    pub fn open(path: &Path) -> ImageResult<Image> {
-        let fin = match io::File::open(path) {
-            Ok(f)  => f,
-            Err(_) => return Err(IoError)
-        };
+///A trait for images that allow providing mutable references to pixels.
+pub trait MutableRefImage<P>: GenericImage<P> {
+    ///Return a mutable reference to the pixel located at (x, y)
+    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P;
 
-        let ext = path.extension_str()
-                 .map_or("".to_string(), |s| s.to_ascii_lower());
+    ///Return an Iterator over mutable pixels of this image.
+    ///The iterator yeilds the coordiates of each pixel
+    ///along with a mutable reference to them.
+    fn mut_pixels(&mut self) -> MutPixels<Self> {
+        let (width, height) = self.dimensions();
 
-        let format = match ext.as_slice()       {
-            "jpg" |
-            "jpeg" => JPEG,
-            "png"  => PNG,
-            "gif"  => GIF,
-            "webp" => WEBP,
-            _      => return Err(UnsupportedError)
-        };
-
-        Image::load(fin, format)
-    }
-
-    /// Create a new image from ```r```.
-    pub fn load<R: Reader>(r: R, format: ImageFormat) -> ImageResult<Image> {
-        match format {
-            PNG  => decoder_to_image(png::PNGDecoder::new(r)),
-            GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
-            JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
-            WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
-            _    => Err(UnsupportedError),
+        MutPixels {
+            image:  self,
+            x:      0,
+            y:      0,
+            width:  width,
+            height: height,
         }
     }
+}
 
-    /// Create a new image from a byte slice
-    pub fn load_from_memory(buf: &[u8], format: ImageFormat) -> ImageResult<Image> {
-        let b = io::BufReader::new(buf);
+///An Image whose pixels are contained within a vector
+#[deriving(Clone)]
+pub struct ImageBuf<P> {
+    pixels:  Vec<P>,
+    width:   u32,
+    height:  u32,
+}
 
-        Image::load(b, format)
-    }
+impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
+    ///Construct a new ImageBuf with the specified width and height.
+    pub fn new(width: u32, height: u32) -> ImageBuf<P> {
+        let pixel: P = Default::default();
+        let pixels = Vec::from_elem((width * height) as uint, pixel.clone());
 
-    /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, w: W, format: ImageFormat) -> io::IoResult<ImageResult<()>> {
-        let r = match format {
-            PNG  => {
-                let mut p = png::PNGEncoder::new(w);
-                try!(p.encode(self.raw_pixels().as_slice(),
-                    self.width,
-                    self.height,
-                    self.color))
-                Ok(())
-            }
-
-            PPM  => {
-                let mut p = ppm::PPMEncoder::new(w);
-                try!(p.encode(self.raw_pixels().as_slice(),
-                    self.width,
-                    self.height,
-                    self.color))
-                Ok(())
-            }
-
-            JPEG => {
-                let mut j = jpeg::JPEGEncoder::new(w);
-                try!(j.encode(self.raw_pixels().as_slice(),
-                    self.width,
-                    self.height,
-                    self.color))
-                Ok(())
-            }
-
-            _    => Err(UnsupportedError),
-        };
-
-        Ok(r)
-    }
-
-    /// Return the pixel buffer of this image.
-    /// Its interpretation is dependent on the image's ```ColorType```.
-    pub fn raw_pixels(& self) -> Vec<u8> {
-        self.pixels.to_bytes()
-    }
-
-    /// Returns a tuple of the image's width and height.
-    pub fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
-    }
-
-    /// The colortype of this image.
-    pub fn colortype(&self) -> ColorType {
-        self.color
-    }
-
-    /// Return a grayscale version of this image.
-    pub fn grayscale(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(colorops::grayscale(p.as_slice())),
-            LumaA8(ref p) => Luma8(colorops::grayscale(p.as_slice())),
-            Rgb8(ref p)   => Luma8(colorops::grayscale(p.as_slice())),
-            Rgba8(ref p)  => Luma8(colorops::grayscale(p.as_slice())),
-        };
-
-        Image::new(pixels, self.width, self.height, colortype::Grey(8))
-    }
-
-    /// Invert the colors of this image.
-    /// This method operates inplace.
-    pub fn invert(&mut self) {
-        match self.pixels {
-            Luma8(ref mut p)  => colorops::invert(p.as_mut_slice()),
-            LumaA8(ref mut p) => colorops::invert(p.as_mut_slice()),
-            Rgb8(ref mut p)   => colorops::invert(p.as_mut_slice()),
-            Rgba8(ref mut p)  => colorops::invert(p.as_mut_slice()),
-        }
-    }
-
-    /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. The image's aspect ratio is preserved.
-    ///```nwidth``` and ```nheight``` are the new image's dimensions
-    pub fn resize(&self, nwidth: u32, nheight: u32, filter: sample::FilterType) -> Image {
-        let ratio  = self.width as f32 / self.height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nheight as f32 / self.height as f32
-        } else {
-            nwidth as f32 / self.width as f32
-        };
-
-        let width2  = (self.width as f32 * scale) as u32;
-        let height2 = (self.height as f32 * scale) as u32;
-
-        self.resize_exact(width2, height2, filter)
-    }
-
-    /// Resize this image using the specified filter algorithm.
-    /// Returns a new image. Does not preserve aspect ratio.
-    ///```nwidth``` and ```nheight``` are the new image's dimensions
-    pub fn resize_exact(&self, nwidth: u32, nheight: u32, filter: sample::FilterType) -> Image {
-        let width   = self.width;
-        let height  = self.height;
-
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
-            LumaA8(ref p) => LumaA8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
-            Rgb8(ref p)   => Rgb8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
-            Rgba8(ref p)  => Rgba8(sample::resize(p.as_slice(), width, height, nwidth, nheight, filter)),
-        };
-
-        Image::new(pixels, nwidth, nheight, self.color)
-    }
-
-    /// Perfomrs a Gausian blur on this image.
-    /// ```sigma``` is a meausure of how much to blur by.
-    pub fn blur(&self, sigma: f32) -> Image {
-        let width   = self.width;
-        let height  = self.height;
-
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(sample::blur(p.as_slice(), width, height, sigma)),
-            LumaA8(ref p) => LumaA8(sample::blur(p.as_slice(), width, height, sigma)),
-            Rgb8(ref p)   => Rgb8(sample::blur(p.as_slice(), width, height, sigma)),
-            Rgba8(ref p)  => Rgba8(sample::blur(p.as_slice(), width, height, sigma)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    /// Performs an unsharpen mask on ```pixels```
-    /// ```sigma``` is the amount to blur the image by.
-    /// ```threshold``` is a control of how much to sharpen.
-    /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-    pub fn unsharpen(&self, sigma: f32, threshold: i32) -> Image {
-        let width   = self.width;
-        let height  = self.height;
-
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
-            LumaA8(ref p) => LumaA8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
-            Rgb8(ref p)   => Rgb8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
-            Rgba8(ref p)  => Rgba8(sample::unsharpen(p.as_slice(), width, height, sigma, threshold)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    /// Filters this image with the specified 3x3 kernel.
-    pub fn filter3x3(&self, kernel: &[f32]) -> Image {
-        let width   = self.width;
-        let height  = self.height;
-
-        if kernel.len() != 9 {
-            return self.clone()
-        }
-
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(sample::filter3x3(p.as_slice(), width, height, kernel)),
-            LumaA8(ref p) => LumaA8(sample::filter3x3(p.as_slice(), width, height, kernel)),
-            Rgb8(ref p)   => Rgb8(sample::filter3x3(p.as_slice(), width, height, kernel)),
-            Rgba8(ref p)  => Rgba8(sample::filter3x3(p.as_slice(), width, height, kernel)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    /// Adjust the contrast of ```pixels```
-    /// ```contrast``` is the amount to adjust the contrast by.
-    /// Negative values decrease the constrast and positive values increase the constrast.
-    pub fn adjust_contrast(&self, c: f32) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(colorops::contrast(p.as_slice(), c)),
-            LumaA8(ref p) => LumaA8(colorops::contrast(p.as_slice(), c)),
-            Rgb8(ref p)   => Rgb8(colorops::contrast(p.as_slice(), c)),
-            Rgba8(ref p)  => Rgba8(colorops::contrast(p.as_slice(), c)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    /// Brighten ```pixels```
-    /// ```value``` is the amount to brighten each pixel by.
-    /// Negative values decrease the brightness and positive values increase it.
-    pub fn brighten(&self, value: i32) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(colorops::brighten(p.as_slice(), value)),
-            LumaA8(ref p) => LumaA8(colorops::brighten(p.as_slice(), value)),
-            Rgb8(ref p)   => Rgb8(colorops::brighten(p.as_slice(), value)),
-            Rgba8(ref p)  => Rgba8(colorops::brighten(p.as_slice(), value)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    ///Flip this image vertically
-    pub fn flipv(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
-            LumaA8(ref p) => LumaA8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
-            Rgb8(ref p)   => Rgb8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
-            Rgba8(ref p)  => Rgba8(affine::flip_vertical(p.as_slice(), self.width, self.height)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    ///Flip this image horizontally
-    pub fn fliph(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
-            LumaA8(ref p) => LumaA8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
-            Rgb8(ref p)   => Rgb8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
-            Rgba8(ref p)  => Rgba8(affine::flip_horizontal(p.as_slice(), self.width, self.height)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    ///Rotate this image 90 degrees clockwise.
-    pub fn rotate90(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(affine::rotate90(p.as_slice(), self.width, self.height)),
-            LumaA8(ref p) => LumaA8(affine::rotate90(p.as_slice(), self.width, self.height)),
-            Rgb8(ref p)   => Rgb8(affine::rotate90(p.as_slice(), self.width, self.height)),
-            Rgba8(ref p)  => Rgba8(affine::rotate90(p.as_slice(), self.width, self.height)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    ///Rotate this image 180 degrees clockwise.
-    pub fn rotate180(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(affine::rotate180(p.as_slice(), self.width, self.height)),
-            LumaA8(ref p) => LumaA8(affine::rotate180(p.as_slice(), self.width, self.height)),
-            Rgb8(ref p)   => Rgb8(affine::rotate180(p.as_slice(), self.width, self.height)),
-            Rgba8(ref p)  => Rgba8(affine::rotate180(p.as_slice(), self.width, self.height)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    ///Rotate this image 270 degrees clockwise.
-    pub fn rotate270(&self) -> Image {
-        let pixels = match self.pixels {
-            Luma8(ref p)  => Luma8(affine::rotate270(p.as_slice(), self.width, self.height)),
-            LumaA8(ref p) => LumaA8(affine::rotate270(p.as_slice(), self.width, self.height)),
-            Rgb8(ref p)   => Rgb8(affine::rotate270(p.as_slice(), self.width, self.height)),
-            Rgba8(ref p)  => Rgba8(affine::rotate270(p.as_slice(), self.width, self.height)),
-        };
-
-        Image::new(pixels, self.width, self.height, self.color)
-    }
-
-    /// Return an immutable view into this image
-    pub fn crop<'a>(&'a self, x: u32, y: u32, width: u32, height: u32) -> SubImage<'a> {
-        let x = cmp::min(x, self.width);
-        let y = cmp::min(y, self.height);
-
-        let height = cmp::min(height, self.height - y);
-        let width  = cmp::min(width, self.width - x);
-
-        SubImage {
-            pixels:  &self.pixels,
-            color:   self.color,
-            xoffset: x,
-            yoffset: y,
+        ImageBuf {
+            pixels:  pixels,
             width:   width,
             height:  height,
-            vstride: self.width,
         }
     }
 
-    /// An iterator over rectangles in this image.
-    /// ```xstride``` and ```ystride``` are the length and width of each rectangle.
-    /// If the image's dimensions are not a multiple of stride
-    /// The subimage will be truncated.
-    pub fn tiles<'a>(&'a self, xstride: u32, ystride: u32) -> Tiles<'a> {
-        Tiles {
-            image: self,
-            x: 0,
-            y: 0,
-            xstride: xstride,
-            ystride: ystride,
-        }
-    }
-}
+    ///Construct a new ImageBuf by repeated application of the supplied function.
+    ///The arguments to the function are the pixel's x and y coordinates.
+    pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> P) -> ImageBuf<P> {
+        let pixels = range(0, width).cycle()
+                                    .enumerate()
+                                    .take(height as uint)
+                                    .map( |(y, x)| f(x, y as u32))
+                                    .collect();
 
-/// An immutable view into another image.
-pub struct SubImage<'a> {
-    pixels:   &'a pixelbuf::PixelBuf,
-    color:    ColorType,
-    xoffset:  u32,
-    yoffset:  u32,
-    width:    u32,
-    height:   u32,
-    vstride:  u32,
-}
-
-impl<'a> SubImage<'a> {
-    /// Return the width and height of this subimage
-    pub fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
+        ImageBuf::from_pixels(pixels, width, height)
     }
 
-    /// Convert this Subimage to an Image
-    pub fn to_image(&self) -> Image {
-        let pixels = match *self.pixels {
-            Luma8(ref p)  => Luma8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
-            LumaA8(ref p) => LumaA8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
-            Rgb8(ref p)   => Rgb8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
-            Rgba8(ref p)  => Rgba8(subimage_to_image(p.as_slice(), self.xoffset, self.yoffset, self.width, self.height, self.vstride)),
-        };
-
-        Image {
+    ///Construct a new ImageBuf from a vector of pixels.
+    pub fn from_pixels(pixels: Vec<P>, width: u32, height: u32) -> ImageBuf<P> {
+        ImageBuf {
             pixels: pixels,
-            color:  self.color,
-            width:  self.width,
-            height: self.height,
+            width:  width,
+            height: height,
         }
     }
 
-    /// Return an immutable view into this SubImage
-    pub fn crop(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<'a> {
-        let x = cmp::min(x, self.width);
-        let y = cmp::min(y, self.height);
+    ///Construct a new ImageBuf from a pixel.
+    pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuf<P> {
+        let buf = Vec::from_elem(width as uint * height as uint, pixel.clone());
 
-        let height = cmp::min(height, self.height - y);
-        let width  = cmp::min(width, self.width - x);
+        ImageBuf::from_pixels(buf, width, height)
+    }
 
-        SubImage {
-            pixels:  self.pixels,
-            color:   self.color,
-            xoffset: self.xoffset + x,
-            yoffset: self.yoffset + y,
-            width:   width,
-            height:  height,
-            vstride: self.vstride,
-        }
+    ///Return an immutable reference to this image's pixel buffer
+    pub fn pixelbuf(&self) -> & [P] {
+        self.pixels.as_slice()
+    }
+
+    ///Return a mutable reference to this image's pixel buffer
+    pub fn mut_pixelbuf(&mut self) -> &mut [P] {
+        self.pixels.as_mut_slice()
     }
 }
 
-///An iterator over nonoverlapping rectangles within an image.
-pub struct Tiles<'a> {
-    image:   &'a Image,
-    y:       u32,
-    x:       u32,
+impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    fn bounds(&self) -> (u32, u32, u32, u32) {
+        (0, 0, self.width, self.height)
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> P {
+        let index  = y * self.width + x;
+
+        self.pixels[index as uint]
+    }
+
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
+        let index  = y * self.width + x;
+        let buf    = self.pixels.as_mut_slice();
+
+        buf[index as uint] = pixel;
+    }
+}
+
+impl<T: Primitive, P: Pixel<T> + Clone + Copy> MutableRefImage<P> for ImageBuf<P> {
+    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
+        let index = y * self.width + x;
+
+        self.pixels.get_mut(index as uint)
+    }
+}
+
+impl<T: Primitive, P: Pixel<T>> Index<(u32, u32), P> for ImageBuf<P> {
+    fn index(&self, coords: &(u32, u32)) -> &P {
+        let &(x, y) = coords;
+        let index  = y * self.width + x;
+
+        &self.pixels[index as uint]
+    }
+}
+
+/// A View into another image
+pub struct SubImage <'a, I> {
+    image:   &'a mut I,
+    xoffset: u32,
+    yoffset: u32,
     xstride: u32,
     ystride: u32,
 }
 
-impl<'a> Iterator<SubImage<'a>> for Tiles<'a> {
-    fn next(&mut self) -> Option<SubImage<'a>> {
-        let (width, height) = self.image.dimensions();
-
-        if self.x >= width {
-            self.x = 0;
-            self.y += self.ystride;
-        }
-
-        if self.y >= height {
-            None
-        } else {
-            let sub = self.image.crop(self.x,
-                self.y,
-                self.xstride,
-                self.ystride);
-            self.x += self.xstride;
-
-            Some(sub)
-        }
-    }
-}
-
-fn subimage_to_image<T: Primitive, P: Pixel<T> + Clone + Copy + Default>(
-    src:    &[P],
-    x0:     u32,
-    y0:     u32,
-    width:  u32,
-    height: u32,
-    stride: u32) -> Vec<P> {
-
-    let x0     = x0 as uint;
-    let y0     = y0 as uint;
-    let width  = width as uint;
-    let height = height as uint;
-    let stride = stride as uint;
-
-    let d: P = Default::default();
-    let mut dest = Vec::from_elem(width * height, d.clone());
-
-    for y in range(0, height) {
-        for x in range(0, width) {
-            let p = src[(y0 + y) * stride + x0 + x];
-            dest.as_mut_slice()[y * width + x] = p;
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
+    ///Construct a new subimage
+    pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
+        SubImage {
+            image:   image,
+            xoffset: x,
+            yoffset: y,
+            xstride: width,
+            ystride: height,
         }
     }
 
-    dest
+    ///Return a mutable reference to the wrapped image.
+    pub fn mut_inner(&mut self) -> &mut I {
+        &mut (*self.image)
+    }
+
+    ///Change the coordinates of this subimage.
+    pub fn change_bounds(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        self.xoffset = x;
+        self.yoffset = y;
+        self.xstride = width;
+        self.ystride = height;
+    }
+
+    ///Convert this subimage to an ImageBuf
+    pub fn to_image(&self) -> ImageBuf<P> {
+        let p: P = Default::default();
+        let mut out = ImageBuf::from_pixel(self.xstride, self.ystride, p.clone());
+
+        for y in range(0, self.ystride) {
+            for x in range(0, self.xstride) {
+                let p = self.get_pixel(x, y);
+                out.put_pixel(x, y, p);
+            }
+        }
+
+        out
+    }
 }
 
-fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<Image> {
-    let mut codec = codec;
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I> {
+    fn dimensions(&self) -> (u32, u32) {
+        (self.xstride, self.ystride)
+    }
 
-    let color  = try!(codec.colortype());
-    let buf    = try!(codec.read_image());
-    let (w, h) = try!(codec.dimensions());
+    fn bounds(&self) -> (u32, u32, u32, u32) {
+        (self.xoffset, self.yoffset, self.xstride, self.ystride)
+    }
 
-    let pixels = match pixelbuf::PixelBuf::from_bytes(buf, color) {
-        Ok(p) => p,
-        _     => return Err(UnsupportedColor)
-    };
+    fn get_pixel(&self, x: u32, y: u32) -> P {
+        self.image.get_pixel(x + self.xoffset, y + self.yoffset)
+    }
 
-    let im = Image {
-        pixels:  pixels,
-        width:   w,
-        height:  h,
-        color:   color,
-    };
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
+        self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
+    }
+}
 
-    Ok(im)
+impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> MutableRefImage<P> for SubImage<'a, I> {
+    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
+        self.image.get_mut_pixel(x + self.xoffset, y + self.yoffset)
+    }
 }

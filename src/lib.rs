@@ -5,27 +5,37 @@
 #![crate_name = "image"]
 #![crate_type = "rlib"]
 
-#![deny(missing_doc)]
+#![warn(missing_doc)]
 #![warn(unnecessary_qualification)]
 #![warn(unnecessary_typecast)]
 #![feature(macro_rules)]
 
 extern crate flate;
 
-pub use ColorType = imaging::colortype::ColorType;
-pub use Grey      = imaging::colortype::Grey;
-pub use RGB       = imaging::colortype::RGB;
-pub use Palette   = imaging::colortype::Palette;
-pub use GreyA     = imaging::colortype::GreyA;
-pub use RGBA      = imaging::colortype::RGBA;
+pub use ColorType = color::ColorType;
+
+pub use color:: {
+    Grey,
+    RGB,
+    Palette,
+    GreyA,
+    RGBA,
+
+    Pixel,
+
+    Luma,
+    LumaA,
+    Rgb,
+    Rgba,
+};
 
 pub use ImageDecoder = image::ImageDecoder;
 pub use ImageError   = image::ImageError;
 pub use ImageResult  = image::ImageResult;
 pub use ImageFormat  = image::ImageFormat;
-pub use FilterType   = imaging::sample::FilterType;
+pub use FilterType   = imageops::FilterType;
 
-pub use imaging::sample::{
+pub use imageops:: {
     Triangle,
     Nearest,
     CatmullRom,
@@ -33,7 +43,7 @@ pub use imaging::sample::{
     Lanczos3
 };
 
-pub use image::{
+pub use image:: {
     PNG,
     JPEG,
     GIF,
@@ -41,51 +51,36 @@ pub use image::{
     PPM
 };
 
-pub use Image = image::Image;
-pub use SubImage = image::SubImage;
-pub use Tiles = image::Tiles;
+//Image Types
+pub use SubImage        = image::SubImage;
+pub use ImageBuf        = image::ImageBuf;
+pub use DynamicImage    = dynimage::DynamicImage;
 
-pub use JPEGDecoder = codecs::jpeg::JPEGDecoder;
-pub use JPEGEncoder = codecs::jpeg::JPEGEncoder;
-pub use PNGDecoder  = codecs::png::PNGDecoder;
-pub use PNGEncoder  = codecs::png::PNGEncoder;
-pub use GIFDecoder  = codecs::gif::GIFDecoder;
-pub use PPMEncoder  = codecs::ppm::PPMEncoder;
-pub use WebpDecoder = codecs::webp::WebpDecoder;
+//Traits
+pub use GenericImage    = image::GenericImage;
+pub use MutableRefImage = image::MutableRefImage;
 
-///Image Codecs
-pub mod codecs {
-    pub mod vp8;
-    pub mod jpeg;
-    pub mod png;
-    pub mod gif;
-    pub mod webp;
-    pub mod ppm;
-}
+//Iterators
+pub use Pixels          = image::Pixels;
+pub use MutPixels       = image::MutPixels;
 
-#[path = "codecs/hash.rs"]
-mod hash;
+///opening and loading images
+pub use dynimage:: {
+    open,
+    load,
+    load_from_memory,
+};
 
-#[path = "codecs/transform.rs"]
-mod transform;
+//Image Processing Functions
+pub mod imageops;
 
-#[path = "codecs/deflate.rs"]
-mod deflate;
-
-#[path = "codecs/zlib.rs"]
-mod zlib;
-
-#[path = "codecs/lzw.rs"]
-mod lzw;
-
-///Image Processing Functions
-pub mod imaging {
-    pub mod colortype;
-    pub mod pixel;
-    pub mod sample;
-    pub mod colorops;
-    pub mod pixelbuf;
-    pub mod affine;
-}
+//Image Codecs
+pub mod webp;
+pub mod ppm;
+pub mod png;
+pub mod jpeg;
+pub mod gif;
 
 mod image;
+mod dynimage;
+mod color;

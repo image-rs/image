@@ -1,5 +1,4 @@
 [package]
-
 name = "image"
 version = "0.0.0"
 authors = [
@@ -9,6 +8,5 @@ authors = [
     "TyOverby <ty@pre-alpha.com>"]
 
 [[lib]]
-
 name = "image"
 path = "./src/lib.rs"

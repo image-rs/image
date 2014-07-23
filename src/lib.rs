@@ -69,6 +69,11 @@ pub use dynimage:: {
     open,
     load,
     load_from_memory,
+
+    ImageRgb8,
+    ImageRgba8,
+    ImageLuma8,
+    ImageLumaA8,
 };
 
 //Image Processing Functions

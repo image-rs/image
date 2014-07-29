@@ -19,9 +19,11 @@ and import using ```extern crate```:
 
 ```rust
     extern crate image;
-    
+
     //Use image::
 ```
+
+=======
 
 ##1. Documentation
 
@@ -156,10 +158,10 @@ assert!(subimg.dimensions() == (100, 100));
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
 + **blur**: Perfomrs a Gausian blur on the supplied image.
-+ **brighten**: Brighten the supplied image 
-+ **contrast**: Adjust the contrast of the supplied image 
++ **brighten**: Brighten the supplied image
++ **contrast**: Adjust the contrast of the supplied image
 + **crop**: Return a mutable view into an image
-+ **filter3x3**: Perform a 3x3 box filter on the supplied image. 
++ **filter3x3**: Perform a 3x3 box filter on the supplied image.
 + **flip_horizontal**: Flip an image horizontally
 + **flip_vertical**: Flip an image vertically
 + **grayscale**: Convert the supplied image to grayscale
@@ -263,6 +265,6 @@ fn main() {
 }
 ```
 
-Example output: 
+Example output:
 
 ![alt tag](https://raw.githubusercontent.com/ccgn/rust-image/master/examples/fractal.png "A Julia Fractal, c: -0.4 + 0.6i")

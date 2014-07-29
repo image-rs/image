@@ -7,7 +7,8 @@ All image processing functions provided operate on types that implement the ```G
 
 ##1. Documentation
 
-##2. Overview
+##2. Supported Image Formats
+```rust-image``` provides implementations of common image format encoders and decoders.
 
 ###2.1 Supported Image Formats
 | Format | Decoding | Encoding |
@@ -17,37 +18,21 @@ All image processing functions provided operate on types that implement the ```G
 | GIF    | Yes | No |
 | Webp   | Lossy(Luma channel only) | No |
 
-###2.2 Opening And Saving Images
-```rust-image``` provides the ```open``` function for opening images from a path.
+###2.2 The ```ImageDecoder``` Trait
+All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
++ **dimensions**: Return a tuple containing the width and height of the image
++ **colortype**: Return the color type of the image e.g RGB(8) (8bit RGB)
++ **row_len**: Returns the length in bytes of one decoded row of the image
++ **read_scanline**: Read one row from the image into buf Returns the row index
++ **read_image**: Decode the entire image and return it as a Vector
++ **load_rect**: Decode a specific region of the image
 
-The image format is determined from the path's file extension.
+##3 Pixels
+###3.1 Pixel Types
+###3.2 The ```Pixel``` Trait
 
-```rust
-extern crate image;
-
-use std::io::File;
-
-use image::GenericImage;
-
-fn main() {
-    //Use the open function to load an image from a PAth.
-    //```open``` returns a dynamic image.
-    let img = image::open(&Path::new("test.jpg")).unwrap();
-
-    //The dimensions method returns the images width and height
-    println!("dimensions {}", img.dimensions());
-
-    //The color method returns the image's ColorType
-    println!("{}", img.color());
-
-    let fout = File::create(&Path::new("test.png")).unwrap();
-
-    //Write the contents of this image to the Writer in PNG format.
-    let _ = img.save(fout, image::PNG);
-}
-```
-
-###2.3 The GenericImage Trait
+##4 Images
+###4.1 The ```GenericImage``` Trait
 A trait that provides functions for manipulating images, parameterised over the image's pixel type.
 
 ```rust
@@ -71,10 +56,10 @@ pub trait GenericImage<P> {
 }
 ```
 
-###2.4 Representation of Images
+###4.2 Representation of Images
 ```rust-image``` provides two main ways of representing image data:
 
-####2.4.1 ```ImageBuf```
+####4.2.1 ```ImageBuf```
 An image parametarised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
 
 ```rust
@@ -115,12 +100,12 @@ for pixel in img.pixels() {
     //Do something with pixel
 }
 ```
-####2.4.2 ```DynamicImage```
+####4.2.2 ```DynamicImage```
 A ```DynamicImage``` is an enumeration over all supported ```ImageBuf<P>``` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience ```DynamicImage```'s reimplement all image processing functions.
 
-####2.4.3 ```SubImage```
+####4.2.3 ```SubImage```
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
@@ -139,26 +124,56 @@ let subimg  = imageops::crop(0, 0, 100, 100);
 assert!(subimg.dimensions() == (100, 100));
 ```
 
-###2.5 Image Processing Functions
+##5 Image Processing Functions
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
-+ ```blur```: Perfomrs a Gausian blur on the supplied image.
-+ ```brighten```: Brighten the supplied image 
-+ ```contrast```: Adjust the contrast of the supplied image 
-+ ```crop```: Return a mutable view into an image
-+ ```filter3x3```: Perform a 3x3 box filter on the supplied image. 
-+ ```flip_horizontal```: Flip an image horizontally
-+ ```flip_vertical```: Flip an image vertically
-+ ```grayscale```: Convert the supplied image to grayscale
-+ ```invert```: Invert each pixel within the supplied image This function operates in place.
-+ ```resize```: Resize the supplied image to the specified dimensions
-+ ```rotate180```: Rotate an image 180 degrees clockwise.
-+ ```rotate270```: Rotate an image 270 degrees clockwise.
-+ ```rotate90```: Rotate an image 90 degrees clockwise.
-+ ```unsharpen```: Performs an unsharpen mask on the supplied image
++ **blur**: Perfomrs a Gausian blur on the supplied image.
++ **brighten**: Brighten the supplied image 
++ **contrast**: Adjust the contrast of the supplied image 
++ **crop**: Return a mutable view into an image
++ **filter3x3**: Perform a 3x3 box filter on the supplied image. 
++ **flip_horizontal**: Flip an image horizontally
++ **flip_vertical**: Flip an image vertically
++ **grayscale**: Convert the supplied image to grayscale
++ **invert**: Invert each pixel within the supplied image This function operates in place.
++ **resize**: Resize the supplied image to the specified dimensions
++ **rotate180**: Rotate an image 180 degrees clockwise.
++ **rotate270**: Rotate an image 270 degrees clockwise.
++ **rotate90**: Rotate an image 90 degrees clockwise.
++ **unsharpen**: Performs an unsharpen mask on the supplied image
 
-##3 Example
-Generating Fractals
+##6 Examples
+###6.1 Opening And Saving Images
+```rust-image``` provides the ```open``` function for opening images from a path.
+
+The image format is determined from the path's file extension.
+
+```rust
+extern crate image;
+
+use std::io::File;
+
+use image::GenericImage;
+
+fn main() {
+    //Use the open function to load an image from a PAth.
+    //```open``` returns a dynamic image.
+    let img = image::open(&Path::new("test.jpg")).unwrap();
+
+    //The dimensions method returns the images width and height
+    println!("dimensions {}", img.dimensions());
+
+    //The color method returns the image's ColorType
+    println!("{}", img.color());
+
+    let fout = File::create(&Path::new("test.png")).unwrap();
+
+    //Write the contents of this image to the Writer in PNG format.
+    let _ = img.save(fout, image::PNG);
+}
+```
+
+###6.2 Generating Fractals
 ```rust
 //!An example of generating julia fractals.
 

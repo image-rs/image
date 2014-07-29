@@ -7,6 +7,8 @@ All image processing functions provided operate on types that implement the ```G
 
 ##1. Documentation
 
+http://www.piston.rs/docs/rust-image/image/index.html
+
 ##2. Supported Image Formats
 ```rust-image``` provides implementations of common image format encoders and decoders.
 

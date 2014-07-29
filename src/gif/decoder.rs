@@ -84,7 +84,7 @@ impl<R: Reader> GIFDecoder<R> {
         if signature.as_slice() != "GIF".as_bytes() {
             Err(image::FormatError)
         } else if version.as_slice() != "87a".as_bytes() &&
-            version.as_slice() != "89a".as_bytes() {
+                  version.as_slice() != "89a".as_bytes() {
             Err(image::UnsupportedError)
         } else {
             Ok(())

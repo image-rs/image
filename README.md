@@ -111,6 +111,8 @@ A ```DynamicImage``` is an enumeration over all supported ```ImageBuf<P>``` type
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience ```DynamicImage```'s reimplement all image processing functions.
 
+```DynamicImage``` implement the ```GenericImage``` trait for RGBA pixels.
+
 ####4.2.3 ```SubImage```
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.

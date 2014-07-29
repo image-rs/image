@@ -17,19 +17,25 @@ All image processing functions provided operate on types that implement the ```G
 | PNG    | All supported color types | Same as decoding|
 | GIF    | Yes | No |
 | Webp   | Lossy(Luma channel only) | No |
+| PPM    | No | Yes |
 
 ###2.2 The ```ImageDecoder``` Trait
 All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
 + **dimensions**: Return a tuple containing the width and height of the image
-+ **colortype**: Return the color type of the image e.g RGB(8) (8bit RGB)
++ **colortype**: Return the color type of the image.
 + **row_len**: Returns the length in bytes of one decoded row of the image
 + **read_scanline**: Read one row from the image into buf Returns the row index
 + **read_image**: Decode the entire image and return it as a Vector
 + **load_rect**: Decode a specific region of the image
 
 ##3 Pixels
-###3.1 Pixel Types
-###3.2 The ```Pixel``` Trait
+```rust-image``` provides the following pixel types:
++ **Rgb**: RGB pixel
++ **Rgba**: RGBA pixel
++ **Luma**: Grayscale pixel
++ **LumaA**: Grayscale with alpha
+
+All pixels are parameterised by their component type.
 
 ##4 Images
 ###4.1 The ```GenericImage``` Trait

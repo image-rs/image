@@ -5,6 +5,24 @@ This crate provides basic imaging processing functions and methods for convertin
 
 All image processing functions provided operate on types that implement the ```GenericImage``` trait and return an ```ImageBuf```.
 
+###Usage
+
+Add the following to the Cargo.toml in your project:
+
+```
+[dependencies.image]
+
+git = "https://github.com/PistonDevelopers/rust-image"
+```
+
+and import using ```extern crate```:
+
+```rust
+    extern crate image;
+    
+    //Use image::
+```
+
 ##1. Documentation
 
 http://www.piston.rs/docs/rust-image/image/index.html
@@ -244,3 +262,7 @@ fn main() {
         let _    = image::ImageLuma8(imbuf).save(fout, image::PNG);
 }
 ```
+
+Example output: 
+
+![alt tag](https://raw.githubusercontent.com/ccgn/rust-image/master/examples/fractal.png "A Julia Fractal, c: -0.4 + 0.6i")

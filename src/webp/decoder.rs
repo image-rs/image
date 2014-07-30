@@ -20,7 +20,7 @@ macro_rules! io_try(
     )
 )
 
-/// A Representaion of a Webp Image format decoder.
+/// A Representation of a Webp Image format decoder.
 pub struct WebpDecoder<R> {
     r: R,
     frame: Frame,

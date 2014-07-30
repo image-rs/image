@@ -68,7 +68,7 @@ pub trait GenericImage<P> {
     ///The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
-    ///The bounding rectange of this image.
+    ///The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
     ///Return the pixel located at (x, y)
@@ -78,7 +78,7 @@ pub trait GenericImage<P> {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
     ///Return an Iterator over the pixels of this image.
-    ///The iterator yeilds the coordiates of each pixel
+    ///The iterator yields the coordinates of each pixel
     ///along with their value
     fn pixels(&self) -> Pixels<Self>;
 }
@@ -157,7 +157,7 @@ assert!(subimg.dimensions() == (100, 100));
 ##5 Image Processing Functions
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
-+ **blur**: Perfomrs a Gausian blur on the supplied image.
++ **blur**: Performs a Gaussian blur on the supplied image.
 + **brighten**: Brighten the supplied image
 + **contrast**: Adjust the contrast of the supplied image
 + **crop**: Return a mutable view into an image

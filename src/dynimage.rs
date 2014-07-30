@@ -132,7 +132,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a reference to an 8bit Grayascale image with an alpha channel
+    ///Return a reference to an 8bit Grayscale image with an alpha channel
     pub fn as_luma_alpha8(&self) -> Option<& ImageBuf<color::LumaA<u8>>> {
         match *self {
             ImageLumaA8(ref p) => Some(p),
@@ -140,7 +140,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a mutable reference to an 8bit Grayascale image with an alpha channel
+    ///Return a mutable reference to an 8bit Grayscale image with an alpha channel
     pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut ImageBuf<color::LumaA<u8>>> {
         match *self {
             ImageLumaA8(ref mut p) => Some(p),
@@ -215,8 +215,8 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
     }
 
-    /// Perfomrs a Gausian blur on this image.
-    /// ```sigma``` is a meausure of how much to blur by.
+    /// Performs a Gaussian blur on this image.
+    /// ```sigma``` is a measure of how much to blur by.
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
@@ -241,7 +241,7 @@ impl DynamicImage {
 
     /// Adjust the contrast of this image.
     /// ```contrast``` is the amount to adjust the contrast by.
-    /// Negative values decrease the constrast and positive values increase the constrast.
+    /// Negative values decrease the contrast and positive values increase the contrast.
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }

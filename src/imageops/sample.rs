@@ -34,7 +34,7 @@ pub enum FilterType {
     Lanczos3
 }
 
-/// A Representation of a seperable filter.
+/// A Representation of a separable filter.
 pub struct Filter < 'a> {
     /// The filter's filter function.
     pub kernel:  | f32 | : 'a -> f32,
@@ -426,8 +426,8 @@ pub fn resize<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
     horizontal_sample(&tmp, nwidth, &mut method)
 }
 
-/// Perfomrs a Gausian blur on the supplied image.
-/// ```sigma``` is a meausure of how much to blur by.
+/// Performs a Gaussian blur on the supplied image.
+/// ```sigma``` is a measure of how much to blur by.
 pub fn blur<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
     image:  &I,
     sigma:  f32) -> ImageBuf<T> {

@@ -189,7 +189,7 @@ pub trait GenericImage<P> {
     ///The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
-    ///The bounding rectange of this image.
+    ///The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
     ///Return the pixel located at (x, y)
@@ -199,7 +199,7 @@ pub trait GenericImage<P> {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
     ///Return an Iterator over the pixels of this image.
-    ///The iterator yeilds the coordiates of each pixel
+    ///The iterator yields the coordinates of each pixel
     ///along with their value
     fn pixels(&self) -> Pixels<Self> {
         let (width, height) = self.dimensions();
@@ -220,7 +220,7 @@ pub trait MutableRefImage<P>: GenericImage<P> {
     fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P;
 
     ///Return an Iterator over mutable pixels of this image.
-    ///The iterator yeilds the coordiates of each pixel
+    ///The iterator yields the coordinates of each pixel
     ///along with a mutable reference to them.
     fn mut_pixels(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();

@@ -58,7 +58,7 @@ impl<T: Primitive> Luma<T> {
     }
 }
 
-/// A type to hold a grayscale pixel with an alha channel
+/// A type to hold a grayscale pixel with an alpha channel
 #[packed]
 #[deriving(Default, PartialEq, Eq, Clone, Show, Copy)]
 pub struct LumaA<T>(pub T, pub T);
@@ -146,7 +146,7 @@ pub trait Pixel<T>: Copy + Clone + Default {
     /// ```other``` pairwise.
     fn map2(&self, other: Self, f: | T, T | -> T) -> Self;
 
-    /// Returns the channels of this pixes as a 4 tuple. If the pixel
+    /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
     fn channels4(&self) -> (T, T, T, T);
 }

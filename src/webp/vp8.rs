@@ -1134,7 +1134,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
 
         if self.frame.keyframe {
-            //intra preditcion
+            //intra prediction
             mb.luma_mode = self.b.read_with_tree(KEYFRAME_YMODE_TREE,
                                                  KEYFRAME_YMODE_PROBS, 0);
 

@@ -35,7 +35,7 @@ impl Adler32 {
         (self.s2 << 16) | self.s1
     }
 
-    ///Reset this hasher to its inital state.
+    ///Reset this hasher to its initial state.
     pub fn reset(&mut self) {
         self.s1 = 1;
         self.s2 = 0;
@@ -123,7 +123,7 @@ impl Crc32 {
         self.crc ^ 0xFFFFFFFF
     }
 
-    ///Reset this hasher to its inital state.
+    ///Reset this hasher to its initial state.
     pub fn reset(&mut self) {
         self.crc = 0xFFFFFFFF;
     }

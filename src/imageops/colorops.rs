@@ -56,7 +56,7 @@ pub fn invert<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(image: &mut I) {
 
 /// Adjust the contrast of the supplied image
 /// ```contrast``` is the amount to adjust the contrast by.
-/// Negative values decrease the constrast and positive values increase the constrast.
+/// Negative values decrease the contrast and positive values increase the contrast.
 pub fn contrast<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     image:    &I,
     contrast: f32) -> ImageBuf<T> {

@@ -259,11 +259,13 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     ///Construct a new ImageBuf by repeated application of the supplied function.
     ///The arguments to the function are the pixel's x and y coordinates.
     pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> P) -> ImageBuf<P> {
-        let pixels = range(0, width).cycle()
-                                    .enumerate()
-                                    .take(height as uint)
-                                    .map( |(y, x)| f(x, y as u32))
-                                    .collect();
+        let mut pixels: Vec<P> = Vec::with_capacity((width * height) as uint);
+
+        for y in range(0, height) {
+            for x in range(0, width) {
+                pixels.insert((y * width + x) as uint, f(x, y));
+            }
+        }
 
         ImageBuf::from_pixels(pixels, width, height)
     }

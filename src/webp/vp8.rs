@@ -17,8 +17,8 @@ use std::default::Default;
 
 use super::transform;
 
-static MAX_SEGMENTS: u8 = 4;
-static NUM_DCT_TOKENS: u8 = 12;
+static MAX_SEGMENTS: uint = 4;
+static NUM_DCT_TOKENS: uint = 12;
 
 //Prediction modes
 static DC_PRED: i8 = 0;
@@ -843,7 +843,7 @@ impl<R: Reader> VP8Decoder<R> {
             frame: f,
             segments_enabled: false,
             segments_update_map: false,
-            segment: [s, ..MAX_SEGMENTS as uint],
+            segment: [s, ..MAX_SEGMENTS],
 
             partitions: [
                 BoolReader::new(), BoolReader::new(),
@@ -874,7 +874,7 @@ impl<R: Reader> VP8Decoder<R> {
         for i in range(0u, 4) {
             for j in range(0u, 8) {
                 for k in range(0u, 3) {
-                    for t in range(0u, NUM_DCT_TOKENS as uint - 1) {
+                    for t in range(0u, NUM_DCT_TOKENS - 1) {
                         let prob = COEFF_UPDATE_PROBS[i][j][k][t];
                         if self.b.read_bool(prob) != 0 {
                             let v = self.b.read_literal(8);
@@ -921,7 +921,7 @@ impl<R: Reader> VP8Decoder<R> {
         let uvac_delta = if self.b.read_flag() { self.b.read_magnitude_and_sign(4) }
                         else { 0 };
 
-        let n = if self.segments_enabled { MAX_SEGMENTS as uint } else { 1 };
+        let n = if self.segments_enabled { MAX_SEGMENTS } else { 1 };
         for i in range(0u, n) {
             let base = if !self.segment[i].delta_values { self.segment[i].quantizer_level as i16 }
                     else { self.segment[i].quantizer_level as i16 + yac_abs as i16} as i32;
@@ -977,11 +977,11 @@ impl<R: Reader> VP8Decoder<R> {
         if update_segment_feature_data {
             let segment_feature_mode = self.b.read_flag();
 
-            for i in range(0u, MAX_SEGMENTS as uint) {
+            for i in range(0u, MAX_SEGMENTS) {
                 self.segment[i].delta_values = !segment_feature_mode;
             }
 
-            for i in range(0u, MAX_SEGMENTS as uint) {
+            for i in range(0u, MAX_SEGMENTS) {
                 let update = self.b.read_flag();
 
                 self.segment[i].quantizer_level = if update {
@@ -991,7 +991,7 @@ impl<R: Reader> VP8Decoder<R> {
                 } as i8;
             }
 
-            for i in range(0u, MAX_SEGMENTS as uint) {
+            for i in range(0u, MAX_SEGMENTS) {
                 let update = self.b.read_flag();
 
                 self.segment[i].loopfilter_level = if update {

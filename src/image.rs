@@ -1,7 +1,6 @@
 use std::mem;
 use std::slice;
 use std::default::Default;
-use std::iter::CloneableIterator;
 
 use color;
 use color:: {

@@ -7,6 +7,6 @@ authors = [
     "nwin",
     "TyOverby <ty@pre-alpha.com>"]
 
-[[lib]]
+[lib]
 name = "image"
 path = "./src/lib.rs"

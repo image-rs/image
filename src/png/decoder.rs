@@ -444,8 +444,8 @@ mod tests {
 
     /// Filters the testsuite images for certain features
     fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
-        //"./png/testdata/pngsuite/*.png"
-        let pattern = Path::new(".").join_many(["png", "testdata", "pngsuite", "*.png"]);
+        //"./src/png/testdata/pngsuite/*.png"
+        let pattern = Path::new(".").join_many(["src", "png", "testdata", "pngsuite", "*.png"]);
 
         let mut paths = glob::glob(pattern.as_str().unwrap())
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))

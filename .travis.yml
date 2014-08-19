@@ -4,5 +4,6 @@ install:
 script:
   - rustc --version
   - cargo build -v
+  - cargo test -v
 os:
   - linux

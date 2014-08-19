@@ -1,6 +1,6 @@
 //! Decoding of Webp Images
 
-pub use WebpDecoder = self::decoder::WebpDecoder;
+pub use self::decoder::WebpDecoder as WebpDecoder;
 
 mod decoder;
 mod transform;

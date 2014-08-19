@@ -12,7 +12,7 @@
 
 extern crate flate;
 
-pub use ColorType = color::ColorType;
+pub use color::ColorType as ColorType;
 
 pub use color:: {
     Grey,
@@ -29,11 +29,11 @@ pub use color:: {
     Rgba,
 };
 
-pub use ImageDecoder = image::ImageDecoder;
-pub use ImageError   = image::ImageError;
-pub use ImageResult  = image::ImageResult;
-pub use ImageFormat  = image::ImageFormat;
-pub use FilterType   = imageops::FilterType;
+pub use image::ImageDecoder as ImageDecoder;
+pub use image::ImageError as ImageError;
+pub use image::ImageResult as ImageResult;
+pub use image::ImageFormat as ImageFormat;
+pub use imageops::FilterType as FilterType;
 
 pub use imageops:: {
     Triangle,
@@ -52,17 +52,17 @@ pub use image:: {
 };
 
 //Image Types
-pub use SubImage        = image::SubImage;
-pub use ImageBuf        = image::ImageBuf;
-pub use DynamicImage    = dynimage::DynamicImage;
+pub use image::SubImage as SubImage;
+pub use image::ImageBuf as ImageBuf;
+pub use dynimage::DynamicImage as DynamicImage;
 
 //Traits
-pub use GenericImage    = image::GenericImage;
-pub use MutableRefImage = image::MutableRefImage;
+pub use image::GenericImage as GenericImage;
+pub use image::MutableRefImage as MutableRefImage;
 
 //Iterators
-pub use Pixels          = image::Pixels;
-pub use MutPixels       = image::MutPixels;
+pub use image::Pixels as Pixels;
+pub use image::MutPixels as MutPixels;
 
 ///opening and loading images
 pub use dynimage:: {

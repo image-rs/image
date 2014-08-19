@@ -74,6 +74,54 @@ macro_rules! dynamic_map(
 )
 
 impl DynamicImage {
+    ///Returns a copy of this image as an RGB image.
+    pub fn to_rgb(&self) -> ImageBuf<color::Rgb<u8>> {
+        dynamic_map!(*self, ref p -> {
+            let (w, h) = p.dimensions();
+            let mut pixels = Vec::with_capacity(w as uint * h as uint);
+            for (_, _, pix) in p.pixels() {
+                pixels.push(pix.to_rgb());
+            }
+            ImageBuf::from_pixels(pixels, w, h)
+        })
+    }
+
+    ///Returns a copy of this image as an RGBA image.
+    pub fn to_rgba(&self) -> ImageBuf<color::Rgba<u8>> {
+        dynamic_map!(*self, ref p -> {
+            let (w, h) = p.dimensions();
+            let mut pixels = Vec::with_capacity(w as uint * h as uint);
+            for (_, _, pix) in p.pixels() {
+                pixels.push(pix.to_rgba());
+            }
+            ImageBuf::from_pixels(pixels, w, h)
+        })
+    }
+
+    ///Returns a copy of this image as a Luma image.
+    pub fn to_luma(&self) -> ImageBuf<color::Luma<u8>> {
+        dynamic_map!(*self, ref p -> {
+            let (w, h) = p.dimensions();
+            let mut pixels = Vec::with_capacity(w as uint * h as uint);
+            for (_, _, pix) in p.pixels() {
+                pixels.push(pix.to_luma());
+            }
+            ImageBuf::from_pixels(pixels, w, h)
+        })
+    }
+
+    ///Returns a copy of this image as a LumaA image.
+    pub fn to_luma_alpha(&self) -> ImageBuf<color::LumaA<u8>> {
+        dynamic_map!(*self, ref p -> {
+            let (w, h) = p.dimensions();
+            let mut pixels = Vec::with_capacity(w as uint * h as uint);
+            for (_, _, pix) in p.pixels() {
+                pixels.push(pix.to_luma_alpha());
+            }
+            ImageBuf::from_pixels(pixels, w, h)
+        })
+    }
+
     ///Return a cut out of this image delimited by the bounding rectangle.
     pub fn crop(&mut self,
                 x: u32,

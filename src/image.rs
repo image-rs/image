@@ -21,7 +21,7 @@ pub enum ImageError {
     UnsupportedError,
 
     ///The Decoder does not support this color type
-    UnsupportedColor,
+    UnsupportedColor(ColorType),
 
     ///Not enough data was provided to the Decoder
     ///to decode the image

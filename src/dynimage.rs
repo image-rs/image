@@ -1,4 +1,5 @@
 use std::io;
+use std::iter;
 use std::ascii::StrAsciiExt;
 
 use ppm;
@@ -427,8 +428,22 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 
             ImageLumaA8(ImageBuf::from_pixels(p, w, h))
         }
-
-        _ => return Err(image::UnsupportedColor)
+        color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+            let mask = (1u8 << bit_depth as uint) - 1;
+            let p = buf.as_slice()
+                       .iter()
+                       .flat_map(|&v|
+                           iter::range_step(0, 8, bit_depth)
+                           .zip(iter::iterate(
+                               |v| v, v
+                           )
+                       ))
+                       .map(|(shift, pixel)|
+                           color::Luma::<u8>((pixel & mask << shift as uint) >> shift as uint))
+                       .collect();
+            ImageLuma8(ImageBuf::from_pixels(p, w, h))
+        },
+        _ => return Err(image::UnsupportedColor(color))
     };
 
     Ok(image)

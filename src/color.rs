@@ -4,7 +4,7 @@ use std::num::Bounded;
 use std::default::Default;
 
 ///An enumeration over supported color types and their bit depths
-#[deriving(PartialEq, Show, Clone)]
+#[deriving(PartialEq, Eq, Show, Clone)]
 pub enum ColorType {
     ///Pixel is greyscale
     Grey(u8),

@@ -354,15 +354,19 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: uint, bit_depth: u8) {
     assert!(buf.len() == entries * 3 * (8 / bit_depth as uint));
     let mask = (1u8 << bit_depth as uint) - 1;
-    //Unsafe copy to be able to create a mutable borrow afterwards 
+    // Unsafe copy to be able to create a mutable borrow afterwards
+    // This is unproblematic since we are iterating from opposite directions
+    // over these slices such that the paletted pixel do not get overwritten
+    // before processing them.
     let data = unsafe {
         let view: &mut [u8] = mem::transmute_copy(&buf);
         view.slice_to(entries)
     };
     let pixels = data
         .iter()
-        .rev()
+        .rev() // Reverse iterator
         .flat_map(|&v|
+            // This has to be reversed to
             iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
             .zip(iter::iterate(
                 |v| v, v

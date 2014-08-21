@@ -211,12 +211,9 @@ impl<R: Reader> PNGDecoder<R> {
             self.chunk_type   = chunk.clone();
 
             self.crc.update(chunk);
-
-            let s =  String::from_utf8(self.chunk_type.clone())
-                            .unwrap_or(String::from_str(""));
-
-            match (s.as_slice(), self.state) {
-                ("IHDR", HaveSignature) => {
+            
+            match (self.chunk_type.as_slice(), self.state) {
+                (b"IHDR", HaveSignature) => {
                     if length != 13 {
                         return Err(image::FormatError)
                     }
@@ -227,17 +224,17 @@ impl<R: Reader> PNGDecoder<R> {
                     self.state = HaveIHDR;
                 }
 
-                ("PLTE", HaveIHDR) => {
+                (b"PLTE", HaveIHDR) => {
                     let d = io_try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_plte(d));
                     self.state = HavePLTE;
                 }
 
-                ("tRNS", HavePLTE) => {
+                (b"tRNS", HavePLTE) => {
                     return Err(image::UnsupportedError)
                 }
 
-                ("IDAT", HaveIHDR) if self.colour_type != 3 => {
+                (b"IDAT", HaveIHDR) if self.colour_type != 3 => {
                     self.state = HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());
@@ -245,7 +242,7 @@ impl<R: Reader> PNGDecoder<R> {
                     break;
                 }
 
-                ("IDAT", HavePLTE) if self.colour_type == 3 => {
+                (b"IDAT", HavePLTE) if self.colour_type == 3 => {
                     self.state = HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());

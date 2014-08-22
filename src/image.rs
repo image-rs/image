@@ -294,6 +294,11 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     pub fn mut_pixelbuf(&mut self) -> &mut [P] {
         self.pixels.as_mut_slice()
     }
+
+    ///Destroy this ImageBuf, returning the internal vector
+    pub fn into_vec(self) -> Vec<P> {
+        self.pixels
+    }
 }
 
 impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {

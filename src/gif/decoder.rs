@@ -1,5 +1,5 @@
 use std::slice;
-use std::io::MemReader;
+use std::io;
 
 use image;
 use image::ImageResult;
@@ -12,7 +12,7 @@ macro_rules! io_try(
     ($e: expr) => (
         match $e {
             Ok(e) => e,
-            Err(_) => return Err(image::IoError)
+            Err(err) => return Err(image::IoError(err))
         }
     )
 )
@@ -91,9 +91,9 @@ impl<R: Reader> GIFDecoder<R> {
         }
     }
 
-    fn read_block(&mut self) -> ImageResult<Vec<u8>> {
-        let size = io_try!(self.r.read_u8());
-        Ok(io_try!(self.r.read_exact(size as uint)))
+    fn read_block(&mut self) -> io::IoResult<Vec<u8>> {
+        let size = try!(self.r.read_u8());
+        Ok(try!(self.r.read_exact(size as uint)))
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
@@ -114,7 +114,7 @@ impl<R: Reader> GIFDecoder<R> {
             data = data + b;
         }
 
-        let m = MemReader::new(data);
+        let m = io::MemReader::new(data);
         let mut lzw = LZWReader::new(m, minimum_code_size);
         let b = lzw.read_to_end().unwrap();
 

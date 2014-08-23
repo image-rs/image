@@ -1,4 +1,5 @@
 use std::mem;
+use std::io;
 use std::slice;
 use std::default::Default;
 
@@ -28,7 +29,7 @@ pub enum ImageError {
     NotEnoughData,
 
     ///An I/O Error occurred while decoding the image
-    IoError,
+    IoError(io::IoError),
 
     ///The end of the image has been reached
     ImageEnd

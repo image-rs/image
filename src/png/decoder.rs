@@ -1,5 +1,7 @@
 use std::io;
 use std::cmp;
+use std::mem;
+use std::iter;
 use std::str;
 use std::slice;
 use std::io::IoResult;
@@ -307,10 +309,13 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             _ => return Err(image::FormatError)
         };
 
-        let mut read = 0;
-        while read < self.rlength {
-            let r = io_try!(self.z.read(buf.mut_slice_from(read)));
-            read += r;
+        {
+            let mut read = 0;
+            let read_buffer = buf.mut_slice_to(self.rlength);
+            while read < self.rlength {
+                let r = io_try!(self.z.read(read_buffer.mut_slice_from(read)));
+                read += r;
+            }
         }
 
         unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
@@ -318,7 +323,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 
         if self.palette.is_some() {
             let s = (*self.palette.get_ref()).as_slice();
-            expand_palette(buf, s, self.rlength);
+            expand_palette(buf, s, self.rlength, self.bit_depth);
         }
 
         self.decoded_rows += 1;
@@ -342,12 +347,32 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 }
 
-fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)], entries: uint) {
-    assert!(buf.len() == entries * 3);
-    let tmp = Vec::from_fn(entries, |i| buf[i]);
-
-    for (chunk, &i) in buf.mut_chunks(3).zip(tmp.iter()) {
-        let (r, g, b) = palette[i as uint];
+fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)], 
+                  entries: uint, bit_depth: u8) {
+    assert!(buf.len() == entries * 3 * (8 / bit_depth as uint));
+    let mask = (1u8 << bit_depth as uint) - 1;
+    // Unsafe copy to be able to create a mutable borrow afterwards
+    // This is unproblematic since we are iterating from opposite directions
+    // over these slices such that the paletted pixel do not get overwritten
+    // before processing them.
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        view.slice_to(entries)
+    };
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            // This has to be reversed to
+            iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+            .zip(iter::iterate(
+                |v| v, v
+            )
+        ))
+        .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);
+    for (chunk, (r, g, b)) in buf.mut_chunks(3).rev().zip(pixels.map(|i| 
+        palette[i as uint]
+    )) {
         chunk[0] = r;
         chunk[1] = g;
         chunk[2] = b;

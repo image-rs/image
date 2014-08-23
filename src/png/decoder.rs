@@ -515,7 +515,7 @@ mod tests {
     #[test]
     /// Test basic formats filters
     fn test_basic() {
-        let images = get_testimages("b", "2c", false);
+        let images = get_testimages("b", "", false);
 
         for path in images.iter() {
             assert!(match load_image(path) {

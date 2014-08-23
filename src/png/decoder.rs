@@ -141,17 +141,25 @@ impl<R: Reader> PNGDecoder<R> {
 
         let compression_method = m.read_byte().unwrap();
         if compression_method != 0 {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError(format!(
+                "The compression method {} is not supported.",
+                compression_method
+            )))
         }
 
         let filter_method = m.read_byte().unwrap();
         if filter_method != 0 {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError(format!(
+                "The filter method {} is not supported.",
+                filter_method
+            )))
         }
 
         self.interlace_method = m.read_byte().unwrap();
         if self.interlace_method != 0 {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError(
+                "Interlaced images are not supported.".to_string()
+            ))
         }
 
         let channels = match self.colour_type {
@@ -231,10 +239,10 @@ impl<R: Reader> PNGDecoder<R> {
                     try!(self.parse_plte(d));
                     self.state = HavePLTE;
                 }
-
-                (b"tRNS", HavePLTE) => {
-                    return Err(image::UnsupportedError)
-                }
+                
+                //(b"tRNS", HavePLTE) => {
+                //    TODO: handle transparency
+                //}
 
                 (b"IDAT", HaveIHDR) if self.colour_type != 3 => {
                     self.state = HaveFirstIDat;

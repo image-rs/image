@@ -20,7 +20,7 @@ macro_rules! io_try(
     ($e: expr) => (
         match $e {
             Ok(e) => e,
-            Err(_) => return Err(image::IoError)
+            Err(err) => return Err(image::IoError(err))
         }
     )
 )

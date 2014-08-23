@@ -499,7 +499,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 pub fn open(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match io::File::open(path) {
         Ok(f)  => f,
-        Err(_) => return Err(image::IoError)
+        Err(err) => return Err(image::IoError(err))
     };
 
     let ext = path.extension_str()

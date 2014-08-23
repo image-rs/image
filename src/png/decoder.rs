@@ -550,7 +550,7 @@ mod tests {
     }
     #[bench]
     /// Test basic formats filters
-    fn bench_png_reading(b: &mut test::Bencher) {
+    fn bench_read_small_files(b: &mut test::Bencher) {
         let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| 
             File::open(path).read_to_end().unwrap()
         ).collect();
@@ -560,5 +560,16 @@ mod tests {
             }
         });
         b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_read_big_file(b: &mut test::Bencher) {
+        let image_data = File::open(
+            &Path::new(".").join_many(["examples", "fractal.png"])
+        ).read_to_end().unwrap();
+        b.iter(|| {
+            let _ = PNGDecoder::new(MemReader::new(image_data.clone())).read_image().unwrap();
+        });
+        b.bytes = image_data.len() as u64
     }
 }

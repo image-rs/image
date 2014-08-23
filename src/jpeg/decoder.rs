@@ -292,8 +292,8 @@ impl<R: Reader>JPEGDecoder<R> {
                     let _ = io_try!(self.r.read_exact((length - 2) as uint));
                 }
                 TEM  => continue,
-                SOF2 => return Err(image::UnsupportedError),
-                DNL  => return Err(image::UnsupportedError),
+                SOF2 => return Err(image::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
+                DNL  => return Err(image::UnsupportedError("Marker DNL ist not supported.".to_string())),
                 _    => return Err(image::FormatError),
             }
         }
@@ -306,7 +306,10 @@ impl<R: Reader>JPEGDecoder<R> {
         let sample_precision = io_try!(self.r.read_u8());
 
         if sample_precision != 8 {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError(format!(
+                "A sample precision of {} is not supported",
+                sample_precision
+            )))
         }
 
         self.height 	    = io_try!(self.r.read_be_u16());
@@ -318,7 +321,10 @@ impl<R: Reader>JPEGDecoder<R> {
         }
 
         if self.num_components != 1 && self.num_components != 3 {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError(format!(
+                "Frames with {} components are not supported",
+                self.num_components
+            )))
         }
 
         self.padded_width = 8 * ((self.width as uint + 7) / 8);
@@ -443,7 +449,9 @@ impl<R: Reader>JPEGDecoder<R> {
             let th = tcth & 0x0F;
 
             if tc != 0 && tc != 1 {
-                return Err(image::UnsupportedError)
+                return Err(image::UnsupportedError(format!(
+                    "Huffman table class {} is not supported", tc
+                )))
             }
 
             let bits = io_try!(self.r.read_exact(16));

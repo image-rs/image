@@ -19,7 +19,7 @@ pub enum ImageError {
     DimensionError,
 
     ///The Decoder does not support this image format
-    UnsupportedError,
+    UnsupportedError(String),
 
     ///The Decoder does not support this color type
     UnsupportedColor(ColorType),

@@ -85,7 +85,9 @@ impl<R: Reader> GIFDecoder<R> {
             Err(image::FormatError)
         } else if version.as_slice() != "87a".as_bytes() &&
                   version.as_slice() != "89a".as_bytes() {
-            Err(image::UnsupportedError)
+            Err(image::UnsupportedError(
+                format!("GIF version {} is not supported.", version)
+            ))
         } else {
             Ok(())
         }
@@ -134,7 +136,7 @@ impl<R: Reader> GIFDecoder<R> {
         let table_size  = fields & 7;
 
         if interlace {
-            return Err(image::UnsupportedError)
+            return Err(image::UnsupportedError("Interlaced images are not supported.".to_string()))
         }
 
         if local_table {
@@ -191,7 +193,9 @@ impl<R: Reader> GIFDecoder<R> {
             APPLICATION    => try!(self.read_application_extension()),
             GRAPHICCONTROL => try!(self.read_graphic_control_extension()),
             COMMENT 	   => try!(self.read_comment_extension()),
-            _              => return Err(image::UnsupportedError)
+            _              => return Err(image::UnsupportedError(
+                                  format!("Identifier {} is not supported.", identifier))
+                              )
         }
 
         Ok(())
@@ -328,7 +332,9 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                     return Ok(self.image.clone())
                 }
                 TRAILER => break,
-                _       => return Err(image::UnsupportedError)
+                _       => return Err(image::UnsupportedError(
+                            format!("Block type {} is not supported.", block))
+                        )
             }
         }
 

@@ -355,7 +355,9 @@ impl DynamicImage {
                 Ok(())
             }
 
-            _    => Err(image::UnsupportedError),
+            _ => Err(image::UnsupportedError(
+                     format!("An encoder for {} is not available.", format))
+                 ),
         };
 
         Ok(r)
@@ -511,7 +513,10 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "png"  => image::PNG,
         "gif"  => image::GIF,
         "webp" => image::WEBP,
-        _      => return Err(image::UnsupportedError)
+        format => return Err(image::UnsupportedError(format!(
+            "Image format image/{} not supported.", 
+            format
+        )))
     };
 
     load(fin, format)
@@ -524,7 +529,7 @@ pub fn load<R: Reader>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
         image::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
         image::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
         image::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
-        _    => Err(image::UnsupportedError),
+        _ => Err(image::UnsupportedError(format!("A decoder for {} is not available.", format))),
     }
 }
 

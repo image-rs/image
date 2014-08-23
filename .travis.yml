@@ -2,9 +2,6 @@ language: rust
 os:
     - linux
     - osx
-env:
-    global:
-        - LD_LIBRARY_PATH: /usr/local/lib
 before_script:
     - rustc -v
     - cargo -V

@@ -454,8 +454,9 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
     extern crate core;
+    extern crate test;
 
-    use std::io::File;
+    use std::io::{File, MemReader};
 
     use image::{
         ImageDecoder,
@@ -546,5 +547,18 @@ mod tests {
         }
 
         assert_eq!(num_images, fails)
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_png_reading(b: &mut test::Bencher) {
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| 
+            File::open(path).read_to_end().unwrap()
+        ).collect();
+        b.iter(|| {
+            for data in image_data.clone().move_iter() {
+                 let _ = PNGDecoder::new(MemReader::new(data)).read_image().unwrap();
+            }
+        });
+        b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
     }
 }

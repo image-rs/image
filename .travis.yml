@@ -1,9 +1,10 @@
-language: c
-install:
-  - curl https://static.rust-lang.org/rustup.sh | sudo bash
-script:
-  - rustc --version
-  - cargo build -v
-  - cargo test -v
+language: rust
 os:
-  - linux
+    - linux
+    - osx
+before_script:
+    - rustc -v
+    - cargo -V
+script:
+    - cargo build -v
+    - cargo test -v

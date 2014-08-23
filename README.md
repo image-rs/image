@@ -1,11 +1,11 @@
-#Rust Image [![Build Status](https://travis-ci.org/PistonDevelopers/rust-image.svg)](https://travis-ci.org/PistonDevelopers/rust-image)
-##An Image Processing Library
+# Rust Image [![Build Status](https://travis-ci.org/PistonDevelopers/rust-image.svg)](https://travis-ci.org/PistonDevelopers/rust-image)
+## An Image Processing Library
 
 This crate provides basic imaging processing functions and methods for converting to and from image formats.
 
 All image processing functions provided operate on types that implement the ```GenericImage``` trait and return an ```ImageBuf```.
 
-###Usage
+### Usage
 
 Add the following to the Cargo.toml in your project:
 
@@ -23,16 +23,14 @@ and import using ```extern crate```:
     //Use image::
 ```
 
-=======
-
-##1. Documentation
+## 1. Documentation
 
 http://www.piston.rs/docs/rust-image/image/index.html
 
-##2. Supported Image Formats
+## 2. Supported Image Formats
 ```rust-image``` provides implementations of common image format encoders and decoders.
 
-###2.1 Supported Image Formats
+### 2.1 Supported Image Formats
 | Format | Decoding | Encoding |
 |---     |---       | --- |
 | JPEG   | Baseline JPEG | Baseline JPEG |
@@ -41,7 +39,7 @@ http://www.piston.rs/docs/rust-image/image/index.html
 | Webp   | Lossy(Luma channel only) | No |
 | PPM    | No | Yes |
 
-###2.2 The ```ImageDecoder``` Trait
+### 2.2 The ```ImageDecoder``` Trait
 All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
 + **dimensions**: Return a tuple containing the width and height of the image
 + **colortype**: Return the color type of the image.
@@ -50,7 +48,7 @@ All image format decoders implement the ```ImageDecoder``` trait which provides 
 + **read_image**: Decode the entire image and return it as a Vector
 + **load_rect**: Decode a specific region of the image
 
-##3 Pixels
+## 3 Pixels
 ```rust-image``` provides the following pixel types:
 + **Rgb**: RGB pixel
 + **Rgba**: RGBA pixel
@@ -59,8 +57,8 @@ All image format decoders implement the ```ImageDecoder``` trait which provides 
 
 All pixels are parameterised by their component type.
 
-##4 Images
-###4.1 The ```GenericImage``` Trait
+## 4 Images
+### 4.1 The ```GenericImage``` Trait
 A trait that provides functions for manipulating images, parameterised over the image's pixel type.
 
 ```rust
@@ -84,10 +82,10 @@ pub trait GenericImage<P> {
 }
 ```
 
-###4.2 Representation of Images
+### 4.2 Representation of Images
 ```rust-image``` provides two main ways of representing image data:
 
-####4.2.1 ```ImageBuf```
+#### 4.2.1 ```ImageBuf```
 An image parametarised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
 
 ```rust
@@ -128,14 +126,15 @@ for pixel in img.pixels() {
     //Do something with pixel
 }
 ```
-####4.2.2 ```DynamicImage```
+
+#### 4.2.2 ```DynamicImage```
 A ```DynamicImage``` is an enumeration over all supported ```ImageBuf<P>``` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience ```DynamicImage```'s reimplement all image processing functions.
 
 ```DynamicImage``` implement the ```GenericImage``` trait for RGBA pixels.
 
-####4.2.3 ```SubImage```
+#### 4.2.3 ```SubImage```
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
@@ -154,7 +153,7 @@ let subimg  = imageops::crop(0, 0, 100, 100);
 assert!(subimg.dimensions() == (100, 100));
 ```
 
-##5 Image Processing Functions
+## 5 Image Processing Functions
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
@@ -172,8 +171,8 @@ These are the functions defined in the ```imageops``` module. All functions oper
 + **rotate90**: Rotate an image 90 degrees clockwise.
 + **unsharpen**: Performs an unsharpen mask on the supplied image
 
-##6 Examples
-###6.1 Opening And Saving Images
+## 6 Examples
+### 6.1 Opening And Saving Images
 ```rust-image``` provides the ```open``` function for opening images from a path.
 
 The image format is determined from the path's file extension.
@@ -203,7 +202,7 @@ fn main() {
 }
 ```
 
-###6.2 Generating Fractals
+### 6.2 Generating Fractals
 ```rust
 //!An example of generating julia fractals.
 

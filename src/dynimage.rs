@@ -1,4 +1,5 @@
 use std::io;
+use std::mem;
 use std::iter;
 use std::ascii::StrAsciiExt;
 
@@ -387,6 +388,32 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
     }
 }
 
+fn transmute_vec<T: Send + color::SaveToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
+    let new_elem_size = mem::size_of::<T>();
+    
+    let len = vec.len();
+    assert!(len % new_elem_size == 0);
+    let new_len = len/new_elem_size;
+    
+    let cap = vec.capacity();
+    assert!(cap % new_elem_size == 0);
+    let new_cap = match cap % new_elem_size {
+        0 => { cap/new_elem_size },
+        n => {
+            // Make resize to hold an integer of new_elements
+            vec.reserve_exact(cap + new_elem_size - n);
+            let cap = vec.capacity();
+            assert!(cap % new_elem_size == 0); // to be sure this worked
+            cap/new_elem_size
+        }
+    };
+    let p = vec.as_mut_ptr();
+    unsafe {
+        mem::forget(vec);
+        Vec::from_raw_parts(new_len, new_cap, mem::transmute(p))
+    }
+}
+
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
 
@@ -396,39 +423,31 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 
     let image = match color {
         color::RGB(8) => {
-            let p = buf.as_slice()
-                       .chunks(3)
-                       .map( | a | color::Rgb::<u8>(a[0], a[1], a[2]))
-                       .collect();
-
-            ImageRgb8(ImageBuf::from_pixels(p, w, h))
+            ImageRgb8(ImageBuf::from_pixels(
+                transmute_vec::<color::Rgb<u8>>(buf),
+                w, h
+            ))
         }
 
         color::RGBA(8) => {
-            let p = buf.as_slice()
-                       .chunks(4)
-                       .map( | a | color::Rgba::<u8>(a[0], a[1], a[2], a[3]))
-                       .collect();
-
-            ImageRgba8(ImageBuf::from_pixels(p, w, h))
+            ImageRgba8(ImageBuf::from_pixels(
+                transmute_vec::<color::Rgba<u8>>(buf),
+                w, h
+            ))
         }
 
         color::Grey(8) => {
-            let p = buf.as_slice()
-                       .iter()
-                       .map( | a | color::Luma::<u8>(*a))
-                       .collect();
-
-            ImageLuma8(ImageBuf::from_pixels(p, w, h))
+            ImageLuma8(ImageBuf::from_pixels(
+                transmute_vec::<color::Luma<u8>>(buf),
+                w, h
+            ))
         }
 
         color::GreyA(8) => {
-            let p = buf.as_slice()
-                       .chunks(2)
-                       .map( | a | color::LumaA::<u8>(a[0], a[1]))
-                       .collect();
-
-            ImageLumaA8(ImageBuf::from_pixels(p, w, h))
+            ImageLumaA8(ImageBuf::from_pixels(
+                transmute_vec::<color::LumaA<u8>>(buf),
+                w, h
+            ))
         }
         color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             let mask = (1u8 << bit_depth as uint) - 1;

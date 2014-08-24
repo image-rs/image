@@ -389,7 +389,7 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
 }
 
 /// Transmutes a Vec<u8> into a Vec<T> where T is save to transmute.
-fn transmute_vec<T: Send + color::SaveToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
+fn transmute_vec<T: Send + color::SafeToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     let new_elem_size = mem::size_of::<T>();
     
     let len = vec.len();

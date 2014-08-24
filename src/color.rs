@@ -25,7 +25,7 @@ pub enum ColorType {
 /// Trait that promises that the type implementing it
 /// does not have any memory allocated on the heap or
 /// needs any destructor to be run.
-pub trait SaveToTransmute {}
+pub trait SafeToTransmute {}
 
 ///Returns the number of bits contained in a pixel of ColorType c
 pub fn bits_per_pixel(c: ColorType) -> uint {
@@ -63,7 +63,7 @@ impl<T: Primitive> Luma<T> {
     }
 }
 
-impl<T: Primitive> SaveToTransmute for Luma<T> {}
+impl<T: Primitive> SafeToTransmute for Luma<T> {}
 
 /// A type to hold a grayscale pixel with an alpha channel
 #[packed]
@@ -86,7 +86,7 @@ impl<T: Primitive> LumaA<T> {
     }
 }
 
-impl<T: Primitive> SaveToTransmute for LumaA<T> {}
+impl<T: Primitive> SafeToTransmute for LumaA<T> {}
 
 /// A type to hold an RGB pixel
 #[packed]
@@ -102,7 +102,7 @@ impl<T: Primitive> Rgb<T> {
     }
 }
 
-impl<T: Primitive> SaveToTransmute for Rgb<T> {}
+impl<T: Primitive> SafeToTransmute for Rgb<T> {}
 
 /// A type to hold an RGB pixel with an alpha channel
 #[packed]
@@ -125,7 +125,7 @@ impl<T: Primitive> Rgba<T> {
     }
 }
 
-impl<T: Primitive> SaveToTransmute for Rgba<T> {}
+impl<T: Primitive> SafeToTransmute for Rgba<T> {}
 
 /// A trait that all pixels implement.
 pub trait Pixel<T>: Copy + Clone + Default {

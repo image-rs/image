@@ -537,6 +537,29 @@ mod tests {
             })
         }
     }
+    
+    //#[test]
+    //fn render_all() {
+    //    let images = get_testimages("f", "", true)
+    //        + get_testimages("b", "", true)
+    //        + get_testimages("o", "", true);
+    //
+    //    for path in images.iter() {
+    //        match ::open(path) {
+    //            Err(_) => {},
+    //            Ok(im) => {
+    //                let filename = path.filename_str().unwrap().to_string();
+    //                let new_path = "reference renderings".to_string();
+    //                let p = Path::new(".").join_many([new_path.as_slice(), 
+    //                    filename.as_slice()]);
+    //                let fout = File::create(&p).unwrap();
+    //
+    //                //Write the contents of this image to the Writer in PNG format.
+    //                let _ = im.save(fout, ::PNG);
+    //            }
+    //        };
+    //    }
+    //}
 
     #[test]
     /// Test corrupted images, they should all fail

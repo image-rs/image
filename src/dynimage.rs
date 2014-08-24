@@ -443,7 +443,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
             let p = buf.as_slice()
                        .iter()
                        .flat_map(|&v|
-                           iter::range_step(0, 8, bit_depth)
+                           iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
                            .zip(iter::iterate(
                                |v| v, v
                            )

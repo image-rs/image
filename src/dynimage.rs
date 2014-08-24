@@ -397,7 +397,6 @@ fn transmute_vec<T: Send + color::SafeToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     let new_len = len/new_elem_size;
     
     let cap = vec.capacity();
-    assert!(cap % new_elem_size == 0);
     let new_cap = match cap % new_elem_size {
         0 => { cap/new_elem_size },
         n => {

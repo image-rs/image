@@ -24,7 +24,7 @@ pub enum ColorType {
 
 /// Trait that promises that the type implementing it
 /// does not have any memory allocated on the heap or
-/// need any destructor to be run.
+/// needs any destructor to be run.
 pub trait SaveToTransmute {}
 
 ///Returns the number of bits contained in a pixel of ColorType c

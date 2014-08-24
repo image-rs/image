@@ -388,6 +388,7 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
     }
 }
 
+/// Transmutes a Vec<u8> into a Vec<T> where T is save to transmute.
 fn transmute_vec<T: Send + color::SaveToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     let new_elem_size = mem::size_of::<T>();
     
@@ -400,10 +401,10 @@ fn transmute_vec<T: Send + color::SaveToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     let new_cap = match cap % new_elem_size {
         0 => { cap/new_elem_size },
         n => {
-            // Make resize to hold an integer of new_elements
+            // Resizes `vec` to hold an integer value of new_elements
             vec.reserve_exact(cap + new_elem_size - n);
             let cap = vec.capacity();
-            assert!(cap % new_elem_size == 0); // to be sure this worked
+            assert!(cap % new_elem_size == 0); // assert this worked
             cap/new_elem_size
         }
     };
@@ -423,31 +424,19 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 
     let image = match color {
         color::RGB(8) => {
-            ImageRgb8(ImageBuf::from_pixels(
-                transmute_vec::<color::Rgb<u8>>(buf),
-                w, h
-            ))
+            ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::RGBA(8) => {
-            ImageRgba8(ImageBuf::from_pixels(
-                transmute_vec::<color::Rgba<u8>>(buf),
-                w, h
-            ))
+            ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::Grey(8) => {
-            ImageLuma8(ImageBuf::from_pixels(
-                transmute_vec::<color::Luma<u8>>(buf),
-                w, h
-            ))
+            ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::GreyA(8) => {
-            ImageLumaA8(ImageBuf::from_pixels(
-                transmute_vec::<color::LumaA<u8>>(buf),
-                w, h
-            ))
+            ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
         color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             let mask = (1u8 << bit_depth as uint) - 1;

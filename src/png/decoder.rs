@@ -372,7 +372,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
         .rev() // Reverse iterator
         .flat_map(|&v|
             // This has to be reversed to
-            iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+            iter::range_step(0, 8, bit_depth)
             .zip(iter::iterate(
                 |v| v, v
             )
@@ -464,6 +464,7 @@ mod tests {
     extern crate core;
     extern crate test;
 
+    use std::io;
     use std::io::{File, MemReader};
 
     use image::{
@@ -497,7 +498,7 @@ mod tests {
     }
 
     fn load_image(path: &Path) -> ImageResult<Vec<u8>> {
-        PNGDecoder::new(File::open(path)).read_image()
+        PNGDecoder::new(io::File::open(path)).read_image()
     }
 
     #[test]
@@ -549,8 +550,13 @@ mod tests {
     //            Err(_) => {},
     //            Ok(im) => {
     //                let filename = path.filename_str().unwrap().to_string();
-    //                let new_path = "reference renderings".to_string();
-    //                let p = Path::new(".").join_many([new_path.as_slice(), 
+    //                let p1 = "target";
+    //                let p2 = "reference renderings";
+    //                let _ = io::fs::mkdir(&Path::new(".").join_many(
+    //                    [p1.as_slice(), p2.as_slice()]),
+    //                    io::UserRWX
+    //                );
+    //                let p = Path::new(".").join_many([p1.as_slice(), p2.as_slice(),
     //                    filename.as_slice()]);
     //                let fout = File::create(&p).unwrap();
     //

@@ -97,10 +97,10 @@ impl<R: Reader> PNGDecoder<R> {
     ///Returns a reference to the color palette used for indexed
     ///color images.
     ///Each array element is a tuple of RGB values.
-    pub fn palette < 'a>(&'a self) -> &'a [(u8, u8, u8)] {
+    pub fn palette <'a>(&'a self) -> &'a [(u8, u8, u8)] {
         match self.palette {
             Some(ref p) => p.as_slice(),
-            None        => &[]
+            None        => [].as_slice()
         }
     }
 

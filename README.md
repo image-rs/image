@@ -1,4 +1,4 @@
-# Rust Image [![Build Status](https://travis-ci.org/PistonDevelopers/rust-image.svg)](https://travis-ci.org/PistonDevelopers/rust-image)
+# Rust Image [![Build Status](https://travis-ci.org/PistonDevelopers/rust-image.svg?branch=master)](https://travis-ci.org/PistonDevelopers/rust-image)
 ## An Image Processing Library
 
 This crate provides basic imaging processing functions and methods for converting to and from image formats.

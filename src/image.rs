@@ -120,7 +120,7 @@ pub trait ImageDecoder {
 }
 
 /// Immutable pixel iterator
-pub struct Pixels<'a, I> {
+pub struct Pixels<'a, I:'a> {
     image:  &'a I,
     x:      u32,
     y:      u32,
@@ -149,7 +149,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, P)> 
 }
 
 /// Mutable pixel iterator
-pub struct MutPixels<'a, I> {
+pub struct MutPixels<'a, I:'a> {
     image:  &'a mut I,
     x:      u32,
     y:      u32,
@@ -343,7 +343,7 @@ impl<T: Primitive, P: Pixel<T>> Index<(u32, u32), P> for ImageBuf<P> {
 }
 
 /// A View into another image
-pub struct SubImage <'a, I> {
+pub struct SubImage <'a, I:'a> {
     image:   &'a mut I,
     xoffset: u32,
     yoffset: u32,

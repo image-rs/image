@@ -1118,7 +1118,7 @@ impl<R: Reader> VP8Decoder<R> {
         };
 
         let skip_coeff = if self.prob_skip_false.is_some() {
-            1 == self.b.read_bool(*self.prob_skip_false.get_ref())
+            1 == self.b.read_bool(*self.prob_skip_false.as_ref().unwrap())
         } else {
             false
         };

@@ -162,7 +162,7 @@ impl<R: Reader> GIFDecoder<R> {
             };
 
             let table = if self.local_table.is_some() {
-                self.local_table.get_ref().as_slice()
+                self.local_table.as_ref().unwrap().as_slice()
             } else {
                 self.global_table.as_slice()
             };

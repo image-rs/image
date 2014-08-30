@@ -221,7 +221,7 @@ impl<R: Reader> PNGDecoder<R> {
             self.chunk_type   = chunk.clone();
 
             self.crc.update(chunk);
-            
+
             match (self.chunk_type.as_slice(), self.state) {
                 (b"IHDR", HaveSignature) => {
                     if length != 13 {
@@ -239,7 +239,7 @@ impl<R: Reader> PNGDecoder<R> {
                     try!(self.parse_plte(d));
                     self.state = HavePLTE;
                 }
-                
+
                 //(b"tRNS", HavePLTE) => {
                 //    TODO: handle transparency
                 //}
@@ -330,7 +330,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
 
         if self.palette.is_some() {
-            let s = (*self.palette.get_ref()).as_slice();
+            let s = (*self.palette.as_ref().unwrap()).as_slice();
             expand_palette(buf, s, self.rlength, self.bit_depth);
         }
 
@@ -355,7 +355,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 }
 
-fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)], 
+fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: uint, bit_depth: u8) {
     assert!(buf.len() == entries * 3 * (8 / bit_depth as uint));
     let mask = (1u8 << bit_depth as uint) - 1;
@@ -378,7 +378,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
             )
         ))
         .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);
-    for (chunk, (r, g, b)) in buf.mut_chunks(3).rev().zip(pixels.map(|i| 
+    for (chunk, (r, g, b)) in buf.mut_chunks(3).rev().zip(pixels.map(|i|
         palette[i as uint]
     )) {
         chunk[0] = r;
@@ -538,7 +538,7 @@ mod tests {
             })
         }
     }
-    
+
     //#[test]
     //fn render_all() {
     //    let images = get_testimages("f", "", true)
@@ -588,7 +588,7 @@ mod tests {
     #[bench]
     /// Test basic formats filters
     fn bench_read_small_files(b: &mut test::Bencher) {
-        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| 
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path|
             File::open(path).read_to_end().unwrap()
         ).collect();
         b.iter(|| {

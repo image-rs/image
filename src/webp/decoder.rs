@@ -48,11 +48,11 @@ impl<R: Reader> WebpDecoder<R> {
         let webp = io_try!(self.r.read_exact(4));
 
         if riff.as_slice() != "RIFF".as_bytes() {
-            return Err(image::FormatError)
+            return Err(image::FormatError("Invalid RIFF signature.".to_string()))
         }
 
         if webp.as_slice() != "WEBP".as_bytes() {
-            return Err(image::FormatError)
+            return Err(image::FormatError("Invalid WEBP signature.".to_string()))
         }
 
         Ok(size)
@@ -62,7 +62,7 @@ impl<R: Reader> WebpDecoder<R> {
         let vp8 = io_try!(self.r.read_exact(4));
 
         if vp8.as_slice() != "VP8 ".as_bytes() {
-            return Err(image::FormatError)
+            return Err(image::FormatError("Invalid VP8 signature.".to_string()))
         }
 
         let _len = io_try!(self.r.read_le_u32());

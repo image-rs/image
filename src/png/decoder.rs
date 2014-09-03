@@ -136,7 +136,9 @@ impl<R: Reader> PNGDecoder<R> {
             (4, 16) => color::GreyA(16),
             (6, 8)  => color::RGBA(8),
             (6, 16) => color::RGBA(16),
-            (_, _)  => return Err(image::FormatError)
+            (_, _)  => return Err(image::FormatError(
+                "Invalid color/bit depth combination.".to_string()
+            ))
         };
 
         let compression_method = m.read_byte().unwrap();
@@ -168,7 +170,7 @@ impl<R: Reader> PNGDecoder<R> {
             3 => 1,
             4 => 2,
             6 => 4,
-            _ => return Err(image::FormatError)
+            _ => return Err(image::FormatError("Unknown color type.".to_string()))
         };
 
         let bits_per_pixel = channels * self.bit_depth as uint;
@@ -186,7 +188,7 @@ impl<R: Reader> PNGDecoder<R> {
         let len = buf.len() / 3;
 
         if len > 256 || len > (1 << self.bit_depth as uint) || buf.len() % 3 != 0{
-            return Err(image::FormatError)
+            return Err(image::FormatError("Color palette malformed.".to_string()))
         }
 
         let p = Vec::from_fn(256, |i| {
@@ -208,7 +210,7 @@ impl<R: Reader> PNGDecoder<R> {
 
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !try!(self.read_signature()) {
-            return Err(image::FormatError)
+            return Err(image::FormatError("Could not read PNG signature.".to_string()))
         }
 
         self.state = HaveSignature;
@@ -225,7 +227,7 @@ impl<R: Reader> PNGDecoder<R> {
             match (self.chunk_type.as_slice(), self.state) {
                 (b"IHDR", HaveSignature) => {
                     if length != 13 {
-                        return Err(image::FormatError)
+                        return Err(image::FormatError("Invalid PNG signature.".to_string()))
                     }
 
                     let d = io_try!(self.z.inner().r.read_exact(length as uint));
@@ -270,7 +272,7 @@ impl<R: Reader> PNGDecoder<R> {
             let crc = self.crc.checksum();
 
             if crc != chunk_crc {
-                return Err(image::FormatError)
+                return Err(image::FormatError("CRC checksum invalid.".to_string()))
             }
 
             self.crc.reset();
@@ -314,7 +316,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 
         let filter_type = match FromPrimitive::from_u8(io_try!(self.z.read_byte())) {
             Some(v) => v,
-            _ => return Err(image::FormatError)
+            _ => return Err(image::FormatError("Unknown filter type.".to_string()))
         };
 
         {

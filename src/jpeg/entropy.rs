@@ -105,7 +105,7 @@ impl HuffDecoder {
                 code <<= 1;
             }
 
-            Err(image::FormatError)
+            Err(image::FormatError("Could not decode symbol.".to_string()))
         }
     }
 }

@@ -13,7 +13,7 @@ use color:: {
 #[deriving(Show, PartialEq, Eq)]
 pub enum ImageError {
     ///The Image is not formatted properly
-    FormatError,
+    FormatError(String),
 
     ///The Image's dimensions are either too small or too large
     DimensionError,

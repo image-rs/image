@@ -294,7 +294,7 @@ impl<R: Reader>JPEGDecoder<R> {
                 TEM  => continue,
                 SOF2 => return Err(image::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
                 DNL  => return Err(image::UnsupportedError("Marker DNL ist not supported.".to_string())),
-                _    => return Err(image::FormatError),
+                marker => return Err(image::FormatError(format!("Unkown marker {} encountered.", marker))),
             }
         }
 
@@ -424,7 +424,7 @@ impl<R: Reader>JPEGDecoder<R> {
             let tq = pqtq & 0x0F;
 
             if pq != 0 || tq > 3 {
-                return Err(image::FormatError)
+                return Err(image::FormatError("Quantization table malformed.".to_string()))
             }
 
             let slice = self.qtables.mut_slice(64 * tq as uint, 64 * tq as uint + 64);
@@ -498,7 +498,9 @@ impl<R: Reader>JPEGDecoder<R> {
                     self.expected_rst = RST0;
                 }
             } else {
-                return Err(image::FormatError)
+                return Err(image::FormatError(format!(
+                    "Unexpected restart maker {} found", rst
+                )))
             }
         }
 
@@ -521,7 +523,7 @@ impl<R: Reader>JPEGDecoder<R> {
             b = io_try!(self.r.read_u8());
                 match b {
                     RST0 .. RST7 => break,
-                    EOI => return Err(image::FormatError),
+                    EOI => return Err(image::FormatError("Restart marker not found.".to_string())),
                     _   => continue
                 }
             }

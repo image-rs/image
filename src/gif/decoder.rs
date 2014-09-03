@@ -82,7 +82,7 @@ impl<R: Reader> GIFDecoder<R> {
         let version   = io_try!(self.r.read_exact(3));
 
         if signature.as_slice() != "GIF".as_bytes() {
-            Err(image::FormatError)
+            Err(image::FormatError("GIF signature not found.".to_string()))
         } else if version.as_slice() != "87a".as_bytes() &&
                   version.as_slice() != "89a".as_bytes() {
             Err(image::UnsupportedError(
@@ -102,7 +102,7 @@ impl<R: Reader> GIFDecoder<R> {
         let minimum_code_size = io_try!(self.r.read_u8());
 
         if minimum_code_size > 8 {
-            return Err(image::FormatError)
+            return Err(image::FormatError(format!("Invalid code size {}.", minimum_code_size)))
         }
 
         let mut data = Vec::new();

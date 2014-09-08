@@ -269,7 +269,7 @@ fn vertical_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
                 sum += w;
 
-                let y0  = clamp(i, 0, width - 1);
+                let y0  = clamp(i, 0, height - 1);
                 let p = image.get_pixel(x, y0);
 
                 let (k1, k2, k3, k4) = p.channels4();

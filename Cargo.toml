@@ -10,3 +10,7 @@ authors = [
 [lib]
 name = "image"
 path = "./src/lib.rs"
+
+[dependencies.glob]
+
+git = "https://github.com/rust-lang/glob"

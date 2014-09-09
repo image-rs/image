@@ -11,6 +11,6 @@ authors = [
 name = "image"
 path = "./src/lib.rs"
 
-[dependencies.glob]
+[dev-dependencies.glob]
 
 git = "https://github.com/rust-lang/glob"

@@ -1,4 +1,6 @@
 language: rust
+notifications:
+    irc: "irc.mozilla.org#piston-internals"
 os:
     - linux
     - osx

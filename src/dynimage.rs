@@ -445,7 +445,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                        .flat_map(|&v|
                            iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
                            .zip(iter::iterate(
-                               |v| v, v
+                               v, |v| v
                            )
                        ))
                        .map(|(shift, pixel)|

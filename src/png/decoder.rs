@@ -376,7 +376,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
             // This has to be reversed to
             iter::range_step(0, 8, bit_depth)
             .zip(iter::iterate(
-                |v| v, v
+                v, |v| v
             )
         ))
         .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);

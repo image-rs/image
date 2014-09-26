@@ -215,7 +215,7 @@ impl<R: Reader>JPEGDecoder<R> {
     }
 
     fn decode_block(&mut self, i: uint, dc: u8, pred: i32, ac: u8, q: u8) -> ImageResult<i32> {
-        let zz   = self.mcu.mut_slice(i * 64, i * 64 + 64);
+        let zz   = self.mcu.slice_mut(i * 64, i * 64 + 64);
         let mut tmp = [0i32, ..64];
 
         let dctable = &self.dctables[dc as uint];
@@ -364,7 +364,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
         //only 1 component no interleaving
         if n == 1 {
-        for (_, c) in self.components.mut_iter() {
+        for (_, c) in self.components.iter_mut() {
                 c.h = 1;
                 c.v = 1;
             }
@@ -427,7 +427,7 @@ impl<R: Reader>JPEGDecoder<R> {
                 return Err(image::FormatError("Quantization table malformed.".to_string()))
             }
 
-            let slice = self.qtables.mut_slice(64 * tq as uint, 64 * tq as uint + 64);
+            let slice = self.qtables.slice_mut(64 * tq as uint, 64 * tq as uint + 64);
 
             for i in range(0u, 64) {
                 slice[i] = io_try!(self.r.read_u8());
@@ -538,7 +538,7 @@ impl<R: Reader>JPEGDecoder<R> {
         self.h.end = false;
         self.h.marker = 0;
 
-        for (_, c) in self.components.mut_iter() {
+        for (_, c) in self.components.iter_mut() {
             c.dc_pred = 0;
         }
     }
@@ -606,7 +606,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         let row = try!(self.row_len());
         let mut buf = Vec::from_elem(row * self.height as uint, 0u8);
 
-        for chunk in buf.as_mut_slice().mut_chunks(row) {
+        for chunk in buf.as_mut_slice().chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));
         }
 

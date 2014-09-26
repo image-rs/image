@@ -130,7 +130,7 @@ fn select_filter(rowlength: uint, bpp: uint, previous: &[u8], current_s: &mut [u
     let mut sum    = sum_abs_difference(current_s.slice_to(rowlength));
     let mut method = 0;
 
-    for (i, current) in current_s.mut_chunks(rowlength).enumerate() {
+    for (i, current) in current_s.chunks_mut(rowlength).enumerate() {
         filter(FromPrimitive::from_u8(i as u8 + 1).unwrap(), bpp, previous, current);
 
         let this_sum = sum_abs_difference(current);
@@ -153,15 +153,15 @@ fn build_idat(image: &[u8], bpp: uint, width: u32, height: u32) -> Vec<u8> {
     let mut c = Vec::from_elem(4 * rowlen, 0u8);
     let mut b = Vec::from_elem(height as uint + rowlen * height as uint, 0u8);
 
-    for (row, outrow) in image.as_slice().chunks(rowlen).zip(b.as_mut_slice().mut_chunks(1 + rowlen)) {
-        for s in c.as_mut_slice().mut_chunks(rowlen) {
+    for (row, outrow) in image.as_slice().chunks(rowlen).zip(b.as_mut_slice().chunks_mut(1 + rowlen)) {
+        for s in c.as_mut_slice().chunks_mut(rowlen) {
             slice::bytes::copy_memory(s, row);
         }
 
         let filter = select_filter(rowlen, bpp, p.as_slice(), c.as_mut_slice());
 
         outrow[0]  = filter;
-        let out    = outrow.mut_slice_from(1);
+        let out    = outrow.slice_from_mut(1);
         let stride = (filter as uint - 1) * rowlen;
 
         match filter {
@@ -172,5 +172,5 @@ fn build_idat(image: &[u8], bpp: uint, width: u32, height: u32) -> Vec<u8> {
         slice::bytes::copy_memory(p.as_mut_slice(), row);
     }
 
-    Vec::from_slice(deflate_bytes_zlib(b.as_slice()).unwrap().as_slice())
+    deflate_bytes_zlib(b.as_slice()).unwrap().as_slice().to_vec()
 }

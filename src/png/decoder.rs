@@ -321,14 +321,14 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 
         {
             let mut read = 0;
-            let read_buffer = buf.mut_slice_to(self.rlength);
+            let read_buffer = buf.slice_to_mut(self.rlength);
             while read < self.rlength {
-                let r = io_try!(self.z.read(read_buffer.mut_slice_from(read)));
+                let r = io_try!(self.z.read(read_buffer.slice_from_mut(read)));
                 read += r;
             }
         }
 
-        unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.mut_slice_to(self.rlength));
+        unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.slice_to_mut(self.rlength));
         slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
 
         if self.palette.is_some() {
@@ -349,7 +349,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         let rowlen  = try!(self.row_len());
         let mut buf = Vec::from_elem(rowlen * self.height as uint, 0u8);
 
-        for chunk in buf.as_mut_slice().mut_chunks(rowlen) {
+        for chunk in buf.as_mut_slice().chunks_mut(rowlen) {
             let _ = try!(self.read_scanline(chunk));
         }
 
@@ -380,7 +380,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
             )
         ))
         .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);
-    for (chunk, (r, g, b)) in buf.mut_chunks(3).rev().zip(pixels.map(|i|
+    for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
         palette[i as uint]
     )) {
         chunk[0] = r;
@@ -424,7 +424,7 @@ impl<R: Reader> Reader for IDATReader<R> {
         while start < len {
             let m = cmp::min(len - start, self.chunk_length as uint);
 
-            let slice = buf.mut_slice(start, start + m);
+            let slice = buf.slice_mut(start, start + m);
             let r = try!(self.r.read(slice));
 
             start += r;
@@ -594,7 +594,7 @@ mod tests {
             File::open(path).read_to_end().unwrap()
         ).collect();
         b.iter(|| {
-            for data in image_data.clone().move_iter() {
+            for data in image_data.clone().into_iter() {
                  let _ = PNGDecoder::new(MemReader::new(data)).read_image().unwrap();
             }
         });

@@ -153,8 +153,9 @@ impl<W: Writer> JPEGEncoder<W> {
             Component {id: CHROMAREDID, h: 1, v: 1, tq: CHROMADESTINATION, dc_table: CHROMADESTINATION, ac_table: CHROMADESTINATION, dc_pred: 0}
         ];
 
-        let tables = Vec::new().append(STD_LUMA_QTABLE);
-        let tables = tables.append(STD_CHROMA_QTABLE);
+        let mut tables = Vec::new();
+        tables.extend(STD_LUMA_QTABLE.iter().map(|&v| v));
+        tables.extend(STD_CHROMA_QTABLE.iter().map(|&v| v));
 
         JPEGEncoder {
             w: w,

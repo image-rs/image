@@ -106,8 +106,8 @@ pub trait ImageDecoder {
                 let from = tmp.slice_from(x as uint * bpp)
                               .slice_to(width as uint * bpp);
 
-                let to   = buf.mut_slice_from(i * width as uint * bpp)
-                              .mut_slice_to(width as uint * bpp);
+                let to   = buf.slice_from_mut(i * width as uint * bpp)
+                              .slice_to_mut(width as uint * bpp);
 
                 slice::bytes::copy_memory(to, from);
             }

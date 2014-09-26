@@ -1331,7 +1331,7 @@ impl<R: Reader> VP8Decoder<R> {
             let mut left = self.left.complexity[y + 1];
             for x in range(0u, 4) {
                 let i = x + y * 4;
-                let block = blocks.mut_slice(i * 16, i * 16 + 16);
+                let block = blocks.slice_mut(i * 16, i * 16 + 16);
 
                 let complexity = self.top.as_mut_slice()[mbx].complexity[x + 1] + left;
                 let dcq = self.segment[sindex].ydc;
@@ -1358,7 +1358,7 @@ impl<R: Reader> VP8Decoder<R> {
 
                 for x in range(0u, 2) {
                     let i = x + y * 2 + if j == 5 { 16 } else { 20 };
-                    let block = blocks.mut_slice(i * 16, i * 16 + 16);
+                    let block = blocks.slice_mut(i * 16, i * 16 + 16);
 
                     let complexity = self.top.as_mut_slice()[mbx].complexity[x + j] + left;
                     let dcq   = self.segment[sindex].uvdc;
@@ -1435,7 +1435,7 @@ fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u
 
     //A
     {
-        let above = ws.mut_slice(1, stride);
+        let above = ws.slice_mut(1, stride);
         if mby == 0 {
             for i in range(0u, above.len()) {
                 above[i] = 127;

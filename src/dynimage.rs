@@ -510,6 +510,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         Ok(f)  => f,
         Err(err) => return Err(image::IoError(err))
     };
+    let fin = io::BufferedReader::new(fin);
 
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_ascii_lower());

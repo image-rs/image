@@ -151,7 +151,7 @@ impl<R: Reader> Inflater<R> {
             let s = try!(self.h.decode_symbol(self.ctable.as_slice()));
 
             match s {
-                0 .. 15 => {
+                0 ... 15 => {
                     all_lengths.as_mut_slice()[i as uint] = s as u8;
                     i += 1;
                 }
@@ -223,11 +223,11 @@ impl<R: Reader> Inflater<R> {
             let s = try!(self.h.decode_symbol(self.lltable.as_slice()));
 
             match s {
-                literal @ 0 .. 255 => self.buf.push(literal as u8),
+                literal @ 0 ... 255 => self.buf.push(literal as u8),
 
                 256 => break,
 
-                length @ 257 .. 285 => {
+                length @ 257 ... 285 => {
                     let length = length - 257;
 
                     let bits = EXTRA_LENGTHS[length as uint];

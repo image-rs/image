@@ -1264,9 +1264,9 @@ impl<R: Reader> VP8Decoder<R> {
                     continue
                 }
 
-                literal  @ DCT_1 .. DCT_4 => literal as i16,
+                literal  @ DCT_1 ... DCT_4 => literal as i16,
 
-                category @ DCT_CAT1 .. DCT_CAT6 => {
+                category @ DCT_CAT1 ... DCT_CAT6 => {
                     let t = PROB_DCT_CAT[(category - DCT_CAT1) as uint];
 
                     let mut extra = 0i16;

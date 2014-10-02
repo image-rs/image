@@ -287,7 +287,7 @@ impl<R: Reader>JPEGDecoder<R> {
                     self.state = HaveFirstScan;
                 }
                 DRI => try!(self.read_restart_interval()),
-                APP0 .. APPF | COM => {
+                APP0 ... APPF | COM => {
                     let length = io_try!(self.r.read_be_u16());
                     let _ = io_try!(self.r.read_exact((length - 2) as uint));
                 }
@@ -522,7 +522,7 @@ impl<R: Reader>JPEGDecoder<R> {
             if b == 0xFF {
             b = io_try!(self.r.read_u8());
                 match b {
-                    RST0 .. RST7 => break,
+                    RST0 ... RST7 => break,
                     EOI => return Err(image::FormatError("Restart marker not found.".to_string())),
                     _   => continue
                 }

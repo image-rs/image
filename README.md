@@ -101,7 +101,7 @@ use image::{
 let img = ImageBuf::new(512, 512);
 
 //Construct a new by repeated calls to the supplied closure.
-let img = ImageBuf::from_fn(512, 512, |(x, y)| {
+let img = ImageBuf::from_fn(512, 512, |x, y| {
     if x % 2 == 0 {
         image::Luma(0u8)
     } else {

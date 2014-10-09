@@ -67,7 +67,7 @@ pub struct Inflater<R> {
     buf: Vec<u8>,
     pos: u64,
 
-    final: bool,
+    finished: bool,
     btype: BlockType,
     block_length: u32,
 
@@ -85,7 +85,7 @@ impl<R: Reader> Inflater<R> {
             buf: Vec::new(),
             pos: 0,
 
-            final: false,
+            finished: false,
             block_length: 0,
             btype: Stored,
 
@@ -97,7 +97,7 @@ impl<R: Reader> Inflater<R> {
 
     /// Indicate whether the end of the stream has been reached.
     pub fn eof(&self) -> bool {
-        self.final && (self.pos as uint == self.buf.len())
+        self.finished && (self.pos as uint == self.buf.len())
     }
 
     /// Return a mutable reference to the wrapped Reader
@@ -106,8 +106,8 @@ impl<R: Reader> Inflater<R> {
     }
 
     fn read_block_type(&mut self) -> IoResult<()> {
-        let final = try!(self.h.receive(1));
-        self.final = final == 1;
+        let is_final = try!(self.h.receive(1));
+        self.finished = is_final == 1;
 
         let bits = try!(self.h.receive(2));
         match bits {
@@ -260,7 +260,7 @@ impl<R: Reader> Inflater<R> {
 impl<R: Reader> Reader for Inflater<R> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         if self.pos as uint == self.buf.len() {
-            if self.final {
+            if self.finished {
                 return Err(io::standard_error(io::EndOfFile))
             }
 

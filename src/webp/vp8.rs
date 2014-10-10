@@ -17,26 +17,26 @@ use std::default::Default;
 
 use super::transform;
 
-static MAX_SEGMENTS: uint = 4;
-static NUM_DCT_TOKENS: uint = 12;
+const MAX_SEGMENTS: uint = 4;
+const NUM_DCT_TOKENS: uint = 12;
 
 //Prediction modes
-static DC_PRED: i8 = 0;
-static V_PRED: i8 = 1;
-static H_PRED: i8 = 2;
-static TM_PRED: i8 = 3;
-static B_PRED: i8 = 4;
+const DC_PRED: i8 = 0;
+const V_PRED: i8 = 1;
+const H_PRED: i8 = 2;
+const TM_PRED: i8 = 3;
+const B_PRED: i8 = 4;
 
-static B_DC_PRED: i8 = 0;
-static B_TM_PRED: i8 = 1;
-static B_VE_PRED: i8 = 2;
-static B_HE_PRED: i8 = 3;
-static B_LD_PRED: i8 = 4;
-static B_RD_PRED: i8 = 5;
-static B_VR_PRED: i8 = 6;
-static B_VL_PRED: i8 = 7;
-static B_HD_PRED: i8 = 8;
-static B_HU_PRED: i8 = 9;
+const B_DC_PRED: i8 = 0;
+const B_TM_PRED: i8 = 1;
+const B_VE_PRED: i8 = 2;
+const B_HE_PRED: i8 = 3;
+const B_LD_PRED: i8 = 4;
+const B_RD_PRED: i8 = 5;
+const B_VR_PRED: i8 = 6;
+const B_VL_PRED: i8 = 7;
+const B_HD_PRED: i8 = 8;
+const B_HU_PRED: i8 = 9;
 
 type Prob = u8;
 
@@ -545,18 +545,18 @@ static COEFF_PROBS: TokenProbTables = [
 ];
 
 //DCT Tokens
-static DCT_0: i8 = 0;
-static DCT_1: i8 = 1;
-static DCT_2: i8 = 2;
-static DCT_3: i8 = 3;
-static DCT_4: i8 = 4;
-static DCT_CAT1: i8 = 5;
-static DCT_CAT2: i8 = 6;
-static DCT_CAT3: i8 = 7;
-static DCT_CAT4: i8 = 8;
-static DCT_CAT5: i8 = 9;
-static DCT_CAT6: i8 = 10;
-static DCT_EOB: i8 = 11;
+const DCT_0: i8 = 0;
+const DCT_1: i8 = 1;
+const DCT_2: i8 = 2;
+const DCT_3: i8 = 3;
+const DCT_4: i8 = 4;
+const DCT_CAT1: i8 = 5;
+const DCT_CAT2: i8 = 6;
+const DCT_CAT3: i8 = 7;
+const DCT_CAT4: i8 = 8;
+const DCT_CAT5: i8 = 9;
+const DCT_CAT6: i8 = 10;
+const DCT_EOB: i8 = 11;
 
 static DCT_TOKEN_TREE: [i8, ..22] = [
     -DCT_EOB, 2,

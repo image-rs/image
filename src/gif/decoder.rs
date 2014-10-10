@@ -17,12 +17,12 @@ macro_rules! io_try(
     )
 )
 
-static IMAGEDESCRIPTOR: u8 = 0x2C;
-static EXTENSION: u8 = 0x21;
-static APPLICATION: u8 = 0xFF;
-static GRAPHICCONTROL: u8 = 0xF9;
-static COMMENT: u8 = 0xFE;
-static TRAILER: u8 = 0x3B;
+const IMAGEDESCRIPTOR: u8 = 0x2C;
+const EXTENSION: u8 = 0x21;
+const APPLICATION: u8 = 0xFF;
+const GRAPHICCONTROL: u8 = 0xF9;
+const COMMENT: u8 = 0xFE;
+const TRAILER: u8 = 0x3B;
 
 /// The Representation of a GIF decoder
 pub struct GIFDecoder <R> {

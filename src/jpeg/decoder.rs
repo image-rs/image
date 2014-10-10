@@ -65,33 +65,33 @@ pub struct Component {
 
 //Markers
 //Baseline DCT
-static SOF0: u8 = 0xC0;
+const SOF0: u8 = 0xC0;
 //Progressive DCT
-static SOF2: u8 = 0xC2;
+const SOF2: u8 = 0xC2;
 //Huffman Tables
-static DHT: u8 = 0xC4;
+const DHT: u8 = 0xC4;
 //Restart Interval start and End (standalone)
-static RST0: u8 = 0xD0;
-static RST7: u8 = 0xD7;
+const RST0: u8 = 0xD0;
+const RST7: u8 = 0xD7;
 //Start of Image (standalone)
-static SOI: u8 = 0xD8;
+const SOI: u8 = 0xD8;
 //End of image (standalone)
-static EOI: u8 = 0xD9;
+const EOI: u8 = 0xD9;
 //Start of Scan
-static SOS: u8 = 0xDA;
+const SOS: u8 = 0xDA;
 //Quantization Tables
-static DQT: u8 = 0xDB;
+const DQT: u8 = 0xDB;
 //Number of lines
-static DNL: u8 = 0xDC;
+const DNL: u8 = 0xDC;
 //Restart Interval
-static DRI: u8 = 0xDD;
+const DRI: u8 = 0xDD;
 //Application segments start and end
-static APP0: u8 = 0xE0;
-static APPF: u8 = 0xEF;
+const APP0: u8 = 0xE0;
+const APPF: u8 = 0xEF;
 //Comment
-static COM: u8 = 0xFE;
+const COM: u8 = 0xFE;
 //Reserved
-static TEM: u8 = 0x01;
+const TEM: u8 = 0x01;
 
 #[deriving(PartialEq)]
 enum JPEGState {

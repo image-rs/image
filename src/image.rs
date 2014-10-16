@@ -300,6 +300,28 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     pub fn into_vec(self) -> Vec<P> {
         self.pixels
     }
+
+    ///Calls closure with immutable raw data of the image.
+    ///Returns the result from the closure.
+    pub fn with_bytes<U>(&self, f: | &[u8] | -> U) -> U {
+        use std::mem::{ size_of, transmute };
+        use std::raw::Slice;
+        // Compute size of slice in bytes.
+        let len = size_of::<P>() * self.pixels.len();
+        let slice = Slice { data: self.pixels.as_ptr() as *const u8, len: len };
+        f(unsafe { transmute(slice) })
+    }
+    
+    ///Calls closure with mutable raw data of the image.
+    ///Returns the result from the closure.
+    pub fn with_mut_bytes<U>(&mut self, f: | &mut [u8] | -> U) -> U {
+        use std::mem::{ size_of, transmute };
+        use std::raw::Slice;
+        // Compute size of slice in bytes.
+        let len = size_of::<P>() * self.pixels.len();
+        let slice = Slice { data: self.pixels.as_mut_ptr() as *const u8, len: len };
+        f(unsafe { transmute(slice) })
+    }
 }
 
 impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {

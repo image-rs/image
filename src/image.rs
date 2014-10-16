@@ -301,26 +301,24 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         self.pixels
     }
 
-    ///Calls closure with immutable raw data of the image.
-    ///Returns the result from the closure.
-    pub fn with_bytes<U>(&self, f: | &[u8] | -> U) -> U {
+    ///Return an immutable reference to this image's raw data buffer
+    pub fn rawbuf(&self) -> &[u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
         // Compute size of slice in bytes.
         let len = size_of::<P>() * self.pixels.len();
         let slice = Slice { data: self.pixels.as_ptr() as *const u8, len: len };
-        f(unsafe { transmute(slice) })
+        unsafe { transmute(slice) }
     }
     
-    ///Calls closure with mutable raw data of the image.
-    ///Returns the result from the closure.
-    pub fn with_mut_bytes<U>(&mut self, f: | &mut [u8] | -> U) -> U {
+    ///Return a mutable reference to this image's raw data buffer
+    pub fn mut_rawbuf(&mut self) -> &mut [u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
         // Compute size of slice in bytes.
         let len = size_of::<P>() * self.pixels.len();
         let slice = Slice { data: self.pixels.as_mut_ptr() as *const u8, len: len };
-        f(unsafe { transmute(slice) })
+        unsafe { transmute(slice) }
     }
 }
 

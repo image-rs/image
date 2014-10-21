@@ -14,3 +14,7 @@ path = "./src/lib.rs"
 [dev-dependencies.glob]
 
 git = "https://github.com/rust-lang/glob"
+
+[dev-dependencies.num]
+
+git = "https://github.com/rust-lang/num"

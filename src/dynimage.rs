@@ -1,7 +1,7 @@
 use std::io;
 use std::mem;
 use std::iter;
-use std::ascii::StrAsciiExt;
+use std::ascii::OwnedAsciiExt;
 
 use ppm;
 use gif;
@@ -513,7 +513,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
     let fin = io::BufferedReader::new(fin);
 
     let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_ascii_lower());
+                  .map_or("".to_string(), | s | s.to_string().into_ascii_lower());
 
     let format = match ext.as_slice() {
         "jpg" |

@@ -208,7 +208,9 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                     None => {}
                 }
             }
-            n => println!("{} samples", n)
+            _ => return Err(image::UnsupportedError(
+                "So far, only one sample per pixel is supported.".to_string()
+            ))
         }
         Ok(self)
     }
@@ -419,11 +421,9 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         let mut buffer = Vec::with_capacity(buffer_size);
         // Safe since the uninizialized values are never read.
         unsafe { buffer.set_len(buffer_size) }
-        println!("buffer len {}", buffer_size)
         let mut bytes_read = 0;
         for (&offset, &byte_count) in try!(self.get_tag_u32_vec(ifd::StripOffsets))
         .iter().zip(try!(self.get_tag_u32_vec(ifd::StripByteCounts)).iter()) {
-            println!("offset {}, count {}", offset, byte_count)
             bytes_read += try!(self.expand_strip(
                 buffer.slice_from_mut(bytes_read), offset, byte_count
             ));

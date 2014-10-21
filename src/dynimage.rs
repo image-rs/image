@@ -8,6 +8,7 @@ use gif;
 use webp;
 use jpeg;
 use png;
+use tiff;
 
 use color;
 use color::Pixel;
@@ -510,7 +511,6 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         Ok(f)  => f,
         Err(err) => return Err(image::IoError(err))
     };
-    let fin = io::BufferedReader::new(fin);
 
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lower());
@@ -521,6 +521,8 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "png"  => image::PNG,
         "gif"  => image::GIF,
         "webp" => image::WEBP,
+        "tif" |
+        "tiff" => image::TIFF,
         format => return Err(image::UnsupportedError(format!(
             "Image format image/{} not supported.", 
             format
@@ -531,12 +533,13 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Reader>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-        image::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
-        image::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
-        image::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
-        image::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
+        image::PNG  => decoder_to_image(png::PNGDecoder::new(io::BufferedReader::new(r))),
+        image::GIF  => decoder_to_image(gif::GIFDecoder::new(io::BufferedReader::new(r))),
+        image::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
+        image::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
+        image::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         _ => Err(image::UnsupportedError(format!("A decoder for {} is not available.", format))),
     }
 }

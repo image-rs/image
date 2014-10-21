@@ -54,7 +54,10 @@ pub enum ImageFormat {
     WEBP,
 
     /// An Image in PPM Format
-    PPM
+    PPM,
+
+    /// An Image in TIFF Format
+    TIFF
 }
 
 /// The trait that all decoders implement

@@ -85,6 +85,7 @@ pub mod ppm;
 pub mod png;
 pub mod jpeg;
 pub mod gif;
+pub mod tiff;
 
 mod image;
 mod dynimage;

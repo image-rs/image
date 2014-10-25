@@ -248,7 +248,7 @@ impl<W: Writer> JPEGEncoder<W> {
                     "Color type {} is not suppored by this JPEG encoder.", 
                     c
                 ))
-        })
+            })
         };
 
         let _ = try!(self.pad_byte());

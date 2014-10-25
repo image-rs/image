@@ -540,7 +540,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
 pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  io::IoResult<()> {
-    let fout = try!(io::File::open(path));
+    let fout = try!(io::File::create(path));
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lower());
 

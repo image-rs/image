@@ -524,12 +524,39 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "tif" |
         "tiff" => image::TIFF,
         format => return Err(image::UnsupportedError(format!(
-            "Image format image/{} not supported.", 
+            "Image format image/{} is not supported.", 
             format
         )))
     };
 
     load(fin, format)
+}
+
+/// Saves the supplied buffer to a file at the path specified.
+///
+/// The image format is derived from the file extension. The buffer is assumed to have
+/// the correct format according to the specified color type. 
+
+/// This will lead to corrupted files if the buffer contains malformed data. Currently only
+/// jpeg and png files are supported.
+pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  io::IoResult<()> {
+    let fout = try!(io::File::create(path));
+    let ext = path.extension_str()
+                  .map_or("".to_string(), | s | s.to_string().into_ascii_lower());
+
+    match ext.as_slice() {
+        "jpg" |
+        "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+        "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        format => Err(io::IoError {
+            kind: io::InvalidInput,
+            desc: "Unsupported image format.",
+            detail: Some(format!(
+                "Image format image/{} is not supported.", 
+                format
+            ))
+        })
+    }
 }
 
 /// Create a new image from a Reader

@@ -69,6 +69,7 @@ pub use dynimage:: {
     open,
     load,
     load_from_memory,
+    save_buffer,
 
     ImageRgb8,
     ImageRgba8,

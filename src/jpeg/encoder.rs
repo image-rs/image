@@ -1,4 +1,5 @@
 use std::io::MemWriter;
+use std::io;
 use std::io::IoResult;
 use std::iter::range_step;
 
@@ -240,7 +241,14 @@ impl<W: Writer> JPEGEncoder<W> {
             color::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
             color::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
             color::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
-            _  => fail!("unimplemented!")
+            _  => return Err(io::IoError {
+                kind: io::InvalidInput,
+                desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",
+                detail: Some(format!(
+                    "Color type {} is not suppored by this JPEG encoder.", 
+                    c
+                ))
+        })
         };
 
         let _ = try!(self.pad_byte());

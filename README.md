@@ -267,3 +267,19 @@ fn main() {
 Example output:
 
 ![alt tag](https://raw.githubusercontent.com/ccgn/rust-image/master/examples/fractal.png "A Julia Fractal, c: -0.4 + 0.6i")
+
+### 6.3 Writing raw buffers
+If the high level interface is not needed because the image was obtained by other means, `rust-image` provides the function `save_buffer` to save a buffer to a file.
+
+```rust
+extern crate image;
+
+fn main() {
+
+    let buffer: &[u8] = ...; // Generate the image data
+    
+    // Save the buffer as "image.png"
+    image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8))
+}
+
+```

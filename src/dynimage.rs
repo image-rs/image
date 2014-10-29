@@ -411,7 +411,7 @@ fn transmute_vec<T: Send + color::SafeToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     let p = vec.as_mut_ptr();
     unsafe {
         mem::forget(vec);
-        Vec::from_raw_parts(new_len, new_cap, mem::transmute(p))
+        Vec::from_raw_parts(mem::transmute(p), new_len, new_cap)
     }
 }
 

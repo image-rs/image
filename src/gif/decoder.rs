@@ -342,7 +342,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
     }
 }
 
-fn expand_image(palete: &[(u8, u8, u8)],
+fn expand_image(palette: &[(u8, u8, u8)],
                 indices: &[u8],
                 y0: uint,
                 x0: uint,
@@ -360,7 +360,7 @@ fn expand_image(palete: &[(u8, u8, u8)],
                 continue
             }
 
-            let (r, g, b) = palete[index as uint];
+            let (r, g, b) = palette[index as uint];
 
             image[(y0 + y) * stride + x0 * 3 + x * 3 + 0] = r;
             image[(y0 + y) * stride + x0 * 3 + x * 3 + 1] = g;

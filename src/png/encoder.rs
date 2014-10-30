@@ -97,7 +97,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
         color::GreyA(16)  => (4, 16),
         color::RGBA(8)    => (6, 8),
         color::RGBA(16)   => (6, 16),
-        _ => fail!("unsupported color type and bitdepth")
+        _ => panic!("unsupported color type and bitdepth")
     };
 
     let _ = m.write_u8(bit_depth);
@@ -114,7 +114,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
         3 => 3,
         4 => 2,
         6 => 4,
-        _ => fail!("unknown colour type")
+        _ => panic!("unknown colour type")
     };
 
     let bpp = ((channels * bit_depth + 7) / 8) as uint;

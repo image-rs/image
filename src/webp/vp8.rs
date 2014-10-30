@@ -1081,7 +1081,7 @@ impl<R: Reader> VP8Decoder<R> {
 
         if !self.frame.keyframe {
             //9.7 refresh golden frame and altref frame
-            fail!("unimplemented")
+            panic!("unimplemented")
         } else {
             //Refresh entropy probs ?????
             let _ = self.b.read_literal(1);
@@ -1100,7 +1100,7 @@ impl<R: Reader> VP8Decoder<R> {
             //9.10 remaining frame data
             self.prob_intra = 0;
 
-            fail!("unimplemented")
+            panic!("unimplemented")
         } else {
             //Reset motion vectors
         }
@@ -1130,7 +1130,7 @@ impl<R: Reader> VP8Decoder<R> {
         };
 
         if inter_predicted {
-            fail!("inter prediction not implemented");
+            panic!("inter prediction not implemented");
         }
 
         if self.frame.keyframe {
@@ -1158,7 +1158,7 @@ impl<R: Reader> VP8Decoder<R> {
                         V_PRED  => B_VE_PRED,
                         H_PRED  => B_HE_PRED,
                         TM_PRED => B_TM_PRED,
-                        _       => fail!("unreachable")
+                        _       => panic!("unreachable")
                     };
 
                     mb.bpred[12 + i] = mode;
@@ -1190,7 +1190,7 @@ impl<R: Reader> VP8Decoder<R> {
             TM_PRED => predict_tmpred(ws, 16, 1, 1, stride),
             DC_PRED => predict_dcpred(ws, 16, stride, mby != 0, mbx != 0),
             B_PRED  => predict_4x4(ws, stride, mb.bpred, resdata),
-            _       => fail!("unknown luma intra prediction mode")
+            _       => panic!("unknown luma intra prediction mode")
         }
 
         if mb.luma_mode != B_PRED {
@@ -1280,7 +1280,7 @@ impl<R: Reader> VP8Decoder<R> {
                     DCT_CAT_BASE[(category - DCT_CAT1) as uint] as i16 + extra
                 }
 
-                c => fail!(format!("unknown token: {}", c))
+                c => panic!(format!("unknown token: {}", c))
             } as i32;
 
             skip = false;
@@ -1534,7 +1534,7 @@ fn predict_4x4(ws: &mut [u8], stride: uint, modes: &[i8], resdata: &[i32]) {
                 B_VL_PRED => predict_bvlpred(ws, x0, y0, stride),
                 B_HD_PRED => predict_bhdpred(ws, x0, y0, stride),
                 B_HU_PRED => predict_bhupred(ws, x0, y0, stride),
-                _         => fail!("unknown intra bmode"),
+                _         => panic!("unknown intra bmode"),
             }
 
             add_residue(ws, rb, y0, x0, stride);

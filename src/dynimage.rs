@@ -284,7 +284,7 @@ impl DynamicImage {
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         if kernel.len() != 9 {
             //return self.clone()
-            fail!("filter must be 3 x 3")
+            panic!("filter must be 3 x 3")
         }
 
         dynamic_map!(*self, ref p => imageops::filter3x3(p, kernel))

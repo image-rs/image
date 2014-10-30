@@ -49,7 +49,7 @@ impl TableElement {
     pub fn put(&mut self, index: u16, elem: TableElement) {
         match *self {
             Table(_, ref mut a) => a.as_mut_slice()[index as uint] = elem,
-            _		    => fail!("requires Table()"),
+            _		    => panic!("requires Table()"),
         }
     }
 }
@@ -123,7 +123,7 @@ impl<R: Reader> Inflater<R> {
                 let _ = try!(self.read_dynamic_tables());
                 self.btype = Compressed;
             }
-            _ => fail!("reserved block type")
+            _ => panic!("reserved block type")
         }
 
         Ok(())
@@ -169,7 +169,7 @@ impl<R: Reader> Inflater<R> {
 
                 18 => i += 11 + try!(self.h.receive(7)),
 
-                _ => fail!("out of range code length code symbol")
+                _ => panic!("out of range code length code symbol")
             }
         }
 
@@ -249,7 +249,7 @@ impl<R: Reader> Inflater<R> {
                     }
                 }
 
-                _ => fail!("out of range symbol")
+                _ => panic!("out of range symbol")
             }
         }
 
@@ -413,11 +413,11 @@ impl<R: Reader> HuffReader<R> {
 
                     match a[index as uint] {
                         Symbol(val, size) => (val, size + TABLESIZE),
-                        _ 		  => fail!("bad huffman code")
+                        _ 		  => panic!("bad huffman code")
                     }
                 }
 
-                Nothing => fail!("bad huffman code")
+                Nothing => panic!("bad huffman code")
             };
 
             if size <= self.num_bits {

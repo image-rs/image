@@ -11,7 +11,7 @@ fn main() {
     let file = if os::args().len() == 2 {
         os::args().as_slice()[1].clone()
     } else {
-        fail!("Please enter a file")
+        panic!("Please enter a file")
     };
 
     //Use the open function to load an image from a PAth.

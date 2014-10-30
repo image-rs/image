@@ -295,7 +295,7 @@ impl<W: Writer> JPEGEncoder<W> {
         let (size, code) = table[val as uint];
 
         if size > 16 {
-            fail!("bad huffman value");
+            panic!("bad huffman value");
         }
 
         self.write_bits(code, size)

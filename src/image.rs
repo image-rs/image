@@ -352,7 +352,7 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> MutableRefImage<P> for ImageBuf<P
     fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
         let index = y * self.width + x;
 
-        self.pixels.get_mut(index as uint)
+        &mut self.pixels[index as uint]
     }
 }
 

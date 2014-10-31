@@ -5,9 +5,9 @@
 #![crate_name = "image"]
 #![crate_type = "rlib"]
 
-#![warn(missing_doc)]
-#![warn(unnecessary_qualification)]
-#![warn(unnecessary_typecast)]
+#![warn(missing_docs)]
+#![warn(unused_qualifications)]
+#![warn(unused_typecasts)]
 #![feature(macro_rules)]
 
 extern crate flate;

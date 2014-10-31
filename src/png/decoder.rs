@@ -34,7 +34,9 @@ enum PNGState {
     HaveIHDR,
     HavePLTE,
     HaveFirstIDat,
+    #[allow(dead_code)]
     HaveLastIDat,
+    #[allow(dead_code)]
     HaveIEND
 }
 

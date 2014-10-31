@@ -99,6 +99,7 @@ enum JPEGState {
     HaveSOI,
     HaveFirstFrame,
     HaveFirstScan,
+    #[allow(dead_code)]
     End
 }
 

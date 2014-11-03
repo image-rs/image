@@ -225,7 +225,7 @@ pub trait MutableRefImage<P>: GenericImage<P> {
     ///Return an Iterator over mutable pixels of this image.
     ///The iterator yields the coordinates of each pixel
     ///along with a mutable reference to them.
-    fn mut_pixels(&mut self) -> MutPixels<Self> {
+    fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 
         MutPixels {
@@ -295,7 +295,7 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     }
 
     ///Return a mutable reference to this image's pixel buffer
-    pub fn mut_pixelbuf(&mut self) -> &mut [P] {
+    pub fn pixelbuf_mut(&mut self) -> &mut [P] {
         self.pixels.as_mut_slice()
     }
 
@@ -313,9 +313,9 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         let slice = Slice { data: self.pixels.as_ptr() as *const u8, len: len };
         unsafe { transmute(slice) }
     }
-    
+
     ///Return a mutable reference to this image's raw data buffer
-    pub fn mut_rawbuf(&mut self) -> &mut [u8] {
+    pub fn rawbuf_mut(&mut self) -> &mut [u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
         // Compute size of slice in bytes.
@@ -387,7 +387,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
     }
 
     ///Return a mutable reference to the wrapped image.
-    pub fn mut_inner(&mut self) -> &mut I {
+    pub fn inner_mut(&mut self) -> &mut I {
         &mut (*self.image)
     }
 

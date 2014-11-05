@@ -2,7 +2,7 @@ use std::cmp;
 use std::slice;
 use std::iter::range_step;
 use std::default::Default;
-use std::collections::smallintmap::SmallIntMap;
+use std::collections::vec_map::VecMap;
 
 use color;
 use super::transform;
@@ -99,6 +99,7 @@ enum JPEGState {
     HaveSOI,
     HaveFirstFrame,
     HaveFirstScan,
+    #[allow(dead_code)]
     End
 }
 
@@ -119,7 +120,7 @@ pub struct JPEGDecoder<R> {
 
     num_components: u8,
     scan_components: Vec<u8>,
-    components: SmallIntMap<Component>,
+    components: VecMap<Component>,
 
     mcu_row: Vec<u8>,
     mcu: Vec<u8>,
@@ -155,7 +156,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
             num_components: 0,
             scan_components: Vec::new(),
-            components: SmallIntMap::new(),
+            components: VecMap::new(),
 
             mcu_row: Vec::new(),
             mcu: Vec::new(),

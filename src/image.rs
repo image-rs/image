@@ -1,3 +1,4 @@
+use std::error::FromError;
 use std::mem;
 use std::io;
 use std::slice;
@@ -33,6 +34,12 @@ pub enum ImageError {
 
     ///The end of the image has been reached
     ImageEnd
+}
+
+impl FromError<io::IoError> for ImageError {
+    fn from_error(err: io::IoError) -> ImageError {
+        IoError(err)
+    }
 }
 
 pub type ImageResult<T> = Result<T, ImageError>;

@@ -11,14 +11,7 @@ use color;
 use super::vp8::Frame;
 use super::vp8::VP8Decoder;
 
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
+
 
 /// A Representation of a Webp Image format decoder.
 pub struct WebpDecoder<R> {
@@ -43,9 +36,9 @@ impl<R: Reader> WebpDecoder<R> {
     }
 
     fn read_riff_header(&mut self) -> ImageResult<u32> {
-        let riff = io_try!(self.r.read_exact(4));
-        let size = io_try!(self.r.read_le_u32());
-        let webp = io_try!(self.r.read_exact(4));
+        let riff = try!(self.r.read_exact(4));
+        let size = try!(self.r.read_le_u32());
+        let webp = try!(self.r.read_exact(4));
 
         if riff.as_slice() != "RIFF".as_bytes() {
             return Err(image::FormatError("Invalid RIFF signature.".to_string()))
@@ -59,23 +52,23 @@ impl<R: Reader> WebpDecoder<R> {
     }
 
     fn read_vp8_header(&mut self) -> ImageResult<()> {
-        let vp8 = io_try!(self.r.read_exact(4));
+        let vp8 = try!(self.r.read_exact(4));
 
         if vp8.as_slice() != "VP8 ".as_bytes() {
             return Err(image::FormatError("Invalid VP8 signature.".to_string()))
         }
 
-        let _len = io_try!(self.r.read_le_u32());
+        let _len = try!(self.r.read_le_u32());
 
         Ok(())
     }
 
     fn read_frame(&mut self) -> ImageResult<()> {
-        let framedata = io_try!(self.r.read_to_end());
+        let framedata = try!(self.r.read_to_end());
         let m = MemReader::new(framedata);
 
         let mut v = VP8Decoder::new(m);
-        let frame = io_try!(v.decode_frame());
+        let frame = try!(v.decode_frame());
 
         self.frame = frame.clone();
 

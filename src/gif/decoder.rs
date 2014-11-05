@@ -8,15 +8,6 @@ use color;
 
 use super::lzw::LZWReader;
 
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
-
 const IMAGEDESCRIPTOR: u8 = 0x2C;
 const EXTENSION: u8 = 0x21;
 const APPLICATION: u8 = 0xFF;
@@ -78,8 +69,8 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_header(&mut self) -> ImageResult<()> {
-        let signature = io_try!(self.r.read_exact(3));
-        let version   = io_try!(self.r.read_exact(3));
+        let signature = try!(self.r.read_exact(3));
+        let version   = try!(self.r.read_exact(3));
 
         if signature.as_slice() != "GIF".as_bytes() {
             Err(image::FormatError("GIF signature not found.".to_string()))
@@ -99,7 +90,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        let minimum_code_size = io_try!(self.r.read_u8());
+        let minimum_code_size = try!(self.r.read_u8());
 
         if minimum_code_size > 8 {
             return Err(image::FormatError(format!("Invalid code size {}.", minimum_code_size)))
@@ -107,7 +98,7 @@ impl<R: Reader> GIFDecoder<R> {
 
         let mut data = Vec::new();
         loop {
-            let b = io_try!(self.read_block());
+            let b = try!(self.read_block());
 
             if b.len() == 0 {
                 break
@@ -124,12 +115,12 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_image_descriptor(&mut self) -> ImageResult<()> {
-        let image_left   = io_try!(self.r.read_le_u16());
-        let image_top    = io_try!(self.r.read_le_u16());
-        let image_width  = io_try!(self.r.read_le_u16());
-        let image_height = io_try!(self.r.read_le_u16());
+        let image_left   = try!(self.r.read_le_u16());
+        let image_top    = try!(self.r.read_le_u16());
+        let image_width  = try!(self.r.read_le_u16());
+        let image_height = try!(self.r.read_le_u16());
 
-        let fields = io_try!(self.r.read_u8());
+        let fields = try!(self.r.read_u8());
 
         let local_table = fields & 80 != 0;
         let interlace   = fields & 40 != 0;
@@ -141,7 +132,7 @@ impl<R: Reader> GIFDecoder<R> {
 
         if local_table {
             let n   = 1 << (table_size + 1) as uint;
-            let buf = io_try!(self.r.read_exact(3 * n));
+            let buf = try!(self.r.read_exact(3 * n));
             let mut b = Vec::from_elem(n, (0u8, 0u8, 0u8));
 
             for (i, rgb) in buf.as_slice().chunks(3).enumerate() {
@@ -187,7 +178,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_extension(&mut self) -> ImageResult<()> {
-        let identifier = io_try!(self.r.read_u8());
+        let identifier = try!(self.r.read_u8());
 
         match identifier {
             APPLICATION    => try!(self.read_application_extension()),
@@ -203,7 +194,7 @@ impl<R: Reader> GIFDecoder<R> {
 
     fn read_comment_extension(&mut self) -> ImageResult<()> {
         loop {
-            let b = io_try!(self.read_block());
+            let b = try!(self.read_block());
 
             if b.len() == 0 {
                 break
@@ -214,29 +205,29 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_graphic_control_extension(&mut self) -> ImageResult<()> {
-        let size   = io_try!(self.r.read_u8());
+        let size   = try!(self.r.read_u8());
         assert!(size == 4);
 
-        let fields = io_try!(self.r.read_u8());
-        self.delay = io_try!(self.r.read_le_u16());
-        let trans  = io_try!(self.r.read_u8());
+        let fields = try!(self.r.read_u8());
+        self.delay = try!(self.r.read_le_u16());
+        let trans  = try!(self.r.read_u8());
 
         if fields & 1 != 0 {
             self.local_transparent_index = Some(trans);
         }
 
         let _disposal = (fields & 0x1C) >> 2;
-        let _term = io_try!(self.r.read_u8());
+        let _term = try!(self.r.read_u8());
 
         Ok(())
     }
 
     fn read_application_extension(&mut self) -> ImageResult<()> {
-        let size = io_try!(self.r.read_u8());
-        let _ = io_try!(self.r.read_exact(size as uint));
+        let size = try!(self.r.read_u8());
+        let _ = try!(self.r.read_exact(size as uint));
 
         loop {
-            let b = io_try!(self.read_block());
+            let b = try!(self.read_block());
 
             if b.len() == 0 {
                 break
@@ -247,11 +238,11 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_logical_screen_descriptor(&mut self) -> ImageResult<()> {
-        self.width  = io_try!(self.r.read_le_u16());
-        self.height = io_try!(self.r.read_le_u16());
+        self.width  = try!(self.r.read_le_u16());
+        self.height = try!(self.r.read_le_u16());
         self.image  = Vec::from_elem(self.width as uint * self.height as uint * 3, 0u8);
 
-        let fields = io_try!(self.r.read_u8());
+        let fields = try!(self.r.read_u8());
 
         let global_table = fields & 0x80 != 0;
 
@@ -262,13 +253,13 @@ impl<R: Reader> GIFDecoder<R> {
         };
 
         if global_table {
-        let b = io_try!(self.r.read_u8());
+        let b = try!(self.r.read_u8());
             self.global_backgroud_index = Some(b);
         }
 
-        let _aspect_ratio = io_try!(self.r.read_u8());
+        let _aspect_ratio = try!(self.r.read_u8());
 
-        let buf = io_try!(self.r.read_exact(3 * entries));
+        let buf = try!(self.r.read_exact(3 * entries));
 
         for (i, rgb) in buf.as_slice().chunks(3).enumerate() {
             self.global_table.as_mut_slice()[i] = (rgb[0], rgb[1], rgb[2]);
@@ -323,7 +314,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
     fn read_image(&mut self) -> ImageResult<Vec<u8>> {
         let _ = try!(self.read_metadata());
         loop {
-            let block = io_try!(self.r.read_u8());
+            let block = try!(self.r.read_u8());
 
             match block {
                 EXTENSION => try!(self.read_extension()),

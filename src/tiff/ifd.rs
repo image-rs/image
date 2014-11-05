@@ -1,17 +1,7 @@
 use std::io;
 use std::collections::{HashMap};
 
-use image;
 use super::decoder::{ByteOrder, SmartReader};
-
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
 
 macro_rules! tags {
     {$(
@@ -135,13 +125,13 @@ impl Entry {
             // TODO check if this could give wrong results
             // at a different endianess of file/computer.
             (BYTE, 1) => Ok(Unsigned(self.offset[0] as u32)),
-            (SHORT, 1) => Ok(Unsigned(io_try!(self.r(bo).read_u16()) as u32)),
-            (LONG, 1) => Ok(Unsigned(io_try!(self.r(bo).read_u32()))),
+            (SHORT, 1) => Ok(Unsigned(try!(self.r(bo).read_u16()) as u32)),
+            (LONG, 1) => Ok(Unsigned(try!(self.r(bo).read_u32()))),
             (LONG, n) => {
                 let mut v = Vec::with_capacity(n as uint);
-                io_try!(decoder.goto_offset(io_try!(self.r(bo).read_u32())));
+                try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
                 for _ in range(0, n) {
-                    v.push(Unsigned(io_try!(decoder.read_long())))
+                    v.push(Unsigned(try!(decoder.read_long())))
                 }
                 Ok(List(v))
             }

@@ -15,15 +15,6 @@ use color;
 use super::ifd;
 use super::ifd::Directory;
 
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
-
 /// Byte order of the TIFF file.
 #[deriving(Show)]
 pub enum ByteOrder {
@@ -140,7 +131,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
     
     fn read_header(&mut self) -> ImageResult<()> {
-        match io_try!(self.reader.read_exact(2)).as_slice() {
+        match try!(self.reader.read_exact(2)).as_slice() {
             b"II" => { 
                 self.byte_order = LittleEndian;
                 self.reader.byte_order = LittleEndian; },
@@ -151,10 +142,10 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 "TIFF signature not found.".to_string()
             ))
         }
-        if io_try!(self.read_short()) != 42 {
+        if try!(self.read_short()) != 42 {
             return Err(image::FormatError("TIFF signature invalid.".to_string()))
         }
-        self.next_ifd = match io_try!(self.read_long()) {
+        self.next_ifd = match try!(self.read_long()) {
             0 => None,
             n => Some(n)
         };
@@ -262,21 +253,21 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     /// Count 4 bytes 
     /// Value 4 bytes either a pointer the value itself
     fn read_entry(&mut self) -> ImageResult<Option<(ifd::Tag, ifd::Entry)>> {
-        let tag = ifd::Tag::from_u16(io_try!(self.read_short()));
-        let type_: ifd::Type = match FromPrimitive::from_u16(io_try!(self.read_short())) {
+        let tag = ifd::Tag::from_u16(try!(self.read_short()));
+        let type_: ifd::Type = match FromPrimitive::from_u16(try!(self.read_short())) {
             Some(t) => t,
             None => {
                 // Unknown type. Skip this entry according to spec.
-                io_try!(self.read_long());
-                io_try!(self.read_long());
+                try!(self.read_long());
+                try!(self.read_long());
                 return Ok(None)
                 
             }
         };
         Ok(Some((tag, ifd::Entry::new(
             type_,
-            io_try!(self.read_long()), // count
-            io_try!(self.read_offset())  // offset
+            try!(self.read_long()), // count
+            try!(self.read_offset())  // offset
         ))))
     }
     
@@ -287,16 +278,16 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             None => return Err(image::FormatError(
                 "Image file directory not found.".to_string())
             ),
-            Some(offset) => io_try!(self.goto_offset(offset))
+            Some(offset) => try!(self.goto_offset(offset))
         }
-        for _ in range(0, io_try!(self.read_short())) {
+        for _ in range(0, try!(self.read_short())) {
             let (tag, entry) = match try!(self.read_entry()) {
                 Some(val) => val,
                 None => continue // Unknown data type in tag, skip
             };
             dir.insert(tag, entry);
         }
-        self.next_ifd = match io_try!(self.read_long()) {
+        self.next_ifd = match try!(self.read_long()) {
             0 => None,
             n => Some(n)
         };
@@ -351,7 +342,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     /// Returns the number of bytes read.
     fn expand_strip(&mut self, buffer: &mut [u8], offset: u32, length: u32) -> ImageResult<uint> {
         let color_type = try!(self.colortype());
-        io_try!(self.goto_offset(offset));
+        try!(self.goto_offset(offset));
         let reader = match self.compression_method {
             NoCompression => {
                 &mut self.reader
@@ -371,11 +362,11 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                     }
                 )};
                 for datum in buffer.slice_to_mut(length as uint/2).iter_mut() {
-                    *datum = io_try!(reader.read_u16())
+                    *datum = try!(reader.read_u16())
                 }
             }
             color::Grey(n) if n < 8 => {
-                return Ok(io_try!(reader.read(buffer.slice_to_mut(length as uint))))
+                return Ok(try!(reader.read(buffer.slice_to_mut(length as uint))))
             }
             type_ => return Err(::image::UnsupportedError(format!(
                 "Color type {} is unsupported", type_

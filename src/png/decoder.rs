@@ -16,15 +16,6 @@ use super::filter::unfilter;
 use super::hash::Crc32;
 use super::zlib::ZlibDecoder;
 
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
-
 pub static PNGSIGNATURE: [u8, ..8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 #[deriving(PartialEq)]
@@ -107,7 +98,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 
     fn read_signature(&mut self) -> ImageResult<bool> {
-        let png = io_try!(self.z.inner().r.read_exact(8));
+        let png = try!(self.z.inner().r.read_exact(8));
 
         Ok(png.as_slice() == PNGSIGNATURE)
     }
@@ -218,8 +209,8 @@ impl<R: Reader> PNGDecoder<R> {
         self.state = HaveSignature;
 
         loop {
-            let length = io_try!(self.z.inner().r.read_be_u32());
-            let chunk  = io_try!(self.z.inner().r.read_exact(4));
+            let length = try!(self.z.inner().r.read_be_u32());
+            let chunk  = try!(self.z.inner().r.read_exact(4));
 
             self.chunk_length = length;
             self.chunk_type   = chunk.clone();
@@ -232,14 +223,14 @@ impl<R: Reader> PNGDecoder<R> {
                         return Err(image::FormatError("Invalid PNG signature.".to_string()))
                     }
 
-                    let d = io_try!(self.z.inner().r.read_exact(length as uint));
+                    let d = try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_ihdr(d));
 
                     self.state = HaveIHDR;
                 }
 
                 (b"PLTE", HaveIHDR) => {
-                    let d = io_try!(self.z.inner().r.read_exact(length as uint));
+                    let d = try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_plte(d));
                     self.state = HavePLTE;
                 }
@@ -265,12 +256,12 @@ impl<R: Reader> PNGDecoder<R> {
                 }
 
                 _ => {
-                    let b = io_try!(self.z.inner().r.read_exact(length as uint));
+                    let b = try!(self.z.inner().r.read_exact(length as uint));
                     self.crc.update(b);
                 }
             }
 
-            let chunk_crc = io_try!(self.z.inner().r.read_be_u32());
+            let chunk_crc = try!(self.z.inner().r.read_be_u32());
             let crc = self.crc.checksum();
 
             if crc != chunk_crc {
@@ -316,7 +307,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
 
-        let filter_type = match FromPrimitive::from_u8(io_try!(self.z.read_byte())) {
+        let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
             Some(v) => v,
             _ => return Err(image::FormatError("Unknown filter type.".to_string()))
         };
@@ -325,7 +316,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             let mut read = 0;
             let read_buffer = buf.slice_to_mut(self.rlength);
             while read < self.rlength {
-                let r = io_try!(self.z.read(read_buffer.slice_from_mut(read)));
+                let r = try!(self.z.read(read_buffer.slice_from_mut(read)));
                 read += r;
             }
         }

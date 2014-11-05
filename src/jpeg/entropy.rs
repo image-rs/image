@@ -1,15 +1,6 @@
 use image;
 use image::ImageResult;
 
-macro_rules! io_try(
-    ($e: expr) => (
-        match $e {
-            Ok(e) => e,
-            Err(err) => return Err(image::IoError(err))
-        }
-    )
-)
-
 #[deriving(Default, Clone)]
 pub struct HuffTable {
     lut: Vec<(u8, u8)>,
@@ -38,10 +29,10 @@ impl HuffDecoder {
 
     fn guarantee<R: Reader>(&mut self, r: &mut R, n: u8) -> ImageResult<()> {
         while self.num_bits < n && !self.end {
-            let byte = io_try!(r.read_u8());
+            let byte = try!(r.read_u8());
 
             if byte == 0xFF {
-                let byte2 = io_try!(r.read_u8());
+                let byte2 = try!(r.read_u8());
                 if byte2 != 0 {
                     self.marker = byte2;
                     self.end = true;

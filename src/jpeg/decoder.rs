@@ -191,7 +191,7 @@ impl<R: Reader>JPEGDecoder<R> {
         let tmp = self.scan_components.clone();
 
         for id in tmp.iter() {
-            let mut c = self.components.find(&(*id as uint)).unwrap().clone();
+            let mut c = self.components.get(&(*id as uint)).unwrap().clone();
 
             for _ in range(0, c.h * c.v) {
                 let pred  = try!(self.decode_block(i, c.dc_table, c.dc_pred, c.ac_table, c.tq));
@@ -387,7 +387,7 @@ impl<R: Reader>JPEGDecoder<R> {
             let id = try!(self.r.read_u8());
             let tables = try!(self.r.read_u8());
 
-            let c = self.components.find_mut(&(id as uint)).unwrap();
+            let c = self.components.get_mut(&(id as uint)).unwrap();
 
             c.dc_table = tables >> 4;
             c.ac_table = tables & 0x0F;

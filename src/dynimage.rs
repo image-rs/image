@@ -441,6 +441,8 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
         color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             let mask = (1u8 << bit_depth as uint) - 1;
             let scaling_factor = (255)/((1 << bit_depth as uint) - 1);
+            let skip = (w % 8)/bit_depth as u32;
+            let row_len = w + skip;
             let p = buf.as_slice()
                        .iter()
                        .flat_map(|&v|
@@ -452,6 +454,8 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                        .map(|(shift, pixel)|
                            (pixel & mask << shift as uint) >> shift as uint
                        )
+                       // make sure scanlines start on byte boundaries:
+                       .enumerate().filter(|&(i, _)| i % (row_len as uint) < (w as uint) ).map(|(_, p)| p)
                        .map(|pixel| color::Luma::<u8>(pixel * scaling_factor))
                        .collect();
             ImageLuma8(ImageBuf::from_pixels(p, w, h))

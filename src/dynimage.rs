@@ -439,6 +439,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
             ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
         color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+            // Note: this conversion assumes that the scanlines begin on byte boundaries 
             let mask = (1u8 << bit_depth as uint) - 1;
             let scaling_factor = (255)/((1 << bit_depth as uint) - 1);
             let skip = (w % 8)/bit_depth as u32;
@@ -451,11 +452,12 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                                v, |v| v
                            )
                        ))
+                       // skip the pixels that can be neglected because scanlines should
+                       // start at byte boundaries
+                       .enumerate().filter(|&(i, _)| i % (row_len as uint) < (w as uint) ).map(|(_, p)| p)
                        .map(|(shift, pixel)|
                            (pixel & mask << shift as uint) >> shift as uint
                        )
-                       // make sure scanlines start on byte boundaries:
-                       .enumerate().filter(|&(i, _)| i % (row_len as uint) < (w as uint) ).map(|(_, p)| p)
                        .map(|pixel| color::Luma::<u8>(pixel * scaling_factor))
                        .collect();
             ImageLuma8(ImageBuf::from_pixels(p, w, h))

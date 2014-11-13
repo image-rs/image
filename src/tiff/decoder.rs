@@ -304,7 +304,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             // but not the directory.
             mem::transmute_copy(&ifd)
         };
-        match ifd.find(&tag) {
+        match ifd.get(&tag) {
             None => Ok(None),
             Some(entry) => Ok(Some(try!(entry.val(self))))
         }

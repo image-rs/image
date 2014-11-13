@@ -27,5 +27,5 @@ fn main() {
     let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
 
     //Write the contents of this image to the Writer in PNG format.
-    let _ = im.save(fout, image::PNG);
+    let _ = im.save(fout, image::PNG).unwrap();
 }

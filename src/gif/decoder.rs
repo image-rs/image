@@ -252,8 +252,8 @@ impl<R: Reader> GIFDecoder<R> {
             0u
         };
 
-        if global_table {
         let b = try!(self.r.read_u8());
+        if global_table {
             self.global_backgroud_index = Some(b);
         }
 

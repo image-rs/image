@@ -2,6 +2,8 @@
 
 Maintainers: @nwin, @ccgn
 
+[How to contribute](https://github.com/PistonDevelopers/piston/blob/master/CONTRIBUTING.md)
+
 ## An Image Processing Library
 
 This crate provides basic imaging processing functions and methods for converting to and from image formats.

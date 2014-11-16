@@ -7,7 +7,8 @@ use std::default::Default;
 use color;
 use color:: {
     Pixel,
-    ColorType
+    ColorType,
+    Primitive,
 };
 
 /// An enumeration of Image Errors

@@ -13,6 +13,7 @@
 extern crate flate;
 
 pub use color::ColorType as ColorType;
+pub use color::Primitive;
 
 pub use color:: {
     Grey,

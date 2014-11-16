@@ -7,10 +7,12 @@ use std::f32;
 
 use std::num:: {
     cast,
-    Bounded
+    Float,
+    FloatMath,
+    SignedInt,
 };
 
-use color::Pixel;
+use color::{ Pixel, Primitive };
 use image:: {
     GenericImage,
     ImageBuf,
@@ -129,7 +131,7 @@ pub fn box_kernel(x: f32) -> f32 {
     }
 }
 
-fn clamp<N: Num + PartialOrd>(a: N, min: N, max: N) -> N {
+fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
     if a > max { max }
     else if a < min { min }
     else { a }
@@ -148,7 +150,7 @@ fn horizontal_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     let mut out = ImageBuf::new(new_width, height);
 
     for y in range(0, height) {
-        let max: P = Bounded::max_value();
+        let max: P = Primitive::max_value();
         let max = cast::<P, f32>(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
@@ -235,7 +237,7 @@ fn vertical_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
 
     for x in range(0, width) {
-        let max: P = Bounded::max_value();
+        let max: P = Primitive::max_value();
         let max = cast::<P, f32>(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
@@ -327,7 +329,7 @@ pub fn filter3x3<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
 
     let max:
-    P = Bounded::max_value();
+    P = Primitive::max_value();
     let max = cast::<P, f32>(max).unwrap();
 
     let sum = kernel.iter().fold(0.0, | a, f | a + *f);
@@ -462,7 +464,7 @@ pub fn unsharpen<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
 
     let mut tmp = blur(image, sigma);
 
-    let max: A = Bounded::max_value();
+    let max: A = Primitive::max_value();
     let (width, height) = image.dimensions();
 
     for y in range(0, height) {

@@ -1,6 +1,6 @@
 //! Types and methods for representing and manipulating pixels
 use std::num;
-use std::num::Bounded;
+use std::num::{ Float, Int, NumCast };
 use std::default::Default;
 
 ///An enumeration over supported color types and their bit depths
@@ -26,6 +26,49 @@ pub enum ColorType {
 /// does not have any memory allocated on the heap or
 /// needs any destructor to be run.
 pub trait SafeToTransmute {}
+
+/// Placeholder for primitives.
+pub trait Primitive: Clone + Copy + Sub<Self, Self> + NumCast {
+    /// The maximum value of primitive.
+    fn max_value() -> Self;
+}
+
+impl Primitive for uint {
+    fn max_value() -> uint { Int::max_value() }
+}
+impl Primitive for u8 {
+    fn max_value() -> u8 { Int::max_value() }
+}
+impl Primitive for u16 {
+    fn max_value() -> u16 { Int::max_value() }
+}
+impl Primitive for u32 {
+    fn max_value() -> u32 { Int::max_value() }
+}
+impl Primitive for u64 {
+    fn max_value() -> u64 { Int::max_value() }
+}
+impl Primitive for int {
+    fn max_value() -> int { Int::max_value() }
+}
+impl Primitive for i8 {
+    fn max_value() -> i8 { Int::max_value() }
+}
+impl Primitive for i16 {
+    fn max_value() -> i16 { Int::max_value() }
+}
+impl Primitive for i32 {
+    fn max_value() -> i32 { Int::max_value() }
+}
+impl Primitive for i64 {
+    fn max_value() -> i64 { Int::max_value() }
+}
+impl Primitive for f32 {
+    fn max_value() -> f32 { Float::max_value() }
+}
+impl Primitive for f64 {
+    fn max_value() -> f64 { Float::max_value() }
+}
 
 ///Returns the number of bits contained in a pixel of ColorType c
 pub fn bits_per_pixel(c: ColorType) -> uint {
@@ -182,7 +225,7 @@ impl < T: Primitive + Default > Pixel<T> for Rgb<T> {
     fn to_luma_alpha(&self) -> LumaA<T> {
         let l = self.to_luma().channel();
 
-        LumaA(l, Bounded::max_value())
+        LumaA(l, Primitive::max_value())
     }
 
     fn to_rgb(&self) -> Rgb<T> {
@@ -192,13 +235,13 @@ impl < T: Primitive + Default > Pixel<T> for Rgb<T> {
     fn to_rgba(&self) -> Rgba<T> {
         let (r, g, b) = self.channels();
 
-        Rgba(r, g, b, Bounded::max_value())
+        Rgba(r, g, b, Primitive::max_value())
     }
 
     fn invert(&mut self) {
         let (r, g, b) = self.channels();
 
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
 
         let r1 = max - r;
         let g1 = max - g;
@@ -236,7 +279,7 @@ impl < T: Primitive + Default > Pixel<T> for Rgb<T> {
     fn channels4(&self) ->(T, T, T, T) {
         let (r, g, b) = self.channels();
 
-        (r, g, b, Bounded::max_value())
+        (r, g, b, Primitive::max_value())
     }
 }
 
@@ -270,7 +313,7 @@ impl < T: Primitive + Default > Pixel<T> for Rgba<T> {
         let (r, g, b) = self.to_rgb().channels();
         let a = self.alpha();
 
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
 
         *self = Rgba(max - r, max - g, max - b, a)
     }
@@ -327,7 +370,7 @@ impl < T: Primitive + Default > Pixel<T> for Luma<T> {
     fn to_luma_alpha(&self) -> LumaA<T> {
         let l = self.channel();
 
-        LumaA(l, Bounded::max_value())
+        LumaA(l, Primitive::max_value())
     }
 
     fn to_rgb(&self) -> Rgb<T> {
@@ -341,11 +384,11 @@ impl < T: Primitive + Default > Pixel<T> for Luma<T> {
     fn to_rgba(&self) -> Rgba<T> {
         let (r, g, b) = self.to_rgb().channels();
 
-        Rgba(r, g, b, Bounded::max_value())
+        Rgba(r, g, b, Primitive::max_value())
     }
 
     fn invert(&mut self) {
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
         let l1 = max - self.channel();
 
         *self = Luma(l1)
@@ -373,7 +416,7 @@ impl < T: Primitive + Default > Pixel<T> for Luma<T> {
 
     fn channels4(&self) ->(T, T, T, T) {
         let l = self.channel();
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
 
         (l, max.clone(), max.clone(), max.clone())
     }
@@ -411,7 +454,7 @@ impl < T: Primitive + Default > Pixel<T> for LumaA<T> {
     fn invert(&mut self) {
         let l = self.to_luma().channel();
         let a  = self.alpha();
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
 
         *self = LumaA(max - l, a)
     }
@@ -445,7 +488,7 @@ impl < T: Primitive + Default > Pixel<T> for LumaA<T> {
 
     fn channels4(&self) ->(T, T, T, T) {
         let (l, a) = self.channels();
-        let max: T = Bounded::max_value();
+        let max: T = Primitive::max_value();
 
         (l, a, max.clone(), max.clone())
     }

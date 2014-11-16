@@ -1,14 +1,15 @@
 //! Functions for altering and converting the color of pixelbufs
 use std::num:: {
     cast,
-    Bounded
+    Float,
 };
 
 use std::default::Default;
 
 use color:: {
     Pixel,
-    Luma
+    Luma,
+    Primitive,
 };
 
 use image:: {
@@ -16,7 +17,7 @@ use image:: {
     ImageBuf,
 };
 
-fn clamp <N: Num + PartialOrd> (a: N, min: N, max: N) -> N {
+fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
     if a > max { max }
     else if a < min { min }
     else { a }
@@ -64,7 +65,7 @@ pub fn contrast<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     let (width, height) = image.dimensions();
     let mut out = ImageBuf::new(width, height);
 
-    let max:P = Bounded::max_value();
+    let max:P = Primitive::max_value();
     let max = cast::<P, f32>(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -97,7 +98,7 @@ pub fn brighten<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     let (width, height) = image.dimensions();
     let mut out = ImageBuf::new(width, height);
 
-    let max: P = Bounded::max_value();
+    let max: P = Primitive::max_value();
     let max = cast::<P, i32>(max).unwrap();
 
     for y in range(0, height) {

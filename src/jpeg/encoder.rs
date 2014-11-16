@@ -2,6 +2,7 @@ use std::io::MemWriter;
 use std::io;
 use std::io::IoResult;
 use std::iter::range_step;
+use std::num::{ Float, SignedInt };
 
 use color;
 

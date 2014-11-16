@@ -1,3 +1,5 @@
+use std::num::SignedInt;
+
 #[deriving(FromPrimitive, Show)]
 pub enum FilterType {
     NoFilter = 0,

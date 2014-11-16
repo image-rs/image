@@ -1498,7 +1498,7 @@ fn avg2(this: u8, right: u8) -> u8 {
     avg as u8
 }
 
-fn clip<N: Num + PartialOrd>(a: N, min: N, max: N) -> N {
+fn clip<N: PartialOrd>(a: N, min: N, max: N) -> N {
     if a < min { min }
     else if a > max { max }
     else { a }

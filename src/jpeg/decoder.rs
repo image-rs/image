@@ -3,6 +3,7 @@ use std::slice;
 use std::iter::range_step;
 use std::default::Default;
 use std::collections::vec_map::VecMap;
+use std::num::{ Float };
 
 use color;
 use super::transform;

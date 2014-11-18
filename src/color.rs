@@ -207,7 +207,7 @@ pub trait Pixel<T>: Copy + Clone + Default {
     fn channels4(&self) -> (T, T, T, T);
 }
 
-impl < T: Primitive + Default > Pixel<T> for Rgb<T> {
+impl<T: Primitive + Default> Pixel<T> for Rgb<T> {
     fn from_channels(a: T, b: T, c: T, _: T) -> Rgb<T> {
         Rgb(a, b, c)
     }
@@ -283,7 +283,7 @@ impl < T: Primitive + Default > Pixel<T> for Rgb<T> {
     }
 }
 
-impl < T: Primitive + Default > Pixel<T> for Rgba<T> {
+impl<T: Primitive + Default> Pixel<T> for Rgba<T> {
     fn from_channels(a: T, b: T, c: T, d: T) -> Rgba<T> {
         Rgba(a, b, c, d)
     }
@@ -358,7 +358,7 @@ impl < T: Primitive + Default > Pixel<T> for Rgba<T> {
     }
 }
 
-impl < T: Primitive + Default > Pixel<T> for Luma<T> {
+impl<T: Primitive + Default> Pixel<T> for Luma<T> {
     fn from_channels(a: T, _: T, _: T, _: T) -> Luma<T> {
         Luma(a)
     }
@@ -422,7 +422,7 @@ impl < T: Primitive + Default > Pixel<T> for Luma<T> {
     }
 }
 
-impl < T: Primitive + Default > Pixel<T> for LumaA<T> {
+impl<T: Primitive + Default> Pixel<T> for LumaA<T> {
     fn from_channels(a: T, b: T, _: T, _: T) -> LumaA<T> {
         LumaA(a, b)
     }

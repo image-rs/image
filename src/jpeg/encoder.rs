@@ -238,10 +238,10 @@ impl<W: Writer> JPEGEncoder<W> {
         let _   = try!(self.write_segment(SOS, Some(buf)));
 
         match c {
-            color::RGB(8)   => try!(self.encode_rgb(image, width as uint, height as uint, 3)),
-            color::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
-            color::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
-            color::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
+            color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as uint, height as uint, 3)),
+            color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
+            color::ColorType::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
+            color::ColorType::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
             _  => return Err(io::IoError {
                 kind: io::InvalidInput,
                 desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",

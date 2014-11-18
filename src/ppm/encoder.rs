@@ -7,7 +7,7 @@ use std:: {
 };
 
 use color;
-use color:: {
+use color::ColorType:: {
     Grey,
     Palette,
     GreyA,

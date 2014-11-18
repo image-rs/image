@@ -48,8 +48,8 @@ enum TableElement {
 impl TableElement {
     pub fn put(&mut self, index: u16, elem: TableElement) {
         match *self {
-            Table(_, ref mut a) => a.as_mut_slice()[index as uint] = elem,
-            _		    => panic!("requires Table()"),
+            TableElement::Table(_, ref mut a) => a.as_mut_slice()[index as uint] = elem,
+            _		                          => panic!("requires Table()"),
         }
     }
 }
@@ -87,7 +87,7 @@ impl<R: Reader> Inflater<R> {
 
             finished: false,
             block_length: 0,
-            btype: Stored,
+            btype: BlockType::Stored,
 
             ctable: Vec::new(),
             lltable: Vec::new(),
@@ -113,15 +113,15 @@ impl<R: Reader> Inflater<R> {
         match bits {
             0b00 => {
                 let _ = try!(self.read_stored_block_length());
-                self.btype = Stored;
+                self.btype = BlockType::Stored;
             }
             0b01 => {
                 self.create_fixed_tables();
-                self.btype = Compressed;
+                self.btype = BlockType::Compressed;
             }
             0b10 => {
                 let _ = try!(self.read_dynamic_tables());
-                self.btype = Compressed;
+                self.btype = BlockType::Compressed;
             }
             _ => panic!("reserved block type")
         }
@@ -266,8 +266,8 @@ impl<R: Reader> Reader for Inflater<R> {
 
             let _ = try!(self.read_block_type());
             let _ = match self.btype {
-                Stored => try!(self.read_stored_block()),
-                Compressed => try!(self.read_compressed_block())
+                BlockType::Stored => try!(self.read_stored_block()),
+                BlockType::Compressed => try!(self.read_compressed_block())
             };
         }
 
@@ -311,7 +311,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
         next_code.as_mut_slice()[bits] = code;
     }
 
-    let mut lut = Vec::from_elem(1 << TABLESIZE as uint, Nothing);
+    let mut lut = Vec::from_elem(1 << TABLESIZE as uint, TableElement::Nothing);
 
     for (i, &len) in lengths.iter().enumerate() {
         if len == 0 {
@@ -326,16 +326,16 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
 
             for j in range(0u16, 1 << r as uint) {
                 let index = (j << len as uint) + code;
-                lut.as_mut_slice()[index as uint] = Symbol(i as u16, len);
+                lut.as_mut_slice()[index as uint] = TableElement::Symbol(i as u16, len);
             }
         } else {
             let index = code & ((1 << TABLESIZE as uint) - 1);
 
-            if lut[index as uint] == Nothing {
+            if lut[index as uint] == TableElement::Nothing {
                 let mask  = (1 << max_overflow as uint) - 1;
-                let array = Vec::from_elem(1 << max_overflow as uint, Nothing);
+                let array = Vec::from_elem(1 << max_overflow as uint, TableElement::Nothing);
 
-                lut.as_mut_slice()[index as uint] = Table(mask, array);
+                lut.as_mut_slice()[index as uint] = TableElement::Table(mask, array);
             }
 
             let code = code >> TABLESIZE as uint;
@@ -343,7 +343,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
 
             for j in range(0u16, 1 << r as uint) {
                 let k = (j << (len - TABLESIZE) as uint) + code;
-                let s = Symbol(i as u16, len - TABLESIZE);
+                let s = TableElement::Symbol(i as u16, len - TABLESIZE);
 
                 lut.as_mut_slice()[index as uint].put(k, s);
             }
@@ -406,18 +406,18 @@ impl<R: Reader> HuffReader<R> {
             let index = self.bits & ((1 << TABLESIZE as uint) - 1);
 
             let (val, size) = match table[index as uint] {
-                Symbol(val, size) => (val, size),
+                TableElement::Symbol(val, size) => (val, size),
 
-                Table(mask, ref a) => {
+                TableElement::Table(mask, ref a) => {
                     let index = (self.bits >> TABLESIZE as uint) & mask as u32;
 
                     match a[index as uint] {
-                        Symbol(val, size) => (val, size + TABLESIZE),
+                        TableElement::Symbol(val, size) => (val, size + TABLESIZE),
                         _ 		  => panic!("bad huffman code")
                     }
                 }
 
-                Nothing => panic!("bad huffman code")
+                TableElement::Nothing => panic!("bad huffman code")
             };
 
             if size <= self.num_bits {

@@ -10,7 +10,7 @@ use color::{ Pixel, Primitive };
 
 pub use self::sample::FilterType;
 
-pub use self::sample:: {
+pub use self::sample::FilterType:: {
     Triangle,
     Nearest,
     CatmullRom,

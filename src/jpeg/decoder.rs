@@ -161,7 +161,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
             row_count: 0,
             decoded_rows: 0,
-            state: Start,
+            state: JPEGState::Start,
             padded_width: 0
         }
     }
@@ -258,7 +258,7 @@ impl<R: Reader>JPEGDecoder<R> {
     }
 
     fn read_metadata(&mut self) -> ImageResult<()> {
-        while self.state != HaveFirstScan {
+        while self.state != JPEGState::HaveFirstScan {
             let byte = try!(self.r.read_u8());
 
             if byte != 0xFF {
@@ -268,16 +268,16 @@ impl<R: Reader>JPEGDecoder<R> {
             let marker = try!(self.r.read_u8());
 
             match marker {
-                SOI => self.state = HaveSOI,
+                SOI => self.state = JPEGState::HaveSOI,
                 DHT => try!(self.read_huffman_tables()),
                 DQT => try!(self.read_quantization_tables()),
                 SOF0 => {
                     let _ = try!(self.read_frame_header());
-                    self.state = HaveFirstFrame;
+                    self.state = JPEGState::HaveFirstFrame;
                 }
                 SOS => {
                     let _ = try!(self.read_scan_header());
-                    self.state = HaveFirstScan;
+                    self.state = JPEGState::HaveFirstScan;
                 }
                 DRI => try!(self.read_restart_interval()),
                 APP0 ... APPF | COM => {
@@ -285,9 +285,9 @@ impl<R: Reader>JPEGDecoder<R> {
                     let _ = try!(self.r.read_exact((length - 2) as uint));
                 }
                 TEM  => continue,
-                SOF2 => return Err(image::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
-                DNL  => return Err(image::UnsupportedError("Marker DNL ist not supported.".to_string())),
-                marker => return Err(image::FormatError(format!("Unkown marker {} encountered.", marker))),
+                SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
+                DNL  => return Err(image::ImageError::UnsupportedError("Marker DNL ist not supported.".to_string())),
+                marker => return Err(image::ImageError::FormatError(format!("Unkown marker {} encountered.", marker))),
             }
         }
 
@@ -299,7 +299,7 @@ impl<R: Reader>JPEGDecoder<R> {
         let sample_precision = try!(self.r.read_u8());
 
         if sample_precision != 8 {
-            return Err(image::UnsupportedError(format!(
+            return Err(image::ImageError::UnsupportedError(format!(
                 "A sample precision of {} is not supported",
                 sample_precision
             )))
@@ -310,11 +310,11 @@ impl<R: Reader>JPEGDecoder<R> {
         self.num_components = try!(self.r.read_u8());
 
         if self.height == 0 || self.width == 0 {
-            return Err(image::DimensionError)
+            return Err(image::ImageError::DimensionError)
         }
 
         if self.num_components != 1 && self.num_components != 3 {
-            return Err(image::UnsupportedError(format!(
+            return Err(image::ImageError::UnsupportedError(format!(
                 "Frames with {} components are not supported",
                 self.num_components
             )))
@@ -417,7 +417,7 @@ impl<R: Reader>JPEGDecoder<R> {
             let tq = pqtq & 0x0F;
 
             if pq != 0 || tq > 3 {
-                return Err(image::FormatError("Quantization table malformed.".to_string()))
+                return Err(image::ImageError::FormatError("Quantization table malformed.".to_string()))
             }
 
             let slice = self.qtables.slice_mut(64 * tq as uint, 64 * tq as uint + 64);
@@ -442,7 +442,7 @@ impl<R: Reader>JPEGDecoder<R> {
             let th = tcth & 0x0F;
 
             if tc != 0 && tc != 1 {
-                return Err(image::UnsupportedError(format!(
+                return Err(image::ImageError::UnsupportedError(format!(
                     "Huffman table class {} is not supported", tc
                 )))
             }
@@ -491,7 +491,7 @@ impl<R: Reader>JPEGDecoder<R> {
                     self.expected_rst = RST0;
                 }
             } else {
-                return Err(image::FormatError(format!(
+                return Err(image::ImageError::FormatError(format!(
                     "Unexpected restart maker {} found", rst
                 )))
             }
@@ -516,7 +516,7 @@ impl<R: Reader>JPEGDecoder<R> {
             b = try!(self.r.read_u8());
                 match b {
                     RST0 ... RST7 => break,
-                    EOI => return Err(image::FormatError("Restart marker not found.".to_string())),
+                    EOI => return Err(image::ImageError::FormatError("Restart marker not found.".to_string())),
                     _   => continue
                 }
             }
@@ -539,7 +539,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
 impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        if self.state == Start {
+        if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -547,21 +547,21 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        if self.state == Start {
+        if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 
         let ctype = if self.num_components == 1 {
-            color::Grey(8)
+            color::ColorType::Grey(8)
         } else {
-            color::RGB(8)
+            color::ColorType::RGB(8)
         };
 
         Ok(ctype)
     }
 
     fn row_len(&mut self) -> ImageResult<uint> {
-        if self.state == Start {
+        if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -571,7 +571,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        if self.state == Start {
+        if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -592,7 +592,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<Vec<u8>> {
-        if self.state == Start {
+        if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 

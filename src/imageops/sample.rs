@@ -402,23 +402,23 @@ pub fn resize<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
     filter:  FilterType) -> ImageBuf<T> {
 
     let mut method = match filter {
-        Nearest    =>   Filter {
+        FilterType::Nearest    =>   Filter {
             kernel: |x| box_kernel(x),
             support: 0.5
         },
-        Triangle   => Filter {
+        FilterType::Triangle   => Filter {
             kernel: |x| triangle_kernel(x),
             support: 1.0
         },
-        CatmullRom => Filter {
+        FilterType::CatmullRom => Filter {
             kernel: |x| catmullrom_kernel(x),
             support: 2.0
         },
-        Gaussian   => Filter {
+        FilterType::Gaussian   => Filter {
             kernel: |x| gaussian_kernel(x),
             support: 3.0
         },
-        Lanczos3   => Filter {
+        FilterType::Lanczos3   => Filter {
             kernel: |x| lanczos3_kernel(x),
             support: 3.0
         },

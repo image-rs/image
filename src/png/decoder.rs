@@ -65,11 +65,11 @@ impl<R: Reader> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
 
         PNGDecoder {
-            pixel_type: color::Grey(1),
+            pixel_type: color::ColorType::Grey(1),
             palette: None,
 
             previous: Vec::new(),
-            state: Start,
+            state: PNGState::Start,
             z: ZlibDecoder::new(idat_reader),
             crc: Crc32::new(),
 
@@ -114,29 +114,29 @@ impl<R: Reader> PNGDecoder<R> {
         self.colour_type = m.read_byte().unwrap();
 
         self.pixel_type = match (self.colour_type, self.bit_depth) {
-            (0, 1)  => color::Grey(1),
-            (0, 2)  => color::Grey(2),
-            (0, 4)  => color::Grey(4),
-            (0, 8)  => color::Grey(8),
-            (0, 16) => color::Grey(16),
-            (2, 8)  => color::RGB(8),
-            (2, 16) => color::RGB(16),
-            (3, 1)  => color::RGB(8),
-            (3, 2)  => color::RGB(8),
-            (3, 4)  => color::RGB(8),
-            (3, 8)  => color::RGB(8),
-            (4, 8)  => color::GreyA(8),
-            (4, 16) => color::GreyA(16),
-            (6, 8)  => color::RGBA(8),
-            (6, 16) => color::RGBA(16),
-            (_, _)  => return Err(image::FormatError(
+            (0, 1)  => color::ColorType::Grey(1),
+            (0, 2)  => color::ColorType::Grey(2),
+            (0, 4)  => color::ColorType::Grey(4),
+            (0, 8)  => color::ColorType::Grey(8),
+            (0, 16) => color::ColorType::Grey(16),
+            (2, 8)  => color::ColorType::RGB(8),
+            (2, 16) => color::ColorType::RGB(16),
+            (3, 1)  => color::ColorType::RGB(8),
+            (3, 2)  => color::ColorType::RGB(8),
+            (3, 4)  => color::ColorType::RGB(8),
+            (3, 8)  => color::ColorType::RGB(8),
+            (4, 8)  => color::ColorType::GreyA(8),
+            (4, 16) => color::ColorType::GreyA(16),
+            (6, 8)  => color::ColorType::RGBA(8),
+            (6, 16) => color::ColorType::RGBA(16),
+            (_, _)  => return Err(image::ImageError::FormatError(
                 "Invalid color/bit depth combination.".to_string()
             ))
         };
 
         let compression_method = m.read_byte().unwrap();
         if compression_method != 0 {
-            return Err(image::UnsupportedError(format!(
+            return Err(image::ImageError::UnsupportedError(format!(
                 "The compression method {} is not supported.",
                 compression_method
             )))
@@ -144,7 +144,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         let filter_method = m.read_byte().unwrap();
         if filter_method != 0 {
-            return Err(image::UnsupportedError(format!(
+            return Err(image::ImageError::UnsupportedError(format!(
                 "The filter method {} is not supported.",
                 filter_method
             )))
@@ -152,7 +152,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         self.interlace_method = m.read_byte().unwrap();
         if self.interlace_method != 0 {
-            return Err(image::UnsupportedError(
+            return Err(image::ImageError::UnsupportedError(
                 "Interlaced images are not supported.".to_string()
             ))
         }
@@ -163,7 +163,7 @@ impl<R: Reader> PNGDecoder<R> {
             3 => 1,
             4 => 2,
             6 => 4,
-            _ => return Err(image::FormatError("Unknown color type.".to_string()))
+            _ => return Err(image::ImageError::FormatError("Unknown color type.".to_string()))
         };
 
         let bits_per_pixel = channels * self.bit_depth as uint;
@@ -181,7 +181,7 @@ impl<R: Reader> PNGDecoder<R> {
         let len = buf.len() / 3;
 
         if len > 256 || len > (1 << self.bit_depth as uint) || buf.len() % 3 != 0{
-            return Err(image::FormatError("Color palette malformed.".to_string()))
+            return Err(image::ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
         let p = Vec::from_fn(256, |i| {
@@ -203,10 +203,10 @@ impl<R: Reader> PNGDecoder<R> {
 
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !try!(self.read_signature()) {
-            return Err(image::FormatError("Could not read PNG signature.".to_string()))
+            return Err(image::ImageError::FormatError("Could not read PNG signature.".to_string()))
         }
 
-        self.state = HaveSignature;
+        self.state = PNGState::HaveSignature;
 
         loop {
             let length = try!(self.z.inner().r.read_be_u32());
@@ -220,19 +220,19 @@ impl<R: Reader> PNGDecoder<R> {
             match (self.chunk_type.as_slice(), self.state) {
                 (b"IHDR", HaveSignature) => {
                     if length != 13 {
-                        return Err(image::FormatError("Invalid PNG signature.".to_string()))
+                        return Err(image::ImageError::FormatError("Invalid PNG signature.".to_string()))
                     }
 
                     let d = try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_ihdr(d));
 
-                    self.state = HaveIHDR;
+                    self.state = PNGState::HaveIHDR;
                 }
 
                 (b"PLTE", HaveIHDR) => {
                     let d = try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_plte(d));
-                    self.state = HavePLTE;
+                    self.state = PNGState::HavePLTE;
                 }
 
                 //(b"tRNS", HavePLTE) => {
@@ -240,7 +240,7 @@ impl<R: Reader> PNGDecoder<R> {
                 //}
 
                 (b"IDAT", HaveIHDR) if self.colour_type != 3 => {
-                    self.state = HaveFirstIDat;
+                    self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());
 
@@ -248,7 +248,7 @@ impl<R: Reader> PNGDecoder<R> {
                 }
 
                 (b"IDAT", HavePLTE) if self.colour_type == 3 => {
-                    self.state = HaveFirstIDat;
+                    self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());
 
@@ -265,7 +265,7 @@ impl<R: Reader> PNGDecoder<R> {
             let crc = self.crc.checksum();
 
             if crc != chunk_crc {
-                return Err(image::FormatError("CRC checksum invalid.".to_string()))
+                return Err(image::ImageError::FormatError("CRC checksum invalid.".to_string()))
             }
 
             self.crc.reset();
@@ -277,7 +277,7 @@ impl<R: Reader> PNGDecoder<R> {
 
 impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        if self.state == Start {
+        if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -285,7 +285,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        if self.state == Start {
+        if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -293,7 +293,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 
     fn row_len(&mut self) -> ImageResult<uint> {
-        if self.state == Start {
+        if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 
@@ -303,13 +303,13 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        if self.state == Start {
+        if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 
         let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
             Some(v) => v,
-            _ => return Err(image::FormatError("Unknown filter type.".to_string()))
+            _ => return Err(image::ImageError::FormatError("Unknown filter type.".to_string()))
         };
 
         {
@@ -335,7 +335,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<Vec<u8>> {
-        if self.state == Start {
+        if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 

@@ -30,7 +30,7 @@ impl<R: Reader> ZlibDecoder<R> {
         ZlibDecoder {
             inflate: Inflater::new(r),
             adler: Adler32::new(),
-            state: Start,
+            state: ZlibState::Start,
         }
     }
 
@@ -70,14 +70,14 @@ impl<R: Reader> ZlibDecoder<R> {
 impl<R: Reader> Reader for ZlibDecoder<R> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match self.state {
-            CompressedData => {
+            ZlibState::CompressedData => {
                 match self.inflate.read(buf) {
                     Ok(n) => {
                         self.adler.update(buf.slice_to(n));
 
                         if self.inflate.eof() {
                             let _ = try!(self.read_checksum());
-                            self.state = End;
+                            self.state = ZlibState::End;
                         }
 
                         Ok(n)
@@ -87,13 +87,13 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
                 }
             }
 
-            Start => {
+            ZlibState::Start => {
                 let _ = try!(self.read_header());
-                self.state = CompressedData;
+                self.state = ZlibState::CompressedData;
                 self.read(buf)
             }
 
-            End => Err(io::standard_error(io::EndOfFile))
+            ZlibState::End => Err(io::standard_error(io::EndOfFile))
         }
     }
 }

@@ -82,21 +82,21 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
     let _ = m.write_be_u32(height);
 
     let (colortype, bit_depth) = match c {
-        color::Grey(1)    => (0, 1),
-        color::Grey(2)    => (0, 2),
-        color::Grey(4)    => (0, 4),
-        color::Grey(8)    => (0, 8),
-        color::Grey(16)   => (0, 16),
-        color::RGB(8)     => (2, 8),
-        color::RGB(16)    => (2, 16),
-        color::Palette(1) => (3, 1),
-        color::Palette(2) => (3, 2),
-        color::Palette(4) => (3, 4),
-        color::Palette(8) => (3, 8),
-        color::GreyA(8)   => (4, 8),
-        color::GreyA(16)  => (4, 16),
-        color::RGBA(8)    => (6, 8),
-        color::RGBA(16)   => (6, 16),
+        color::ColorType::Grey(1)    => (0, 1),
+        color::ColorType::Grey(2)    => (0, 2),
+        color::ColorType::Grey(4)    => (0, 4),
+        color::ColorType::Grey(8)    => (0, 8),
+        color::ColorType::Grey(16)   => (0, 16),
+        color::ColorType::RGB(8)     => (2, 8),
+        color::ColorType::RGB(16)    => (2, 16),
+        color::ColorType::Palette(1) => (3, 1),
+        color::ColorType::Palette(2) => (3, 2),
+        color::ColorType::Palette(4) => (3, 4),
+        color::ColorType::Palette(8) => (3, 8),
+        color::ColorType::GreyA(8)   => (4, 8),
+        color::ColorType::GreyA(16)  => (4, 16),
+        color::ColorType::RGBA(8)    => (6, 8),
+        color::ColorType::RGBA(16)   => (6, 16),
         _ => panic!("unsupported color type and bitdepth")
     };
 

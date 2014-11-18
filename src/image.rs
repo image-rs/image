@@ -39,7 +39,7 @@ pub enum ImageError {
 
 impl FromError<io::IoError> for ImageError {
     fn from_error(err: io::IoError) -> ImageError {
-        IoError(err)
+        ImageError::IoError(err)
     }
 }
 
@@ -92,7 +92,7 @@ pub trait ImageDecoder {
         let (w, h) = try!(self.dimensions());
 
         if length > h || width > w || x > w || y > h {
-            return Err(DimensionError)
+            return Err(ImageError::DimensionError)
         }
 
         let c = try!(self.colortype());

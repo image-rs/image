@@ -73,10 +73,10 @@ impl<R: Reader> GIFDecoder<R> {
         let version   = try!(self.r.read_exact(3));
 
         if signature.as_slice() != "GIF".as_bytes() {
-            Err(image::FormatError("GIF signature not found.".to_string()))
+            Err(image::ImageError::FormatError("GIF signature not found.".to_string()))
         } else if version.as_slice() != "87a".as_bytes() &&
                   version.as_slice() != "89a".as_bytes() {
-            Err(image::UnsupportedError(
+            Err(image::ImageError::UnsupportedError(
                 format!("GIF version {} is not supported.", version)
             ))
         } else {
@@ -93,7 +93,7 @@ impl<R: Reader> GIFDecoder<R> {
         let minimum_code_size = try!(self.r.read_u8());
 
         if minimum_code_size > 8 {
-            return Err(image::FormatError(format!("Invalid code size {}.", minimum_code_size)))
+            return Err(image::ImageError::FormatError(format!("Invalid code size {}.", minimum_code_size)))
         }
 
         let mut data = Vec::new();
@@ -127,7 +127,7 @@ impl<R: Reader> GIFDecoder<R> {
         let table_size  = fields & 7;
 
         if interlace {
-            return Err(image::UnsupportedError("Interlaced images are not supported.".to_string()))
+            return Err(image::ImageError::UnsupportedError("Interlaced images are not supported.".to_string()))
         }
 
         if local_table {
@@ -184,7 +184,7 @@ impl<R: Reader> GIFDecoder<R> {
             APPLICATION    => try!(self.read_application_extension()),
             GRAPHICCONTROL => try!(self.read_graphic_control_extension()),
             COMMENT 	   => try!(self.read_comment_extension()),
-            _              => return Err(image::UnsupportedError(
+            _              => return Err(image::ImageError::UnsupportedError(
                                   format!("Identifier {} is not supported.", identifier))
                               )
         }
@@ -287,7 +287,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
         let _ = try!(self.read_metadata());
-        Ok(color::RGB(8))
+        Ok(color::ColorType::RGB(8))
     }
 
     fn row_len(&mut self) -> ImageResult<uint> {
@@ -323,13 +323,13 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                     return Ok(self.image.clone())
                 }
                 TRAILER => break,
-                _       => return Err(image::UnsupportedError(
+                _       => return Err(image::ImageError::UnsupportedError(
                             format!("Block type {} is not supported.", block))
                         )
             }
         }
 
-        Err(image::ImageEnd)
+        Err(image::ImageError::ImageEnd)
     }
 }
 

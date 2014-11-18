@@ -17,8 +17,8 @@ macro_rules! tags {
         }
         impl Tag {
             pub fn from_u16(n: u16) -> Tag {
-                $(if n == $val { $tag } else)* {
-                    Unknown(n)
+                $(if n == $val { Tag::$tag } else)* {
+                    Tag::Unknown(n)
                 }
             }
         }
@@ -64,22 +64,22 @@ pub enum Value {
 impl Value {
     pub fn as_u32(self) -> ::image::ImageResult<u32> {
         match self {
-            Unsigned(val) => Ok(val),
-            val => Err(::image::FormatError(format!(
+            Value::Unsigned(val) => Ok(val),
+            val => Err(::image::ImageError::FormatError(format!(
                 "Expected unsigned integer, {} found.", val
             )))
         }
     }
     pub fn as_u32_vec(self) -> ::image::ImageResult<Vec<u32>> {
         match self {
-            List(vec) => {
+            Value::List(vec) => {
                 let mut new_vec = Vec::with_capacity(vec.len());
                 for v in vec.into_iter() {
                     new_vec.push(try!(v.as_u32()))
                 }
                 Ok(new_vec)
             },
-            Unsigned(val) => Ok(vec![val]),
+            Value::Unsigned(val) => Ok(vec![val]),
             //_ => Err(::image::FormatError("Tag data malformed.".to_string()))
         }
     }
@@ -124,18 +124,18 @@ impl Entry {
         match (self.type_, self.count) {
             // TODO check if this could give wrong results
             // at a different endianess of file/computer.
-            (BYTE, 1) => Ok(Unsigned(self.offset[0] as u32)),
-            (SHORT, 1) => Ok(Unsigned(try!(self.r(bo).read_u16()) as u32)),
-            (LONG, 1) => Ok(Unsigned(try!(self.r(bo).read_u32()))),
-            (LONG, n) => {
+            (Type::BYTE, 1) => Ok(Value::Unsigned(self.offset[0] as u32)),
+            (Type::SHORT, 1) => Ok(Value::Unsigned(try!(self.r(bo).read_u16()) as u32)),
+            (Type::LONG, 1) => Ok(Value::Unsigned(try!(self.r(bo).read_u32()))),
+            (Type::LONG, n) => {
                 let mut v = Vec::with_capacity(n as uint);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
                 for _ in range(0, n) {
-                    v.push(Unsigned(try!(decoder.read_long())))
+                    v.push(Value::Unsigned(try!(decoder.read_long())))
                 }
-                Ok(List(v))
+                Ok(Value::List(v))
             }
-            _ => Err(::image::UnsupportedError("Unsupported data type.".to_string()))
+            _ => Err(::image::ImageError::UnsupportedError("Unsupported data type.".to_string()))
         }
     }
 }

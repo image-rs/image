@@ -15,13 +15,14 @@ extern crate flate;
 pub use color::ColorType as ColorType;
 pub use color::Primitive;
 
-pub use color:: {
+pub use color::ColorType:: {
     Grey,
     RGB,
     Palette,
     GreyA,
     RGBA,
-
+};
+pub use color:: {
     Pixel,
 
     Luma,
@@ -44,7 +45,7 @@ pub use imageops:: {
     Lanczos3
 };
 
-pub use image:: {
+pub use image::ImageFormat:: {
     PNG,
     JPEG,
     GIF,
@@ -71,7 +72,8 @@ pub use dynimage:: {
     load,
     load_from_memory,
     save_buffer,
-
+};
+pub use dynimage::DynamicImage:: {
     ImageRgb8,
     ImageRgba8,
     ImageLuma8,

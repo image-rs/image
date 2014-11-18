@@ -73,22 +73,22 @@ impl Primitive for f64 {
 ///Returns the number of bits contained in a pixel of ColorType c
 pub fn bits_per_pixel(c: ColorType) -> uint {
     match c {
-        Grey(n)    => n as uint,
-        RGB(n)     => 3 * n as uint,
-        Palette(n) => 3 * n as uint,
-        GreyA(n)   => 2 * n as uint,
-        RGBA(n)    => 4 * n as uint,
+        ColorType::Grey(n)    => n as uint,
+        ColorType::RGB(n)     => 3 * n as uint,
+        ColorType::Palette(n) => 3 * n as uint,
+        ColorType::GreyA(n)   => 2 * n as uint,
+        ColorType::RGBA(n)    => 4 * n as uint,
     }
 }
 
 ///Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> uint {
     match c {
-        Grey(_)    => 1,
-        RGB(_)     => 3,
-        Palette(_) => 3,
-        GreyA(_)   => 2,
-        RGBA(_)    => 4,
+        ColorType::Grey(_)    => 1,
+        ColorType::RGB(_)     => 3,
+        ColorType::Palette(_) => 3,
+        ColorType::GreyA(_)   => 2,
+        ColorType::RGBA(_)    => 4,
     }
 }
 

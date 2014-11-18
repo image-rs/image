@@ -41,37 +41,37 @@ pub enum DynamicImage {
 macro_rules! dynamic_map(
         ($dynimage: expr, ref $image: ident => $action: expr) => (
                 match $dynimage {
-                        ImageLuma8(ref $image) => ImageLuma8($action),
-                        ImageLumaA8(ref $image) => ImageLumaA8($action),
-                        ImageRgb8(ref $image) => ImageRgb8($action),
-                        ImageRgba8(ref $image) => ImageRgba8($action),
+                        DynamicImage::ImageLuma8(ref $image) => DynamicImage::ImageLuma8($action),
+                        DynamicImage::ImageLumaA8(ref $image) => DynamicImage::ImageLumaA8($action),
+                        DynamicImage::ImageRgb8(ref $image) => DynamicImage::ImageRgb8($action),
+                        DynamicImage::ImageRgba8(ref $image) => DynamicImage::ImageRgba8($action),
                 }
         );
 
         ($dynimage: expr, ref mut $image: ident => $action: expr) => (
                 match $dynimage {
-                        ImageLuma8(ref mut $image) => ImageLuma8($action),
-                        ImageLumaA8(ref mut $image) => ImageLumaA8($action),
-                        ImageRgb8(ref mut $image) => ImageRgb8($action),
-                        ImageRgba8(ref mut $image) => ImageRgba8($action),
+                        DynamicImage::ImageLuma8(ref mut $image) => DynamicImage::ImageLuma8($action),
+                        DynamicImage::ImageLumaA8(ref mut $image) => DynamicImage::ImageLumaA8($action),
+                        DynamicImage::ImageRgb8(ref mut $image) => DynamicImage::ImageRgb8($action),
+                        DynamicImage::ImageRgba8(ref mut $image) => DynamicImage::ImageRgba8($action),
                 }
         );
 
         ($dynimage: expr, ref $image: ident -> $action: expr) => (
                 match $dynimage {
-                        ImageLuma8(ref $image) => $action,
-                        ImageLumaA8(ref $image) => $action,
-                        ImageRgb8(ref $image) => $action,
-                        ImageRgba8(ref $image) => $action,
+                        DynamicImage::ImageLuma8(ref $image) => $action,
+                        DynamicImage::ImageLumaA8(ref $image) => $action,
+                        DynamicImage::ImageRgb8(ref $image) => $action,
+                        DynamicImage::ImageRgba8(ref $image) => $action,
                 }
         );
 
         ($dynimage: expr, ref mut $image: ident -> $action: expr) => (
                 match $dynimage {
-                        ImageLuma8(ref mut $image) => $action,
-                        ImageLumaA8(ref mut $image) => $action,
-                        ImageRgb8(ref mut $image) => $action,
-                        ImageRgba8(ref mut $image) => $action,
+                        DynamicImage::ImageLuma8(ref mut $image) => $action,
+                        DynamicImage::ImageLumaA8(ref mut $image) => $action,
+                        DynamicImage::ImageRgb8(ref mut $image) => $action,
+                        DynamicImage::ImageRgba8(ref mut $image) => $action,
                 }
         );
 )
@@ -138,64 +138,64 @@ impl DynamicImage {
     ///Return a reference to an 8bit RGB image
     pub fn as_rgb8(&self) -> Option<&ImageBuf<color::Rgb<u8>>> {
         match *self {
-            ImageRgb8(ref p) => Some(p),
-            _                => None
+            DynamicImage::ImageRgb8(ref p) => Some(p),
+            _                              => None
         }
     }
 
     ///Return a mutable reference to an 8bit RGB image
     pub fn as_mut_rgb8(&mut self) -> Option<&mut ImageBuf<color::Rgb<u8>>> {
         match *self {
-            ImageRgb8(ref mut p) => Some(p),
-            _                    => None
+            DynamicImage::ImageRgb8(ref mut p) => Some(p),
+            _                                  => None
         }
     }
 
     ///Return a reference to an 8bit RGBA image
     pub fn as_rgba8(&self) -> Option<& ImageBuf<color::Rgba<u8>>> {
         match *self {
-            ImageRgba8(ref p) => Some(p),
-            _                 => None
+            DynamicImage::ImageRgba8(ref p) => Some(p),
+            _                               => None
         }
     }
 
     ///Return a mutable reference to an 8bit RGBA image
     pub fn as_mut_rgba8(&mut self) -> Option<&mut ImageBuf<color::Rgba<u8>>> {
         match *self {
-            ImageRgba8(ref mut p) => Some(p),
-            _                     => None
+            DynamicImage::ImageRgba8(ref mut p) => Some(p),
+            _                                   => None
         }
     }
 
     ///Return a reference to an 8bit Grayscale image
     pub fn as_luma8(& self) -> Option<& ImageBuf<color::Luma<u8>>> {
         match *self {
-            ImageLuma8(ref p) => Some(p),
-            _                 => None
+            DynamicImage::ImageLuma8(ref p) => Some(p),
+            _                               => None
         }
     }
 
     ///Return a mutable reference to an 8bit Grayscale image
     pub fn as_mut_luma8(&mut self) -> Option<&mut ImageBuf<color::Luma<u8>>> {
         match *self {
-            ImageLuma8(ref mut p) => Some(p),
-            _                     => None
+            DynamicImage::ImageLuma8(ref mut p) => Some(p),
+            _                                   => None
         }
     }
 
     ///Return a reference to an 8bit Grayscale image with an alpha channel
     pub fn as_luma_alpha8(&self) -> Option<& ImageBuf<color::LumaA<u8>>> {
         match *self {
-            ImageLumaA8(ref p) => Some(p),
-            _                  => None
+            DynamicImage::ImageLumaA8(ref p) => Some(p),
+            _                                => None
         }
     }
 
     ///Return a mutable reference to an 8bit Grayscale image with an alpha channel
     pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut ImageBuf<color::LumaA<u8>>> {
         match *self {
-            ImageLumaA8(ref mut p) => Some(p),
-            _                      => None
+            DynamicImage::ImageLumaA8(ref mut p) => Some(p),
+            _                                    => None
         }
     }
 
@@ -207,20 +207,20 @@ impl DynamicImage {
     ///Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            ImageLuma8(_) => color::Grey(8),
-            ImageLumaA8(_) => color::GreyA(8),
-            ImageRgb8(_) => color::RGB(8),
-            ImageRgba8(_) => color::RGBA(8),
+            DynamicImage::ImageLuma8(_) => color::ColorType::Grey(8),
+            DynamicImage::ImageLumaA8(_) => color::ColorType::GreyA(8),
+            DynamicImage::ImageRgb8(_) => color::ColorType::RGB(8),
+            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA(8),
         }
     }
 
     /// Return a grayscale version of this image.
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
-            ImageLuma8(ref p) => ImageLuma8(p.clone()),
-            ImageLumaA8(ref p) => ImageLuma8(imageops::grayscale(p)),
-            ImageRgb8(ref p) => ImageLuma8(imageops::grayscale(p)),
-            ImageRgba8(ref p) => ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
+            DynamicImage::ImageLumaA8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageRgba8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
         }
     }
 
@@ -336,28 +336,28 @@ impl DynamicImage {
         let color = self.color();
 
         let r = match format {
-            image::PNG  => {
+            image::ImageFormat::PNG  => {
                 let mut p = png::PNGEncoder::new(w);
 
                 try!(p.encode(bytes.as_slice(), width, height, color))
                 Ok(())
             }
 
-            image::PPM  => {
+            image::ImageFormat::PPM  => {
                 let mut p = ppm::PPMEncoder::new(w);
 
                 try!(p.encode(bytes.as_slice(), width, height, color))
                 Ok(())
             }
 
-            image::JPEG => {
+            image::ImageFormat::JPEG => {
                 let mut j = jpeg::JPEGEncoder::new(w);
 
                 try!(j.encode(bytes.as_slice(), width, height, color))
                 Ok(())
             }
 
-            _ => Err(image::UnsupportedError(
+            _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {} is not available.", format))
                  ),
         };
@@ -381,10 +381,10 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
-            ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
-            ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
-            ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
-            ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
+            DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
+            DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
+            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
         }
     }
 }
@@ -423,22 +423,22 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let (w, h) = try!(codec.dimensions());
 
     let image = match color {
-        color::RGB(8) => {
-            ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+        color::ColorType::RGB(8) => {
+            DynamicImage::ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
-        color::RGBA(8) => {
-            ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+        color::ColorType::RGBA(8) => {
+            DynamicImage::ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
-        color::Grey(8) => {
-            ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+        color::ColorType::Grey(8) => {
+            DynamicImage::ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
-        color::GreyA(8) => {
-            ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+        color::ColorType::GreyA(8) => {
+            DynamicImage::ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
-        color::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+        color::ColorType::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries 
             let mask = (1u8 << bit_depth as uint) - 1;
             let scaling_factor = (255)/((1 << bit_depth as uint) - 1);
@@ -460,9 +460,9 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                        )
                        .map(|pixel| color::Luma::<u8>(pixel * scaling_factor))
                        .collect();
-            ImageLuma8(ImageBuf::from_pixels(p, w, h))
+            DynamicImage::ImageLuma8(ImageBuf::from_pixels(p, w, h))
         },
-        _ => return Err(image::UnsupportedColor(color))
+        _ => return Err(image::ImageError::UnsupportedColor(color))
     };
 
     Ok(image)
@@ -473,13 +473,13 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
     match *image {
         //TODO: consider transmuting
-        ImageLuma8(ref a) => {
+        DynamicImage::ImageLuma8(ref a) => {
             for & i in a.pixelbuf().iter() {
                 r.push(i.channel());
             }
         }
 
-        ImageLumaA8(ref a) => {
+        DynamicImage::ImageLumaA8(ref a) => {
             for & i in a.pixelbuf().iter() {
                 let (l, a) = i.channels();
                 r.push(l);
@@ -487,7 +487,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
             }
         }
 
-        ImageRgb8(ref a)  => {
+        DynamicImage::ImageRgb8(ref a)  => {
             for & i in a.pixelbuf().iter() {
                 let (red, g, b) = i.channels();
                 r.push(red);
@@ -496,7 +496,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
             }
         }
 
-        ImageRgba8(ref a) => {
+        DynamicImage::ImageRgba8(ref a) => {
             for & i in a.pixelbuf().iter() {
                 let (red, g, b, alpha) = i.channels();
                 r.push(red);
@@ -515,7 +515,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 pub fn open(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match io::File::open(path) {
         Ok(f)  => f,
-        Err(err) => return Err(image::IoError(err))
+        Err(err) => return Err(image::ImageError::IoError(err))
     };
 
     let ext = path.extension_str()
@@ -523,13 +523,13 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 
     let format = match ext.as_slice() {
         "jpg" |
-        "jpeg" => image::JPEG,
-        "png"  => image::PNG,
-        "gif"  => image::GIF,
-        "webp" => image::WEBP,
+        "jpeg" => image::ImageFormat::JPEG,
+        "png"  => image::ImageFormat::PNG,
+        "gif"  => image::ImageFormat::GIF,
+        "webp" => image::ImageFormat::WEBP,
         "tif" |
-        "tiff" => image::TIFF,
-        format => return Err(image::UnsupportedError(format!(
+        "tiff" => image::ImageFormat::TIFF,
+        format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{} is not supported.", 
             format
         )))
@@ -568,12 +568,12 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 /// Create a new image from a Reader
 pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-        image::PNG  => decoder_to_image(png::PNGDecoder::new(io::BufferedReader::new(r))),
-        image::GIF  => decoder_to_image(gif::GIFDecoder::new(io::BufferedReader::new(r))),
-        image::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
-        image::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
-        image::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
-        _ => Err(image::UnsupportedError(format!("A decoder for {} is not available.", format))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
+        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {} is not available.", format))),
     }
 }
 

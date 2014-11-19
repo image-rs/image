@@ -252,7 +252,7 @@ impl<R: Reader>JPEGDecoder<R> {
             }
         }
 
-        transform::idct(tmp, zz);
+        transform::idct(&tmp, zz);
 
         Ok(dc)
     }

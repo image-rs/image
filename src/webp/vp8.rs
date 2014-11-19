@@ -1017,7 +1017,7 @@ impl<R: Reader> VP8Decoder<R> {
 
     fn read_frame_header(&mut self) -> IoResult<()> {
         let mut tag = [0u8, ..3];
-        let _ = try!(self.r.read(tag));
+        let _ = try!(self.r.read(&mut tag));
 
         self.frame.keyframe = tag[0] & 1 == 0;
         self.frame.version = (tag[0] >> 1) & 7;
@@ -1027,7 +1027,7 @@ impl<R: Reader> VP8Decoder<R> {
             (tag[2] as u32 << 16) | (tag[1] as u32 << 8) | tag[0] as u32) >> 5;
 
         if self.frame.keyframe {
-            let _ = try!(self.r.read(tag));
+            let _ = try!(self.r.read(&mut tag));
             assert!(tag == [0x9d, 0x01, 0x2a]);
 
             let w = try!(self.r.read_le_u16());
@@ -1112,7 +1112,7 @@ impl<R: Reader> VP8Decoder<R> {
         let mut mb = MacroBlock::new();
 
         mb.segmentid = if self.segments_enabled && self.segments_update_map {
-            self.b.read_with_tree(SEGMENT_ID_TREE, self.segment_tree_probs, 0) as u8
+            self.b.read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0) as u8
         } else {
             0
         };
@@ -1135,16 +1135,16 @@ impl<R: Reader> VP8Decoder<R> {
 
         if self.frame.keyframe {
             //intra prediction
-            mb.luma_mode = self.b.read_with_tree(KEYFRAME_YMODE_TREE,
-                                                 KEYFRAME_YMODE_PROBS, 0);
+            mb.luma_mode = self.b.read_with_tree(&KEYFRAME_YMODE_TREE,
+                                                 &KEYFRAME_YMODE_PROBS, 0);
 
             if mb.luma_mode == B_PRED {
                 for y in range(0u, 4) {
                     for x in range(0u, 4) {
                         let top   = self.top.as_mut_slice()[mbx].bpred[12 + x];
                         let left  = self.left.bpred[y];
-                        let bmode = self.b.read_with_tree(KEYFRAME_BPRED_MODE_TREE,
-                            KEYFRAME_BPRED_MODE_PROBS[top as uint][left as uint], 0);
+                        let bmode = self.b.read_with_tree(&KEYFRAME_BPRED_MODE_TREE,
+                            &KEYFRAME_BPRED_MODE_PROBS[top as uint][left as uint], 0);
                         mb.bpred[x + y * 4] = bmode;
 
                         self.top.as_mut_slice()[mbx].bpred[12 + x] = bmode;
@@ -1166,8 +1166,8 @@ impl<R: Reader> VP8Decoder<R> {
                 }
             }
 
-            mb.chroma_mode = self.b.read_with_tree(KEYFRAME_UV_MODE_TREE,
-                                                   KEYFRAME_UV_MODE_PROBS, 0);
+            mb.chroma_mode = self.b.read_with_tree(&KEYFRAME_UV_MODE_TREE,
+                                                   &KEYFRAME_UV_MODE_PROBS, 0);
         }
 
         self.top.as_mut_slice()[mbx].chroma_mode = mb.chroma_mode;
@@ -1185,11 +1185,11 @@ impl<R: Reader> VP8Decoder<R> {
             mbx, mby, mw, self.top_border.as_slice(), self.left_border.as_slice());
 
         match mb.luma_mode {
-            V_PRED  => predict_vpred(ws, 16, 1, 1, stride),
-            H_PRED  => predict_hpred(ws, 16, 1, 1, stride),
-            TM_PRED => predict_tmpred(ws, 16, 1, 1, stride),
-            DC_PRED => predict_dcpred(ws, 16, stride, mby != 0, mbx != 0),
-            B_PRED  => predict_4x4(ws, stride, mb.bpred, resdata),
+            V_PRED  => predict_vpred(&mut ws, 16, 1, 1, stride),
+            H_PRED  => predict_hpred(&mut ws, 16, 1, 1, stride),
+            TM_PRED => predict_tmpred(&mut ws, 16, 1, 1, stride),
+            DC_PRED => predict_dcpred(&mut ws, 16, stride, mby != 0, mbx != 0),
+            B_PRED  => predict_4x4(&mut ws, stride, &mb.bpred, resdata),
             _       => panic!("unknown luma intra prediction mode")
         }
 
@@ -1201,7 +1201,7 @@ impl<R: Reader> VP8Decoder<R> {
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
 
-                    add_residue(ws, rb, y0, x0, stride);
+                    add_residue(&mut ws, rb, y0, x0, stride);
                 }
             }
         }
@@ -1313,12 +1313,12 @@ impl<R: Reader> VP8Decoder<R> {
             let mut block = [0i32, ..16];
             let dcq = self.segment[sindex].y2dc;
             let acq = self.segment[sindex].y2ac;
-            let n   = self.read_coefficients(block, p, plane, complexity as uint, dcq, acq);
+            let n   = self.read_coefficients(&mut block, p, plane, complexity as uint, dcq, acq);
 
             self.left.complexity[0] = if n { 1 } else { 0 };
             self.top.as_mut_slice()[mbx].complexity[0] = if n { 1 } else { 0 };
 
-            transform::iwht4x4(block);
+            transform::iwht4x4(&mut block);
 
             for k in range(0u, 16) {
                 blocks[16 * k] = block[k];
@@ -1406,7 +1406,7 @@ impl<R: Reader> VP8Decoder<R> {
                     }
                 }
 
-                self.intra_predict(mbx, mby, &mb, blocks);
+                self.intra_predict(mbx, mby, &mb, &blocks);
             }
 
             self.left_border = Vec::from_elem(1 + 16, 129u8);

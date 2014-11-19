@@ -52,11 +52,11 @@ impl<W: Writer> PNGEncoder<W> {
             let _ = try!(self.write_chunk("IDAT", chunk));
         }
 
-        self.write_chunk("IEND", [])
+        self.write_chunk("IEND", &[])
     }
 
     fn write_signature(&mut self) -> IoResult<()> {
-        self.w.write(PNGSIGNATURE)
+        self.w.write(&PNGSIGNATURE)
     }
 
     fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {

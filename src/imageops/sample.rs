@@ -317,7 +317,7 @@ pub fn filter3x3<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     kernel: &[f32]) -> ImageBuf<T> {
 
     // The kernel's input positions relative to the current pixel.
-    let taps: &[(int, int)] = [
+    let taps: &[(int, int)] = &[
         (-1, -1), ( 0, -1), ( 1, -1),
         (-1,  0), ( 0,  0), ( 1,  0),
         (-1,  1), ( 0,  1), ( 1,  1),

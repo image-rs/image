@@ -218,7 +218,7 @@ impl<R: Reader> PNGDecoder<R> {
             self.crc.update(chunk);
 
             match (self.chunk_type.as_slice(), self.state) {
-                (b"IHDR", HaveSignature) => {
+                (b"IHDR", PNGState::HaveSignature) => {
                     if length != 13 {
                         return Err(image::ImageError::FormatError("Invalid PNG signature.".to_string()))
                     }
@@ -229,7 +229,7 @@ impl<R: Reader> PNGDecoder<R> {
                     self.state = PNGState::HaveIHDR;
                 }
 
-                (b"PLTE", HaveIHDR) => {
+                (b"PLTE", PNGState::HaveIHDR) => {
                     let d = try!(self.z.inner().r.read_exact(length as uint));
                     try!(self.parse_plte(d));
                     self.state = PNGState::HavePLTE;
@@ -239,7 +239,7 @@ impl<R: Reader> PNGDecoder<R> {
                 //    TODO: handle transparency
                 //}
 
-                (b"IDAT", HaveIHDR) if self.colour_type != 3 => {
+                (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());
@@ -247,7 +247,7 @@ impl<R: Reader> PNGDecoder<R> {
                     break;
                 }
 
-                (b"IDAT", HavePLTE) if self.colour_type == 3 => {
+                (b"IDAT", PNGState::HavePLTE) if self.colour_type == 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(self.chunk_type.as_slice());

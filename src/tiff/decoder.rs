@@ -385,8 +385,8 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
         match (self.bits_per_sample.as_slice(), self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
-            ([ 8,  8,  8], RGB) => Ok(color::ColorType::RGB(8)),
-            ([16, 16, 16], RGB) => Ok(color::ColorType::RGB(16)),
+            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(8)),
+            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
             |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(color::ColorType::Grey(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(

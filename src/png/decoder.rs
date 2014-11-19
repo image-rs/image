@@ -100,7 +100,7 @@ impl<R: Reader> PNGDecoder<R> {
     fn read_signature(&mut self) -> ImageResult<bool> {
         let png = try!(self.z.inner().r.read_exact(8));
 
-        Ok(png.as_slice() == PNGSIGNATURE)
+        Ok(png.as_slice() == &PNGSIGNATURE)
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {

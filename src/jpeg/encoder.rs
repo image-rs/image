@@ -143,11 +143,11 @@ pub struct JPEGEncoder<W> {
 impl<W: Writer> JPEGEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> JPEGEncoder<W> {
-        let ld = build_huff_lut(STD_LUMA_DC_CODE_LENGTHS, STD_LUMA_DC_VALUES);
-        let la = build_huff_lut(STD_LUMA_AC_CODE_LENGTHS, STD_LUMA_AC_VALUES);
+        let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
+        let la = build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
 
-        let cd = build_huff_lut(STD_CHROMA_DC_CODE_LENGTHS, STD_CHROMA_DC_VALUES);
-        let ca = build_huff_lut(STD_CHROMA_AC_CODE_LENGTHS, STD_CHROMA_AC_VALUES);
+        let cd = build_huff_lut(&STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
+        let ca = build_huff_lut(&STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
 
         let components = vec![
             Component {id: LUMAID, h: 1, v: 1, tq: LUMADESTINATION, dc_table: LUMADESTINATION, ac_table: LUMADESTINATION, dc_pred: 0},
@@ -211,26 +211,26 @@ impl<W: Writer> JPEGEncoder<W> {
         let numcodes = STD_LUMA_DC_CODE_LENGTHS;
         let values   = STD_LUMA_DC_VALUES;
 
-        let buf = build_huffman_segment(DCCLASS, LUMADESTINATION, numcodes, values);
+        let buf = build_huffman_segment(DCCLASS, LUMADESTINATION, &numcodes, &values);
         let _   = try!(self.write_segment(DHT, Some(buf)));
 
         let numcodes = STD_LUMA_AC_CODE_LENGTHS;
         let values   = STD_LUMA_AC_VALUES;
 
-        let buf = build_huffman_segment(ACCLASS, LUMADESTINATION, numcodes, values);
+        let buf = build_huffman_segment(ACCLASS, LUMADESTINATION, &numcodes, &values);
         let _   = try!(self.write_segment(DHT, Some(buf)));
 
         if num_components == 3 {
             let numcodes = STD_CHROMA_DC_CODE_LENGTHS;
             let values   = STD_CHROMA_DC_VALUES;
 
-            let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION, numcodes, values);
+            let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION, &numcodes, &values);
             let _   = try!(self.write_segment(DHT, Some(buf)));
 
             let numcodes = STD_CHROMA_AC_CODE_LENGTHS;
             let values   = STD_CHROMA_AC_VALUES;
 
-            let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION, numcodes, values);
+            let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION, &numcodes, &values);
             let _   = try!(self.write_segment(DHT, Some(buf)));
         }
 
@@ -367,7 +367,7 @@ impl<W: Writer> JPEGEncoder<W> {
 
                 //Level shift and fdct
                 //Coeffs are scaled by 8
-                transform::fdct(yblock.as_slice(), dct_yblock);
+                transform::fdct(yblock.as_slice(), &mut dct_yblock);
 
                 //Quantization
                 for i in range(0u, 64) {
@@ -377,7 +377,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 let la = self.luma_actable.clone();
                 let ld = self.luma_dctable.clone();
 
-                y_dcprev  = try!(self.write_block(dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
             }
         }
 
@@ -404,9 +404,9 @@ impl<W: Writer> JPEGEncoder<W> {
 
                 //Level shift and fdct
                 //Coeffs are scaled by 8
-                transform::fdct(yblock.as_slice(), dct_yblock);
-                transform::fdct(cb_block.as_slice(), dct_cb_block);
-                transform::fdct(cr_block.as_slice(), dct_cr_block);
+                transform::fdct(yblock.as_slice(), &mut dct_yblock);
+                transform::fdct(cb_block.as_slice(), &mut dct_cb_block);
+                transform::fdct(cr_block.as_slice(), &mut dct_cr_block);
 
                 //Quantization
                 for i in range(0u, 64) {
@@ -420,9 +420,9 @@ impl<W: Writer> JPEGEncoder<W> {
                 let cd = self.chroma_dctable.clone();
                 let ca = self.chroma_actable.clone();
 
-                y_dcprev  = try!(self.write_block(dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
-                cb_dcprev = try!(self.write_block(dct_cb_block, cb_dcprev, cd.as_slice(), ca.as_slice()));
-                cr_dcprev = try!(self.write_block(dct_cr_block, cr_dcprev, cd.as_slice(), ca.as_slice()));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
+                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, cd.as_slice(), ca.as_slice()));
+                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, cd.as_slice(), ca.as_slice()));
             }
         }
 

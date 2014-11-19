@@ -1,4 +1,4 @@
-# Rust Image [![Build Status](https://travis-ci.org/PistonDevelopers/image.svg?branch=master)](https://travis-ci.org/PistonDevelopers/image)
+# Image [![Build Status](https://travis-ci.org/PistonDevelopers/image.svg?branch=master)](https://travis-ci.org/PistonDevelopers/image)
 
 Maintainers: @nwin, @ccgn
 
@@ -17,7 +17,7 @@ Add the following to the Cargo.toml in your project:
 ```
 [dependencies.image]
 
-git = "https://github.com/PistonDevelopers/rust-image"
+git = "https://github.com/PistonDevelopers/image"
 ```
 
 and import using ```extern crate```:
@@ -33,7 +33,7 @@ and import using ```extern crate```:
 http://www.rust-ci.org/PistonDevelopers/piston/doc/image/index.html
 
 ## 2. Supported Image Formats
-```rust-image``` provides implementations of common image format encoders and decoders.
+```image``` provides implementations of common image format encoders and decoders.
 
 ### 2.1 Supported Image Formats
 | Format | Decoding | Encoding |
@@ -54,7 +54,7 @@ All image format decoders implement the ```ImageDecoder``` trait which provides 
 + **load_rect**: Decode a specific region of the image
 
 ## 3 Pixels
-```rust-image``` provides the following pixel types:
+```image``` provides the following pixel types:
 + **Rgb**: RGB pixel
 + **Rgba**: RGBA pixel
 + **Luma**: Grayscale pixel
@@ -88,7 +88,7 @@ pub trait GenericImage<P> {
 ```
 
 ### 4.2 Representation of Images
-```rust-image``` provides two main ways of representing image data:
+```image``` provides two main ways of representing image data:
 
 #### 4.2.1 ```ImageBuf```
 An image parametarised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
@@ -178,7 +178,7 @@ These are the functions defined in the ```imageops``` module. All functions oper
 
 ## 6 Examples
 ### 6.1 Opening And Saving Images
-```rust-image``` provides the ```open``` function for opening images from a path.
+```image``` provides the ```open``` function for opening images from a path.
 
 The image format is determined from the path's file extension.
 
@@ -274,7 +274,7 @@ Example output:
 ![alt tag](https://raw.githubusercontent.com/ccgn/rust-image/master/examples/fractal.png "A Julia Fractal, c: -0.4 + 0.6i")
 
 ### 6.3 Writing raw buffers
-If the high level interface is not needed because the image was obtained by other means, `rust-image` provides the function `save_buffer` to save a buffer to a file.
+If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
 
 ```rust
 extern crate image;

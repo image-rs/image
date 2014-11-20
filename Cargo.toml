@@ -1,12 +1,17 @@
 [package]
 name = "image"
-version = "0.1.0"
+version = "0.2.0-alpha"
+license = "MIT"
+description = "a pure rust imaging library"
 authors = [
     "ccgn",
     "bvssvni <bvssvni@gmail.com>",
     "nwin",
     "TyOverby <ty@pre-alpha.com>"]
-
+readme = "README.md"
+exclude = [
+    "src/png/testdata/*",
+]
 [lib]
 name = "image"
 path = "./src/lib.rs"

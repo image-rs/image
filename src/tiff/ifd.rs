@@ -92,7 +92,7 @@ pub struct Entry {
 }
 
 impl ::std::fmt::Show for Entry {
-    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::FormatError> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         fmt.write(format!("Entry {{ type: {}, count: {}, offset: {} }}",
             self.type_,
             self.count,
@@ -141,5 +141,4 @@ impl Entry {
 }
 
 /// Type representing an Image File Directory
-#[deriving(Show)]
 pub type Directory = HashMap<Tag, Entry>;

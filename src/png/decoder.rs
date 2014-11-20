@@ -472,7 +472,7 @@ mod tests {
     /// Filters the testsuite images for certain features
     fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
         //"./src/png/testdata/pngsuite/*.png"
-        let pattern = Path::new(".").join_many(["src", "png", "testdata", "pngsuite", "*.png"]);
+        let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
         let mut paths = glob::glob(pattern.as_str().unwrap())
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
@@ -597,7 +597,7 @@ mod tests {
     /// Test basic formats filters
     fn bench_read_big_file(b: &mut test::Bencher) {
         let image_data = File::open(
-            &Path::new(".").join_many(["examples", "fractal.png"])
+            &Path::new(".").join_many(&["examples", "fractal.png"])
         ).read_to_end().unwrap();
         b.iter(|| {
             let _ = PNGDecoder::new(MemReader::new(image_data.clone())).read_image().unwrap();

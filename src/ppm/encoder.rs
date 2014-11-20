@@ -84,13 +84,13 @@ impl<W: Writer> PPMEncoder<W> {
 }
 
 fn max_pixel_value(pixel_type: color::ColorType) -> u16 {
-    use std::num::Int;
+    use std::num;
 
     match pixel_type {
-        Grey(n)    => 2u16.pow(n as uint) - 1,
-        RGB(n)     => 2u16.pow(n as uint) - 1,
-        Palette(n) => 2u16.pow(n as uint) - 1,
-        GreyA(n)   => 2u16.pow(n as uint) - 1,
-        RGBA(n)    => 2u16.pow(n as uint) - 1
+        Grey(n)    => num::pow(2, n as uint) - 1,
+        RGB(n)     => num::pow(2, n as uint) - 1,
+        Palette(n) => num::pow(2, n as uint) - 1,
+        GreyA(n)   => num::pow(2, n as uint) - 1,
+        RGBA(n)    => num::pow(2, n as uint) - 1
     }
 }

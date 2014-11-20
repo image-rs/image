@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.2.0-alpha"
+version = "0.2.0-alpha.1"
 license = "MIT"
 description = "a pure rust imaging library"
 authors = [
@@ -9,6 +9,9 @@ authors = [
     "nwin",
     "TyOverby <ty@pre-alpha.com>"]
 readme = "README.md"
+documentation = "http://www.rust-ci.org/PistonDevelopers/piston/doc/image/index.html"
+repository = "https://github.com/PistonDevelopers/image.git"
+homepage = "https://github.com/PistonDevelopers/image"
 exclude = [
     "src/png/testdata/*",
 ]
@@ -16,10 +19,6 @@ exclude = [
 name = "image"
 path = "./src/lib.rs"
 
-[dev-dependencies.glob]
-
-git = "https://github.com/rust-lang/glob"
-
-[dev-dependencies.num]
-
-git = "https://github.com/rust-lang/num"
+[dev-dependencies]
+num="*"
+glob="*"

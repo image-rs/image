@@ -1,8 +1,8 @@
 [package]
 name = "image"
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.2"
 license = "MIT"
-description = "a pure rust imaging library"
+description = "A pure rust imaging library. Note that there is a bug in crates.io use image = \"~0.2.0\" for your dependency instead of the suggested one."
 authors = [
     "ccgn",
     "bvssvni <bvssvni@gmail.com>",
@@ -14,6 +14,8 @@ repository = "https://github.com/PistonDevelopers/image.git"
 homepage = "https://github.com/PistonDevelopers/image"
 exclude = [
     "src/png/testdata/*",
+    "examples/*",
+    "tests/*",
 ]
 [lib]
 name = "image"

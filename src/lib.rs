@@ -90,6 +90,7 @@ pub mod png;
 pub mod jpeg;
 pub mod gif;
 pub mod tiff;
+pub mod tga;
 
 mod image;
 mod dynimage;

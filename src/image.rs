@@ -65,7 +65,10 @@ pub enum ImageFormat {
     PPM,
 
     /// An Image in TIFF Format
-    TIFF
+    TIFF,
+
+    /// An Image in TGA Format
+    TGA
 }
 
 /// The trait that all decoders implement

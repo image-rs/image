@@ -9,6 +9,7 @@ use webp;
 use jpeg;
 use png;
 use tiff;
+use tga;
 
 use color;
 use color::Pixel;
@@ -529,6 +530,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "webp" => image::ImageFormat::WEBP,
         "tif" |
         "tiff" => image::ImageFormat::TIFF,
+        "tga" => image::ImageFormat::TGA,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{} is not supported.", 
             format
@@ -573,6 +575,7 @@ pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIma
         image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
+        image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {} is not available.", format))),
     }
 }

@@ -12,7 +12,7 @@ before_script:
     - cargo -V
 script:
     - cargo build -v
-#    - cargo test -v
+    - cargo test -v
     - cargo doc -v
 after_success:
     - cp -R target/doc doc

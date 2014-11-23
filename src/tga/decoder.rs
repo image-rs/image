@@ -1,5 +1,4 @@
 use std::io;
-use std::mem;
 
 use image::ImageError;
 use image::ImageResult;
@@ -76,7 +75,7 @@ struct Header {
     map_type: u8,          // color map type
     image_type: u8,        // image type code
     map_origin: u16,       // starting index of map
-    map_length: u16 ,      // length of map
+    map_length: u16,      // length of map
     map_entry_size: u8,    // size of map entries in bits
     x_origin: u16,         // x-origin of image
     y_origin: u16,         // y-origin of image
@@ -89,7 +88,20 @@ struct Header {
 impl Header {
     /// Create a header with all valuse set to zero
     fn new() -> Header {
-        unsafe { mem::zeroed() }
+        Header {
+            id_length: 0,
+            map_type: 0,
+            image_type: 0,
+            map_origin: 0,
+            map_length: 0,
+            map_entry_size: 0,
+            x_origin: 0,
+            y_origin: 0,
+            image_width: 0,
+            image_height: 0,
+            pixel_depth: 0,
+            image_desc: 0,      
+        }
     }
 
     /// Load the header with values from the reader

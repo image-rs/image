@@ -107,11 +107,11 @@ impl<R: Reader> PNGDecoder<R> {
         self.crc.update(buf.as_slice());
         let mut m = MemReader::new(buf);
 
-        self.width = m.read_be_u32().unwrap();
-        self.height = m.read_be_u32().unwrap();
+        self.width = try!(m.read_be_u32());
+        self.height = try!(m.read_be_u32());
 
-        self.bit_depth = m.read_byte().unwrap();
-        self.colour_type = m.read_byte().unwrap();
+        self.bit_depth = try!(m.read_byte());
+        self.colour_type = try!(m.read_byte());
 
         self.pixel_type = match (self.colour_type, self.bit_depth) {
             (0, 1)  => color::ColorType::Grey(1),
@@ -134,7 +134,7 @@ impl<R: Reader> PNGDecoder<R> {
             ))
         };
 
-        let compression_method = m.read_byte().unwrap();
+        let compression_method = try!(m.read_byte());
         if compression_method != 0 {
             return Err(image::ImageError::UnsupportedError(format!(
                 "The compression method {} is not supported.",
@@ -142,7 +142,7 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        let filter_method = m.read_byte().unwrap();
+        let filter_method = try!(m.read_byte());
         if filter_method != 0 {
             return Err(image::ImageError::UnsupportedError(format!(
                 "The filter method {} is not supported.",
@@ -150,7 +150,7 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        self.interlace_method = m.read_byte().unwrap();
+        self.interlace_method = try!(m.read_byte());
         if self.interlace_method != 0 {
             return Err(image::ImageError::UnsupportedError(
                 "Interlaced images are not supported.".to_string()
@@ -324,9 +324,8 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.slice_to_mut(self.rlength));
         slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
 
-        if self.palette.is_some() {
-            let s = (*self.palette.as_ref().unwrap()).as_slice();
-            expand_palette(buf, s, self.rlength, self.bit_depth);
+        if let Some(ref palette) = self.palette {
+            expand_palette(buf, palette.as_slice(), self.rlength, self.bit_depth);
         }
 
         self.decoded_rows += 1;

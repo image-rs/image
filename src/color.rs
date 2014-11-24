@@ -205,6 +205,9 @@ pub trait Pixel<T>: Copy + Clone + Default {
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
     fn channels4(&self) -> (T, T, T, T);
+
+    /// Blend the color of a given pixel into ourself, taking into account alpha channels
+    fn blend(&self, other: Self) -> Self;
 }
 
 impl<T: Primitive + Default> Pixel<T> for Rgb<T> {
@@ -276,10 +279,14 @@ impl<T: Primitive + Default> Pixel<T> for Rgb<T> {
         Rgb(r3, g3, b3)
     }
 
-    fn channels4(&self) ->(T, T, T, T) {
+    fn channels4(&self) -> (T, T, T, T) {
         let (r, g, b) = self.channels();
 
         (r, g, b, Primitive::max_value())
+    }
+
+    fn blend(&self, other: Rgb<T>) -> Rgb<T> {
+        other
     }
 }
 
@@ -356,6 +363,39 @@ impl<T: Primitive + Default> Pixel<T> for Rgba<T> {
 
         (r, g, b, a)
     }
+
+    fn blend(&self, other: Rgba<T>) -> Rgba<T> {
+        // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
+
+        // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
+        let max_t: T = Primitive::max_value();
+        let max_t = max_t.to_f32().unwrap();
+        let (bg_r, bg_g, bg_b, bg_a) = self.channels();
+        let (fg_r, fg_g, fg_b, fg_a) = other.channels();
+        let (bg_r, bg_g, bg_b, bg_a) = (bg_r.to_f32().unwrap() / max_t, bg_g.to_f32().unwrap() / max_t, bg_b.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
+        let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
+
+        //Work out what the final alpha level will be
+        let alpha_final = bg_a + fg_a - bg_a * fg_a;
+
+        //We premultiply our channels bu their alpha, as this makes it easier to calculate
+        let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);
+        let (fg_r_a, fg_g_a, fg_b_a) = (fg_r * fg_a, fg_g * fg_a, fg_b * fg_a);
+
+        //Standard formula for src-over alpha compositing
+        let (out_r_a, out_g_a, out_b_a) = (fg_r_a + bg_r_a * (1.0 - fg_a), fg_g_a + bg_g_a * (1.0 - fg_a), fg_b_a + bg_b_a * (1.0 - fg_a));
+
+        //Unmultiply the channels by our resultant alpha channel
+        let (out_r, out_g, out_b) = (out_r_a / alpha_final, out_g_a / alpha_final, out_b_a / alpha_final);
+
+        // Cast back to our initial type on return
+        Rgba(
+            num::cast::<f32, T>(max_t * out_r).unwrap(),
+            num::cast::<f32, T>(max_t * out_g).unwrap(),
+            num::cast::<f32, T>(max_t * out_b).unwrap(),
+            num::cast::<f32, T>(max_t * alpha_final).unwrap()
+        )
+    }
 }
 
 impl<T: Primitive + Default> Pixel<T> for Luma<T> {
@@ -419,6 +459,10 @@ impl<T: Primitive + Default> Pixel<T> for Luma<T> {
         let max: T = Primitive::max_value();
 
         (l, max.clone(), max.clone(), max.clone())
+    }
+
+    fn blend(&self, other: Luma<T>) -> Luma<T> {
+        other
     }
 }
 
@@ -491,5 +535,26 @@ impl<T: Primitive + Default> Pixel<T> for LumaA<T> {
         let max: T = Primitive::max_value();
 
         (l, a, max.clone(), max.clone())
+    }
+
+    fn blend(&self, other: LumaA<T>) -> LumaA<T> {
+        let max_t: T = Primitive::max_value();
+        let max_t = max_t.to_f32().unwrap();
+        let (bg_luma, bg_a) = self.channels();
+        let (fg_luma, fg_a) = other.channels();
+        let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
+        let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
+
+        let alpha_final = bg_a + fg_a - bg_a * fg_a; 
+        let bg_luma_a = bg_luma * bg_a;
+        let fg_luma_a = fg_luma * fg_a;
+
+        let out_luma_a = fg_luma_a + bg_luma_a * (1.0 - fg_a);
+        let out_luma = out_luma_a / alpha_final;
+
+        LumaA(
+            num::cast::<f32, T>(max_t * out_luma).unwrap(),
+            num::cast::<f32, T>(max_t * alpha_final).unwrap()
+        )
     }
 }

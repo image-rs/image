@@ -486,15 +486,15 @@ fn expand_pass(
     pass: u8, line_no: u32, bytes_pp: u8) {
     let line_no = line_no as uint;
     match pass {
-		1 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*j*8, bytes_pp),
-		2 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*(j*8 + 4), bytes_pp),
-		3 => expand_pass!(img, scanline, j, (8*line_no+4)*width as uint + bytes_pp as uint*j*4, bytes_pp),
+        1 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*j*8, bytes_pp),
+        2 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*(j*8 + 4), bytes_pp),
+        3 => expand_pass!(img, scanline, j, (8*line_no+4)*width as uint + bytes_pp as uint*j*4, bytes_pp),
         4 => expand_pass!(img, scanline, j, 4*line_no*width as uint + bytes_pp as uint*(j*4 + 2), bytes_pp),
         5 => expand_pass!(img, scanline, j, (4*line_no+2)*width as uint + bytes_pp as uint*j*2, bytes_pp),
         6 => expand_pass!(img, scanline, j, 2*line_no*width as uint + bytes_pp as uint*(j*2+1), bytes_pp),
         7 => expand_pass!(img, scanline, j, (2*line_no+1)*width as uint + bytes_pp as uint*j, bytes_pp),
         _ => {}
-	}
+    }
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
@@ -586,7 +586,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 
                 match str::from_utf8(v.as_slice()) {
                     Some("IDAT") => (),
-                    _ 	     => {
+                    _ => {
                         self.eof = true;
                         break
                     }

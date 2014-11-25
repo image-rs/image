@@ -9,6 +9,7 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![feature(macro_rules)]
+#![feature(if_let)]
 
 extern crate flate;
 

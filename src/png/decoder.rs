@@ -16,7 +16,10 @@ use super::filter::unfilter;
 use super::hash::Crc32;
 use super::zlib::ZlibDecoder;
 
+use std::num::Float;
+
 pub static PNGSIGNATURE: [u8, ..8] = [137, 80, 78, 71, 13, 10, 26, 10];
+
 
 #[deriving(PartialEq)]
 enum PNGState {
@@ -30,6 +33,86 @@ enum PNGState {
     #[allow(dead_code)]
     HaveIEND
 }
+
+#[deriving(FromPrimitive, Show, PartialEq)]
+enum InterlaceMethod {
+    None = 0,
+    Adam7 = 1
+}
+
+/// This iterator iterates over the different passes of an image Adam7 encoded
+/// PNG image
+/// The glorious pattern is:
+///     16462646
+///     77777777
+///     56565656
+///     77777777
+///     36463646
+///     77777777
+///     56565656
+///     77777777
+///
+struct Adam7Iterator {
+    line: u32,
+    lines: u32,
+    line_width: u32,
+    current_pass: u8,
+    width: u32,
+    height: u32,
+    
+}
+
+impl Adam7Iterator {
+    pub fn new(width: u32, height: u32) -> Adam7Iterator {
+        let mut this = Adam7Iterator {
+            line: 0,
+            lines: 0,
+            line_width: 0,
+            current_pass: 1,
+            width: width,
+            height: height
+        };
+        this.init_pass();
+        this
+    }
+    
+    /// Calculates the bounds of the current pass
+    fn init_pass(&mut self) {
+        let w = self.width as f64;
+        let h = self.height as f64;
+        let (line_width, lines) = match self.current_pass {
+            1 => (w/8.0, h/8.0),
+            2 => ((w-4.0)/8.0, h/8.0),
+            3 => (w/4.0, (h-4.0)/8.0),
+            4 => ((w-2.0)/4.0, h/4.0),
+            5 => (w/2.0, (h-2.0)/4.0),
+            6 => ((w-1.0)/2.0, h/2.0),
+            7 => (w, (h-1.0)/2.0),
+            _ => unreachable!()
+        };
+        self.line_width = line_width.ceil() as u32;
+        self.lines = lines.ceil() as u32;
+        self.line = 0;
+    }
+}
+
+/// Iterates over the (passes, lines, widths)
+impl Iterator<(u8, u32, u32)> for Adam7Iterator {
+    fn next(&mut self) -> Option<(u8, u32, u32)> {
+        if self.line < self.lines {
+            let this_line = self.line;
+            self.line += 1;
+            Some((self.current_pass, this_line, self.line_width))
+        } else if self.current_pass < 7 {
+            self.current_pass += 1;
+            self.init_pass();
+            self.next()
+        } else {
+            None
+        }
+    }
+}
+
 
 /// The representation of a PNG decoder
 ///
@@ -49,13 +132,14 @@ pub struct PNGDecoder<R> {
 
     palette: Option<Vec<(u8, u8, u8)>>,
 
-    interlace_method: u8,
+    interlace_method: InterlaceMethod,
+    pass_iterator: Option<Adam7Iterator>,
 
     chunk_length: u32,
     chunk_type: Vec<u8>,
 
-    bpp: uint,
-    rlength: uint,
+    bpp: u8,
+    bits_per_pixel: u8,
     decoded_rows: u32,
 }
 
@@ -77,12 +161,14 @@ impl<R: Reader> PNGDecoder<R> {
             height: 0,
             bit_depth: 0,
             colour_type: 0,
-            interlace_method: 0,
+            interlace_method: InterlaceMethod::None,
+            pass_iterator: None,
 
             chunk_length: 0,
             chunk_type: Vec::new(),
+            
             bpp: 0,
-            rlength: 0,
+            bits_per_pixel: 0,
             decoded_rows: 0,
         }
     }
@@ -107,11 +193,11 @@ impl<R: Reader> PNGDecoder<R> {
         self.crc.update(buf.as_slice());
         let mut m = MemReader::new(buf);
 
-        self.width = m.read_be_u32().unwrap();
-        self.height = m.read_be_u32().unwrap();
+        self.width = try!(m.read_be_u32());
+        self.height = try!(m.read_be_u32());
 
-        self.bit_depth = m.read_byte().unwrap();
-        self.colour_type = m.read_byte().unwrap();
+        self.bit_depth = try!(m.read_byte());
+        self.colour_type = try!(m.read_byte());
 
         self.pixel_type = match (self.colour_type, self.bit_depth) {
             (0, 1)  => color::ColorType::Grey(1),
@@ -134,7 +220,7 @@ impl<R: Reader> PNGDecoder<R> {
             ))
         };
 
-        let compression_method = m.read_byte().unwrap();
+        let compression_method = try!(m.read_byte());
         if compression_method != 0 {
             return Err(image::ImageError::UnsupportedError(format!(
                 "The compression method {} is not supported.",
@@ -142,7 +228,7 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        let filter_method = m.read_byte().unwrap();
+        let filter_method = try!(m.read_byte());
         if filter_method != 0 {
             return Err(image::ImageError::UnsupportedError(format!(
                 "The filter method {} is not supported.",
@@ -150,11 +236,14 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        self.interlace_method = m.read_byte().unwrap();
-        if self.interlace_method != 0 {
-            return Err(image::ImageError::UnsupportedError(
-                "Interlaced images are not supported.".to_string()
+        self.interlace_method = match FromPrimitive::from_u8(try!(m.read_byte())) {
+            Some(method) => method,
+            None => return Err(image::ImageError::UnsupportedError(
+                "Unsupported interlace method.".to_string()
             ))
+        };
+        if self.interlace_method == InterlaceMethod::Adam7 {
+            self.pass_iterator = Some(Adam7Iterator::new(self.width, self.height))
         }
 
         let channels = match self.colour_type {
@@ -166,13 +255,15 @@ impl<R: Reader> PNGDecoder<R> {
             _ => return Err(image::ImageError::FormatError("Unknown color type.".to_string()))
         };
 
-        let bits_per_pixel = channels * self.bit_depth as uint;
-
-        self.rlength = (bits_per_pixel * self.width as uint + 7) / 8;
-        self.bpp = (bits_per_pixel + 7) / 8;
-        self.previous = Vec::from_elem(self.rlength, 0u8);
+        self.bits_per_pixel = channels * self.bit_depth;
+        self.bpp = (self.bits_per_pixel + 7) / 8;
+        self.previous = Vec::from_elem(self.raw_row_length(self.width) as uint, 0u8);
 
         Ok(())
+    }
+    
+    fn raw_row_length(&self, width: u32) -> u32 {
+        (self.bits_per_pixel as u32 * width + 7) / 8
     }
 
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
@@ -273,6 +364,33 @@ impl<R: Reader> PNGDecoder<R> {
 
         Ok(())
     }
+    
+    fn extract_scanline(&mut self, buf: &mut [u8], rlength: u32) -> ImageResult<u32> {
+        let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
+            Some(v) => v,
+            _ => return Err(image::ImageError::FormatError("Unknown filter type.".to_string()))
+        };
+
+        {
+            let mut read = 0u;
+            let read_buffer = buf.slice_to_mut(rlength as uint);
+            while read < rlength as uint {
+                let r = try!(self.z.read(read_buffer.slice_from_mut(read)));
+                read += r;
+            }
+        }
+
+        unfilter(filter_type, self.bpp as uint, self.previous.as_slice(), buf.slice_to_mut(rlength as uint));
+        slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(rlength as uint));
+
+        if let Some(ref palette) = self.palette {
+            expand_palette(buf, palette.as_slice(), rlength as uint, self.bit_depth);
+        }
+
+        self.decoded_rows += 1;
+
+        Ok(self.decoded_rows)
+    }
 }
 
 impl<R: Reader> ImageDecoder for PNGDecoder<R> {
@@ -306,58 +424,85 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
-
-        let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
-            Some(v) => v,
-            _ => return Err(image::ImageError::FormatError("Unknown filter type.".to_string()))
-        };
-
-        {
-            let mut read = 0;
-            let read_buffer = buf.slice_to_mut(self.rlength);
-            while read < self.rlength {
-                let r = try!(self.z.read(read_buffer.slice_from_mut(read)));
-                read += r;
-            }
+        if self.interlace_method != InterlaceMethod::None {
+            return Err(image::ImageError::UnsupportedError("Image is interlaced, extraction of single scanlines is unsupported".to_string()))
         }
-
-        unfilter(filter_type, self.bpp, self.previous.as_slice(), buf.slice_to_mut(self.rlength));
-        slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(self.rlength));
-
-        if self.palette.is_some() {
-            let s = (*self.palette.as_ref().unwrap()).as_slice();
-            expand_palette(buf, s, self.rlength, self.bit_depth);
-        }
-
-        self.decoded_rows += 1;
-
-        Ok(self.decoded_rows)
+        let rlength = self.raw_row_length(self.width);
+        self.extract_scanline(buf, rlength)
     }
 
     fn read_image(&mut self) -> ImageResult<Vec<u8>> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
-
-        let rowlen  = try!(self.row_len());
-        let mut buf = Vec::from_elem(rowlen * self.height as uint, 0u8);
-
-        for chunk in buf.as_mut_slice().chunks_mut(rowlen) {
-            let _ = try!(self.read_scanline(chunk));
+        let max_rowlen = try!(self.row_len());
+        let mut buf = Vec::from_elem(max_rowlen * self.height as uint, 0u8);
+        if let Some(mut pass_iterator) = self.pass_iterator { // Method == Adam7
+            let mut pass_buf = Vec::from_elem(max_rowlen, 0u8);
+            let mut old_pass = 1;
+            let bytes = color::bits_per_pixel(self.pixel_type)/8;
+            for (pass, line, width) in pass_iterator {
+                let rlength = self.raw_row_length(width);
+                if old_pass != pass {
+                    // new subimage, reset previous
+                    for v in self.previous.iter_mut() {
+                        *v = 0;
+                    }
+                }
+                let bits = self.bits_per_pixel as uint;
+                let _ = try!(
+                    self.extract_scanline(pass_buf.slice_to_mut(
+                        rlength as uint//3*((bits * width as uint + 7) / 8)
+                    ), rlength)
+                );
+                expand_pass(
+                    buf.as_mut_slice(), self.width * bytes as u32,
+                    pass_buf.slice_to_mut(rlength as uint), pass, line, bytes as u8
+                );
+                old_pass = pass;
+            }
+            Ok(buf)
+        } else {
+            for chunk in buf.as_mut_slice().chunks_mut(max_rowlen) {
+                let _ = try!(self.read_scanline(chunk));
+            }
+            Ok(buf)
         }
+    }
+}
 
-        Ok(buf)
+macro_rules! expand_pass(
+    ($img:expr, $scanline:expr, $j:ident, $pos:expr, $bytes_pp:expr) => {
+        for ($j, pixel) in $scanline.chunks($bytes_pp as uint).enumerate() {
+            for (offset, val) in pixel.iter().enumerate() {
+                $img[$pos + offset] = *val
+            }
+        }
+    }
+)
+
+fn expand_pass(
+    img: &mut[u8], width: u32, scanline: &mut[u8], 
+    pass: u8, line_no: u32, bytes_pp: u8) {
+    let line_no = line_no as uint;
+    match pass {
+        1 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*j*8, bytes_pp),
+        2 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*(j*8 + 4), bytes_pp),
+        3 => expand_pass!(img, scanline, j, (8*line_no+4)*width as uint + bytes_pp as uint*j*4, bytes_pp),
+        4 => expand_pass!(img, scanline, j, 4*line_no*width as uint + bytes_pp as uint*(j*4 + 2), bytes_pp),
+        5 => expand_pass!(img, scanline, j, (4*line_no+2)*width as uint + bytes_pp as uint*j*2, bytes_pp),
+        6 => expand_pass!(img, scanline, j, 2*line_no*width as uint + bytes_pp as uint*(j*2+1), bytes_pp),
+        7 => expand_pass!(img, scanline, j, (2*line_no+1)*width as uint + bytes_pp as uint*j, bytes_pp),
+        _ => {}
     }
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: uint, bit_depth: u8) {
-    assert!(buf.len() == entries * 3 * (8 / bit_depth as uint));
+    assert_eq!(buf.len(), entries * 3 * (8 / bit_depth as uint));
     let mask = (1u8 << bit_depth as uint) - 1;
-    // Unsafe copy to be able to create a mutable borrow afterwards
-    // This is unproblematic since we are iterating from opposite directions
-    // over these slices such that the paletted pixel do not get overwritten
-    // before processing them.
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {
         let view: &mut [u8] = mem::transmute_copy(&buf);
         view.slice_to(entries)
@@ -441,7 +586,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 
                 match str::from_utf8(v.as_slice()) {
                     Some("IDAT") => (),
-                    _ 	     => {
+                    _ => {
                         self.eof = true;
                         break
                     }

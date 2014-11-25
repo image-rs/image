@@ -449,15 +449,16 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                         *v = 0;
                     }
                 }
-                let bits = self.bits_per_pixel as uint;
+                let bits = color::bits_per_pixel(self.pixel_type);
                 let _ = try!(
                     self.extract_scanline(pass_buf.slice_to_mut(
-                        rlength as uint//3*((bits * width as uint + 7) / 8)
+                        ((bits * width as uint + 7) / 8)
                     ), rlength)
                 );
+                let expanded_width = self.width * bytes as u32;
                 expand_pass(
-                    buf.as_mut_slice(), self.width * bytes as u32,
-                    pass_buf.slice_to_mut(rlength as uint), pass, line, bytes as u8
+                    buf.as_mut_slice(), expanded_width,
+                    pass_buf.slice_to_mut(expanded_width as uint), pass, line, bytes as u8
                 );
                 old_pass = pass;
             }
@@ -473,7 +474,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
 
 macro_rules! expand_pass(
     ($img:expr, $scanline:expr, $j:ident, $pos:expr, $bytes_pp:expr) => {
-        for ($j, pixel) in $scanline.chunks($bytes_pp as uint).enumerate() {
+        for ($j, pixel) in $scanline.chunks($bytes_pp).enumerate() {
             for (offset, val) in pixel.iter().enumerate() {
                 $img[$pos + offset] = *val
             }
@@ -485,21 +486,24 @@ fn expand_pass(
     img: &mut[u8], width: u32, scanline: &mut[u8], 
     pass: u8, line_no: u32, bytes_pp: u8) {
     let line_no = line_no as uint;
+    let width = width as uint;
+    let bytes_pp = bytes_pp as uint;
     match pass {
-        1 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*j*8, bytes_pp),
-        2 => expand_pass!(img, scanline, j, 8*line_no*width as uint + bytes_pp as uint*(j*8 + 4), bytes_pp),
-        3 => expand_pass!(img, scanline, j, (8*line_no+4)*width as uint + bytes_pp as uint*j*4, bytes_pp),
-        4 => expand_pass!(img, scanline, j, 4*line_no*width as uint + bytes_pp as uint*(j*4 + 2), bytes_pp),
-        5 => expand_pass!(img, scanline, j, (4*line_no+2)*width as uint + bytes_pp as uint*j*2, bytes_pp),
-        6 => expand_pass!(img, scanline, j, 2*line_no*width as uint + bytes_pp as uint*(j*2+1), bytes_pp),
-        7 => expand_pass!(img, scanline, j, (2*line_no+1)*width as uint + bytes_pp as uint*j, bytes_pp),
+        1 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp * j*8     , bytes_pp),
+        2 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp *(j*8 + 4), bytes_pp),
+        3 => expand_pass!(img, scanline, j, (8*line_no+4) * width + bytes_pp * j*4     , bytes_pp),
+        4 => expand_pass!(img, scanline, j,  4*line_no    * width + bytes_pp *(j*4 + 2), bytes_pp),
+        5 => expand_pass!(img, scanline, j, (4*line_no+2) * width + bytes_pp * j*2     , bytes_pp),
+        6 => expand_pass!(img, scanline, j,  2*line_no    * width + bytes_pp *(j*2+1)  , bytes_pp),
+        7 => expand_pass!(img, scanline, j, (2*line_no+1) * width + bytes_pp * j       , bytes_pp),
         _ => {}
     }
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: uint, bit_depth: u8) {
-    assert_eq!(buf.len(), entries * 3 * (8 / bit_depth as uint));
+    let bpp = 8 / bit_depth as uint;
+    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp))
     let mask = (1u8 << bit_depth as uint) - 1;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
@@ -517,6 +521,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                 v, |v| v
             )
         ))
+        //.skip(buf.len() % bpp) // not necessary, why!?
         .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);
     for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
         palette[i as uint]

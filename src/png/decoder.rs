@@ -455,10 +455,9 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                         ((bits * width as uint + 7) / 8)
                     ), rlength)
                 );
-                let expanded_width = self.width * bytes as u32;
                 expand_pass(
-                    buf.as_mut_slice(), expanded_width,
-                    pass_buf.slice_to_mut(expanded_width as uint), pass, line, bytes as u8
+                    buf.as_mut_slice(), self.width * bytes as u32,
+                    pass_buf.slice_to_mut(width as uint * bytes), pass, line, bytes as u8
                 );
                 old_pass = pass;
             }

@@ -14,26 +14,26 @@ use color:: {
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
 pub enum ImageError {
-    ///The Image is not formatted properly
+    /// The Image is not formatted properly
     FormatError(String),
 
-    ///The Image's dimensions are either too small or too large
+    /// The Image's dimensions are either too small or too large
     DimensionError,
 
-    ///The Decoder does not support this image format
+    /// The Decoder does not support this image format
     UnsupportedError(String),
 
-    ///The Decoder does not support this color type
+    /// The Decoder does not support this color type
     UnsupportedColor(ColorType),
 
-    ///Not enough data was provided to the Decoder
-    ///to decode the image
+    /// Not enough data was provided to the Decoder
+    /// to decode the image
     NotEnoughData,
 
-    ///An I/O Error occurred while decoding the image
+    /// An I/O Error occurred while decoding the image
     IoError(io::IoError),
 
-    ///The end of the image has been reached
+    /// The end of the image has been reached
     ImageEnd
 }
 
@@ -73,24 +73,23 @@ pub enum ImageFormat {
 
 /// The trait that all decoders implement
 pub trait ImageDecoder {
-    ///Return a tuple containing the width and height of the image
+    /// Returns a tuple containing the width and height of the image
     fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
 
-    ///Return the color type of the image e.g RGB(8) (8bit RGB)
+    /// Returns the color type of the image e.g RGB(8) (8bit RGB)
     fn colortype(&mut self) -> ImageResult<ColorType>;
 
-    ///Returns the length in bytes of one decoded row of the image
+    /// Returns the length in bytes of one decoded row of the image
     fn row_len(&mut self) -> ImageResult<uint>;
 
-    ///Read one row from the image into buf
-    ///Returns the row index
+    /// Reads one row from the image into buf and returns the row index
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
 
-    ///Decode the entire image and return it as a Vector
+    /// Decodes the entire image and return it as a Vector
     fn read_image(&mut self) -> ImageResult<Vec<u8>>;
 
-    ///Decode a specific region of the image, represented by the rectangle
-    ///starting from ```x``` and ```y``` and having ```length``` and ```width```
+    /// Decodes a specific region of the image, represented by the rectangle
+    /// starting from ```x``` and ```y``` and having ```length``` and ```width```
     fn load_rect(&mut self, x: u32, y: u32, length: u32, width: u32) -> ImageResult<Vec<u8>> {
         let (w, h) = try!(self.dimensions());
 
@@ -198,23 +197,31 @@ impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> Iterator<(u32, u32, &
     }
 }
 
-///A trait for manipulating images.
+/// A trait for manipulating images.
 pub trait GenericImage<P> {
-    ///The width and height of this image.
+    /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
-    ///The bounding rectangle of this image.
+    /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
-    ///Return the pixel located at (x, y)
+    /// Returns the pixel located at (x, y)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(x, y)` is out of bounds.
     fn get_pixel(&self, x: u32, y: u32) -> P;
 
-    ///Put a pixel at location (x, y)
+    /// Put a pixel at location (x, y)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
-    ///Return an Iterator over the pixels of this image.
-    ///The iterator yields the coordinates of each pixel
-    ///along with their value
+    /// Returns an Iterator over the pixels of this image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with their value
     fn pixels(&self) -> Pixels<Self> {
         let (width, height) = self.dimensions();
 
@@ -228,14 +235,19 @@ pub trait GenericImage<P> {
     }
 }
 
-///A trait for images that allow providing mutable references to pixels.
+/// A trait for images that allow providing mutable references to pixels.
 pub trait MutableRefImage<P>: GenericImage<P> {
-    ///Return a mutable reference to the pixel located at (x, y)
+
+    /// Puts a pixel at location (x, y)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(x, y)` is out of bounds.
     fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P;
 
-    ///Return an Iterator over mutable pixels of this image.
-    ///The iterator yields the coordinates of each pixel
-    ///along with a mutable reference to them.
+    /// Returns an Iterator over mutable pixels of this image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with a mutable reference to them.
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 
@@ -258,7 +270,7 @@ pub struct ImageBuf<P> {
 }
 
 impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
-    ///Construct a new ImageBuf with the specified width and height.
+    /// Constructs a new ImageBuf with the specified width and height.
     pub fn new(width: u32, height: u32) -> ImageBuf<P> {
         let pixel: P = Default::default();
         let pixels = Vec::from_elem((width * height) as uint, pixel.clone());
@@ -270,8 +282,8 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         }
     }
 
-    ///Construct a new ImageBuf by repeated application of the supplied function.
-    ///The arguments to the function are the pixel's x and y coordinates.
+    /// Constructs a new ImageBuf by repeated application of the supplied function.
+    /// The arguments to the function are the pixel's x and y coordinates.
     pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> P) -> ImageBuf<P> {
         let mut pixels: Vec<P> = Vec::with_capacity((width * height) as uint);
 
@@ -284,7 +296,7 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         ImageBuf::from_pixels(pixels, width, height)
     }
 
-    ///Construct a new ImageBuf from a vector of pixels.
+    /// Constructs a new ImageBuf from a vector of pixels.
     pub fn from_pixels(pixels: Vec<P>, width: u32, height: u32) -> ImageBuf<P> {
         ImageBuf {
             pixels: pixels,
@@ -293,29 +305,29 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         }
     }
 
-    ///Construct a new ImageBuf from a pixel.
+    /// Constructs a new ImageBuf from a pixel.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuf<P> {
         let buf = Vec::from_elem(width as uint * height as uint, pixel.clone());
 
         ImageBuf::from_pixels(buf, width, height)
     }
 
-    ///Return an immutable reference to this image's pixel buffer
+    /// Return an immutable reference to this image's pixel buffer
     pub fn pixelbuf(&self) -> & [P] {
         self.pixels.as_slice()
     }
 
-    ///Return a mutable reference to this image's pixel buffer
+    /// Return a mutable reference to this image's pixel buffer
     pub fn pixelbuf_mut(&mut self) -> &mut [P] {
         self.pixels.as_mut_slice()
     }
 
-    ///Destroy this ImageBuf, returning the internal vector
+    /// Destroys this ImageBuf, returning the internal vector
     pub fn into_vec(self) -> Vec<P> {
         self.pixels
     }
 
-    ///Return an immutable reference to this image's raw data buffer
+    /// Returns an immutable reference to this image's raw data buffer
     pub fn rawbuf(&self) -> &[u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
@@ -325,7 +337,7 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         unsafe { transmute(slice) }
     }
 
-    ///Return a mutable reference to this image's raw data buffer
+    /// Returns a mutable reference to this image's raw data buffer
     pub fn rawbuf_mut(&mut self) -> &mut [u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
@@ -397,7 +409,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
         }
     }
 
-    ///Return a mutable reference to the wrapped image.
+    /// Returns a mutable reference to the wrapped image.
     pub fn inner_mut(&mut self) -> &mut I {
         &mut (*self.image)
     }

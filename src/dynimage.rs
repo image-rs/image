@@ -388,6 +388,15 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
         }
     }
+
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
+        match *self {
+            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
+            DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
+            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
+        }
+    }
 }
 
 /// Transmutes a Vec<u8> into a Vec<T> where T is safe to transmute.

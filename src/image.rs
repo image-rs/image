@@ -219,6 +219,9 @@ pub trait GenericImage<P> {
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
+    ///Put a pixel at location (x, y), taking into account alpha channels
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P);
+
     /// Returns an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with their value
@@ -369,6 +372,14 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
 
         buf[index as uint] = pixel;
     }
+
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
+        let index  = y * self.width + x;
+        let buf    = self.pixels.as_mut_slice();
+        let old    = buf[index as uint];
+
+        buf[index as uint] = old.blend(pixel);
+    }
 }
 
 impl<T: Primitive, P: Pixel<T> + Clone + Copy> MutableRefImage<P> for ImageBuf<P> {
@@ -454,10 +465,40 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
+
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
+        self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
+    }
 }
 
 impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> MutableRefImage<P> for SubImage<'a, I> {
     fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
         self.image.get_mut_pixel(x + self.xoffset, y + self.yoffset)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::{GenericImage, ImageBuf};
+    use color::{Rgba};
+
+    #[test]
+    ///Test that alpha blending works as expected
+    fn test_image_alpha_blending() {
+        let mut target = ImageBuf::new(1, 1);
+        target.put_pixel(0, 0, Rgba(255u8, 0, 0, 255));
+        assert!(target.get_pixel(0, 0) == Rgba(255, 0, 0, 255));
+        target.blend_pixel(0, 0, Rgba(0, 255, 0, 255));
+        assert!(target.get_pixel(0, 0) == Rgba(0, 255, 0, 255));
+
+        //Blending an alpha channel onto a solid background
+        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
+        assert!(target.get_pixel(0, 0) == Rgba(127, 127, 0, 255));
+
+        //Blending two alpha channels
+        target.put_pixel(0, 0, Rgba(0, 255, 0, 127));
+        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
+        assert!(target.get_pixel(0, 0) == Rgba(169, 85, 0, 190));
     }
 }

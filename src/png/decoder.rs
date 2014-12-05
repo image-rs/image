@@ -186,7 +186,7 @@ impl<R: Reader> PNGDecoder<R> {
     fn read_signature(&mut self) -> ImageResult<bool> {
         let png = try!(self.z.inner().r.read_exact(8));
 
-        Ok(png.as_slice() == &PNGSIGNATURE)
+        Ok(png.as_slice() == PNGSIGNATURE.as_slice())
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
@@ -623,7 +623,7 @@ mod tests {
         //"./src/png/testdata/pngsuite/*.png"
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
-        let mut paths = glob::glob(pattern.as_str().unwrap())
+        let paths = glob::glob(pattern.as_str().unwrap())
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 

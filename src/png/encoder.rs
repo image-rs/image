@@ -119,7 +119,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
 
     let bpp = ((channels * bit_depth + 7) / 8) as uint;
 
-    (m.unwrap(), bpp)
+    (m.into_inner(), bpp)
 }
 
 fn sum_abs_difference(buf: &[u8]) -> i32 {

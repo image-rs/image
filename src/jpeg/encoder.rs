@@ -443,7 +443,7 @@ fn build_jfif_header() -> Vec<u8> {
     let _ = m.write_u8(0);
     let _ = m.write_u8(0);
 
-    m.unwrap()
+    m.into_inner()
 }
 
 fn build_frame_header(precision: u8,
@@ -465,7 +465,7 @@ fn build_frame_header(precision: u8,
         let _  = m.write_u8(comp.tq);
     }
 
-    m.unwrap()
+    m.into_inner()
 }
 
 fn build_scan_header(components: &[Component]) -> Vec<u8> {
@@ -484,7 +484,7 @@ fn build_scan_header(components: &[Component]) -> Vec<u8> {
     let _ = m.write_u8(63);
     let _ = m.write_u8(0);
 
-    m.unwrap()
+    m.into_inner()
 }
 
 fn build_huffman_segment(class: u8,
@@ -511,7 +511,7 @@ fn build_huffman_segment(class: u8,
         let _ = m.write_u8(i);
     }
 
-    m.unwrap()
+    m.into_inner()
 }
 
 fn build_quantization_segment(precision: u8,
@@ -531,7 +531,7 @@ fn build_quantization_segment(precision: u8,
         let _ = m.write_u8(qtable[UNZIGZAG[i] as uint]);
     }
 
-    m.unwrap()
+    m.into_inner()
 }
 
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {

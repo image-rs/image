@@ -623,7 +623,7 @@ mod tests {
         //"./src/png/testdata/pngsuite/*.png"
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
-        let mut paths = glob::glob(pattern.as_str().unwrap())
+        let paths = glob::glob(pattern.as_str().unwrap())
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 

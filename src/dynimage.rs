@@ -586,3 +586,18 @@ pub fn load_from_memory(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicI
 
     load(b, format)
 }
+
+#[cfg(test)]
+mod bench {
+    extern crate test;
+
+
+    #[bench]
+    fn bench_conversion(b: &mut test::Bencher) {
+        let a = super::DynamicImage::ImageRgb8(::ImageBuf::new(1000, 1000));
+        b.iter(|| {
+            a.to_luma()
+        });
+        b.bytes = 1000*1000*3
+    }
+}

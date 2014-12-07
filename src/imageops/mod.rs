@@ -67,6 +67,7 @@ pub fn crop<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 }
 
 /// Overlay an image at a given coordinate (x, y)
+#[allow(deprecated)]
 pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     bottom: &mut I,
     top: &I,

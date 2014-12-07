@@ -18,6 +18,7 @@ use image;
 use image:: {
     ImageBuf,
     GenericImage,
+    MutableRefImage,
     ImageDecoder,
     ImageResult,
     ImageFormat,
@@ -82,11 +83,11 @@ impl DynamicImage {
     pub fn to_rgb(&self) -> ImageBuf<color::Rgb<u8>> {
         dynamic_map!(*self, ref p -> {
             let (w, h) = p.dimensions();
-            let mut pixels = Vec::with_capacity(w as uint * h as uint);
-            for (_, _, pix) in p.pixels() {
-                pixels.push(pix.to_rgb());
+            let mut buf: ImageBuf<color::Rgb<u8>> = ImageBuf::new(w, h);
+            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
+                *new_pix = old_pix.to_rgb()
             }
-            ImageBuf::from_pixels(pixels, w, h)
+            buf
         })
     }
 
@@ -94,11 +95,11 @@ impl DynamicImage {
     pub fn to_rgba(&self) -> ImageBuf<color::Rgba<u8>> {
         dynamic_map!(*self, ref p -> {
             let (w, h) = p.dimensions();
-            let mut pixels = Vec::with_capacity(w as uint * h as uint);
-            for (_, _, pix) in p.pixels() {
-                pixels.push(pix.to_rgba());
+            let mut buf: ImageBuf<color::Rgba<u8>> = ImageBuf::new(w, h);
+            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
+                *new_pix = old_pix.to_rgba()
             }
-            ImageBuf::from_pixels(pixels, w, h)
+            buf
         })
     }
 
@@ -106,11 +107,11 @@ impl DynamicImage {
     pub fn to_luma(&self) -> ImageBuf<color::Luma<u8>> {
         dynamic_map!(*self, ref p -> {
             let (w, h) = p.dimensions();
-            let mut pixels = Vec::with_capacity(w as uint * h as uint);
-            for (_, _, pix) in p.pixels() {
-                pixels.push(pix.to_luma());
+            let mut buf: ImageBuf<color::Luma<u8>> = ImageBuf::new(w, h);
+            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
+                *new_pix = old_pix.to_luma()
             }
-            ImageBuf::from_pixels(pixels, w, h)
+            buf
         })
     }
 
@@ -118,11 +119,11 @@ impl DynamicImage {
     pub fn to_luma_alpha(&self) -> ImageBuf<color::LumaA<u8>> {
         dynamic_map!(*self, ref p -> {
             let (w, h) = p.dimensions();
-            let mut pixels = Vec::with_capacity(w as uint * h as uint);
-            for (_, _, pix) in p.pixels() {
-                pixels.push(pix.to_luma_alpha());
+            let mut buf: ImageBuf<color::LumaA<u8>> = ImageBuf::new(w, h);
+            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
+                *new_pix = old_pix.to_luma_alpha()
             }
-            ImageBuf::from_pixels(pixels, w, h)
+            buf
         })
     }
 
@@ -367,6 +368,7 @@ impl DynamicImage {
     }
 }
 
+#[allow(deprecated)]
 impl GenericImage<color::Rgba<u8>> for DynamicImage {
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, ref p -> p.dimensions())
@@ -388,7 +390,7 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
         }
     }
-
+    #[deprecated = "Use iterator `pixels_mut` to blend the pixels directly. "]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
@@ -425,6 +427,7 @@ fn transmute_vec<T: Send + color::SafeToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
     }
 }
 
+#[allow(deprecated)]
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
 
@@ -478,6 +481,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     Ok(image)
 }
 
+#[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     let mut r = Vec::new();
 

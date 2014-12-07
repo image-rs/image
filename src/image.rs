@@ -220,6 +220,7 @@ pub trait GenericImage<P> {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
     ///Put a pixel at location (x, y), taking into account alpha channels
+    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P);
 
     /// Returns an Iterator over the pixels of this image.
@@ -288,18 +289,15 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     /// Constructs a new ImageBuf by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
     pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> P) -> ImageBuf<P> {
-        let mut pixels: Vec<P> = Vec::with_capacity((width * height) as uint);
-
-        for y in range(0, height) {
-            for x in range(0, width) {
-                pixels.insert((y * width + x) as uint, f(x, y));
-            }
+        let mut buf = ImageBuf::new(width, height);
+        for (x, y,  p) in buf.pixels_mut() {
+            *p = f(x, y)
         }
-
-        ImageBuf::from_pixels(pixels, width, height)
+        buf
     }
 
     /// Constructs a new ImageBuf from a vector of pixels.
+    #[deprecated = "Use iterator `pixels_mut` instead. "]
     pub fn from_pixels(pixels: Vec<P>, width: u32, height: u32) -> ImageBuf<P> {
         ImageBuf {
             pixels: pixels,
@@ -310,22 +308,27 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
 
     /// Constructs a new ImageBuf from a pixel.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuf<P> {
-        let buf = Vec::from_elem(width as uint * height as uint, pixel.clone());
-
-        ImageBuf::from_pixels(buf, width, height)
+        let mut buf = ImageBuf::new(width, height);
+        for (_, _,  p) in buf.pixels_mut() {
+            *p = pixel.clone()
+        }
+        buf
     }
 
     /// Return an immutable reference to this image's pixel buffer
+    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
     pub fn pixelbuf(&self) -> & [P] {
         self.pixels.as_slice()
     }
 
     /// Return a mutable reference to this image's pixel buffer
+    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
     pub fn pixelbuf_mut(&mut self) -> &mut [P] {
         self.pixels.as_mut_slice()
     }
 
     /// Destroys this ImageBuf, returning the internal vector
+    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
     pub fn into_vec(self) -> Vec<P> {
         self.pixels
     }
@@ -373,6 +376,7 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
         buf[index as uint] = pixel;
     }
 
+    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let index  = y * self.width + x;
         let buf    = self.pixels.as_mut_slice();
@@ -449,6 +453,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
     }
 }
 
+#[allow(deprecated)]
 impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I> {
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -466,6 +471,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
         self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
+    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
         self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
@@ -485,6 +491,7 @@ mod tests {
 
     #[test]
     ///Test that alpha blending works as expected
+    #[allow(deprecated)]
     fn test_image_alpha_blending() {
         let mut target = ImageBuf::new(1, 1);
         target.put_pixel(0, 0, Rgba(255u8, 0, 0, 255));

@@ -18,7 +18,6 @@ use image;
 use image:: {
     ImageBuf,
     GenericImage,
-    MutableRefImage,
     ImageDecoder,
     ImageResult,
     ImageFormat,
@@ -398,6 +397,11 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
             DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
         }
+    }
+
+    #[deprecated = "Do not use is function: It is unimplemented!"]
+    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
+        unimplemented!()
     }
 }
 

@@ -60,6 +60,7 @@ pub use image::ImageFormat:: {
 pub use image::SubImage as SubImage;
 pub use image::ImageBuf as ImageBuf;
 pub use dynimage::DynamicImage as DynamicImage;
+pub use buffer::ImageBuffer;
 
 //Traits
 pub use image::GenericImage as GenericImage;
@@ -98,4 +99,6 @@ pub mod tga;
 mod image;
 mod dynimage;
 mod color;
+mod colors;
+mod buffer;
 mod traits;

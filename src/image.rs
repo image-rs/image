@@ -170,7 +170,7 @@ pub struct MutPixels<'a, I:'a> {
     height: u32
 }
 
-impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> Iterator<(u32, u32, &'a mut P)> for MutPixels<'a, I> {
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, &'a mut P)> for MutPixels<'a, I> {
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
         if self.x >= self.width {
             self.x =  0;
@@ -212,6 +212,13 @@ pub trait GenericImage<P> {
     /// Panics if `(x, y)` is out of bounds.
     fn get_pixel(&self, x: u32, y: u32) -> P;
 
+    /// Puts a pixel at location (x, y)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(x, y)` is out of bounds.
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P;
+
     /// Put a pixel at location (x, y)
     ///
     /// # Panics
@@ -237,17 +244,6 @@ pub trait GenericImage<P> {
             height: height,
         }
     }
-}
-
-/// A trait for images that allow providing mutable references to pixels.
-pub trait MutableRefImage<P>: GenericImage<P> {
-
-    /// Puts a pixel at location (x, y)
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P;
 
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
@@ -384,9 +380,6 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
 
         buf[index as uint] = old.blend(pixel);
     }
-}
-
-impl<T: Primitive, P: Pixel<T> + Clone + Copy> MutableRefImage<P> for ImageBuf<P> {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         let index = y * self.width + x;
 
@@ -475,9 +468,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
         self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
-}
 
-impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> MutableRefImage<P> for SubImage<'a, I> {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }

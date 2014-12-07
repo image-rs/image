@@ -63,7 +63,6 @@ pub use dynimage::DynamicImage as DynamicImage;
 
 //Traits
 pub use image::GenericImage as GenericImage;
-pub use image::MutableRefImage as MutableRefImage;
 
 //Iterators
 pub use image::Pixels as Pixels;

@@ -12,7 +12,9 @@ use std::num:: {
     SignedInt,
 };
 
-use color::{ Pixel, Primitive };
+use color::Pixel;
+use traits::Primitive;
+
 use image:: {
     GenericImage,
     ImageBuf,

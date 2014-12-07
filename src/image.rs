@@ -180,7 +180,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> Iterator<(u32, u32, &
         if self.y >= self.height {
             None
         } else {
-            let tmp = self.image.get_mut_pixel(self.x, self.y);
+            let tmp = self.image.get_pixel_mut(self.x, self.y);
 
             //error: lifetime of `self` is too short to guarantee its contents
             //       can be safely reborrowed...
@@ -247,7 +247,7 @@ pub trait MutableRefImage<P>: GenericImage<P> {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
-    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P;
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P;
 
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
@@ -387,7 +387,7 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
 }
 
 impl<T: Primitive, P: Pixel<T> + Clone + Copy> MutableRefImage<P> for ImageBuf<P> {
-    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         let index = y * self.width + x;
 
         &mut self.pixels[index as uint]
@@ -478,8 +478,8 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
 }
 
 impl<'a, T: Primitive, P: Pixel<T>, I: MutableRefImage<P>> MutableRefImage<P> for SubImage<'a, I> {
-    fn get_mut_pixel(&mut self, x: u32, y: u32) -> &mut P {
-        self.image.get_mut_pixel(x + self.xoffset, y + self.yoffset)
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
+        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 }
 

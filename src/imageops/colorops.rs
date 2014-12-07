@@ -9,8 +9,9 @@ use std::default::Default;
 use color:: {
     Pixel,
     Luma,
-    Primitive,
 };
+
+use traits::Primitive;
 
 use image:: {
     GenericImage,

@@ -10,11 +10,13 @@
 #![warn(unused_typecasts)]
 #![feature(macro_rules)]
 #![feature(if_let)]
+// necessary for Primitive trait
+#![feature(default_type_params)]
 
 extern crate flate;
 
 pub use color::ColorType as ColorType;
-pub use color::Primitive;
+pub use traits::Primitive;
 
 pub use color::ColorType:: {
     Grey,
@@ -96,3 +98,4 @@ pub mod tga;
 mod image;
 mod dynimage;
 mod color;
+mod traits;

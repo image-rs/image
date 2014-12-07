@@ -8,8 +8,8 @@ use color;
 use color:: {
     Pixel,
     ColorType,
-    Primitive,
 };
+use traits::Primitive;
 
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]

@@ -6,7 +6,8 @@ use image:: {
     GenericImage,
 };
 
-use color::{ Pixel, Primitive };
+use color::Pixel;
+use traits::Primitive;
 
 pub use self::sample::FilterType;
 

@@ -214,6 +214,11 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
         }
     }
 
+    /// Returns the underlying raw buffer
+    pub fn into_raw(self) -> Container {
+        self.data
+    }
+
     /// The width and height of this image.
     pub fn dimensions(&self) -> (u32, u32) {
         (self.width, self.height)

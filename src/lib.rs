@@ -9,7 +9,6 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![feature(macro_rules)]
-#![feature(if_let)]
 // necessary for Primitive trait
 #![feature(default_type_params)]
 

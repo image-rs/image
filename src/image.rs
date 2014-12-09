@@ -332,8 +332,15 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
         self.pixels
     }
 
+
     /// Returns an immutable reference to this image's raw data buffer
+    #[deprecated = "[naming-conventions] Use the `as_slice` instead. "]
     pub fn rawbuf(&self) -> &[u8] {
+        self.as_slice()
+    }
+
+    /// Returns an immutable reference to this image's raw data buffer
+    pub fn as_slice(&self) -> &[u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
         // Compute size of slice in bytes.
@@ -343,7 +350,13 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     }
 
     /// Returns a mutable reference to this image's raw data buffer
+    #[deprecated = "[naming-conventions] Use the `as_mut_slice` instead. "]
     pub fn rawbuf_mut(&mut self) -> &mut [u8] {
+        self.as_mut_slice()
+    }
+
+    /// Returns a mutable reference to this image's raw data buffer
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
         use std::mem::{ size_of, transmute };
         use std::raw::Slice;
         // Compute size of slice in bytes.

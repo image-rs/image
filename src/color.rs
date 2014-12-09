@@ -237,13 +237,13 @@ impl<T: Primitive> FromColor<LumaA<T>> for Luma<T> {
 
 impl<T: Primitive> FromColor<Rgba<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
-        let gray = self.channels_mut();
+        let gray_a = self.channels_mut();
         let rgba = other.channels();
         let l = 0.2125f32 * rgba[0].to_f32().unwrap() +
                 0.7154f32 * rgba[1].to_f32().unwrap() +
                 0.0721f32 * rgba[2].to_f32().unwrap();
-        gray[0] = NumCast::from(l).unwrap();
-        gray[0] = rgba[3];
+        gray_a[0] = NumCast::from(l).unwrap();
+        gray_a[1] = rgba[3];
     }
 }
 

@@ -229,12 +229,6 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
         self.height
     }
 
-    /// Consumes the image buffer and returns the underlying data
-    /// as an owned buffer
-    pub fn into_vec(self) -> Vec<T> {
-        self.data.as_slice().to_vec()
-    }
-
     /// The raw image data as a slice.
     pub fn as_slice(& self) -> &[T] {
         self.data.as_slice()
@@ -294,11 +288,11 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// Panics if `(x, y)` is out of bounds.
     pub fn get_pixel(&self, x: u32, y: u32) -> &PixelType {
-        let index  = y * self.width + x;
+        let index  = (y * self.width + x) as uint;
         Pixel::from_slice(
             None::<&PixelType>,
             self.data.as_slice().slice(
-                index as uint, Pixel::channel_count(None::<&PixelType>) as uint
+                index, index + Pixel::channel_count(None::<&PixelType>) as uint
             )
         )
     }
@@ -309,11 +303,11 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// Panics if `(x, y)` is out of bounds.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
-        let index  = y * self.width + x;
+        let index  = (y * self.width + x) as uint;
         Pixel::from_slice_mut(
             None::<&PixelType>,
             self.data.as_mut_slice().slice_mut(
-                index as uint, Pixel::channel_count(None::<&PixelType>) as uint
+                index, index + Pixel::channel_count(None::<&PixelType>) as uint
             )
         )
     }
@@ -378,8 +372,8 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
 
     ///Put a pixel at location (x, y), taking into account alpha channels
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
-    fn blend_pixel(&mut self, _: u32, _: u32, _: PixelType) {
-        unimplemented!()
+    fn blend_pixel(&mut self, x: u32, y: u32, p: PixelType) {
+        self.get_pixel_mut(x, y).blend(&p)
     }
 }
 
@@ -410,17 +404,27 @@ where T: Primitive + 'static, PixelType: Pixel<T> {
         }
     }
 
+    /// Constructs a new ImageBuffer by repeated application of the supplied function.
+    /// The arguments to the function are the pixel's x and y coordinates.
+    pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> PixelType) -> ImageBuffer<Vec<T>, T, PixelType> {
+        let mut buf = ImageBuffer::new(width, height);
+        for (x, y,  p) in buf.enumerate_pixels_mut() {
+            *p = f(x, y)
+        }
+        buf
+    }
+
     /// Creates an image buffer out of an existing buffer. 
     /// Returns None if the buffer is not big enough.
     pub fn from_vec(width: u32, height: u32, buf: Vec<T>) -> Option<ImageBuffer<Vec<T>, T, PixelType>> {
         ImageBuffer::from_raw(width, height, buf)
     }
 
-    ///// Consumes the image buffer and returns the underlying data
-    ///// as an owned buffer
-    //pub fn into_vec(self) -> Vec<T> {
-    //    self.data
-    //}
+    /// Consumes the image buffer and returns the underlying data
+    /// as an owned buffer
+    pub fn into_vec(self) -> Vec<T> {
+        self.data
+    }
 }
 
 /// Provides color conversions for whole image buffers.
@@ -464,14 +468,14 @@ mod test {
     use std::rand;
 
     use super::{ImageBuffer, RgbImage, GreyImage, ConvertBuffer, Pixel};
-    use colors;
+    use color;
 
     #[test]
     fn test_mut_iter() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = colors::Rgb([42, 0, 0]);
+            *val = color::Rgb([42, 0, 0]);
         }
         assert_eq!(a.data[0], 42) 
     }

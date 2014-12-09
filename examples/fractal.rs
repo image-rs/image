@@ -20,7 +20,7 @@ fn main() {
         let scaley = 4.0 / imgy as f32;
 
         //Create a new ImgBuf with width: imgx and height: imgy
-        let mut imbuf = image::ImageBuf::new(imgx, imgy);
+        let mut imbuf = image::ImageBuffer::new(imgx, imgy);
 
         for y in range(0, imgy) {
                 let cy = y as f32 * scaley - 2.0;
@@ -43,7 +43,7 @@ fn main() {
                         }
 
                         // Create an 8bit pixel of type Luma and value i
-                        let pixel = image::Luma(i as u8);
+                        let pixel = image::Luma([i as u8]);
 
                         // Put a pixel in the image at coordinates x and y
                         imbuf.put_pixel(x, y, pixel);

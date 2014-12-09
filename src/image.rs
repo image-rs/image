@@ -341,26 +341,27 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
 #[cfg(test)]
 mod tests {
 
-    use super::{GenericImage, ImageBuf};
+    use super::GenericImage;
+    use buffer::ImageBuffer;
     use color::{Rgba};
 
     #[test]
     ///Test that alpha blending works as expected
     #[allow(deprecated)]
     fn test_image_alpha_blending() {
-        let mut target = ImageBuf::new(1, 1);
-        target.put_pixel(0, 0, Rgba(255u8, 0, 0, 255));
-        assert!(target.get_pixel(0, 0) == Rgba(255, 0, 0, 255));
-        target.blend_pixel(0, 0, Rgba(0, 255, 0, 255));
-        assert!(target.get_pixel(0, 0) == Rgba(0, 255, 0, 255));
+        let mut target = ImageBuffer::new(1, 1);
+        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
+        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
+        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
+        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
 
         //Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
-        assert!(target.get_pixel(0, 0) == Rgba(127, 127, 0, 255));
+        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
+        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
 
         //Blending two alpha channels
-        target.put_pixel(0, 0, Rgba(0, 255, 0, 127));
-        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
-        assert!(target.get_pixel(0, 0) == Rgba(169, 85, 0, 190));
+        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
+        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
+        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
     }
 }

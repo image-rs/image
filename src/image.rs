@@ -43,6 +43,8 @@ impl FromError<io::IoError> for ImageError {
     }
 }
 
+
+/// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 
 /// An enumeration of supported image formats.
@@ -210,6 +212,7 @@ pub trait GenericImage<P> {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
+    /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> P;
 
     /// Puts a pixel at location (x, y)
@@ -293,7 +296,7 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     }
 
     /// Constructs a new ImageBuf from a vector of pixels.
-    #[deprecated = "Use iterator `pixels_mut` instead. "]
+    #[deprecated = "This function will be replaced with an equivalent (`from_raw`) taking a buffer of raw bytes. Use the iterator `pixels_mut` instead if you want to create a buffer from high level pixels."]
     pub fn from_pixels(pixels: Vec<P>, width: u32, height: u32) -> ImageBuf<P> {
         ImageBuf {
             pixels: pixels,
@@ -324,7 +327,7 @@ impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     }
 
     /// Destroys this ImageBuf, returning the internal vector
-    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
+    #[deprecated = "This function will be replaced with an equivalent (`into_raw`) returning a buffer of raw bytes. Use the iterator `pixels_mut().collect()` instead if you want to get a buffer from high level pixels."]
     pub fn into_vec(self) -> Vec<P> {
         self.pixels
     }

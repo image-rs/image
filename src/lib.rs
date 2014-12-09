@@ -58,7 +58,13 @@ pub use image::ImageFormat:: {
 //Image Types
 pub use image::SubImage as SubImage;
 pub use dynimage::DynamicImage as DynamicImage;
-pub use buffer::ImageBuffer as ImageBuffer;
+pub use buffer::{
+    ImageBuffer,
+    RgbImage,
+    RgbaImage,
+    GreyImage,
+    GreyAlphaImage
+};
 
 //Traits
 pub use image::GenericImage as GenericImage;

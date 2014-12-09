@@ -9,7 +9,6 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![feature(macro_rules)]
-#![feature(if_let)]
 // necessary for Primitive trait
 #![feature(default_type_params)]
 
@@ -64,7 +63,6 @@ pub use buffer::ImageBuffer;
 
 //Traits
 pub use image::GenericImage as GenericImage;
-pub use image::MutableRefImage as MutableRefImage;
 
 //Iterators
 pub use image::Pixels as Pixels;

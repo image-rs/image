@@ -12,7 +12,7 @@ use tiff;
 use tga;
 
 use color;
-use color::Pixel;
+use buffer::Pixel;
 use imageops;
 use image;
 use image:: {
@@ -441,19 +441,23 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 
     let image = match color {
         color::ColorType::RGB(8) => {
-            DynamicImage::ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            panic!()
+            //DynamicImage::ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::ColorType::RGBA(8) => {
-            DynamicImage::ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            panic!()
+            //DynamicImage::ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::ColorType::Grey(8) => {
-            DynamicImage::ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            panic!()
+            //DynamicImage::ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
 
         color::ColorType::GreyA(8) => {
-            DynamicImage::ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            panic!()
+            //DynamicImage::ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
         }
         color::ColorType::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries 
@@ -475,7 +479,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                        .map(|(shift, pixel)|
                            (pixel & mask << shift as uint) >> shift as uint
                        )
-                       .map(|pixel| color::Luma::<u8>(pixel * scaling_factor))
+                       .map(|pixel| color::Luma::<u8>([pixel * scaling_factor]))
                        .collect();
             DynamicImage::ImageLuma8(ImageBuf::from_pixels(p, w, h))
         },
@@ -488,42 +492,42 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 #[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     let mut r = Vec::new();
-
-    match *image {
-        //TODO: consider transmuting
-        DynamicImage::ImageLuma8(ref a) => {
-            for & i in a.pixelbuf().iter() {
-                r.push(i.channel());
-            }
-        }
-
-        DynamicImage::ImageLumaA8(ref a) => {
-            for & i in a.pixelbuf().iter() {
-                let (l, a) = i.channels();
-                r.push(l);
-                r.push(a);
-            }
-        }
-
-        DynamicImage::ImageRgb8(ref a)  => {
-            for & i in a.pixelbuf().iter() {
-                let (red, g, b) = i.channels();
-                r.push(red);
-                r.push(g);
-                r.push(b);
-            }
-        }
-
-        DynamicImage::ImageRgba8(ref a) => {
-            for & i in a.pixelbuf().iter() {
-                let (red, g, b, alpha) = i.channels();
-                r.push(red);
-                r.push(g);
-                r.push(b);
-                r.push(alpha);
-            }
-        }
-    }
+    panic!()
+    //match *image {
+    //    //TODO: consider transmuting
+    //    DynamicImage::ImageLuma8(ref a) => {
+    //        for & i in a.pixelbuf().iter() {
+    //            r.push(i.channels()[0]);
+    //        }
+    //    }
+//
+    //    DynamicImage::ImageLumaA8(ref a) => {
+    //        for & i in a.pixelbuf().iter() {
+    //            let [l, a] = i.channels();
+    //            r.push(l);
+    //            r.push(a);
+    //        }
+    //    }
+//
+    //    DynamicImage::ImageRgb8(ref a)  => {
+    //        for & i in a.pixelbuf().iter() {
+    //            let [red, g, b] = i.channels();
+    //            r.push(red);
+    //            r.push(g);
+    //            r.push(b);
+    //        }
+    //    }
+//
+    //    DynamicImage::ImageRgba8(ref a) => {
+    //        for & i in a.pixelbuf().iter() {
+    //            let [red, g, b, alpha] = i.channels();
+    //            r.push(red);
+    //            r.push(g);
+    //            r.push(b);
+    //            r.push(alpha);
+    //        }
+    //    }
+    //}
 
     r
 }

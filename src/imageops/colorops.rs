@@ -6,10 +6,8 @@ use std::num:: {
 
 use std::default::Default;
 
-use color:: {
-    Pixel,
-    Luma,
-};
+use color::Luma;
+use buffer::Pixel;
 
 use traits::Primitive;
 
@@ -73,7 +71,8 @@ pub fn contrast<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
     for y in range(0, height) {
         for x in range(0, width) {
-            let f = image.get_pixel(x, y).map(|b| {
+            let mut f = image.get_pixel(x, y).clone();
+            f.map(|b| {
                 let c = cast::<P, f32>(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent  + 0.5) * max;
@@ -104,7 +103,8 @@ pub fn brighten<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
     for y in range(0, height) {
         for x in range(0, width) {
-            let e = image.get_pixel(x, y).map_with_alpha(|b| {
+            let mut e = image.get_pixel(x, y).clone();
+            e.map_with_alpha(|b| {
                 let c = cast::<P, i32>(b).unwrap();
                 let d = clamp(c + value, 0, max);
 

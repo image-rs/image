@@ -1,6 +1,6 @@
 //! Functions for performing affine transformations.
 
-use color::Pixel;
+use buffer::Pixel;
 use traits::Primitive;
 use image:: {
     GenericImage,

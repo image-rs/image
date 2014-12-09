@@ -2,13 +2,10 @@ use std::error::FromError;
 use std::mem;
 use std::io;
 use std::slice;
-use std::default::Default;
 
 use color;
-use color:: {
-    Pixel,
-    ColorType,
-};
+use color::ColorType;
+use buffer::Pixel;
 use traits::Primitive;
 
 /// An enumeration of Image Errors
@@ -275,14 +272,7 @@ pub struct ImageBuf<P> {
 impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
     /// Constructs a new ImageBuf with the specified width and height.
     pub fn new(width: u32, height: u32) -> ImageBuf<P> {
-        let pixel: P = Default::default();
-        let pixels = Vec::from_elem((width * height) as uint, pixel.clone());
-
-        ImageBuf {
-            pixels:  pixels,
-            width:   width,
-            height:  height,
-        }
+        panic!()
     }
 
     /// Constructs a new ImageBuf by repeated application of the supplied function.
@@ -379,9 +369,7 @@ impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let index  = y * self.width + x;
         let buf    = self.pixels.as_mut_slice();
-        let old    = buf[index as uint];
-
-        buf[index as uint] = old.blend(pixel);
+        buf[index as uint].blend(&pixel);
     }
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         let index = y * self.width + x;
@@ -435,8 +423,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
 
     ///Convert this subimage to an ImageBuf
     pub fn to_image(&self) -> ImageBuf<P> {
-        let p: P = Default::default();
-        let mut out = ImageBuf::from_pixel(self.xstride, self.ystride, p.clone());
+        let mut out = ImageBuf::new(self.xstride, self.ystride);
 
         for y in range(0, self.ystride) {
             for x in range(0, self.xstride) {

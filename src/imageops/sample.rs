@@ -12,7 +12,7 @@ use std::num:: {
     SignedInt,
 };
 
-use color::Pixel;
+use buffer::Pixel;
 use traits::Primitive;
 
 use image:: {
@@ -474,7 +474,8 @@ pub fn unsharpen<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel(x, y);
 
-            let p = a.map2(b, | c, d | {
+            let mut p = a.clone();
+            p.map2(&b, | c, d | {
                 let ic = cast::<A, i32>(c).unwrap();
                 let id = cast::<A, i32>(d).unwrap();
 

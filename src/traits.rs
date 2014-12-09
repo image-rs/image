@@ -42,7 +42,7 @@ zero_impl!(f64, 0.0f64)
 
 
 /// Primitive trait from old stdlib, added max_value
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone {
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + ::std::default::Default {
     /// The maximum value of primitive.
     fn max_value() -> Self;
 }

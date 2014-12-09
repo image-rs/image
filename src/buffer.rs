@@ -3,7 +3,7 @@ use std::any::Any;
 use std::intrinsics::TypeId;
 
 use traits::{Zero, Primitive};
-use colors::{Rgb, Rgba, Luma, LumaA};
+use color::{Rgb, Rgba, Luma, LumaA, FromColor};
 use image::GenericImage;
 
 /// Mutable equivalent to AsSlice.
@@ -45,6 +45,16 @@ pub trait Pixel<T>: Copy + Clone {
     /// See [gimp babl](http://gegl.org/babl/).
     fn color_model<'a>(_: Option<&'a Self>) -> &'static str;
 
+    /// Returns the channels of this pixel as a 4 tuple. If the pixel
+    /// has less than 4 channels the remainder is filled with the maximum value
+    /// TODO deprecate
+    fn channels4(&self) -> (T, T, T, T);
+
+    /// Construct a pixel from the 4 channels a, b, c and d.
+    /// If the pixel does not contain 4 channels the extra are ignored.
+    /// TODO deprecate
+    fn from_channels(a: T, b: T, c: T, d: T) -> Self;
+
     /// Returns a view into a slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
@@ -56,12 +66,36 @@ pub trait Pixel<T>: Copy + Clone {
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
     fn from_slice_mut<'a>(_: Option<&'a Self>, slice: &'a mut [T]) -> &'a mut Self;
-}
+    
+    /// Convert this pixel to RGB
+    fn to_rgb(&self) -> Rgb<T>;
 
-/// Provides color conversions for the different pixel types.
-pub trait FromColor<Sized? Other> for Sized? {
-    /// Changes `self` to represent `Other` in the color space of `Self`
-    fn from_color(&mut self, &Other);
+    /// Convert this pixel to RGB with an alpha channel
+    fn to_rgba(&self) -> Rgba<T>;
+
+    /// Convert this pixel to luma
+    fn to_luma(&self) -> Luma<T>;
+
+    /// Convert this pixel to luma with an alpha channel
+    fn to_luma_alpha(&self) -> LumaA<T>;
+
+    /// Apply the function ```f``` to each channel of this pixel.
+    fn map(&mut self, f: | T | -> T);
+
+    ///Apply the function f to each channel except the alpha channel.
+    ///Apply the function g to the alpha channel.
+    fn map_with_alpha(&mut self, f: |T| -> T, g: |T| -> T);
+
+    /// Apply the function ```f``` to each channel of this pixel and
+    /// ```other``` pairwise.
+    fn map2(&mut self, other: &Self, f: | T, T | -> T);
+
+    /// Invert this pixel
+    fn invert(&mut self);
+
+    /// Blend the color of a given pixel into ourself, taking into account alpha channels
+    fn blend(&mut self, other: &Self);
+    
 }
 
 /// Iterate over pixel refs. 
@@ -319,6 +353,10 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
 
     fn get_pixel(&self, x: u32, y: u32) -> PixelType {
         (*self.get_pixel(x, y)).clone()
+    }
+
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
+        self.get_pixel_mut(x, y)
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: PixelType) {

@@ -25,13 +25,13 @@ pub use color::ColorType:: {
     RGBA,
 };
 pub use color:: {
-    Pixel,
-
     Luma,
     LumaA,
     Rgb,
     Rgba,
 };
+
+pub use buffer::Pixel;
 
 pub use image::ImageDecoder as ImageDecoder;
 pub use image::ImageError as ImageError;
@@ -68,6 +68,8 @@ pub use image::GenericImage as GenericImage;
 pub use image::Pixels as Pixels;
 pub use image::MutPixels as MutPixels;
 
+
+
 ///opening and loading images
 pub use dynimage:: {
     open,
@@ -97,6 +99,5 @@ pub mod tga;
 mod image;
 mod dynimage;
 mod color;
-mod colors;
 mod buffer;
 mod traits;

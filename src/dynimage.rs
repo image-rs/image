@@ -1,5 +1,4 @@
 use std::io;
-use std::mem;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
@@ -12,11 +11,10 @@ use tiff;
 use tga;
 
 use color;
-use buffer::Pixel;
+use buffer::{ImageBuffer, ConvertBuffer, Pixel, GreyImage, GreyAlphaImage, RgbImage, RgbaImage};
 use imageops;
 use image;
 use image:: {
-    ImageBuf,
     GenericImage,
     ImageDecoder,
     ImageResult,
@@ -24,19 +22,18 @@ use image:: {
 };
 
 ///A Dynamic Image
-#[deriving(Clone)]
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
-    ImageLuma8(ImageBuf<color::Luma<u8>>),
+    ImageLuma8(GreyImage),
 
     /// Each pixel in this image is 8-bit Luma with alpha
-    ImageLumaA8(ImageBuf<color::LumaA<u8>>),
+    ImageLumaA8(GreyAlphaImage),
 
     /// Each pixel in this image is 8-bit Rgb
-    ImageRgb8(ImageBuf<color::Rgb<u8>>),
+    ImageRgb8(RgbImage),
 
     /// Each pixel in this image is 8-bit Rgb with alpha
-    ImageRgba8(ImageBuf<color::Rgba<u8>>),
+    ImageRgba8(RgbaImage),
 }
 
 macro_rules! dynamic_map(
@@ -79,50 +76,30 @@ macro_rules! dynamic_map(
 
 impl DynamicImage {
     ///Returns a copy of this image as an RGB image.
-    pub fn to_rgb(&self) -> ImageBuf<color::Rgb<u8>> {
+    pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
-            let (w, h) = p.dimensions();
-            let mut buf: ImageBuf<color::Rgb<u8>> = ImageBuf::new(w, h);
-            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
-                *new_pix = old_pix.to_rgb()
-            }
-            buf
+            p.convert()
         })
     }
 
     ///Returns a copy of this image as an RGBA image.
-    pub fn to_rgba(&self) -> ImageBuf<color::Rgba<u8>> {
+    pub fn to_rgba(&self) -> RgbaImage {
         dynamic_map!(*self, ref p -> {
-            let (w, h) = p.dimensions();
-            let mut buf: ImageBuf<color::Rgba<u8>> = ImageBuf::new(w, h);
-            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
-                *new_pix = old_pix.to_rgba()
-            }
-            buf
+            p.convert()
         })
     }
 
     ///Returns a copy of this image as a Luma image.
-    pub fn to_luma(&self) -> ImageBuf<color::Luma<u8>> {
+    pub fn to_luma(&self) -> GreyImage {
         dynamic_map!(*self, ref p -> {
-            let (w, h) = p.dimensions();
-            let mut buf: ImageBuf<color::Luma<u8>> = ImageBuf::new(w, h);
-            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
-                *new_pix = old_pix.to_luma()
-            }
-            buf
+            p.convert()
         })
     }
 
     ///Returns a copy of this image as a LumaA image.
-    pub fn to_luma_alpha(&self) -> ImageBuf<color::LumaA<u8>> {
+    pub fn to_luma_alpha(&self) -> GreyAlphaImage {
         dynamic_map!(*self, ref p -> {
-            let (w, h) = p.dimensions();
-            let mut buf: ImageBuf<color::LumaA<u8>> = ImageBuf::new(w, h);
-            for ((_, _, new_pix), (_, _, old_pix)) in buf.pixels_mut().zip(p.pixels()) {
-                *new_pix = old_pix.to_luma_alpha()
-            }
-            buf
+            p.convert()
         })
     }
 
@@ -137,7 +114,7 @@ impl DynamicImage {
     }
 
     ///Return a reference to an 8bit RGB image
-    pub fn as_rgb8(&self) -> Option<&ImageBuf<color::Rgb<u8>>> {
+    pub fn as_rgb8(&self) -> Option<&RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref p) => Some(p),
             _                              => None
@@ -145,7 +122,7 @@ impl DynamicImage {
     }
 
     ///Return a mutable reference to an 8bit RGB image
-    pub fn as_mut_rgb8(&mut self) -> Option<&mut ImageBuf<color::Rgb<u8>>> {
+    pub fn as_mut_rgb8(&mut self) -> Option<&mut RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref mut p) => Some(p),
             _                                  => None
@@ -153,7 +130,7 @@ impl DynamicImage {
     }
 
     ///Return a reference to an 8bit RGBA image
-    pub fn as_rgba8(&self) -> Option<& ImageBuf<color::Rgba<u8>>> {
+    pub fn as_rgba8(&self) -> Option<& RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref p) => Some(p),
             _                               => None
@@ -161,7 +138,7 @@ impl DynamicImage {
     }
 
     ///Return a mutable reference to an 8bit RGBA image
-    pub fn as_mut_rgba8(&mut self) -> Option<&mut ImageBuf<color::Rgba<u8>>> {
+    pub fn as_mut_rgba8(&mut self) -> Option<&mut RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref mut p) => Some(p),
             _                                   => None
@@ -169,7 +146,7 @@ impl DynamicImage {
     }
 
     ///Return a reference to an 8bit Grayscale image
-    pub fn as_luma8(& self) -> Option<& ImageBuf<color::Luma<u8>>> {
+    pub fn as_luma8(& self) -> Option<& GreyImage> {
         match *self {
             DynamicImage::ImageLuma8(ref p) => Some(p),
             _                               => None
@@ -177,7 +154,7 @@ impl DynamicImage {
     }
 
     ///Return a mutable reference to an 8bit Grayscale image
-    pub fn as_mut_luma8(&mut self) -> Option<&mut ImageBuf<color::Luma<u8>>> {
+    pub fn as_mut_luma8(&mut self) -> Option<&mut GreyImage> {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => Some(p),
             _                                   => None
@@ -185,7 +162,7 @@ impl DynamicImage {
     }
 
     ///Return a reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_luma_alpha8(&self) -> Option<& ImageBuf<color::LumaA<u8>>> {
+    pub fn as_luma_alpha8(&self) -> Option<& GreyAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref p) => Some(p),
             _                                => None
@@ -193,7 +170,7 @@ impl DynamicImage {
     }
 
     ///Return a mutable reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut ImageBuf<color::LumaA<u8>>> {
+    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GreyAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref mut p) => Some(p),
             _                                    => None
@@ -405,32 +382,6 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
     }
 }
 
-/// Transmutes a Vec<u8> into a Vec<T> where T is safe to transmute.
-fn transmute_vec<T: Send + color::SafeToTransmute>(mut vec: Vec<u8>) -> Vec<T> {
-    let new_elem_size = mem::size_of::<T>();
-    
-    let len = vec.len();
-    assert!(len % new_elem_size == 0);
-    let new_len = len/new_elem_size;
-    
-    let cap = vec.capacity();
-    let new_cap = match cap % new_elem_size {
-        0 => { cap/new_elem_size },
-        n => {
-            // Resizes `vec` to hold an integer value of new_elements
-            vec.reserve_exact(cap + new_elem_size - n);
-            let cap = vec.capacity();
-            assert!(cap % new_elem_size == 0); // assert this worked
-            cap/new_elem_size
-        }
-    };
-    let p = vec.as_mut_ptr();
-    unsafe {
-        mem::forget(vec);
-        Vec::from_raw_parts(mem::transmute(p), new_len, new_cap)
-    }
-}
-
 #[allow(deprecated)]
 fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
@@ -441,23 +392,19 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 
     let image = match color {
         color::ColorType::RGB(8) => {
-            panic!()
-            //DynamicImage::ImageRgb8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgb8(v))
         }
 
         color::ColorType::RGBA(8) => {
-            panic!()
-            //DynamicImage::ImageRgba8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgba8(v))
         }
 
         color::ColorType::Grey(8) => {
-            panic!()
-            //DynamicImage::ImageLuma8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLuma8(v))
         }
 
         color::ColorType::GreyA(8) => {
-            panic!()
-            //DynamicImage::ImageLumaA8(ImageBuf::from_pixels(transmute_vec(buf), w, h))
+            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLumaA8(v))
         }
         color::ColorType::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries 
@@ -479,57 +426,38 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
                        .map(|(shift, pixel)|
                            (pixel & mask << shift as uint) >> shift as uint
                        )
-                       .map(|pixel| color::Luma::<u8>([pixel * scaling_factor]))
+                       .map(|pixel| pixel * scaling_factor)
                        .collect();
-            DynamicImage::ImageLuma8(ImageBuf::from_pixels(p, w, h))
+            ImageBuffer::from_raw(w, h, p).map(|buf| DynamicImage::ImageLuma8(buf))
         },
         _ => return Err(image::ImageError::UnsupportedColor(color))
     };
-
-    Ok(image)
+    match image {
+        Some(image) => Ok(image),
+        None => Err(image::ImageError::DimensionError)
+    }
 }
 
 #[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
-    let mut r = Vec::new();
-    panic!()
-    //match *image {
-    //    //TODO: consider transmuting
-    //    DynamicImage::ImageLuma8(ref a) => {
-    //        for & i in a.pixelbuf().iter() {
-    //            r.push(i.channels()[0]);
-    //        }
-    //    }
-//
-    //    DynamicImage::ImageLumaA8(ref a) => {
-    //        for & i in a.pixelbuf().iter() {
-    //            let [l, a] = i.channels();
-    //            r.push(l);
-    //            r.push(a);
-    //        }
-    //    }
-//
-    //    DynamicImage::ImageRgb8(ref a)  => {
-    //        for & i in a.pixelbuf().iter() {
-    //            let [red, g, b] = i.channels();
-    //            r.push(red);
-    //            r.push(g);
-    //            r.push(b);
-    //        }
-    //    }
-//
-    //    DynamicImage::ImageRgba8(ref a) => {
-    //        for & i in a.pixelbuf().iter() {
-    //            let [red, g, b, alpha] = i.channels();
-    //            r.push(red);
-    //            r.push(g);
-    //            r.push(b);
-    //            r.push(alpha);
-    //        }
-    //    }
-    //}
-
-    r
+    match *image {
+        //TODO: consider transmuting
+        DynamicImage::ImageLuma8(ref a) => {
+            a.as_slice().iter().map(|v| *v).collect()
+        }
+    
+        DynamicImage::ImageLumaA8(ref a) => {
+            a.as_slice().iter().map(|v| *v).collect()
+        }
+    
+        DynamicImage::ImageRgb8(ref a)  => {
+            a.as_slice().iter().map(|v| *v).collect()
+        }
+    
+        DynamicImage::ImageRgba8(ref a) => {
+            a.as_slice().iter().map(|v| *v).collect()
+        }
+    }
 }
 
 /// Open the image located at the path specified.
@@ -615,7 +543,7 @@ mod bench {
 
     #[bench]
     fn bench_conversion(b: &mut test::Bencher) {
-        let a = super::DynamicImage::ImageRgb8(::ImageBuf::new(1000, 1000));
+        let a = super::DynamicImage::ImageRgb8(::ImageBuffer::new(1000, 1000));
         b.iter(|| {
             a.to_luma()
         });

@@ -17,8 +17,8 @@ use traits::Primitive;
 
 use image:: {
     GenericImage,
-    ImageBuf,
 };
+use buffer::ImageBuffer;
 
 /// Available Sampling Filters
 pub enum FilterType {
@@ -143,13 +143,13 @@ fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+fn horizontal_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image:     &I,
     new_width: u32,
-    filter:    &mut Filter) -> ImageBuf<T> {
+    filter:    &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
 
     let (width, height) = image.dimensions();
-    let mut out = ImageBuf::new(new_width, height);
+    let mut out = ImageBuffer::new(new_width, height);
 
     for y in range(0, height) {
         let max: P = Primitive::max_value();
@@ -229,13 +229,13 @@ fn horizontal_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+fn vertical_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image:      &I,
     new_height: u32,
-    filter:     &mut Filter) -> ImageBuf<T> {
+    filter:     &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
 
     let (width, height) = image.dimensions();
-    let mut out = ImageBuf::new(width, new_height);
+    let mut out = ImageBuffer::new(width, new_height);
 
 
     for x in range(0, width) {
@@ -314,9 +314,9 @@ fn vertical_sample<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
 /// Perform a 3x3 box filter on the supplied image.
 /// ```kernel``` is an array of the filter weights of length 9.
-pub fn filter3x3<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+pub fn filter3x3<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image:  &I,
-    kernel: &[f32]) -> ImageBuf<T> {
+    kernel: &[f32]) -> ImageBuffer<Vec<P>, P, T> {
 
     // The kernel's input positions relative to the current pixel.
     let taps: &[(int, int)] = &[
@@ -327,7 +327,7 @@ pub fn filter3x3<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 
     let (width, height) = image.dimensions();
 
-    let mut out = ImageBuf::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
 
     let max:
@@ -397,11 +397,11 @@ pub fn filter3x3<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 /// Resize the supplied image to the specified dimensions
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
+pub fn resize<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
     image:   &I,
     nwidth:  u32,
     nheight: u32,
-    filter:  FilterType) -> ImageBuf<T> {
+    filter:  FilterType) -> ImageBuffer<Vec<A>, A, T> {
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
@@ -432,9 +432,9 @@ pub fn resize<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-pub fn blur<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
+pub fn blur<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
     image:  &I,
-    sigma:  f32) -> ImageBuf<T> {
+    sigma:  f32) -> ImageBuffer<Vec<A>, A, T> {
 
     let sigma = if sigma < 0.0 {
         1.0
@@ -459,10 +459,10 @@ pub fn blur<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-pub fn unsharpen<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
+pub fn unsharpen<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
     image:     &I,
     sigma:     f32,
-    threshold: i32) -> ImageBuf<T> {
+    threshold: i32) -> ImageBuffer<Vec<A>, A, T> {
 
     let mut tmp = blur(image, sigma);
 
@@ -472,10 +472,10 @@ pub fn unsharpen<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
     for y in range(0, height) {
         for x in range(0, width) {
             let a = image.get_pixel(x, y);
-            let b = tmp.get_pixel(x, y);
+            let b = tmp.get_pixel_mut(x, y);
 
             let mut p = a.clone();
-            p.map2(&b, | c, d | {
+            p.map2(b, | c, d | {
                 let ic = cast::<A, i32>(c).unwrap();
                 let id = cast::<A, i32>(d).unwrap();
 
@@ -490,7 +490,7 @@ pub fn unsharpen<A: Primitive, T: Pixel<A>, I: GenericImage<T>>(
                 }
             });
 
-            tmp.put_pixel(x, y, p);
+            *b = p;
         }
     }
 

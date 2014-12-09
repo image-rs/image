@@ -13,8 +13,8 @@ use traits::Primitive;
 
 use image:: {
     GenericImage,
-    ImageBuf,
 };
+use buffer::ImageBuffer;
 
 fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
     if a > max { max }
@@ -24,10 +24,10 @@ fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
 
 /// Convert the supplied image to grayscale
 pub fn grayscale<P: Primitive + Default, T: Pixel<P>, I: GenericImage<T>> (
-    image: &I) -> ImageBuf<Luma<P>> {
+    image: &I) -> ImageBuffer<Vec<P>, P, Luma<P>> {
 
     let (width, height) = image.dimensions();
-    let mut out = ImageBuf::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     for y in range(0, height) {
         for x in range(0, width) {
@@ -57,12 +57,12 @@ pub fn invert<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(image: &mut I) {
 /// Adjust the contrast of the supplied image
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
-pub fn contrast<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+pub fn contrast<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image:    &I,
-    contrast: f32) -> ImageBuf<T> {
+    contrast: f32) -> ImageBuffer<Vec<P>, P, T> {
 
     let (width, height) = image.dimensions();
-    let mut out = ImageBuf::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     let max:P = Primitive::max_value();
     let max = cast::<P, f32>(max).unwrap();
@@ -91,12 +91,12 @@ pub fn contrast<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 /// Brighten the supplied image
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
-pub fn brighten<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+pub fn brighten<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image: &I,
-    value: i32) -> ImageBuf<T> {
+    value: i32) -> ImageBuffer<Vec<P>, P, T> {
 
     let (width, height) = image.dimensions();
-    let mut out = ImageBuf::new(width, height);
+    let mut out = ImageBuffer::new(width, height);
 
     let max: P = Primitive::max_value();
     let max = cast::<P, i32>(max).unwrap();

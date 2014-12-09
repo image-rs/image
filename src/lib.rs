@@ -57,9 +57,8 @@ pub use image::ImageFormat:: {
 
 //Image Types
 pub use image::SubImage as SubImage;
-pub use image::ImageBuf as ImageBuf;
 pub use dynimage::DynamicImage as DynamicImage;
-pub use buffer::ImageBuffer;
+pub use buffer::ImageBuffer as ImageBuffer;
 
 //Traits
 pub use image::GenericImage as GenericImage;

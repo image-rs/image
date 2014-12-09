@@ -340,6 +340,19 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     }
 }
 
+
+impl<Container, T, PixelType> Clone for ImageBuffer<Container, T, PixelType>
+where Container: ArrayLike<T> + Clone, T: Primitive + 'static, PixelType: Pixel<T> {
+    fn clone(&self) -> ImageBuffer<Container, T, PixelType> {
+        ImageBuffer {
+            data: self.data.clone(),
+            width: self.width,
+            height: self.height,
+            type_marker: self.type_marker
+        }
+    }
+}
+
 impl<Container, T, PixelType> GenericImage<PixelType> for ImageBuffer<Container, T, PixelType>
 where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
 

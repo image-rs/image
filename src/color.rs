@@ -46,12 +46,6 @@ pub fn num_components(c: ColorType) -> uint {
     }
 }
 
-/// Trait that promises that the type implementing it
-/// does not have any memory allocated on the heap or
-/// needs any destructor to be run.
-pub trait SafeToTransmute {}
-
-
 macro_rules! define_colors {
     {$(
         $ident:ident

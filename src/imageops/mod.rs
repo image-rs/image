@@ -68,7 +68,6 @@ pub fn crop<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 }
 
 /// Overlay an image at a given coordinate (x, y)
-#[allow(deprecated)]
 pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     bottom: &mut I,
     top: &I,
@@ -93,7 +92,7 @@ pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     for top_y in range(0, range_height) {
         for top_x in range(0, range_width) {
             let p = top.get_pixel(top_x, top_y);
-            bottom.blend_pixel(x + top_x, y + top_y, p);
+            bottom.get_pixel_mut(x + top_x, y + top_y).blend(&p);
         }
     }
 }

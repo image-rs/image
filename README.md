@@ -8,7 +8,7 @@ Maintainers: @nwin, @ccgn
 
 This crate provides basic imaging processing functions and methods for converting to and from image formats.
 
-All image processing functions provided operate on types that implement the ```GenericImage``` trait and return an ```ImageBuf```.
+All image processing functions provided operate on types that implement the ```GenericImage``` trait and return an ```ImageBuffer```.
 
 ### Usage
 
@@ -90,7 +90,7 @@ pub trait GenericImage<P> {
 ### 4.2 Representation of Images
 ```image``` provides two main ways of representing image data:
 
-#### 4.2.1 ```ImageBuf```
+#### 4.2.1 ```ImageBuffer```
 An image parametarised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
 
 ```rust
@@ -98,19 +98,19 @@ extern crate image;
 
 use image::{
     GenericImage
-    ImageBuf,
+    ImageBuffer,
 };
 
 
-//Construct a new ImageBuf with the specified width and height.
-let img = ImageBuf::new(512, 512);
+//Construct a new ImageBuffer with the specified width and height.
+let img = ImageBuffer::new(512, 512);
 
 //Construct a new by repeated calls to the supplied closure.
-let img = ImageBuf::from_fn(512, 512, |x, y| {
+let img = ImageBuffer::from_fn(512, 512, |x, y| {
     if x % 2 == 0 {
-        image::Luma(0u8)
+        image::Luma([0u8])
     } else {
-        image::Luma(255u8)
+        image::Luma([255u8])
     }
 });
 
@@ -133,7 +133,7 @@ for pixel in img.pixels() {
 ```
 
 #### 4.2.2 ```DynamicImage```
-A ```DynamicImage``` is an enumeration over all supported ```ImageBuf<P>``` types.
+A ```DynamicImage``` is an enumeration over all supported ```ImageBuffer<P>``` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience ```DynamicImage```'s reimplement all image processing functions.
 
@@ -148,11 +148,11 @@ extern crate image;
 
 use image::{
     GenericImage
-    ImageBuf,
+    ImageBuffer,
     imageops
 };
 
-let mut img = ImageBuf::new(512, 512);
+let mut img = ImageBuffer::new(512, 512);
 let subimg  = imageops::crop(0, 0, 100, 100);
 
 assert!(subimg.dimensions() == (100, 100));
@@ -231,7 +231,7 @@ fn main() {
         let scaley = 4.0 / imgy as f32;
 
         //Create a new ImgBuf with width: imgx and height: imgy
-        let mut imbuf = image::ImageBuf::new(imgx, imgy);
+        let mut imbuf = image::ImageBuffer::new(imgx, imgy);
 
         for y in range(0, imgy) {
                 let cy = y as f32 * scaley - 2.0;
@@ -254,7 +254,7 @@ fn main() {
                         }
 
                         // Create an 8bit pixel of type Luma and value i
-                        let pixel = image::Luma(i as u8);
+                        let pixel = image::Luma([i as u8]);
 
                         // Put a pixel in the image at coordinates x and y
                         imbuf.put_pixel(x, y, pixel);

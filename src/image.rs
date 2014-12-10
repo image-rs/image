@@ -161,6 +161,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, P)> 
 }
 
 /// Mutable pixel iterator
+#[deprecated = "It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead."]
 pub struct MutPixels<'a, I:'a> {
     image:  &'a mut I,
     x:      u32,
@@ -181,6 +182,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, &'a 
         } else {
             let tmp = self.image.get_pixel_mut(self.x, self.y);
 
+            // NOTE: This is potentially dangerous. It would require the signature fn next(&'a mut self) to be safe.
             //error: lifetime of `self` is too short to guarantee its contents
             //       can be safely reborrowed...
             let ptr = unsafe {
@@ -248,6 +250,8 @@ pub trait GenericImage<P> {
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
+    #[allow(deprecated)]
+    #[deprecated = "This cannot be implemented safely Rust. Please use the image buffer directly."]
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 

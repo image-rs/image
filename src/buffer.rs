@@ -375,7 +375,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> PixelType {
-        (*self.get_pixel(x, y)).clone()
+        *self.get_pixel(x, y)
     }
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
@@ -439,7 +439,7 @@ where T: Primitive + 'static, PixelType: Pixel<T> {
     /// Consumes the image buffer and returns the underlying data
     /// as an owned buffer
     pub fn into_vec(self) -> Vec<T> {
-        self.data
+        self.into_raw()
     }
 }
 

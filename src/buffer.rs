@@ -332,7 +332,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
+    /// Panics if `(x, y)` is out of the bounds (width, height)`.
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: PixelType) {
         *self.get_pixel_mut(x, y) = pixel
     }

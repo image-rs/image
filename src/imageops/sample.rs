@@ -474,8 +474,7 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 
-            let mut p = a.clone();
-            p.map2(b, | c, d | {
+            let p = a.map2(b, | c, d | {
                 let ic = cast::<A, i32>(c).unwrap();
                 let id = cast::<A, i32>(d).unwrap();
 

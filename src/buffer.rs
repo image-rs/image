@@ -80,15 +80,26 @@ pub trait Pixel<T>: Copy + Clone {
     fn to_luma_alpha(&self) -> LumaA<T>;
 
     /// Apply the function ```f``` to each channel of this pixel.
-    fn map(&mut self, f: | T | -> T);
+    fn map(&self, f: | T | -> T) -> Self;
+
+    /// Apply the function ```f``` to each channel of this pixel.
+    fn apply(&mut self, f: | T | -> T);
 
     ///Apply the function f to each channel except the alpha channel.
     ///Apply the function g to the alpha channel.
-    fn map_with_alpha(&mut self, f: |T| -> T, g: |T| -> T);
+    fn map_with_alpha(&self, f: |T| -> T, g: |T| -> T) -> Self;
+
+    /// Apply the function f to each channel except the alpha channel.
+    /// Apply the function g to the alpha channel. Works in-place.
+    fn apply_with_alpha(&mut self, f: |T| -> T, g: |T| -> T);
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise.
-    fn map2(&mut self, other: &Self, f: | T, T | -> T);
+    fn map2(&self, other: &Self, f: | T, T | -> T) -> Self;
+
+    /// Apply the function ```f``` to each channel of this pixel and
+    /// ```other``` pairwise. Works in-place.
+    fn apply2(&mut self, other: &Self, f: | T, T | -> T);
 
     /// Invert this pixel
     fn invert(&mut self);
@@ -291,7 +302,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `(x, y)` is out of bounds.
+    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &PixelType {
         let index  = (y * self.width + x) as uint;
         Pixel::from_slice(
@@ -306,7 +317,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `(x, y)` is out of bounds.
+    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
         let index  = (y * self.width + x) as uint;
         Pixel::from_slice_mut(
@@ -321,7 +332,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `(x, y)` is out of bounds.
+    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: PixelType) {
         *self.get_pixel_mut(x, y) = pixel
     }

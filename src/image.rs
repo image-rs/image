@@ -2,13 +2,10 @@ use std::error::FromError;
 use std::mem;
 use std::io;
 use std::slice;
-use std::default::Default;
 
 use color;
-use color:: {
-    Pixel,
-    ColorType,
-};
+use color::ColorType;
+use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
 
 /// An enumeration of Image Errors
@@ -264,154 +261,6 @@ pub trait GenericImage<P> {
     }
 }
 
-///An Image whose pixels are contained within a vector
-#[deriving(Clone)]
-pub struct ImageBuf<P> {
-    pixels:  Vec<P>,
-    width:   u32,
-    height:  u32,
-}
-
-impl<T: Primitive, P: Pixel<T>> ImageBuf<P> {
-    /// Constructs a new ImageBuf with the specified width and height.
-    pub fn new(width: u32, height: u32) -> ImageBuf<P> {
-        let pixel: P = Default::default();
-        let pixels = Vec::from_elem((width * height) as uint, pixel.clone());
-
-        ImageBuf {
-            pixels:  pixels,
-            width:   width,
-            height:  height,
-        }
-    }
-
-    /// Constructs a new ImageBuf by repeated application of the supplied function.
-    /// The arguments to the function are the pixel's x and y coordinates.
-    pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> P) -> ImageBuf<P> {
-        let mut buf = ImageBuf::new(width, height);
-        for (x, y,  p) in buf.pixels_mut() {
-            *p = f(x, y)
-        }
-        buf
-    }
-
-    /// Constructs a new ImageBuf from a vector of pixels.
-    #[deprecated = "This function will be replaced with an equivalent (`from_raw`) taking a buffer of raw bytes. Use the iterator `pixels_mut` instead if you want to create a buffer from high level pixels."]
-    pub fn from_pixels(pixels: Vec<P>, width: u32, height: u32) -> ImageBuf<P> {
-        ImageBuf {
-            pixels: pixels,
-            width:  width,
-            height: height,
-        }
-    }
-
-    /// Constructs a new ImageBuf from a pixel.
-    pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuf<P> {
-        let mut buf = ImageBuf::new(width, height);
-        for (_, _,  p) in buf.pixels_mut() {
-            *p = pixel.clone()
-        }
-        buf
-    }
-
-    /// Return an immutable reference to this image's pixel buffer
-    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
-    pub fn pixelbuf(&self) -> & [P] {
-        self.pixels.as_slice()
-    }
-
-    /// Return a mutable reference to this image's pixel buffer
-    #[deprecated = "Use the `pixels` or `pixels_mut` instead. "]
-    pub fn pixelbuf_mut(&mut self) -> &mut [P] {
-        self.pixels.as_mut_slice()
-    }
-
-    /// Destroys this ImageBuf, returning the internal vector
-    #[deprecated = "This function will be replaced with an equivalent (`into_raw`) returning a buffer of raw bytes. Use the iterator `pixels_mut().collect()` instead if you want to get a buffer from high level pixels."]
-    pub fn into_vec(self) -> Vec<P> {
-        self.pixels
-    }
-
-
-    /// Returns an immutable reference to this image's raw data buffer
-    #[deprecated = "[naming-conventions] Use the `as_slice` instead. "]
-    pub fn rawbuf(&self) -> &[u8] {
-        self.as_slice()
-    }
-
-    /// Returns an immutable reference to this image's raw data buffer
-    pub fn as_slice(&self) -> &[u8] {
-        use std::mem::{ size_of, transmute };
-        use std::raw::Slice;
-        // Compute size of slice in bytes.
-        let len = size_of::<P>() * self.pixels.len();
-        let slice = Slice { data: self.pixels.as_ptr() as *const u8, len: len };
-        unsafe { transmute(slice) }
-    }
-
-    /// Returns a mutable reference to this image's raw data buffer
-    #[deprecated = "[naming-conventions] Use the `as_mut_slice` instead. "]
-    pub fn rawbuf_mut(&mut self) -> &mut [u8] {
-        self.as_mut_slice()
-    }
-
-    /// Returns a mutable reference to this image's raw data buffer
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        use std::mem::{ size_of, transmute };
-        use std::raw::Slice;
-        // Compute size of slice in bytes.
-        let len = size_of::<P>() * self.pixels.len();
-        let slice = Slice { data: self.pixels.as_mut_ptr() as *const u8, len: len };
-        unsafe { transmute(slice) }
-    }
-}
-
-impl<T: Primitive, P: Pixel<T> + Clone + Copy> GenericImage<P> for ImageBuf<P> {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
-    }
-
-    fn bounds(&self) -> (u32, u32, u32, u32) {
-        (0, 0, self.width, self.height)
-    }
-
-    fn get_pixel(&self, x: u32, y: u32) -> P {
-        let index  = y * self.width + x;
-
-        self.pixels[index as uint]
-    }
-
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let index  = y * self.width + x;
-        let buf    = self.pixels.as_mut_slice();
-
-        buf[index as uint] = pixel;
-    }
-
-    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let index  = y * self.width + x;
-        let buf    = self.pixels.as_mut_slice();
-        let old    = buf[index as uint];
-
-        buf[index as uint] = old.blend(pixel);
-    }
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        let index = y * self.width + x;
-
-        &mut self.pixels[index as uint]
-    }
-}
-
-impl<T: Primitive, P: Pixel<T>> Index<(u32, u32), P> for ImageBuf<P> {
-    fn index(&self, coords: &(u32, u32)) -> &P {
-        let &(x, y) = coords;
-        let index  = y * self.width + x;
-
-        &self.pixels[index as uint]
-    }
-}
-
 /// A View into another image
 pub struct SubImage <'a, I:'a> {
     image:   &'a mut I,
@@ -421,7 +270,7 @@ pub struct SubImage <'a, I:'a> {
     ystride: u32,
 }
 
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
+impl<'a, T: Primitive + 'static, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
     ///Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
@@ -446,10 +295,9 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
         self.ystride = height;
     }
 
-    ///Convert this subimage to an ImageBuf
-    pub fn to_image(&self) -> ImageBuf<P> {
-        let p: P = Default::default();
-        let mut out = ImageBuf::from_pixel(self.xstride, self.ystride, p.clone());
+    ///Convert this subimage to an ImageBuffer
+    pub fn to_image(&self) -> ImageBuffer<Vec<T>, T, P> {
+        let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
         for y in range(0, self.ystride) {
             for x in range(0, self.xstride) {
@@ -493,26 +341,27 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubI
 #[cfg(test)]
 mod tests {
 
-    use super::{GenericImage, ImageBuf};
+    use super::GenericImage;
+    use buffer::ImageBuffer;
     use color::{Rgba};
 
     #[test]
     ///Test that alpha blending works as expected
     #[allow(deprecated)]
     fn test_image_alpha_blending() {
-        let mut target = ImageBuf::new(1, 1);
-        target.put_pixel(0, 0, Rgba(255u8, 0, 0, 255));
-        assert!(target.get_pixel(0, 0) == Rgba(255, 0, 0, 255));
-        target.blend_pixel(0, 0, Rgba(0, 255, 0, 255));
-        assert!(target.get_pixel(0, 0) == Rgba(0, 255, 0, 255));
+        let mut target = ImageBuffer::new(1, 1);
+        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
+        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
+        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
+        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
 
         //Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
-        assert!(target.get_pixel(0, 0) == Rgba(127, 127, 0, 255));
+        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
+        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
 
         //Blending two alpha channels
-        target.put_pixel(0, 0, Rgba(0, 255, 0, 127));
-        target.blend_pixel(0, 0, Rgba(255, 0, 0, 127));
-        assert!(target.get_pixel(0, 0) == Rgba(169, 85, 0, 190));
+        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
+        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
+        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
     }
 }

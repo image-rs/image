@@ -6,7 +6,7 @@ use image:: {
     GenericImage,
 };
 
-use color::Pixel;
+use buffer::Pixel;
 use traits::Primitive;
 
 pub use self::sample::FilterType;
@@ -49,7 +49,7 @@ mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
-pub fn crop<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+pub fn crop<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     image:  &mut I,
     x: u32,
     y: u32,
@@ -68,7 +68,6 @@ pub fn crop<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 }
 
 /// Overlay an image at a given coordinate (x, y)
-#[allow(deprecated)]
 pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     bottom: &mut I,
     top: &I,
@@ -93,7 +92,7 @@ pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     for top_y in range(0, range_height) {
         for top_x in range(0, range_width) {
             let p = top.get_pixel(top_x, top_y);
-            bottom.blend_pixel(x + top_x, y + top_y, p);
+            bottom.get_pixel_mut(x + top_x, y + top_y).blend(&p);
         }
     }
 }
@@ -101,36 +100,37 @@ pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
 #[cfg(test)]
 mod tests {
 
-    use image::{GenericImage, ImageBuf};
+    use image::GenericImage;
+    use buffer::ImageBuffer;
     use color::{Rgb};
     use super::overlay;
 
     #[test]
     ///Test that images written into other images works
     fn test_image_in_image() {
-        let mut target = ImageBuf::new(32, 32);
-        let source = ImageBuf::from_fn(16, 16, |_, _| {
-            Rgb(255u8, 0, 0)
+        let mut target = ImageBuffer::new(32, 32);
+        let source = ImageBuffer::from_fn(16, 16, |_, _| {
+            Rgb([255u8, 0, 0])
         });
         overlay(&mut target, &source, 0, 0);
-        assert!(target.get_pixel(0, 0) == Rgb(255u8, 0, 0));
-        assert!(target.get_pixel(15, 0) == Rgb(255u8, 0, 0));
-        assert!(target.get_pixel(16, 0) == Rgb(0u8, 0, 0));
-        assert!(target.get_pixel(0, 15) == Rgb(255u8, 0, 0));
-        assert!(target.get_pixel(0, 16) == Rgb(0u8, 0, 0));
+        assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(16, 0) == Rgb([0u8, 0, 0]));
+        assert!(*target.get_pixel(0, 15) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(0, 16) == Rgb([0u8, 0, 0]));
     }
 
     #[test]
     ///Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
-        let mut target = ImageBuf::new(32, 32);
-        let source = ImageBuf::from_fn(32, 32, |_, _| {
-            Rgb(255u8, 0, 0)
+        let mut target = ImageBuffer::new(32, 32);
+        let source = ImageBuffer::from_fn(32, 32, |_, _| {
+            Rgb([255u8, 0, 0])
         });
         overlay(&mut target, &source, 1, 1);
-        assert!(target.get_pixel(0, 0) == Rgb(0, 0, 0));
-        assert!(target.get_pixel(1, 1) == Rgb(255u8, 0, 0));
-        assert!(target.get_pixel(31, 31) == Rgb(255u8, 0, 0));
+        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
     }
 
 }

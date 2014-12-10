@@ -439,7 +439,7 @@ where T: Primitive + 'static, PixelType: Pixel<T> {
     /// Consumes the image buffer and returns the underlying data
     /// as an owned buffer
     pub fn into_vec(self) -> Vec<T> {
-        self.data
+        self.into_raw()
     }
 }
 

@@ -197,6 +197,13 @@ impl<'a, T: Primitive> Pixel<T> for $ident<T> {
     }
 }
 
+impl<T: Primitive> Index<uint, T> for $ident<T> {
+    fn index<'a>(&'a self, _index: &uint) -> &'a T {
+        let &$ident(ref this) = self;
+        &this[*_index]
+    }
+}
+
 )* // END Structure definitions
 
     }
@@ -482,3 +489,4 @@ impl<T: Primitive> Invert<Rgb<T>> for Rgb<T> {
         *self = Rgb([r1, g1, b1])
     }
 }
+

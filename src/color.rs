@@ -92,7 +92,7 @@ impl<'a, T: Primitive> Pixel<T> for $ident<T> {
         } else if $channels as u8 == 2 {
             a = this[0];
             b = this[1];
-        } else if $channels as u8 == 2 {
+        } else if $channels as u8 == 3 {
             a = this[0];
             b = this[1];
             c = this[2];
@@ -482,3 +482,4 @@ impl<T: Primitive> Invert<Rgb<T>> for Rgb<T> {
         *self = Rgb([r1, g1, b1])
     }
 }
+

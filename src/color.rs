@@ -204,6 +204,13 @@ impl<T: Primitive> Index<uint, T> for $ident<T> {
     }
 }
 
+impl<T: Primitive> IndexMut<uint, T> for $ident<T> {
+    fn index_mut<'a>(&'a mut self, _index: &uint) -> &'a mut T {
+        let &$ident(ref mut this) = self;
+        &mut this[*_index]
+    }
+}
+
 )* // END Structure definitions
 
     }

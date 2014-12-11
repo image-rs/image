@@ -198,6 +198,7 @@ impl<'a, T: Primitive> Pixel<T> for $ident<T> {
 }
 
 impl<T: Primitive> Index<uint, T> for $ident<T> {
+    #[inline(always)]
     fn index<'a>(&'a self, _index: &uint) -> &'a T {
         let &$ident(ref this) = self;
         &this[*_index]
@@ -205,6 +206,7 @@ impl<T: Primitive> Index<uint, T> for $ident<T> {
 }
 
 impl<T: Primitive> IndexMut<uint, T> for $ident<T> {
+    #[inline(always)]
     fn index_mut<'a>(&'a mut self, _index: &uint) -> &'a mut T {
         let &$ident(ref mut this) = self;
         &mut this[*_index]

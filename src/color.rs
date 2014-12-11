@@ -106,7 +106,7 @@ impl<'a, T: Primitive> Pixel<T> for $ident<T> {
     }
 
     fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        *Pixel::from_slice(None::<&$ident<T>>, &[a, b, c, d])
+        *Pixel::from_slice(None::<&$ident<T>>, [a, b, c, d].slice_to($channels))
     }
 
     fn from_slice<'a>(_: Option<&'a $ident<T>>, slice: &'a [T]) -> &'a $ident<T> {
@@ -498,4 +498,3 @@ impl<T: Primitive> Invert<Rgb<T>> for Rgb<T> {
         *self = Rgb([r1, g1, b1])
     }
 }
-

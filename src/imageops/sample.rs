@@ -495,3 +495,17 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
 
     tmp
 }
+
+#[cfg(test)]
+mod tests {
+
+    use buffer::{ImageBuffer, RgbImage};
+    use super::{resize, FilterType};
+
+    #[test]
+    fn test_issue_186() {
+        let img: RgbImage = ImageBuffer::new(100, 100);
+        let _ = resize(&img, 50, 50, FilterType::Lanczos3);
+    }
+
+}

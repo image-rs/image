@@ -6,7 +6,7 @@ use buffer::{Pixel};
 use traits::{Primitive, Zero};
 
 ///An enumeration over supported color types and their bit depths
-#[deriving(PartialEq, Eq, Show, Clone)]
+#[deriving(Copy, PartialEq, Eq, Show, Clone)]
 pub enum ColorType {
     ///Pixel is greyscale
     Grey(u8),

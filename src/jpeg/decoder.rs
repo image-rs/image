@@ -31,7 +31,7 @@ pub static UNZIGZAG: [u8, ..64] = [
 ];
 
 /// A representation of a JPEG component
-#[deriving(Clone)]
+#[deriving(Copy, Clone)]
 pub struct Component {
     /// The Component's identifier
     pub id: u8,

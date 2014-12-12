@@ -46,7 +46,7 @@ pub type ImageResult<T> = Result<T, ImageError>;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[deriving(PartialEq, Eq, Show)]
+#[deriving(Copy, PartialEq, Eq, Show)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,

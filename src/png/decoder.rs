@@ -21,7 +21,7 @@ use std::num::Float;
 pub static PNGSIGNATURE: [u8, ..8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 
-#[deriving(PartialEq)]
+#[deriving(Copy, PartialEq)]
 enum PNGState {
     Start,
     HaveSignature,
@@ -34,7 +34,7 @@ enum PNGState {
     HaveIEND
 }
 
-#[deriving(FromPrimitive, Show, PartialEq)]
+#[deriving(Copy, FromPrimitive, Show, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1
@@ -52,14 +52,14 @@ enum InterlaceMethod {
 ///     56565656
 ///     77777777
 ///
+#[deriving(Copy)]
 struct Adam7Iterator {
     line: u32,
     lines: u32,
     line_width: u32,
     current_pass: u8,
     width: u32,
-    height: u32,
-    
+    height: u32, 
 }
 
 impl Adam7Iterator {

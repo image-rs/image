@@ -500,7 +500,6 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
 mod tests {
     extern crate test;
 
-    use std::io::fs::File;
     use buffer::{ImageBuffer, RgbImage};
     use super::{resize, FilterType};
 
@@ -509,7 +508,7 @@ mod tests {
     fn bench_resize(b: &mut test::Bencher) {
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {
-            test::black_box(super::resize( 200, 200, ::Nearest ));
+            test::black_box(resize(&img, 200, 200, ::Nearest ));
         });
         b.bytes = 800*800*3 + 200*200*3;
     }

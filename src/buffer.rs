@@ -304,11 +304,12 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &PixelType {
-        let index  = (y * self.width + x) as uint;
+        let no_channels = Pixel::channel_count(None::<&PixelType>) as uint;
+        let index  = no_channels * (y * self.width + x) as uint;
         Pixel::from_slice(
             None::<&PixelType>,
             self.data.as_slice().slice(
-                index, index + Pixel::channel_count(None::<&PixelType>) as uint
+                index, index + no_channels
             )
         )
     }
@@ -319,11 +320,12 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
-        let index  = (y * self.width + x) as uint;
+        let no_channels = Pixel::channel_count(None::<&PixelType>) as uint;
+        let index  = no_channels * (y * self.width + x) as uint;
         Pixel::from_slice_mut(
             None::<&PixelType>,
             self.data.as_mut_slice().slice_mut(
-                index, index + Pixel::channel_count(None::<&PixelType>) as uint
+                index, index + no_channels
             )
         )
     }
@@ -485,6 +487,14 @@ mod test {
 
     use super::{ImageBuffer, RgbImage, GreyImage, ConvertBuffer, Pixel};
     use color;
+
+    #[test]
+    fn test_get_pixel() {
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        a.as_mut_slice()[3*10] = 255;
+        assert_eq!(a.get_pixel(0, 1)[0], 255)
+
+    }
 
     #[test]
     fn test_mut_iter() {

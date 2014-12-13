@@ -54,8 +54,8 @@ impl HuffDecoder {
         Ok(bit as u8)
     }
 
-    //Section F.2.2.4
-    //Figure F.17
+    // Section F.2.2.4
+    // Figure F.17
     pub fn receive<R: Reader>(&mut self, r: &mut R, ssss: u8) -> ImageResult<i32> {
         let _ = try!(self.guarantee(r, ssss));
         let bits = (self.bits & (0xFFFFFFFFu32 << (32 - ssss as uint))) >> (32 - ssss) as uint;
@@ -111,9 +111,9 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     let mut k = 0;
     let mut j;
 
-    //Annex C.2
-    //Figure C.1
-    //Generate table of individual code lengths
+    // Annex C.2
+    // Figure C.1
+    // Generate table of individual code lengths
     for i in range(0u, 16) {
         j = 0;
 
@@ -126,9 +126,9 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
 
     huffsize.as_mut_slice()[k] = 0;
 
-    //Annex C.2
-    //Figure C.2
-    //Generate table of huffman codes
+    // Annex C.2
+    // Figure C.2
+    // Generate table of huffman codes
     k = 0;
     let mut code = 0u16;
     let mut size = huffsize[0];
@@ -170,8 +170,8 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
 
     let (huffsize, huffcode) = derive_codes_and_sizes(bits.as_slice());
 
-    //Annex F.2.2.3
-    //Figure F.15
+    // Annex F.2.2.3
+    // Figure F.15
     let mut j = 0;
 
     for i in range(0u, 16) {

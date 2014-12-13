@@ -1,5 +1,5 @@
-//The forward dct's output coefficients are scaled by 8
-//The inverse dct's output samples are clamped to the range [0, 255]
+// The forward dct's output coefficients are scaled by 8
+// The inverse dct's output samples are clamped to the range [0, 255]
 
 fn level_shift_up(a: i32) -> u8 {
     if a < -128 {0u8}
@@ -77,13 +77,13 @@ static FIX_2_562915447: i32 = 20995;
 static FIX_3_072711026: i32 = 25172;
 
 pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
-    //Pass 1: process rows.
-    //Results are scaled by sqrt(8) compared to a true DCT
-    //furthermore we scale the results by 2**PASS1_BITS
+    // Pass 1: process rows.
+    // Results are scaled by sqrt(8) compared to a true DCT
+    // furthermore we scale the results by 2**PASS1_BITS
     for y in range(0u, 8) {
         let y0 = y * 8;
 
-        //Even part
+        // Even part
         let t0 = samples[y0 + 0] as i32 + samples[y0 + 7] as i32;
         let t1 = samples[y0 + 1] as i32 + samples[y0 + 6] as i32;
         let t2 = samples[y0 + 2] as i32 + samples[y0 + 5] as i32;
@@ -99,23 +99,23 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         let t2 = samples[y0 + 2] as i32 - samples[y0 + 5] as i32;
         let t3 = samples[y0 + 3] as i32 - samples[y0 + 4] as i32;
 
-        //Apply unsigned -> signed conversion
+        // Apply unsigned -> signed conversion
         coeffs[y0 + 0] = (t10 + t11 - 8 * 128) << PASS1_BITS as uint;
         coeffs[y0 + 4] = (t10 - t11) << PASS1_BITS as uint;
 
         let mut z1 = (t12 + t13) * FIX_0_541196100;
-        //Add fudge factor here for final descale
+        // Add fudge factor here for final descale
         z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
         coeffs[y0 + 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS - PASS1_BITS) as uint;
         coeffs[y0 + 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS - PASS1_BITS) as uint;
 
-        //Odd part
+        // Odd part
         let t12 = t0 + t2;
         let t13 = t1 + t3;
 
         let mut z1 = (t12 + t13) * FIX_1_175875602;
-        //Add fudge factor here for final descale
+        // Add fudge factor here for final descale
         z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
         let mut t12 = t12 * (-FIX_0_390180644);
@@ -141,17 +141,17 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         coeffs[y0 + 7] = t3 >> (CONST_BITS - PASS1_BITS) as uint;
     }
 
-    //Pass 2: process columns
-    //We remove the PASS1_BITS scaling but leave the results scaled up an
-    //overall factor of 8
+    // Pass 2: process columns
+    // We remove the PASS1_BITS scaling but leave the results scaled up an
+    // overall factor of 8
     for x in range(0u, 8).rev() {
-        //Even part
+        // Even part
         let t0 = coeffs[x + 8 * 0] + coeffs[x + 8 * 7];
         let t1 = coeffs[x + 8 * 1] + coeffs[x + 8 * 6];
         let t2 = coeffs[x + 8 * 2] + coeffs[x + 8 * 5];
         let t3 = coeffs[x + 8 * 3] + coeffs[x + 8 * 4];
 
-        //Add fudge factor here for final descale
+        // Add fudge factor here for final descale
         let t10 = t0 + t3 + (1 << (PASS1_BITS - 1) as uint);
         let t12 = t0 - t3;
         let t11 = t1 + t2;
@@ -166,18 +166,18 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         coeffs[x + 8 * 4] = (t10 - t11) >> PASS1_BITS as uint;
 
         let mut z1 = (t12 + t13) * FIX_0_541196100;
-        //Add fudge factor here for final descale
+        // Add fudge factor here for final descale
         z1 += 1 << (CONST_BITS + PASS1_BITS - 1) as uint;
 
         coeffs[x + 8 * 2] = (z1 + t12 * FIX_0_765366865) >> (CONST_BITS + PASS1_BITS) as uint;
         coeffs[x + 8 * 6] = (z1 - t13 * FIX_1_847759065) >> (CONST_BITS + PASS1_BITS) as uint;
 
-        //Odd part
+        // Odd part
         let t12 = t0 + t2;
         let t13 = t1 + t3;
 
         let mut z1 = (t12 + t13) * FIX_1_175875602;
-        //Add fudge factor here for final descale
+        // Add fudge factor here for final descale
         z1 += 1 << (CONST_BITS - PASS1_BITS - 1) as uint;
 
         let mut t12 = t12 * (-FIX_0_390180644);
@@ -225,7 +225,7 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
             continue
         }
 
-        //Even part: reverse the even part of the forward DCT
+        // Even part: reverse the even part of the forward DCT
         let z2 = coeffs[x + 8 * 2];
         let z3 = coeffs[x + 8 * 6];
 

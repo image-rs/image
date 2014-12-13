@@ -11,24 +11,24 @@ use super::decoder::Component;
 use super::decoder::UNZIGZAG;
 use super::entropy::build_huff_lut;
 
-//Markers
-//Baseline DCT
+// Markers
+// Baseline DCT
 static SOF0: u8 = 0xC0;
-//Huffman Tables
+// Huffman Tables
 static DHT: u8 = 0xC4;
-//Start of Image (standalone)
+// Start of Image (standalone)
 static SOI: u8 = 0xD8;
-//End of image (standalone)
+// End of image (standalone)
 static EOI: u8 = 0xD9;
-//Start of Scan
+// Start of Scan
 static SOS: u8 = 0xDA;
-//Quantization Tables
+// Quantization Tables
 static DQT: u8 = 0xDB;
-//Application segments start and end
+// Application segments start and end
 static APP0: u8 = 0xE0;
 
-//section K.1
-//table K.1
+// section K.1
+// table K.1
 static STD_LUMA_QTABLE: [u8, ..64] = [
     16, 11, 10, 16, 124, 140, 151, 161,
     12, 12, 14, 19, 126, 158, 160, 155,
@@ -40,7 +40,7 @@ static STD_LUMA_QTABLE: [u8, ..64] = [
     72, 92, 95, 98, 112, 100, 103, 199
  ];
 
-//table K.2
+// table K.2
 static STD_CHROMA_QTABLE: [u8, ..64] = [
     17, 18, 24, 47, 99, 99, 99, 99,
     18, 21, 26, 66, 99, 99, 99, 99,
@@ -52,8 +52,8 @@ static STD_CHROMA_QTABLE: [u8, ..64] = [
     99, 99, 99, 99, 99, 99, 99, 99
  ];
 
-//section K.3
-//Code lengths and values for table K.3
+// section K.3
+// Code lengths and values for table K.3
 static STD_LUMA_DC_CODE_LENGTHS: [u8, ..16] = [
     0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -64,7 +64,7 @@ static STD_LUMA_DC_VALUES: [u8, ..12] = [
     0x08, 0x09, 0x0A, 0x0B
 ];
 
-//Code lengths and values for table K.4
+// Code lengths and values for table K.4
 static STD_CHROMA_DC_CODE_LENGTHS: [u8, ..16] = [
     0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -75,7 +75,7 @@ static STD_CHROMA_DC_VALUES: [u8, ..12] = [
     0x08, 0x09, 0x0A, 0x0B
 ];
 
-//Code lengths and values for table k.5
+// Code lengths and values for table k.5
 static STD_LUMA_AC_CODE_LENGTHS: [u8, ..16] = [
     0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03,
     0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D
@@ -95,7 +95,7 @@ static STD_LUMA_AC_VALUES: [u8, ..162] = [
     0xF9, 0xFA,
 ];
 
-//Code lengths and values for table k.6
+// Code lengths and values for table k.6
 static STD_CHROMA_AC_CODE_LENGTHS: [u8, ..16] = [
     0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04,
     0x07, 0x05, 0x04, 0x04, 0x00, 0x01, 0x02, 0x77,
@@ -309,7 +309,7 @@ impl<W: Writer> JPEGEncoder<W> {
         dctable: &[(u8, u16)],
         actable: &[(u8, u16)]) -> IoResult<i32> {
 
-        //Differential DC encoding
+        // Differential DC encoding
         let dcval = block[0];
         let diff  = dcval - prevdc;
         let (size, value) = encode_coefficient(diff);
@@ -317,7 +317,7 @@ impl<W: Writer> JPEGEncoder<W> {
         let _ = try!(self.huffman_encode(size, dctable));
         let _ = try!(self.write_bits(value, size));
 
-        //Figure F.2
+        // Figure F.2
         let mut zero_run = 0;
         let mut k = 0u;
 
@@ -362,14 +362,14 @@ impl<W: Writer> JPEGEncoder<W> {
 
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
-                //RGB -> YCbCr
+                // RGB -> YCbCr
                 copy_blocks_grey(image, x, y, width, bpp, &mut yblock);
 
-                //Level shift and fdct
-                //Coeffs are scaled by 8
+                // Level shift and fdct
+                // Coeffs are scaled by 8
                 transform::fdct(yblock.as_slice(), &mut dct_yblock);
 
-                //Quantization
+                // Quantization
                 for i in range(0u, 64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                 }
@@ -399,16 +399,16 @@ impl<W: Writer> JPEGEncoder<W> {
 
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
-                //RGB -> YCbCr
+                // RGB -> YCbCr
                 copy_blocks_ycbcr(image, x, y, width, bpp, &mut yblock, &mut cb_block, &mut cr_block);
 
-                //Level shift and fdct
-                //Coeffs are scaled by 8
+                // Level shift and fdct
+                // Coeffs are scaled by 8
                 transform::fdct(yblock.as_slice(), &mut dct_yblock);
                 transform::fdct(cb_block.as_slice(), &mut dct_cb_block);
                 transform::fdct(cr_block.as_slice(), &mut dct_cr_block);
 
-                //Quantization
+                // Quantization
                 for i in range(0u, 64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
@@ -479,7 +479,7 @@ fn build_scan_header(components: &[Component]) -> Vec<u8> {
         let _ 	   = m.write_u8(tables);
     }
 
-    //spectral start and end, approx. high and low
+    // spectral start and end, approx. high and low
     let _ = m.write_u8(0);
     let _ = m.write_u8(63);
     let _ = m.write_u8(0);

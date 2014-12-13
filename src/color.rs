@@ -232,9 +232,11 @@ pub trait FromColor<Sized? Other> for Sized? {
     fn from_color(&mut self, &Other);
 }
 
-impl<A> FromColor<A> for A {
-    // nop Self->Self
-    fn from_color(&mut self, _: &A) {}
+// Self->Self: just copy
+impl<A: Copy> FromColor<A> for A {
+    fn from_color(&mut self, other: &A) {
+        *self = *other;
+    }
 }
 
 /// FromColor for Luma

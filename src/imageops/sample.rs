@@ -21,6 +21,7 @@ use image:: {
 use buffer::ImageBuffer;
 
 /// Available Sampling Filters
+#[deriving(Copy)]
 pub enum FilterType {
     /// Nearest Neighbor
     Nearest,

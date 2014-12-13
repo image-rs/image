@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
+#![deny(missing_copy_implementations)]
 #![feature(macro_rules)]
 // necessary for Primitive trait
 #![feature(default_type_params)]

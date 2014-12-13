@@ -16,7 +16,7 @@ use super::ifd;
 use super::ifd::Directory;
 
 /// Byte order of the TIFF file.
-#[deriving(Show)]
+#[deriving(Copy, Show)]
 pub enum ByteOrder {
     /// little endian byte order
     LittleEndian,
@@ -81,7 +81,7 @@ impl<R: Seek> Seek for SmartReader<R> {
 }
 
 
-#[deriving(Show, FromPrimitive)]
+#[deriving(Copy, Show, FromPrimitive)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -89,7 +89,8 @@ enum PhotometricInterpretation {
     PaletteColor = 3,
     TransparencyMask = 4,
 }
-#[deriving(Show, FromPrimitive)]
+
+#[deriving(Copy, Show, FromPrimitive)]
 enum CompressionMethod {
     NoCompression = 1,
     Huffman = 2,

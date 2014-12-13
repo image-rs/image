@@ -10,7 +10,7 @@ macro_rules! tags {
     )*} => {
 
         /// TIFF tag
-        #[deriving(PartialEq, Eq, Show, Hash)]
+        #[deriving(Copy, PartialEq, Eq, Show, Hash)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16)
@@ -45,7 +45,7 @@ tags!{
     SamplesPerPixel 277;
 }
 
-#[deriving(Show, FromPrimitive)]
+#[deriving(Copy, Show, FromPrimitive)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,

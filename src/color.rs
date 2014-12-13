@@ -5,26 +5,26 @@ use std::mem;
 use buffer::{Pixel};
 use traits::{Primitive, Zero};
 
-///An enumeration over supported color types and their bit depths
+/// An enumeration over supported color types and their bit depths
 #[deriving(Copy, PartialEq, Eq, Show, Clone)]
 pub enum ColorType {
-    ///Pixel is greyscale
+    /// Pixel is greyscale
     Grey(u8),
 
-    ///Pixel contains R, G and B channels
+    /// Pixel contains R, G and B channels
     RGB(u8),
 
-    ///Pixel is an index into a color palette
+    /// Pixel is an index into a color palette
     Palette(u8),
 
-    ///Pixel is greyscale with an alpha channel
+    /// Pixel is greyscale with an alpha channel
     GreyA(u8),
 
-    ///Pixel is RGB with an alpha channel
+    /// Pixel is RGB with an alpha channel
     RGBA(u8)
 }
 
-///Returns the number of bits contained in a pixel of ColorType c
+/// Returns the number of bits contained in a pixel of ColorType c
 pub fn bits_per_pixel(c: ColorType) -> uint {
     match c {
         ColorType::Grey(n)    => n as uint,
@@ -35,7 +35,7 @@ pub fn bits_per_pixel(c: ColorType) -> uint {
     }
 }
 
-///Returns the number of color channels that make up this pixel
+/// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> uint {
     match c {
         ColorType::Grey(_)    => 1,
@@ -421,17 +421,17 @@ impl<T: Primitive> Blend<Rgba<T>> for Rgba<T> {
         let (bg_r, bg_g, bg_b, bg_a) = (bg_r.to_f32().unwrap() / max_t, bg_g.to_f32().unwrap() / max_t, bg_b.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
-        //Work out what the final alpha level will be
+        // Work out what the final alpha level will be
         let alpha_final = bg_a + fg_a - bg_a * fg_a;
 
-        //We premultiply our channels bu their alpha, as this makes it easier to calculate
+        // We premultiply our channels bu their alpha, as this makes it easier to calculate
         let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);
         let (fg_r_a, fg_g_a, fg_b_a) = (fg_r * fg_a, fg_g * fg_a, fg_b * fg_a);
 
-        //Standard formula for src-over alpha compositing
+        // Standard formula for src-over alpha compositing
         let (out_r_a, out_g_a, out_b_a) = (fg_r_a + bg_r_a * (1.0 - fg_a), fg_g_a + bg_g_a * (1.0 - fg_a), fg_b_a + bg_b_a * (1.0 - fg_a));
 
-        //Unmultiply the channels by our resultant alpha channel
+        // Unmultiply the channels by our resultant alpha channel
         let (out_r, out_g, out_b) = (out_r_a / alpha_final, out_g_a / alpha_final, out_b_a / alpha_final);
 
         // Cast back to our initial type on return

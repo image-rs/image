@@ -1,15 +1,15 @@
-//!     An implementation of the VP8 Video Codec
+//! An implementation of the VP8 Video Codec
 //!
-//!     This module contains a partial implementation of the
-//!     VP8 video format as defined in RFC-6386.
+//! This module contains a partial implementation of the
+//! VP8 video format as defined in RFC-6386.
 //!
-//!     It decodes Keyframes only sans Loop Filtering.
-//!     VP8 is the underpinning of the Webp image format
+//! It decodes Keyframes only sans Loop Filtering.
+//! VP8 is the underpinning of the Webp image format
 //!
-//!     # Related Links
-//!     * [rfc-6386](http://tools.ietf.org/html/rfc6386) - The VP8 Data Format and Decoding Guide
-//!     * [VP8.pdf](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/37073.pdf) - An overview of
-//!     of the VP8 format
+//! # Related Links
+//! * [rfc-6386](http://tools.ietf.org/html/rfc6386) - The VP8 Data Format and Decoding Guide
+//! * [VP8.pdf](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/37073.pdf) - An overview of
+//! of the VP8 format
 //!
 
 use std::io::IoResult;
@@ -20,7 +20,7 @@ use super::transform;
 const MAX_SEGMENTS: uint = 4;
 const NUM_DCT_TOKENS: uint = 12;
 
-//Prediction modes
+// Prediction modes
 const DC_PRED: i8 = 0;
 const V_PRED: i8 = 1;
 const H_PRED: i8 = 2;
@@ -42,14 +42,14 @@ type Prob = u8;
 
 static SEGMENT_ID_TREE: [i8, ..6] = [2, 4, -0, -1, -2, -3];
 
-//Section 11.2
-//Tree for determining the keyframe luma intra prediction modes:
+// Section 11.2
+// Tree for determining the keyframe luma intra prediction modes:
 static KEYFRAME_YMODE_TREE: [i8, ..8] = [-B_PRED, 2, 4, 6, -DC_PRED, -V_PRED, -H_PRED, -TM_PRED];
 
-//Default probabilities for decoding the keyframe luma modes
+// Default probabilities for decoding the keyframe luma modes
 static KEYFRAME_YMODE_PROBS: [Prob, ..4] = [145, 156, 163, 128];
 
-//Tree for determining the keyframe B_PRED mode:
+// Tree for determining the keyframe B_PRED mode:
 static KEYFRAME_BPRED_MODE_TREE: [i8, ..18] = [
     -B_DC_PRED, 2,
     -B_TM_PRED, 4,
@@ -62,7 +62,7 @@ static KEYFRAME_BPRED_MODE_TREE: [i8, ..18] = [
     -B_HD_PRED, -B_HU_PRED
 ];
 
-//Probabilites for the BPRED_MODE_TREE
+// Probabilites for the BPRED_MODE_TREE
 static KEYFRAME_BPRED_MODE_PROBS: [[[u8, ..9], ..10], ..10] = [
     [
         [ 231, 120,  48,  89, 115, 113, 120, 152, 112],
@@ -186,20 +186,20 @@ static KEYFRAME_BPRED_MODE_PROBS: [[[u8, ..9], ..10], ..10] = [
     ]
 ];
 
-//Section 11.4 Tree for determining macroblock the chroma mode
+// Section 11.4 Tree for determining macroblock the chroma mode
 static KEYFRAME_UV_MODE_TREE: [i8, ..6] = [
     -DC_PRED, 2,
     -V_PRED, 4,
     -H_PRED, -TM_PRED
 ];
 
-//Probabilities for determining macroblock mode
+// Probabilities for determining macroblock mode
 static KEYFRAME_UV_MODE_PROBS: [Prob, ..3] = [142, 114, 183];
 
-//Section 13.4
+// Section 13.4
 type TokenProbTables = [[[[Prob, ..NUM_DCT_TOKENS - 1], ..3], ..8], ..4];
 
-//Probabilities that a token's probability will be updated
+// Probabilities that a token's probability will be updated
 static COEFF_UPDATE_PROBS: TokenProbTables = [
     [
         [
@@ -371,8 +371,8 @@ static COEFF_UPDATE_PROBS: TokenProbTables = [
     ]
 ];
 
-//Section 13.5
-//Default Probabilities for tokens
+// Section 13.5
+// Default Probabilities for tokens
 static COEFF_PROBS: TokenProbTables = [
     [
         [
@@ -544,7 +544,7 @@ static COEFF_PROBS: TokenProbTables = [
     ]
 ];
 
-//DCT Tokens
+// DCT Tokens
 const DCT_0: i8 = 0;
 const DCT_1: i8 = 1;
 const DCT_2: i8 = 2;
@@ -744,32 +744,32 @@ impl MacroBlock {
     }
 }
 
-///A Representation of the last decoded video frame
+/// A Representation of the last decoded video frame
 #[deriving(Default, Show, Clone)]
 pub struct Frame {
-    ///The width of the luma plane
+    /// The width of the luma plane
     pub width: u16,
 
-    ///The height of the luma plane
+    /// The height of the luma plane
     pub height: u16,
 
-    ///The luma plane of the frame
+    /// The luma plane of the frame
     pub ybuf: Vec<u8>,
 
-    ///Indicates whether this frame is a keyframe
+    /// Indicates whether this frame is a keyframe
     pub keyframe: bool,
 
     version: u8,
 
-    ///Indicates whether this frame is intended for display
+    /// Indicates whether this frame is intended for display
     pub for_display: bool,
 
-    //Section 9.2
-    ///The pixel type of the frame as defined by Section 9.2
-    ///of the VP8 Specification
+    // Section 9.2
+    /// The pixel type of the frame as defined by Section 9.2
+    /// of the VP8 Specification
     pub pixel_type: u8,
 
-    //Section 9.4 and 15
+    // Section 9.4 and 15
     filter: u8,
     filter_level: u8,
     sharpness_level: u8,
@@ -813,10 +813,10 @@ pub struct VP8Decoder<R> {
     segment_tree_probs: [Prob, ..3],
     token_probs: Box<TokenProbTables>,
 
-    //Section 9.10
+    // Section 9.10
     prob_intra: Prob,
 
-    //Section 9.11
+    // Section 9.11
     prob_skip_false: Option<Prob>,
 
     top: Vec<MacroBlock>,
@@ -857,10 +857,10 @@ impl<R: Reader> VP8Decoder<R> {
             segment_tree_probs: [255u8, ..3],
             token_probs: box COEFF_PROBS,
 
-            //Section 9.10
+            // Section 9.10
             prob_intra: 0u8,
 
-            //Section 9.11
+            // Section 9.11
             prob_skip_false: None,
 
             top: Vec::new(),
@@ -971,7 +971,7 @@ impl<R: Reader> VP8Decoder<R> {
     }
 
     fn read_segment_updates(&mut self) {
-        //Section 9.3
+        // Section 9.3
         self.segments_update_map = self.b.read_flag();
         let update_segment_feature_data = self.b.read_flag();
 
@@ -1051,7 +1051,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
 
         let buf = try!(self.r.read_exact(first_partition_size as uint));
-        //initialise binary decoder
+        // initialise binary decoder
         self.b.init(buf);
 
         if self.frame.keyframe {
@@ -1081,10 +1081,10 @@ impl<R: Reader> VP8Decoder<R> {
         self.read_quantization_indices();
 
         if !self.frame.keyframe {
-            //9.7 refresh golden frame and altref frame
+            // 9.7 refresh golden frame and altref frame
             panic!("unimplemented")
         } else {
-            //Refresh entropy probs ?????
+            // Refresh entropy probs ?????
             let _ = self.b.read_literal(1);
         }
 
@@ -1098,12 +1098,12 @@ impl<R: Reader> VP8Decoder<R> {
         };
 
         if !self.frame.keyframe {
-            //9.10 remaining frame data
+            // 9.10 remaining frame data
             self.prob_intra = 0;
 
             panic!("unimplemented")
         } else {
-            //Reset motion vectors
+            // Reset motion vectors
         }
 
         Ok(())
@@ -1135,7 +1135,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
 
         if self.frame.keyframe {
-            //intra prediction
+            // intra prediction
             mb.luma_mode = self.b.read_with_tree(&KEYFRAME_YMODE_TREE,
                                                  &KEYFRAME_YMODE_PROBS, 0);
 
@@ -1421,7 +1421,7 @@ fn init_top_macroblocks(width: uint) -> Vec<MacroBlock> {
     let mb_width = (width + 15) / 16;
 
     let mb = MacroBlock {
-        //Section 11.3 #3
+        // Section 11.3 #3
         bpred: [B_DC_PRED, ..16],
         luma_mode: DC_PRED,
         ..MacroBlock::new()
@@ -1434,7 +1434,7 @@ fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u
     let stride = 1u + 16 + 4;
     let mut ws = [0u8, ..(1 + 16) * (1 + 16 + 4)];
 
-    //A
+    // A
     {
         let above = ws.slice_mut(1, stride);
         if mby == 0 {
@@ -1464,7 +1464,7 @@ fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u
         ws[12 * stride + i] = ws[i];
     }
 
-    //L
+    // L
     if mbx == 0 {
         for i in range(0u, 16) {
             ws[(i + 1) * stride] = 129;
@@ -1475,7 +1475,7 @@ fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u
         }
     }
 
-    //P
+    // P
     ws[0] = if mby == 0 && mbx == 0 {
         127
     } else if mby == 0 && mbx != 0 {

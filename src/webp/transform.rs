@@ -41,7 +41,7 @@ pub fn idct4x4(block: &mut [i32]) {
     }
 }
 
-//14.3
+// 14.3
 pub fn iwht4x4(block: &mut [i32]) {
     for i in range(0u, 4) {
         let a1 = block[0 + i] + block[12 + i];

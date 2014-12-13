@@ -59,7 +59,7 @@ enum BlockType {
     Compressed
 }
 
-///A DEFLATE compressed stream decoder.
+/// A DEFLATE compressed stream decoder.
 pub struct Inflater<R> {
     h:
     HuffReader<R>,

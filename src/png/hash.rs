@@ -7,7 +7,7 @@
 
 use std::path::BytesContainer;
 
-///An Implementation of the Adler-32 checksum
+/// An Implementation of the Adler-32 checksum
 #[deriving(Copy)]
 pub struct Adler32 {
     s1: u32,
@@ -20,7 +20,7 @@ impl Adler32 {
         Adler32 {s1: 1, s2: 0}
     }
 
-    ///Update the internal hasher with the bytes from ```buf```
+    /// Update the internal hasher with the bytes from ```buf```
     pub fn update<T: BytesContainer>(&mut self, buf: T) {
         for &byte in buf.container_as_bytes().iter() {
             self.s1 = self.s1 + byte as u32;
@@ -31,12 +31,12 @@ impl Adler32 {
         }
     }
 
-    ///Return the computed hash.
+    /// Return the computed hash.
     pub fn checksum(&self) -> u32 {
         (self.s2 << 16) | self.s1
     }
 
-    ///Reset this hasher to its initial state.
+    /// Reset this hasher to its initial state.
     pub fn reset(&mut self) {
         self.s1 = 1;
         self.s2 = 0;
@@ -98,7 +98,7 @@ static CRC_TABLE: [u32, ..256] = [
     0x2d02ef8d
 ];
 
-///An Implementation of the Crc-32 checksum
+/// An Implementation of the Crc-32 checksum
 #[deriving(Copy)]
 pub struct Crc32 {
     crc: u32,
@@ -110,7 +110,7 @@ impl Crc32 {
         Crc32 {crc: 0xFFFFFFFF}
     }
 
-    ///Update the internal hasher with the bytes from ```buf```
+    /// Update the internal hasher with the bytes from ```buf```
     pub fn update<T: BytesContainer>(&mut self, buf: T) {
         for &byte in buf.container_as_bytes().iter() {
             let a = (self.crc ^ byte as u32) & 0xFF;
@@ -120,12 +120,12 @@ impl Crc32 {
         }
     }
 
-    ///Return the computed hash.
+    /// Return the computed hash.
     pub fn checksum(&self) -> u32 {
         self.crc ^ 0xFFFFFFFF
     }
 
-    ///Reset this hasher to its initial state.
+    /// Reset this hasher to its initial state.
     pub fn reset(&mut self) {
         self.crc = 0xFFFFFFFF;
     }

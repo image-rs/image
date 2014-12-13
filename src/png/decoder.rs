@@ -173,9 +173,9 @@ impl<R: Reader> PNGDecoder<R> {
         }
     }
 
-    ///Returns a reference to the color palette used for indexed
-    ///color images.
-    ///Each array element is a tuple of RGB values.
+    /// Returns a reference to the color palette used for indexed
+    /// color images.
+    /// Each array element is a tuple of RGB values.
     pub fn palette <'a>(&'a self) -> &'a [(u8, u8, u8)] {
         match self.palette {
             Some(ref p) => p.as_slice(),
@@ -326,9 +326,9 @@ impl<R: Reader> PNGDecoder<R> {
                     self.state = PNGState::HavePLTE;
                 }
 
-                //(b"tRNS", HavePLTE) => {
-                //    TODO: handle transparency
-                //}
+                // (b"tRNS", HavePLTE) => {
+                //     TODO #199: handle transparency
+                // }
 
                 (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
@@ -620,7 +620,7 @@ mod tests {
 
     /// Filters the testsuite images for certain features
     fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
-        //"./src/png/testdata/pngsuite/*.png"
+        // Find the files matching "./src/png/testdata/pngsuite/*.png".
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
         let paths = glob::glob(pattern.as_str().unwrap())
@@ -704,7 +704,7 @@ mod tests {
     //                    filename.as_slice()]);
     //                let fout = File::create(&p).unwrap();
     //
-    //                //Write the contents of this image to the Writer in PNG format.
+    //                // Write the contents of this image to the Writer in PNG format.
     //                let _ = im.save(fout, ::PNG);
     //            }
     //        };

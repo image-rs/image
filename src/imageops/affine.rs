@@ -7,7 +7,7 @@ use image:: {
 };
 use buffer::ImageBuffer;
 
-///Rotate an image 90 degrees clockwise.
+/// Rotate an image 90 degrees clockwise.
 pub fn rotate90<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
@@ -22,7 +22,7 @@ pub fn rotate90<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image: 
     out
 }
 
-///Rotate an image 180 degrees clockwise.
+/// Rotate an image 180 degrees clockwise.
 pub fn rotate180<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -37,7 +37,7 @@ pub fn rotate180<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:
     out
 }
 
-///Rotate an image 270 degrees clockwise.
+/// Rotate an image 270 degrees clockwise.
 pub fn rotate270<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
@@ -52,7 +52,7 @@ pub fn rotate270<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:
     out
 }
 
-///Flip an image horizontally
+/// Flip an image horizontally
 pub fn flip_horizontal<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
@@ -67,7 +67,7 @@ pub fn flip_horizontal<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
     out
 }
 
-///Flip an image vertically
+/// Flip an image vertically
 pub fn flip_vertical<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

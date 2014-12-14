@@ -183,8 +183,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, &'a 
             let tmp = self.image.get_pixel_mut(self.x, self.y);
 
             // NOTE: This is potentially dangerous. It would require the signature fn next(&'a mut self) to be safe.
-            //error: lifetime of `self` is too short to guarantee its contents
-            //       can be safely reborrowed...
+            // error: lifetime of `self` is too short to guarantee its contents can be safely reborrowed...
             let ptr = unsafe {
                 mem::transmute(tmp)
             };
@@ -228,7 +227,7 @@ pub trait GenericImage<P> {
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
-    ///Put a pixel at location (x, y), taking into account alpha channels
+    /// Put a pixel at location (x, y), taking into account alpha channels
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: P);
 
@@ -275,7 +274,7 @@ pub struct SubImage <'a, I:'a> {
 }
 
 impl<'a, T: Primitive + 'static, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
-    ///Construct a new subimage
+    /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
             image:   image,
@@ -291,7 +290,7 @@ impl<'a, T: Primitive + 'static, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I
         &mut (*self.image)
     }
 
-    ///Change the coordinates of this subimage.
+    /// Change the coordinates of this subimage.
     pub fn change_bounds(&mut self, x: u32, y: u32, width: u32, height: u32) {
         self.xoffset = x;
         self.yoffset = y;
@@ -299,7 +298,7 @@ impl<'a, T: Primitive + 'static, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I
         self.ystride = height;
     }
 
-    ///Convert this subimage to an ImageBuffer
+    /// Convert this subimage to an ImageBuffer
     pub fn to_image(&self) -> ImageBuffer<Vec<T>, T, P> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
@@ -350,7 +349,7 @@ mod tests {
     use color::{Rgba};
 
     #[test]
-    ///Test that alpha blending works as expected
+    /// Test that alpha blending works as expected
     #[allow(deprecated)]
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
@@ -359,11 +358,11 @@ mod tests {
         target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
         assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
 
-        //Blending an alpha channel onto a solid background
+        // Blending an alpha channel onto a solid background
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
         assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
 
-        //Blending two alpha channels
+        // Blending two alpha channels
         target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
         assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));

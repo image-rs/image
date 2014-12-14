@@ -103,7 +103,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
     let _ = m.write_u8(bit_depth);
     let _ = m.write_u8(colortype);
 
-    //compression method, filter method and interlace
+    // Compression method, filter method and interlace
     let _ = m.write_u8(0);
     let _ = m.write_u8(0);
     let _ = m.write_u8(0);

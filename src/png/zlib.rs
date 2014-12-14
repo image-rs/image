@@ -17,7 +17,7 @@ enum ZlibState {
     End
 }
 
-///A Zlib compressed stream decoder.
+/// A Zlib compressed stream decoder.
 pub struct ZlibDecoder<R> {
     inflate: Inflater<R>,
     adler: Adler32,

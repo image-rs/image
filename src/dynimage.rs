@@ -21,7 +21,7 @@ use image:: {
     ImageFormat,
 };
 
-///A Dynamic Image
+/// A Dynamic Image
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
     ImageLuma8(GreyImage),
@@ -75,35 +75,35 @@ macro_rules! dynamic_map(
 )
 
 impl DynamicImage {
-    ///Returns a copy of this image as an RGB image.
+    /// Returns a copy of this image as an RGB image.
     pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
-    ///Returns a copy of this image as an RGBA image.
+    /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba(&self) -> RgbaImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
-    ///Returns a copy of this image as a Luma image.
+    /// Returns a copy of this image as a Luma image.
     pub fn to_luma(&self) -> GreyImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
-    ///Returns a copy of this image as a LumaA image.
+    /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha(&self) -> GreyAlphaImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
-    ///Return a cut out of this image delimited by the bounding rectangle.
+    /// Return a cut out of this image delimited by the bounding rectangle.
     pub fn crop(&mut self,
                 x: u32,
                 y: u32,
@@ -113,7 +113,7 @@ impl DynamicImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
     }
 
-    ///Return a reference to an 8bit RGB image
+    /// Return a reference to an 8bit RGB image
     pub fn as_rgb8(&self) -> Option<&RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref p) => Some(p),
@@ -121,7 +121,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a mutable reference to an 8bit RGB image
+    /// Return a mutable reference to an 8bit RGB image
     pub fn as_mut_rgb8(&mut self) -> Option<&mut RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref mut p) => Some(p),
@@ -129,7 +129,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a reference to an 8bit RGBA image
+    /// Return a reference to an 8bit RGBA image
     pub fn as_rgba8(&self) -> Option<& RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref p) => Some(p),
@@ -137,7 +137,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a mutable reference to an 8bit RGBA image
+    /// Return a mutable reference to an 8bit RGBA image
     pub fn as_mut_rgba8(&mut self) -> Option<&mut RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref mut p) => Some(p),
@@ -145,7 +145,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a reference to an 8bit Grayscale image
+    /// Return a reference to an 8bit Grayscale image
     pub fn as_luma8(& self) -> Option<& GreyImage> {
         match *self {
             DynamicImage::ImageLuma8(ref p) => Some(p),
@@ -153,7 +153,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a mutable reference to an 8bit Grayscale image
+    /// Return a mutable reference to an 8bit Grayscale image
     pub fn as_mut_luma8(&mut self) -> Option<&mut GreyImage> {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => Some(p),
@@ -161,7 +161,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a reference to an 8bit Grayscale image with an alpha channel
+    /// Return a reference to an 8bit Grayscale image with an alpha channel
     pub fn as_luma_alpha8(&self) -> Option<& GreyAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref p) => Some(p),
@@ -169,7 +169,7 @@ impl DynamicImage {
         }
     }
 
-    ///Return a mutable reference to an 8bit Grayscale image with an alpha channel
+    /// Return a mutable reference to an 8bit Grayscale image with an alpha channel
     pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GreyAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref mut p) => Some(p),
@@ -177,12 +177,12 @@ impl DynamicImage {
         }
     }
 
-    ///Return this image's pixels as a byte vector.
+    /// Return this image's pixels as a byte vector.
     pub fn raw_pixels(&self) -> Vec<u8> {
         image_to_bytes(self)
     }
 
-    ///Return this image's color type.
+    /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
             DynamicImage::ImageLuma8(_) => color::ColorType::Grey(8),
@@ -210,7 +210,7 @@ impl DynamicImage {
 
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. The image's aspect ratio is preserved.
-    ///```nwidth``` and ```nheight``` are the new image's dimensions
+    /// ```nwidth``` and ```nheight``` are the new image's dimensions
     pub fn resize(&self,
                   nwidth: u32,
                   nheight: u32,
@@ -235,7 +235,7 @@ impl DynamicImage {
 
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
-    ///```nwidth``` and ```nheight``` are the new image's dimensions
+    /// ```nwidth``` and ```nheight``` are the new image's dimensions
     pub fn resize_exact(&self,
                         nwidth: u32,
                         nheight: u32,
@@ -261,7 +261,6 @@ impl DynamicImage {
     /// Filters this image with the specified 3x3 kernel.
     pub fn filter3x3(&self, kernel: &[f32]) -> DynamicImage {
         if kernel.len() != 9 {
-            //return self.clone()
             panic!("filter must be 3 x 3")
         }
 
@@ -282,27 +281,27 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
     }
 
-    ///Flip this image vertically
+    /// Flip this image vertically
     pub fn flipv(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))
     }
 
-    ///Flip this image horizontally
+    /// Flip this image horizontally
     pub fn fliph(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_horizontal(p))
     }
 
-    ///Rotate this image 90 degrees clockwise.
+    /// Rotate this image 90 degrees clockwise.
     pub fn rotate90(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate90(p))
     }
 
-    ///Rotate this image 180 degrees clockwise.
+    /// Rotate this image 180 degrees clockwise.
     pub fn rotate180(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate180(p))
     }
 
-    ///Rotate this image 270 degrees clockwise.
+    /// Rotate this image 270 degrees clockwise.
     pub fn rotate270(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
@@ -441,7 +440,7 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
 #[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     match *image {
-        //TODO: consider transmuting
+        // TODO: consider transmuting
         DynamicImage::ImageLuma8(ref a) => {
             a.as_slice().iter().map(|v| *v).collect()
         }

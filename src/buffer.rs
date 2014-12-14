@@ -85,8 +85,8 @@ pub trait Pixel<T>: Copy + Clone {
     /// Apply the function ```f``` to each channel of this pixel.
     fn apply(&mut self, f: | T | -> T);
 
-    ///Apply the function f to each channel except the alpha channel.
-    ///Apply the function g to the alpha channel.
+    /// Apply the function f to each channel except the alpha channel.
+    /// Apply the function g to the alpha channel.
     fn map_with_alpha(&self, f: |T| -> T, g: |T| -> T) -> Self;
 
     /// Apply the function f to each channel except the alpha channel.
@@ -388,7 +388,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
         *self.get_pixel_mut(x, y) = pixel
     }
 
-    ///Put a pixel at location (x, y), taking into account alpha channels
+    /// Put a pixel at location (x, y), taking into account alpha channels
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
     fn blend_pixel(&mut self, x: u32, y: u32, p: PixelType) {
         self.get_pixel_mut(x, y).blend(&p)

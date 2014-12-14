@@ -59,8 +59,8 @@ impl<R: Reader> GIFDecoder<R> {
         }
     }
 
-    ///Returns the display delay in 100th's of a second for the currently
-    ///decoded image.
+    /// Returns the display delay in 100th's of a second for the currently
+    /// decoded image.
     pub fn delay(&mut self) -> ImageResult<u16> {
 
         let _ = try!(self.read_metadata());

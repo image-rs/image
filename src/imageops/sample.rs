@@ -158,7 +158,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 
         let ratio = width as f32 / new_width as f32;
 
-        //Scale the filter when downsampling.
+        // Scale the filter when downsampling.
         let filter_scale = if ratio > 1.0 {
             ratio
         } else {
@@ -245,7 +245,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 
         let ratio = height as f32 / new_height as f32;
 
-        //Scale the filter when downsampling.
+        // Scale the filter when downsampling.
         let filter_scale = if ratio > 1.0 {
             ratio
         } else {
@@ -350,9 +350,9 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
             let mut t3 = 0.0;
             let mut t4 = 0.0;
 
-            //TODO: There is no need to recalculate the kernel for each pixel.
-            //Only a subtract and addition is needed for pixels after the first
-            //in each row.
+            // TODO: There is no need to recalculate the kernel for each pixel.
+            // Only a subtract and addition is needed for pixels after the first
+            // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
                 let x0 = x as int + a;
                 let y0 = y as int + b;

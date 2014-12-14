@@ -56,7 +56,7 @@ pub use image::ImageFormat:: {
     PPM
 };
 
-//Image Types
+// Image Types
 pub use image::SubImage as SubImage;
 pub use dynimage::DynamicImage as DynamicImage;
 pub use buffer::{
@@ -67,16 +67,16 @@ pub use buffer::{
     GreyAlphaImage
 };
 
-//Traits
+// Traits
 pub use image::GenericImage as GenericImage;
 
-//Iterators
+// Iterators
 pub use image::Pixels as Pixels;
 pub use image::MutPixels as MutPixels;
 
 
 
-///opening and loading images
+/// Opening and loading images
 pub use dynimage:: {
     open,
     load,
@@ -90,10 +90,10 @@ pub use dynimage::DynamicImage:: {
     ImageLumaA8,
 };
 
-//Image Processing Functions
+// Image Processing Functions
 pub mod imageops;
 
-//Image Codecs
+// Image Codecs
 pub mod webp;
 pub mod ppm;
 pub mod png;

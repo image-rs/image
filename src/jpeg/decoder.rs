@@ -55,34 +55,34 @@ pub struct Component {
     pub dc_pred: i32
 }
 
-//Markers
-//Baseline DCT
+// Markers
+// Baseline DCT
 const SOF0: u8 = 0xC0;
-//Progressive DCT
+// Progressive DCT
 const SOF2: u8 = 0xC2;
-//Huffman Tables
+// Huffman Tables
 const DHT: u8 = 0xC4;
-//Restart Interval start and End (standalone)
+// Restart Interval start and End (standalone)
 const RST0: u8 = 0xD0;
 const RST7: u8 = 0xD7;
-//Start of Image (standalone)
+// Start of Image (standalone)
 const SOI: u8 = 0xD8;
-//End of image (standalone)
+// End of image (standalone)
 const EOI: u8 = 0xD9;
-//Start of Scan
+// Start of Scan
 const SOS: u8 = 0xDA;
-//Quantization Tables
+// Quantization Tables
 const DQT: u8 = 0xDB;
-//Number of lines
+// Number of lines
 const DNL: u8 = 0xDC;
-//Restart Interval
+// Restart Interval
 const DRI: u8 = 0xDD;
-//Application segments start and end
+// Application segments start and end
 const APP0: u8 = 0xE0;
 const APPF: u8 = 0xEF;
-//Comment
+// Comment
 const COM: u8 = 0xFE;
-//Reserved
+// Reserved
 const TEM: u8 = 0x01;
 
 #[deriving(PartialEq)]
@@ -223,7 +223,7 @@ impl<R: Reader>JPEGDecoder<R> {
             0
         };
 
-        //Section F.2.1.3.1
+        // Section F.2.1.3.1
         let diff = extend(diff, t);
         let dc = diff + pred;
         tmp[0] = dc * qtable[0] as i32;
@@ -244,7 +244,7 @@ impl<R: Reader>JPEGDecoder<R> {
             } else {
                 k += rrrr as uint;
 
-                //Figure F.14
+                // Figure F.14
                 let t = try!(self.h.receive(&mut self.r, ssss));
 
                 tmp[UNZIGZAG[k + 1] as uint] = extend(t, ssss) * qtable[k + 1] as i32;
@@ -355,7 +355,7 @@ impl<R: Reader>JPEGDecoder<R> {
         self.hmax = hmax;
         self.vmax = vmax;
 
-        //only 1 component no interleaving
+        // only 1 component no interleaving
         if n == 1 {
         for (_, c) in self.components.iter_mut() {
                 c.h = 1;
@@ -669,8 +669,8 @@ fn clamp(a: i32) -> u8 {
     else {a as u8}
 }
 
-//Section F.2.2.1
-//Figure F.12
+// Section F.2.2.1
+// Figure F.12
 fn extend(v: i32, t: u8) -> i32 {
 let vt:
     i32 = 1 << t as uint - 1;

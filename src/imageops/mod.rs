@@ -1,4 +1,4 @@
-//!  Image Processing Functions
+//! Image Processing Functions
 use std::cmp;
 
 use image:: {
@@ -19,7 +19,7 @@ pub use self::sample::FilterType:: {
     Lanczos3
 };
 
-///Affine transformations
+/// Affine transformations
 pub use self::affine:: {
     rotate90,
     rotate180,
@@ -28,7 +28,7 @@ pub use self::affine:: {
     flip_vertical,
 };
 
-///Image sampling
+/// Image sampling
 pub use self::sample:: {
     filter3x3,
     resize,
@@ -36,7 +36,7 @@ pub use self::sample:: {
     unsharpen,
 };
 
-///Color operations
+/// Color operations
 pub use self::colorops:: {
     grayscale,
     invert,
@@ -76,7 +76,7 @@ pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
     let (top_width, top_height) = top.dimensions();
     let (bottom_width, bottom_height) = bottom.dimensions();
 
-    //Crop our top image if we're going out of bounds
+    // Crop our top image if we're going out of bounds
     let range_width = if x + top_width > bottom_width {
         bottom_width - x
     } else {
@@ -106,7 +106,7 @@ mod tests {
     use super::overlay;
 
     #[test]
-    ///Test that images written into other images works
+    /// Test that images written into other images works
     fn test_image_in_image() {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_fn(16, 16, |_, _| {
@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    ///Test that images written outside of a frame doesn't blow up
+    /// Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_fn(32, 32, |_, _| {

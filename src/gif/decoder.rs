@@ -104,7 +104,7 @@ impl<R: Reader> GIFDecoder<R> {
                 break
             }
 
-            data = data + b;
+            data = data + b.as_slice();
         }
 
         let m = io::MemReader::new(data);

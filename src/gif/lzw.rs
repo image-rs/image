@@ -103,7 +103,8 @@ impl<R: Reader> LZWReader<R> {
             }
 
             if self.dict[code as uint].is_none() {
-                self.dict.as_mut_slice()[code as uint] = Some(self.prev.clone() + vec![self.prev[0]]);
+                self.dict.as_mut_slice()[code as uint] =
+                    Some(self.prev.clone() + self.prev.as_slice().slice_to(1));
             }
 
             if self.prev.len() > 0 {

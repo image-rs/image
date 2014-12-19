@@ -479,7 +479,7 @@ macro_rules! expand_pass(
             }
         }
     }
-)
+);
 
 fn expand_pass(
     img: &mut[u8], width: u32, scanline: &mut[u8], 
@@ -502,7 +502,7 @@ fn expand_pass(
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: uint, bit_depth: u8) {
     let bpp = 8 / bit_depth as uint;
-    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp))
+    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
     let mask = (1u8 << bit_depth as uint) - 1;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
@@ -637,7 +637,7 @@ mod tests {
                  .collect()
         };
 
-        assert!(ret.len() > 0) // fail if no testimages are available
+        assert!(ret.len() > 0); // fail if no testimages are available
         ret
     }
 

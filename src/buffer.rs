@@ -518,8 +518,8 @@ mod test {
         assert!(a.data[0] != 0);
         b.iter(|| {
             let b: GreyImage = a.convert();
-            assert!(0 != b.data[0])
-            assert!(a.data[0] != b.data[0])
+            assert!(0 != b.data[0]);
+            assert!(a.data[0] != b.data[0]);
             test::black_box(b);
         });
         b.bytes = 1000*1000*3

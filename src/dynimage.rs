@@ -72,7 +72,7 @@ macro_rules! dynamic_map(
                         DynamicImage::ImageRgba8(ref mut $image) => $action,
                 }
         );
-)
+);
 
 impl DynamicImage {
     /// Returns a copy of this image as an RGB image.
@@ -316,21 +316,21 @@ impl DynamicImage {
             image::ImageFormat::PNG  => {
                 let mut p = png::PNGEncoder::new(w);
 
-                try!(p.encode(bytes.as_slice(), width, height, color))
+                try!(p.encode(bytes.as_slice(), width, height, color));
                 Ok(())
             }
 
             image::ImageFormat::PPM  => {
                 let mut p = ppm::PPMEncoder::new(w);
 
-                try!(p.encode(bytes.as_slice(), width, height, color))
+                try!(p.encode(bytes.as_slice(), width, height, color));
                 Ok(())
             }
 
             image::ImageFormat::JPEG => {
                 let mut j = jpeg::JPEGEncoder::new(w);
 
-                try!(j.encode(bytes.as_slice(), width, height, color))
+                try!(j.encode(bytes.as_slice(), width, height, color));
                 Ok(())
             }
 

@@ -61,7 +61,7 @@ $( // START Structure definitions
 #[deriving(PartialEq, Eq, Clone, Show, Copy)]
 pub struct $ident<T: Primitive>(pub [T, ..$channels]);
 
-impl<'a, T: Primitive> Pixel<T> for $ident<T> {
+impl<T: Primitive> Pixel<T> for $ident<T> {
 
     fn channel_count<'a>(_: Option<&'a $ident<T>>) -> u8 {
         $channels
@@ -110,11 +110,11 @@ impl<'a, T: Primitive> Pixel<T> for $ident<T> {
     }
 
     fn from_slice<'a>(_: Option<&'a $ident<T>>, slice: &'a [T]) -> &'a $ident<T> {
-        assert_eq!(slice.len(), $channels)
+        assert_eq!(slice.len(), $channels);
         unsafe { mem::transmute(slice.as_ptr()) }
     }
     fn from_slice_mut<'a>(_: Option<&'a $ident<T>>, slice: &'a mut [T]) -> &'a mut $ident<T> {
-        assert_eq!(slice.len(), $channels)
+        assert_eq!(slice.len(), $channels);
         unsafe { mem::transmute(slice.as_ptr()) }
     }
 

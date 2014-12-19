@@ -6,7 +6,7 @@ os:
     - osx
 env:
     global:
-        - secure: "HLWX0NEJi2hXmxdxU5DorXI92TKBBHyYFYY7v1mrN/y0McKTI7JXq7GlUJ26VxqlxUdQLVz0NDycvlQTQ9OYMcQyZLunHiplsrTs7H+S2BZTnaTVtSdHOlNkWuml1PtJpuLEcfP9s/UHfJB+6B5MRTL9b14QFgGv8Uuxs/P9ZQc="
+        - secure: HLWX0NEJi2hXmxdxU5DorXI92TKBBHyYFYY7v1mrN/y0McKTI7JXq7GlUJ26VxqlxUdQLVz0NDycvlQTQ9OYMcQyZLunHiplsrTs7H+S2BZTnaTVtSdHOlNkWuml1PtJpuLEcfP9s/UHfJB+6B5MRTL9b14QFgGv8Uuxs/P9ZQc=
 before_script:
     - rustc -v
     - cargo -V

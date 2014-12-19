@@ -6,7 +6,7 @@ os:
     - osx
 env:
     global:
-        - secure: Y5j1OZFM1Z8DjX4Kl3PBGH+5bBBxX1Zv2swR4lDVzWgyO8p0OHFfyXVR184S6YKLAbrV22HGw0ODBJHvLKf0gdHJevPVYpFBl6wgjh7kOnt7YEod8k4Lk/3JA2sdoEA/kBl2I61R+guFvJkUEGKts1v/bQbAkykkCjQ5JMmDDBw=
+        - secure: "HLWX0NEJi2hXmxdxU5DorXI92TKBBHyYFYY7v1mrN/y0McKTI7JXq7GlUJ26VxqlxUdQLVz0NDycvlQTQ9OYMcQyZLunHiplsrTs7H+S2BZTnaTVtSdHOlNkWuml1PtJpuLEcfP9s/UHfJB+6B5MRTL9b14QFgGv8Uuxs/P9ZQc="
 before_script:
     - rustc -v
     - cargo -V
@@ -14,7 +14,11 @@ script:
     - cargo build -v
     - cargo test -v
     - cargo doc -v
-after_success:
-    - cp -R target/doc doc
-    - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
-    - rm -r doc
+after_success: |
+    [ $TRAVIS_BRANCH = master ] &&
+    [ $TRAVIS_PULL_REQUEST = false ] &&
+    cargo doc &&
+    echo '<meta http-equiv=refresh content=0;url=image/index.html>' > target/doc/index.html &&
+    sudo pip install ghp-import &&
+    ghp-import -n target/doc &&
+    git push -fq https://${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages

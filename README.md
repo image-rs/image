@@ -30,7 +30,7 @@ and import using ```extern crate```:
 
 ## 1. Documentation
 
-http://www.rust-ci.org/PistonDevelopers/piston/doc/image/index.html
+http://www.piston.rs/image/image/index.html
 
 ## 2. Supported Image Formats
 ```image``` provides implementations of common image format encoders and decoders.

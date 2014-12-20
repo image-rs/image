@@ -3,6 +3,7 @@ use std::io;
 use image::ImageError;
 use image::ImageResult;
 use image::ImageDecoder;
+use image::DecodingResult;
 use color::ColorType;
 
 enum ImageType {
@@ -392,8 +393,8 @@ impl<R: Reader + Seek> ImageDecoder for TGADecoder<R> {
         unimplemented!();
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<DecodingResult> {
         try!(self.read_metadata());
-        self.read_image_data()
+        self.read_image_data().map(|v| DecodingResult::U8(v) )
     }
 }

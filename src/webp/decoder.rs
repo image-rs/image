@@ -124,9 +124,9 @@ impl<R: Reader> ImageDecoder for WebpDecoder<R> {
         Ok(self.decoded_rows)
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
         let _ = try!(self.read_metadata());
 
-        Ok(self.frame.ybuf.clone())
+        Ok(image::DecodingResult::U8(self.frame.ybuf.clone()))
     }
 }

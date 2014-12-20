@@ -404,7 +404,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         unimplemented!()
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
         let buffer_size = 
             self.width  as uint
             * self.height as uint
@@ -427,6 +427,6 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         if bytes_read < buffer_size {
             unsafe { buffer.set_len(bytes_read) }
         }
-        Ok(buffer)
+        Ok(image::DecodingResult::U8(buffer))
     }
 }

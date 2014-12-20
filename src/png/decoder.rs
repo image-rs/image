@@ -8,6 +8,7 @@ use std::io::IoResult;
 use std::io::MemReader;
 
 use image;
+use image::DecodingResult;
 use image::ImageResult;
 use image::ImageDecoder;
 use color;
@@ -431,7 +432,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         self.extract_scanline(buf, rlength)
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
@@ -461,12 +462,12 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                 );
                 old_pass = pass;
             }
-            Ok(buf)
+            Ok(DecodingResult::U8(buf))
         } else {
             for chunk in buf.as_mut_slice().chunks_mut(max_rowlen) {
                 let _ = try!(self.read_scanline(chunk));
             }
-            Ok(buf)
+            Ok(DecodingResult::U8(buf))
         }
     }
 }

@@ -21,4 +21,4 @@ after_success: |
     echo '<meta http-equiv=refresh content=0;url=image/index.html>' > target/doc/index.html &&
     sudo pip install ghp-import &&
     ghp-import -n target/doc &&
-    git push -fq https://bvssvni:${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+    git push -fq https://${GH_TOKEN}:x-oauth-basic@github.com/${TRAVIS_REPO_SLUG}.git gh-pages

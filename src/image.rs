@@ -289,7 +289,7 @@ pub struct SubImage <'a, I:'a> {
     ystride: u32,
 }
 
-impl<'a, T: Primitive + 'static, P: Pixel<T>, I: GenericImage<P>> SubImage<'a, I> {
+impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubImage<'a, I> {
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {

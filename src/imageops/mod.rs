@@ -49,7 +49,7 @@ mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
-pub fn crop<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
+pub fn crop<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
     image:  &mut I,
     x: u32,
     y: u32,

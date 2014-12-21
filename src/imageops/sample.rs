@@ -144,7 +144,7 @@ fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
+fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
     image:     &I,
     new_width: u32,
     filter:    &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
@@ -230,7 +230,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
+fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
     image:      &I,
     new_height: u32,
     filter:     &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
@@ -315,7 +315,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 
 /// Perform a 3x3 box filter on the supplied image.
 /// ```kernel``` is an array of the filter weights of length 9.
-pub fn filter3x3<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
+pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
     image:  &I,
     kernel: &[f32]) -> ImageBuffer<Vec<P>, P, T> {
 
@@ -398,7 +398,7 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P>, I: GenericImage<T>>(
 /// Resize the supplied image to the specified dimensions
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
+pub fn resize<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
     image:   &I,
     nwidth:  u32,
     nheight: u32,
@@ -433,7 +433,7 @@ pub fn resize<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-pub fn blur<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
+pub fn blur<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
     image:  &I,
     sigma:  f32) -> ImageBuffer<Vec<A>, A, T> {
 
@@ -460,7 +460,7 @@ pub fn blur<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-pub fn unsharpen<A: Primitive + 'static, T: Pixel<A>, I: GenericImage<T>>(
+pub fn unsharpen<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
     image:     &I,
     sigma:     f32,
     threshold: i32) -> ImageBuffer<Vec<A>, A, T> {

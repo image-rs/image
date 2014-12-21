@@ -311,7 +311,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
         Ok(self.decoded_rows)
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
         let _ = try!(self.read_metadata());
         loop {
             let block = try!(self.r.read_u8());
@@ -320,7 +320,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                 EXTENSION => try!(self.read_extension()),
                 IMAGEDESCRIPTOR => {
                     let _ = try!(self.read_image_descriptor());
-                    return Ok(self.image.clone())
+                    return Ok(image::DecodingResult::U8(self.image.clone()))
                 }
                 TRAILER => break,
                 _       => return Err(image::ImageError::UnsupportedError(

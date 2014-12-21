@@ -591,7 +591,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         Ok(self.decoded_rows)
     }
 
-    fn read_image(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
         if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
@@ -603,7 +603,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
             let _len = try!(self.read_scanline(chunk));
         }
 
-        Ok(buf)
+        Ok(image::DecodingResult::U8(buf))
     }
 }
 

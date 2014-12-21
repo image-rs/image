@@ -44,6 +44,22 @@ impl FromError<io::IoError> for ImageError {
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 
+/// Result of a decoding process
+pub enum DecodingResult {
+    /// A vector of unsigned bytes
+    U8(Vec<u8>),
+    /// A vector of unsigned words
+    U16(Vec<u16>)
+}
+
+// A buffer for image decoding
+pub enum DecodingBuffer<'a> {
+    /// A slice of unsigned bytes
+    U8(&'a mut [u8]),
+    /// A slice of unsigned words
+    U16(&'a mut [u16])
+}
+
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[deriving(Copy, PartialEq, Eq, Show)]
@@ -85,7 +101,7 @@ pub trait ImageDecoder {
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
 
     /// Decodes the entire image and return it as a Vector
-    fn read_image(&mut self) -> ImageResult<Vec<u8>>;
+    fn read_image(&mut self) -> ImageResult<DecodingResult>;
 
     /// Decodes a specific region of the image, represented by the rectangle
     /// starting from ```x``` and ```y``` and having ```length``` and ```width```

@@ -21,6 +21,8 @@ use image:: {
     ImageFormat,
 };
 
+use image::DecodingResult::{U8};
+
 /// A Dynamic Image
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
@@ -389,23 +391,23 @@ fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let buf    = try!(codec.read_image());
     let (w, h) = try!(codec.dimensions());
 
-    let image = match color {
-        color::ColorType::RGB(8) => {
+    let image = match (color, buf) {
+        (color::ColorType::RGB(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgb8(v))
         }
 
-        color::ColorType::RGBA(8) => {
+        (color::ColorType::RGBA(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgba8(v))
         }
 
-        color::ColorType::Grey(8) => {
+        (color::ColorType::Grey(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLuma8(v))
         }
 
-        color::ColorType::GreyA(8) => {
+        (color::ColorType::GreyA(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLumaA8(v))
         }
-        color::ColorType::Grey(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+        (color::ColorType::Grey(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries 
             let mask = (1u8 << bit_depth as uint) - 1;
             let scaling_factor = (255)/((1 << bit_depth as uint) - 1);

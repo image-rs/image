@@ -48,7 +48,16 @@ pub type ImageResult<T> = Result<T, ImageError>;
 pub enum DecodingResult {
     /// A vector of unsigned bytes
     U8(Vec<u8>),
-    //U16(Vec<u16>)
+    /// A vector of unsigned words
+    U16(Vec<u16>)
+}
+
+// A buffer for image decoding
+pub enum DecodingBuffer<'a> {
+    /// A slice of unsigned bytes
+    U8(&'a mut [u8]),
+    /// A slice of unsigned words
+    U16(&'a mut [u16])
 }
 
 /// An enumeration of supported image formats.

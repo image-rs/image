@@ -1,15 +1,20 @@
 use std::io;
 use std::mem;
-use std::raw;
-use std::iter::AdditiveIterator;
+use std::num::Float;
+
 
 use std::io::IoResult;
 
 use std::collections::{HashMap};
 
 use image;
-use image::ImageResult;
-use image::ImageDecoder;
+use image::{
+    ImageError,
+    ImageResult,
+    ImageDecoder,
+    DecodingResult,
+    DecodingBuffer
+};
 use color;
 
 use super::ifd;
@@ -79,7 +84,6 @@ impl<R: Seek> Seek for SmartReader<R> {
         self.reader.seek(pos, style)
     }
 }
-
 
 #[deriving(Copy, Show, FromPrimitive)]
 enum PhotometricInterpretation {
@@ -341,7 +345,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     
     /// Decompresses the strip into the supplied buffer.
     /// Returns the number of bytes read.
-    fn expand_strip(&mut self, buffer: &mut [u8], offset: u32, length: u32) -> ImageResult<uint> {
+    fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<uint> {
         let color_type = try!(self.colortype());
         try!(self.goto_offset(offset));
         let reader = match self.compression_method {
@@ -352,28 +356,20 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 "Compression method {} is unsupported", method
             )))
         };
-        match color_type {
-            color::ColorType::Grey(16) => {
-                // Casting to &[16] makes sure that endian issues are handled
-                // automagically by the compiler
-                let buffer: &mut [u16] = unsafe { mem::transmute(
-                    raw::Slice::<u16> {
-                        data: mem::transmute(buffer.as_ptr()),
-                        len: buffer.len()/2
-                    }
-                )};
+        Ok(match (color_type, buffer) {
+            (color::ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer.slice_to_mut(length as uint/2).iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
+                length as uint/2
             }
-            color::ColorType::Grey(n) if n < 8 => {
-                return Ok(try!(reader.read(buffer.slice_to_mut(length as uint))))
+            (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n < 8 => {
+                try!(reader.read(buffer.slice_to_mut(length as uint)))
             }
-            type_ => return Err(::image::ImageError::UnsupportedError(format!(
+            (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {} is unsupported", type_
             )))
-        }
-        Ok(length as uint)
+        })
     }
 }
 
@@ -404,29 +400,60 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         unimplemented!()
     }
 
-    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
+    fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let buffer_size = 
             self.width  as uint
             * self.height as uint
-            * self.bits_per_sample.iter().map(|&x| x).sum() as uint
-            / 8;
-        let mut buffer = Vec::with_capacity(buffer_size);
+            * self.bits_per_sample.iter().count();
+        let mut result = match (self.bits_per_sample.iter()
+                                               .map(|&x| x)
+                                               .max()
+                                               .unwrap_or(8) as f32/8.0).ceil() as u8 {
+            n if n <= 8 => DecodingResult::U8(Vec::with_capacity(buffer_size)),
+            n if n <= 16 => DecodingResult::U16(Vec::with_capacity(buffer_size)),
+            n => return Err(
+                ImageError::UnsupportedError(
+                    format!("{} bits per channel not supported", n)
+                )
+            )
+        };
         // Safe since the uninizialized values are never read.
-        unsafe { buffer.set_len(buffer_size) }
-        let mut bytes_read = 0;
+        match result {
+            DecodingResult::U8(ref mut buffer) =>
+                unsafe { buffer.set_len(buffer_size) },
+            DecodingResult::U16(ref mut buffer) =>
+                unsafe { buffer.set_len(buffer_size) },
+        }
+        let mut units_read = 0;
         for (&offset, &byte_count) in try!(self.get_tag_u32_vec(ifd::Tag::StripOffsets))
         .iter().zip(try!(self.get_tag_u32_vec(ifd::Tag::StripByteCounts)).iter()) {
-            bytes_read += try!(self.expand_strip(
-                buffer.slice_from_mut(bytes_read), offset, byte_count
-            ));
-            if bytes_read == buffer_size {
+            units_read += match result {
+                DecodingResult::U8(ref mut buffer) => {
+                    try!(self.expand_strip(
+                        DecodingBuffer::U8(buffer.slice_from_mut(units_read)),
+                        offset, byte_count
+                    ))
+                },
+                DecodingResult::U16(ref mut buffer) => {
+                    try!(self.expand_strip(
+                        DecodingBuffer::U16(buffer.slice_from_mut(units_read)),
+                        offset, byte_count
+                    ))
+                },
+            };
+            if units_read == buffer_size {
                 break
             }
         }
         // Shrink length such that the uninitialized memory is not exposed.
-        if bytes_read < buffer_size {
-            unsafe { buffer.set_len(bytes_read) }
+        if units_read < buffer_size {
+            match result {
+                DecodingResult::U8(ref mut buffer) => 
+                    unsafe { buffer.set_len(units_read) },
+                DecodingResult::U16(ref mut buffer) => 
+                    unsafe { buffer.set_len(units_read) },
+            }
         }
-        Ok(image::DecodingResult::U8(buffer))
+        Ok(result)
     }
 }

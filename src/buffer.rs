@@ -203,8 +203,8 @@ where T: Primitive, Container: ArrayLike<T>, PixelType: 'static {
 } 
 
 // generic implementation, shared along all image buffers 
-impl<Container, T, PixelType: 'static> ImageBuffer<Container, T, PixelType> 
-where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
+impl<Container, T, PixelType> ImageBuffer<Container, T, PixelType> 
+where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'static {
 
     /// Contructs a buffer from a generic container 
     /// (for example a `Vec` or a slice)
@@ -353,8 +353,10 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
 }
 
 
-impl<Container, T, PixelType: 'static> Clone for ImageBuffer<Container, T, PixelType>
-where Container: ArrayLike<T> + Clone, T: Primitive + 'static, PixelType: Pixel<T> {
+impl<Container, T, PixelType> Clone for ImageBuffer<Container, T, PixelType>
+where Container: ArrayLike<T> + Clone, 
+      T: Primitive + 'static, 
+      PixelType: Pixel<T> + 'static {
     fn clone(&self) -> ImageBuffer<Container, T, PixelType> {
         ImageBuffer {
             data: self.data.clone(),
@@ -365,8 +367,9 @@ where Container: ArrayLike<T> + Clone, T: Primitive + 'static, PixelType: Pixel<
     }
 }
 
-impl<Container, T, PixelType: 'static> GenericImage<PixelType> for ImageBuffer<Container, T, PixelType>
-where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
+impl<Container, T, PixelType> GenericImage<PixelType> 
+for ImageBuffer<Container, T, PixelType>
+where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'static {
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -395,17 +398,17 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
     }
 }
 
-impl<Container, T, PixelType: 'static> Index<(u32, u32), PixelType> 
+impl<Container, T, PixelType> Index<(u32, u32), PixelType> 
 for ImageBuffer<Container, T, PixelType>
-where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> {
+where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'static {
     fn index(&self, &(x, y): &(u32, u32)) -> &PixelType {
         self.get_pixel(x, y)
     }
 }
  
 // concrete implementation for `Vec`-baked buffers
-impl<T, PixelType: 'static> ImageBuffer<Vec<T>, T, PixelType>
-where T: Primitive + 'static, PixelType: Pixel<T> {
+impl<T, PixelType> ImageBuffer<Vec<T>, T, PixelType>
+where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
     /// Creates a new image buffer based on a `Vec<T>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<Vec<T>, T, PixelType> {
         ImageBuffer {
@@ -454,13 +457,13 @@ pub trait ConvertBuffer<Sized? T> for Sized? {
     fn convert(&self) -> T;
 }
 
-impl<'a, 'b, Container, T, FromType: 'static, ToType: 'static> 
+impl<'a, 'b, Container, T, FromType, ToType> 
     ConvertBuffer<ImageBuffer<Vec<T>,T, ToType>> 
     for ImageBuffer<Container, T, FromType> 
-    where T: Primitive+'static, 
+    where T: Primitive + 'static, 
           Container: ArrayLike<T>, 
-          FromType: Pixel<T>, 
-          ToType: Pixel<T>+FromColor<FromType> {
+          FromType: Pixel<T> + 'static, 
+          ToType: Pixel<T> + 'static + FromColor<FromType> {
     fn convert(&self) -> ImageBuffer<Vec<T>, T, ToType> {
         let mut buffer = ImageBuffer::<T, ToType>::new(self.width, self.height);
         for (mut to, from) in buffer.pixels_mut().zip(self.pixels()) {

@@ -592,7 +592,7 @@ impl<R: Reader> Reader for IDATReader<R> {
                 self.crc.update(v.as_slice());
 
                 match str::from_utf8(v.as_slice()) {
-                    Some("IDAT") => (),
+                    Ok("IDAT") => (),
                     _ => {
                         self.eof = true;
                         break

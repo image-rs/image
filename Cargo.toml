@@ -21,10 +21,8 @@ exclude = [
 name = "image"
 path = "./src/lib.rs"
 
-[dev-dependencies.glob]
-
-git = "https://github.com/rust-lang/glob"
-
-[dev-dependencies.num]
-
+[dependencies.num]
 git = "https://github.com/rust-lang/num"
+
+[dev-dependencies.glob]
+git = "https://github.com/rust-lang/glob"

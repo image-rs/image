@@ -9,4 +9,5 @@
 pub use self::decoder::GIFDecoder;
 
 mod decoder;
+mod bits;
 pub mod lzw;

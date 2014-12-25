@@ -425,6 +425,15 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
         }
     }
 
+    /// Constructs a new ImageBuffer by copying a pixel
+    pub fn from_pixel(width: u32, height: u32, pixel: PixelType) -> ImageBuffer<Vec<T>, T, PixelType> {
+        let mut buf = ImageBuffer::new(width, height);
+        for p in buf.pixels_mut() {
+            *p = pixel
+        }
+        buf
+    }
+
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
     pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> PixelType) -> ImageBuffer<Vec<T>, T, PixelType> {

@@ -383,8 +383,9 @@ impl GenericImage<color::Rgba<u8>> for DynamicImage {
     }
 }
 
-#[allow(deprecated)]
-fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
+
+/// Decodes an image and stores it into a dynamic image
+pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
 
     let color  = try!(codec.colortype());

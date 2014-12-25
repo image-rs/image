@@ -14,6 +14,7 @@
 #![feature(default_type_params)]
 
 extern crate flate;
+extern crate num;
 
 pub use color::ColorType as ColorType;
 pub use traits::Primitive;
@@ -90,6 +91,10 @@ pub use dynimage::DynamicImage:: {
     ImageLumaA8,
 };
 
+pub use animation:: {
+    Frame, Frames
+};
+
 // Image Processing Functions
 pub mod imageops;
 
@@ -102,8 +107,10 @@ pub mod gif;
 pub mod tiff;
 pub mod tga;
 
+
 mod image;
 mod dynimage;
 mod color;
 mod buffer;
 mod traits;
+mod animation;

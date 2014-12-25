@@ -8,6 +8,9 @@ use color::ColorType;
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
 
+use animation::{Frame, Frames};
+use dynimage::decoder_to_image;
+
 /// An enumeration of Image Errors
 #[deriving(Show, PartialEq, Eq)]
 pub enum ImageError {
@@ -96,6 +99,21 @@ pub trait ImageDecoder {
 
     /// Returns the length in bytes of one decoded row of the image
     fn row_len(&mut self) -> ImageResult<uint>;
+    
+    /// Returns true if the image is animated
+    fn is_animated(&mut self) -> ImageResult<bool> {
+        // since most image formats do not support animation
+        // just return false by default
+        return Ok(false)
+    }
+    
+    /// Returns the frames of the image
+    /// If the image is not animated it returns a single frame
+    fn into_frames(self) -> ImageResult<Frames> {
+        Ok(Frames::new(vec![
+            Frame::new(try!(decoder_to_image(self)).to_rgba())
+        ]))
+    }
 
     /// Reads one row from the image into buf and returns the row index
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
@@ -146,6 +164,7 @@ pub trait ImageDecoder {
         Ok(buf)
     }
 }
+
 
 /// Immutable pixel iterator
 pub struct Pixels<'a, I:'a> {

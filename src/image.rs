@@ -101,10 +101,10 @@ pub trait ImageDecoder {
     fn row_len(&mut self) -> ImageResult<uint>;
     
     /// Returns true if the image is animated
-    fn is_animated(&mut self) -> bool {
+    fn is_animated(&mut self) -> ImageResult<bool> {
         // since most image formats do not support animation
         // just return false by default
-        return false
+        return Ok(false)
     }
     
     /// Returns the frames of the image

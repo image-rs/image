@@ -33,6 +33,7 @@ enum Extension {
     Application = 0xFF
 }
 
+/// A gif decoder
 pub struct GIFDecoder<R: Reader> {
     r: R,
     state: State,

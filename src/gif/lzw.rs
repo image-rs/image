@@ -1,150 +1,101 @@
 //! This modules provides an implementation of the Lempel–Ziv–Welch Compression Algorithm
 
 use std::io;
-use std::cmp;
-use std::slice;
-use std::io::IoResult;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry::{Vacant, Occupied};
 
-static MAXCODESIZE: u8 = 12;
+use super::bits::BitReader;
 
-/// An implementation of an LZW Decompressor.
-pub struct LZWReader<R> {
-    r: R,
+const MAX_CODESIZE: u8 = 12;
 
-    dict: Vec<Option<Vec<u8>>>,
-    prev: Vec<u8>,
-
-    accumulator: u32,
-    num_bits: u8,
-
-    initial_size: u8,
+/// LZW decoder
+pub struct LZWReader<R: Reader> {
+    r: BitReader<R>,
+    table: HashMap<u16, Vec<u8>>,
     code_size: u8,
-
     next_code: u16,
-    end: u16,
-    clear: u16,
+    prev_code: Option<u16>,
+    minimal_size: u8,
+    clear_code: u16,
+    end_code: u16,
 
-    eof: bool,
-
-    out: Vec<u8>,
-    pos: uint
 }
 
 impl<R: Reader> LZWReader<R> {
-    /// Create a new decompressor from a Reader
-    pub fn new(r: R, size: u8) -> LZWReader<R> {
-        let mut dict = Vec::from_elem(1 << MAXCODESIZE as uint, None);
-
-        for i in range(0u, 1 << size as uint) {
-            dict.as_mut_slice()[i] = Some(vec![i as u8])
-        }
-
+    /// Creates a new LZW reader with a minimum code size of `size`
+    pub fn new(reader: R, size: u8) -> LZWReader<R> {
+        let clear_code = 1 << size as uint;
+        let end_code = clear_code + 1;
         LZWReader {
-            r: r,
-
-            dict: dict,
-            prev: Vec::new(),
-
-            accumulator: 0,
-            num_bits: 0,
-
-            initial_size: size,
+            r: BitReader::new(reader),
+            table: HashMap::new(),
             code_size: size + 1,
-
-            next_code: (1 << size as uint) + 2,
-            clear: 1 << size as uint,
-            end: (1 << size as uint) + 1,
-
-            out: Vec::new(),
-            pos: 0,
-
-            eof: false
+            next_code: end_code + 1,
+            prev_code: None,
+            minimal_size: size,
+            clear_code: clear_code,
+            end_code: end_code,
         }
     }
 
-    fn read_code(&mut self) -> IoResult<u16> {
-        while self.num_bits < self.code_size {
-
-        let byte = try!(self.r.read_u8());
-
-            self.accumulator |= byte as u32 << self.num_bits as uint;
-            self.num_bits += 8;
+    /// Resets the code table
+    fn reset(&mut self) {
+        self.table.clear();
+        self.code_size = self.minimal_size + 1;
+        self.next_code = self.end_code + 1;
+        self.prev_code = None;
+        for i in range(0, (1 << self.minimal_size as uint)) {
+            self.table.insert(i, vec![i as u8]);
         }
-
-        let mask = (1 << self.code_size as uint) - 1;
-        let code = self.accumulator & mask;
-
-        self.accumulator >>= self.code_size as uint;
-        self.num_bits -= self.code_size;
-
-        Ok(code as u16)
     }
 
-    fn decode(&mut self) -> IoResult<()> {
+    /// Decodes the data into a `Writer`
+    pub fn decode<W: Writer>(&mut self, stream: &mut W) -> io::IoResult<()> {
+        //let code = try!(self.r.read_bits(self.code_size)) as u16;
+        //let mut prev = Some(if code == self.clear_code {
+        //    self.reset();
+        //    (try!(self.r.read_bits(self.code_size)) as u8)
+        //} else {
+        //    code as u8
+        //} as u16);
+        //if let Some(prev) = prev {
+        //    try!(stream.write_u8(prev as u8));   
+        //}
         loop {
-            let code = try!(self.read_code());
-            if code == self.clear {
-                self.code_size = self.initial_size + 1;
-                self.next_code = self.end + 1;
-                self.dict = Vec::from_elem(1 << MAXCODESIZE as uint, None);
-
-                for i in range(0u, 1 << self.initial_size as uint) {
-                    self.dict.as_mut_slice()[i] = Some(vec![i as u8])
-                }
-
-                self.prev.clear();
-
-                continue
-            }
-
-            else if code == self.end {
-                self.eof = true;
-                break
-            }
-
-            if self.dict[code as uint].is_none() {
-                self.dict.as_mut_slice()[code as uint] =
-                    Some(self.prev.clone() + self.prev.as_slice().slice_to(1));
-            }
-
-            if self.prev.len() > 0 {
-                let mut tmp = self.prev.clone();
-                tmp.push(self.dict[code as uint].as_ref().unwrap()[0]);
-
-                self.dict.as_mut_slice()[self.next_code as uint] = Some(tmp);
-                self.next_code += 1;
-
-                if self.next_code >= 1 << self.code_size as uint {
-                    self.code_size += 1;
+            let code = try!(self.r.read_bits(self.code_size)) as u16;
+            //println!("code {} ({} bits), prev {}", code, self.code_size, self.prev_code);
+            if code == self.clear_code {
+                self.reset();
+                //println!("reset");
+            } else if code == self.end_code {
+                return Ok(())
+            } else {
+                self.prev_code = if let Some(prev) = self.prev_code {
+                    let mut prefix = self.table[prev].clone();
+                    let k = match self.table.entry(code) {
+                        Occupied(entry) => {
+                            try!(stream.write(entry.get().as_slice()));
+                            entry.get()[0]
+                        },
+                        Vacant(_) => {
+                            try!(stream.write(prefix.as_slice()));
+                            try!(stream.write(prefix.slice_to(1)));
+                            prefix[0]
+                        },
+                    };
+                    prefix.push(k);
+                    self.table.insert(self.next_code, prefix);
+                    if self.next_code == (1 << self.code_size as uint) - 1 
+                       && self.code_size < MAX_CODESIZE {
+                        self.code_size += 1;
+                    }
+                    self.next_code += 1;
+                    Some(code)
+                } else {
+                    try!(stream.write_u8(code as u8));
+                    Some(code)
                 }
             }
-
-            self.prev = self.dict[code as uint].as_ref().unwrap().clone();
-
-            for &s in self.dict[code as uint].as_ref().unwrap().iter() {
-                self.out.push(s);
-            }
         }
-
-        Ok(())
-    }
-}
-
-impl<R: Reader> Reader for LZWReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
-        if !self.eof {
-            let _ = try!(self.decode());
-        }
-
-        if self.pos == self.out.len() {
-            return Err(io::standard_error(io::EndOfFile))
-        }
-
-        let a = cmp::min(buf.len(), self.out.len() - self.pos);
-        slice::bytes::copy_memory(buf, self.out.slice(self.pos, self.pos + a));
-
-        self.pos += a;
-
-        Ok(a)
     }
 }

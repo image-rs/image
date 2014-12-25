@@ -46,6 +46,7 @@ pub struct GIFDecoder<R: Reader> {
 }
 
 impl<R: Reader> GIFDecoder<R> {
+    /// Creates a new GIF decoder
     pub fn new(r: R) -> GIFDecoder<R> {
         GIFDecoder {
             r: r,

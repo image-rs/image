@@ -1,6 +1,10 @@
 use std::io;
 
+use num::rational::Ratio;
+use imageops::overlay;
+
 use color;
+use animation::Frame;
 use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use buffer::{ImageBuffer, GreyImage, RgbaImage};
 
@@ -170,7 +174,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     #[allow(unused_variables)]
-    fn read_frame(&mut self) -> ImageResult<RgbaImage> {
+    fn read_frame(&mut self) -> ImageResult<Frame> {
         let image_left   = try!(self.r.read_le_u16());
         let image_top    = try!(self.r.read_le_u16());
         let image_width  = try!(self.r.read_le_u16());
@@ -226,8 +230,13 @@ impl<R: Reader> GIFDecoder<R> {
             indices
         );
         if let Some(image) = image {
-            let image = expand_palette(image, table);
-            Ok(image)
+            let image = expand_palette(image, table, self.local_transparent_index);
+            Ok(Frame::from_parts(
+                image, 
+                image_left as u32,
+                image_top as u32,
+                Ratio::new(self.delay, 100)
+            ))
         } else {
             Err(ImageError::FormatError(
                 "Image data has not the expected size.".to_string()
@@ -235,7 +244,7 @@ impl<R: Reader> GIFDecoder<R> {
         }
     }
 
-    pub fn next_image(&mut self) -> ImageResult<Option<RgbaImage>> {
+    fn next_frame(&mut self) -> ImageResult<Option<Frame>> {
         use self::Block::{Image, Extension, Trailer};
 
         try!(self.read_logical_screen_descriptor());
@@ -252,7 +261,9 @@ impl<R: Reader> GIFDecoder<R> {
     }
 }
 
-fn expand_palette(image: GreyImage, palette: &[(u8, u8, u8)]) -> RgbaImage {
+fn expand_palette(image: GreyImage, 
+                  palette: &[(u8, u8, u8)], 
+                  transparent_idx: Option<u8>) -> RgbaImage {
     // TODO make this more efficient without copying
     let width = image.width();
     let height = image.height();
@@ -260,7 +271,16 @@ fn expand_palette(image: GreyImage, palette: &[(u8, u8, u8)]) -> RgbaImage {
     let mut image = ImageBuffer::new(width, height);
     for (pixel, &idx) in image.pixels_mut().zip(vec.iter()) {
         let (r, g, b) = palette[idx as uint];
-        *pixel = color::Rgba([r, g, b, 255])
+        let alpha = if let Some(t_idx) = transparent_idx {
+            if t_idx == idx {
+                0
+            } else {
+                255
+            }
+        } else {
+            255
+        };
+        *pixel = color::Rgba([r, g, b, alpha])
     }
     image
 }
@@ -286,9 +306,31 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let image = try!(self.next_image());
-        match image {
-            Some(image) => Ok(DecodingResult::U8(image.into_vec())),
+        let (width, height) = try!(self.dimensions());
+        let background = if let Some(idx) = self.global_background_index {
+            let (r, g, b) = self.global_table[idx as uint];
+            color::Rgba([r, g, b, 255])
+        } else {
+            color::Rgba([0, 0, 0, 255])
+        };
+        let mut canvas: RgbaImage = ImageBuffer::from_pixel(width, height, background);
+        let frame = try!(self.next_frame());
+        match frame {
+            Some(frame) => {
+                let left = frame.left();
+                let top = frame.top();
+                let buffer = frame.into_buffer();
+                overlay(&mut canvas, &buffer, left, top);
+                while let Some(frame) = try!(self.next_frame()) {
+                    if frame.delay() == Ratio::new(0, 100) {
+                        let left = frame.left();
+                        let top = frame.top();
+                        let buffer = frame.into_buffer();
+                        overlay(&mut canvas, &buffer, left, top);
+                    }
+                }
+                Ok(DecodingResult::U8(canvas.into_vec()))
+            },
             None => Err(ImageError::ImageEnd)
         }
     }

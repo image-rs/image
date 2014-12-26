@@ -8,7 +8,7 @@ use animation::Frame;
 use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use buffer::{ImageBuffer, GreyImage, RgbaImage};
 
-use super::lzw::LZWReader;
+use super::lzw;
 
 #[deriving(PartialEq)]
 enum State {
@@ -210,15 +210,15 @@ impl<R: Reader> GIFDecoder<R> {
         let code_size = try!(self.r.read_u8());
         let data = try!(self.read_data());
         
-        let mut lzw = LZWReader::new(
-            io::MemReader::new(data),
-            code_size
-        );
         let mut indices = Vec::with_capacity(
             image_width as uint
             * image_height as uint
         );
-        try!(lzw.decode(&mut indices));
+        try!(lzw::decode(
+            io::MemReader::new(data),
+            &mut indices,
+            code_size
+        ));
 
         let table = if let Some(ref table) = local_table {
             table.as_slice()

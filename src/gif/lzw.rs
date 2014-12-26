@@ -1,8 +1,6 @@
 //! This modules provides an implementation of the Lempel–Ziv–Welch Compression Algorithm
 
 use std::io;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Vacant, Occupied};
 
 use super::bits::BitReader;
 
@@ -114,23 +112,27 @@ impl<R: Reader> LZWReader<R> {
                 return Ok(())
             } else {
                 let next_code = self.table.next_code();
-                let data = if code == next_code {
-                    let cha = self.table.reconstruct(prev)[0];
-                    self.table.push(prev, cha);
-                    self.table.reconstruct(Some(code))
-                } else if code > next_code {
-                    return Err(io::IoError {
-                        kind: io::InvalidInput,
-                        desc: "Invalid code",
-                        detail: None
-                    })
+                if prev.is_none() {
+                    try!(stream.write_u8(code as u8));
                 } else {
-                    let cha = self.table.reconstruct(Some(code))[0];
-                    self.table.push(prev, cha);
-                    self.table.buffer()
-                };
-                try!(stream.write(data));
-                if next_code == (1 << self.code_size as uint) 
+                    let data = if code == next_code {
+                        let cha = self.table.reconstruct(prev)[0];
+                        self.table.push(prev, cha);
+                        self.table.reconstruct(Some(code))
+                    } else if code > next_code {
+                        return Err(io::IoError {
+                            kind: io::InvalidInput,
+                            desc: "Invalid code",
+                            detail: None
+                        })
+                    } else {
+                        let cha = self.table.reconstruct(Some(code))[0];
+                        self.table.push(prev, cha);
+                        self.table.buffer()
+                    };
+                    try!(stream.write(data));
+                }
+                if next_code == (1 << self.code_size as uint) - 1
                    && self.code_size < MAX_CODESIZE {
                     self.code_size += 1;
                 }

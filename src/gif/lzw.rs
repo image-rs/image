@@ -1,101 +1,120 @@
 //! This modules provides an implementation of the Lempel–Ziv–Welch Compression Algorithm
 
 use std::io;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Vacant, Occupied};
 
 use super::bits::BitReader;
 
 const MAX_CODESIZE: u8 = 12;
 
-/// LZW decoder
-pub struct LZWReader<R: Reader> {
-    r: BitReader<R>,
-    table: HashMap<u16, Vec<u8>>,
-    code_size: u8,
-    next_code: u16,
-    prev_code: Option<u16>,
-    minimal_size: u8,
-    clear_code: u16,
-    end_code: u16,
+/// Alias for a LZW code point
+type Code = u16;
 
+/// Decoding dictionary
+/// It is not generic due to current limitations of Rust
+/// Inspired by http://www.cplusplus.com/articles/iL18T05o/
+struct DecodingDict {
+    min_size: u8,
+    table: Vec<(Option<Code>, u8)>,
+    buffer: Vec<u8>,
 }
 
-impl<R: Reader> LZWReader<R> {
-    /// Creates a new LZW reader with a minimum code size of `size`
-    pub fn new(reader: R, size: u8) -> LZWReader<R> {
-        let clear_code = 1 << size as uint;
-        let end_code = clear_code + 1;
-        LZWReader {
-            r: BitReader::new(reader),
-            table: HashMap::new(),
-            code_size: size + 1,
-            next_code: end_code + 1,
-            prev_code: None,
-            minimal_size: size,
-            clear_code: clear_code,
-            end_code: end_code,
+impl DecodingDict {
+    /// Creates a new dict
+    fn new(min_size: u8) -> DecodingDict {
+        DecodingDict {
+            min_size: min_size,
+            table: Vec::with_capacity(512),
+            buffer: Vec::with_capacity((1 << MAX_CODESIZE as uint) - 1)
         }
     }
 
-    /// Resets the code table
+    /// Resets the dictionary
     fn reset(&mut self) {
         self.table.clear();
-        self.code_size = self.minimal_size + 1;
-        self.next_code = self.end_code + 1;
-        self.prev_code = None;
-        for i in range(0, (1 << self.minimal_size as uint)) {
-            self.table.insert(i, vec![i as u8]);
+        for i in range(0, (1u16 << self.min_size as uint)) {
+            self.table.push((None, i as u8));
         }
     }
 
-    /// Decodes the data into a `Writer`
-    pub fn decode<W: Writer>(&mut self, stream: &mut W) -> io::IoResult<()> {
-        //let code = try!(self.r.read_bits(self.code_size)) as u16;
-        //let mut prev = Some(if code == self.clear_code {
-        //    self.reset();
-        //    (try!(self.r.read_bits(self.code_size)) as u8)
-        //} else {
-        //    code as u8
-        //} as u16);
-        //if let Some(prev) = prev {
-        //    try!(stream.write_u8(prev as u8));   
-        //}
-        loop {
-            let code = try!(self.r.read_bits(self.code_size)) as u16;
-            //println!("code {} ({} bits), prev {}", code, self.code_size, self.prev_code);
-            if code == self.clear_code {
-                self.reset();
-                //println!("reset");
-            } else if code == self.end_code {
-                return Ok(())
+    /// Inserts a value into the dict
+    #[inline(always)]
+    fn push(&mut self, key: Option<Code>, value: u8) {
+        self.table.push((key, value))
+    }
+
+    /// Reconstructs the data for the corresponding code
+    fn reconstruct(&mut self, code: Option<Code>) -> &[u8] {
+        self.buffer.clear();
+        let mut code = code;
+        let mut cha;
+        while let Some(k) = code {
+            //(code, cha) = self.table[k as uint];
+            let entry = self.table[k as uint]; code = entry.0; cha = entry.1;
+            self.buffer.push(cha);
+        }
+        self.buffer.reverse();
+        self.buffer.as_slice()
+    }
+
+    /// Returns the buffer constructed by the last reconstruction
+    #[inline(always)]
+    fn buffer(&self) -> &[u8] {
+        self.buffer.as_slice()
+    }
+
+    /// Number of entries in the dictionary
+    #[inline(always)]
+    fn next_code(&self) -> u16 {
+        self.table.len() as u16
+    }
+}
+
+/// Decodes a lzw compressed stream
+pub fn decode<R, W>(r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
+where R: Reader, W: Writer {
+    let mut prev = None;
+    let mut r = BitReader::new(r);
+    let clear_code = 1 << min_code_size as uint;
+    let end_code = clear_code + 1;
+    let mut table = DecodingDict::new(min_code_size);
+    let mut code_size = min_code_size + 1;
+    loop {
+        let code = try!(r.read_bits(code_size)) as u16;
+        if code == clear_code {
+            table.reset();
+            table.push(None, 0); // clear code
+            table.push(None, 0); // end code
+            code_size = min_code_size + 1;
+            prev = None;
+        } else if code == end_code {
+            return Ok(())
+        } else {
+            let next_code = table.next_code();
+            if prev.is_none() {
+                try!(w.write_u8(code as u8));
             } else {
-                self.prev_code = if let Some(prev) = self.prev_code {
-                    let mut prefix = self.table[prev].clone();
-                    let k = match self.table.entry(code) {
-                        Occupied(entry) => {
-                            try!(stream.write(entry.get().as_slice()));
-                            entry.get()[0]
-                        },
-                        Vacant(_) => {
-                            try!(stream.write(prefix.as_slice()));
-                            try!(stream.write(prefix.slice_to(1)));
-                            prefix[0]
-                        },
-                    };
-                    prefix.push(k);
-                    self.table.insert(self.next_code, prefix);
-                    if self.next_code == (1 << self.code_size as uint) - 1 
-                       && self.code_size < MAX_CODESIZE {
-                        self.code_size += 1;
-                    }
-                    self.next_code += 1;
-                    Some(code)
+                let data = if code == next_code {
+                    let cha = table.reconstruct(prev)[0];
+                    table.push(prev, cha);
+                    table.reconstruct(Some(code))
+                } else if code < next_code {
+                    let cha = table.reconstruct(Some(code))[0];
+                    table.push(prev, cha);
+                    table.buffer()
                 } else {
-                    try!(stream.write_u8(code as u8));
-                    Some(code)
-                }
+                    return Err(io::IoError {
+                        kind: io::InvalidInput,
+                        desc: "Invalid code",
+                        detail: None
+                    })
+                };
+                try!(w.write(data));
             }
+            if next_code == (1 << code_size as uint) - 1
+               && code_size < MAX_CODESIZE {
+                code_size += 1;
+            }
+            prev = Some(code);
         }
     }
 }

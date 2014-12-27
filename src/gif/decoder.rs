@@ -232,7 +232,7 @@ impl<R: Reader> GIFDecoder<R> {
             indices
         );
         if let Some(image) = image {
-            let image = expand_palette(image, table, self.local_transparent_index);
+            let image = image.expand_palette(table, self.local_transparent_index);
             Ok(Frame::from_parts(
                 image, 
                 image_left as u32,
@@ -261,30 +261,6 @@ impl<R: Reader> GIFDecoder<R> {
             }
         }
     }
-}
-
-fn expand_palette(image: GreyImage, 
-                  palette: &[(u8, u8, u8)], 
-                  transparent_idx: Option<u8>) -> RgbaImage {
-    // TODO make this more efficient without copying
-    let width = image.width();
-    let height = image.height();
-    let vec = image.into_vec();
-    let mut image = ImageBuffer::new(width, height);
-    for (pixel, &idx) in image.pixels_mut().zip(vec.iter()) {
-        let (r, g, b) = palette[idx as uint];
-        let alpha = if let Some(t_idx) = transparent_idx {
-            if t_idx == idx {
-                0
-            } else {
-                255
-            }
-        } else {
-            255
-        };
-        *pixel = color::Rgba([r, g, b, alpha])
-    }
-    image
 }
 
 impl<R: Reader> ImageDecoder for GIFDecoder<R> {

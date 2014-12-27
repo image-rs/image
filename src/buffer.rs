@@ -1,5 +1,6 @@
 use std::slice::{Chunks, MutChunks};
 use std::any::Any;
+use std::num::Int;
 use std::intrinsics::TypeId;
 
 use traits::{Zero, Primitive};
@@ -124,6 +125,16 @@ where T: Primitive, PixelType: Pixel<T> {
     }
 }
 
+impl<'a, T, PixelType> DoubleEndedIterator<&'a PixelType> for Pixels<'a, T, PixelType> 
+where T: Primitive, PixelType: Pixel<T> {
+    #[inline(always)]
+    fn next_back(&mut self) -> Option<&'a PixelType> {
+        self.chunks.next_back().map(|v| 
+            Pixel::from_slice(None::<&'a PixelType>, v)
+        )
+    }
+}
+
 /// Iterate over mutable pixel refs.
 pub struct MutPixels<'a, T: 'static, Sized? PixelType> {
     chunks: MutChunks<'a, T>
@@ -134,6 +145,16 @@ where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut PixelType> {
         self.chunks.next().map(|v| 
+            Pixel::from_slice_mut(None::<&'a PixelType>, v)
+        )
+    }
+}
+
+impl<'a, T, PixelType> DoubleEndedIterator<&'a mut PixelType> for MutPixels<'a, T, PixelType>
+where T: Primitive, PixelType: Pixel<T> {
+    #[inline(always)]
+    fn next_back(&mut self) -> Option<&'a mut PixelType> {
+        self.chunks.next_back().map(|v| 
             Pixel::from_slice_mut(None::<&'a PixelType>, v)
         )
     }
@@ -466,6 +487,45 @@ pub trait ConvertBuffer<Sized? T> for Sized? {
     fn convert(&self) -> T;
 }
 
+
+// concrete implementation Luma -> Rgba
+impl GreyImage {
+    /// Expands a color palette by re-using the existing buffer.
+    /// Assumes 8 bit per pixel. Uses an optionally transparent index to 
+    /// adjust it's alpha value accordingly.
+    pub fn expand_palette(self, 
+                          palette: &[(u8, u8, u8)], 
+                          transparent_idx: Option<u8>) -> RgbaImage {
+        use std::mem;
+        let (width, height) = self.dimensions();
+        let mut data = self.into_vec();
+        let entries = data.len();
+        data.reserve_exact(entries.checked_mul(3).unwrap()); // 3 additional channels
+        // set_len is save since type is u8 an the data never read
+        unsafe { data.set_len(entries.checked_mul(4).unwrap()) }; // 4 channels in total
+        // Aquire a second view into the buffer
+        let indicies = unsafe {
+            let view: &mut [u8] = mem::transmute_copy(&data.as_mut_slice());
+            view.slice_to(entries)
+        };
+        let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
+        for (pixel, &idx) in buffer.pixels_mut().rev().zip(indicies.iter().rev()) {
+            let (r, g, b) = palette[idx as uint];
+            let alpha = if let Some(t_idx) = transparent_idx {
+                if t_idx == idx {
+                    0
+                } else {
+                    255
+                }
+            } else {
+                255
+            };
+            *pixel = Rgba([r, g, b, alpha])
+        }
+        buffer
+    }
+}
+
 impl<'a, 'b, Container, T, FromType, ToType> 
     ConvertBuffer<ImageBuffer<Vec<T>,T, ToType>> 
     for ImageBuffer<Container, T, FromType> 
@@ -481,7 +541,6 @@ impl<'a, 'b, Container, T, FromType, ToType>
         buffer
     }
 }
-
 
 /// Sendable Rgb image buffer 
 pub type RgbImage = ImageBuffer<Vec<u8>, u8, Rgb<u8>>;

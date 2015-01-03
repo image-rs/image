@@ -81,12 +81,13 @@ impl<R: Reader> Reader for BitReader<R> {
 /// A bit writer.
 ///
 /// Reads bits from a byte stream, LSB first.
+#[allow(dead_code)]
 pub struct BitWriter<'a, W> where W: Writer + 'a {
     w: &'a mut W,
     bits: u8,
     buf: u8,
 }
-
+#[allow(dead_code)]
 impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
     /// Creates a new bit reader
     pub fn new(writer: &'a mut W) -> BitWriter<'a, W> {
@@ -125,12 +126,6 @@ impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
             self.buf = 0;
         }
         Ok(())
-    }
-
-    /// Returns true if the reader is aligned to a byte of the underlying byte stream.
-    #[inline(always)]
-    fn is_aligned(&self) -> bool {
-        self.bits == 0
     }
 }
 

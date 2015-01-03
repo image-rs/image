@@ -2,6 +2,7 @@
 
 // Note copied from the stdlib under MIT license
 
+use std::ops::{ Add, Div, Mul, Neg, Rem, Sub };
 use std::num::{ Float, Int, NumCast };
 
 /// Num trait from old stdlib

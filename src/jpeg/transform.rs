@@ -205,7 +205,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 }
 
 pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
-    let mut tmp = [0i32, ..64];
+    let mut tmp = [0i32; 64];
 
     for x in range(0u, 8).rev() {
         if coeffs[x + 8 * 1] == 0 && coeffs[x + 8 * 2] == 0 && coeffs[x + 8 * 3] == 0 &&

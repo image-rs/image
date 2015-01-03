@@ -19,7 +19,7 @@ impl Frames {
 }
 
 /// A single animation frame
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Frame {
     /// Delay between the frames in s
     delay: Ratio<u16>,

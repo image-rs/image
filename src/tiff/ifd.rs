@@ -10,7 +10,7 @@ macro_rules! tags {
     )*} => {
 
         /// TIFF tag
-        #[deriving(Copy, PartialEq, Eq, Show, Hash)]
+        #[derive(Copy, PartialEq, Eq, Show, Hash)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16)
@@ -45,7 +45,7 @@ tags!{
     SamplesPerPixel 277;
 }
 
-#[deriving(Copy, Show, FromPrimitive)]
+#[derive(Copy, Show, FromPrimitive)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,
@@ -54,7 +54,7 @@ pub enum Type {
     RATIONAL = 5,
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum Value {
     //Signed(i32),
     Unsigned(u32),
@@ -88,21 +88,21 @@ impl Value {
 pub struct Entry {
     type_: Type,
     count: u32,
-    offset: [u8, ..4],
+    offset: [u8; 4],
 }
 
 impl ::std::fmt::Show for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        fmt.write(format!("Entry {{ type: {}, count: {}, offset: {} }}",
+        fmt.write_str(format!("Entry {{ type: {}, count: {}, offset: {} }}",
             self.type_,
             self.count,
             self.offset.as_slice()
-        ).as_bytes())
+        ).as_slice())
     }
 }
     
 impl Entry {
-    pub fn new(type_: Type, count: u32, offset: [u8, ..4]) -> Entry {
+    pub fn new(type_: Type, count: u32, offset: [u8; 4]) -> Entry {
         Entry {
             type_: type_,
             count: count,

@@ -1,12 +1,13 @@
+use std::ops::{ Index, IndexMut };
 use std::num;
-use std::num::{NumCast};
+use std::num::NumCast;
 use std::mem;
 
 use buffer::{Pixel};
 use traits::{Primitive, Zero};
 
 /// An enumeration over supported color types and their bit depths
-#[deriving(Copy, PartialEq, Eq, Show, Clone)]
+#[derive(Copy, PartialEq, Eq, Show, Clone)]
 pub enum ColorType {
     /// Pixel is greyscale
     Grey(u8),
@@ -58,8 +59,8 @@ macro_rules! define_colors {
 $( // START Structure definitions
 
 #[$doc]
-#[deriving(PartialEq, Eq, Clone, Show, Copy)]
-pub struct $ident<T: Primitive>(pub [T, ..$channels]);
+#[derive(PartialEq, Eq, Clone, Show, Copy)]
+pub struct $ident<T: Primitive>(pub [T; $channels]);
 
 impl<T: Primitive> Pixel<T> for $ident<T> {
 

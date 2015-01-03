@@ -1,11 +1,8 @@
 use std::io;
 use std::mem;
-use std::num::Float;
-
-
+use std::num::{ Float, FromPrimitive };
 use std::io::IoResult;
-
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use image;
 use image::{
@@ -21,7 +18,7 @@ use super::ifd;
 use super::ifd::Directory;
 
 /// Byte order of the TIFF file.
-#[deriving(Copy, Show)]
+#[derive(Copy, Show)]
 pub enum ByteOrder {
     /// little endian byte order
     LittleEndian,
@@ -31,7 +28,7 @@ pub enum ByteOrder {
 
 
 /// Reader that is aware of the byte order.
-#[deriving(Show)]
+#[derive(Show)]
 pub struct SmartReader<R> {
     reader: R,
     byte_order: ByteOrder
@@ -85,7 +82,7 @@ impl<R: Seek> Seek for SmartReader<R> {
     }
 }
 
-#[deriving(Copy, Show, FromPrimitive)]
+#[derive(Copy, Show, FromPrimitive)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -94,7 +91,7 @@ enum PhotometricInterpretation {
     TransparencyMask = 4,
 }
 
-#[deriving(Copy, Show, FromPrimitive)]
+#[derive(Copy, Show, FromPrimitive)]
 enum CompressionMethod {
     NoCompression = 1,
     Huffman = 2,
@@ -104,7 +101,7 @@ enum CompressionMethod {
 /// The representation of a PNG decoder
 ///
 /// Currently does not support decoding of interlaced images
-#[deriving(Show)]
+#[derive(Show)]
 pub struct TIFFDecoder<R> {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
@@ -238,8 +235,8 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     
     /// Reads a TIFF IFA offset/value field
     #[inline]
-    pub fn read_offset(&mut self) -> IoResult<[u8, ..4]> {
-        let mut val = [0, ..4];
+    pub fn read_offset(&mut self) -> IoResult<[u8; 4]> {
+        let mut val = [0; 4];
         let _ = try!(self.reader.read_at_least(4, val.as_mut_slice()));
         Ok(val)
     }

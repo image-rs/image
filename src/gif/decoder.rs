@@ -1,3 +1,10 @@
+//! This modules provides an GIF en-/decoder 
+//! 
+
+
+// A very good resource for the file format is 
+// http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
+
 use std::io;
 
 use num::rational::Ratio;

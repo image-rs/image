@@ -531,10 +531,37 @@ pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIma
     }
 }
 
-/// Create a new image from a byte slice
-pub fn load_from_memory(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::BufReader::new(buf);
+static MAGIC_BYTES: [(&'static [u8], ImageFormat), ..7] = [
+    (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
+    (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
+    (b"GIF89a", ImageFormat::GIF),
+    (b"GIF87a", ImageFormat::GIF),
+    (b"WEBP", ImageFormat::WEBP),
+    (b"MM.*", ImageFormat::TIFF),
+    (b"II*.", ImageFormat::TIFF),
+];
 
+/// Create a new image from a byte slice
+/// Makes an educated guess about the image format.
+/// TGA is not supported by this function.
+pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
+    let max_len = MAGIC_BYTES.iter().map(|v| v.0.len()).max().unwrap_or(0);
+    let beginning = buffer.slice_to(max_len);
+    for &(signature, format) in MAGIC_BYTES.iter() {
+        if beginning.starts_with(signature) {
+            return load_from_memory_with_format(buffer, format)
+        }
+    }
+    Err(image::ImageError::UnsupportedError(
+        "Unsupported image format".to_string())
+    )
+}
+
+
+/// Create a new image from a byte slice
+#[inline(always)]
+pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
+    let b = io::BufReader::new(buf);
     load(b, format)
 }
 

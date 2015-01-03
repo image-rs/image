@@ -26,3 +26,6 @@ git = "https://github.com/rust-lang/num"
 
 [dev-dependencies.glob]
 git = "https://github.com/rust-lang/glob"
+
+[dependencies.zlib]
+git = "https://github.com/sivadeilra/zlib"

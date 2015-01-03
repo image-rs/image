@@ -1,10 +1,12 @@
-use std::slice::{Chunks, ChunksMut};
+use std::slice::{ Chunks, ChunksMut };
 use std::any::Any;
+use std::ops::{ Index, IndexMut };
 use std::num::Int;
 use std::intrinsics::TypeId;
+use std::iter::repeat;
 
-use traits::{Zero, Primitive};
-use color::{Rgb, Rgba, Luma, LumaA, FromColor};
+use traits::{ Zero, Primitive };
+use color::{ Rgb, Rgba, Luma, LumaA, FromColor };
 use image::GenericImage;
 
 /// Mutable equivalent to AsSlice.
@@ -433,13 +435,12 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
     /// Creates a new image buffer based on a `Vec<T>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<Vec<T>, T, PixelType> {
         ImageBuffer {
-            data: Vec::from_elem(
-                (width as u64
-                 * height as u64 
-                 * (Pixel::channel_count(None::<&PixelType>) as u64)
-                ) as uint,
-                Zero::zero()
-            ),
+            data: repeat(Zero::zero()).take(
+                    (width as u64
+                     * height as u64 
+                     * (Pixel::channel_count(None::<&PixelType>) as u64)
+                    ) as uint
+                ).collect(),
             width: width,
             height: height,
             type_marker: TypeId::of::<PixelType>()

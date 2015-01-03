@@ -1,7 +1,9 @@
+use std::iter::repeat;
+
 use image;
 use image::ImageResult;
 
-#[deriving(Default, Clone)]
+#[derive(Default, Clone)]
 pub struct HuffTable {
     lut: Vec<(u8, u8)>,
     valptr: Vec<int>,
@@ -105,8 +107,8 @@ impl HuffDecoder {
 /// this function generates the huffman codes lengths and their respective
 /// code lengths as specified by the JPEG spec.
 fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
-    let mut huffsize = Vec::from_elem(256, 0u8);
-    let mut huffcode = Vec::from_elem(256, 0u16);
+    let mut huffsize = repeat(0u8).take(256).collect::<Vec<u8>>();
+    let mut huffcode = repeat(0u16).take(256).collect::<Vec<u16>>();
 
     let mut k = 0;
     let mut j;
@@ -152,7 +154,7 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
 }
 
 pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
-    let mut lut = Vec::from_elem(256, (17u8, 0u16));
+    let mut lut = repeat((17u8, 0u16)).take(256).collect::<Vec<(u8, u16)>>();
     let (huffsize, huffcode) = derive_codes_and_sizes(bits);
 
     for (i, &v) in huffval.iter().enumerate() {
@@ -163,10 +165,10 @@ pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
 }
 
 pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
-    let mut mincode = Vec::from_elem(16, -1i);
-    let mut maxcode = Vec::from_elem(16, -1i);
-    let mut valptr  = Vec::from_elem(16, -1i);
-    let mut lut     = Vec::from_elem(256, (0u8, 17u8));
+    let mut mincode = repeat(-1i).take(16).collect::<Vec<int>>();
+    let mut maxcode = repeat(-1i).take(16).collect::<Vec<int>>();
+    let mut valptr  = repeat(-1i).take(16).collect::<Vec<int>>();
+    let mut lut     = repeat((0u8, 17u8)).take(256).collect::<Vec<(u8, u8)>>();
 
     let (huffsize, huffcode) = derive_codes_and_sizes(bits.as_slice());
 

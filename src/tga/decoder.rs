@@ -69,7 +69,7 @@ impl ImageType {
 }
 
 /// Header used by TGA image files
-#[deriving(Show)]
+#[derive(Show)]
 #[repr(packed)]
 struct Header {
     id_length: u8,         // length of ID string

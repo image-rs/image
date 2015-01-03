@@ -531,7 +531,7 @@ pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIma
     }
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat), ..7] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 7] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
     (b"GIF89a", ImageFormat::GIF),

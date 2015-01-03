@@ -14,6 +14,7 @@
 
 use std::io::IoResult;
 use std::default::Default;
+use std::iter::repeat;
 
 use super::transform;
 
@@ -40,17 +41,17 @@ const B_HU_PRED: i8 = 9;
 
 type Prob = u8;
 
-static SEGMENT_ID_TREE: [i8, ..6] = [2, 4, -0, -1, -2, -3];
+static SEGMENT_ID_TREE: [i8; 6] = [2, 4, -0, -1, -2, -3];
 
 // Section 11.2
 // Tree for determining the keyframe luma intra prediction modes:
-static KEYFRAME_YMODE_TREE: [i8, ..8] = [-B_PRED, 2, 4, 6, -DC_PRED, -V_PRED, -H_PRED, -TM_PRED];
+static KEYFRAME_YMODE_TREE: [i8; 8] = [-B_PRED, 2, 4, 6, -DC_PRED, -V_PRED, -H_PRED, -TM_PRED];
 
 // Default probabilities for decoding the keyframe luma modes
-static KEYFRAME_YMODE_PROBS: [Prob, ..4] = [145, 156, 163, 128];
+static KEYFRAME_YMODE_PROBS: [Prob; 4] = [145, 156, 163, 128];
 
 // Tree for determining the keyframe B_PRED mode:
-static KEYFRAME_BPRED_MODE_TREE: [i8, ..18] = [
+static KEYFRAME_BPRED_MODE_TREE: [i8; 18] = [
     -B_DC_PRED, 2,
     -B_TM_PRED, 4,
     -B_VE_PRED, 6,
@@ -63,7 +64,7 @@ static KEYFRAME_BPRED_MODE_TREE: [i8, ..18] = [
 ];
 
 // Probabilites for the BPRED_MODE_TREE
-static KEYFRAME_BPRED_MODE_PROBS: [[[u8, ..9], ..10], ..10] = [
+static KEYFRAME_BPRED_MODE_PROBS: [[[u8; 9]; 10]; 10] = [
     [
         [ 231, 120,  48,  89, 115, 113, 120, 152, 112],
         [ 152, 179,  64, 126, 170, 118,  46,  70,  95],
@@ -187,17 +188,17 @@ static KEYFRAME_BPRED_MODE_PROBS: [[[u8, ..9], ..10], ..10] = [
 ];
 
 // Section 11.4 Tree for determining macroblock the chroma mode
-static KEYFRAME_UV_MODE_TREE: [i8, ..6] = [
+static KEYFRAME_UV_MODE_TREE: [i8; 6] = [
     -DC_PRED, 2,
     -V_PRED, 4,
     -H_PRED, -TM_PRED
 ];
 
 // Probabilities for determining macroblock mode
-static KEYFRAME_UV_MODE_PROBS: [Prob, ..3] = [142, 114, 183];
+static KEYFRAME_UV_MODE_PROBS: [Prob; 3] = [142, 114, 183];
 
 // Section 13.4
-type TokenProbTables = [[[[Prob, ..NUM_DCT_TOKENS - 1], ..3], ..8], ..4];
+type TokenProbTables = [[[[Prob; NUM_DCT_TOKENS - 1]; 3]; 8]; 4];
 
 // Probabilities that a token's probability will be updated
 static COEFF_UPDATE_PROBS: TokenProbTables = [
@@ -558,7 +559,7 @@ const DCT_CAT5: i8 = 9;
 const DCT_CAT6: i8 = 10;
 const DCT_EOB: i8 = 11;
 
-static DCT_TOKEN_TREE: [i8, ..22] = [
+static DCT_TOKEN_TREE: [i8; 22] = [
     -DCT_EOB, 2,
     -DCT_0, 4,
     -DCT_1, 6,
@@ -572,7 +573,7 @@ static DCT_TOKEN_TREE: [i8, ..22] = [
     -DCT_CAT5, -DCT_CAT6
 ];
 
-static PROB_DCT_CAT: [[Prob, ..12], ..6] = [
+static PROB_DCT_CAT: [[Prob; 12]; 6] = [
     [159,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,],
     [165, 145,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,],
     [173, 148, 140,   0,   0,   0,   0,   0,   0,   0,   0,    0,],
@@ -581,10 +582,10 @@ static PROB_DCT_CAT: [[Prob, ..12], ..6] = [
     [254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129,    0,],
 ];
 
-static DCT_CAT_BASE: [u8, ..6] = [5, 7, 11, 19, 35, 67];
-static COEFF_BANDS: [u8, ..16] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7];
+static DCT_CAT_BASE: [u8; 6] = [5, 7, 11, 19, 35, 67];
+static COEFF_BANDS: [u8; 16] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7];
 
-static DC_QUANT: [i16, ..128] = [
+static DC_QUANT: [i16; 128] = [
       4,   5,   6,   7,   8,   9,  10,  10,
      11,  12,  13,  14,  15,  16,  17,  17,
      18,  19,  20,  20,  21,  21,  22,  22,
@@ -603,7 +604,7 @@ static DC_QUANT: [i16, ..128] = [
     138, 140, 143, 145, 148, 151, 154, 157,
 ];
 
-static AC_QUANT: [i16, ..128] = [
+static AC_QUANT: [i16; 128] = [
     4,   5,    6,    7,   8,   9,  10,  11,
     12,  13,   14,  15,  16,  17,  18,  19,
     20,  21,   22,  23,  24,  25,  26,  27,
@@ -622,7 +623,7 @@ static AC_QUANT: [i16, ..128] = [
     249, 254, 259, 264, 269, 274, 279, 284,
 ];
 
-static ZIGZAG: [u8, ..16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
+static ZIGZAG: [u8; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
 
 struct BoolReader {
     buf: Vec<u8>,
@@ -723,10 +724,10 @@ impl BoolReader {
     }
 }
 
-#[deriving(Copy)]
+#[derive(Copy)]
 struct MacroBlock {
-    bpred:       [i8, ..16],
-    complexity:  [u8, ..9],
+    bpred:       [i8; 16],
+    complexity:  [u8; 9],
     luma_mode:   i8,
     chroma_mode: i8,
     segmentid:   u8,
@@ -735,8 +736,8 @@ struct MacroBlock {
 impl MacroBlock {
     fn new() -> MacroBlock {
         MacroBlock {
-            bpred:        [0i8, ..16],
-            complexity:   [0u8, ..9],
+            bpred:        [0i8; 16],
+            complexity:   [0u8; 9],
             luma_mode:    0,
             chroma_mode:  0,
             segmentid:    0,
@@ -745,7 +746,7 @@ impl MacroBlock {
 }
 
 /// A Representation of the last decoded video frame
-#[deriving(Default, Show, Clone)]
+#[derive(Default, Show, Clone)]
 pub struct Frame {
     /// The width of the luma plane
     pub width: u16,
@@ -775,7 +776,7 @@ pub struct Frame {
     sharpness_level: u8,
 }
 
-#[deriving(Copy, Default)]
+#[derive(Copy, Default)]
 struct Segment {
     ydc: i16,
     yac: i16,
@@ -805,12 +806,12 @@ pub struct VP8Decoder<R> {
 
     segments_enabled: bool,
     segments_update_map: bool,
-    segment: [Segment, ..MAX_SEGMENTS],
+    segment: [Segment; MAX_SEGMENTS],
 
-    partitions: [BoolReader, ..8],
+    partitions: [BoolReader; 8],
     num_partitions: u8,
 
-    segment_tree_probs: [Prob, ..3],
+    segment_tree_probs: [Prob; 3],
     token_probs: Box<TokenProbTables>,
 
     // Section 9.10
@@ -844,7 +845,7 @@ impl<R: Reader> VP8Decoder<R> {
             frame: f,
             segments_enabled: false,
             segments_update_map: false,
-            segment: [s, ..MAX_SEGMENTS],
+            segment: [s; MAX_SEGMENTS],
 
             partitions: [
                 BoolReader::new(), BoolReader::new(),
@@ -854,7 +855,7 @@ impl<R: Reader> VP8Decoder<R> {
 
             num_partitions: 1,
 
-            segment_tree_probs: [255u8, ..3],
+            segment_tree_probs: [255u8; 3],
             token_probs: box COEFF_PROBS,
 
             // Section 9.10
@@ -1017,7 +1018,7 @@ impl<R: Reader> VP8Decoder<R> {
     }
 
     fn read_frame_header(&mut self) -> IoResult<()> {
-        let mut tag = [0u8, ..3];
+        let mut tag = [0u8; 3];
         let _ = try!(self.r.read(&mut tag));
 
         self.frame.keyframe = tag[0] & 1 == 0;
@@ -1043,11 +1044,11 @@ impl<R: Reader> VP8Decoder<R> {
             self.mbwidth  = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;
 
-            self.frame.ybuf = Vec::from_elem(self.frame.width as uint
-                * self.frame.height as uint, 0u8);
+            self.frame.ybuf = repeat(0u8).take(self.frame.width as uint
+                * self.frame.height as uint).collect();
 
-            self.top_border = Vec::from_elem(self.frame.width as uint + 4 + 16, 127u8);
-            self.left_border = Vec::from_elem(1 + 16, 129u8);
+            self.top_border = repeat(127u8).take(self.frame.width as uint + 4 + 16).collect();
+            self.left_border = repeat(129u8).take(1 + 16).collect();
         }
 
         let buf = try!(self.r.read_exact(first_partition_size as uint));
@@ -1303,15 +1304,15 @@ impl<R: Reader> VP8Decoder<R> {
         has_coefficients
     }
 
-    fn read_residual_data(&mut self, mb: &MacroBlock, mbx: uint, p: uint) -> [i32, ..384] {
+    fn read_residual_data(&mut self, mb: &MacroBlock, mbx: uint, p: uint) -> [i32; 384] {
         let sindex     = mb.segmentid as uint;
-        let mut blocks = [0i32, ..384];
+        let mut blocks = [0i32; 384];
         let mut plane  = if mb.luma_mode == B_PRED { 3 }
                          else { 1 };
 
         if plane == 1 {
             let complexity = self.top.as_mut_slice()[mbx].complexity[0] + self.left.complexity[0];
-            let mut block = [0i32, ..16];
+            let mut block = [0i32; 16];
             let dcq = self.segment[sindex].y2dc;
             let acq = self.segment[sindex].y2ac;
             let n   = self.read_coefficients(&mut block, p, plane, complexity as uint, dcq, acq);
@@ -1391,7 +1392,7 @@ impl<R: Reader> VP8Decoder<R> {
 
             for mbx in range(0, self.mbwidth as uint) {
                 let (skip, mb) = self.read_macroblock_header(mbx);
-                let mut blocks = [0i32, ..384];
+                let mut blocks = [0i32; 384];
 
                 if !skip {
                     blocks = self.read_residual_data(&mb, mbx, p);
@@ -1410,7 +1411,7 @@ impl<R: Reader> VP8Decoder<R> {
                 self.intra_predict(mbx, mby, &mb, &blocks);
             }
 
-            self.left_border = Vec::from_elem(1 + 16, 129u8);
+            self.left_border = repeat(129u8).take(1 + 16).collect();
         }
 
         Ok(&self.frame)
@@ -1422,17 +1423,17 @@ fn init_top_macroblocks(width: uint) -> Vec<MacroBlock> {
 
     let mb = MacroBlock {
         // Section 11.3 #3
-        bpred: [B_DC_PRED, ..16],
+        bpred: [B_DC_PRED; 16],
         luma_mode: DC_PRED,
         ..MacroBlock::new()
     };
 
-    Vec::from_fn(mb_width, |_| mb)
+    range(0, mb_width).map(|_| mb).collect()
 }
 
-fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u8, ..357] {
+fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u8; 357] {
     let stride = 1u + 16 + 4;
-    let mut ws = [0u8, ..(1 + 16) * (1 + 16 + 4)];
+    let mut ws = [0u8; (1 + 16) * (1 + 16 + 4)];
 
     // A
     {

@@ -15,6 +15,7 @@
 
 extern crate flate;
 extern crate num;
+extern crate zlib;
 
 pub use color::ColorType as ColorType;
 pub use traits::Primitive;

@@ -17,7 +17,8 @@ use color;
 
 use super::filter::unfilter;
 use super::hash::Crc32;
-use super::zlib::ZlibDecoder;
+
+use zlib::inflate::InflateReader;
 
 use std::num::Float;
 
@@ -121,7 +122,7 @@ impl Iterator<(u8, u32, u32)> for Adam7Iterator {
 ///
 /// Currently does not support decoding of interlaced images
 pub struct PNGDecoder<R> {
-    z: ZlibDecoder<IDATReader<R>>,
+    z: InflateReader<IDATReader<R>>,
     crc: Crc32,
     previous: Vec<u8>,
     state: PNGState,
@@ -157,7 +158,7 @@ impl<R: Reader> PNGDecoder<R> {
 
             previous: Vec::new(),
             state: PNGState::Start,
-            z: ZlibDecoder::new(idat_reader),
+            z: InflateReader::new_inflate(0x10000, idat_reader),
             crc: Crc32::new(),
 
             width: 0,

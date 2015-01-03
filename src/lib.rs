@@ -83,6 +83,7 @@ pub use dynimage:: {
     open,
     load,
     load_from_memory,
+    load_from_memory_with_format,
     save_buffer,
 };
 pub use dynimage::DynamicImage:: {

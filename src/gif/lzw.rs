@@ -105,7 +105,10 @@ where R: Reader, W: Writer {
                     return Err(io::IoError {
                         kind: io::InvalidInput,
                         desc: "Invalid code",
-                        detail: None
+                        detail: Some(format!("expected {} <= {}", 
+                                     code,
+                                     next_code)
+                                )
                     })
                 };
                 try!(w.write(data));

@@ -176,7 +176,8 @@ pub struct Pixels<'a, I:'a> {
     height: u32
 }
 
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, P)> for Pixels<'a, I> {
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for Pixels<'a, I> {
+    type Item = (u32, u32, P);
     fn next(&mut self) -> Option<(u32, u32, P)> {
         if self.x >= self.width {
             self.x =  0;
@@ -206,7 +207,8 @@ pub struct MutPixels<'a, I:'a> {
     height: u32
 }
 
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, &'a mut P)> for MutPixels<'a, I> {
+impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for MutPixels<'a, I> {
+    type Item = (u32, u32, &'a mut P);
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
         if self.x >= self.width {
             self.x =  0;

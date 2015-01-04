@@ -77,7 +77,8 @@ impl Frame {
     }
 }
 
-impl<'a> Iterator<Frame> for Frames {
+impl<'a> Iterator for Frames {
+    type Item = Frame;
     fn next(&mut self) -> Option<Frame> {
         let frame = self.current_frame;
         self.current_frame += 1;

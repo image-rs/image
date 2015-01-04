@@ -90,14 +90,21 @@ enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
     RGB = 2,
-    PaletteColor = 3,
+    RGBPalette = 3,
     TransparencyMask = 4,
+    CMYK = 5,
+    YCbCr = 6,
+    CIELab = 8,
 }
 
 #[deriving(Copy, Show, FromPrimitive)]
 enum CompressionMethod {
-    NoCompression = 1,
+    None = 1,
     Huffman = 2,
+    Fax3 = 3,
+    Fax4 = 4,
+    LZW = 5,
+    JPEG = 6,
     PackBits = 32773
 }
 
@@ -131,7 +138,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             bits_per_sample: vec![1],
             samples: 1,
             photometric_interpretation: PhotometricInterpretation::BlackIsZero,
-            compression_method: CompressionMethod::NoCompression
+            compression_method: CompressionMethod::None
         }.init()
     }
     
@@ -204,8 +211,17 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                     None => {}
                 }
             }
+            3 => {
+                match try!(self.find_tag_u32_vec(ifd::Tag::BitsPerSample)) {
+                    Some(val) => {
+                        self.bits_per_sample = val.iter().map(|&v| v as u8).collect()
+                    },
+                    None => {}
+                }
+
+            }
             _ => return Err(image::ImageError::UnsupportedError(
-                "So far, only one sample per pixel is supported.".to_string()
+                format!("{} samples per pixel is supported.", self.samples)
             ))
         }
         Ok(self)
@@ -323,6 +339,14 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         }
     }
     
+    /// Tries to retrieve a tag an convert it to the desired type.
+    fn find_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Option<Vec<u32>>> {
+        match try!(self.find_tag(tag)) {
+            Some(val) => Ok(Some(try!(val.as_u32_vec()))),
+            None => Ok(None)
+        }
+    }
+    
     /// Tries to retrieve a tag.
     /// Returns an error if the tag is not present
     fn get_tag(&mut self, tag: ifd::Tag) -> ImageResult<ifd::Value> {
@@ -338,6 +362,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     fn get_tag_u32(&mut self, tag: ifd::Tag) -> ImageResult<u32> {
         (try!(self.get_tag(tag))).as_u32()
     }
+
     /// Tries to retrieve a tag an convert it to the desired type.
     fn get_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Vec<u32>> {
         (try!(self.get_tag(tag))).as_u32_vec()
@@ -349,9 +374,9 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         let color_type = try!(self.colortype());
         try!(self.goto_offset(offset));
         let reader = match self.compression_method {
-            CompressionMethod::NoCompression => {
+            CompressionMethod::None => {
                 &mut self.reader
-            }
+            },
             method => return Err(::image::ImageError::UnsupportedError(format!(
                 "Compression method {} is unsupported", method
             )))
@@ -364,6 +389,9 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 length as uint/2
             }
             (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n < 8 => {
+                try!(reader.read(buffer.slice_to_mut(length as uint)))
+            }
+            (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(buffer.slice_to_mut(length as uint)))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(

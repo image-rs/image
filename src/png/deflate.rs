@@ -371,7 +371,7 @@ impl<R: Reader> HuffReader<R> {
         while self.num_bits < n {
             let byte = try!(self.r.read_u8());
 
-            self.bits |= byte as u32 << self.num_bits as uint;
+            self.bits |= (byte as u32) << self.num_bits as uint;
             self.num_bits += 8;
         }
 

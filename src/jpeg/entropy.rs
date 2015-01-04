@@ -41,7 +41,7 @@ impl HuffDecoder {
                 }
             }
 
-            self.bits |= (byte as u32 << (32 - 8)) >> self.num_bits as uint;
+            self.bits |= ((byte as u32) << (32 - 8)) >> self.num_bits as uint;
             self.num_bits += 8;
         }
 

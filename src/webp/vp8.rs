@@ -893,7 +893,7 @@ impl<R: Reader> VP8Decoder<R> {
             let sizes = try!(self.r.read_exact(3 * n - 3));
 
             for (i, s) in sizes.as_slice().chunks(3).enumerate() {
-                let size = s[0] as u32 + (s[1] as u32 << 8) + (s[2] as u32 << 8);
+                let size = s[0] as u32 + ((s[1] as u32) << 8) + ((s[2] as u32) << 8);
                 let buf  = try!(self.r.read_exact(size as uint));
 
                 self.partitions[i].init(buf);
@@ -1026,7 +1026,7 @@ impl<R: Reader> VP8Decoder<R> {
         self.frame.for_display = (tag[0] >> 4) & 1 != 0;
 
         let first_partition_size = (
-            (tag[2] as u32 << 16) | (tag[1] as u32 << 8) | tag[0] as u32) >> 5;
+            ((tag[2] as u32) << 16) | ((tag[1] as u32) << 8) | tag[0] as u32) >> 5;
 
         if self.frame.keyframe {
             let _ = try!(self.r.read(&mut tag));

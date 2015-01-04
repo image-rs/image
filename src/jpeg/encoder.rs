@@ -270,7 +270,7 @@ impl<W: Writer> JPEGEncoder<W> {
     }
 
     fn write_bits(&mut self, bits: u16, size: u8) -> IoResult<()> {
-        self.accumulator |= bits as u32 << (32 - (self.nbits + size)) as uint;
+        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as uint;
         self.nbits += size;
 
         while self.nbits >= 8 {

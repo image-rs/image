@@ -29,7 +29,7 @@ static APP0: u8 = 0xE0;
 
 // section K.1
 // table K.1
-static STD_LUMA_QTABLE: [u8, ..64] = [
+static STD_LUMA_QTABLE: [u8; 64] = [
     16, 11, 10, 16, 124, 140, 151, 161,
     12, 12, 14, 19, 126, 158, 160, 155,
     14, 13, 16, 24, 140, 157, 169, 156,
@@ -41,7 +41,7 @@ static STD_LUMA_QTABLE: [u8, ..64] = [
  ];
 
 // table K.2
-static STD_CHROMA_QTABLE: [u8, ..64] = [
+static STD_CHROMA_QTABLE: [u8; 64] = [
     17, 18, 24, 47, 99, 99, 99, 99,
     18, 21, 26, 66, 99, 99, 99, 99,
     24, 26, 56, 99, 99, 99, 99, 99,
@@ -54,34 +54,34 @@ static STD_CHROMA_QTABLE: [u8, ..64] = [
 
 // section K.3
 // Code lengths and values for table K.3
-static STD_LUMA_DC_CODE_LENGTHS: [u8, ..16] = [
+static STD_LUMA_DC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
-static STD_LUMA_DC_VALUES: [u8, ..12] = [
+static STD_LUMA_DC_VALUES: [u8; 12] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0A, 0x0B
 ];
 
 // Code lengths and values for table K.4
-static STD_CHROMA_DC_CODE_LENGTHS: [u8, ..16] = [
+static STD_CHROMA_DC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
-static STD_CHROMA_DC_VALUES: [u8, ..12] = [
+static STD_CHROMA_DC_VALUES: [u8; 12] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0A, 0x0B
 ];
 
 // Code lengths and values for table k.5
-static STD_LUMA_AC_CODE_LENGTHS: [u8, ..16] = [
+static STD_LUMA_AC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03,
     0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D
 ];
 
-static STD_LUMA_AC_VALUES: [u8, ..162] = [
+static STD_LUMA_AC_VALUES: [u8; 162] = [
     0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
     0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
     0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
@@ -96,11 +96,11 @@ static STD_LUMA_AC_VALUES: [u8, ..162] = [
 ];
 
 // Code lengths and values for table k.6
-static STD_CHROMA_AC_CODE_LENGTHS: [u8, ..16] = [
+static STD_CHROMA_AC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04,
     0x07, 0x05, 0x04, 0x04, 0x00, 0x01, 0x02, 0x77,
 ];
-static STD_CHROMA_AC_VALUES: [u8, ..162] = [
+static STD_CHROMA_AC_VALUES: [u8; 162] = [
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
     0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
     0x15, 0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17, 0x18, 0x19, 0x1A, 0x26,
@@ -270,7 +270,7 @@ impl<W: Writer> JPEGEncoder<W> {
     }
 
     fn write_bits(&mut self, bits: u16, size: u8) -> IoResult<()> {
-        self.accumulator |= bits as u32 << (32 - (self.nbits + size)) as uint;
+        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as uint;
         self.nbits += size;
 
         while self.nbits >= 8 {
@@ -356,9 +356,9 @@ impl<W: Writer> JPEGEncoder<W> {
     }
 
     fn encode_grey(&mut self, image: &[u8], width: uint, height: uint, bpp: uint) -> IoResult<()> {
-        let mut yblock     = [0u8, ..64];
+        let mut yblock     = [0u8; 64];
         let mut y_dcprev   = 0;
-        let mut dct_yblock = [0i32, ..64];
+        let mut dct_yblock = [0i32; 64];
 
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
@@ -389,13 +389,13 @@ impl<W: Writer> JPEGEncoder<W> {
         let mut cb_dcprev = 0;
         let mut cr_dcprev = 0;
 
-        let mut dct_yblock   = [0i32, ..64];
-        let mut dct_cb_block = [0i32, ..64];
-        let mut dct_cr_block = [0i32, ..64];
+        let mut dct_yblock   = [0i32; 64];
+        let mut dct_cb_block = [0i32; 64];
+        let mut dct_cr_block = [0i32; 64];
 
-        let mut yblock   = [0u8, ..64];
-        let mut cb_block = [0u8, ..64];
-        let mut cr_block = [0u8, ..64];
+        let mut yblock   = [0u8; 64];
+        let mut cb_block = [0u8; 64];
+        let mut cr_block = [0u8; 64];
 
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
@@ -579,9 +579,9 @@ fn copy_blocks_ycbcr(source: &[u8],
                      y0: uint,
                      width: uint,
                      bpp: uint,
-                     yb: &mut [u8, ..64],
-                     cbb: &mut [u8, ..64],
-                     crb: &mut [u8, ..64]) {
+                     yb: &mut [u8; 64],
+                     cbb: &mut [u8; 64],
+                     crb: &mut [u8; 64]) {
 
     for y in range(0u, 8) {
         let ystride = (y0 + y) * bpp * width;
@@ -607,7 +607,7 @@ fn copy_blocks_grey(source: &[u8],
                     y0: uint,
                     width: uint,
                     bpp: uint,
-                    gb: &mut [u8, ..64]) {
+                    gb: &mut [u8; 64]) {
 
     for y in range(0u, 8) {
         let ystride = (y0 + y) * bpp * width;

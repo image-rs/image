@@ -1,6 +1,6 @@
 use std::num::SignedInt;
 
-#[deriving(FromPrimitive, Show)]
+#[derive(FromPrimitive, Show)]
 pub enum FilterType {
     NoFilter = 0,
     Sub = 1,
@@ -67,7 +67,7 @@ pub fn unfilter(filter: FilterType, bpp: uint, previous: &[u8], current: &mut [u
 
 pub fn filter(method: FilterType, bpp: uint, previous: &[u8], current: &mut [u8]) {
     let len  = current.len();
-    let orig = Vec::from_fn(len, | i | current[i]);
+    let orig: Vec<u8> = range(0, len).map(| i | current[i]).collect();
 
     match method {
         FilterType::NoFilter => (),

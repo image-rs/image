@@ -2,6 +2,7 @@ use std::error::FromError;
 use std::mem;
 use std::io;
 use std::slice;
+use std::iter::repeat;
 
 use color;
 use color::ColorType;
@@ -12,7 +13,7 @@ use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
 /// An enumeration of Image Errors
-#[deriving(Show, PartialEq, Eq)]
+#[derive(Show, PartialEq, Eq)]
 pub enum ImageError {
     /// The Image is not formatted properly
     FormatError(String),
@@ -65,7 +66,7 @@ pub enum DecodingBuffer<'a> {
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[deriving(Copy, PartialEq, Eq, Show)]
+#[derive(Copy, PartialEq, Eq, Show)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,
@@ -90,7 +91,7 @@ pub enum ImageFormat {
 }
 
 /// The trait that all decoders implement
-pub trait ImageDecoder {
+pub trait ImageDecoder: Sized {
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
 
@@ -136,8 +137,8 @@ pub trait ImageDecoder {
 
         let rowlen  = try!(self.row_len());
 
-        let mut buf = Vec::from_elem(length as uint * width as uint * bpp, 0u8);
-        let mut tmp = Vec::from_elem(rowlen, 0u8);
+        let mut buf = repeat(0u8).take(length as uint * width as uint * bpp).collect::<Vec<u8>>();
+        let mut tmp = repeat(0u8).take(rowlen).collect::<Vec<u8>>();
 
         loop {
             let row = try!(self.read_scanline(tmp.as_mut_slice()));
@@ -233,7 +234,7 @@ impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator<(u32, u32, &'a 
 }
 
 /// A trait for manipulating images.
-pub trait GenericImage<P> {
+pub trait GenericImage<P>: Sized {
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 

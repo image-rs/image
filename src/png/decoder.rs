@@ -2,10 +2,12 @@ use std::io;
 use std::cmp;
 use std::mem;
 use std::iter;
+use std::iter::repeat;
 use std::str;
 use std::slice;
 use std::io::IoResult;
 use std::io::MemReader;
+use std::num::FromPrimitive;
 
 use image::{
     DecodingResult,
@@ -21,10 +23,10 @@ use super::zlib::ZlibDecoder;
 
 use std::num::Float;
 
-pub static PNGSIGNATURE: [u8, ..8] = [137, 80, 78, 71, 13, 10, 26, 10];
+pub static PNGSIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 
-#[deriving(Copy, PartialEq)]
+#[derive(Copy, PartialEq)]
 enum PNGState {
     Start,
     HaveSignature,
@@ -37,7 +39,7 @@ enum PNGState {
     HaveIEND
 }
 
-#[deriving(Copy, FromPrimitive, Show, PartialEq)]
+#[derive(Copy, FromPrimitive, Show, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1
@@ -55,7 +57,7 @@ enum InterlaceMethod {
 ///     56565656
 ///     77777777
 ///
-#[deriving(Copy)]
+#[derive(Copy)]
 struct Adam7Iterator {
     line: u32,
     lines: u32,
@@ -260,7 +262,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         self.bits_per_pixel = channels * self.bit_depth;
         self.bpp = (self.bits_per_pixel + 7) / 8;
-        self.previous = Vec::from_elem(self.raw_row_length(self.width) as uint, 0u8);
+        self.previous = repeat(0u8).take(self.raw_row_length(self.width) as uint).collect();
 
         Ok(())
     }
@@ -278,7 +280,7 @@ impl<R: Reader> PNGDecoder<R> {
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
-        let p = Vec::from_fn(256, |i| {
+        let p: Vec<(u8, u8, u8)> = range(0, 256).map(|i| {
             if i < len {
                 let r = buf[3 * i];
                 let g = buf[3 * i + 1];
@@ -288,7 +290,7 @@ impl<R: Reader> PNGDecoder<R> {
             } else {
                 (0, 0, 0)
             }
-        });
+        }).collect();
 
         self.palette = Some(p);
 
@@ -439,9 +441,9 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
         let max_rowlen = try!(self.row_len());
-        let mut buf = Vec::from_elem(max_rowlen * self.height as uint, 0u8);
+        let mut buf: Vec<u8> = repeat(0u8).take(max_rowlen * self.height as uint).collect();
         if let Some(mut pass_iterator) = self.pass_iterator { // Method == Adam7
-            let mut pass_buf = Vec::from_elem(max_rowlen, 0u8);
+            let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
             let bytes = color::bits_per_pixel(self.pixel_type)/8;
             for (pass, line, width) in pass_iterator {

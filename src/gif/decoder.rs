@@ -6,6 +6,7 @@
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
 use std::io;
+use std::num::FromPrimitive;
 
 use num::rational::Ratio;
 use imageops::overlay;
@@ -17,7 +18,7 @@ use buffer::{ImageBuffer, GreyImage, RgbaImage};
 
 use super::lzw;
 
-#[deriving(PartialEq)]
+#[derive(PartialEq)]
 enum State {
     Start,
     HaveHeader,
@@ -25,14 +26,14 @@ enum State {
 }
 
 
-#[deriving(FromPrimitive)]
+#[derive(FromPrimitive)]
 enum Block {
     Image = 0x2C,
     Extension = 0x21,
     Trailer = 0x3B
 }
 
-#[deriving(FromPrimitive)]
+#[derive(FromPrimitive)]
 enum Extension {
     Text = 0x01,
     Control = 0xF9,
@@ -71,8 +72,8 @@ impl<R: Reader> GIFDecoder<R> {
 
     fn read_header(&mut self) -> ImageResult<()> {
         if self.state == State::Start {
-            let mut signature = [0, ..3];
-            let mut version = [0, ..3];
+            let mut signature = [0; 3];
+            let mut version = [0; 3];
             try!(self.r.read_at_least(3, signature.as_mut_slice()));
             try!(self.r.read_at_least(3, version.as_mut_slice()));
 

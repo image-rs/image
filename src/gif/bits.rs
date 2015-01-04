@@ -31,7 +31,7 @@ impl<R: Reader> BitReader<R> {
         }
         // FIXME: 64bit won't work this way
         while self.bits < n {
-            self.buf |= try!(self.r.read_byte()) as u64 << self.bits as uint;
+            self.buf |= (try!(self.r.read_byte()) as u64) << self.bits as uint;
             self.bits += 8;
         }
         Ok(())
@@ -101,7 +101,7 @@ impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
     /// Returns the next `n` bits.
     pub fn write_bits(&mut self, mut v: u32, mut n: u8) -> io::IoResult<()> {
         while n > 0 {
-            self.buf |= v as u8 << self.bits as uint;
+            self.buf |= (v as u8) << self.bits as uint;
             let missing = 8u8 - self.bits;
             if n >= missing {
                 n -= missing;

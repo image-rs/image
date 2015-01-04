@@ -11,6 +11,8 @@ use std::io:: {
     IoResult,
     MemWriter
 };
+use std::num::FromPrimitive;
+use std::iter::repeat;
 
 use color;
 use super::hash::Crc32;
@@ -149,9 +151,9 @@ fn build_idat(image: &[u8], bpp: uint, width: u32, height: u32) -> Vec<u8> {
 
     let rowlen = bpp * width as uint;
 
-    let mut p = Vec::from_elem(rowlen, 0u8);
-    let mut c = Vec::from_elem(4 * rowlen, 0u8);
-    let mut b = Vec::from_elem(height as uint + rowlen * height as uint, 0u8);
+    let mut p: Vec<u8> = repeat(0u8).take(rowlen).collect();
+    let mut c: Vec<u8> = repeat(0u8).take(4 * rowlen).collect();
+    let mut b: Vec<u8> = repeat(0u8).take(height as uint + rowlen * height as uint).collect();
 
     for (row, outrow) in image.as_slice().chunks(rowlen).zip(b.as_mut_slice().chunks_mut(1 + rowlen)) {
         for s in c.as_mut_slice().chunks_mut(rowlen) {

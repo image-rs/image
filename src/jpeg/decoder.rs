@@ -4,6 +4,7 @@ use std::iter::range_step;
 use std::default::Default;
 use std::collections::vec_map::VecMap;
 use std::num::{ Float };
+use std::iter::repeat;
 
 use color;
 use super::transform;
@@ -19,7 +20,7 @@ use image::ImageResult;
 use image::ImageDecoder;
 
 /// The permutation of dct coefficients.
-pub static UNZIGZAG: [u8, ..64] = [
+pub static UNZIGZAG: [u8; 64] = [
     0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
     12, 19, 26, 33, 40, 48, 41, 34,
@@ -31,7 +32,7 @@ pub static UNZIGZAG: [u8, ..64] = [
 ];
 
 /// A representation of a JPEG component
-#[deriving(Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct Component {
     /// The Component's identifier
     pub id: u8,
@@ -85,7 +86,7 @@ const COM: u8 = 0xFE;
 // Reserved
 const TEM: u8 = 0x01;
 
-#[deriving(PartialEq)]
+#[derive(PartialEq)]
 enum JPEGState {
     Start,
     HaveSOI,
@@ -101,9 +102,9 @@ enum JPEGState {
 pub struct JPEGDecoder<R> {
     r: R,
 
-    qtables: [u8, ..64 * 4],
-    dctables: [HuffTable, ..2],
-    actables: [HuffTable, ..2],
+    qtables: [u8; 64 * 4],
+    dctables: [HuffTable; 2],
+    actables: [HuffTable; 2],
 
     h: HuffDecoder,
 
@@ -137,7 +138,7 @@ impl<R: Reader>JPEGDecoder<R> {
         JPEGDecoder {
             r: r,
 
-            qtables: [0u8, ..64 * 4],
+            qtables: [0u8; 64 * 4],
             dctables: [h.clone(), h.clone()],
             actables: [h.clone(), h.clone()],
 
@@ -209,7 +210,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
     fn decode_block(&mut self, i: uint, dc: u8, pred: i32, ac: u8, q: u8) -> ImageResult<i32> {
         let zz   = self.mcu.slice_mut(i * 64, i * 64 + 64);
-        let mut tmp = [0i32, ..64];
+        let mut tmp = [0i32; 64];
 
         let dctable = &self.dctables[dc as uint];
         let actable = &self.actables[ac as uint];
@@ -367,12 +368,12 @@ impl<R: Reader>JPEGDecoder<R> {
             self.vmax = 1;
         }
 
-        self.mcu =  Vec::from_elem(blocks_per_mcu as uint * 64, 0u8);
+        self.mcu = repeat(0u8).take(blocks_per_mcu as uint * 64).collect::<Vec<u8>>();
 
         let mcus_per_row = (self.width as f32 / (8 * hmax) as f32).ceil() as uint;
         let mcu_row_len = (hmax as uint * vmax as uint) * self.mcu.len() * mcus_per_row;
 
-        self.mcu_row = Vec::from_elem(mcu_row_len, 0u8);
+        self.mcu_row = repeat(0u8).take(mcu_row_len).collect::<Vec<u8>>();
 
         Ok(())
     }
@@ -597,7 +598,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         }
 
         let row = try!(self.row_len());
-        let mut buf = Vec::from_elem(row * self.height as uint, 0u8);
+        let mut buf = repeat(0u8).take(row * self.height as uint).collect::<Vec<u8>>();
 
         for chunk in buf.as_mut_slice().chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));

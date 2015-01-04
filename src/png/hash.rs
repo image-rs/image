@@ -8,7 +8,7 @@
 use std::path::BytesContainer;
 
 /// An Implementation of the Adler-32 checksum
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct Adler32 {
     s1: u32,
     s2: u32
@@ -43,7 +43,7 @@ impl Adler32 {
     }
 }
 
-static CRC_TABLE: [u32, ..256] = [
+static CRC_TABLE: [u32; 256] = [
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419,
     0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4,
     0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07,
@@ -99,7 +99,7 @@ static CRC_TABLE: [u32, ..256] = [
 ];
 
 /// An Implementation of the Crc-32 checksum
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct Crc32 {
     crc: u32,
 }

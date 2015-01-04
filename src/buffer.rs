@@ -1,10 +1,12 @@
-use std::slice::{Chunks, MutChunks};
+use std::slice::{ Chunks, ChunksMut };
 use std::any::Any;
+use std::ops::{ Index, IndexMut };
 use std::num::Int;
 use std::intrinsics::TypeId;
+use std::iter::repeat;
 
-use traits::{Zero, Primitive};
-use color::{Rgb, Rgba, Luma, LumaA, FromColor};
+use traits::{ Zero, Primitive };
+use color::{ Rgb, Rgba, Luma, LumaA, FromColor };
 use image::GenericImage;
 
 /// Mutable equivalent to AsSlice.
@@ -136,11 +138,11 @@ where T: Primitive, PixelType: Pixel<T> {
 }
 
 /// Iterate over mutable pixel refs.
-pub struct MutPixels<'a, T: 'static, Sized? PixelType> {
-    chunks: MutChunks<'a, T>
+pub struct PixelsMut<'a, T: 'static, Sized? PixelType> {
+    chunks: ChunksMut<'a, T>
 }
 
-impl<'a, T, PixelType> Iterator<&'a mut PixelType> for MutPixels<'a, T, PixelType>
+impl<'a, T, PixelType> Iterator<&'a mut PixelType> for PixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut PixelType> {
@@ -150,7 +152,7 @@ where T: Primitive, PixelType: Pixel<T> {
     }
 }
 
-impl<'a, T, PixelType> DoubleEndedIterator<&'a mut PixelType> for MutPixels<'a, T, PixelType>
+impl<'a, T, PixelType> DoubleEndedIterator<&'a mut PixelType> for PixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut PixelType> {
@@ -187,15 +189,15 @@ where T: Primitive, PixelType: Pixel<T> {
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumerateMutPixels<'a, T: 'static, Sized? PixelType> {
-    pixels: MutPixels<'a, T, PixelType>,
+pub struct EnumeratePixelsMut<'a, T: 'static, Sized? PixelType> {
+    pixels: PixelsMut<'a, T, PixelType>,
     x:      u32,
     y:      u32,
     width:  u32
 }
 
 impl<'a, T, PixelType> Iterator<(u32, u32, &'a mut PixelType)>
-for EnumerateMutPixels<'a, T, PixelType>
+for EnumeratePixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a mut PixelType)> {
@@ -288,8 +290,8 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     /// Returns an iterator over the mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    pub fn pixels_mut(&mut self) -> MutPixels<T, PixelType> {
-        MutPixels {
+    pub fn pixels_mut(&mut self) -> PixelsMut<T, PixelType> {
+        PixelsMut {
             chunks: self.data.as_mut_slice().chunks_mut(
                 Pixel::channel_count(None::<&PixelType>) as uint
             )
@@ -309,9 +311,9 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     }
 
     /// Enumerates over the pixels of the image.
-    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumerateMutPixels<'a, T, PixelType> {
+    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, T, PixelType> {
         let width = self.width;
-        EnumerateMutPixels {
+        EnumeratePixelsMut {
             pixels: self.pixels_mut(),
             x: 0,
             y: 0,
@@ -433,13 +435,12 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
     /// Creates a new image buffer based on a `Vec<T>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<Vec<T>, T, PixelType> {
         ImageBuffer {
-            data: Vec::from_elem(
-                (width as u64
-                 * height as u64 
-                 * (Pixel::channel_count(None::<&PixelType>) as u64)
-                ) as uint,
-                Zero::zero()
-            ),
+            data: repeat(Zero::zero()).take(
+                    (width as u64
+                     * height as u64 
+                     * (Pixel::channel_count(None::<&PixelType>) as u64)
+                    ) as uint
+                ).collect(),
             width: width,
             height: height,
             type_marker: TypeId::of::<PixelType>()

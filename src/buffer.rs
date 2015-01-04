@@ -28,8 +28,8 @@ impl<T> AsMutSlice<T> for Vec<T> {
 }
 
 /// And array-like type that behaves like Vec<T> or [T].
-pub trait ArrayLike<T>: Index<uint, T> + IndexMut<uint, T> + AsSlice<T> + AsMutSlice<T> {}
-impl<A: Index<uint, T> + IndexMut<uint, T> + AsSlice<T> + AsMutSlice<T>, T> ArrayLike<T> for A { }
+pub trait ArrayLike<T>: Index<uint, Output=T> + IndexMut<uint, Output=T> + AsSlice<T> + AsMutSlice<T> {}
+impl<A: Index<uint, Output=T> + IndexMut<uint, Output=T> + AsSlice<T> + AsMutSlice<T>, T> ArrayLike<T> for A { }
 
 /// A generalized pixel.
 ///
@@ -117,8 +117,9 @@ pub struct Pixels<'a, T: 'static, Sized? PixelType> {
     chunks: Chunks<'a, T>
 }
 
-impl<'a, T, PixelType> Iterator<&'a PixelType> for Pixels<'a, T, PixelType> 
+impl<'a, T, PixelType> Iterator for Pixels<'a, T, PixelType> 
 where T: Primitive, PixelType: Pixel<T> {
+    type Item = &'a PixelType;
     #[inline(always)]
     fn next(&mut self) -> Option<&'a PixelType> {
         self.chunks.next().map(|v| 
@@ -127,7 +128,7 @@ where T: Primitive, PixelType: Pixel<T> {
     }
 }
 
-impl<'a, T, PixelType> DoubleEndedIterator<&'a PixelType> for Pixels<'a, T, PixelType> 
+impl<'a, T, PixelType> DoubleEndedIterator for Pixels<'a, T, PixelType> 
 where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a PixelType> {
@@ -142,8 +143,9 @@ pub struct PixelsMut<'a, T: 'static, Sized? PixelType> {
     chunks: ChunksMut<'a, T>
 }
 
-impl<'a, T, PixelType> Iterator<&'a mut PixelType> for PixelsMut<'a, T, PixelType>
+impl<'a, T, PixelType> Iterator for PixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
+    type Item = &'a mut PixelType;
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut PixelType> {
         self.chunks.next().map(|v| 
@@ -152,7 +154,7 @@ where T: Primitive, PixelType: Pixel<T> {
     }
 }
 
-impl<'a, T, PixelType> DoubleEndedIterator<&'a mut PixelType> for PixelsMut<'a, T, PixelType>
+impl<'a, T, PixelType> DoubleEndedIterator for PixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut PixelType> {
@@ -170,9 +172,10 @@ pub struct EnumeratePixels<'a, T: 'static, Sized? PixelType> {
     width:  u32
 }
 
-impl<'a, T, PixelType> Iterator<(u32, u32, &'a PixelType)>
+impl<'a, T, PixelType> Iterator
 for EnumeratePixels<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
+    type Item = (u32, u32, &'a PixelType);
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a PixelType)> {
         if self.x >= self.width {
@@ -196,9 +199,10 @@ pub struct EnumeratePixelsMut<'a, T: 'static, Sized? PixelType> {
     width:  u32
 }
 
-impl<'a, T, PixelType> Iterator<(u32, u32, &'a mut PixelType)>
+impl<'a, T, PixelType> Iterator
 for EnumeratePixelsMut<'a, T, PixelType>
 where T: Primitive, PixelType: Pixel<T> {
+    type Item = (u32, u32, &'a mut PixelType);
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a mut PixelType)> {
         if self.x >= self.width {
@@ -421,9 +425,10 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     }
 }
 
-impl<Container, T, PixelType> Index<(u32, u32), PixelType> 
+impl<Container, T, PixelType> Index<(u32, u32)>
 for ImageBuffer<Container, T, PixelType>
 where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'static {
+    type Output = PixelType;
     fn index(&self, &(x, y): &(u32, u32)) -> &PixelType {
         self.get_pixel(x, y)
     }

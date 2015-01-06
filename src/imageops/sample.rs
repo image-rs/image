@@ -40,9 +40,9 @@ pub enum FilterType {
 }
 
 /// A Representation of a separable filter.
-pub struct Filter < 'a> {
+pub struct Filter <'a> {
     /// The filter's filter function.
-    pub kernel:  | f32 | : 'a -> f32,
+    pub kernel: Box<Fn(f32) -> f32 + 'a>,
 
     /// The window on which this filter operates.
     pub support: f32
@@ -335,7 +335,7 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
     P = Primitive::max_value();
     let max = cast::<P, f32>(max).unwrap();
 
-    let sum = kernel.iter().fold(0.0, | a, f | a + *f);
+    let sum = kernel.iter().fold(0.0, |&: a, f| a + *f);
 
     let sum = if sum == 0.0 {
         1.0
@@ -406,23 +406,23 @@ pub fn resize<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
-            kernel: |x| box_kernel(x),
+            kernel: box |&: x| box_kernel(x),
             support: 0.5
         },
         FilterType::Triangle   => Filter {
-            kernel: |x| triangle_kernel(x),
+            kernel: box |&: x| triangle_kernel(x),
             support: 1.0
         },
         FilterType::CatmullRom => Filter {
-            kernel: |x| catmullrom_kernel(x),
+            kernel: box |&: x| catmullrom_kernel(x),
             support: 2.0
         },
         FilterType::Gaussian   => Filter {
-            kernel: |x| gaussian_kernel(x),
+            kernel: box |&: x| gaussian_kernel(x),
             support: 3.0
         },
         FilterType::Lanczos3   => Filter {
-            kernel: |x| lanczos3_kernel(x),
+            kernel: box |&: x| lanczos3_kernel(x),
             support: 3.0
         },
 };
@@ -444,7 +444,7 @@ pub fn blur<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
     };
 
     let mut method = Filter {
-        kernel: |x| gaussian(x, sigma),
+        kernel: box |&: x| gaussian(x, sigma),
         support: 2.0 * sigma
     };
 
@@ -475,7 +475,7 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 
-            let p = a.map2(b, | c, d | {
+            let p = a.map2(b, |&: c, d| {
                 let ic = cast::<A, i32>(c).unwrap();
                 let id = cast::<A, i32>(d).unwrap();
 

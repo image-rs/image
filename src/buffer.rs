@@ -83,26 +83,26 @@ pub trait Pixel<T>: Copy + Clone {
     fn to_luma_alpha(&self) -> LumaA<T>;
 
     /// Apply the function ```f``` to each channel of this pixel.
-    fn map(&self, f: | T | -> T) -> Self;
+    fn map<F>(&self, f: F) -> Self where F: Fn(T) -> T;
 
     /// Apply the function ```f``` to each channel of this pixel.
-    fn apply(&mut self, f: | T | -> T);
+    fn apply<F>(&mut self, f: F) where F: Fn(T) -> T;
 
     /// Apply the function f to each channel except the alpha channel.
     /// Apply the function g to the alpha channel.
-    fn map_with_alpha(&self, f: |T| -> T, g: |T| -> T) -> Self;
+    fn map_with_alpha<F, G>(&self, f: F, g: G) -> Self where F: Fn(T) -> T, G: Fn(T) -> T;
 
     /// Apply the function f to each channel except the alpha channel.
     /// Apply the function g to the alpha channel. Works in-place.
-    fn apply_with_alpha(&mut self, f: |T| -> T, g: |T| -> T);
+    fn apply_with_alpha<F, G>(&mut self, f: F, g: G) where F: Fn(T) -> T, G: Fn(T) -> T;
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise.
-    fn map2(&self, other: &Self, f: | T, T | -> T) -> Self;
+    fn map2<F>(&self, other: &Self, f: F) -> Self where F: Fn(T, T) -> T;
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise. Works in-place.
-    fn apply2(&mut self, other: &Self, f: | T, T | -> T);
+    fn apply2<F>(&mut self, other: &Self, f: F) where F: Fn(T, T) -> T;
 
     /// Invert this pixel
     fn invert(&mut self);
@@ -463,7 +463,7 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
-    pub fn from_fn(width: u32, height: u32, f: | u32, u32 | -> PixelType) -> ImageBuffer<Vec<T>, T, PixelType> {
+    pub fn from_fn(width: u32, height: u32, f: Box<Fn(u32, u32) -> PixelType>) -> ImageBuffer<Vec<T>, T, PixelType> {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y,  p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)

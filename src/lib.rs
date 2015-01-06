@@ -13,6 +13,7 @@
 // necessary for Primitive trait
 #![feature(default_type_params)]
 #![feature(old_orphan_check)]
+#![feature(associated_types)]
 
 extern crate flate;
 extern crate num;

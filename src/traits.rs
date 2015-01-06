@@ -6,11 +6,11 @@ use std::ops::{ Add, Div, Mul, Neg, Rem, Sub };
 use std::num::{ Float, Int, NumCast };
 
 /// Num trait from old stdlib
-pub trait Num: Zero + One + Add<Self, Self> + Sub<Self, Self> + Mul<Self, Self> + Div<Self, Self> + Rem<Self, Self> + Neg<Self> + PartialEq<Self> { }
-impl<A: Zero + One + Add<A, A> + Sub<A, A> + Mul<A, A> + Div<A, A> + Rem<A, A> + Neg<A> + PartialEq<A>> Num for A { }
+pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + Neg<Output=Self> + PartialEq<Self> { }
+impl<A: Zero + One + Add<Output=A> + Sub<Output=A> + Mul<Output=A> + Div<Output=A> + Rem<Output=A> + Neg<Output=A> + PartialEq<A>> Num for A { }
 
 /// Zero trait from old stdlib
-pub trait Zero: Add<Self, Self> {
+pub trait Zero: Add<Output=Self> {
     /// Returns the zero value for T
     fn zero() -> Self;
     /// Returns true if zero.
@@ -86,7 +86,7 @@ impl Primitive for f64 {
 }
 
 /// One trait from old stdlib, added max_value
-pub trait One: Mul<Self, Self> {
+pub trait One: Mul<Output=Self> {
     /// Returns the unit value of Self
     fn one() -> Self;
 }

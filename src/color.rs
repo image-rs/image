@@ -143,27 +143,27 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
         pix
     }
 
-    fn map(& self, f: | T | -> T) -> $ident<T> {
+    fn map<F>(& self, f: F) -> $ident<T> where F: Fn(T) -> T {
         let mut this = (*self).clone();
         this.apply(f);
         this
     }
 
-    fn apply(&mut self, f: | T | -> T) {
+    fn apply<F>(&mut self, f: F) where F: Fn(T) -> T {
         let &$ident(ref mut this) = self;
         for v in this.as_mut_slice().iter_mut() {
             *v = f(*v)
         }
     }
 
-    fn map_with_alpha(& self, f: |T| -> T, g: |T| -> T) -> $ident<T> {
+    fn map_with_alpha<F, G>(&self, f: F, g: G) -> $ident<T> where F: Fn(T) -> T, G: Fn(T) -> T {
         let mut this = (*self).clone();
         this.apply_with_alpha(f, g);
         this
     }
 
     #[allow(unused_typecasts)]
-    fn apply_with_alpha(&mut self, f: |T| -> T, g: |T| -> T) {
+    fn apply_with_alpha<F, G>(&mut self, f: F, g: G) where F: Fn(T) -> T, G: Fn(T) -> T {
         let &$ident(ref mut this) = self;
         for v in this.as_mut_slice().slice_to_mut($channels as uint-$alphas as uint).iter_mut() {
             *v = f(*v)
@@ -174,13 +174,13 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
         }
     }
 
-    fn map2(&self, other: &$ident<T>, f: | T, T | -> T) -> $ident<T> {
+    fn map2<F>(&self, other: &Self, f: F) -> $ident<T> where F: Fn(T, T) -> T {
         let mut this = (*self).clone();
         this.apply2(other, f);
         this
     }
 
-    fn apply2(&mut self, other: &$ident<T>, f: | T, T | -> T) {
+    fn apply2<F>(&mut self, other: &$ident<T>, f: F) where F: Fn(T, T) -> T {
         let &$ident(ref mut this) = self;
         let &$ident(ref that) = other;
         for (a, &b) in this.iter_mut().zip(that.iter()) {
@@ -198,7 +198,8 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
 }
 
-impl<T: Primitive> Index<uint, T> for $ident<T> {
+impl<T: Primitive> Index<uint> for $ident<T> {
+    type Output = T;
     #[inline(always)]
     fn index<'a>(&'a self, _index: &uint) -> &'a T {
         let &$ident(ref this) = self;
@@ -206,7 +207,8 @@ impl<T: Primitive> Index<uint, T> for $ident<T> {
     }
 }
 
-impl<T: Primitive> IndexMut<uint, T> for $ident<T> {
+impl<T: Primitive> IndexMut<uint> for $ident<T> {
+    type Output = T;
     #[inline(always)]
     fn index_mut<'a>(&'a mut self, _index: &uint) -> &'a mut T {
         let &$ident(ref mut this) = self;

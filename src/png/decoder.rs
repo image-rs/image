@@ -102,7 +102,8 @@ impl Adam7Iterator {
 }
 
 /// Iterates over the (passes, lines, widths)
-impl Iterator<(u8, u32, u32)> for Adam7Iterator {
+impl Iterator for Adam7Iterator {
+    type Item = (u8, u32, u32);
     fn next(&mut self) -> Option<(u8, u32, u32)> {
         if self.line < self.lines {
             let this_line = self.line;

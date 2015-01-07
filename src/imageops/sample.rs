@@ -8,7 +8,6 @@ use std::f32;
 use std::num:: {
     cast,
     Float,
-    FloatMath,
     SignedInt,
 };
 

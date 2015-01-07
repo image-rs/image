@@ -11,7 +11,7 @@ use image::GenericImage;
 
 /// Mutable equivalent to AsSlice.
 /// Should be replaced by a stdlib impl as soon it exists
-pub trait AsMutSlice<T> for Sized? {
+pub trait AsMutSlice<T>  {
     /// Work with `self` as a mutable slice.
     fn as_mut_slice<'a>(&'a mut self) -> &'a mut [T];
 }
@@ -113,7 +113,7 @@ pub trait Pixel<T>: Copy + Clone {
 }
 
 /// Iterate over pixel refs. 
-pub struct Pixels<'a, T: 'static, Sized? PixelType> {
+pub struct Pixels<'a, T: 'static, PixelType: ?Sized> {
     chunks: Chunks<'a, T>
 }
 
@@ -139,7 +139,7 @@ where T: Primitive, PixelType: Pixel<T> {
 }
 
 /// Iterate over mutable pixel refs.
-pub struct PixelsMut<'a, T: 'static, Sized? PixelType> {
+pub struct PixelsMut<'a, T: 'static, PixelType: ?Sized> {
     chunks: ChunksMut<'a, T>
 }
 
@@ -165,7 +165,7 @@ where T: Primitive, PixelType: Pixel<T> {
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixels<'a, T: 'static, Sized? PixelType> {
+pub struct EnumeratePixels<'a, T: 'static, PixelType: ?Sized> {
     pixels: Pixels<'a, T, PixelType>,
     x:      u32,
     y:      u32,
@@ -192,7 +192,7 @@ where T: Primitive, PixelType: Pixel<T> {
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixelsMut<'a, T: 'static, Sized? PixelType> {
+pub struct EnumeratePixelsMut<'a, T: 'static, PixelType: ?Sized> {
     pixels: PixelsMut<'a, T, PixelType>,
     x:      u32,
     y:      u32,
@@ -485,7 +485,7 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
 }
 
 /// Provides color conversions for whole image buffers.
-pub trait ConvertBuffer<Sized? T> for Sized? {
+pub trait ConvertBuffer<T: ?Sized> {
     /// Converts `self` to a buffer of type T
     ///
     /// A generic impementation is provided to convert any image buffer to a image buffer

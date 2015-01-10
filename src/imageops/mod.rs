@@ -109,9 +109,9 @@ mod tests {
     /// Test that images written into other images works
     fn test_image_in_image() {
         let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_fn(16, 16, box |&: _, _| {
+        let source = ImageBuffer::from_fn(16, 16, Box::new(|&: _, _| {
             Rgb([255u8, 0, 0])
-        });
+        }));
         overlay(&mut target, &source, 0, 0);
         assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
         assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
@@ -124,9 +124,9 @@ mod tests {
     /// Test that images written outside of a frame doesn't blow up
     fn test_image_in_image_outside_of_bounds() {
         let mut target = ImageBuffer::new(32, 32);
-        let source = ImageBuffer::from_fn(32, 32, box |&: _, _| {
+        let source = ImageBuffer::from_fn(32, 32, Box::new(|&: _, _| {
             Rgb([255u8, 0, 0])
-        });
+        }));
         overlay(&mut target, &source, 1, 1);
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));

@@ -99,7 +99,7 @@ pub trait ImageDecoder: Sized {
     fn colortype(&mut self) -> ImageResult<ColorType>;
 
     /// Returns the length in bytes of one decoded row of the image
-    fn row_len(&mut self) -> ImageResult<uint>;
+    fn row_len(&mut self) -> ImageResult<usize>;
     
     /// Returns true if the image is animated
     fn is_animated(&mut self) -> ImageResult<bool> {
@@ -137,7 +137,7 @@ pub trait ImageDecoder: Sized {
 
         let rowlen  = try!(self.row_len());
 
-        let mut buf = repeat(0u8).take(length as uint * width as uint * bpp).collect::<Vec<u8>>();
+        let mut buf = repeat(0u8).take(length as usize * width as usize * bpp).collect::<Vec<u8>>();
         let mut tmp = repeat(0u8).take(rowlen).collect::<Vec<u8>>();
 
         loop {
@@ -148,13 +148,13 @@ pub trait ImageDecoder: Sized {
             }
         }
 
-        for i in range(0, length as uint) {
+        for i in range(0, length as usize) {
             {
-                let from = tmp.slice_from(x as uint * bpp)
-                              .slice_to(width as uint * bpp);
+                let from = tmp.slice_from(x as usize * bpp)
+                              .slice_to(width as usize * bpp);
 
-                let to   = buf.slice_from_mut(i * width as uint * bpp)
-                              .slice_to_mut(width as uint * bpp);
+                let to   = buf.slice_from_mut(i * width as usize * bpp)
+                              .slice_to_mut(width as usize * bpp);
 
                 slice::bytes::copy_memory(to, from);
             }
@@ -176,6 +176,7 @@ pub struct Pixels<'a, I:'a> {
     height: u32
 }
 
+#[old_impl_check]
 impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for Pixels<'a, I> {
     type Item = (u32, u32, P);
     fn next(&mut self) -> Option<(u32, u32, P)> {
@@ -207,6 +208,7 @@ pub struct MutPixels<'a, I:'a> {
     height: u32
 }
 
+#[old_impl_check]
 impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for MutPixels<'a, I> {
     type Item = (u32, u32, &'a mut P);
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
@@ -311,6 +313,7 @@ pub struct SubImage <'a, I:'a> {
     ystride: u32,
 }
 
+#[old_impl_check]
 impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubImage<'a, I> {
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
@@ -352,6 +355,7 @@ impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubI
 }
 
 #[allow(deprecated)]
+#[old_impl_check]
 impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I> {
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)

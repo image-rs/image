@@ -28,8 +28,8 @@ impl<T> AsMutSlice<T> for Vec<T> {
 }
 
 /// And array-like type that behaves like Vec<T> or [T].
-pub trait ArrayLike<T>: Index<uint, Output=T> + IndexMut<uint, Output=T> + AsSlice<T> + AsMutSlice<T> {}
-impl<A: Index<uint, Output=T> + IndexMut<uint, Output=T> + AsSlice<T> + AsMutSlice<T>, T> ArrayLike<T> for A { }
+pub trait ArrayLike<T>: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutSlice<T> {}
+impl<A: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutSlice<T>, T> ArrayLike<T> for A { }
 
 /// A generalized pixel.
 ///
@@ -237,9 +237,9 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     /// (for example a `Vec` or a slice)
     /// Returns None if the container is not big enough
     pub fn from_raw(width: u32, height: u32, buf: Container) -> Option<ImageBuffer<Container, T, PixelType>> {
-        if width as uint 
-           * height as uint
-           * Pixel::channel_count(None::<&PixelType>) as uint 
+        if width as usize 
+           * height as usize
+           * Pixel::channel_count(None::<&PixelType>) as usize 
            <= buf.as_slice().len() {
             Some(ImageBuffer {
                 data: buf,
@@ -286,7 +286,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     pub fn pixels<'a>(&'a self) -> Pixels<'a, T, PixelType> {
         Pixels {
             chunks: self.data.as_slice().chunks(
-                Pixel::channel_count(None::<&PixelType>) as uint
+                Pixel::channel_count(None::<&PixelType>) as usize
             )
         }
     }
@@ -297,7 +297,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     pub fn pixels_mut(&mut self) -> PixelsMut<T, PixelType> {
         PixelsMut {
             chunks: self.data.as_mut_slice().chunks_mut(
-                Pixel::channel_count(None::<&PixelType>) as uint
+                Pixel::channel_count(None::<&PixelType>) as usize
             )
         }
     }
@@ -331,8 +331,8 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &PixelType {
-        let no_channels = Pixel::channel_count(None::<&PixelType>) as uint;
-        let index  = no_channels * (y * self.width + x) as uint;
+        let no_channels = Pixel::channel_count(None::<&PixelType>) as usize;
+        let index  = no_channels * (y * self.width + x) as usize;
         Pixel::from_slice(
             None::<&PixelType>,
             self.data.as_slice().slice(
@@ -347,8 +347,8 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut PixelType {
-        let no_channels = Pixel::channel_count(None::<&PixelType>) as uint;
-        let index  = no_channels * (y * self.width + x) as uint;
+        let no_channels = Pixel::channel_count(None::<&PixelType>) as usize;
+        let index  = no_channels * (y * self.width + x) as usize;
         Pixel::from_slice_mut(
             None::<&PixelType>,
             self.data.as_mut_slice().slice_mut(
@@ -444,7 +444,7 @@ where T: Primitive + 'static, PixelType: Pixel<T> + 'static {
                     (width as u64
                      * height as u64 
                      * (Pixel::channel_count(None::<&PixelType>) as u64)
-                    ) as uint
+                    ) as usize
                 ).collect(),
             width: width,
             height: height,
@@ -516,7 +516,7 @@ impl GreyImage {
         };
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
         for (pixel, &idx) in buffer.pixels_mut().rev().zip(indicies.iter().rev()) {
-            let (r, g, b) = palette[idx as uint];
+            let (r, g, b) = palette[idx as usize];
             let alpha = if let Some(t_idx) = transparent_idx {
                 if t_idx == idx {
                     0

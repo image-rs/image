@@ -26,18 +26,18 @@ pub enum ColorType {
 }
 
 /// Returns the number of bits contained in a pixel of ColorType c
-pub fn bits_per_pixel(c: ColorType) -> uint {
+pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
-        ColorType::Grey(n)    => n as uint,
-        ColorType::RGB(n)     => 3 * n as uint,
-        ColorType::Palette(n) => 3 * n as uint,
-        ColorType::GreyA(n)   => 2 * n as uint,
-        ColorType::RGBA(n)    => 4 * n as uint,
+        ColorType::Grey(n)    => n as usize,
+        ColorType::RGB(n)     => 3 * n as usize,
+        ColorType::Palette(n) => 3 * n as usize,
+        ColorType::GreyA(n)   => 2 * n as usize,
+        ColorType::RGBA(n)    => 4 * n as usize,
     }
 }
 
 /// Returns the number of color channels that make up this pixel
-pub fn num_components(c: ColorType) -> uint {
+pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::Grey(_)    => 1,
         ColorType::RGB(_)     => 3,
@@ -49,10 +49,10 @@ pub fn num_components(c: ColorType) -> uint {
 
 macro_rules! define_colors {
     {$(
-        $ident:ident
-        $channels: expr
-        $alphas: expr
-        $interpretation: expr
+        $ident:ident,
+        $channels: expr,
+        $alphas: expr,
+        $interpretation: expr,
         #[$doc:meta];
     )*} => {
 
@@ -77,7 +77,7 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
     #[inline(always)]
     fn channels_mut(&mut self) -> &mut [T] {
-        let &$ident(ref mut this) = self;
+        let &mut $ident(ref mut this) = self;
         this.as_mut_slice()
     }
 
@@ -150,7 +150,7 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
 
     fn apply<F>(&mut self, f: F) where F: Fn(T) -> T {
-        let &$ident(ref mut this) = self;
+        let &mut $ident(ref mut this) = self;
         for v in this.as_mut_slice().iter_mut() {
             *v = f(*v)
         }
@@ -164,12 +164,12 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
 
     #[allow(unused_typecasts)]
     fn apply_with_alpha<F, G>(&mut self, f: F, g: G) where F: Fn(T) -> T, G: Fn(T) -> T {
-        let &$ident(ref mut this) = self;
-        for v in this.as_mut_slice().slice_to_mut($channels as uint-$alphas as uint).iter_mut() {
+        let &mut $ident(ref mut this) = self;
+        for v in this.as_mut_slice().slice_to_mut($channels as usize-$alphas as usize).iter_mut() {
             *v = f(*v)
         }
-        if $alphas as uint != 0 {
-            let ref mut v = this.as_mut_slice()[$channels as uint-$alphas as uint-1];
+        if $alphas as usize != 0 {
+            let ref mut v = this.as_mut_slice()[$channels as usize-$alphas as usize-1];
             *v = g(*v)
         }
     }
@@ -181,7 +181,7 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
 
     fn apply2<F>(&mut self, other: &$ident<T>, f: F) where F: Fn(T, T) -> T {
-        let &$ident(ref mut this) = self;
+        let &mut $ident(ref mut this) = self;
         let &$ident(ref that) = other;
         for (a, &b) in this.iter_mut().zip(that.iter()) {
             *a = f(*a, b)
@@ -198,20 +198,20 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
 }
 
-impl<T: Primitive> Index<uint> for $ident<T> {
+impl<T: Primitive> Index<usize> for $ident<T> {
     type Output = T;
     #[inline(always)]
-    fn index<'a>(&'a self, _index: &uint) -> &'a T {
+    fn index<'a>(&'a self, _index: &usize) -> &'a T {
         let &$ident(ref this) = self;
         &this[*_index]
     }
 }
 
-impl<T: Primitive> IndexMut<uint> for $ident<T> {
+impl<T: Primitive> IndexMut<usize> for $ident<T> {
     type Output = T;
     #[inline(always)]
-    fn index_mut<'a>(&'a mut self, _index: &uint) -> &'a mut T {
-        let &$ident(ref mut this) = self;
+    fn index_mut<'a>(&'a mut self, _index: &usize) -> &'a mut T {
+        let &mut $ident(ref mut this) = self;
         &mut this[*_index]
     }
 }
@@ -222,10 +222,10 @@ impl<T: Primitive> IndexMut<uint> for $ident<T> {
 }
 
 define_colors! {
-    Rgb 3 0 "RGB" #[doc = "RGB colors"];
-    Luma 1 0 "Y" #[doc = "Grayscale colors"];
-    Rgba 4 1 "RGBA" #[doc = "RGB colors + alpha channel"];
-    LumaA 2 1 "YA" #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", #[doc = "RGB colors"];
+    Luma, 1, 0, "Y", #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", #[doc = "RGB colors + alpha channel"];
+    LumaA, 2, 1, "YA", #[doc = "Grayscale colors + alpha channel"];
 }
 
 
@@ -387,7 +387,7 @@ impl<T: Primitive> Blend<LumaA<T>> for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t: T = Primitive::max_value();
         let max_t = max_t.to_f32().unwrap();
-        let &LumaA([bg_luma, bg_a]) = self;
+        let &mut LumaA([bg_luma, bg_a]) = self;
         let &LumaA([fg_luma, fg_a]) = other;
         let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
@@ -419,7 +419,7 @@ impl<T: Primitive> Blend<Rgba<T>> for Rgba<T> {
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
         let max_t: T = Primitive::max_value();
         let max_t = max_t.to_f32().unwrap();
-        let &Rgba([bg_r, bg_g, bg_b, bg_a]) = self;
+        let &mut Rgba([bg_r, bg_g, bg_b, bg_a]) = self;
         let &Rgba([fg_r, fg_g, fg_b, fg_a]) = other;
         let (bg_r, bg_g, bg_b, bg_a) = (bg_r.to_f32().unwrap() / max_t, bg_g.to_f32().unwrap() / max_t, bg_b.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
@@ -461,7 +461,7 @@ pub trait Invert<T> {
 
 impl<T: Primitive> Invert<LumaA<T>> for LumaA<T> {
     fn invert(&mut self) {
-        let &LumaA([l, a]) = self;
+        let &mut LumaA([l, a]) = self;
         let max: T = Primitive::max_value();
 
         *self = LumaA([max - l, a])
@@ -471,7 +471,7 @@ impl<T: Primitive> Invert<LumaA<T>> for LumaA<T> {
 
 impl<T: Primitive> Invert<Luma<T>> for Luma<T> {
     fn invert(&mut self) {
-        let &Luma([l]) = self;
+        let &mut Luma([l]) = self;
 
         let max: T = Primitive::max_value();
         let l1 = max - l;
@@ -482,7 +482,7 @@ impl<T: Primitive> Invert<Luma<T>> for Luma<T> {
 
 impl<T: Primitive> Invert<Rgba<T>> for Rgba<T> {
     fn invert(&mut self) {
-        let &Rgba([r, g, b, a]) = self;
+        let &mut Rgba([r, g, b, a]) = self;
 
         let max: T = Primitive::max_value();
 
@@ -492,7 +492,7 @@ impl<T: Primitive> Invert<Rgba<T>> for Rgba<T> {
 
 impl<T: Primitive> Invert<Rgb<T>> for Rgb<T> {
     fn invert(&mut self) {
-        let &Rgb([r, g, b]) = self;
+        let &mut Rgb([r, g, b]) = self;
 
         let max: T = Primitive::max_value();
 

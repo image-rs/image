@@ -337,7 +337,7 @@ impl DynamicImage {
             }
 
             _ => Err(image::ImageError::UnsupportedError(
-                     format!("An encoder for {} is not available.", format))
+                     format!("An encoder for {:?} is not available.", format))
                  ),
         };
 
@@ -410,8 +410,8 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         }
         (color::ColorType::Grey(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries 
-            let mask = (1u8 << bit_depth as uint) - 1;
-            let scaling_factor = (255)/((1 << bit_depth as uint) - 1);
+            let mask = (1u8 << bit_depth as usize) - 1;
+            let scaling_factor = (255)/((1 << bit_depth as usize) - 1);
             let skip = (w % 8)/bit_depth as u32;
             let row_len = w + skip;
             let p = buf.as_slice()
@@ -424,9 +424,9 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
                        ))
                        // skip the pixels that can be neglected because scanlines should
                        // start at byte boundaries
-                       .enumerate().filter(|&(i, _)| i % (row_len as uint) < (w as uint) ).map(|(_, p)| p)
+                       .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
                        .map(|(shift, pixel)|
-                           (pixel & mask << shift as uint) >> shift as uint
+                           (pixel & mask << shift as usize) >> shift as usize
                        )
                        .map(|pixel| pixel * scaling_factor)
                        .collect();
@@ -483,7 +483,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "tiff" => image::ImageFormat::TIFF,
         "tga" => image::ImageFormat::TGA,
         format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{} is not supported.", 
+            "Image format image/{:?} is not supported.", 
             format
         )))
     };
@@ -511,7 +511,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
             kind: io::InvalidInput,
             desc: "Unsupported image format.",
             detail: Some(format!(
-                "Image format image/{} is not supported.", 
+                "Image format image/{:?} is not supported.", 
                 format
             ))
         })
@@ -527,7 +527,7 @@ pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIma
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
-        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {} is not available.", format))),
+        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 

@@ -77,7 +77,7 @@ impl<W: Writer> PNGEncoder<W> {
     }
 }
 
-fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
+fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) {
     let mut m = MemWriter::with_capacity(13);
 
     let _ = m.write_be_u32(width);
@@ -119,7 +119,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, uint) {
         _ => panic!("unknown colour type")
     };
 
-    let bpp = ((channels * bit_depth + 7) / 8) as uint;
+    let bpp = ((channels * bit_depth + 7) / 8) as usize;
 
     (m.into_inner(), bpp)
 }
@@ -128,7 +128,7 @@ fn sum_abs_difference(buf: &[u8]) -> i32 {
     buf.iter().fold(0i32, | sum, &b | sum + if b < 128 {b as i32} else {256 - b as i32})
 }
 
-fn select_filter(rowlength: uint, bpp: uint, previous: &[u8], current_s: &mut [u8]) -> u8 {
+fn select_filter(rowlength: usize, bpp: usize, previous: &[u8], current_s: &mut [u8]) -> u8 {
     let mut sum    = sum_abs_difference(current_s.slice_to(rowlength));
     let mut method = 0;
 
@@ -146,14 +146,14 @@ fn select_filter(rowlength: uint, bpp: uint, previous: &[u8], current_s: &mut [u
     method
 }
 
-fn build_idat(image: &[u8], bpp: uint, width: u32, height: u32) -> Vec<u8> {
+fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
     use flate::deflate_bytes_zlib;
 
-    let rowlen = bpp * width as uint;
+    let rowlen = bpp * width as usize;
 
     let mut p: Vec<u8> = repeat(0u8).take(rowlen).collect();
     let mut c: Vec<u8> = repeat(0u8).take(4 * rowlen).collect();
-    let mut b: Vec<u8> = repeat(0u8).take(height as uint + rowlen * height as uint).collect();
+    let mut b: Vec<u8> = repeat(0u8).take(height as usize + rowlen * height as usize).collect();
 
     for (row, outrow) in image.as_slice().chunks(rowlen).zip(b.as_mut_slice().chunks_mut(1 + rowlen)) {
         for s in c.as_mut_slice().chunks_mut(rowlen) {
@@ -164,7 +164,7 @@ fn build_idat(image: &[u8], bpp: uint, width: u32, height: u32) -> Vec<u8> {
 
         outrow[0]  = filter;
         let out    = outrow.slice_from_mut(1);
-        let stride = (filter as uint - 1) * rowlen;
+        let stride = (filter as usize - 1) * rowlen;
 
         match filter {
             0 => slice::bytes::copy_memory(out, row),

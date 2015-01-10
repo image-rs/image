@@ -126,7 +126,7 @@ pub struct JPEGDecoder<R> {
 
     row_count: u8,
     decoded_rows: u32,
-    padded_width: uint,
+    padded_width: usize,
     state: JPEGState,
 }
 
@@ -168,9 +168,9 @@ impl<R: Reader>JPEGDecoder<R> {
     }
 
     fn decode_mcu_row(&mut self) -> ImageResult<()> {
-        let bytesperpixel = self.num_components as uint;
+        let bytesperpixel = self.num_components as usize;
 
-        for x0 in range_step(0, self.padded_width * bytesperpixel, bytesperpixel * 8 * self.hmax as uint) {
+        for x0 in range_step(0, self.padded_width * bytesperpixel, bytesperpixel * 8 * self.hmax as usize) {
 
             let _ = try!(self.decode_mcu());
 
@@ -193,7 +193,7 @@ impl<R: Reader>JPEGDecoder<R> {
         let tmp = self.scan_components.clone();
 
         for id in tmp.iter() {
-            let mut c = self.components.get(&(*id as uint)).unwrap().clone();
+            let mut c = self.components.get(&(*id as usize)).unwrap().clone();
 
             for _ in range(0, c.h * c.v) {
                 let pred  = try!(self.decode_block(i, c.dc_table, c.dc_pred, c.ac_table, c.tq));
@@ -201,20 +201,20 @@ impl<R: Reader>JPEGDecoder<R> {
                 i += 1;
             }
 
-            self.components.insert(*id as uint, c);
+            self.components.insert(*id as usize, c);
         }
 
         self.mcucount += 1;
         self.read_restart()
     }
 
-    fn decode_block(&mut self, i: uint, dc: u8, pred: i32, ac: u8, q: u8) -> ImageResult<i32> {
+    fn decode_block(&mut self, i: usize, dc: u8, pred: i32, ac: u8, q: u8) -> ImageResult<i32> {
         let zz   = self.mcu.slice_mut(i * 64, i * 64 + 64);
         let mut tmp = [0i32; 64];
 
-        let dctable = &self.dctables[dc as uint];
-        let actable = &self.actables[ac as uint];
-        let qtable  = self.qtables.slice(64 * q as uint, 64 * q as uint + 64);
+        let dctable = &self.dctables[dc as usize];
+        let actable = &self.actables[ac as usize];
+        let qtable  = self.qtables.slice(64 * q as usize, 64 * q as usize + 64);
 
         let t     = try!(self.h.decode_symbol(&mut self.r, dctable));
 
@@ -229,7 +229,7 @@ impl<R: Reader>JPEGDecoder<R> {
         let dc = diff + pred;
         tmp[0] = dc * qtable[0] as i32;
 
-        let mut k = 0u;
+        let mut k = 0us;
         while k < 63 {
             let rs = try!(self.h.decode_symbol(&mut self.r, actable));
 
@@ -243,12 +243,12 @@ impl<R: Reader>JPEGDecoder<R> {
 
                 k += 16;
             } else {
-                k += rrrr as uint;
+                k += rrrr as usize;
 
                 // Figure F.14
                 let t = try!(self.h.receive(&mut self.r, ssss));
 
-                tmp[UNZIGZAG[k + 1] as uint] = extend(t, ssss) * qtable[k + 1] as i32;
+                tmp[UNZIGZAG[k + 1] as usize] = extend(t, ssss) * qtable[k + 1] as i32;
                 k += 1;
             }
         }
@@ -283,7 +283,7 @@ impl<R: Reader>JPEGDecoder<R> {
                 DRI => try!(self.read_restart_interval()),
                 APP0 ... APPF | COM => {
                     let length = try!(self.r.read_be_u16());
-                    let _ = try!(self.r.read_exact((length - 2) as uint));
+                    let _ = try!(self.r.read_exact((length - 2) as usize));
                 }
                 TEM  => continue,
                 SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
@@ -321,7 +321,7 @@ impl<R: Reader>JPEGDecoder<R> {
             )))
         }
 
-        self.padded_width = 8 * ((self.width as uint + 7) / 8);
+        self.padded_width = 8 * ((self.width as usize + 7) / 8);
 
         let num_components = self.num_components;
         self.read_frame_components(num_components)
@@ -346,7 +346,7 @@ impl<R: Reader>JPEGDecoder<R> {
             };
 
             blocks_per_mcu += (hv >> 4) * (hv & 0x0F);
-            self.components.insert(id as uint, c);
+            self.components.insert(id as usize, c);
         }
 
         let (hmax, vmax) = self.components.iter().fold((0, 0), | (h, v), (_, c) | {
@@ -368,10 +368,10 @@ impl<R: Reader>JPEGDecoder<R> {
             self.vmax = 1;
         }
 
-        self.mcu = repeat(0u8).take(blocks_per_mcu as uint * 64).collect::<Vec<u8>>();
+        self.mcu = repeat(0u8).take(blocks_per_mcu as usize * 64).collect::<Vec<u8>>();
 
-        let mcus_per_row = (self.width as f32 / (8 * hmax) as f32).ceil() as uint;
-        let mcu_row_len = (hmax as uint * vmax as uint) * self.mcu.len() * mcus_per_row;
+        let mcus_per_row = (self.width as f32 / (8 * hmax) as f32).ceil() as usize;
+        let mcu_row_len = (hmax as usize * vmax as usize) * self.mcu.len() * mcus_per_row;
 
         self.mcu_row = repeat(0u8).take(mcu_row_len).collect::<Vec<u8>>();
 
@@ -385,11 +385,11 @@ impl<R: Reader>JPEGDecoder<R> {
 
         self.scan_components = Vec::new();
 
-        for _ in range(0, num_scan_components as uint) {
+        for _ in range(0, num_scan_components as usize) {
             let id = try!(self.r.read_u8());
             let tables = try!(self.r.read_u8());
 
-            let c = self.components.get_mut(&(id as uint)).unwrap();
+            let c = self.components.get_mut(&(id as usize)).unwrap();
 
             c.dc_table = tables >> 4;
             c.ac_table = tables & 0x0F;
@@ -421,9 +421,9 @@ impl<R: Reader>JPEGDecoder<R> {
                 return Err(image::ImageError::FormatError("Quantization table malformed.".to_string()))
             }
 
-            let slice = self.qtables.slice_mut(64 * tq as uint, 64 * tq as uint + 64);
+            let slice = self.qtables.slice_mut(64 * tq as usize, 64 * tq as usize + 64);
 
-            for i in range(0u, 64) {
+            for i in range(0us, 64) {
                 slice[i] = try!(self.r.read_u8());
             }
 
@@ -452,12 +452,12 @@ impl<R: Reader>JPEGDecoder<R> {
             let len = bits.len();
 
             let mt = bits.iter().fold(0, | a, b | a + *b);
-            let huffval = try!(self.r.read_exact(mt as uint));
+            let huffval = try!(self.r.read_exact(mt as usize));
 
             if tc == 0 {
-                self.dctables[th as uint] = derive_tables(bits, huffval);
+                self.dctables[th as usize] = derive_tables(bits, huffval);
             } else {
-                self.actables[th as uint] = derive_tables(bits, huffval);
+                self.actables[th as usize] = derive_tables(bits, huffval);
             }
 
             table_length -= 1 + len as u16 + mt as u16;
@@ -561,12 +561,12 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         Ok(ctype)
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());
         }
 
-        let len = self.width as uint * self.num_components as uint;
+        let len = self.width as usize * self.num_components as usize;
 
         Ok(len)
     }
@@ -580,9 +580,9 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
             let _ = try!(self.decode_mcu_row());
         }
 
-        let len   = self.padded_width * self.num_components as uint;
-        let slice = self.mcu_row.slice(self.row_count as uint * len,
-        self.row_count as uint * len + buf.len());
+        let len   = self.padded_width * self.num_components as usize;
+        let slice = self.mcu_row.slice(self.row_count as usize * len,
+        self.row_count as usize * len + buf.len());
 
         slice::bytes::copy_memory(buf, slice);
 
@@ -598,7 +598,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         }
 
         let row = try!(self.row_len());
-        let mut buf = repeat(0u8).take(row * self.height as uint).collect::<Vec<u8>>();
+        let mut buf = repeat(0u8).take(row * self.height as usize).collect::<Vec<u8>>();
 
         for chunk in buf.as_mut_slice().chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));
@@ -608,30 +608,30 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
     }
 }
 
-fn upsample_mcu(out: &mut [u8], xoffset: uint, width: uint, bpp: uint, mcu: &[u8], h: u8, v: u8) {
+fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &[u8], h: u8, v: u8) {
     if mcu.len() == 64 {
-        for y in range(0u, 8) {
-            for x in range(0u, 8) {
+        for y in range(0us, 8) {
+            for x in range(0us, 8) {
                 out[xoffset + x + (y * width)] = mcu[x + y * 8]
             }
         }
     } else {
         let y_blocks = h * v;
 
-        let y_blocks = mcu.slice_to(y_blocks as uint * 64);
+        let y_blocks = mcu.slice_to(y_blocks as usize * 64);
         let cb = mcu.slice(y_blocks.len(), y_blocks.len() + 64);
         let cr = mcu.slice_from(y_blocks.len() + cb.len());
 
         let mut k = 0;
 
-        for by in range(0, v as uint) {
+        for by in range(0, v as usize) {
             let y0 = by * 8;
 
-            for bx in range(0, h as uint) {
+            for bx in range(0, h as usize) {
                 let x0 = xoffset + bx * 8 * bpp;
 
-                for y in range(0u, 8) {
-                    for x in range(0u, 8) {
+                for y in range(0us, 8) {
+                    for x in range(0us, 8) {
                         let (a, b, c) = (y_blocks[k * 64 + x + y * 8], cb[x + y * 8], cr[x + y * 8]);
                         let (r, g, b) = ycbcr_to_rgb(a , b , c );
 
@@ -674,10 +674,10 @@ fn clamp(a: i32) -> u8 {
 // Figure F.12
 fn extend(v: i32, t: u8) -> i32 {
 let vt:
-    i32 = 1 << t as uint - 1;
+    i32 = 1 << t as usize - 1;
 
     if v < vt {
-    v + ((-1) << t as uint) + 1
+    v + ((-1) << t as usize) + 1
     }
     else {
         v

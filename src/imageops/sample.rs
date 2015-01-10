@@ -319,7 +319,7 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
     kernel: &[f32]) -> ImageBuffer<Vec<P>, P, T> {
 
     // The kernel's input positions relative to the current pixel.
-    let taps: &[(int, int)] = &[
+    let taps: &[(isize, isize)] = &[
         (-1, -1), ( 0, -1), ( 1, -1),
         (-1,  0), ( 0,  0), ( 1,  0),
         (-1,  1), ( 0,  1), ( 1,  1),
@@ -353,8 +353,8 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let x0 = x as int + a;
-                let y0 = y as int + b;
+                let x0 = x as isize + a;
+                let y0 = y as isize + b;
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
@@ -405,23 +405,23 @@ pub fn resize<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
-            kernel: box |&: x| box_kernel(x),
+            kernel: Box::new(|&: x| box_kernel(x)),
             support: 0.5
         },
         FilterType::Triangle   => Filter {
-            kernel: box |&: x| triangle_kernel(x),
+            kernel: Box::new(|&: x| triangle_kernel(x)),
             support: 1.0
         },
         FilterType::CatmullRom => Filter {
-            kernel: box |&: x| catmullrom_kernel(x),
+            kernel: Box::new(|&: x| catmullrom_kernel(x)),
             support: 2.0
         },
         FilterType::Gaussian   => Filter {
-            kernel: box |&: x| gaussian_kernel(x),
+            kernel: Box::new(|&: x| gaussian_kernel(x)),
             support: 3.0
         },
         FilterType::Lanczos3   => Filter {
-            kernel: box |&: x| lanczos3_kernel(x),
+            kernel: Box::new(|&: x| lanczos3_kernel(x)),
             support: 3.0
         },
 };
@@ -443,7 +443,7 @@ pub fn blur<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
     };
 
     let mut method = Filter {
-        kernel: box |&: x| gaussian(x, sigma),
+        kernel: Box::new(|&: x| gaussian(x, sigma)),
         support: 2.0 * sigma
     };
 

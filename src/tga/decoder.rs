@@ -126,8 +126,8 @@ impl Header {
 
 struct ColorMap {
     /// sizes in bytes
-    start_offset: uint,
-    entry_size: uint,
+    start_offset: usize,
+    entry_size: usize,
     bytes: Vec<u8>,
 }
 
@@ -137,17 +137,17 @@ impl ColorMap {
                        num_entries: u16,
                        bits_per_entry: u8)
         -> ImageResult<ColorMap> {
-            let bytes_per_entry = (bits_per_entry as uint + 7) / 8;
-            let bytes = try!(r.read_exact(bytes_per_entry * num_entries as uint));
+            let bytes_per_entry = (bits_per_entry as usize + 7) / 8;
+            let bytes = try!(r.read_exact(bytes_per_entry * num_entries as usize));
             Ok(ColorMap {
                 entry_size: bytes_per_entry,
-                start_offset: start_offset as uint,
+                start_offset: start_offset as usize,
                 bytes: bytes,
             })
         }
 
     /// Get one entry from the color map
-    pub fn get(&self, index: uint) -> &[u8] {
+    pub fn get(&self, index: usize) -> &[u8] {
         let entry = self.start_offset + self.entry_size * index;
         self.bytes.as_slice().slice(entry, entry + self.entry_size)
     }
@@ -157,9 +157,9 @@ impl ColorMap {
 pub struct TGADecoder<R> {
     r: R,
 
-    width: uint,
-    height: uint,
-    bytes_per_pixel: uint,
+    width: usize,
+    height: usize,
+    bytes_per_pixel: usize,
     has_loaded_metadata: bool,
 
     image_type: ImageType,
@@ -191,9 +191,9 @@ impl<R: Reader + Seek> TGADecoder<R> {
     fn read_header(&mut self) -> ImageResult<()> {
         self.header = try!(Header::from_reader(&mut self.r));
         self.image_type = ImageType::new(self.header.image_type);
-        self.width = self.header.image_width as uint;
-        self.height = self.header.image_height as uint;
-        self.bytes_per_pixel = (self.header.pixel_depth as uint + 7) / 8;
+        self.width = self.header.image_width as usize;
+        self.height = self.header.image_height as usize;
+        self.bytes_per_pixel = (self.header.pixel_depth as usize + 7) / 8;
         Ok(())
     }
 
@@ -268,15 +268,15 @@ impl<R: Reader + Seek> TGADecoder<R> {
     /// Expands indices into its mapped color
     fn expand_color_map(&mut self, pixel_data: Vec<u8>) -> Vec<u8> {
         #[inline]
-        fn bytes_to_index(bytes: &[u8]) -> uint {
-            let mut result = 0u;
+        fn bytes_to_index(bytes: &[u8]) -> usize {
+            let mut result = 0us;
             for byte in bytes.iter() {
-                result = result << 8 | *byte as uint;
+                result = result << 8 | *byte as usize;
             }
             result
         }
 
-        let bytes_per_entry = (self.header.map_entry_size as uint + 7) / 8;
+        let bytes_per_entry = (self.header.map_entry_size as usize + 7) / 8;
         let mut result = Vec::with_capacity(self.width * self.height *
                                             bytes_per_entry);
 
@@ -326,18 +326,18 @@ impl<R: Reader + Seek> TGADecoder<R> {
             // of 0 would be pointless.
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
-                let repeat_count = ((run_packet & !0x80) + 1) as uint;
+                let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let data = try!(self.r.read_exact(self.bytes_per_pixel));
-                for _ in range(0u, repeat_count) {
+                for _ in range(0us, repeat_count) {
                     pixel_data.push_all(data.as_slice());
                 }
                 num_read += repeat_count;
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded bytes
-                let num_raw_bytes = (run_packet + 1) as uint * self.bytes_per_pixel;
+                let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
                 let data = try!(self.r.read_exact(num_raw_bytes));
                 pixel_data.push_all(data.as_slice());
-                num_read += run_packet as uint;
+                num_read += run_packet as usize;
             }
         }
 
@@ -383,7 +383,7 @@ impl<R: Reader + Seek> ImageDecoder for TGADecoder<R> {
         Ok(self.color_type)
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         try!(self.read_metadata());
 
         Ok(self.bytes_per_pixel * 8 * self.width)

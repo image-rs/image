@@ -263,7 +263,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         self.bits_per_pixel = channels * self.bit_depth;
         self.bpp = (self.bits_per_pixel + 7) / 8;
-        self.previous = repeat(0u8).take(self.raw_row_length(self.width) as uint).collect();
+        self.previous = repeat(0u8).take(self.raw_row_length(self.width) as usize).collect();
 
         Ok(())
     }
@@ -277,7 +277,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         let len = buf.len() / 3;
 
-        if len > 256 || len > (1 << self.bit_depth as uint) || buf.len() % 3 != 0{
+        if len > 256 || len > (1 << self.bit_depth as usize) || buf.len() % 3 != 0{
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
@@ -320,14 +320,14 @@ impl<R: Reader> PNGDecoder<R> {
                         return Err(ImageError::FormatError("Invalid PNG signature.".to_string()))
                     }
 
-                    let d = try!(self.z.inner().r.read_exact(length as uint));
+                    let d = try!(self.z.inner().r.read_exact(length as usize));
                     try!(self.parse_ihdr(d));
 
                     self.state = PNGState::HaveIHDR;
                 }
 
                 (b"PLTE", PNGState::HaveIHDR) => {
-                    let d = try!(self.z.inner().r.read_exact(length as uint));
+                    let d = try!(self.z.inner().r.read_exact(length as usize));
                     try!(self.parse_plte(d));
                     self.state = PNGState::HavePLTE;
                 }
@@ -353,7 +353,7 @@ impl<R: Reader> PNGDecoder<R> {
                 }
 
                 _ => {
-                    let b = try!(self.z.inner().r.read_exact(length as uint));
+                    let b = try!(self.z.inner().r.read_exact(length as usize));
                     self.crc.update(b);
                 }
             }
@@ -378,19 +378,19 @@ impl<R: Reader> PNGDecoder<R> {
         };
 
         {
-            let mut read = 0u;
-            let read_buffer = buf.slice_to_mut(rlength as uint);
-            while read < rlength as uint {
+            let mut read = 0us;
+            let read_buffer = buf.slice_to_mut(rlength as usize);
+            while read < rlength as usize {
                 let r = try!(self.z.read(read_buffer.slice_from_mut(read)));
                 read += r;
             }
         }
 
-        unfilter(filter_type, self.bpp as uint, self.previous.as_slice(), buf.slice_to_mut(rlength as uint));
-        slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(rlength as uint));
+        unfilter(filter_type, self.bpp as usize, self.previous.as_slice(), buf.slice_to_mut(rlength as usize));
+        slice::bytes::copy_memory(self.previous.as_mut_slice(), buf.slice_to(rlength as usize));
 
         if let Some(ref palette) = self.palette {
-            expand_palette(buf, palette.as_slice(), rlength as uint, self.bit_depth);
+            expand_palette(buf, palette.as_slice(), rlength as usize, self.bit_depth);
         }
 
         self.decoded_rows += 1;
@@ -416,14 +416,14 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         Ok(self.pixel_type)
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
 
         let bits = color::bits_per_pixel(self.pixel_type);
 
-        Ok((bits * self.width as uint + 7) / 8)
+        Ok((bits * self.width as usize + 7) / 8)
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
@@ -442,7 +442,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
         let max_rowlen = try!(self.row_len());
-        let mut buf: Vec<u8> = repeat(0u8).take(max_rowlen * self.height as uint).collect();
+        let mut buf: Vec<u8> = repeat(0u8).take(max_rowlen * self.height as usize).collect();
         if let Some(mut pass_iterator) = self.pass_iterator { // Method == Adam7
             let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
@@ -458,12 +458,12 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                 let bits = color::bits_per_pixel(self.pixel_type);
                 let _ = try!(
                     self.extract_scanline(pass_buf.slice_to_mut(
-                        ((bits * width as uint + 7) / 8)
+                        ((bits * width as usize + 7) / 8)
                     ), rlength)
                 );
                 expand_pass(
                     buf.as_mut_slice(), self.width * bytes as u32,
-                    pass_buf.slice_to_mut(width as uint * bytes), pass, line, bytes as u8
+                    pass_buf.slice_to_mut(width as usize * bytes), pass, line, bytes as u8
                 );
                 old_pass = pass;
             }
@@ -490,9 +490,9 @@ macro_rules! expand_pass(
 fn expand_pass(
     img: &mut[u8], width: u32, scanline: &mut[u8], 
     pass: u8, line_no: u32, bytes_pp: u8) {
-    let line_no = line_no as uint;
-    let width = width as uint;
-    let bytes_pp = bytes_pp as uint;
+    let line_no = line_no as usize;
+    let width = width as usize;
+    let bytes_pp = bytes_pp as usize;
     match pass {
         1 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp * j*8     , bytes_pp),
         2 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp *(j*8 + 4), bytes_pp),
@@ -506,10 +506,10 @@ fn expand_pass(
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
-                  entries: uint, bit_depth: u8) {
-    let bpp = 8 / bit_depth as uint;
+                  entries: usize, bit_depth: u8) {
+    let bpp = 8 / bit_depth as usize;
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (1u8 << bit_depth as uint) - 1;
+    let mask = (1u8 << bit_depth as usize) - 1;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {
@@ -527,9 +527,9 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
             )
         ))
         //.skip(buf.len() % bpp) // not necessary, why!?
-        .map(|(shift, pixel)| (pixel & mask << shift as uint) >> shift as uint);
+        .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
     for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
-        palette[i as uint]
+        palette[i as usize]
     )) {
         chunk[0] = r;
         chunk[1] = g;
@@ -561,7 +561,7 @@ impl<R:Reader> IDATReader<R> {
 }
 
 impl<R: Reader> Reader for IDATReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         if self.eof {
             return Err(io::standard_error(io::EndOfFile))
         }
@@ -570,7 +570,7 @@ impl<R: Reader> Reader for IDATReader<R> {
         let mut start = 0;
 
         while start < len {
-            let m = cmp::min(len - start, self.chunk_length as uint);
+            let m = cmp::min(len - start, self.chunk_length as usize);
 
             let slice = buf.slice_mut(start, start + m);
             let r = try!(self.r.read(slice));
@@ -660,7 +660,7 @@ mod tests {
         for path in images.iter() {
             assert!(match load_image(path) {
                 Ok(_) => true,
-                Err(err) => { println!("file {}, failed with {}", path.display(), err); false }
+                Err(err) => { println!("file {:?}, failed with {:?}", path.display(), err); false }
             })
         }
     }
@@ -672,7 +672,7 @@ mod tests {
         for path in images.iter() {
             assert!(match load_image(path) {
                 Ok(_) => true,
-                Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
             })
         }
     }
@@ -685,7 +685,7 @@ mod tests {
         for path in images.iter() {
             assert!(match load_image(path) {
                 Ok(_) => { true },
-                Err(err) => {println!("file {}, failed with {}", path.display(), err); false }
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
             })
         }
     }

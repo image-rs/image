@@ -18,8 +18,8 @@ use std::iter::repeat;
 
 use super::transform;
 
-const MAX_SEGMENTS: uint = 4;
-const NUM_DCT_TOKENS: uint = 12;
+const MAX_SEGMENTS: usize = 4;
+const NUM_DCT_TOKENS: usize = 12;
 
 // Prediction modes
 const DC_PRED: i8 = 0;
@@ -627,7 +627,7 @@ static ZIGZAG: [u8; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15]
 
 struct BoolReader {
     buf: Vec<u8>,
-    index: uint,
+    index: usize,
 
     range: u32,
     value: u32,
@@ -643,7 +643,7 @@ impl BoolReader {
         self.buf = buf;
         self.value = 0;
 
-        for _ in range(0u, 2) {
+        for _ in range(0us, 2) {
             self.value = (self.value << 8) | self.buf[self.index] as u32;
             self.index += 1;
         }
@@ -703,13 +703,13 @@ impl BoolReader {
         }
     }
 
-    pub fn read_with_tree(&mut self, tree: &[i8], probs: &[Prob], start: int) -> i8 {
+    pub fn read_with_tree(&mut self, tree: &[i8], probs: &[Prob], start: isize) -> i8 {
         let mut index = start;
 
         loop {
-            let a = self.read_bool(probs[index as uint >> 1]);
-            let b = index + a as int;
-            index = tree[b as uint] as int;
+            let a = self.read_bool(probs[index as usize >> 1]);
+            let b = index + a as isize;
+            index = tree[b as usize] as isize;
 
             if index <= 0 {
                 break
@@ -856,7 +856,7 @@ impl<R: Reader> VP8Decoder<R> {
             num_partitions: 1,
 
             segment_tree_probs: [255u8; 3],
-            token_probs: box COEFF_PROBS,
+            token_probs: Box::new(COEFF_PROBS),
 
             // Section 9.10
             prob_intra: 0u8,
@@ -873,10 +873,10 @@ impl<R: Reader> VP8Decoder<R> {
 }
 
     fn update_token_probabilities(&mut self) {
-        for i in range(0u, 4) {
-            for j in range(0u, 8) {
-                for k in range(0u, 3) {
-                    for t in range(0u, NUM_DCT_TOKENS - 1) {
+        for i in range(0us, 4) {
+            for j in range(0us, 8) {
+                for k in range(0us, 3) {
+                    for t in range(0us, NUM_DCT_TOKENS - 1) {
                         let prob = COEFF_UPDATE_PROBS[i][j][k][t];
                         if self.b.read_bool(prob) != 0 {
                             let v = self.b.read_literal(8);
@@ -888,13 +888,13 @@ impl<R: Reader> VP8Decoder<R> {
         }
     }
 
-    fn init_partitions(&mut self, n: uint) -> IoResult<()> {
+    fn init_partitions(&mut self, n: usize) -> IoResult<()> {
         if n > 1 {
             let sizes = try!(self.r.read_exact(3 * n - 3));
 
             for (i, s) in sizes.as_slice().chunks(3).enumerate() {
                 let size = s[0] as u32 + ((s[1] as u32) << 8) + ((s[2] as u32) << 8);
-                let buf  = try!(self.r.read_exact(size as uint));
+                let buf  = try!(self.r.read_exact(size as usize));
 
                 self.partitions[i].init(buf);
             }
@@ -924,18 +924,18 @@ impl<R: Reader> VP8Decoder<R> {
                         else { 0 };
 
         let n = if self.segments_enabled { MAX_SEGMENTS } else { 1 };
-        for i in range(0u, n) {
+        for i in range(0us, n) {
             let base = if !self.segment[i].delta_values { self.segment[i].quantizer_level as i16 }
                     else { self.segment[i].quantizer_level as i16 + yac_abs as i16} as i32;
 
-            self.segment[i].ydc  = DC_QUANT[clip(base + ydc_delta, 0, 127) as uint];
-            self.segment[i].yac  = AC_QUANT[clip(base, 0, 127) as uint];
+            self.segment[i].ydc  = DC_QUANT[clip(base + ydc_delta, 0, 127) as usize];
+            self.segment[i].yac  = AC_QUANT[clip(base, 0, 127) as usize];
 
-            self.segment[i].y2dc = DC_QUANT[clip(base + y2dc_delta, 0, 127) as uint] * 2;
-            self.segment[i].y2ac = AC_QUANT[clip(base + y2ac_delta, 0, 127) as uint] * 155 / 100;
+            self.segment[i].y2dc = DC_QUANT[clip(base + y2dc_delta, 0, 127) as usize] * 2;
+            self.segment[i].y2ac = AC_QUANT[clip(base + y2ac_delta, 0, 127) as usize] * 155 / 100;
 
-            self.segment[i].uvdc = DC_QUANT[clip(base + uvdc_delta, 0, 127) as uint];
-            self.segment[i].uvac = AC_QUANT[clip(base + uvac_delta, 0, 127) as uint];
+            self.segment[i].uvdc = DC_QUANT[clip(base + uvdc_delta, 0, 127) as usize];
+            self.segment[i].uvac = AC_QUANT[clip(base + uvac_delta, 0, 127) as usize];
 
             if self.segment[i].y2ac < 8 {
                 self.segment[i].y2ac = 8;
@@ -949,7 +949,7 @@ impl<R: Reader> VP8Decoder<R> {
 
     fn read_loop_filter_adjustments(&mut self) {
         if self.b.read_flag() {
-            for _i in range(0u, 4) {
+            for _i in range(0us, 4) {
                 let ref_frame_delta_update_flag = self.b.read_flag();
 
                 let _delta = if ref_frame_delta_update_flag {
@@ -959,7 +959,7 @@ impl<R: Reader> VP8Decoder<R> {
                 };
             }
 
-            for _i in range(0u, 4) {
+            for _i in range(0us, 4) {
                 let mb_mode_delta_update_flag = self.b.read_flag();
 
                 let _delta = if mb_mode_delta_update_flag {
@@ -979,11 +979,11 @@ impl<R: Reader> VP8Decoder<R> {
         if update_segment_feature_data {
             let segment_feature_mode = self.b.read_flag();
 
-            for i in range(0u, MAX_SEGMENTS) {
+            for i in range(0us, MAX_SEGMENTS) {
                 self.segment[i].delta_values = !segment_feature_mode;
             }
 
-            for i in range(0u, MAX_SEGMENTS) {
+            for i in range(0us, MAX_SEGMENTS) {
                 let update = self.b.read_flag();
 
                 self.segment[i].quantizer_level = if update {
@@ -993,7 +993,7 @@ impl<R: Reader> VP8Decoder<R> {
                 } as i8;
             }
 
-            for i in range(0u, MAX_SEGMENTS) {
+            for i in range(0us, MAX_SEGMENTS) {
                 let update = self.b.read_flag();
 
                 self.segment[i].loopfilter_level = if update {
@@ -1005,7 +1005,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
 
         if self.segments_update_map {
-            for i in range(0u, 3) {
+            for i in range(0us, 3) {
                 let update = self.b.read_flag();
 
                 self.segment_tree_probs[i] = if update {
@@ -1038,20 +1038,20 @@ impl<R: Reader> VP8Decoder<R> {
             self.frame.width = w & 0x3FFF;
             self.frame.height = h & 0x3FFF;
 
-            self.top = init_top_macroblocks(self.frame.width as uint);
+            self.top = init_top_macroblocks(self.frame.width as usize);
             self.left = MacroBlock{..self.top.as_mut_slice()[0]};
 
             self.mbwidth  = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;
 
-            self.frame.ybuf = repeat(0u8).take(self.frame.width as uint
-                * self.frame.height as uint).collect();
+            self.frame.ybuf = repeat(0u8).take(self.frame.width as usize
+                * self.frame.height as usize).collect();
 
-            self.top_border = repeat(127u8).take(self.frame.width as uint + 4 + 16).collect();
+            self.top_border = repeat(127u8).take(self.frame.width as usize + 4 + 16).collect();
             self.left_border = repeat(129u8).take(1 + 16).collect();
         }
 
-        let buf = try!(self.r.read_exact(first_partition_size as uint));
+        let buf = try!(self.r.read_exact(first_partition_size as usize));
         // initialise binary decoder
         self.b.init(buf);
 
@@ -1075,8 +1075,8 @@ impl<R: Reader> VP8Decoder<R> {
             self.read_loop_filter_adjustments();
         }
 
-        self.num_partitions = (1u << self.b.read_literal(2) as uint) as u8;
-                let num_partitions = self.num_partitions as uint;
+        self.num_partitions = (1us << self.b.read_literal(2) as usize) as u8;
+                let num_partitions = self.num_partitions as usize;
         let _ = try!(self.init_partitions(num_partitions));
 
         self.read_quantization_indices();
@@ -1110,7 +1110,7 @@ impl<R: Reader> VP8Decoder<R> {
         Ok(())
     }
 
-    fn read_macroblock_header(&mut self, mbx: uint) -> (bool, MacroBlock) {
+    fn read_macroblock_header(&mut self, mbx: usize) -> (bool, MacroBlock) {
         let mut mb = MacroBlock::new();
 
         mb.segmentid = if self.segments_enabled && self.segments_update_map {
@@ -1141,12 +1141,12 @@ impl<R: Reader> VP8Decoder<R> {
                                                  &KEYFRAME_YMODE_PROBS, 0);
 
             if mb.luma_mode == B_PRED {
-                for y in range(0u, 4) {
-                    for x in range(0u, 4) {
+                for y in range(0us, 4) {
+                    for x in range(0us, 4) {
                         let top   = self.top.as_mut_slice()[mbx].bpred[12 + x];
                         let left  = self.left.bpred[y];
                         let bmode = self.b.read_with_tree(&KEYFRAME_BPRED_MODE_TREE,
-                            &KEYFRAME_BPRED_MODE_PROBS[top as uint][left as uint], 0);
+                            &KEYFRAME_BPRED_MODE_PROBS[top as usize][left as usize], 0);
                         mb.bpred[x + y * 4] = bmode;
 
                         self.top.as_mut_slice()[mbx].bpred[12 + x] = bmode;
@@ -1154,7 +1154,7 @@ impl<R: Reader> VP8Decoder<R> {
                     }
                 }
             } else {
-                for i in range(0u, 4) {
+                for i in range(0us, 4) {
                     let mode = match mb.luma_mode {
                         DC_PRED => B_DC_PRED,
                         V_PRED  => B_VE_PRED,
@@ -1179,10 +1179,10 @@ impl<R: Reader> VP8Decoder<R> {
         (skip_coeff, mb)
     }
 
-    fn intra_predict(&mut self, mbx: uint, mby: uint, mb: &MacroBlock, resdata: &[i32]) {
-        let stride = 1u + 16 + 4;
-        let w  = self.frame.width as uint;
-        let mw = self.mbwidth as uint;
+    fn intra_predict(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
+        let stride = 1us + 16 + 4;
+        let w  = self.frame.width as usize;
+        let mw = self.mbwidth as usize;
         let mut ws = create_border(
             mbx, mby, mw, self.top_border.as_slice(), self.left_border.as_slice());
 
@@ -1196,8 +1196,8 @@ impl<R: Reader> VP8Decoder<R> {
         }
 
         if mb.luma_mode != B_PRED {
-            for y in range(0u, 4) {
-                for x in range(0u, 4) {
+            for y in range(0us, 4) {
+                for x in range(0us, 4) {
                     let i  = x + y * 4;
                     let rb = resdata.slice(i * 16, i * 16 + 16);
                     let y0 = 1 + y * 4;
@@ -1210,21 +1210,21 @@ impl<R: Reader> VP8Decoder<R> {
 
         self.left_border.as_mut_slice()[0] = ws[16];
 
-        for i in range(0u, 16) {
+        for i in range(0us, 16) {
             self.top_border.as_mut_slice()[mbx * 16 + i] = ws[16 * stride + 1 + i];
             self.left_border.as_mut_slice()[i + 1] = ws[(i + 1) * stride + 16];
         }
 
-        let ylength = if mby < self.mbheight as uint - 1 { 16u }
-                      else if self.frame.height % 16 == 0 { 16u }
-                      else { (16 - (self.frame.height as uint & 15)) % 16 };
+        let ylength = if mby < self.mbheight as usize - 1 { 16us }
+                      else if self.frame.height % 16 == 0 { 16us }
+                      else { (16 - (self.frame.height as usize & 15)) % 16 };
 
-        let xlength = if mbx < self.mbwidth as uint - 1 { 16u }
-                      else if self.frame.width % 16 == 0 { 16u }
-                      else { (16 - (self.frame.width as uint & 15)) % 16 };
+        let xlength = if mbx < self.mbwidth as usize - 1 { 16us }
+                      else if self.frame.width % 16 == 0 { 16us }
+                      else { (16 - (self.frame.width as usize & 15)) % 16 };
 
-        for y in range(0u, ylength) {
-            for x in range(0u, xlength) {
+        for y in range(0us, ylength) {
+            for x in range(0us, xlength) {
                 self.frame.ybuf.as_mut_slice()[(mby * 16 + y) * w + mbx * 16 + x] =
                     ws[(1 + y) * stride + 1 + x];
             }
@@ -1233,13 +1233,13 @@ impl<R: Reader> VP8Decoder<R> {
 
     fn read_coefficients(&mut self,
                          block: &mut [i32],
-                         p: uint,
-                         plane: uint,
-                         complexity: uint,
+                         p: usize,
+                         plane: usize,
+                         complexity: usize,
                          dcq: i16,
                          acq: i16) -> bool {
 
-        let first = if plane == 0 { 1u } else { 0u };
+        let first = if plane == 0 { 1us } else { 0us };
         let probs = &self.token_probs[plane];
         let tree  = DCT_TOKEN_TREE.as_slice();
 
@@ -1247,8 +1247,8 @@ impl<R: Reader> VP8Decoder<R> {
         let mut has_coefficients = false;
         let mut skip = false;
 
-        for i in range(first, 16u) {
-            let table = probs[COEFF_BANDS[i] as uint][complexity].as_slice();
+        for i in range(first, 16us) {
+            let table = probs[COEFF_BANDS[i] as usize][complexity].as_slice();
 
             let token = if !skip {
                 self.partitions[p].read_with_tree(tree, table, 0)
@@ -1269,7 +1269,7 @@ impl<R: Reader> VP8Decoder<R> {
                 literal  @ DCT_1 ... DCT_4 => literal as i16,
 
                 category @ DCT_CAT1 ... DCT_CAT6 => {
-                    let t = PROB_DCT_CAT[(category - DCT_CAT1) as uint];
+                    let t = PROB_DCT_CAT[(category - DCT_CAT1) as usize];
 
                     let mut extra = 0i16;
                     let mut j = 0;
@@ -1279,7 +1279,7 @@ impl<R: Reader> VP8Decoder<R> {
                         j += 1;
                     }
 
-                    DCT_CAT_BASE[(category - DCT_CAT1) as uint] as i16 + extra
+                    DCT_CAT_BASE[(category - DCT_CAT1) as usize] as i16 + extra
                 }
 
                 c => panic!(format!("unknown token: {}", c))
@@ -1295,7 +1295,7 @@ impl<R: Reader> VP8Decoder<R> {
                 abs_value = -abs_value;
             }
 
-            block[ZIGZAG[i] as uint] = abs_value * if ZIGZAG[i] > 0 { acq }
+            block[ZIGZAG[i] as usize] = abs_value * if ZIGZAG[i] > 0 { acq }
                                                    else { dcq } as i32;
 
             has_coefficients = true;
@@ -1304,8 +1304,8 @@ impl<R: Reader> VP8Decoder<R> {
         has_coefficients
     }
 
-    fn read_residual_data(&mut self, mb: &MacroBlock, mbx: uint, p: uint) -> [i32; 384] {
-        let sindex     = mb.segmentid as uint;
+    fn read_residual_data(&mut self, mb: &MacroBlock, mbx: usize, p: usize) -> [i32; 384] {
+        let sindex     = mb.segmentid as usize;
         let mut blocks = [0i32; 384];
         let mut plane  = if mb.luma_mode == B_PRED { 3 }
                          else { 1 };
@@ -1315,23 +1315,23 @@ impl<R: Reader> VP8Decoder<R> {
             let mut block = [0i32; 16];
             let dcq = self.segment[sindex].y2dc;
             let acq = self.segment[sindex].y2ac;
-            let n   = self.read_coefficients(&mut block, p, plane, complexity as uint, dcq, acq);
+            let n   = self.read_coefficients(&mut block, p, plane, complexity as usize, dcq, acq);
 
             self.left.complexity[0] = if n { 1 } else { 0 };
             self.top.as_mut_slice()[mbx].complexity[0] = if n { 1 } else { 0 };
 
             transform::iwht4x4(&mut block);
 
-            for k in range(0u, 16) {
+            for k in range(0us, 16) {
                 blocks[16 * k] = block[k];
             }
 
             plane = 0;
         }
 
-        for y in range(0u, 4) {
+        for y in range(0us, 4) {
             let mut left = self.left.complexity[y + 1];
-            for x in range(0u, 4) {
+            for x in range(0us, 4) {
                 let i = x + y * 4;
                 let block = blocks.slice_mut(i * 16, i * 16 + 16);
 
@@ -1339,7 +1339,7 @@ impl<R: Reader> VP8Decoder<R> {
                 let dcq = self.segment[sindex].ydc;
                 let acq = self.segment[sindex].yac;
 
-                let n = self.read_coefficients(block, p, plane, complexity as uint, dcq, acq);
+                let n = self.read_coefficients(block, p, plane, complexity as usize, dcq, acq);
 
                 if block[0] != 0 || n {
                     transform::idct4x4(block);
@@ -1354,11 +1354,11 @@ impl<R: Reader> VP8Decoder<R> {
 
         plane = 2;
 
-        for &j in [5u, 7u].iter() {
-            for y in range(0u, 2) {
+        for &j in [5us, 7us].iter() {
+            for y in range(0us, 2) {
                 let mut left = self.left.complexity[y + j];
 
-                for x in range(0u, 2) {
+                for x in range(0us, 2) {
                     let i = x + y * 2 + if j == 5 { 16 } else { 20 };
                     let block = blocks.slice_mut(i * 16, i * 16 + 16);
 
@@ -1366,7 +1366,7 @@ impl<R: Reader> VP8Decoder<R> {
                     let dcq   = self.segment[sindex].uvdc;
                     let acq   = self.segment[sindex].uvac;
 
-                    let n = self.read_coefficients(block, p, plane, complexity as uint, dcq, acq);
+                    let n = self.read_coefficients(block, p, plane, complexity as usize, dcq, acq);
                     if block[0] != 0 || n {
                         transform::idct4x4(block);
                     }
@@ -1386,11 +1386,11 @@ impl<R: Reader> VP8Decoder<R> {
     pub fn decode_frame(&mut self) -> IoResult<&Frame> {
         let _ = try!(self.read_frame_header());
 
-        for mby in range(0, self.mbheight as uint) {
-            let p = mby % self.num_partitions as uint;
+        for mby in range(0, self.mbheight as usize) {
+            let p = mby % self.num_partitions as usize;
             self.left = MacroBlock::new();
 
-            for mbx in range(0, self.mbwidth as uint) {
+            for mbx in range(0, self.mbwidth as usize) {
                 let (skip, mb) = self.read_macroblock_header(mbx);
                 let mut blocks = [0i32; 384];
 
@@ -1402,7 +1402,7 @@ impl<R: Reader> VP8Decoder<R> {
                         self.top.as_mut_slice()[mbx].complexity[0] = 0;
                     }
 
-                    for i in range(1u, 9) {
+                    for i in range(1us, 9) {
                         self.left.complexity[i] = 0;
                         self.top.as_mut_slice()[mbx].complexity[i] = 0;
                     }
@@ -1418,7 +1418,7 @@ impl<R: Reader> VP8Decoder<R> {
     }
 }
 
-fn init_top_macroblocks(width: uint) -> Vec<MacroBlock> {
+fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
     let mb_width = (width + 15) / 16;
 
     let mb = MacroBlock {
@@ -1431,35 +1431,35 @@ fn init_top_macroblocks(width: uint) -> Vec<MacroBlock> {
     range(0, mb_width).map(|_| mb).collect()
 }
 
-fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u8; 357] {
-    let stride = 1u + 16 + 4;
+fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) -> [u8; 357] {
+    let stride = 1us + 16 + 4;
     let mut ws = [0u8; (1 + 16) * (1 + 16 + 4)];
 
     // A
     {
         let above = ws.slice_mut(1, stride);
         if mby == 0 {
-            for i in range(0u, above.len()) {
+            for i in range(0us, above.len()) {
                 above[i] = 127;
             }
         } else  {
-            for i in range(0u, 16) {
+            for i in range(0us, 16) {
                 above[i] = top[mbx * 16 + i];
             }
 
             if mbx == mbw - 1 {
-                for i in range(16u, above.len()) {
+                for i in range(16us, above.len()) {
                     above[i] = top[mbx * 16 + 15];
                 }
             } else {
-                for i in range(16u, above.len()) {
+                for i in range(16us, above.len()) {
                     above[i] = top[mbx * 16 + i];
                 }
             }
         }
     }
 
-    for i in range(17u, stride) {
+    for i in range(17us, stride) {
         ws[4  * stride + i] = ws[i];
         ws[8  * stride + i] = ws[i];
         ws[12 * stride + i] = ws[i];
@@ -1467,11 +1467,11 @@ fn create_border(mbx: uint, mby: uint, mbw: uint, top: &[u8], left: &[u8]) -> [u
 
     // L
     if mbx == 0 {
-        for i in range(0u, 16) {
+        for i in range(0us, 16) {
             ws[(i + 1) * stride] = 129;
         }
     } else {
-        for i in range(0u, 16) {
+        for i in range(0us, 16) {
             ws[(i + 1) * stride] = left[i + 1];
         }
     }
@@ -1506,9 +1506,9 @@ fn clip<N: PartialOrd>(a: N, min: N, max: N) -> N {
     else { a }
 }
 
-fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: uint, x0: uint, stride: uint) {
-    for y in range(0u, 4) {
-        for x in range(0u, 4) {
+fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: usize) {
+    for y in range(0us, 4) {
+        for x in range(0us, 4) {
             let a = rblock[x + y * 4];
             let b = pblock[(y0 + y) * stride + x0 + x];
             let c = clip(a + b as i32, 0, 255) as u8;
@@ -1517,9 +1517,9 @@ fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: uint, x0: uint, stride: ui
     }
 }
 
-fn predict_4x4(ws: &mut [u8], stride: uint, modes: &[i8], resdata: &[i32]) {
-    for sby in range(0u, 4) {
-        for sbx in range(0u, 4) {
+fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[i8], resdata: &[i32]) {
+    for sby in range(0us, 4) {
+        for sbx in range(0us, 4) {
             let i  = sbx + sby * 4;
             let y0 = sby * 4 + 1;
             let x0 = sbx * 4 + 1;
@@ -1544,28 +1544,28 @@ fn predict_4x4(ws: &mut [u8], stride: uint, modes: &[i8], resdata: &[i32]) {
     }
 }
 
-fn predict_vpred(a: &mut [u8], size: uint, x0: uint, y0: uint, stride: uint) {
-    for y in range(0u, size) {
-        for x in range(0u, size) {
+fn predict_vpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize) {
+    for y in range(0us, size) {
+        for x in range(0us, size) {
             a[(x + x0) + stride * (y + y0)] = a[(x + x0) + stride * (y0 + y - 1)];
         }
     }
 }
 
-fn predict_hpred(a: &mut [u8], size: uint, x0: uint, y0: uint, stride: uint) {
-    for y in range(0u, size) {
-        for x in range(0u, size) {
+fn predict_hpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize) {
+    for y in range(0us, size) {
+        for x in range(0us, size) {
             a[(x + x0) + stride * (y + y0)] = a[(x + x0 - 1) + stride * (y0 + y)];
         }
     }
 }
 
-fn predict_dcpred(a: &mut [u8], size: uint, stride: uint, above: bool, left: bool) {
+fn predict_dcpred(a: &mut [u8], size: usize, stride: usize, above: bool, left: bool) {
     let mut sum = 0;
     let mut shf = if size == 8 {2} else {3};
 
     if left {
-        for y in range(0u, size) {
+        for y in range(0us, size) {
             sum += a[(y + 1) * stride] as u32;
         }
 
@@ -1573,7 +1573,7 @@ fn predict_dcpred(a: &mut [u8], size: uint, stride: uint, above: bool, left: boo
     }
 
     if above {
-        for x in range(0u, size) {
+        for x in range(0us, size) {
             sum += a[x + 1] as u32;
         }
 
@@ -1586,16 +1586,16 @@ fn predict_dcpred(a: &mut [u8], size: uint, stride: uint, above: bool, left: boo
         (sum + (1 << (shf - 1))) >> shf
     };
 
-    for y in range(0u, size) {
-        for x in range(0u, size) {
+    for y in range(0us, size) {
+        for x in range(0us, size) {
             a[(x + 1) + stride * (y + 1)] = dcval as u8;
         }
     }
 }
 
-fn predict_tmpred(a: &mut [u8], size: uint, x0: uint, y0: uint, stride: uint) {
-    for y in range(0u, size) {
-        for x in range(0u, size) {
+fn predict_tmpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize) {
+    for y in range(0us, size) {
+        for x in range(0us, size) {
             let pred = a[(y0 + y) * stride + x0 - 1] as i32 +
                        a[(y0 - 1) * stride + x0 + x] as i32 -
                        a[(y0 - 1) * stride + x0 - 1] as i32;
@@ -1605,26 +1605,26 @@ fn predict_tmpred(a: &mut [u8], size: uint, x0: uint, y0: uint, stride: uint) {
     }
 }
 
-fn predict_bdcpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bdcpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let mut v = 4;
-    for i in range(0u, 4) {
+    for i in range(0us, 4) {
             v += a[(y0 + i) * stride + x0 - 1] as u32 +
                  a[(y0 - 1) * stride + x0 + i] as u32;
     }
 
     v >>= 3;
-    for y in range(0u, 4) {
-        for x in range(0u, 4) {
+    for y in range(0us, 4) {
+        for x in range(0us, 4) {
             a[x + x0 + stride * (y + y0)] = v as u8;
         }
     }
 }
 
-fn topleft_pixel(a: &[u8], x0: uint, y0: uint, stride: uint) -> u8 {
+fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
     a[(y0 - 1) * stride + x0 - 1]
 }
 
-fn top_pixels(a: &[u8], x0: uint, y0: uint, stride: uint) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
+fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
     let a0 = a[(y0 - 1) * stride + x0 + 0];
     let a1 = a[(y0 - 1) * stride + x0 + 1];
     let a2 = a[(y0 - 1) * stride + x0 + 2];
@@ -1637,7 +1637,7 @@ fn top_pixels(a: &[u8], x0: uint, y0: uint, stride: uint) -> (u8, u8, u8, u8, u8
     (a0, a1, a2, a3, a4, a5, a6, a7)
 }
 
-fn left_pixels(a: &[u8], x0: uint, y0: uint, stride: uint) -> (u8, u8, u8, u8) {
+fn left_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8) {
     let l0 = a[(y0 + 0) * stride + x0 - 1];
     let l1 = a[(y0 + 1) * stride + x0 - 1];
     let l2 = a[(y0 + 2) * stride + x0 - 1];
@@ -1647,9 +1647,9 @@ fn left_pixels(a: &[u8], x0: uint, y0: uint, stride: uint) -> (u8, u8, u8, u8) {
 }
 
 fn edge_pixels(a: &[u8],
-               x0: uint,
-               y0: uint,
-               stride: uint) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
+               x0: usize,
+               y0: usize,
+               stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
 
     let e8 = a[(y0 - 1) * stride + x0 + 3];
     let e7 = a[(y0 - 1) * stride + x0 + 2];
@@ -1664,7 +1664,7 @@ fn edge_pixels(a: &[u8],
     (e0, e1, e2, e3, e4, e5, e6, e7, e8)
 }
 
-fn predict_bvepred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bvepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (a0, a1, a2, a3, a4, _, _, _) = top_pixels(a, x0, y0, stride);
 
@@ -1689,7 +1689,7 @@ fn predict_bvepred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 3) * stride + x0 + 3] = avg3(a2, a3, a4);
 }
 
-fn predict_bhepred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
@@ -1714,7 +1714,7 @@ fn predict_bhepred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 3) * stride + x0 + 3] = avg3(l2, l3, l3);
 }
 
-fn predict_bldpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
     a[(y0 + 0) * stride + x0 + 0] = avg3(a0, a1, a2);
@@ -1735,7 +1735,7 @@ fn predict_bldpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 3) * stride + x0 + 3] = avg3(a6, a7, a7);
 }
 
-fn predict_brdpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
     a[(y0 + 3) * stride + x0 + 0] = avg3(e0, e1, e2);
@@ -1756,7 +1756,7 @@ fn predict_brdpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 0) * stride + x0 + 3] = avg3(e6, e7, e8);
 }
 
-fn predict_bvrpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (_, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
     a[(y0 + 3) * stride + x0 + 0] = avg3(e1, e2, e3);
@@ -1777,7 +1777,7 @@ fn predict_bvrpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 0) * stride + x0 + 3] = avg2(e7, e8);
 }
 
-fn predict_bvlpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bvlpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
     a[(y0 + 0) * stride + x0 + 0] = avg2(a0, a1);
@@ -1798,7 +1798,7 @@ fn predict_bvlpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 3) * stride + x0 + 3] = avg3(a5, a6, a7);
 }
 
-fn predict_bhdpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bhdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, _) = edge_pixels(a, x0, y0, stride);
 
     a[(y0 + 3) * stride + x0 + 0] = avg2(e0, e1);
@@ -1819,7 +1819,7 @@ fn predict_bhdpred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
     a[(y0 + 0) * stride + x0 + 3] = avg3(e5, e6, e7);
 }
 
-fn predict_bhupred(a: &mut [u8], x0: uint, y0: uint, stride: uint) {
+fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
     a[(y0 + 0) * stride + x0 + 0] = avg2(l0, l1);

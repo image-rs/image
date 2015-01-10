@@ -19,10 +19,10 @@ fn main() {
     let im = image::open(&Path::new(file.clone())).unwrap();
 
     //The dimensions method returns the images width and height
-    println!("dimensions {}", im.dimensions());
+    println!("dimensions {:?}", im.dimensions());
 
     //The color method returns the image's ColorType
-    println!("{}", im.color());
+    println!("{:?}", im.color());
 
     let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
 

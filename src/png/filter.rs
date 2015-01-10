@@ -29,7 +29,7 @@ fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
     }
 }
 
-pub fn unfilter(filter: FilterType, bpp: uint, previous: &[u8], current: &mut [u8]) {
+pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     let len = current.len();
 
     match filter {
@@ -65,7 +65,7 @@ pub fn unfilter(filter: FilterType, bpp: uint, previous: &[u8], current: &mut [u
     }
 }
 
-pub fn filter(method: FilterType, bpp: uint, previous: &[u8], current: &mut [u8]) {
+pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     let len  = current.len();
     let orig: Vec<u8> = range(0, len).map(| i | current[i]).collect();
 

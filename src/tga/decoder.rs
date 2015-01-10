@@ -328,7 +328,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let data = try!(self.r.read_exact(self.bytes_per_pixel));
-                for _ in range(0us, repeat_count) {
+                for _ in (0us..repeat_count) {
                     pixel_data.push_all(data.as_slice());
                 }
                 num_read += repeat_count;

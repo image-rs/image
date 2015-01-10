@@ -56,7 +56,7 @@ impl<W: Writer> PPMEncoder<W> {
         assert!(buf.len() > 0);
         match pixel_type {
             Grey(8) => {
-                for i in range(0, (width * height) as usize) {
+                for i in (0..(width * height) as usize) {
                     let _ = try!(self.w.write_u8(buf[i]));
                     let _ = try!(self.w.write_u8(buf[i]));
                     let _ = try!(self.w.write_u8(buf[i]));

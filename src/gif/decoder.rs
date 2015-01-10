@@ -164,7 +164,7 @@ impl<R: Reader> GIFDecoder<R> {
     fn skip_extension(&mut self) -> ImageResult<()> {
         let mut size = try!(self.r.read_u8());
         while size != 0 {
-            for _ in range(0, size) {
+            for _ in (0..size) {
                 let _ = try!(self.r.read_u8());
             }
             size = try!(self.r.read_u8());

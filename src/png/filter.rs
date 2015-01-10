@@ -35,30 +35,30 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
     match filter {
         FilterType::NoFilter => (),
         FilterType::Sub => {
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] += current[i - bpp];
             }
         }
         FilterType::Up => {
-            for i in range(0, len) {
+            for i in (0..len) {
                 current[i] += previous[i];
             }
         }
         FilterType::Avg => {
-            for i in range(0, bpp) {
+            for i in (0..bpp) {
                 current[i] += previous[i] / 2;
             }
 
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] += ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
             }
         }
         FilterType::Paeth => {
-            for i in range(0, bpp) {
+            for i in (0..bpp) {
                 current[i] += filter_paeth(0, previous[i], 0);
             }
 
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] += filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
             }
         }
@@ -72,30 +72,30 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
     match method {
         FilterType::NoFilter => (),
         FilterType::Sub      => {
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] = orig[i] - orig[i - bpp];
             }
         }
         FilterType::Up       => {
-            for i in range(0, len) {
+            for i in (0..len) {
                 current[i] = orig[i] - previous[i];
             }
         }
         FilterType::Avg  => {
-            for i in range(0, bpp) {
+            for i in (0..bpp) {
                 current[i] = orig[i] - previous[i] / 2;
             }
 
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] = orig[i] - ((orig[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
             }
         }
         FilterType::Paeth    => {
-            for i in range(0, bpp) {
+            for i in (0..bpp) {
                 current[i] = orig[i] - filter_paeth(0, previous[i], 0);
             }
 
-            for i in range(bpp, len) {
+            for i in (bpp..len) {
                 current[i] = orig[i] - filter_paeth(orig[i - bpp], previous[i], previous[i - bpp]);
             }
         }

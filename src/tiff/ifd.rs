@@ -130,7 +130,7 @@ impl Entry {
             (Type::LONG, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in range(0, n) {
+                for _ in (0..n) {
                     v.push(Value::Unsigned(try!(decoder.read_long())))
                 }
                 Ok(Value::List(v))

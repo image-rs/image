@@ -56,7 +56,7 @@ impl<W: Writer> PPMEncoder<W> {
         assert!(buf.len() > 0);
         match pixel_type {
             Grey(8) => {
-                for i in range(0, (width * height) as uint) {
+                for i in range(0, (width * height) as usize) {
                     let _ = try!(self.w.write_u8(buf[i]));
                     let _ = try!(self.w.write_u8(buf[i]));
                     let _ = try!(self.w.write_u8(buf[i]));
@@ -76,7 +76,7 @@ impl<W: Writer> PPMEncoder<W> {
                 }
             }
 
-            a => panic!(format!("not implemented: {}", a))
+            a => panic!(format!("not implemented: {:?}", a))
         }
 
         Ok(())
@@ -87,10 +87,10 @@ fn max_pixel_value(pixel_type: color::ColorType) -> u16 {
     use std::num::Int;
 
     match pixel_type {
-        Grey(n)    => 2u16.pow(n as uint) - 1,
-        RGB(n)     => 2u16.pow(n as uint) - 1,
-        Palette(n) => 2u16.pow(n as uint) - 1,
-        GreyA(n)   => 2u16.pow(n as uint) - 1,
-        RGBA(n)    => 2u16.pow(n as uint) - 1
+        Grey(n)    => 2u16.pow(n as usize) - 1,
+        RGB(n)     => 2u16.pow(n as usize) - 1,
+        Palette(n) => 2u16.pow(n as usize) - 1,
+        GreyA(n)   => 2u16.pow(n as usize) - 1,
+        RGBA(n)    => 2u16.pow(n as usize) - 1
     }
 }

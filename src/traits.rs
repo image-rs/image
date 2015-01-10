@@ -28,12 +28,12 @@ macro_rules! zero_impl {
         }
     }
 }
-zero_impl!(uint, 0u);
+zero_impl!(usize, 0us);
 zero_impl!(u8,   0u8);
 zero_impl!(u16,  0u16);
 zero_impl!(u32,  0u32);
 zero_impl!(u64,  0u64);
-zero_impl!(int, 0i);
+zero_impl!(isize, 0is);
 zero_impl!(i8,  0i8);
 zero_impl!(i16, 0i16);
 zero_impl!(i32, 0i32);
@@ -48,8 +48,8 @@ pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone {
     fn max_value() -> Self;
 }
 
-impl Primitive for uint {
-    fn max_value() -> uint { Int::max_value() }
+impl Primitive for usize {
+    fn max_value() -> usize { Int::max_value() }
 }
 impl Primitive for u8 {
     fn max_value() -> u8 { Int::max_value() }
@@ -63,8 +63,8 @@ impl Primitive for u32 {
 impl Primitive for u64 {
     fn max_value() -> u64 { Int::max_value() }
 }
-impl Primitive for int {
-    fn max_value() -> int { Int::max_value() }
+impl Primitive for isize {
+    fn max_value() -> isize { Int::max_value() }
 }
 impl Primitive for i8 {
     fn max_value() -> i8 { Int::max_value() }
@@ -100,12 +100,12 @@ macro_rules! one_impl {
         }
     }
 }
-one_impl!(uint, 1u);
+one_impl!(usize, 1us);
 one_impl!(u8,  1u8);
 one_impl!(u16, 1u16);
 one_impl!(u32, 1u32);
 one_impl!(u64, 1u64);
-one_impl!(int, 1i);
+one_impl!(isize, 1is);
 one_impl!(i8,  1i8);
 one_impl!(i16, 1i16);
 one_impl!(i32, 1i32);

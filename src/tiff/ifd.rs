@@ -66,7 +66,7 @@ impl Value {
         match self {
             Value::Unsigned(val) => Ok(val),
             val => Err(::image::ImageError::FormatError(format!(
-                "Expected unsigned integer, {} found.", val
+                "Expected unsigned integer, {:?} found.", val
             )))
         }
     }
@@ -93,7 +93,7 @@ pub struct Entry {
 
 impl ::std::fmt::Show for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        fmt.write_str(format!("Entry {{ type: {}, count: {}, offset: {} }}",
+        fmt.write_str(format!("Entry {{ type: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,
             self.count,
             self.offset.as_slice()
@@ -128,7 +128,7 @@ impl Entry {
             (Type::SHORT, 1) => Ok(Value::Unsigned(try!(self.r(bo).read_u16()) as u32)),
             (Type::LONG, 1) => Ok(Value::Unsigned(try!(self.r(bo).read_u32()))),
             (Type::LONG, n) => {
-                let mut v = Vec::with_capacity(n as uint);
+                let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
                 for _ in range(0, n) {
                     v.push(Value::Unsigned(try!(decoder.read_long())))

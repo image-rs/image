@@ -5,7 +5,7 @@ use buffer::RgbaImage;
 /// Hold the frames of the animated image
 pub struct Frames {
     frames: Vec<Frame>,
-    current_frame: uint,
+    current_frame: usize,
 }
 
 impl Frames {

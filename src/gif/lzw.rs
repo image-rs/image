@@ -24,14 +24,14 @@ impl DecodingDict {
         DecodingDict {
             min_size: min_size,
             table: Vec::with_capacity(512),
-            buffer: Vec::with_capacity((1 << MAX_CODESIZE as uint) - 1)
+            buffer: Vec::with_capacity((1 << MAX_CODESIZE as usize) - 1)
         }
     }
 
     /// Resets the dictionary
     fn reset(&mut self) {
         self.table.clear();
-        for i in range(0, (1u16 << self.min_size as uint)) {
+        for i in range(0, (1u16 << self.min_size as usize)) {
             self.table.push((None, i as u8));
         }
     }
@@ -48,8 +48,8 @@ impl DecodingDict {
         let mut code = code;
         let mut cha;
         while let Some(k) = code {
-            //(code, cha) = self.table[k as uint];
-            let entry = self.table[k as uint]; code = entry.0; cha = entry.1;
+            //(code, cha) = self.table[k as usize];
+            let entry = self.table[k as usize]; code = entry.0; cha = entry.1;
             self.buffer.push(cha);
         }
         self.buffer.reverse();
@@ -74,7 +74,7 @@ pub fn decode<R, W>(r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
 where R: Reader, W: Writer {
     let mut prev = None;
     let mut r = BitReader::new(r);
-    let clear_code = 1 << min_code_size as uint;
+    let clear_code = 1 << min_code_size as usize;
     let end_code = clear_code + 1;
     let mut table = DecodingDict::new(min_code_size);
     let mut code_size = min_code_size + 1;
@@ -113,7 +113,7 @@ where R: Reader, W: Writer {
                 };
                 try!(w.write(data));
             }
-            if next_code == (1 << code_size as uint) - 1
+            if next_code == (1 << code_size as usize) - 1
                && code_size < MAX_CODESIZE {
                 code_size += 1;
             }

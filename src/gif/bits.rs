@@ -31,7 +31,7 @@ impl<R: Reader> BitReader<R> {
         }
         // FIXME: 64bit won't work this way
         while self.bits < n {
-            self.buf |= (try!(self.r.read_byte()) as u64) << self.bits as uint;
+            self.buf |= (try!(self.r.read_byte()) as u64) << self.bits as usize;
             self.bits += 8;
         }
         Ok(())
@@ -40,12 +40,12 @@ impl<R: Reader> BitReader<R> {
     /// Returns the next `n` bits without consuming them.
     pub fn peek_bits(&mut self, n: u8) -> io::IoResult<u64> {
         try!(self.fill_cache(n));
-        let mask = (1 << n as uint) - 1;
+        let mask = (1 << n as usize) - 1;
         Ok(self.buf & mask)
     }
     
     fn consume(&mut self, n: u8) {
-        self.buf >>= n as uint;
+        self.buf >>= n as usize;
         self.bits -= n;
     }
 
@@ -64,7 +64,7 @@ impl<R: Reader> BitReader<R> {
 }
 
 impl<R: Reader> Reader for BitReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
         if self.is_aligned() {
             self.r.read(buf)
         } else {
@@ -101,11 +101,11 @@ impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
     /// Returns the next `n` bits.
     pub fn write_bits(&mut self, mut v: u32, mut n: u8) -> io::IoResult<()> {
         while n > 0 {
-            self.buf |= (v as u8) << self.bits as uint;
+            self.buf |= (v as u8) << self.bits as usize;
             let missing = 8u8 - self.bits;
             if n >= missing {
                 n -= missing;
-                v >>= missing as uint;
+                v >>= missing as usize;
                 try!(self.w.write_u8(self.buf));
                 self.bits = 0;
                 self.buf = 0;

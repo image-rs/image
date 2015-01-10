@@ -68,7 +68,7 @@ impl<R: Reader> ZlibDecoder<R> {
 }
 
 impl<R: Reader> Reader for ZlibDecoder<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.state {
             ZlibState::CompressedData => {
                 match self.inflate.read(buf) {

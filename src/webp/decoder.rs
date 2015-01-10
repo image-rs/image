@@ -99,10 +99,10 @@ impl<R: Reader> ImageDecoder for WebpDecoder<R> {
         Ok(color::ColorType::Grey(8))
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         let _ = try!(self.read_metadata());
 
-        Ok(self.frame.width as uint)
+        Ok(self.frame.width as usize)
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
@@ -114,8 +114,8 @@ impl<R: Reader> ImageDecoder for WebpDecoder<R> {
 
         let rlen  = buf.len();
         let slice = self.frame.ybuf.slice(
-            self.decoded_rows as uint * rlen,
-            self.decoded_rows as uint * rlen + rlen
+            self.decoded_rows as usize * rlen,
+            self.decoded_rows as usize * rlen + rlen
         );
 
         slice::bytes::copy_memory(buf, slice);

@@ -81,7 +81,7 @@ impl<R: Reader> GIFDecoder<R> {
                 Err(ImageError::FormatError("GIF signature not found.".to_string()))
             } else if version.as_slice() != b"87a" && version.as_slice() != b"89a" {
                 Err(ImageError::UnsupportedError(
-                    format!("GIF version {} is not supported.", version)
+                    format!("GIF version {:?} is not supported.", version)
                 ))
             } else {
                 self.state = State::HaveHeader;
@@ -101,9 +101,9 @@ impl<R: Reader> GIFDecoder<R> {
             let global_table = fields & 0x80 != 0;
 
             let entries = if global_table {
-                1 << ((fields & 0b111) + 1) as uint
+                1 << ((fields & 0b111) + 1) as usize
             } else {
-                0u
+                0us
             };
 
             let b = try!(self.r.read_u8());
@@ -174,11 +174,11 @@ impl<R: Reader> GIFDecoder<R> {
 
     /// Reads data blocks
     fn read_data(&mut self) -> ImageResult<Vec<u8>> {
-        let mut size = try!(self.r.read_u8()) as uint;
+        let mut size = try!(self.r.read_u8()) as usize;
         let mut data = Vec::with_capacity(size);
         while size != 0 {
             data.push_all(try!(self.r.read_exact(size)).as_slice());
-            size = try!(self.r.read_u8()) as uint;
+            size = try!(self.r.read_u8()) as usize;
         }
         Ok(data)
     }
@@ -203,7 +203,7 @@ impl<R: Reader> GIFDecoder<R> {
         }
         
         let local_table = if local_table {
-            let entries = 1 << (table_size + 1) as uint;
+            let entries = 1 << (table_size + 1) as usize;
             let mut table = Vec::with_capacity(entries * 3);
             let buf = try!(self.r.read_exact(3 * entries));
 
@@ -219,8 +219,8 @@ impl<R: Reader> GIFDecoder<R> {
         let data = try!(self.read_data());
         
         let mut indices = Vec::with_capacity(
-            image_width as uint
-            * image_height as uint
+            image_width as usize
+            * image_height as usize
         );
         try!(lzw::decode(
             io::MemReader::new(data),
@@ -282,9 +282,9 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
         Ok(color::ColorType::RGBA(8))
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         let _ = try!(self.read_logical_screen_descriptor());
-        Ok(3 * self.width as uint)
+        Ok(3 * self.width as usize)
     }
 
     fn read_scanline(&mut self, _: &mut [u8]) -> ImageResult<u32> {
@@ -294,7 +294,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let (width, height) = try!(self.dimensions());
         let background = if let Some(idx) = self.global_background_index {
-            let (r, g, b) = self.global_table[idx as uint];
+            let (r, g, b) = self.global_table[idx as usize];
             color::Rgba([r, g, b, 255])
         } else {
             color::Rgba([0, 0, 0, 255])

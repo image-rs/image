@@ -238,15 +238,15 @@ impl<W: Writer> JPEGEncoder<W> {
         let _   = try!(self.write_segment(SOS, Some(buf)));
 
         match c {
-            color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as uint, height as uint, 3)),
-            color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as uint, height as uint, 4)),
-            color::ColorType::Grey(8)  => try!(self.encode_grey(image, width as uint, height as uint, 1)),
-            color::ColorType::GreyA(8) => try!(self.encode_grey(image, width as uint, height as uint, 2)),
+            color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as usize, height as usize, 3)),
+            color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as usize, height as usize, 4)),
+            color::ColorType::Grey(8)  => try!(self.encode_grey(image, width as usize, height as usize, 1)),
+            color::ColorType::GreyA(8) => try!(self.encode_grey(image, width as usize, height as usize, 2)),
             _  => return Err(io::IoError {
                 kind: io::InvalidInput,
                 desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",
                 detail: Some(format!(
-                    "Color type {} is not suppored by this JPEG encoder.", 
+                    "Color type {:?} is not suppored by this JPEG encoder.", 
                     c
                 ))
             })
@@ -270,7 +270,7 @@ impl<W: Writer> JPEGEncoder<W> {
     }
 
     fn write_bits(&mut self, bits: u16, size: u8) -> IoResult<()> {
-        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as uint;
+        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as usize;
         self.nbits += size;
 
         while self.nbits >= 8 {
@@ -293,7 +293,7 @@ impl<W: Writer> JPEGEncoder<W> {
     }
 
     fn huffman_encode(&mut self, val: u8, table: &[(u8, u16)]) -> IoResult<()> {
-        let (size, code) = table[val as uint];
+        let (size, code) = table[val as usize];
 
         if size > 16 {
             panic!("bad huffman value");
@@ -319,12 +319,12 @@ impl<W: Writer> JPEGEncoder<W> {
 
         // Figure F.2
         let mut zero_run = 0;
-        let mut k = 0u;
+        let mut k = 0us;
 
         loop {
             k += 1;
 
-            if block[UNZIGZAG[k] as uint] == 0 {
+            if block[UNZIGZAG[k] as usize] == 0 {
                 if k == 63 {
 
                 let _ = try!(self.huffman_encode(0x00, actable));
@@ -338,7 +338,7 @@ impl<W: Writer> JPEGEncoder<W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = encode_coefficient(block[UNZIGZAG[k] as uint]);
+                let (size, value) = encode_coefficient(block[UNZIGZAG[k] as usize]);
                 let symbol = (zero_run << 4) | size;
 
                 let _ = try!(self.huffman_encode(symbol, actable));
@@ -355,7 +355,7 @@ impl<W: Writer> JPEGEncoder<W> {
         Ok(dcval)
     }
 
-    fn encode_grey(&mut self, image: &[u8], width: uint, height: uint, bpp: uint) -> IoResult<()> {
+    fn encode_grey(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
         let mut yblock     = [0u8; 64];
         let mut y_dcprev   = 0;
         let mut dct_yblock = [0i32; 64];
@@ -370,7 +370,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 transform::fdct(yblock.as_slice(), &mut dct_yblock);
 
                 // Quantization
-                for i in range(0u, 64) {
+                for i in range(0us, 64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                 }
 
@@ -384,7 +384,7 @@ impl<W: Writer> JPEGEncoder<W> {
         Ok(())
     }
 
-    fn encode_rgb(&mut self, image: &[u8], width: uint, height: uint, bpp: uint) -> IoResult<()> {
+    fn encode_rgb(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
         let mut y_dcprev = 0;
         let mut cb_dcprev = 0;
         let mut cr_dcprev = 0;
@@ -409,7 +409,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 transform::fdct(cr_block.as_slice(), &mut dct_cr_block);
 
                 // Quantization
-                for i in range(0u, 64) {
+                for i in range(0us, 64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
@@ -498,11 +498,11 @@ fn build_huffman_segment(class: u8,
 
     assert!(numcodes.len() == 16);
 
-    let mut sum = 0u;
+    let mut sum = 0us;
 
     for & i in numcodes.iter() {
         let _ = m.write_u8(i);
-        sum += i as uint;
+        sum += i as usize;
     }
 
     assert!(sum == values.len());
@@ -527,8 +527,8 @@ fn build_quantization_segment(precision: u8,
     let pqtq = (p << 4) | identifier;
     let _    = m.write_u8(pqtq);
 
-    for i in range(0u, 64) {
-        let _ = m.write_u8(qtable[UNZIGZAG[i] as uint]);
+    for i in range(0us, 64) {
+        let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
     }
 
     m.into_inner()
@@ -543,7 +543,7 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
         num_bits += 1;
     }
 
-    let mask = (1 << num_bits as uint) - 1;
+    let mask = (1 << num_bits as usize) - 1;
 
     let val  = if coefficient < 0 {
         (coefficient - 1) as u16 & mask
@@ -566,7 +566,7 @@ fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     (y as u8, cb as u8, cr as u8)
 }
 
-fn value_at(s: &[u8], index: uint) -> u8 {
+fn value_at(s: &[u8], index: usize) -> u8 {
     if index < s.len() {
         s[index]
     } else {
@@ -575,18 +575,18 @@ fn value_at(s: &[u8], index: uint) -> u8 {
 }
 
 fn copy_blocks_ycbcr(source: &[u8],
-                     x0: uint,
-                     y0: uint,
-                     width: uint,
-                     bpp: uint,
+                     x0: usize,
+                     y0: usize,
+                     width: usize,
+                     bpp: usize,
                      yb: &mut [u8; 64],
                      cbb: &mut [u8; 64],
                      crb: &mut [u8; 64]) {
 
-    for y in range(0u, 8) {
+    for y in range(0us, 8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in range(0u, 8) {
+        for x in range(0us, 8) {
             let xstride = x0 * bpp + x * bpp;
 
             let r = value_at(source, ystride + xstride + 0);
@@ -603,16 +603,16 @@ fn copy_blocks_ycbcr(source: &[u8],
 }
 
 fn copy_blocks_grey(source: &[u8],
-                    x0: uint,
-                    y0: uint,
-                    width: uint,
-                    bpp: uint,
+                    x0: usize,
+                    y0: usize,
+                    width: usize,
+                    bpp: usize,
                     gb: &mut [u8; 64]) {
 
-    for y in range(0u, 8) {
+    for y in range(0us, 8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in range(0u, 8) {
+        for x in range(0us, 8) {
             let xstride = x0 * bpp + x * bpp;
             gb[y * 8 + x] = value_at(source, ystride + xstride + 1);
         }

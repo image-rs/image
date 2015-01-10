@@ -116,7 +116,7 @@ impl Crc32 {
             let a = (self.crc ^ byte as u32) & 0xFF;
             let b = self.crc >> 8;
 
-            self.crc = CRC_TABLE[a as uint] ^ b;
+            self.crc = CRC_TABLE[a as usize] ^ b;
         }
     }
 

@@ -64,7 +64,7 @@ impl<R: Reader + Seek> SmartReader<R> {
 
 impl<R: Reader> Reader for SmartReader<R> {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.reader.read(buf)
     }
 }
@@ -326,7 +326,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         match try!(self.find_tag(tag)) {
             Some(val) => Ok(val),
             None => Err(::image::ImageError::FormatError(format!(
-                "Required tag `{}` not found.", tag
+                "Required tag `{:?}` not found.", tag
             )))
         }
     }
@@ -342,7 +342,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     
     /// Decompresses the strip into the supplied buffer.
     /// Returns the number of bytes read.
-    fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<uint> {
+    fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<usize> {
         let color_type = try!(self.colortype());
         try!(self.goto_offset(offset));
         let reader = match self.compression_method {
@@ -350,21 +350,21 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 &mut self.reader
             }
             method => return Err(::image::ImageError::UnsupportedError(format!(
-                "Compression method {} is unsupported", method
+                "Compression method {:?} is unsupported", method
             )))
         };
         Ok(match (color_type, buffer) {
             (color::ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
-                for datum in buffer.slice_to_mut(length as uint/2).iter_mut() {
+                for datum in buffer.slice_to_mut(length as usize/2).iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
-                length as uint/2
+                length as usize/2
             }
             (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n < 8 => {
-                try!(reader.read(buffer.slice_to_mut(length as uint)))
+                try!(reader.read(buffer.slice_to_mut(length as usize)))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
-                "Color type {} is unsupported", type_
+                "Color type {:?} is unsupported", type_
             )))
         })
     }
@@ -384,12 +384,12 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             ([ n], PhotometricInterpretation::BlackIsZero)
             |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(color::ColorType::Grey(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
-                "{} with {} bits per sample is unsupported", mode, bits
+                "{:?} with {:?} bits per sample is unsupported", mode, bits
             ))) // TODO: this is bad we should not fail at this point
         }
     }
 
-    fn row_len(&mut self) -> ImageResult<uint> {
+    fn row_len(&mut self) -> ImageResult<usize> {
         unimplemented!()
     }
 
@@ -399,8 +399,8 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let buffer_size = 
-            self.width  as uint
-            * self.height as uint
+            self.width  as usize
+            * self.height as usize
             * self.bits_per_sample.iter().count();
         let mut result = match (self.bits_per_sample.iter()
                                                .map(|&x| x)

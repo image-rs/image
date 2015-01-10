@@ -48,7 +48,7 @@ enum TableElement {
 impl TableElement {
     pub fn put(&mut self, index: u16, elem: TableElement) {
         match *self {
-            TableElement::Table(_, ref mut a) => a.as_mut_slice()[index as uint] = elem,
+            TableElement::Table(_, ref mut a) => a.as_mut_slice()[index as usize] = elem,
             _		                          => panic!("requires Table()"),
         }
     }
@@ -97,7 +97,7 @@ impl<R: Reader> Inflater<R> {
 
     /// Indicate whether the end of the stream has been reached.
     pub fn eof(&self) -> bool {
-        self.finished && (self.pos as uint == self.buf.len())
+        self.finished && (self.pos as usize == self.buf.len())
     }
 
     /// Return a mutable reference to the wrapped Reader
@@ -138,13 +138,13 @@ impl<R: Reader> Inflater<R> {
 
         let mut code_lengths: Vec<u8> = repeat(0u8).take(CODEORDER.len()).collect();
 
-        for i in range(0, hclen as uint) {
+        for i in range(0, hclen as usize) {
             let length = try!(self.h.receive(3));
-            code_lengths.as_mut_slice()[CODEORDER[i] as uint] = length as u8;
+            code_lengths.as_mut_slice()[CODEORDER[i] as usize] = length as u8;
         }
 
         self.ctable = table_from_lengths(code_lengths.as_slice());
-        let mut all_lengths: Vec<u8> = repeat(0u8).take(totalcodes as uint).collect();
+        let mut all_lengths: Vec<u8> = repeat(0u8).take(totalcodes as usize).collect();
 
         let mut i = 0;
         while i < hlit + hdist {
@@ -152,7 +152,7 @@ impl<R: Reader> Inflater<R> {
 
             match s {
                 0 ... 15 => {
-                    all_lengths.as_mut_slice()[i as uint] = s as u8;
+                    all_lengths.as_mut_slice()[i as usize] = s as u8;
                     i += 1;
                 }
 
@@ -160,7 +160,7 @@ impl<R: Reader> Inflater<R> {
                     let repeat = 3 + try!(self.h.receive(2));
 
                     for _ in range(0, repeat) {
-                        all_lengths.as_mut_slice()[i as uint] = all_lengths[i as uint - 1];
+                        all_lengths.as_mut_slice()[i as usize] = all_lengths[i as usize - 1];
                         i += 1;
                     }
                 }
@@ -173,8 +173,8 @@ impl<R: Reader> Inflater<R> {
             }
         }
 
-        let ll_lengths = all_lengths.slice_to(hlit as uint);
-        let d_lengths  = all_lengths.slice_from(hlit as uint);
+        let ll_lengths = all_lengths.slice_to(hlit as usize);
+        let d_lengths  = all_lengths.slice_from(hlit as usize);
 
         self.lltable = table_from_lengths(ll_lengths);
         self.dtable = table_from_lengths(d_lengths);
@@ -191,7 +191,7 @@ impl<R: Reader> Inflater<R> {
         ).collect();
         self.lltable = table_from_lengths(lengths.as_slice());
 
-        let lengths: Vec<u8> = repeat(5u8).take(DISTANCECODES as uint).collect();
+        let lengths: Vec<u8> = repeat(5u8).take(DISTANCECODES as usize).collect();
         self.dtable = table_from_lengths(lengths.as_slice());
     }
 
@@ -230,21 +230,21 @@ impl<R: Reader> Inflater<R> {
                 length @ 257 ... 285 => {
                     let length = length - 257;
 
-                    let bits = EXTRA_LENGTHS[length as uint];
+                    let bits = EXTRA_LENGTHS[length as usize];
                     let extra = try!(self.h.receive(bits));
 
-                    let length = LENGTHS[length as uint] + extra;
+                    let length = LENGTHS[length as usize] + extra;
 
                     let distance = try!(self.h.decode_symbol(self.dtable.as_slice()));
 
-                    let bits = EXTRA_DISTANCES[distance as uint];
+                    let bits = EXTRA_DISTANCES[distance as usize];
                     let extra = try!(self.h.receive(bits));
 
-                    let distance = DISTANCES[distance as uint] + extra;
+                    let distance = DISTANCES[distance as usize] + extra;
 
                     let len = self.buf.len();
                     for i in range(0, length) {
-                        let s = self.buf[len - distance as uint + i as uint];
+                        let s = self.buf[len - distance as usize + i as usize];
                         self.buf.push(s);
                     }
                 }
@@ -258,8 +258,8 @@ impl<R: Reader> Inflater<R> {
 }
 
 impl<R: Reader> Reader for Inflater<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
-        if self.pos as uint == self.buf.len() {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        if self.pos as usize == self.buf.len() {
             if self.finished {
                 return Err(io::standard_error(io::EndOfFile))
             }
@@ -271,9 +271,9 @@ impl<R: Reader> Reader for Inflater<R> {
             };
         }
 
-        let n = cmp::min(buf.len(), self.buf.len() - self.pos as uint);
-        for i in range(0u, n) {
-            buf.as_mut_slice()[i] = self.buf[self.pos as uint + i];
+        let n = cmp::min(buf.len(), self.buf.len() - self.pos as usize);
+        for i in range(0us, n) {
+            buf.as_mut_slice()[i] = self.buf[self.pos as usize + i];
         }
 
         self.pos += n as u64;
@@ -296,7 +296,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let mut bl_count: Vec<u8> = repeat(0u8).take(16).collect();
 
     for &len in lengths.iter() {
-        bl_count.as_mut_slice()[len as uint] += 1;
+        bl_count.as_mut_slice()[len as usize] += 1;
 
         if len > max_len {
             max_len = len;
@@ -306,50 +306,50 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let max_overflow = max_len - TABLESIZE;
     bl_count.as_mut_slice()[0] = 0;
 
-    for bits in range(1u, 16) {
+    for bits in range(1us, 16) {
         code = (code + bl_count[bits - 1] as u16) << 1;
         next_code.as_mut_slice()[bits] = code;
     }
 
-    let mut lut: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << TABLESIZE as uint).collect();
+    let mut lut: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << TABLESIZE as usize).collect();
 
     for (i, &len) in lengths.iter().enumerate() {
         if len == 0 {
             continue
         }
 
-        let code = next_code[len as uint];
-        let code = reverse(code) >> (16 - len) as uint;
+        let code = next_code[len as usize];
+        let code = reverse(code) >> (16 - len) as usize;
 
         if len <= TABLESIZE {
             let r = TABLESIZE - len;
 
-            for j in range(0u16, 1 << r as uint) {
-                let index = (j << len as uint) + code;
-                lut.as_mut_slice()[index as uint] = TableElement::Symbol(i as u16, len);
+            for j in range(0u16, 1 << r as usize) {
+                let index = (j << len as usize) + code;
+                lut.as_mut_slice()[index as usize] = TableElement::Symbol(i as u16, len);
             }
         } else {
-            let index = code & ((1 << TABLESIZE as uint) - 1);
+            let index = code & ((1 << TABLESIZE as usize) - 1);
 
-            if lut[index as uint] == TableElement::Nothing {
-                let mask  = (1 << max_overflow as uint) - 1;
-                let array: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << max_overflow as uint).collect();
+            if lut[index as usize] == TableElement::Nothing {
+                let mask  = (1 << max_overflow as usize) - 1;
+                let array: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << max_overflow as usize).collect();
 
-                lut.as_mut_slice()[index as uint] = TableElement::Table(mask, array);
+                lut.as_mut_slice()[index as usize] = TableElement::Table(mask, array);
             }
 
-            let code = code >> TABLESIZE as uint;
+            let code = code >> TABLESIZE as usize;
             let r = max_len - len;
 
-            for j in range(0u16, 1 << r as uint) {
-                let k = (j << (len - TABLESIZE) as uint) + code;
+            for j in range(0u16, 1 << r as usize) {
+                let k = (j << (len - TABLESIZE) as usize) + code;
                 let s = TableElement::Symbol(i as u16, len - TABLESIZE);
 
-                lut.as_mut_slice()[index as uint].put(k, s);
+                lut.as_mut_slice()[index as usize].put(k, s);
             }
         }
 
-        next_code.as_mut_slice()[len as uint] += 1;
+        next_code.as_mut_slice()[len as usize] += 1;
     }
 
     lut
@@ -371,7 +371,7 @@ impl<R: Reader> HuffReader<R> {
         while self.num_bits < n {
             let byte = try!(self.r.read_u8());
 
-            self.bits |= (byte as u32) << self.num_bits as uint;
+            self.bits |= (byte as u32) << self.num_bits as usize;
             self.num_bits += 8;
         }
 
@@ -381,19 +381,19 @@ impl<R: Reader> HuffReader<R> {
     pub fn byte_align(&mut self) {
         let n = self.bits & 0b111;
 
-        self.bits >>= n as uint;
+        self.bits >>= n as usize;
         self.num_bits -= n as u8;
     }
 
     pub fn consume(&mut self, n: u8) {
-        self.bits >>= n as uint;
+        self.bits >>= n as usize;
         self.num_bits -= n;
     }
 
     pub fn receive(&mut self, n: u8) -> IoResult<u16> {
         let _ = try!(self.guarantee(n));
 
-        let val = self.bits & ((1 << n as uint) - 1);
+        let val = self.bits & ((1 << n as usize) - 1);
         self.consume(n);
 
         Ok(val as u16)
@@ -403,15 +403,15 @@ impl<R: Reader> HuffReader<R> {
         let _ = try!(self.guarantee(1));
 
         loop {
-            let index = self.bits & ((1 << TABLESIZE as uint) - 1);
+            let index = self.bits & ((1 << TABLESIZE as usize) - 1);
 
-            let (val, size) = match table[index as uint] {
+            let (val, size) = match table[index as usize] {
                 TableElement::Symbol(val, size) => (val, size),
 
                 TableElement::Table(mask, ref a) => {
-                    let index = (self.bits >> TABLESIZE as uint) & mask as u32;
+                    let index = (self.bits >> TABLESIZE as usize) & mask as u32;
 
-                    match a[index as uint] {
+                    match a[index as usize] {
                         TableElement::Symbol(val, size) => (val, size + TABLESIZE),
                         _ 		  => panic!("bad huffman code")
                     }

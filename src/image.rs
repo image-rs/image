@@ -141,7 +141,7 @@ pub trait ImageDecoder: Sized {
         let mut tmp = repeat(0u8).take(rowlen).collect::<Vec<u8>>();
 
         loop {
-            let row = try!(self.read_scanline(tmp.as_mut_slice()));
+            let row = try!(self.read_scanline(&mut tmp[]));
 
             if row - 1 == y {
                 break
@@ -150,16 +150,14 @@ pub trait ImageDecoder: Sized {
 
         for i in (0..length as usize) {
             {
-                let from = tmp.slice_from(x as usize * bpp)
-                              .slice_to(width as usize * bpp);
+                let from = &tmp[x as usize * bpp..width as usize * bpp];
 
-                let to   = buf.slice_from_mut(i * width as usize * bpp)
-                              .slice_to_mut(width as usize * bpp);
+                let to   = &mut buf[i * width as usize * bpp..width as usize * bpp];
 
                 slice::bytes::copy_memory(to, from);
             }
 
-            let _ = try!(self.read_scanline(tmp.as_mut_slice()));
+            let _ = try!(self.read_scanline(&mut tmp[]));
         }
 
         Ok(buf)

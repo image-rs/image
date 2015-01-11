@@ -148,7 +148,7 @@ pub trait ImageDecoder: Sized {
             }
         }
 
-        for i in range(0, length as usize) {
+        for i in (0..length as usize) {
             {
                 let from = tmp.slice_from(x as usize * bpp)
                               .slice_to(width as usize * bpp);
@@ -343,8 +343,8 @@ impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubI
     pub fn to_image(&self) -> ImageBuffer<Vec<T>, T, P> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
-        for y in range(0, self.ystride) {
-            for x in range(0, self.xstride) {
+        for y in (0..self.ystride) {
+            for x in (0..self.xstride) {
                 let p = self.get_pixel(x, y);
                 out.put_pixel(x, y, p);
             }

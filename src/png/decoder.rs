@@ -281,7 +281,7 @@ impl<R: Reader> PNGDecoder<R> {
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
-        let p: Vec<(u8, u8, u8)> = range(0, 256).map(|i| {
+        let p: Vec<(u8, u8, u8)> = (0..256).map(|i| {
             if i < len {
                 let r = buf[3 * i];
                 let g = buf[3 * i + 1];

@@ -183,7 +183,7 @@ impl<R: Reader> Inflater<R> {
     }
 
     fn create_fixed_tables(&mut self) {
-        let lengths: Vec<u8> = range(0, 288).map(|i|
+        let lengths: Vec<u8> = (0..288).map(|i|
             if i < 144 { 8u8 }
             else if i < 256 { 9u8 }
             else if i < 280 { 7u8 }

@@ -1428,7 +1428,7 @@ fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
         ..MacroBlock::new()
     };
 
-    range(0, mb_width).map(|_| mb).collect()
+    (0..mb_width).map(|_| mb).collect()
 }
 
 fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) -> [u8; 357] {

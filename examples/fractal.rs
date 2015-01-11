@@ -29,7 +29,7 @@ fn main() {
 
         let mut i = 0;
 
-        for t in range(0, max_iterations) {
+        for t in (0..max_iterations) {
             if z.norm() > 2.0 {
                 break
             }

@@ -175,11 +175,11 @@ impl<R: Reader>JPEGDecoder<R> {
             let _ = try!(self.decode_mcu());
 
             upsample_mcu (
-                self.mcu_row.as_mut_slice(),
+                &mut self.mcu_row[],
                 x0,
                 self.padded_width,
                 bytesperpixel,
-                self.mcu.as_slice(),
+                &self.mcu[],
                 self.hmax,
                 self.vmax
             );
@@ -209,12 +209,12 @@ impl<R: Reader>JPEGDecoder<R> {
     }
 
     fn decode_block(&mut self, i: usize, dc: u8, pred: i32, ac: u8, q: u8) -> ImageResult<i32> {
-        let zz   = self.mcu.slice_mut(i * 64, i * 64 + 64);
+        let zz   = &mut self.mcu[i * 64..i * 64 + 64];
         let mut tmp = [0i32; 64];
 
         let dctable = &self.dctables[dc as usize];
         let actable = &self.actables[ac as usize];
-        let qtable  = self.qtables.slice(64 * q as usize, 64 * q as usize + 64);
+        let qtable  = &self.qtables[64 * q as usize..64 * q as usize + 64];
 
         let t     = try!(self.h.decode_symbol(&mut self.r, dctable));
 
@@ -421,7 +421,7 @@ impl<R: Reader>JPEGDecoder<R> {
                 return Err(image::ImageError::FormatError("Quantization table malformed.".to_string()))
             }
 
-            let slice = self.qtables.slice_mut(64 * tq as usize, 64 * tq as usize + 64);
+            let slice = &mut self.qtables[64 * tq as usize..64 * tq as usize + 64];
 
             for i in (0us..64) {
                 slice[i] = try!(self.r.read_u8());
@@ -600,7 +600,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         let row = try!(self.row_len());
         let mut buf = repeat(0u8).take(row * self.height as usize).collect::<Vec<u8>>();
 
-        for chunk in buf.as_mut_slice().chunks_mut(row) {
+        for chunk in buf[].chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));
         }
 
@@ -618,9 +618,9 @@ fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &
     } else {
         let y_blocks = h * v;
 
-        let y_blocks = mcu.slice_to(y_blocks as usize * 64);
+        let y_blocks = &mcu[..y_blocks as usize * 64];
         let cb = mcu.slice(y_blocks.len(), y_blocks.len() + 64);
-        let cr = mcu.slice_from(y_blocks.len() + cb.len());
+        let cr = &mcu[y_blocks.len() + cb.len()..];
 
         let mut k = 0;
 

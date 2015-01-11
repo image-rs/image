@@ -93,11 +93,11 @@ pub struct Entry {
 
 impl ::std::fmt::Show for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        fmt.write_str(format!("Entry {{ type: {:?}, count: {:?}, offset: {:?} }}",
+        fmt.write_str(&format!("Entry {{ type: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,
             self.count,
-            self.offset.as_slice()
-        ).as_slice())
+            &self.offset[]
+        )[])
     }
 }
     
@@ -113,7 +113,7 @@ impl Entry {
     /// Returns a mem_reader for the offset/value field
     fn r(&self, byte_order: ByteOrder) -> SmartReader<io::MemReader> {
         SmartReader::wrap(
-            io::MemReader::new(self.offset.as_slice().to_vec()),
+            io::MemReader::new(self.offset[].to_vec()),
             byte_order
         )
     }

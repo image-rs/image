@@ -469,7 +469,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             }
             Ok(DecodingResult::U8(buf))
         } else {
-            for chunk in buf.as_mut_slice().chunks_mut(max_rowlen) {
+            for chunk in buf[].chunks_mut(max_rowlen) {
                 let _ = try!(self.read_scanline(chunk));
             }
             Ok(DecodingResult::U8(buf))

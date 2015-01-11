@@ -47,10 +47,10 @@ impl<W: Writer> PNGEncoder<W> {
         let _ = try!(self.write_signature());
         let (bytes, bpp) = build_ihdr(width, height, c);
 
-        let _ = try!(self.write_chunk("IHDR", bytes.as_slice()));
+        let _ = try!(self.write_chunk("IHDR", &bytes[]));
         let compressed_bytes = build_idat(image, bpp, width, height);
 
-        for chunk in compressed_bytes.as_slice().chunks(1024 * 256) {
+        for chunk in compressed_bytes[].chunks(1024 * 256) {
             let _ = try!(self.write_chunk("IDAT", chunk));
         }
 
@@ -64,7 +64,7 @@ impl<W: Writer> PNGEncoder<W> {
     fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {
         self.crc.reset();
         self.crc.update(name);
-        self.crc.update(buf.as_slice());
+        self.crc.update(&buf[]);
 
         let crc = self.crc.checksum();
 
@@ -129,7 +129,7 @@ fn sum_abs_difference(buf: &[u8]) -> i32 {
 }
 
 fn select_filter(rowlength: usize, bpp: usize, previous: &[u8], current_s: &mut [u8]) -> u8 {
-    let mut sum    = sum_abs_difference(current_s.slice_to(rowlength));
+    let mut sum    = sum_abs_difference(&current_s[..rowlength]);
     let mut method = 0;
 
     for (i, current) in current_s.chunks_mut(rowlength).enumerate() {
@@ -155,24 +155,24 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
     let mut c: Vec<u8> = repeat(0u8).take(4 * rowlen).collect();
     let mut b: Vec<u8> = repeat(0u8).take(height as usize + rowlen * height as usize).collect();
 
-    for (row, outrow) in image.as_slice().chunks(rowlen).zip(b.as_mut_slice().chunks_mut(1 + rowlen)) {
-        for s in c.as_mut_slice().chunks_mut(rowlen) {
+    for (row, outrow) in image[].chunks(rowlen).zip(b[].chunks_mut(1 + rowlen)) {
+        for s in c[].chunks_mut(rowlen) {
             slice::bytes::copy_memory(s, row);
         }
 
-        let filter = select_filter(rowlen, bpp, p.as_slice(), c.as_mut_slice());
+        let filter = select_filter(rowlen, bpp, &p[], &mut c[]);
 
         outrow[0]  = filter;
-        let out    = outrow.slice_from_mut(1);
+        let out    = &mut outrow[1..];
         let stride = (filter as usize - 1) * rowlen;
 
         match filter {
             0 => slice::bytes::copy_memory(out, row),
-            _ => slice::bytes::copy_memory(out, c.slice(stride, stride + rowlen)),
+            _ => slice::bytes::copy_memory(out, &c[stride..stride + rowlen]),
         }
 
-        slice::bytes::copy_memory(p.as_mut_slice(), row);
+        slice::bytes::copy_memory(&mut p[], row);
     }
 
-    deflate_bytes_zlib(b.as_slice()).unwrap().as_slice().to_vec()
+    deflate_bytes_zlib(&b[]).unwrap()[].to_vec()
 }

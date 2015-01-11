@@ -120,13 +120,13 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
         j = 0;
 
         while j < bits[i] {
-            huffsize.as_mut_slice()[k] = i as u8 + 1;
+            huffsize[k] = i as u8 + 1;
             k += 1;
             j += 1;
         }
     }
 
-    huffsize.as_mut_slice()[k] = 0;
+    huffsize[k] = 0;
 
     // Annex C.2
     // Figure C.2
@@ -136,7 +136,7 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     let mut size = huffsize[0];
 
     while huffsize[k] != 0 {
-        huffcode.as_mut_slice()[k] = code;
+        huffcode[k] = code;
         code += 1;
         k += 1;
 
@@ -158,7 +158,7 @@ pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
     let (huffsize, huffcode) = derive_codes_and_sizes(bits);
 
     for (i, &v) in huffval.iter().enumerate() {
-        lut.as_mut_slice()[v as usize] = (huffsize[i], huffcode[i]);
+        lut[v as usize] = (huffsize[i], huffcode[i]);
     }
 
     lut
@@ -170,7 +170,7 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
     let mut valptr  = repeat(-1is).take(16).collect::<Vec<isize>>();
     let mut lut     = repeat((0u8, 17u8)).take(256).collect::<Vec<(u8, u8)>>();
 
-    let (huffsize, huffcode) = derive_codes_and_sizes(bits.as_slice());
+    let (huffsize, huffcode) = derive_codes_and_sizes(&bits[]);
 
     // Annex F.2.2.3
     // Figure F.15
@@ -178,10 +178,10 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
 
     for i in (0us..16) {
         if bits[i] != 0 {
-            valptr.as_mut_slice()[i] = j;
-            mincode.as_mut_slice()[i] = huffcode[j as usize] as isize;
+            valptr[i] = j;
+            mincode[i] = huffcode[j as usize] as isize;
             j += bits[i] as isize - 1;
-            maxcode.as_mut_slice()[i] = huffcode[j as usize] as isize;
+            maxcode[i] = huffcode[j as usize] as isize;
 
             j += 1;
         }
@@ -196,7 +196,7 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
 
         for j in (0us..1 << r) {
             let index = (huffcode[i] << r) + j as u16;
-            lut.as_mut_slice()[index as usize] = (*v, huffsize[i]);
+            lut[index as usize] = (*v, huffsize[i]);
         }
     }
 

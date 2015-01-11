@@ -48,7 +48,7 @@ enum TableElement {
 impl TableElement {
     pub fn put(&mut self, index: u16, elem: TableElement) {
         match *self {
-            TableElement::Table(_, ref mut a) => a.as_mut_slice()[index as usize] = elem,
+            TableElement::Table(_, ref mut a) => a[index as usize] = elem,
             _		                          => panic!("requires Table()"),
         }
     }
@@ -140,19 +140,19 @@ impl<R: Reader> Inflater<R> {
 
         for i in (0..hclen as usize) {
             let length = try!(self.h.receive(3));
-            code_lengths.as_mut_slice()[CODEORDER[i] as usize] = length as u8;
+            code_lengths[CODEORDER[i] as usize] = length as u8;
         }
 
-        self.ctable = table_from_lengths(code_lengths.as_slice());
+        self.ctable = table_from_lengths(&code_lengths[]);
         let mut all_lengths: Vec<u8> = repeat(0u8).take(totalcodes as usize).collect();
 
         let mut i = 0;
         while i < hlit + hdist {
-            let s = try!(self.h.decode_symbol(self.ctable.as_slice()));
+            let s = try!(self.h.decode_symbol(&self.ctable[]));
 
             match s {
                 0 ... 15 => {
-                    all_lengths.as_mut_slice()[i as usize] = s as u8;
+                    all_lengths[i as usize] = s as u8;
                     i += 1;
                 }
 
@@ -160,7 +160,7 @@ impl<R: Reader> Inflater<R> {
                     let repeat = 3 + try!(self.h.receive(2));
 
                     for _ in (0..repeat) {
-                        all_lengths.as_mut_slice()[i as usize] = all_lengths[i as usize - 1];
+                        all_lengths[i as usize] = all_lengths[i as usize - 1];
                         i += 1;
                     }
                 }
@@ -173,8 +173,8 @@ impl<R: Reader> Inflater<R> {
             }
         }
 
-        let ll_lengths = all_lengths.slice_to(hlit as usize);
-        let d_lengths  = all_lengths.slice_from(hlit as usize);
+        let ll_lengths = &all_lengths[..hlit as usize];
+        let d_lengths  = &all_lengths[hlit as usize..];
 
         self.lltable = table_from_lengths(ll_lengths);
         self.dtable = table_from_lengths(d_lengths);
@@ -189,10 +189,10 @@ impl<R: Reader> Inflater<R> {
             else if i < 280 { 7u8 }
             else { 8u8 }
         ).collect();
-        self.lltable = table_from_lengths(lengths.as_slice());
+        self.lltable = table_from_lengths(&lengths[]);
 
         let lengths: Vec<u8> = repeat(5u8).take(DISTANCECODES as usize).collect();
-        self.dtable = table_from_lengths(lengths.as_slice());
+        self.dtable = table_from_lengths(&lengths[]);
     }
 
     fn read_stored_block_length(&mut self) -> IoResult<()> {
@@ -220,7 +220,7 @@ impl<R: Reader> Inflater<R> {
 
     fn read_compressed_block(&mut self) -> IoResult<()> {
         loop {
-            let s = try!(self.h.decode_symbol(self.lltable.as_slice()));
+            let s = try!(self.h.decode_symbol(&self.lltable[]));
 
             match s {
                 literal @ 0 ... 255 => self.buf.push(literal as u8),
@@ -235,7 +235,7 @@ impl<R: Reader> Inflater<R> {
 
                     let length = LENGTHS[length as usize] + extra;
 
-                    let distance = try!(self.h.decode_symbol(self.dtable.as_slice()));
+                    let distance = try!(self.h.decode_symbol(&self.dtable[]));
 
                     let bits = EXTRA_DISTANCES[distance as usize];
                     let extra = try!(self.h.receive(bits));
@@ -273,7 +273,7 @@ impl<R: Reader> Reader for Inflater<R> {
 
         let n = cmp::min(buf.len(), self.buf.len() - self.pos as usize);
         for i in (0us..n) {
-            buf.as_mut_slice()[i] = self.buf[self.pos as usize + i];
+            buf[i] = self.buf[self.pos as usize + i];
         }
 
         self.pos += n as u64;
@@ -296,7 +296,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let mut bl_count: Vec<u8> = repeat(0u8).take(16).collect();
 
     for &len in lengths.iter() {
-        bl_count.as_mut_slice()[len as usize] += 1;
+        bl_count[len as usize] += 1;
 
         if len > max_len {
             max_len = len;
@@ -304,11 +304,11 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     }
 
     let max_overflow = max_len - TABLESIZE;
-    bl_count.as_mut_slice()[0] = 0;
+    bl_count[0] = 0;
 
     for bits in (1us..16) {
         code = (code + bl_count[bits - 1] as u16) << 1;
-        next_code.as_mut_slice()[bits] = code;
+        next_code[bits] = code;
     }
 
     let mut lut: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << TABLESIZE as usize).collect();
@@ -326,7 +326,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
 
             for j in (0u16..1 << r as usize) {
                 let index = (j << len as usize) + code;
-                lut.as_mut_slice()[index as usize] = TableElement::Symbol(i as u16, len);
+                lut[index as usize] = TableElement::Symbol(i as u16, len);
             }
         } else {
             let index = code & ((1 << TABLESIZE as usize) - 1);
@@ -335,7 +335,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
                 let mask  = (1 << max_overflow as usize) - 1;
                 let array: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << max_overflow as usize).collect();
 
-                lut.as_mut_slice()[index as usize] = TableElement::Table(mask, array);
+                lut[index as usize] = TableElement::Table(mask, array);
             }
 
             let code = code >> TABLESIZE as usize;
@@ -345,11 +345,11 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
                 let k = (j << (len - TABLESIZE) as usize) + code;
                 let s = TableElement::Symbol(i as u16, len - TABLESIZE);
 
-                lut.as_mut_slice()[index as usize].put(k, s);
+                lut[index as usize].put(k, s);
             }
         }
 
-        next_code.as_mut_slice()[len as usize] += 1;
+        next_code[len as usize] += 1;
     }
 
     lut

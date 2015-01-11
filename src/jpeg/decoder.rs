@@ -581,8 +581,8 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         }
 
         let len   = self.padded_width * self.num_components as usize;
-        let slice = self.mcu_row.slice(self.row_count as usize * len,
-        self.row_count as usize * len + buf.len());
+        let slice = &self.mcu_row[self.row_count as usize * len..
+        self.row_count as usize * len + buf.len()];
 
         slice::bytes::copy_memory(buf, slice);
 
@@ -619,7 +619,7 @@ fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &
         let y_blocks = h * v;
 
         let y_blocks = &mcu[..y_blocks as usize * 64];
-        let cb = mcu.slice(y_blocks.len(), y_blocks.len() + 64);
+        let cb = &mcu[y_blocks.len()..y_blocks.len() + 64];
         let cr = &mcu[y_blocks.len() + cb.len()..];
 
         let mut k = 0;

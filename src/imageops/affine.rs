@@ -12,8 +12,8 @@ pub fn rotate90<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y);
             out.put_pixel(height - 1 - y, x, p);
         }
@@ -27,8 +27,8 @@ pub fn rotate180<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y);
             out.put_pixel(width - 1 - x, height - 1 - y, p);
         }
@@ -42,8 +42,8 @@ pub fn rotate270<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y);
             out.put_pixel(y, width - 1 - x, p);
         }
@@ -57,8 +57,8 @@ pub fn flip_horizontal<P: Primitive + 'static, T: Pixel<P> + 'static, I: Generic
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y);
             out.put_pixel(width - 1 - x, y, p);
         }
@@ -72,8 +72,8 @@ pub fn flip_vertical<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y);
             out.put_pixel(x, height - 1 - y, p);
         }

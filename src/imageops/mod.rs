@@ -89,8 +89,8 @@ pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
         top_height
     };
 
-    for top_y in range(0, range_height) {
-        for top_x in range(0, range_width) {
+    for top_y in (0..range_height) {
+        for top_x in (0..range_width) {
             let p = top.get_pixel(top_x, top_y);
             bottom.get_pixel_mut(x + top_x, y + top_y).blend(&p);
         }

@@ -151,7 +151,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
-    for y in range(0, height) {
+    for y in (0..height) {
         let max: P = Primitive::max_value();
         let max = cast::<P, f32>(max).unwrap();
 
@@ -166,7 +166,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
 
         let filter_radius = (filter.support * filter_scale).ceil();
 
-        for outx in range(0, new_width) {
+        for outx in (0..new_width) {
             let inputx = (outx as f32 + 0.5) * ratio;
 
             let left  = (inputx - filter_radius).ceil() as u32;
@@ -182,7 +182,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
             let mut t3 = 0.0;
             let mut t4 = 0.0;
 
-            for i in range(left, right + 1) {
+            for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
                 sum += w;
 
@@ -238,7 +238,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
     let mut out = ImageBuffer::new(width, new_height);
 
 
-    for x in range(0, width) {
+    for x in (0..width) {
         let max: P = Primitive::max_value();
         let max = cast::<P, f32>(max).unwrap();
 
@@ -253,7 +253,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
 
         let filter_radius = (filter.support * filter_scale).ceil();
 
-        for outy in range(0, new_height) {
+        for outy in (0..new_height) {
             let inputy = (outy as f32 + 0.5) * ratio;
 
             let left  = (inputy - filter_radius).ceil() as u32;
@@ -269,7 +269,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
             let mut t3 = 0.0;
             let mut t4 = 0.0;
 
-            for i in range(left, right + 1) {
+            for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
                 sum += w;
 
@@ -342,8 +342,8 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
         sum
     };
 
-    for y in range(1, height - 1) {
-        for x in range(1, width - 1) {
+    for y in (1..height - 1) {
+        for x in (1..width - 1) {
             let mut t1 = 0.0;
             let mut t2 = 0.0;
             let mut t3 = 0.0;
@@ -469,8 +469,8 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<
     let max: A = Primitive::max_value();
     let (width, height) = image.dimensions();
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 

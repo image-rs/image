@@ -233,10 +233,10 @@ fn main() {
         //Create a new ImgBuf with width: imgx and height: imgy
         let mut imbuf = image::ImageBuffer::new(imgx, imgy);
 
-        for y in range(0, imgy) {
+        for y in (0..imgy) {
                 let cy = y as f32 * scaley - 2.0;
 
-                for x in range(0, imgx) {
+                for x in (0..imgx) {
                         let cx = x as f32 * scalex - 2.0;
 
                         let mut z = Complex::new(cx, cy);
@@ -244,7 +244,7 @@ fn main() {
 
                         let mut i = 0;
 
-                        for t in range(0, max_iterations) {
+                        for t in (0..max_iterations) {
                                 if z.norm() > 2.0 {
                                         break
                                 }

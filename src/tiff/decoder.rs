@@ -282,7 +282,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             ),
             Some(offset) => try!(self.goto_offset(offset))
         }
-        for _ in range(0, try!(self.read_short())) {
+        for _ in (0..try!(self.read_short())) {
             let (tag, entry) = match try!(self.read_entry()) {
                 Some(val) => val,
                 None => continue // Unknown data type in tag, skip

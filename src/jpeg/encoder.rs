@@ -370,7 +370,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 transform::fdct(yblock.as_slice(), &mut dct_yblock);
 
                 // Quantization
-                for i in range(0us, 64) {
+                for i in (0us..64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                 }
 
@@ -409,7 +409,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 transform::fdct(cr_block.as_slice(), &mut dct_cr_block);
 
                 // Quantization
-                for i in range(0us, 64) {
+                for i in (0us..64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
@@ -527,7 +527,7 @@ fn build_quantization_segment(precision: u8,
     let pqtq = (p << 4) | identifier;
     let _    = m.write_u8(pqtq);
 
-    for i in range(0us, 64) {
+    for i in (0us..64) {
         let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
     }
 
@@ -583,10 +583,10 @@ fn copy_blocks_ycbcr(source: &[u8],
                      cbb: &mut [u8; 64],
                      crb: &mut [u8; 64]) {
 
-    for y in range(0us, 8) {
+    for y in (0us..8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in range(0us, 8) {
+        for x in (0us..8) {
             let xstride = x0 * bpp + x * bpp;
 
             let r = value_at(source, ystride + xstride + 0);
@@ -609,10 +609,10 @@ fn copy_blocks_grey(source: &[u8],
                     bpp: usize,
                     gb: &mut [u8; 64]) {
 
-    for y in range(0us, 8) {
+    for y in (0us..8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in range(0us, 8) {
+        for x in (0us..8) {
             let xstride = x0 * bpp + x * bpp;
             gb[y * 8 + x] = value_at(source, ystride + xstride + 1);
         }

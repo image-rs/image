@@ -29,8 +29,8 @@ pub fn grayscale<P: Primitive + Default + 'static, T: Pixel<P> + 'static, I: Gen
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let p = image.get_pixel(x, y).to_luma();
             out.put_pixel(x, y, p);
         }
@@ -44,8 +44,8 @@ pub fn grayscale<P: Primitive + Default + 'static, T: Pixel<P> + 'static, I: Gen
 pub fn invert<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(image: &mut I) {
     let (width, height) = image.dimensions();
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let mut p = image.get_pixel(x, y);
             p.invert();
 
@@ -69,8 +69,8 @@ pub fn contrast<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let f = image.get_pixel(x, y).map(|&: b| {
                 let c = cast::<P, f32>(b).unwrap();
 
@@ -100,8 +100,8 @@ pub fn brighten<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T
     let max: P = Primitive::max_value();
     let max = cast::<P, i32>(max).unwrap();
 
-    for y in range(0, height) {
-        for x in range(0, width) {
+    for y in (0..height) {
+        for x in (0..width) {
             let e = image.get_pixel(x, y).map_with_alpha(|&:b| {
                 let c = cast::<P, i32>(b).unwrap();
                 let d = clamp(c + value, 0, max);

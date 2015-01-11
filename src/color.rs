@@ -73,12 +73,12 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     #[inline(always)]
     fn channels(&self) -> &[T] {
         let &$ident(ref this) = self;
-        this.as_slice()
+        &this[]
     }
     #[inline(always)]
     fn channels_mut(&mut self) -> &mut [T] {
         let &mut $ident(ref mut this) = self;
-        this.as_mut_slice()
+        &mut this[]
     }
 
     #[allow(unused_typecasts)]
@@ -107,7 +107,7 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     }
 
     fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        *Pixel::from_slice(None::<&$ident<T>>, [a, b, c, d].slice_to($channels))
+        *Pixel::from_slice(None::<&$ident<T>>, &[a, b, c, d][..$channels])
     }
 
     fn from_slice<'a>(_: Option<&'a $ident<T>>, slice: &'a [T]) -> &'a $ident<T> {
@@ -151,7 +151,7 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
 
     fn apply<F>(&mut self, f: F) where F: Fn(T) -> T {
         let &mut $ident(ref mut this) = self;
-        for v in this.as_mut_slice().iter_mut() {
+        for v in this[].iter_mut() {
             *v = f(*v)
         }
     }
@@ -165,11 +165,11 @@ impl<T: Primitive> Pixel<T> for $ident<T> {
     #[allow(unused_typecasts)]
     fn apply_with_alpha<F, G>(&mut self, f: F, g: G) where F: Fn(T) -> T, G: Fn(T) -> T {
         let &mut $ident(ref mut this) = self;
-        for v in this.as_mut_slice().slice_to_mut($channels as usize-$alphas as usize).iter_mut() {
+        for v in this[..$channels as usize-$alphas as usize].iter_mut() {
             *v = f(*v)
         }
         if $alphas as usize != 0 {
-            let ref mut v = this.as_mut_slice()[$channels as usize-$alphas as usize-1];
+            let ref mut v = this[$channels as usize-$alphas as usize-1];
             *v = g(*v)
         }
     }

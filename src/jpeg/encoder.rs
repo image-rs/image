@@ -194,7 +194,7 @@ impl<W: Writer> JPEGEncoder<W> {
         let buf = build_jfif_header();
         let _   = try!(self.write_segment(APP0, Some(buf)));
 
-        let buf = build_frame_header(8, width as u16, height as u16, self.components.slice_to(num_components));
+        let buf = build_frame_header(8, width as u16, height as u16, &self.components[..num_components]);
         let _   = try!(self.write_segment(SOF0, Some(buf)));
 
         assert!(self.tables.len() / 64 == 2);
@@ -203,7 +203,7 @@ impl<W: Writer> JPEGEncoder<W> {
 
         let t = self.tables.clone();
 
-        for (i, table) in t.as_slice().chunks(64).enumerate().take(numtables) {
+        for (i, table) in t[].chunks(64).enumerate().take(numtables) {
             let buf = build_quantization_segment(8, i as u8, table);
             let _   = try!(self.write_segment(DQT, Some(buf)));
         }
@@ -234,7 +234,7 @@ impl<W: Writer> JPEGEncoder<W> {
             let _   = try!(self.write_segment(DHT, Some(buf)));
         }
 
-        let buf = build_scan_header(self.components.slice_to(num_components));
+        let buf = build_scan_header(&self.components[..num_components]);
         let _   = try!(self.write_segment(SOS, Some(buf)));
 
         match c {
@@ -263,7 +263,7 @@ impl<W: Writer> JPEGEncoder<W> {
         if data.is_some() {
             let b = data.unwrap();
             let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
-            let _ = try!(self.w.write(b.as_slice()));
+            let _ = try!(self.w.write(&b[]));
         }
 
         Ok(())
@@ -367,17 +367,17 @@ impl<W: Writer> JPEGEncoder<W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(yblock.as_slice(), &mut dct_yblock);
+                transform::fdct(&yblock[], &mut dct_yblock);
 
                 // Quantization
                 for i in (0us..64) {
-                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
+                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
                 }
 
                 let la = self.luma_actable.clone();
                 let ld = self.luma_dctable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
             }
         }
 
@@ -404,15 +404,15 @@ impl<W: Writer> JPEGEncoder<W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(yblock.as_slice(), &mut dct_yblock);
-                transform::fdct(cb_block.as_slice(), &mut dct_cb_block);
-                transform::fdct(cr_block.as_slice(), &mut dct_cr_block);
+                transform::fdct(&yblock[], &mut dct_yblock);
+                transform::fdct(&cb_block[], &mut dct_cb_block);
+                transform::fdct(&cr_block[], &mut dct_cr_block);
 
                 // Quantization
                 for i in (0us..64) {
-                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables.slice_to(64)[i] as f32).round() as i32;
-                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
-                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables.slice_from(64)[i] as f32).round() as i32;
+                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
+                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
+                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
                 }
 
                 let la = self.luma_actable.clone();
@@ -420,9 +420,9 @@ impl<W: Writer> JPEGEncoder<W> {
                 let cd = self.chroma_dctable.clone();
                 let ca = self.chroma_actable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, ld.as_slice(), la.as_slice()));
-                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, cd.as_slice(), ca.as_slice()));
-                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, cd.as_slice(), ca.as_slice()));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
+                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, &cd[], &ca[]));
+                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, &cd[], &ca[]));
             }
         }
 

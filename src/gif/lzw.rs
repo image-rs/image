@@ -53,13 +53,13 @@ impl DecodingDict {
             self.buffer.push(cha);
         }
         self.buffer.reverse();
-        self.buffer.as_slice()
+        &self.buffer[]
     }
 
     /// Returns the buffer constructed by the last reconstruction
     #[inline(always)]
     fn buffer(&self) -> &[u8] {
-        self.buffer.as_slice()
+        &self.buffer[]
     }
 
     /// Number of entries in the dictionary

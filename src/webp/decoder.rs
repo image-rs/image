@@ -40,11 +40,11 @@ impl<R: Reader> WebpDecoder<R> {
         let size = try!(self.r.read_le_u32());
         let webp = try!(self.r.read_exact(4));
 
-        if riff.as_slice() != "RIFF".as_bytes() {
+        if &riff[] != "RIFF".as_bytes() {
             return Err(image::ImageError::FormatError("Invalid RIFF signature.".to_string()))
         }
 
-        if webp.as_slice() != "WEBP".as_bytes() {
+        if &webp[] != "WEBP".as_bytes() {
             return Err(image::ImageError::FormatError("Invalid WEBP signature.".to_string()))
         }
 
@@ -54,7 +54,7 @@ impl<R: Reader> WebpDecoder<R> {
     fn read_vp8_header(&mut self) -> ImageResult<()> {
         let vp8 = try!(self.r.read_exact(4));
 
-        if vp8.as_slice() != "VP8 ".as_bytes() {
+        if &vp8[] != "VP8 ".as_bytes() {
             return Err(image::ImageError::FormatError("Invalid VP8 signature.".to_string()))
         }
 
@@ -113,10 +113,10 @@ impl<R: Reader> ImageDecoder for WebpDecoder<R> {
         }
 
         let rlen  = buf.len();
-        let slice = self.frame.ybuf.slice(
-            self.decoded_rows as usize * rlen,
+        let slice = &self.frame.ybuf[
+            self.decoded_rows as usize * rlen..
             self.decoded_rows as usize * rlen + rlen
-        );
+        ];
 
         slice::bytes::copy_memory(buf, slice);
         self.decoded_rows += 1;

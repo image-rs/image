@@ -67,7 +67,7 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
 
 pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     let len  = current.len();
-    let orig: Vec<u8> = range(0, len).map(| i | current[i]).collect();
+    let orig: Vec<u8> = (0..len).map(| i | current[i]).collect();
 
     match method {
         FilterType::NoFilter => (),

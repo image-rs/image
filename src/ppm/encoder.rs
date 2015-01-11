@@ -43,7 +43,7 @@ impl<W: Writer> PPMEncoder<W> {
         let h = fmt::radix(height, 10);
         let m = max_pixel_value(pixel_type);
 
-        self.w.write_str(format!("{0} {1}\n{2}\n", w, h, m).as_slice())
+        self.w.write_str(&format!("{0} {1}\n{2}\n", w, h, m)[])
     }
 
     fn write_image(

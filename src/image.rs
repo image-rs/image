@@ -141,25 +141,23 @@ pub trait ImageDecoder: Sized {
         let mut tmp = repeat(0u8).take(rowlen).collect::<Vec<u8>>();
 
         loop {
-            let row = try!(self.read_scanline(tmp.as_mut_slice()));
+            let row = try!(self.read_scanline(&mut tmp[]));
 
             if row - 1 == y {
                 break
             }
         }
 
-        for i in range(0, length as usize) {
+        for i in (0..length as usize) {
             {
-                let from = tmp.slice_from(x as usize * bpp)
-                              .slice_to(width as usize * bpp);
+                let from = &tmp[x as usize * bpp..width as usize * bpp];
 
-                let to   = buf.slice_from_mut(i * width as usize * bpp)
-                              .slice_to_mut(width as usize * bpp);
+                let to   = &mut buf[i * width as usize * bpp..width as usize * bpp];
 
                 slice::bytes::copy_memory(to, from);
             }
 
-            let _ = try!(self.read_scanline(tmp.as_mut_slice()));
+            let _ = try!(self.read_scanline(&mut tmp[]));
         }
 
         Ok(buf)
@@ -343,8 +341,8 @@ impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubI
     pub fn to_image(&self) -> ImageBuffer<Vec<T>, T, P> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
-        for y in range(0, self.ystride) {
-            for x in range(0, self.xstride) {
+        for y in (0..self.ystride) {
+            for x in (0..self.xstride) {
                 let p = self.get_pixel(x, y);
                 out.put_pixel(x, y, p);
             }

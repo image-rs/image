@@ -133,7 +133,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
     
     fn read_header(&mut self) -> ImageResult<()> {
-        match try!(self.reader.read_exact(2)).as_slice() {
+        match &try!(self.reader.read_exact(2))[] {
             b"II" => { 
                 self.byte_order = ByteOrder::LittleEndian;
                 self.reader.byte_order = ByteOrder::LittleEndian; },
@@ -237,7 +237,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     #[inline]
     pub fn read_offset(&mut self) -> IoResult<[u8; 4]> {
         let mut val = [0; 4];
-        let _ = try!(self.reader.read_at_least(4, val.as_mut_slice()));
+        let _ = try!(self.reader.read_at_least(4, &mut val[]));
         Ok(val)
     }
     
@@ -355,13 +355,13 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         };
         Ok(match (color_type, buffer) {
             (color::ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
-                for datum in buffer.slice_to_mut(length as usize/2).iter_mut() {
+                for datum in buffer[..length as usize/2].iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
                 length as usize/2
             }
             (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n < 8 => {
-                try!(reader.read(buffer.slice_to_mut(length as usize)))
+                try!(reader.read(&mut buffer[..length as usize]))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_
@@ -377,7 +377,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        match (self.bits_per_sample.as_slice(), self.photometric_interpretation) {
+        match (&self.bits_per_sample[], self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
             ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(8)),
             ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(16)),
@@ -427,13 +427,13 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             units_read += match result {
                 DecodingResult::U8(ref mut buffer) => {
                     try!(self.expand_strip(
-                        DecodingBuffer::U8(buffer.slice_from_mut(units_read)),
+                        DecodingBuffer::U8(&mut buffer[units_read..]),
                         offset, byte_count
                     ))
                 },
                 DecodingResult::U16(ref mut buffer) => {
                     try!(self.expand_strip(
-                        DecodingBuffer::U16(buffer.slice_from_mut(units_read)),
+                        DecodingBuffer::U16(&mut buffer[units_read..]),
                         offset, byte_count
                     ))
                 },

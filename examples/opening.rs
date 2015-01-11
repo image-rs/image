@@ -9,7 +9,7 @@ use image::GenericImage;
 
 fn main() {
     let file = if os::args().len() == 2 {
-        os::args().as_slice()[1].clone()
+        os::args()[1].clone()
     } else {
         panic!("Please enter a file")
     };
@@ -24,7 +24,7 @@ fn main() {
     //The color method returns the image's ColorType
     println!("{:?}", im.color());
 
-    let fout = File::create(&Path::new(format!("{}.png", os::args().as_slice()[1]))).unwrap();
+    let fout = File::create(&Path::new(format!("{}.png", os::args()[1]))).unwrap();
 
     //Write the contents of this image to the Writer in PNG format.
     let _ = im.save(fout, image::PNG).unwrap();

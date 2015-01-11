@@ -73,7 +73,7 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
             ZlibState::CompressedData => {
                 match self.inflate.read(buf) {
                     Ok(n) => {
-                        self.adler.update(buf.slice_to(n));
+                        self.adler.update(&buf[..n]);
 
                         if self.inflate.eof() {
                             let _ = try!(self.read_checksum());

@@ -62,7 +62,9 @@ $( // START Structure definitions
 #[derive(PartialEq, Eq, Clone, Show, Copy)]
 pub struct $ident<T: Primitive>(pub [T; $channels]);
 
-impl<T: Primitive> Pixel<T> for $ident<T> {
+impl<T: Primitive> Pixel for $ident<T> {
+
+    type Subpixel = T;
 
     fn channel_count<'a>(_: Option<&'a $ident<T>>) -> u8 {
         $channels

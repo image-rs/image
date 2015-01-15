@@ -175,7 +175,9 @@ pub struct Pixels<'a, I:'a> {
 }
 
 #[old_impl_check]
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for Pixels<'a, I> {
+impl<'a, P: Pixel, I: GenericImage<P>> Iterator for Pixels<'a, I>
+    where P::Subpixel: Primitive {
+
     type Item = (u32, u32, P);
     fn next(&mut self) -> Option<(u32, u32, P)> {
         if self.x >= self.width {
@@ -207,7 +209,9 @@ pub struct MutPixels<'a, I:'a> {
 }
 
 #[old_impl_check]
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> Iterator for MutPixels<'a, I> {
+impl<'a, P: Pixel, I: GenericImage<P>> Iterator for MutPixels<'a, I>
+    where P::Subpixel: Primitive {
+
     type Item = (u32, u32, &'a mut P);
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
         if self.x >= self.width {
@@ -312,7 +316,9 @@ pub struct SubImage <'a, I:'a> {
 }
 
 #[old_impl_check]
-impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubImage<'a, I> {
+impl<'a, P: Pixel + 'static, I: GenericImage<P>> SubImage<'a, I>
+    where P::Subpixel: Primitive + 'static {
+
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
@@ -338,7 +344,7 @@ impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubI
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<Vec<T>, T, P> {
+    pub fn to_image(&self) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
         for y in (0..self.ystride) {
@@ -354,7 +360,9 @@ impl<'a, T: Primitive + 'static, P: Pixel<T> + 'static, I: GenericImage<P>> SubI
 
 #[allow(deprecated)]
 #[old_impl_check]
-impl<'a, T: Primitive, P: Pixel<T>, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I> {
+impl<'a, P: Pixel, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I>
+    where P::Subpixel: Primitive {
+
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
     }

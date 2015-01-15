@@ -10,7 +10,7 @@
 #![warn(unused_typecasts)]
 #![deny(missing_copy_implementations)]
 // necessary for Primitive trait
-#![feature(old_orphan_check, old_impl_check)]
+#![feature(old_impl_check)]
 
 extern crate flate;
 extern crate num;

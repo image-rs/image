@@ -49,12 +49,13 @@ mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
-pub fn crop<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
+pub fn crop<P: Pixel + 'static, I: GenericImage<P>>(
     image:  &mut I,
     x: u32,
     y: u32,
     width: u32,
-    height: u32) -> SubImage<I> {
+    height: u32) -> SubImage<I>
+    where P::Subpixel: Primitive + 'static {
 
     let (iwidth, iheight) = image.dimensions();
 
@@ -68,11 +69,12 @@ pub fn crop<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
 }
 
 /// Overlay an image at a given coordinate (x, y)
-pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
+pub fn overlay<P: Pixel, I: GenericImage<P>>(
     bottom: &mut I,
     top: &I,
     x: u32,
-    y: u32)  {
+    y: u32)
+    where P::Subpixel: Primitive {
     let (top_width, top_height) = top.dimensions();
     let (bottom_width, bottom_height) = bottom.dimensions();
 

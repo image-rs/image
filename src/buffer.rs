@@ -231,7 +231,7 @@ impl<'a, P: Pixel> Iterator for EnumeratePixelsMut<'a, P::Subpixel, P>
 
 
 /// Generic image buffer
-pub struct ImageBuffer<P: Pixel, Container: ArrayLike<P::Subpixel>> {
+pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     type_marker: TypeId,

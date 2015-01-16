@@ -344,7 +344,7 @@ impl<'a, P: Pixel + 'static, I: GenericImage<P>> SubImage<'a, I>
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> {
+    pub fn to_image(&self) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
         for y in (0..self.ystride) {

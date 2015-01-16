@@ -231,8 +231,7 @@ impl<'a, P: Pixel> Iterator for EnumeratePixelsMut<'a, P::Subpixel, P>
 
 
 /// Generic image buffer
-pub struct ImageBuffer<Container, T, PixelType> 
-where T: Primitive, Container: ArrayLike<T>, PixelType: 'static {
+pub struct ImageBuffer<P: Pixel, Container: ArrayLike<P::Subpixel>> {
     width: u32,
     height: u32,
     type_marker: TypeId,
@@ -240,15 +239,14 @@ where T: Primitive, Container: ArrayLike<T>, PixelType: 'static {
 } 
 
 // generic implementation, shared along all image buffers 
-impl<Container, P: Pixel + 'static> ImageBuffer<Container, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static,
-          Container: ArrayLike<P::Subpixel> {
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Container>
+    where P::Subpixel: 'static {
 
     /// Contructs a buffer from a generic container 
     /// (for example a `Vec` or a slice)
     /// Returns None if the container is not big enough
     pub fn from_raw(width: u32, height: u32, buf: Container)
-                    -> Option<ImageBuffer<Container, P::Subpixel, P>> {
+                    -> Option<ImageBuffer<P, Container>> {
         if width as usize
            * height as usize
            * Pixel::channel_count(None::<&P>) as usize 
@@ -377,26 +375,11 @@ impl<Container, P: Pixel + 'static> ImageBuffer<Container, P::Subpixel, P>
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }
-
-    /// Casts the buffer into a dynamically typed image buffer
-    #[experimental]
-    pub fn into_dynamic(self) -> ImageBuffer<Container, P::Subpixel, &'static Any> {
-        ImageBuffer {
-            data: self.data,
-            width: self.width,
-            height: self.height,
-            type_marker: self.type_marker
-
-        }
-    }
 }
 
+impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<P, Container> {
 
-impl<Container, P: Pixel + 'static> Clone for ImageBuffer<Container, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static,
-          Container: ArrayLike<P::Subpixel> + Clone {
-
-    fn clone(&self) -> ImageBuffer<Container, P::Subpixel, P> {
+    fn clone(&self) -> ImageBuffer<P, Container> {
         ImageBuffer {
             data: self.data.clone(),
             width: self.width,
@@ -406,10 +389,8 @@ impl<Container, P: Pixel + 'static> Clone for ImageBuffer<Container, P::Subpixel
     }
 }
 
-impl<Container, P: Pixel + 'static> GenericImage<P>
-    for ImageBuffer<Container, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static,
-          Container: ArrayLike<P::Subpixel> {
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage<P>
+    for ImageBuffer<P, Container> where P::Subpixel: 'static {
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -438,23 +419,27 @@ impl<Container, P: Pixel + 'static> GenericImage<P>
     }
 }
 
-impl<Container, P: Pixel + 'static> Index<(u32, u32)>
-    for ImageBuffer<Container, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static,
-          Container: ArrayLike<P::Subpixel> {
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
+    for ImageBuffer<P, Container>
+    where P::Subpixel: 'static {
 
     type Output = P;
     fn index(&self, &(x, y): &(u32, u32)) -> &P {
         self.get_pixel(x, y)
     }
 }
- 
+
 // concrete implementation for `Vec`-baked buffers
-impl<P: Pixel + 'static> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+// TODO: I think that rustc does not "see" this impl any more: the impl with
+// Container meets the same requirements. At least, I got compile errors that
+// there is no such function as `into_vec`, whereas `into_raw` did work, and
+// `into_vec` is redundant anyway, because `into_raw` will give you the vector,
+// and it is more generic.
+impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
-    pub fn new(width: u32, height: u32) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> {
+    pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         ImageBuffer {
             data: repeat(Zero::zero()).take(
                     (width as u64
@@ -470,7 +455,7 @@ impl<P: Pixel + 'static> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
 
     /// Constructs a new ImageBuffer by copying a pixel
     pub fn from_pixel(width: u32, height: u32, pixel: P)
-                      -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> {
+                      -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
             *p = pixel
@@ -481,7 +466,7 @@ impl<P: Pixel + 'static> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
     pub fn from_fn(width: u32, height: u32, f: Box<Fn(u32, u32) -> P>)
-                   -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> {
+                   -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y,  p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)
@@ -492,7 +477,7 @@ impl<P: Pixel + 'static> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
     /// Creates an image buffer out of an existing buffer. 
     /// Returns None if the buffer is not big enough.
     pub fn from_vec(width: u32, height: u32, buf: Vec<P::Subpixel>)
-                    -> Option<ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>> {
+                    -> Option<ImageBuffer<P, Vec<P::Subpixel>>> {
         ImageBuffer::from_raw(width, height, buf)
     }
 
@@ -512,9 +497,8 @@ pub trait ConvertBuffer<T: ?Sized> {
     fn convert(&self) -> T;
 }
 
-
 // concrete implementation Luma -> Rgba
-impl GreyImage {
+impl ImageBuffer<Luma<u8>, Vec<u8>> {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to 
     /// adjust it's alpha value accordingly.
@@ -523,7 +507,7 @@ impl GreyImage {
                           transparent_idx: Option<u8>) -> RgbaImage {
         use std::mem;
         let (width, height) = self.dimensions();
-        let mut data = self.into_vec();
+        let mut data = self.into_raw();
         let entries = data.len();
         data.reserve_exact(entries.checked_mul(3).unwrap()); // 3 additional channels
         // set_len is save since type is u8 an the data never read
@@ -554,17 +538,17 @@ impl GreyImage {
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
-impl<'a, 'b, Container, T, FromType: Pixel, ToType: Pixel>
-    ConvertBuffer<ImageBuffer<Vec<T>,T, ToType>>
-    for ImageBuffer<Container, T, FromType>
-    where T: Primitive + 'static,
-          Container: ArrayLike<T>,
+impl<'a, 'b, Container, FromType: Pixel, ToType: Pixel>
+    ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>>
+    for ImageBuffer<FromType, Container>
+    where FromType::Subpixel: 'static,
+          ToType::Subpixel: 'static,
+          Container: ArrayLike<FromType::Subpixel>,
           FromType: Pixel + 'static,
-          ToType: Pixel + 'static + FromColor<FromType>,
-          FromType::Subpixel: Primitive + 'static,
-          ToType::Subpixel: Primitive + 'static {
-    fn convert(&self) -> ImageBuffer<Vec<T>, T, ToType> {
-        let mut buffer = ImageBuffer::<T, ToType>::new(self.width, self.height);
+          ToType: Pixel + 'static + FromColor<FromType> {
+    fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
+        let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>>
+            = ImageBuffer::new(self.width, self.height);
         for (mut to, from) in buffer.pixels_mut().zip(self.pixels()) {
             to.from_color(from)
         }
@@ -573,13 +557,13 @@ impl<'a, 'b, Container, T, FromType: Pixel, ToType: Pixel>
 }
 
 /// Sendable Rgb image buffer 
-pub type RgbImage = ImageBuffer<Vec<u8>, u8, Rgb<u8>>;
+pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer 
-pub type RgbaImage = ImageBuffer<Vec<u8>, u8, Rgba<u8>>;
+pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer 
-pub type GreyImage = ImageBuffer<Vec<u8>, u8, Luma<u8>>;
+pub type GreyImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer 
-pub type GreyAlphaImage = ImageBuffer<Vec<u8>, u8, LumaA<u8>>;
+pub type GreyAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {

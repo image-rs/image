@@ -146,8 +146,8 @@ fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
 fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
     image:     &I,
     new_width: u32,
-    filter:    &mut Filter) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    filter:    &mut Filter) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
@@ -234,8 +234,8 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
 fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
     image:      &I,
     new_height: u32,
-    filter:     &mut Filter) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static{
+    filter:     &mut Filter) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static{
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
@@ -319,8 +319,8 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
 /// ```kernel``` is an array of the filter weights of length 9.
 pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
     image:  &I,
-    kernel: &[f32]) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    kernel: &[f32]) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -405,8 +405,8 @@ pub fn resize<P: Pixel + 'static, I: GenericImage<P>>(
     image:   &I,
     nwidth:  u32,
     nheight: u32,
-    filter:  FilterType) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    filter:  FilterType) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
@@ -439,8 +439,8 @@ pub fn resize<P: Pixel + 'static, I: GenericImage<P>>(
 /// ```sigma``` is a measure of how much to blur by.
 pub fn blur<P: Pixel + 'static, I: GenericImage<P>>(
     image:  &I,
-    sigma:  f32) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    sigma:  f32) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     let sigma = if sigma < 0.0 {
         1.0
@@ -468,7 +468,7 @@ pub fn blur<P: Pixel + 'static, I: GenericImage<P>>(
 pub fn unsharpen<P: Pixel + 'static, I: GenericImage<P>>(
     image:     &I,
     sigma:     f32,
-    threshold: i32) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
+    threshold: i32) -> ImageBuffer<P, Vec<P::Subpixel>>
     where P::Subpixel: Primitive + 'static {
 
     let mut tmp = blur(image, sigma);

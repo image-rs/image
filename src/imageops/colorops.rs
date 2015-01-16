@@ -24,8 +24,8 @@ fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
 
 /// Convert the supplied image to grayscale
 pub fn grayscale<P: Pixel + 'static, I: GenericImage<P>> (image: &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, Luma<P::Subpixel>>
-    where P::Subpixel: Primitive + Default + 'static {
+    -> ImageBuffer<Luma<P::Subpixel>, Vec<P::Subpixel>>
+    where P::Subpixel: Default + 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -59,8 +59,8 @@ pub fn invert<P: Pixel, I: GenericImage<P>>(image: &mut I) where P::Subpixel : P
 /// Negative values decrease the contrast and positive values increase the contrast.
 pub fn contrast<P: Pixel + 'static, I: GenericImage<P>>(
     image:    &I,
-    contrast: f32) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    contrast: f32) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -93,8 +93,8 @@ pub fn contrast<P: Pixel + 'static, I: GenericImage<P>>(
 /// Negative values decrease the brightness and positive values increase it.
 pub fn brighten<P: Pixel + 'static, I: GenericImage<P>>(
     image: &I,
-    value: i32) -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P>
-    where P::Subpixel: Primitive + 'static {
+    value: i32) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where P::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

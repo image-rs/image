@@ -315,7 +315,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                         overlay(&mut canvas, &buffer, left, top);
                     }
                 }
-                Ok(DecodingResult::U8(canvas.into_vec()))
+                Ok(DecodingResult::U8(canvas.into_raw()))
             },
             None => Err(ImageError::ImageEnd)
         }

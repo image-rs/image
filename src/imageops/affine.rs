@@ -9,7 +9,7 @@ use buffer::ImageBuffer;
 
 /// Rotate an image 90 degrees clockwise.
 pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> where P::Subpixel: Primitive + 'static {
+    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -25,7 +25,7 @@ pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 
 /// Rotate an image 180 degrees clockwise.
 pub fn rotate180<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> where P::Subpixel: Primitive + 'static {
+    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -42,7 +42,7 @@ pub fn rotate180<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 
 /// Rotate an image 270 degrees clockwise.
 pub fn rotate270<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> where P::Subpixel: Primitive + 'static {
+    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -58,7 +58,7 @@ pub fn rotate270<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 
 /// Flip an image horizontally
 pub fn flip_horizontal<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> where P::Subpixel: Primitive + 'static {
+    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -74,7 +74,7 @@ pub fn flip_horizontal<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 
 /// Flip an image vertically
 pub fn flip_vertical<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<Vec<P::Subpixel>, P::Subpixel, P> where P::Subpixel: Primitive + 'static {
+    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

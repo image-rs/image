@@ -97,7 +97,7 @@ pub struct Entry {
 
 impl ::std::fmt::Show for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        fmt.write_str(&format!("Entry {{ type: {:?}, count: {:?}, offset: {:?} }}",
+        fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,
             self.count,
             &self.offset[]
@@ -138,7 +138,7 @@ impl Entry {
                 ]))
             },
             (Type::SHORT, n) => {
-                let mut v = Vec::with_capacity(n as uint);
+                let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
                 for _ in range(0, n) {
                     v.push(Unsigned(try!(decoder.read_short()) as u32))

@@ -167,13 +167,14 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
         let filter_radius = (filter.support * filter_scale).ceil();
 
         for outx in (0..new_width) {
+
             let inputx = (outx as f32 + 0.5) * ratio;
 
-            let left  = (inputx - filter_radius).ceil() as u32;
-            let left  = clamp(left, 0, width - 1);
+            let left  = (inputx - filter_radius).ceil() as i64;
+            let left  = clamp(left, 0, width as i64 - 1) as u32;
 
-            let right = (inputx + filter_radius).floor() as u32;
-            let right = clamp(right, 0, width - 1);
+            let right = (inputx + filter_radius).floor() as i64;
+            let right = clamp(right, 0, width as i64 - 1) as u32;
 
             let mut sum = 0.0;
 
@@ -256,11 +257,11 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
         for outy in (0..new_height) {
             let inputy = (outy as f32 + 0.5) * ratio;
 
-            let left  = (inputy - filter_radius).ceil() as u32;
-            let left  = clamp(left, 0, height - 1);
+            let left  = (inputy - filter_radius).ceil() as i64;
+            let left  = clamp(left, 0, height as i64 - 1) as u32;
 
-            let right = (inputy + filter_radius).floor() as u32;
-            let right = clamp(right, 0, height - 1);
+            let right = (inputy + filter_radius).floor() as i64;
+            let right = clamp(right, 0, height as i64 - 1) as u32;
 
             let mut sum = 0.0;
 

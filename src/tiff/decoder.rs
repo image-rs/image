@@ -389,7 +389,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 try!(reader.read(&mut buffer[..length as usize]))
             }
             (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
-                try!(reader.read(buffer.slice_to_mut(length as uint)))
+                try!(reader.read(buffer.slice_to_mut(length as usize)))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_

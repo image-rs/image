@@ -153,8 +153,8 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max: P = Primitive::max_value();
-        let max = cast::<P, f32>(max).unwrap();
+        let max: P::Subpixel = Primitive::max_value();
+        let max = cast::<P::Subpixel, f32>(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
 
@@ -193,10 +193,10 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let (a, b, c, d) = (
-                    cast::<P, f32>(k1).unwrap(),
-                    cast::<P, f32>(k2).unwrap(),
-                    cast::<P, f32>(k3).unwrap(),
-                    cast::<P, f32>(k4).unwrap()
+                    cast::<P::Subpixel, f32>(k1).unwrap(),
+                    cast::<P::Subpixel, f32>(k2).unwrap(),
+                    cast::<P::Subpixel, f32>(k3).unwrap(),
+                    cast::<P::Subpixel, f32>(k4).unwrap()
                 );
 
                 let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
@@ -242,8 +242,8 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
 
 
     for x in (0..width) {
-        let max: P = Primitive::max_value();
-        let max = cast::<P, f32>(max).unwrap();
+        let max: P::Subpixel = Primitive::max_value();
+        let max = cast::<P::Subpixel, f32>(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
 
@@ -281,10 +281,10 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let (a, b, c, d) = (
-                    cast::<P, f32>(k1).unwrap(),
-                    cast::<P, f32>(k2).unwrap(),
-                    cast::<P, f32>(k3).unwrap(),
-                    cast::<P, f32>(k4).unwrap()
+                    cast::<P::Subpixel, f32>(k1).unwrap(),
+                    cast::<P::Subpixel, f32>(k2).unwrap(),
+                    cast::<P::Subpixel, f32>(k3).unwrap(),
+                    cast::<P::Subpixel, f32>(k4).unwrap()
                 );
 
                 let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
@@ -335,8 +335,8 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
 
 
     let max:
-    P = Primitive::max_value();
-    let max = cast::<P, f32>(max).unwrap();
+    P::Subpixel = Primitive::max_value();
+    let max = cast::<P::Subpixel, f32>(max).unwrap();
 
     let sum = kernel.iter().fold(0.0, |&: a, f| a + *f);
 
@@ -365,10 +365,10 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let (a, b, c, d) = (
-                                       cast::<P, f32>(k1).unwrap(),
-                                       cast::<P, f32>(k2).unwrap(),
-                                       cast::<P, f32>(k3).unwrap(),
-                                       cast::<P, f32>(k4).unwrap()
+                                       cast::<P::Subpixel, f32>(k1).unwrap(),
+                                       cast::<P::Subpixel, f32>(k2).unwrap(),
+                                       cast::<P::Subpixel, f32>(k3).unwrap(),
+                                       cast::<P::Subpixel, f32>(k4).unwrap()
                                    );
 
                 let (a1, b1, c1, d1) = (a * k, b * k, c * k, d * k);

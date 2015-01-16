@@ -65,20 +65,20 @@ pub fn contrast<P: Pixel + 'static, I: GenericImage<P>>(
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max:P = Primitive::max_value();
-    let max = cast::<P, f32>(max).unwrap();
+    let max: P::Subpixel = Primitive::max_value();
+    let max = cast::<P::Subpixel, f32>(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
     for y in (0..height) {
         for x in (0..width) {
             let f = image.get_pixel(x, y).map(|&: b| {
-                let c = cast::<P, f32>(b).unwrap();
+                let c = cast::<P::Subpixel, f32>(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent  + 0.5) * max;
                 let e = clamp(d, 0.0, max);
 
-                cast::<f32, P>(e).unwrap()
+                cast::<f32, P::Subpixel>(e).unwrap()
             });
 
             out.put_pixel(x, y, f);
@@ -99,16 +99,16 @@ pub fn brighten<P: Pixel + 'static, I: GenericImage<P>>(
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: P = Primitive::max_value();
-    let max = cast::<P, i32>(max).unwrap();
+    let max: P::Subpixel = Primitive::max_value();
+    let max = cast::<P::Subpixel, i32>(max).unwrap();
 
     for y in (0..height) {
         for x in (0..width) {
             let e = image.get_pixel(x, y).map_with_alpha(|&:b| {
-                let c = cast::<P, i32>(b).unwrap();
+                let c = cast::<P::Subpixel, i32>(b).unwrap();
                 let d = clamp(c + value, 0, max);
 
-                cast::<i32, P>(d).unwrap()
+                cast::<i32, P::Subpixel>(d).unwrap()
             }, |&:alpha| alpha);
 
             out.put_pixel(x, y, e);

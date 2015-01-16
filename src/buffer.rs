@@ -34,7 +34,7 @@ impl<A: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutS
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.   
-pub trait Pixel<T>: Copy + Clone {
+pub trait Pixel<T: Primitive>: Copy + Clone {
     /// Returns the number of channels of this pixel type.
     fn channel_count<'a>(_: Option<&'a Self>) -> u8;
 

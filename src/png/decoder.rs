@@ -615,6 +615,7 @@ mod tests {
     extern crate test;
 
     use std::io;
+    use std::result::Result;
     use std::io::{File, MemReader};
 
     use image::{
@@ -630,7 +631,7 @@ mod tests {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
-        let paths = glob::glob(pattern.as_str().unwrap())
+        let paths = glob::glob(pattern.as_str().unwrap()).unwrap().filter_map(Result::ok)
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 

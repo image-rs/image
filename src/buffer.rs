@@ -1,5 +1,4 @@
 use std::slice::{ Chunks, ChunksMut };
-use std::any::Any;
 use std::ops::{ Index, IndexMut };
 use std::num::Int;
 use std::intrinsics::TypeId;
@@ -147,14 +146,13 @@ impl<'a, P: Pixel> DoubleEndedIterator for Pixels<'a, P::Subpixel, P>
 }
 
 /// Iterate over mutable pixel refs.
-pub struct PixelsMut<'a, T: 'static, PixelType: ?Sized> {
-    chunks: ChunksMut<'a, T>
+pub struct PixelsMut<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+    chunks: ChunksMut<'a, P::Subpixel>
 }
 
-impl<'a, P: Pixel> Iterator for PixelsMut<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
-
+impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
     type Item = &'a mut P;
+
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
         self.chunks.next().map(|v| 
@@ -163,8 +161,8 @@ impl<'a, P: Pixel> Iterator for PixelsMut<'a, P::Subpixel, P>
     }
 }
 
-impl<'a, P: Pixel> DoubleEndedIterator for PixelsMut<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
+    where P::Subpixel: 'a {
 
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut P> {
@@ -202,17 +200,18 @@ impl<'a, P: Pixel> Iterator for EnumeratePixels<'a, P::Subpixel, P>
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixelsMut<'a, T: 'static, PixelType: ?Sized> {
-    pixels: PixelsMut<'a, T, PixelType>,
+pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> {
+    pixels: PixelsMut<'a, P>,
     x:      u32,
     y:      u32,
     width:  u32
 }
 
-impl<'a, P: Pixel> Iterator for EnumeratePixelsMut<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
+impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P>
+    where P::Subpixel: 'a {
 
     type Item = (u32, u32, &'a mut P);
+
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
         if self.x >= self.width {
@@ -304,7 +303,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Conta
     /// Returns an iterator over the mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    pub fn pixels_mut(&mut self) -> PixelsMut<P::Subpixel, P> {
+    pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
             chunks: self.data.as_mut_slice().chunks_mut(
                 Pixel::channel_count(None::<&P>) as usize
@@ -325,7 +324,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Conta
     }
 
     /// Enumerates over the pixels of the image.
-    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, P::Subpixel, P> {
+    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, P> {
         let width = self.width;
         EnumeratePixelsMut {
             pixels: self.pixels_mut(),

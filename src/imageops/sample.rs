@@ -19,6 +19,7 @@ use image:: {
     GenericImage,
 };
 use buffer::ImageBuffer;
+use math::utils::clamp;
 
 /// Available Sampling Filters
 #[derive(Copy)]
@@ -132,12 +133,6 @@ pub fn box_kernel(x: f32) -> f32 {
     } else {
         0.0
     }
-}
-
-fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
-    if a > max { max }
-    else if a < min { min }
-    else { a }
 }
 
 // Sample the rows of the supplied image using the provided filter.

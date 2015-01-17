@@ -346,7 +346,9 @@ impl DynamicImage {
 }
 
 #[allow(deprecated)]
-impl GenericImage<color::Rgba<u8>> for DynamicImage {
+impl GenericImage for DynamicImage {
+    type Pixel = color::Rgba<u8>;
+
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, ref p -> p.dimensions())
     }

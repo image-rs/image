@@ -388,8 +388,10 @@ impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<
     }
 }
 
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage<P>
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage
     for ImageBuffer<P, Container> where P::Subpixel: 'static {
+
+    type Pixel = P;
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()

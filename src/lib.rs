@@ -9,8 +9,6 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![deny(missing_copy_implementations)]
-// necessary for Primitive trait
-#![feature(old_impl_check)]
 
 extern crate flate;
 extern crate num;

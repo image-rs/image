@@ -4,8 +4,10 @@ use buffer::{ImageBuffer, Pixel};
 use image::GenericImage;
 
 /// Rotate an image 90 degrees clockwise.
-pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
+pub fn rotate90<I: GenericImage>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -20,8 +22,10 @@ pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 }
 
 /// Rotate an image 180 degrees clockwise.
-pub fn rotate180<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
+pub fn rotate180<I: GenericImage>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -36,8 +40,10 @@ pub fn rotate180<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 }
 
 /// Rotate an image 270 degrees clockwise.
-pub fn rotate270<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
+pub fn rotate270<I: GenericImage>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -52,8 +58,10 @@ pub fn rotate270<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 }
 
 /// Flip an image horizontally
-pub fn flip_horizontal<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
+pub fn flip_horizontal<I: GenericImage>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -68,8 +76,10 @@ pub fn flip_horizontal<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 }
 
 /// Flip an image vertically
-pub fn flip_vertical<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
-    -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
+pub fn flip_vertical<I: GenericImage>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

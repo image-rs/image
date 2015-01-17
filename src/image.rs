@@ -166,7 +166,7 @@ pub trait ImageDecoder: Sized {
 
 
 /// Immutable pixel iterator
-pub struct Pixels<'a, I:'a> {
+pub struct Pixels<'a, I: 'a> {
     image:  &'a I,
     x:      u32,
     y:      u32,
@@ -174,12 +174,10 @@ pub struct Pixels<'a, I:'a> {
     height: u32
 }
 
-#[old_impl_check]
-impl<'a, P: Pixel, I: GenericImage<P>> Iterator for Pixels<'a, I>
-    where P::Subpixel: Primitive {
+impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
+    type Item = (u32, u32, I::Pixel);
 
-    type Item = (u32, u32, P);
-    fn next(&mut self) -> Option<(u32, u32, P)> {
+    fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
         if self.x >= self.width {
             self.x =  0;
             self.y += 1;
@@ -200,7 +198,7 @@ impl<'a, P: Pixel, I: GenericImage<P>> Iterator for Pixels<'a, I>
 
 /// Mutable pixel iterator
 #[deprecated = "It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead."]
-pub struct MutPixels<'a, I:'a> {
+pub struct MutPixels<'a, I: 'a> {
     image:  &'a mut I,
     x:      u32,
     y:      u32,
@@ -208,12 +206,13 @@ pub struct MutPixels<'a, I:'a> {
     height: u32
 }
 
-#[old_impl_check]
-impl<'a, P: Pixel, I: GenericImage<P>> Iterator for MutPixels<'a, I>
-    where P::Subpixel: Primitive {
+impl<'a, I: GenericImage + 'a> Iterator for MutPixels<'a, I>
+    where I::Pixel: 'a,
+          <I::Pixel as Pixel>::Subpixel: 'a {
 
-    type Item = (u32, u32, &'a mut P);
-    fn next(&mut self) -> Option<(u32, u32, &'a mut P)> {
+    type Item = (u32, u32, &'a mut I::Pixel);
+
+    fn next(&mut self) -> Option<(u32, u32, &'a mut I::Pixel)> {
         if self.x >= self.width {
             self.x =  0;
             self.y += 1;
@@ -240,7 +239,10 @@ impl<'a, P: Pixel, I: GenericImage<P>> Iterator for MutPixels<'a, I>
 }
 
 /// A trait for manipulating images.
-pub trait GenericImage<P>: Sized {
+pub trait GenericImage: Sized {
+    /// The type of pixel.
+    type Pixel: Pixel;
+
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
@@ -253,25 +255,25 @@ pub trait GenericImage<P>: Sized {
     ///
     /// Panics if `(x, y)` is out of bounds.
     /// TODO: change this signature to &P
-    fn get_pixel(&self, x: u32, y: u32) -> P;
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
     /// Puts a pixel at location (x, y)
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P;
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y)
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Put a pixel at location (x, y), taking into account alpha channels
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P);
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Returns an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
@@ -307,7 +309,7 @@ pub trait GenericImage<P>: Sized {
 }
 
 /// A View into another image
-pub struct SubImage <'a, I:'a> {
+pub struct SubImage <'a, I: 'a> {
     image:   &'a mut I,
     xoffset: u32,
     yoffset: u32,
@@ -315,9 +317,9 @@ pub struct SubImage <'a, I:'a> {
     ystride: u32,
 }
 
-#[old_impl_check]
-impl<'a, P: Pixel + 'static, I: GenericImage<P>> SubImage<'a, I>
-    where P::Subpixel: Primitive + 'static {
+impl<'a, I: GenericImage> SubImage<'a, I>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
@@ -344,7 +346,7 @@ impl<'a, P: Pixel + 'static, I: GenericImage<P>> SubImage<'a, I>
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<P, Vec<P::Subpixel>> {
+    pub fn to_image(&self) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
 
         for y in (0..self.ystride) {
@@ -359,9 +361,11 @@ impl<'a, P: Pixel + 'static, I: GenericImage<P>> SubImage<'a, I>
 }
 
 #[allow(deprecated)]
-#[old_impl_check]
-impl<'a, P: Pixel, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I>
-    where P::Subpixel: Primitive {
+impl<'a, I: GenericImage + 'a> GenericImage for SubImage<'a, I>
+    where I::Pixel: 'a,
+          <I::Pixel as Pixel>::Subpixel: 'a {
+
+    type Pixel = I::Pixel;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -371,20 +375,20 @@ impl<'a, P: Pixel, I: GenericImage<P>> GenericImage<P> for SubImage<'a, I>
         (self.xoffset, self.yoffset, self.xstride, self.ystride)
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> P {
+    fn get_pixel(&self, x: u32, y: u32) -> I::Pixel {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
 
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
         self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: P) {
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
         self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut I::Pixel {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 }

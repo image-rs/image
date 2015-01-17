@@ -11,13 +11,9 @@ use std::num:: {
     SignedInt,
 };
 
-use buffer::Pixel;
+use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
-
-use image:: {
-    GenericImage,
-};
-use buffer::ImageBuffer;
+use image::GenericImage;
 
 /// Available Sampling Filters
 #[derive(Copy)]
@@ -143,18 +139,18 @@ fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
-    image:     &I,
-    new_width: u32,
-    filter:    &mut Filter) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+fn horizontal_sample<I: GenericImage>(image: &I, new_width: u32,
+                                      filter: &mut Filter)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max: P::Subpixel = Primitive::max_value();
-        let max = cast::<P::Subpixel, f32>(max).unwrap();
+        let max = Primitive::max_value();
+        let max: f32 = cast(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
 
@@ -192,11 +188,11 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
                 let p = image.get_pixel(x0, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let (a, b, c, d) = (
-                    cast::<P::Subpixel, f32>(k1).unwrap(),
-                    cast::<P::Subpixel, f32>(k2).unwrap(),
-                    cast::<P::Subpixel, f32>(k3).unwrap(),
-                    cast::<P::Subpixel, f32>(k4).unwrap()
+                let (a, b, c, d): (f32, f32, f32, f32) = (
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
                 );
 
                 let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
@@ -213,11 +209,11 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
             t3 /= sum;
             t4 /= sum;
 
-            let t: P = Pixel::from_channels(
-                cast::<f32, P::Subpixel>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t4, 0.0, max)).unwrap()
+            let t = Pixel::from_channels(
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(outx, y, t);
@@ -231,19 +227,19 @@ fn horizontal_sample<P: Pixel + 'static, I: GenericImage<P>>(
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
-    image:      &I,
-    new_height: u32,
-    filter:     &mut Filter) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static{
+fn vertical_sample<I: GenericImage>(image: &I, new_height: u32,
+                                    filter: &mut Filter)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
 
 
     for x in (0..width) {
-        let max: P::Subpixel = Primitive::max_value();
-        let max = cast::<P::Subpixel, f32>(max).unwrap();
+        let max = Primitive::max_value();
+        let max: f32 = cast(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
 
@@ -280,11 +276,11 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
                 let p = image.get_pixel(x, y0);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let (a, b, c, d) = (
-                    cast::<P::Subpixel, f32>(k1).unwrap(),
-                    cast::<P::Subpixel, f32>(k2).unwrap(),
-                    cast::<P::Subpixel, f32>(k3).unwrap(),
-                    cast::<P::Subpixel, f32>(k4).unwrap()
+                let (a, b, c, d): (f32, f32, f32, f32) = (
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
                 );
 
                 let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
@@ -301,11 +297,11 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
             t3 /= sum;
             t4 /= sum;
 
-            let t: P = Pixel::from_channels(
-                cast::<f32, P::Subpixel>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t4, 0.0, max)).unwrap()
+            let t = Pixel::from_channels(
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, outy, t);
@@ -317,10 +313,10 @@ fn vertical_sample<P: Pixel + 'static, I: GenericImage<P>>(
 
 /// Perform a 3x3 box filter on the supplied image.
 /// ```kernel``` is an array of the filter weights of length 9.
-pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
-    image:  &I,
-    kernel: &[f32]) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+pub fn filter3x3<I: GenericImage>(image: &I, kernel: &[f32])
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -334,9 +330,8 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
     let mut out = ImageBuffer::new(width, height);
 
 
-    let max:
-    P::Subpixel = Primitive::max_value();
-    let max = cast::<P::Subpixel, f32>(max).unwrap();
+    let max = Primitive::max_value();
+    let max: f32 = cast(max).unwrap();
 
     let sum = kernel.iter().fold(0.0, |&: a, f| a + *f);
 
@@ -364,12 +359,12 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
 
                 let (k1, k2, k3, k4) = p.channels4();
 
-                let (a, b, c, d) = (
-                                       cast::<P::Subpixel, f32>(k1).unwrap(),
-                                       cast::<P::Subpixel, f32>(k2).unwrap(),
-                                       cast::<P::Subpixel, f32>(k3).unwrap(),
-                                       cast::<P::Subpixel, f32>(k4).unwrap()
-                                   );
+                let (a, b, c, d): (f32, f32, f32, f32) = (
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
+                );
 
                 let (a1, b1, c1, d1) = (a * k, b * k, c * k, d * k);
 
@@ -384,11 +379,11 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
             t3 /= sum;
             t4 /= sum;
 
-            let t: P = Pixel::from_channels(
-                cast::<f32, P::Subpixel>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P::Subpixel>(clamp(t4, 0.0, max)).unwrap()
+            let t = Pixel::from_channels(
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, y, t);
@@ -401,12 +396,11 @@ pub fn filter3x3<P: Pixel + 'static, I: GenericImage<P>>(
 /// Resize the supplied image to the specified dimensions
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<P: Pixel + 'static, I: GenericImage<P>>(
-    image:   &I,
-    nwidth:  u32,
-    nheight: u32,
-    filter:  FilterType) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+pub fn resize<I: GenericImage>(image: &I, nwidth: u32, nheight: u32,
+                               filter: FilterType)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
@@ -437,10 +431,10 @@ pub fn resize<P: Pixel + 'static, I: GenericImage<P>>(
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-pub fn blur<P: Pixel + 'static, I: GenericImage<P>>(
-    image:  &I,
-    sigma:  f32) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+pub fn blur<I: GenericImage>(image: &I, sigma: f32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let sigma = if sigma < 0.0 {
         1.0
@@ -465,15 +459,15 @@ pub fn blur<P: Pixel + 'static, I: GenericImage<P>>(
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-pub fn unsharpen<P: Pixel + 'static, I: GenericImage<P>>(
-    image:     &I,
-    sigma:     f32,
-    threshold: i32) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: Primitive + 'static {
+pub fn unsharpen<I: GenericImage>(image: &I, sigma: f32, threshold: i32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let mut tmp = blur(image, sigma);
 
-    let max: P::Subpixel = Primitive::max_value();
+    let max = Primitive::max_value();
+    let max: i32 = cast(max).unwrap();
     let (width, height) = image.dimensions();
 
     for y in (0..height) {
@@ -482,15 +476,15 @@ pub fn unsharpen<P: Pixel + 'static, I: GenericImage<P>>(
             let b = tmp.get_pixel_mut(x, y);
 
             let p = a.map2(b, |&: c, d| {
-                let ic = cast::<P::Subpixel, i32>(c).unwrap();
-                let id = cast::<P::Subpixel, i32>(d).unwrap();
+                let ic: i32 = cast(c).unwrap();
+                let id: i32 = cast(d).unwrap();
 
                 let diff = (ic - id).abs();
 
                 if diff > threshold {
-                let e = clamp(ic + diff, 0, cast::<P::Subpixel, i32>(max).unwrap());
+                let e = clamp(ic + diff, 0, max);
 
-                    cast::<i32, P::Subpixel>(e).unwrap()
+                    cast(e).unwrap()
                 } else {
                     c
                 }

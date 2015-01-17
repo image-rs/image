@@ -7,14 +7,9 @@ use std::num:: {
 use std::default::Default;
 
 use color::Luma;
-use buffer::Pixel;
-
+use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
-
-use image:: {
-    GenericImage,
-};
-use buffer::ImageBuffer;
+use image::GenericImage;
 
 fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
     if a > max { max }
@@ -23,9 +18,10 @@ fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
 }
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<P: Pixel + 'static, I: GenericImage<P>> (image: &I)
-    -> ImageBuffer<Luma<P::Subpixel>, Vec<P::Subpixel>>
-    where P::Subpixel: Default + 'static {
+pub fn grayscale<I: GenericImage>(image: &I)
+    -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: Default + 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -41,7 +37,7 @@ pub fn grayscale<P: Pixel + 'static, I: GenericImage<P>> (image: &I)
 
 /// Invert each pixel within the supplied image
 /// This function operates in place.
-pub fn invert<P: Pixel, I: GenericImage<P>>(image: &mut I) where P::Subpixel : Primitive {
+pub fn invert<I: GenericImage>(image: &mut I) {
     let (width, height) = image.dimensions();
 
     for y in (0..height) {
@@ -57,28 +53,28 @@ pub fn invert<P: Pixel, I: GenericImage<P>>(image: &mut I) where P::Subpixel : P
 /// Adjust the contrast of the supplied image
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
-pub fn contrast<P: Pixel + 'static, I: GenericImage<P>>(
-    image:    &I,
-    contrast: f32) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+pub fn contrast<I: GenericImage>(image: &I, contrast: f32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: P::Subpixel = Primitive::max_value();
-    let max = cast::<P::Subpixel, f32>(max).unwrap();
+    let max = Primitive::max_value();
+    let max: f32 = cast(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
     for y in (0..height) {
         for x in (0..width) {
             let f = image.get_pixel(x, y).map(|&: b| {
-                let c = cast::<P::Subpixel, f32>(b).unwrap();
+                let c = cast(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent  + 0.5) * max;
                 let e = clamp(d, 0.0, max);
 
-                cast::<f32, P::Subpixel>(e).unwrap()
+                cast(e).unwrap()
             });
 
             out.put_pixel(x, y, f);
@@ -91,24 +87,24 @@ pub fn contrast<P: Pixel + 'static, I: GenericImage<P>>(
 /// Brighten the supplied image
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
-pub fn brighten<P: Pixel + 'static, I: GenericImage<P>>(
-    image: &I,
-    value: i32) -> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+pub fn brighten<I: GenericImage>(image: &I, value: i32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: P::Subpixel = Primitive::max_value();
-    let max = cast::<P::Subpixel, i32>(max).unwrap();
+    let max = Primitive::max_value();
+    let max: i32 = cast(max).unwrap();
 
     for y in (0..height) {
         for x in (0..width) {
             let e = image.get_pixel(x, y).map_with_alpha(|&:b| {
-                let c = cast::<P::Subpixel, i32>(b).unwrap();
+                let c = cast(b).unwrap();
                 let d = clamp(c + value, 0, max);
 
-                cast::<i32, P::Subpixel>(d).unwrap()
+                cast(d).unwrap()
             }, |&:alpha| alpha);
 
             out.put_pixel(x, y, e);

@@ -1,11 +1,7 @@
 //! Functions for performing affine transformations.
 
-use buffer::Pixel;
-use traits::Primitive;
-use image:: {
-    GenericImage,
-};
-use buffer::ImageBuffer;
+use buffer::{ImageBuffer, Pixel};
+use image::GenericImage;
 
 /// Rotate an image 90 degrees clockwise.
 pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
@@ -26,7 +22,6 @@ pub fn rotate90<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
 /// Rotate an image 180 degrees clockwise.
 pub fn rotate180<P: Pixel + 'static, I: GenericImage<P>>(image:  &I)
     -> ImageBuffer<P, Vec<P::Subpixel>> where P::Subpixel: 'static {
-    let (width, height) = image.dimensions();
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

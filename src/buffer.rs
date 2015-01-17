@@ -497,7 +497,7 @@ pub trait ConvertBuffer<T: ?Sized> {
 }
 
 // concrete implementation Luma -> Rgba
-impl ImageBuffer<Luma<u8>, Vec<u8>> {
+impl GreyImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to 
     /// adjust it's alpha value accordingly.

@@ -33,9 +33,9 @@ impl<A: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutS
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.   
-pub trait Pixel: Copy + Clone {
+pub trait Pixel: Copy + Clone + 'static {
     /// The underlying subpixel type.
-    type Subpixel: Primitive;
+    type Subpixel: Primitive + 'static;
 
     /// Returns the number of channels of this pixel type.
     fn channel_count<'a>(_: Option<&'a Self>) -> u8;
@@ -118,11 +118,11 @@ pub trait Pixel: Copy + Clone {
 }
 
 /// Iterate over pixel refs. 
-pub struct Pixels<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+pub struct Pixels<'a, P: Pixel> where P::Subpixel: 'a {
     chunks: Chunks<'a, P::Subpixel>
 }
 
-impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
+impl<'a, P: Pixel> Iterator for Pixels<'a, P> {
     type Item = &'a P;
 
     #[inline(always)]
@@ -133,9 +133,7 @@ impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
     }
 }
 
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P>
-    where P::Subpixel: 'a {
-
+impl<'a, P: Pixel> DoubleEndedIterator for Pixels<'a, P> {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
         self.chunks.next_back().map(|v| 
@@ -145,11 +143,11 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P>
 }
 
 /// Iterate over mutable pixel refs.
-pub struct PixelsMut<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+pub struct PixelsMut<'a, P: Pixel> where P::Subpixel: 'a {
     chunks: ChunksMut<'a, P::Subpixel>
 }
 
-impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
+impl<'a, P: Pixel> Iterator for PixelsMut<'a, P> {
     type Item = &'a mut P;
 
     #[inline(always)]
@@ -160,9 +158,7 @@ impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
     }
 }
 
-impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
-    where P::Subpixel: 'a {
-
+impl<'a, P: Pixel> DoubleEndedIterator for PixelsMut<'a, P> {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut P> {
         self.chunks.next_back().map(|v| 
@@ -172,15 +168,14 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixels<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+pub struct EnumeratePixels<'a, P: Pixel> {
     pixels: Pixels<'a, P>,
     x:      u32,
     y:      u32,
     width:  u32
 }
 
-impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P>
-    where P::Subpixel: 'a {
+impl<'a, P: Pixel> Iterator for EnumeratePixels<'a, P> {
 
     type Item = (u32, u32, &'a P);
 
@@ -200,15 +195,14 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P>
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> {
+pub struct EnumeratePixelsMut<'a, P: Pixel> {
     pixels: PixelsMut<'a, P>,
     x:      u32,
     y:      u32,
     width:  u32
 }
 
-impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P>
-    where P::Subpixel: 'a {
+impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P> {
 
     type Item = (u32, u32, &'a mut P);
 
@@ -238,8 +232,8 @@ pub struct ImageBuffer<P: Pixel, Container> {
 } 
 
 // generic implementation, shared along all image buffers 
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Container>
-    where P::Subpixel: 'static {
+impl<P: Pixel + 'static,
+     Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Container> {
 
     /// Contructs a buffer from a generic container 
     /// (for example a `Vec` or a slice)
@@ -389,7 +383,7 @@ impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<
 }
 
 impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage
-    for ImageBuffer<P, Container> where P::Subpixel: 'static {
+    for ImageBuffer<P, Container> {
 
     type Pixel = P;
 
@@ -421,10 +415,10 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage
 }
 
 impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
-    for ImageBuffer<P, Container>
-    where P::Subpixel: 'static {
+    for ImageBuffer<P, Container> {
 
     type Output = P;
+
     fn index(&self, &(x, y): &(u32, u32)) -> &P {
         self.get_pixel(x, y)
     }
@@ -436,8 +430,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>> {
 
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
@@ -539,14 +532,12 @@ impl GreyImage {
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
-impl<'a, 'b, Container, FromType: Pixel, ToType: Pixel>
+impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>>
     for ImageBuffer<FromType, Container>
-    where FromType::Subpixel: 'static,
-          ToType::Subpixel: 'static,
-          Container: ArrayLike<FromType::Subpixel>,
-          FromType: Pixel + 'static,
-          ToType: Pixel + 'static + FromColor<FromType> {
+    where Container: ArrayLike<FromType::Subpixel>,
+          ToType: FromColor<FromType> {
+
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>>
             = ImageBuffer::new(self.width, self.height);

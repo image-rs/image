@@ -241,7 +241,7 @@ impl<'a, I: GenericImage + 'a> Iterator for MutPixels<'a, I>
 /// A trait for manipulating images.
 pub trait GenericImage: Sized {
     /// The type of pixel.
-    type Pixel: Pixel;
+    type Pixel: Pixel + 'static;
 
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
@@ -317,7 +317,7 @@ pub struct SubImage <'a, I: 'a> {
     ystride: u32,
 }
 
-impl<'a, I: GenericImage> SubImage<'a, I>
+impl<'a, I: GenericImage + 'a> SubImage<'a, I>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
 
@@ -361,9 +361,10 @@ impl<'a, I: GenericImage> SubImage<'a, I>
 }
 
 #[allow(deprecated)]
-impl<'a, I: GenericImage + 'a> GenericImage for SubImage<'a, I>
-    where I::Pixel: 'a,
-          <I::Pixel as Pixel>::Subpixel: 'a {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     type Pixel = I::Pixel;
 

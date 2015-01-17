@@ -62,7 +62,7 @@ $( // START Structure definitions
 #[derive(PartialEq, Eq, Clone, Show, Copy)]
 pub struct $ident<T: Primitive>(pub [T; $channels]);
 
-impl<T: Primitive> Pixel for $ident<T> {
+impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     type Subpixel = T;
 

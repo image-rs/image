@@ -18,7 +18,8 @@ fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
 }
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<I: GenericImage>(image: &I)
+// TODO: is the 'static bound on `I` really required? Can we avoid it?
+pub fn grayscale<'a, I: GenericImage + 'static>(image: &I)
     -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: Default + 'static {

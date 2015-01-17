@@ -118,14 +118,13 @@ pub trait Pixel: Copy + Clone {
 }
 
 /// Iterate over pixel refs. 
-pub struct Pixels<'a, T: 'static, PixelType: ?Sized> {
-    chunks: Chunks<'a, T>
+pub struct Pixels<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+    chunks: Chunks<'a, P::Subpixel>
 }
 
-impl<'a, P: Pixel> Iterator for Pixels<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
-
+impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
     type Item = &'a P;
+
     #[inline(always)]
     fn next(&mut self) -> Option<&'a P> {
         self.chunks.next().map(|v| 
@@ -134,8 +133,8 @@ impl<'a, P: Pixel> Iterator for Pixels<'a, P::Subpixel, P>
     }
 }
 
-impl<'a, P: Pixel> DoubleEndedIterator for Pixels<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P>
+    where P::Subpixel: 'a {
 
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
@@ -173,17 +172,18 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P>
 }
 
 /// Enumerate the pixels of an image. 
-pub struct EnumeratePixels<'a, T: 'static, PixelType: ?Sized> {
-    pixels: Pixels<'a, T, PixelType>,
+pub struct EnumeratePixels<'a, P: Pixel + 'a> where P::Subpixel: 'a {
+    pixels: Pixels<'a, P>,
     x:      u32,
     y:      u32,
     width:  u32
 }
 
-impl<'a, P: Pixel> Iterator for EnumeratePixels<'a, P::Subpixel, P>
-    where P::Subpixel: Primitive {
+impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P>
+    where P::Subpixel: 'a {
 
     type Item = (u32, u32, &'a P);
+
     #[inline(always)]
     fn next(&mut self) -> Option<(u32, u32, &'a P)> {
         if self.x >= self.width {
@@ -292,7 +292,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Conta
     }
 
     /// Returns an iterator over the pixels of this image.
-    pub fn pixels<'a>(&'a self) -> Pixels<'a, P::Subpixel, P> {
+    pub fn pixels<'a>(&'a self) -> Pixels<'a, P> {
         Pixels {
             chunks: self.data.as_slice().chunks(
                 Pixel::channel_count(None::<&P>) as usize
@@ -314,7 +314,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> ImageBuffer<P, Conta
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
-    pub fn enumerate_pixels<'a>(&'a self) -> EnumeratePixels<'a, P::Subpixel, P> {
+    pub fn enumerate_pixels<'a>(&'a self) -> EnumeratePixels<'a, P> {
         EnumeratePixels {
             pixels: self.pixels(),
             x: 0,

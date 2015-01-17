@@ -153,8 +153,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max: P = Primitive::max_value();
-        let max = cast::<P, f32>(max).unwrap();
+        let max = cast::<P, f32>(Primitive::max_value()).unwrap();
 
         let ratio = width as f32 / new_width as f32;
 
@@ -177,47 +176,35 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
             let right = (inputx + filter_radius).floor() as i64;
             let right = clamp(right, 0, width as i64 - 1) as u32;
 
-            let mut sum = 0.0;
+            let mut sum = f32x4(0., 0., 0., 0.);
 
-            let mut t1 = 0.0;
-            let mut t2 = 0.0;
-            let mut t3 = 0.0;
-            let mut t4 = 0.0;
+            let mut t = f32x4(0., 0., 0., 0.);
 
             for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
+                let w = f32x4(w, w, w, w);
                 sum += w;
 
                 let x0  = clamp(i, 0, width - 1);
                 let p = image.get_pixel(x0, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let (a, b, c, d) = (
-                    cast::<P, f32>(k1).unwrap(),
-                    cast::<P, f32>(k2).unwrap(),
-                    cast::<P, f32>(k3).unwrap(),
-                    cast::<P, f32>(k4).unwrap()
+                let vec = f32x4(
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
                 );
 
-                let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
-                let (a2, b2, c2, d2) = (a1 + t1, b1 + t2, c1 + t3, d1 + t4);
-
-                t1 = a2;
-                t2 = b2;
-                t3 = c2;
-                t4 = d2;
+                t += vec * w;
             }
 
-            t1 /= sum;
-            t2 /= sum;
-            t3 /= sum;
-            t4 /= sum;
-
+            let f32x4(t1, t2, t3, t4) = t / sum;
             let t: T = Pixel::from_channels(
-                cast::<f32, P>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t4, 0.0, max)).unwrap()
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(outx, y, t);
@@ -264,47 +251,35 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
             let right = (inputy + filter_radius).floor() as i64;
             let right = clamp(right, 0, height as i64 - 1) as u32;
 
-            let mut sum = 0.0;
+            let mut sum = f32x4(0., 0., 0., 0.);
 
-            let mut t1 = 0.0;
-            let mut t2 = 0.0;
-            let mut t3 = 0.0;
-            let mut t4 = 0.0;
+            let mut t = f32x4(0., 0., 0., 0.);
 
             for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
+                let w = f32x4(w, w, w, w);
                 sum += w;
 
                 let y0  = clamp(i, 0, height - 1);
                 let p = image.get_pixel(x, y0);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let (a, b, c, d) = (
-                    cast::<P, f32>(k1).unwrap(),
-                    cast::<P, f32>(k2).unwrap(),
-                    cast::<P, f32>(k3).unwrap(),
-                    cast::<P, f32>(k4).unwrap()
+                let vec = f32x4(
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
                 );
 
-                let (a1, b1, c1, d1) = ( a  * w,  b * w,   c * w,   d * w);
-                let (a2, b2, c2, d2) = (a1 + t1, b1 + t2, c1 + t3, d1 + t4);
-
-                t1 = a2;
-                t2 = b2;
-                t3 = c2;
-                t4 = d2;
+                t += vec * w;
             }
 
-            t1 /= sum;
-            t2 /= sum;
-            t3 /= sum;
-            t4 /= sum;
-
+            let f32x4(t1, t2, t3, t4) = t / sum;
             let t: T = Pixel::from_channels(
-                cast::<f32, P>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t4, 0.0, max)).unwrap()
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, outy, t);

@@ -18,6 +18,8 @@ use std::iter::repeat;
 
 use super::transform;
 
+use math::utils::clamp;
+
 const MAX_SEGMENTS: usize = 4;
 const NUM_DCT_TOKENS: usize = 12;
 
@@ -928,14 +930,14 @@ impl<R: Reader> VP8Decoder<R> {
             let base = if !self.segment[i].delta_values { self.segment[i].quantizer_level as i16 }
                     else { self.segment[i].quantizer_level as i16 + yac_abs as i16} as i32;
 
-            self.segment[i].ydc  = DC_QUANT[clip(base + ydc_delta, 0, 127) as usize];
-            self.segment[i].yac  = AC_QUANT[clip(base, 0, 127) as usize];
+            self.segment[i].ydc  = DC_QUANT[clamp(base + ydc_delta, 0, 127) as usize];
+            self.segment[i].yac  = AC_QUANT[clamp(base, 0, 127) as usize];
 
-            self.segment[i].y2dc = DC_QUANT[clip(base + y2dc_delta, 0, 127) as usize] * 2;
-            self.segment[i].y2ac = AC_QUANT[clip(base + y2ac_delta, 0, 127) as usize] * 155 / 100;
+            self.segment[i].y2dc = DC_QUANT[clamp(base + y2dc_delta, 0, 127) as usize] * 2;
+            self.segment[i].y2ac = AC_QUANT[clamp(base + y2ac_delta, 0, 127) as usize] * 155 / 100;
 
-            self.segment[i].uvdc = DC_QUANT[clip(base + uvdc_delta, 0, 127) as usize];
-            self.segment[i].uvac = AC_QUANT[clip(base + uvac_delta, 0, 127) as usize];
+            self.segment[i].uvdc = DC_QUANT[clamp(base + uvdc_delta, 0, 127) as usize];
+            self.segment[i].uvac = AC_QUANT[clamp(base + uvac_delta, 0, 127) as usize];
 
             if self.segment[i].y2ac < 8 {
                 self.segment[i].y2ac = 8;
@@ -1500,18 +1502,12 @@ fn avg2(this: u8, right: u8) -> u8 {
     avg as u8
 }
 
-fn clip<N: PartialOrd>(a: N, min: N, max: N) -> N {
-    if a < min { min }
-    else if a > max { max }
-    else { a }
-}
-
 fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: usize) {
     for y in (0us..4) {
         for x in (0us..4) {
             let a = rblock[x + y * 4];
             let b = pblock[(y0 + y) * stride + x0 + x];
-            let c = clip(a + b as i32, 0, 255) as u8;
+            let c = clamp(a + b as i32, 0, 255) as u8;
             pblock[(y0 + y) * stride + x0 + x] = c;
         }
     }
@@ -1600,7 +1596,7 @@ fn predict_tmpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize
                        a[(y0 - 1) * stride + x0 + x] as i32 -
                        a[(y0 - 1) * stride + x0 - 1] as i32;
 
-            a[(x + x0) + stride * (y + y0)] = clip(pred, 0, 255) as u8;
+            a[(x + x0) + stride * (y + y0)] = clamp(pred, 0, 255) as u8;
         }
     }
 }

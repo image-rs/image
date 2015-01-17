@@ -4,7 +4,8 @@ use buffer::{ImageBuffer, Pixel};
 use image::GenericImage;
 
 /// Rotate an image 90 degrees clockwise.
-pub fn rotate90<I: GenericImage>(image:  &I)
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate90<I: GenericImage + 'static>(image:  &I)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -22,7 +23,8 @@ pub fn rotate90<I: GenericImage>(image:  &I)
 }
 
 /// Rotate an image 180 degrees clockwise.
-pub fn rotate180<I: GenericImage>(image:  &I)
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate180<I: GenericImage + 'static>(image:  &I)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -40,7 +42,8 @@ pub fn rotate180<I: GenericImage>(image:  &I)
 }
 
 /// Rotate an image 270 degrees clockwise.
-pub fn rotate270<I: GenericImage>(image:  &I)
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate270<I: GenericImage + 'static>(image:  &I)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -58,7 +61,8 @@ pub fn rotate270<I: GenericImage>(image:  &I)
 }
 
 /// Flip an image horizontally
-pub fn flip_horizontal<I: GenericImage>(image:  &I)
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn flip_horizontal<I: GenericImage + 'static>(image:  &I)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -76,7 +80,8 @@ pub fn flip_horizontal<I: GenericImage>(image:  &I)
 }
 
 /// Flip an image vertically
-pub fn flip_vertical<I: GenericImage>(image:  &I)
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn flip_vertical<I: GenericImage + 'static>(image:  &I)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {

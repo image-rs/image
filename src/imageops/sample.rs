@@ -139,8 +139,9 @@ fn clamp<N: PartialOrd>(a: N, min: N, max: N) -> N {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<I: GenericImage>(image: &I, new_width: u32,
-                                      filter: &mut Filter)
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+fn horizontal_sample<I: GenericImage + 'static>(image: &I, new_width: u32,
+                                                filter: &mut Filter)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -149,7 +150,7 @@ fn horizontal_sample<I: GenericImage>(image: &I, new_width: u32,
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max = Primitive::max_value();
+        let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
         let max: f32 = cast(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
@@ -227,8 +228,9 @@ fn horizontal_sample<I: GenericImage>(image: &I, new_width: u32,
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<I: GenericImage>(image: &I, new_height: u32,
-                                    filter: &mut Filter)
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+fn vertical_sample<I: GenericImage + 'static>(image: &I, new_height: u32,
+                                              filter: &mut Filter)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -238,7 +240,7 @@ fn vertical_sample<I: GenericImage>(image: &I, new_height: u32,
 
 
     for x in (0..width) {
-        let max = Primitive::max_value();
+        let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
         let max: f32 = cast(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
@@ -313,7 +315,8 @@ fn vertical_sample<I: GenericImage>(image: &I, new_height: u32,
 
 /// Perform a 3x3 box filter on the supplied image.
 /// ```kernel``` is an array of the filter weights of length 9.
-pub fn filter3x3<I: GenericImage>(image: &I, kernel: &[f32])
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn filter3x3<I: GenericImage + 'static>(image: &I, kernel: &[f32])
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -329,8 +332,7 @@ pub fn filter3x3<I: GenericImage>(image: &I, kernel: &[f32])
 
     let mut out = ImageBuffer::new(width, height);
 
-
-    let max = Primitive::max_value();
+    let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
     let max: f32 = cast(max).unwrap();
 
     let sum = kernel.iter().fold(0.0, |&: a, f| a + *f);
@@ -396,8 +398,9 @@ pub fn filter3x3<I: GenericImage>(image: &I, kernel: &[f32])
 /// Resize the supplied image to the specified dimensions
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<I: GenericImage>(image: &I, nwidth: u32, nheight: u32,
-                               filter: FilterType)
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn resize<I: GenericImage + 'static>(image: &I, nwidth: u32, nheight: u32,
+                                         filter: FilterType)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -431,7 +434,8 @@ pub fn resize<I: GenericImage>(image: &I, nwidth: u32, nheight: u32,
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-pub fn blur<I: GenericImage>(image: &I, sigma: f32)
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn blur<I: GenericImage + 'static>(image: &I, sigma: f32)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
@@ -459,14 +463,15 @@ pub fn blur<I: GenericImage>(image: &I, sigma: f32)
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-pub fn unsharpen<I: GenericImage>(image: &I, sigma: f32, threshold: i32)
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn unsharpen<I: GenericImage + 'static>(image: &I, sigma: f32, threshold: i32)
     -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
 
     let mut tmp = blur(image, sigma);
 
-    let max = Primitive::max_value();
+    let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
     let max: i32 = cast(max).unwrap();
     let (width, height) = image.dimensions();
 

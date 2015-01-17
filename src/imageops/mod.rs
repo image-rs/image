@@ -51,8 +51,8 @@ mod sample;
 /// Return a mutable view into an image
 // TODO: Is a 'static bound on `I` really required? Acn we avoid it?
 pub fn crop<I: GenericImage + 'static>(image: &mut I, x: u32, y: u32,
-                             width: u32, height: u32)
-                             -> SubImage<I>
+                                       width: u32, height: u32)
+                                       -> SubImage<I>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
 

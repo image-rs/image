@@ -10,6 +10,7 @@ use std::num:: {
     Float,
     SignedInt,
 };
+use std::simd::f32x4;
 
 use buffer::Pixel;
 use traits::Primitive;
@@ -331,29 +332,24 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
     let mut out = ImageBuffer::new(width, height);
 
 
-    let max:
-    P = Primitive::max_value();
-    let max = cast::<P, f32>(max).unwrap();
+    let max = cast::<P, f32>(Primitive::max_value()).unwrap();
 
-    let sum = kernel.iter().fold(0.0, |&: a, f| a + *f);
-
-    let sum = if sum == 0.0 {
-        1.0
-    } else {
-        sum
+    let sum = match kernel.iter().fold(0.0, |&: a, f| a + *f) {
+        0.0 => 1.0,
+        sum => sum
     };
+    let sum = f32x4(sum, sum, sum, sum);
 
     for y in (1..height - 1) {
         for x in (1..width - 1) {
-            let mut t1 = 0.0;
-            let mut t2 = 0.0;
-            let mut t3 = 0.0;
-            let mut t4 = 0.0;
+            let mut t = f32x4(0., 0., 0., 0.);
+
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
+                let k = f32x4(k, k, k, k);
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
@@ -361,31 +357,23 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
 
                 let (k1, k2, k3, k4) = p.channels4();
 
-                let (a, b, c, d) = (
-                                       cast::<P, f32>(k1).unwrap(),
-                                       cast::<P, f32>(k2).unwrap(),
-                                       cast::<P, f32>(k3).unwrap(),
-                                       cast::<P, f32>(k4).unwrap()
+                let vec = f32x4(
+                                       cast(k1).unwrap(),
+                                       cast(k2).unwrap(),
+                                       cast(k3).unwrap(),
+                                       cast(k4).unwrap()
                                    );
 
-                let (a1, b1, c1, d1) = (a * k, b * k, c * k, d * k);
-
-                t1 += a1;
-                t2 += b1;
-                t3 += c1;
-                t4 += d1;
+                t += vec * k;
             }
 
-            t1 /= sum;
-            t2 /= sum;
-            t3 /= sum;
-            t4 /= sum;
+            let f32x4(t1, t2, t3, t4) = t / sum;
 
             let t: T = Pixel::from_channels(
-                cast::<f32, P>(clamp(t1, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t2, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t3, 0.0, max)).unwrap(),
-                cast::<f32, P>(clamp(t4, 0.0, max)).unwrap()
+                cast(clamp(t1, 0.0, max)).unwrap(),
+                cast(clamp(t2, 0.0, max)).unwrap(),
+                cast(clamp(t3, 0.0, max)).unwrap(),
+                cast(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, y, t);

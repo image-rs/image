@@ -95,6 +95,9 @@ pub use animation:: {
     Frame, Frames
 };
 
+// Math utils
+pub mod math;
+
 // Image Processing Functions
 pub mod imageops;
 

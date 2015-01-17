@@ -15,12 +15,7 @@ use image:: {
     GenericImage,
 };
 use buffer::ImageBuffer;
-
-fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
-    if a > max { max }
-    else if a < min { min }
-    else { a }
-}
+use math::utils::clamp;
 
 /// Convert the supplied image to grayscale
 pub fn grayscale<P: Primitive + Default + 'static, T: Pixel<P> + 'static, I: GenericImage<T>> (

@@ -28,13 +28,37 @@ pub enum ByteOrder {
 
 
 /// Reader that is aware of the byte order.
+pub trait EndianReader: Reader {
+    // Byte order that should be adhered to
+    fn byte_order(&self) -> ByteOrder;
+    
+    /// Reads an u16
+    #[inline(always)]
+    fn read_u16(&mut self) -> IoResult<u16> {
+        match self.byte_order() {
+            ByteOrder::LittleEndian => self.read_le_u16(),
+            ByteOrder::BigEndian => self.read_be_u16()
+        }
+    }
+    
+    /// Reads an u32
+    #[inline(always)]
+    fn read_u32(&mut self) -> IoResult<u32> {
+        match self.byte_order() {
+            ByteOrder::LittleEndian => self.read_le_u32(),
+            ByteOrder::BigEndian => self.read_be_u32()
+        }
+    }
+}
+
+/// Reader that is aware of the byte order.
 #[derive(Show)]
-pub struct SmartReader<R> {
+pub struct SmartReader<R> where R: Reader + Seek {
     reader: R,
     byte_order: ByteOrder
 }
 
-impl<R: Reader + Seek> SmartReader<R> {
+impl<R> SmartReader<R> where R: Reader + Seek {
     /// Wraps a reader
     pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
         SmartReader {
@@ -42,23 +66,12 @@ impl<R: Reader + Seek> SmartReader<R> {
             byte_order: byte_order
         }
     }
-    
-    /// Reads an u16
-    #[inline]
-    pub fn read_u16(&mut self) -> IoResult<u16> {
-        match self.byte_order {
-            ByteOrder::LittleEndian => self.reader.read_le_u16(),
-            ByteOrder::BigEndian => self.reader.read_be_u16()
-        }
-    }
-    
-    /// Reads an u32
-    #[inline]
-    pub fn read_u32(&mut self) -> IoResult<u32> {
-        match self.byte_order {
-            ByteOrder::LittleEndian => self.reader.read_le_u32(),
-            ByteOrder::BigEndian => self.reader.read_be_u32()
-        }
+}
+
+impl<R> EndianReader for SmartReader<R> where R: Reader {
+    #[inline(always)]
+    fn byte_order(&self) -> ByteOrder {
+        self.byte_order
     }
 }
 
@@ -74,8 +87,7 @@ impl<R: Seek> Seek for SmartReader<R> {
     fn tell(&self) -> IoResult<u64> {
         self.reader.tell()
     }
-
-
+    
     #[inline]
     fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
         self.reader.seek(pos, style)
@@ -109,7 +121,7 @@ enum CompressionMethod {
 ///
 /// Currently does not support decoding of interlaced images
 #[derive(Show)]
-pub struct TIFFDecoder<R> {
+pub struct TIFFDecoder<R> where R: Reader + Seek {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
     next_ifd: Option<u32>,

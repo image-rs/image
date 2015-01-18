@@ -1,7 +1,7 @@
 use std::io;
 use std::collections::{HashMap};
 
-use super::decoder::{ByteOrder, SmartReader};
+use super::decoder::{ByteOrder, SmartReader, EndianReader};
 
 use self::Value::{Unsigned, List};
 

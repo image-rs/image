@@ -484,7 +484,7 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
 }
 
 /// Provides color conversions for whole image buffers.
-pub trait ConvertBuffer<T: ?Sized> {
+pub trait ConvertBuffer<T> {
     /// Converts `self` to a buffer of type T
     ///
     /// A generic impementation is provided to convert any image buffer to a image buffer

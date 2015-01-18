@@ -232,7 +232,7 @@ define_colors! {
 
 
 /// Provides color conversions for the different pixel types.
-pub trait FromColor<Other: ?Sized> {
+pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
     fn from_color(&mut self, &Other);
 }

@@ -29,7 +29,7 @@ pub enum ByteOrder {
 
 /// Reader that is aware of the byte order.
 pub trait EndianReader: Reader {
-    // Byte order that should be adhered to
+    /// Byte order that should be adhered to
     fn byte_order(&self) -> ByteOrder;
     
     /// Reads an u16

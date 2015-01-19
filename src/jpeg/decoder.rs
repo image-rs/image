@@ -18,6 +18,7 @@ use super::entropy:: {
 use image;
 use image::ImageResult;
 use image::ImageDecoder;
+use math::utils::clamp;
 
 /// The permutation of dct coefficients.
 pub static UNZIGZAG: [u8; 64] = [
@@ -657,17 +658,11 @@ fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> (u8, u8, u8) {
     let g1 = y - 0.34414f32 * (cb - 128f32) - 0.71414f32 * (cr - 128f32);
     let b1 = y + 1.772f32 * (cb - 128f32);
 
-    let r = clamp(r1 as i32);
-    let g = clamp(g1 as i32);
-    let b = clamp(b1 as i32);
+    let r = clamp(r1 as i32, 0, 255) as u8;
+    let g = clamp(g1 as i32, 0, 255) as u8;
+    let b = clamp(b1 as i32, 0, 255) as u8;
 
     (r, g, b)
-}
-
-fn clamp(a: i32) -> u8 {
-    if a < 0 {0}
-    else if a > 255 {255}
-    else {a as u8}
 }
 
 // Section F.2.2.1

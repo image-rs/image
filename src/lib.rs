@@ -9,6 +9,7 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![deny(missing_copy_implementations)]
+#![allow(unstable)]
 // necessary for Primitive trait
 #![feature(old_orphan_check, old_impl_check)]
 

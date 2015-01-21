@@ -1,8 +1,7 @@
 use std::slice::{ Chunks, ChunksMut };
-use std::any::Any;
+use std::any::{ Any, TypeId };
 use std::ops::{ Index, IndexMut };
 use std::num::Int;
-use std::intrinsics::TypeId;
 use std::iter::repeat;
 
 use traits::{ Zero, Primitive };

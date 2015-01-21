@@ -10,12 +10,7 @@ use color::Luma;
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
 use image::GenericImage;
-
-fn clamp <N: PartialOrd> (a: N, min: N, max: N) -> N {
-    if a > max { max }
-    else if a < min { min }
-    else { a }
-}
+use math::utils::clamp;
 
 /// Convert the supplied image to grayscale
 // TODO: is the 'static bound on `I` really required? Can we avoid it?

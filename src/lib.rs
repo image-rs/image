@@ -9,6 +9,7 @@
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
 #![deny(missing_copy_implementations)]
+#![allow(unstable)]
 
 extern crate flate;
 extern crate num;
@@ -92,6 +93,9 @@ pub use dynimage::DynamicImage:: {
 pub use animation:: {
     Frame, Frames
 };
+
+// Math utils
+pub mod math;
 
 // Image Processing Functions
 pub mod imageops;

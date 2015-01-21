@@ -43,17 +43,35 @@ impl DecodingDict {
     }
 
     /// Reconstructs the data for the corresponding code
-    fn reconstruct(&mut self, code: Option<Code>) -> &[u8] {
+    fn reconstruct(&mut self, code: Option<Code>) -> io::IoResult<&[u8]> {
         self.buffer.clear();
         let mut code = code;
         let mut cha;
+        // Check the first access more thoroughly since a bad code
+        // could occur if the data is malformed
+        if let Some(k) = code {
+            match self.table.get(k as usize) {
+                Some(&(code_, cha_)) => {
+                    code = code_;
+                    cha = cha_;
+                }
+                None => return Err(io::IoError {
+                    kind: io::InvalidInput,
+                    desc: "invalid code occured",
+                    detail: Some(format!("{} < {} expected", k, self.table.len()))
+                })
+            }
+            self.buffer.push(cha);
+        }
         while let Some(k) = code {
             //(code, cha) = self.table[k as usize];
+            // Node this could possibly replaced by unsafe access because this
+            // struct had been contructed by this algorithm correctly
             let entry = self.table[k as usize]; code = entry.0; cha = entry.1;
             self.buffer.push(cha);
         }
         self.buffer.reverse();
-        &self.buffer[]
+        Ok(&self.buffer[])
     }
 
     /// Returns the buffer constructed by the last reconstruction
@@ -94,11 +112,11 @@ where R: Reader, W: Writer {
                 try!(w.write_u8(code as u8));
             } else {
                 let data = if code == next_code {
-                    let cha = table.reconstruct(prev)[0];
+                    let cha = try!(table.reconstruct(prev))[0];
                     table.push(prev, cha);
-                    table.reconstruct(Some(code))
+                    try!(table.reconstruct(Some(code)))
                 } else if code < next_code {
-                    let cha = table.reconstruct(Some(code))[0];
+                    let cha = try!(table.reconstruct(Some(code)))[0];
                     table.push(prev, cha);
                     table.buffer()
                 } else {

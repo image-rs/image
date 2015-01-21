@@ -313,6 +313,8 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                         let top = frame.top();
                         let buffer = frame.into_buffer();
                         overlay(&mut canvas, &buffer, left, top);
+                    } else {
+                        break
                     }
                 }
                 Ok(DecodingResult::U8(canvas.into_raw()))

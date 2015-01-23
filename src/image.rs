@@ -1,4 +1,5 @@
 use std::error::FromError;
+use std::fmt;
 use std::mem;
 use std::io;
 use std::slice;
@@ -13,7 +14,7 @@ use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
 /// An enumeration of Image Errors
-#[derive(Clone, Show, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ImageError {
     /// The Image is not formatted properly
     FormatError(String),
@@ -44,6 +45,12 @@ impl FromError<io::IoError> for ImageError {
     }
 }
 
+// required for Result<T, ImageError>::unwrap
+impl fmt::Display for ImageError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.to_string(), f)
+    }
+}
 
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
@@ -66,7 +73,7 @@ pub enum DecodingBuffer<'a> {
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[derive(Copy, PartialEq, Eq, Show)]
+#[derive(Copy, PartialEq, Eq, Debug)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,

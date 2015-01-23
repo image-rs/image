@@ -95,7 +95,7 @@ pub struct Entry {
     offset: [u8; 4],
 }
 
-impl ::std::fmt::Show for Entry {
+impl ::std::fmt::Debug for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,

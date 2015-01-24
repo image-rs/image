@@ -5,10 +5,7 @@ use std::io;
 /// Bit reader
 pub trait BitReader: Reader {
     /// Returns the next `n` bits.
-    fn read_bits(&mut self, n: u8) -> io::IoResult<u64>;
-
-    /// Returns true if the reader is aligned to a byte of the underlying byte stream.
-    fn is_aligned(&self) -> bool;
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16>;
 }
 
 /// A bit reader.
@@ -17,61 +14,49 @@ pub trait BitReader: Reader {
 pub struct LsbReader<R> where R: Reader{
     r: R,
     bits: u8,
-    buf: u64,
+    acc: u32,
 }
 
 impl<R: Reader> LsbReader<R> {
+
     /// Creates a new bit reader
     pub fn new(reader: R) -> LsbReader<R> {
         LsbReader {
             r: reader,
             bits: 0,
-            buf: 0,
+            acc: 0,
         }
     }
-    
-    fn fill_cache(&mut self, n: u8) -> io::IoResult<()> {
-        if n > 64 {
-            return Err(io::IoError {
-                kind: io::InvalidInput,
-                desc: "Cannot read more than 64 bits",
-                detail: None
-            })
-        }
-        // FIXME: 64bit won't work this way
-        while self.bits < n {
-            self.buf |= (try!(self.r.read_byte()) as u64) << self.bits as usize;
-            self.bits += 8;
-        }
-        Ok(())
+
+    /// Returns true if the reader is aligned to a byte of the underlying byte stream.
+    #[inline(always)]
+    fn is_aligned(&self) -> bool {
+        self.bits == 0
     }
-    
-    /// Returns the next `n` bits without consuming them.
-    fn peek_bits(&mut self, n: u8) -> io::IoResult<u64> {
-        try!(self.fill_cache(n));
-        let mask = (1 << n as usize) - 1;
-        Ok(self.buf & mask)
-    }
-    
-    fn consume(&mut self, n: u8) {
-        self.buf >>= n as usize;
-        self.bits -= n;
-    }
+
 
 }
 
 impl<R> BitReader for LsbReader<R> where R: Reader {
 
-    fn read_bits(&mut self, n: u8) -> io::IoResult<u64> {
-        let res = try!(self.peek_bits(n));
-        self.consume(n);
-        Ok(res)
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+        if n > 16 {
+            return Err(io::IoError {
+                kind: io::InvalidInput,
+                desc: "Cannot read more than 16 bits",
+                detail: None
+            })
+        }
+        while self.bits < n {
+            self.acc |= (try!(self.r.read_u8()) as u32) << self.bits;
+            self.bits += 8;
+        }
+        let res = self.acc & (1<<n - 1);
+        self.acc >>= n;
+        self.bits -= n;
+        Ok(res as u16)
     }
 
-    #[inline(always)]
-    fn is_aligned(&self) -> bool {
-        self.bits == 0
-    }
 }
 
 impl<R: Reader> Reader for LsbReader<R> {
@@ -142,6 +127,8 @@ impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
 
 #[cfg(test)]
 mod test {
+    use super::BitReader;
+
     #[test]
     fn reader_writer() {
         let data = [255, 20, 40, 120, 128];

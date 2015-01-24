@@ -97,7 +97,7 @@ where R: Reader, W: Writer {
     let mut table = DecodingDict::new(min_code_size);
     let mut code_size = min_code_size + 1;
     loop {
-        let code = try!(r.read_bits(code_size)) as u16;
+        let code = try!(r.read_bits(code_size));
         if code == clear_code {
             table.reset();
             table.push(None, 0); // clear code

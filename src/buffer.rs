@@ -334,9 +334,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
         let index  = no_channels * (y * self.width + x) as usize;
         Pixel::from_slice(
             None::<&PixelType>,
-            self.data.as_slice().slice(
-                index, index + no_channels
-            )
+            &self.data.as_slice()[index .. index + no_channels]
         )
     }
 
@@ -350,9 +348,7 @@ where Container: ArrayLike<T>, T: Primitive + 'static, PixelType: Pixel<T> + 'st
         let index  = no_channels * (y * self.width + x) as usize;
         Pixel::from_slice_mut(
             None::<&PixelType>,
-            self.data.as_mut_slice().slice_mut(
-                index, index + no_channels
-            )
+            &mut self.data.as_mut_slice()[index .. index + no_channels]
         )
     }
 
@@ -511,7 +507,7 @@ impl GreyImage {
         // Aquire a second view into the buffer
         let indicies = unsafe {
             let view: &mut [u8] = mem::transmute_copy(&data.as_mut_slice());
-            view.slice_to(entries)
+            &view[.. entries]
         };
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
         for (pixel, &idx) in buffer.pixels_mut().rev().zip(indicies.iter().rev()) {

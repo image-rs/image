@@ -748,7 +748,7 @@ impl MacroBlock {
 }
 
 /// A Representation of the last decoded video frame
-#[derive(Default, Show, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Frame {
     /// The width of the luma plane
     pub width: u16,

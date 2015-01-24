@@ -39,7 +39,7 @@ enum PNGState {
     HaveIEND
 }
 
-#[derive(Copy, FromPrimitive, Show, PartialEq)]
+#[derive(Copy, FromPrimitive, Debug, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1

@@ -1,6 +1,6 @@
 use std::num::SignedInt;
 
-#[derive(FromPrimitive, Show)]
+#[derive(FromPrimitive, Debug)]
 pub enum FilterType {
     NoFilter = 0,
     Sub = 1,

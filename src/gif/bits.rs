@@ -11,7 +11,7 @@ pub trait BitReader: Reader {
 /// A bit reader.
 ///
 /// Reads bits from a byte stream, LSB first.
-pub struct LsbReader<R> where R: Reader{
+pub struct LsbReader<R> where R: Reader {
     r: R,
     bits: u8,
     acc: u32,
@@ -51,7 +51,7 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
             self.acc |= (try!(self.r.read_u8()) as u32) << self.bits;
             self.bits += 8;
         }
-        let res = self.acc & (1<<n - 1);
+        let res = self.acc & ((1 << n) - 1);
         self.acc >>= n;
         self.bits -= n;
         Ok(res as u16)

@@ -12,7 +12,7 @@ macro_rules! tags {
     )*} => {
 
         /// TIFF tag
-        #[derive(Copy, PartialEq, Eq, Show, Hash)]
+        #[derive(Copy, PartialEq, Eq, Debug, Hash)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16)
@@ -47,7 +47,7 @@ tags!{
     SamplesPerPixel 277;
 }
 
-#[derive(Copy, Show, FromPrimitive)]
+#[derive(Copy, Debug, FromPrimitive)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,
@@ -58,7 +58,7 @@ pub enum Type {
 
 
 #[allow(unused_qualifications)]
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Value {
     //Signed(i32),
     Unsigned(u32),
@@ -95,7 +95,7 @@ pub struct Entry {
     offset: [u8; 4],
 }
 
-impl ::std::fmt::Show for Entry {
+impl ::std::fmt::Debug for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,

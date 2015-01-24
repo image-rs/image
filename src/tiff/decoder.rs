@@ -18,7 +18,7 @@ use super::ifd;
 use super::ifd::Directory;
 
 /// Byte order of the TIFF file.
-#[derive(Copy, Show)]
+#[derive(Copy, Debug)]
 pub enum ByteOrder {
     /// little endian byte order
     LittleEndian,
@@ -52,7 +52,7 @@ pub trait EndianReader: Reader {
 }
 
 /// Reader that is aware of the byte order.
-#[derive(Show)]
+#[derive(Debug)]
 pub struct SmartReader<R> where R: Reader + Seek {
     reader: R,
     byte_order: ByteOrder
@@ -94,7 +94,7 @@ impl<R: Seek> Seek for SmartReader<R> {
     }
 }
 
-#[derive(Copy, Show, FromPrimitive)]
+#[derive(Copy, Debug, FromPrimitive)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -106,7 +106,7 @@ enum PhotometricInterpretation {
     CIELab = 8,
 }
 
-#[derive(Copy, Show, FromPrimitive)]
+#[derive(Copy, Debug, FromPrimitive)]
 enum CompressionMethod {
     None = 1,
     Huffman = 2,
@@ -120,7 +120,7 @@ enum CompressionMethod {
 /// The representation of a PNG decoder
 ///
 /// Currently does not support decoding of interlaced images
-#[derive(Show)]
+#[derive(Debug)]
 pub struct TIFFDecoder<R> where R: Reader + Seek {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
@@ -401,7 +401,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 try!(reader.read(&mut buffer[..length as usize]))
             }
             (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
-                try!(reader.read(buffer.slice_to_mut(length as usize)))
+                try!(reader.read(&mut buffer[..length as usize]))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_

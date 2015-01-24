@@ -88,10 +88,9 @@ impl DecodingDict {
 }
 
 /// Decodes a lzw compressed stream
-pub fn decode<R, W>(r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
-where R: Reader, W: Writer {
+pub fn decode<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
+where R: BitReader, W: Writer {
     let mut prev = None;
-    let mut r = LsbReader::new(r);
     let clear_code = 1 << min_code_size as usize;
     let end_code = clear_code + 1;
     let mut table = DecodingDict::new(min_code_size);

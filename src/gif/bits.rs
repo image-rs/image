@@ -8,20 +8,25 @@ pub trait BitReader: Reader {
     fn read_bits(&mut self, n: u8) -> io::IoResult<u16>;
 }
 
-/// A bit reader.
-///
-/// Reads bits from a byte stream, LSB first.
-pub struct LsbReader<R> where R: Reader {
+macro_rules! define_bit_readers {
+    {$(
+        $name:ident, #[$doc:meta];
+    )*} => {
+
+$( // START Structure definitions
+
+#[$doc]
+pub struct $name<R> where R: Reader {
     r: R,
     bits: u8,
     acc: u32,
 }
 
-impl<R: Reader> LsbReader<R> {
+impl<R: Reader> $name<R> {
 
     /// Creates a new bit reader
-    pub fn new(reader: R) -> LsbReader<R> {
-        LsbReader {
+    pub fn new(reader: R) -> $name<R> {
+        $name {
             r: reader,
             bits: 0,
             acc: 0,
@@ -35,6 +40,31 @@ impl<R: Reader> LsbReader<R> {
     }
 
 
+}
+
+impl<R: Reader> Reader for $name<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
+        if self.is_aligned() {
+            self.r.read(buf)
+        } else {
+            let mut i = 0;
+            for (j, byte) in buf.iter_mut().enumerate() {
+                *byte = try!(self.read_bits(8)) as u8;
+                i = j;
+            }
+            Ok(i)
+        }
+    }
+}
+
+)* // END Structure definitions
+
+    }
+}
+
+define_bit_readers!{
+    LsbReader, #[doc = "Reads bits from a byte stream, LSB first."];
+    MsbReader, #[doc = "Reads bits from a byte stream, MSB first."];
 }
 
 impl<R> BitReader for LsbReader<R> where R: Reader {
@@ -59,18 +89,24 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
 
 }
 
-impl<R: Reader> Reader for LsbReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
-        if self.is_aligned() {
-            self.r.read(buf)
-        } else {
-            let mut i = 0;
-            for (j, byte) in buf.iter_mut().enumerate() {
-                *byte = try!(self.read_bits(8)) as u8;
-                i = j;
-            }
-            Ok(i)
+impl<R> BitReader for MsbReader<R> where R: Reader {
+
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+        if n > 16 {
+            return Err(io::IoError {
+                kind: io::InvalidInput,
+                desc: "Cannot read more than 16 bits",
+                detail: None
+            })
         }
+        while self.bits < n {
+            self.acc |= (try!(self.r.read_u8()) as u32) << (24 - self.bits);
+            self.bits += 8;
+        }
+        let res = self.acc >> (32 - n);
+        self.acc <<= n;
+        self.bits -= n;
+        Ok(res as u16)
     }
 }
 

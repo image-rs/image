@@ -2,7 +2,7 @@
 
 use std::io;
 
-use super::bits::BitReader;
+use super::bits::{BitReader, LsbReader};
 
 const MAX_CODESIZE: u8 = 12;
 
@@ -91,7 +91,7 @@ impl DecodingDict {
 pub fn decode<R, W>(r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
 where R: Reader, W: Writer {
     let mut prev = None;
-    let mut r = BitReader::new(r);
+    let mut r = LsbReader::new(r);
     let clear_code = 1 << min_code_size as usize;
     let end_code = clear_code + 1;
     let mut table = DecodingDict::new(min_code_size);

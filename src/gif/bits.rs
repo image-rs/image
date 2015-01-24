@@ -2,19 +2,28 @@
 
 use std::io;
 
+/// Bit reader
+pub trait BitReader: Reader {
+    /// Returns the next `n` bits.
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u64>;
+
+    /// Returns true if the reader is aligned to a byte of the underlying byte stream.
+    fn is_aligned(&self) -> bool;
+}
+
 /// A bit reader.
 ///
 /// Reads bits from a byte stream, LSB first.
-pub struct BitReader<R> where R: Reader{
+pub struct LsbReader<R> where R: Reader{
     r: R,
     bits: u8,
     buf: u64,
 }
 
-impl<R: Reader> BitReader<R> {
+impl<R: Reader> LsbReader<R> {
     /// Creates a new bit reader
-    pub fn new(reader: R) -> BitReader<R> {
-        BitReader {
+    pub fn new(reader: R) -> LsbReader<R> {
+        LsbReader {
             r: reader,
             bits: 0,
             buf: 0,
@@ -38,7 +47,7 @@ impl<R: Reader> BitReader<R> {
     }
     
     /// Returns the next `n` bits without consuming them.
-    pub fn peek_bits(&mut self, n: u8) -> io::IoResult<u64> {
+    fn peek_bits(&mut self, n: u8) -> io::IoResult<u64> {
         try!(self.fill_cache(n));
         let mask = (1 << n as usize) - 1;
         Ok(self.buf & mask)
@@ -49,21 +58,23 @@ impl<R: Reader> BitReader<R> {
         self.bits -= n;
     }
 
-    /// Returns the next `n` bits.
-    pub fn read_bits(&mut self, n: u8) -> io::IoResult<u64> {
+}
+
+impl<R> BitReader for LsbReader<R> where R: Reader {
+
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u64> {
         let res = try!(self.peek_bits(n));
         self.consume(n);
         Ok(res)
     }
 
-    /// Returns true if the reader is aligned to a byte of the underlying byte stream.
     #[inline(always)]
     fn is_aligned(&self) -> bool {
         self.bits == 0
     }
 }
 
-impl<R: Reader> Reader for BitReader<R> {
+impl<R: Reader> Reader for LsbReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
         if self.is_aligned() {
             self.r.read(buf)
@@ -80,7 +91,7 @@ impl<R: Reader> Reader for BitReader<R> {
 
 /// A bit writer.
 ///
-/// Reads bits from a byte stream, LSB first.
+/// Write bits to a byte stream, LSB first.
 #[allow(dead_code)]
 pub struct BitWriter<'a, W> where W: Writer + 'a {
     w: &'a mut W,
@@ -135,7 +146,7 @@ mod test {
     fn reader_writer() {
         let data = [255, 20, 40, 120, 128];
         let mut expanded_data = Vec::new();
-        let mut reader = super::BitReader::new(&data[]);
+        let mut reader = super::LsbReader::new(&data[]);
         while let Ok(b) = reader.read_bits(10) {
             expanded_data.push(b as u32)
         }

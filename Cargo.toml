@@ -9,7 +9,7 @@ authors = [
     "nwin",
     "TyOverby <ty@pre-alpha.com>"]
 readme = "README.md"
-documentation = "http://www.rust-ci.org/PistonDevelopers/piston/doc/image/index.html"
+documentation = "http://www.piston.rs/image/image/index.html"
 repository = "https://github.com/PistonDevelopers/image.git"
 homepage = "https://github.com/PistonDevelopers/image"
 exclude = [

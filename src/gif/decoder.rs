@@ -16,8 +16,8 @@ use animation::Frame;
 use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use buffer::{ImageBuffer, GreyImage, RgbaImage};
 
-use super::lzw;
-use super::bits::{LsbReader};
+use utils::lzw;
+use utils::bitstream::{LsbReader};
 
 #[derive(PartialEq)]
 enum State {

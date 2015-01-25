@@ -2,7 +2,7 @@
 
 use std::io;
 
-use super::bits::BitReader;
+use utils::bitstream::BitReader;
 
 const MAX_CODESIZE: u8 = 12;
 
@@ -87,17 +87,24 @@ impl DecodingDict {
     }
 }
 
-/// Decodes a lzw compressed stream
-pub fn decode<R, W>(r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
-where R: Reader, W: Writer {
+
+macro_rules! define_decoder_function {
+    {$(
+        $name:ident, $offset:expr, #[$doc:meta];
+    )*} => {
+
+$( // START function definition
+
+#[$doc]
+pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
+where R: BitReader, W: Writer {
     let mut prev = None;
-    let mut r = BitReader::new(r);
     let clear_code = 1 << min_code_size as usize;
     let end_code = clear_code + 1;
     let mut table = DecodingDict::new(min_code_size);
     let mut code_size = min_code_size + 1;
     loop {
-        let code = try!(r.read_bits(code_size)) as u16;
+        let code = try!(r.read_bits(code_size));
         if code == clear_code {
             table.reset();
             table.push(None, 0); // clear code
@@ -131,11 +138,21 @@ where R: Reader, W: Writer {
                 };
                 try!(w.write(data));
             }
-            if next_code == (1 << code_size as usize) - 1
+            if next_code == (1 << code_size as usize) - 1 - $offset
                && code_size < MAX_CODESIZE {
                 code_size += 1;
             }
             prev = Some(code);
         }
     }
+}
+
+)* // END function definition
+
+    }
+}
+
+define_decoder_function!{
+    decode, 0, #[doc = "Decodes a lzw compressed stream."];
+    decode_early_change, 1, #[doc = "Decodes a lzw compressed stream using an “early change” algorithm."];
 }

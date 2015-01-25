@@ -2,58 +2,35 @@
 
 use std::io;
 
-/// A bit reader.
-///
-/// Reads bits from a byte stream, LSB first.
-pub struct BitReader<R> where R: Reader{
-    r: R,
-    bits: u8,
-    buf: u64,
+/// Bit reader
+pub trait BitReader: Reader {
+    /// Returns the next `n` bits.
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16>;
 }
 
-impl<R: Reader> BitReader<R> {
+macro_rules! define_bit_readers {
+    {$(
+        $name:ident, #[$doc:meta];
+    )*} => {
+
+$( // START Structure definitions
+
+#[$doc]
+pub struct $name<R> where R: Reader {
+    r: R,
+    bits: u8,
+    acc: u32,
+}
+
+impl<R: Reader> $name<R> {
+
     /// Creates a new bit reader
-    pub fn new(reader: R) -> BitReader<R> {
-        BitReader {
+    pub fn new(reader: R) -> $name<R> {
+        $name {
             r: reader,
             bits: 0,
-            buf: 0,
+            acc: 0,
         }
-    }
-    
-    fn fill_cache(&mut self, n: u8) -> io::IoResult<()> {
-        if n > 64 {
-            return Err(io::IoError {
-                kind: io::InvalidInput,
-                desc: "Cannot read more than 64 bits",
-                detail: None
-            })
-        }
-        // FIXME: 64bit won't work this way
-        while self.bits < n {
-            self.buf |= (try!(self.r.read_byte()) as u64) << self.bits as usize;
-            self.bits += 8;
-        }
-        Ok(())
-    }
-    
-    /// Returns the next `n` bits without consuming them.
-    pub fn peek_bits(&mut self, n: u8) -> io::IoResult<u64> {
-        try!(self.fill_cache(n));
-        let mask = (1 << n as usize) - 1;
-        Ok(self.buf & mask)
-    }
-    
-    fn consume(&mut self, n: u8) {
-        self.buf >>= n as usize;
-        self.bits -= n;
-    }
-
-    /// Returns the next `n` bits.
-    pub fn read_bits(&mut self, n: u8) -> io::IoResult<u64> {
-        let res = try!(self.peek_bits(n));
-        self.consume(n);
-        Ok(res)
     }
 
     /// Returns true if the reader is aligned to a byte of the underlying byte stream.
@@ -61,9 +38,11 @@ impl<R: Reader> BitReader<R> {
     fn is_aligned(&self) -> bool {
         self.bits == 0
     }
+
+
 }
 
-impl<R: Reader> Reader for BitReader<R> {
+impl<R: Reader> Reader for $name<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
         if self.is_aligned() {
             self.r.read(buf)
@@ -78,9 +57,62 @@ impl<R: Reader> Reader for BitReader<R> {
     }
 }
 
+)* // END Structure definitions
+
+    }
+}
+
+define_bit_readers!{
+    LsbReader, #[doc = "Reads bits from a byte stream, LSB first."];
+    MsbReader, #[doc = "Reads bits from a byte stream, MSB first."];
+}
+
+impl<R> BitReader for LsbReader<R> where R: Reader {
+
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+        if n > 16 {
+            return Err(io::IoError {
+                kind: io::InvalidInput,
+                desc: "Cannot read more than 16 bits",
+                detail: None
+            })
+        }
+        while self.bits < n {
+            self.acc |= (try!(self.r.read_u8()) as u32) << self.bits;
+            self.bits += 8;
+        }
+        let res = self.acc & ((1 << n) - 1);
+        self.acc >>= n;
+        self.bits -= n;
+        Ok(res as u16)
+    }
+
+}
+
+impl<R> BitReader for MsbReader<R> where R: Reader {
+
+    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+        if n > 16 {
+            return Err(io::IoError {
+                kind: io::InvalidInput,
+                desc: "Cannot read more than 16 bits",
+                detail: None
+            })
+        }
+        while self.bits < n {
+            self.acc |= (try!(self.r.read_u8()) as u32) << (24 - self.bits);
+            self.bits += 8;
+        }
+        let res = self.acc >> (32 - n);
+        self.acc <<= n;
+        self.bits -= n;
+        Ok(res as u16)
+    }
+}
+
 /// A bit writer.
 ///
-/// Reads bits from a byte stream, LSB first.
+/// Write bits to a byte stream, LSB first.
 #[allow(dead_code)]
 pub struct BitWriter<'a, W> where W: Writer + 'a {
     w: &'a mut W,
@@ -131,11 +163,13 @@ impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
 
 #[cfg(test)]
 mod test {
+    use super::BitReader;
+
     #[test]
     fn reader_writer() {
         let data = [255, 20, 40, 120, 128];
         let mut expanded_data = Vec::new();
-        let mut reader = super::BitReader::new(&data[]);
+        let mut reader = super::LsbReader::new(&data[]);
         while let Ok(b) = reader.read_bits(10) {
             expanded_data.push(b as u32)
         }

@@ -113,6 +113,7 @@ pub mod tga;
 
 
 mod image;
+mod utils;
 mod dynimage;
 mod color;
 mod buffer;

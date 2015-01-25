@@ -16,7 +16,8 @@ use animation::Frame;
 use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use buffer::{ImageBuffer, GreyImage, RgbaImage};
 
-use super::lzw;
+use utils::lzw;
+use utils::bitstream::{LsbReader};
 
 #[derive(PartialEq)]
 enum State {
@@ -223,7 +224,7 @@ impl<R: Reader> GIFDecoder<R> {
             * image_height as usize
         );
         try!(lzw::decode(
-            io::MemReader::new(data),
+            LsbReader::new(io::MemReader::new(data)),
             &mut indices,
             code_size
         ));

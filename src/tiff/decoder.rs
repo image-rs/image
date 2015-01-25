@@ -1,7 +1,7 @@
 use std::io;
-use std::mem;
-use std::num::{ Float, FromPrimitive };
 use std::io::IoResult;
+use std::mem;
+use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;
 
 use image;
@@ -12,87 +12,18 @@ use image::{
     DecodingResult,
     DecodingBuffer
 };
-use color;
+
+use color::{ColorType};
 
 use super::ifd;
 use super::ifd::Directory;
 
-/// Byte order of the TIFF file.
-#[derive(Copy, Debug)]
-pub enum ByteOrder {
-    /// little endian byte order
-    LittleEndian,
-    /// big endian byte order
-    BigEndian
-}
-
-
-/// Reader that is aware of the byte order.
-pub trait EndianReader: Reader {
-    /// Byte order that should be adhered to
-    fn byte_order(&self) -> ByteOrder;
-    
-    /// Reads an u16
-    #[inline(always)]
-    fn read_u16(&mut self) -> IoResult<u16> {
-        match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u16(),
-            ByteOrder::BigEndian => self.read_be_u16()
-        }
-    }
-    
-    /// Reads an u32
-    #[inline(always)]
-    fn read_u32(&mut self) -> IoResult<u32> {
-        match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u32(),
-            ByteOrder::BigEndian => self.read_be_u32()
-        }
-    }
-}
-
-/// Reader that is aware of the byte order.
-#[derive(Debug)]
-pub struct SmartReader<R> where R: Reader + Seek {
-    reader: R,
-    byte_order: ByteOrder
-}
-
-impl<R> SmartReader<R> where R: Reader + Seek {
-    /// Wraps a reader
-    pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
-        SmartReader {
-            reader: reader,
-            byte_order: byte_order
-        }
-    }
-}
-
-impl<R> EndianReader for SmartReader<R> where R: Reader {
-    #[inline(always)]
-    fn byte_order(&self) -> ByteOrder {
-        self.byte_order
-    }
-}
-
-impl<R: Reader> Reader for SmartReader<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        self.reader.read(buf)
-    }
-}
-
-impl<R: Seek> Seek for SmartReader<R> {
-    #[inline]
-    fn tell(&self) -> IoResult<u64> {
-        self.reader.tell()
-    }
-    
-    #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
-        self.reader.seek(pos, style)
-    }
-}
+use super::stream::{
+    ByteOrder,
+    EndianReader,
+    SmartReader,
+    LZWReader
+};
 
 #[derive(Copy, Debug, FromPrimitive)]
 enum PhotometricInterpretation {
@@ -117,6 +48,18 @@ enum CompressionMethod {
     PackBits = 32773
 }
 
+#[derive(Copy, Debug, FromPrimitive)]
+enum PlanarConfiguration {
+    Chunky = 1,
+    Planar = 2
+}
+
+#[derive(Copy, Debug, FromPrimitive)]
+enum Predictor {
+    None = 1,
+    Horizontal = 2
+}
+
 /// The representation of a PNG decoder
 ///
 /// Currently does not support decoding of interlaced images
@@ -132,6 +75,65 @@ pub struct TIFFDecoder<R> where R: Reader + Seek {
     samples: u8,
     photometric_interpretation: PhotometricInterpretation,
     compression_method: CompressionMethod
+}
+
+fn rev_hpredict_grey<T: Int>(mut image: Vec<T>, size: (u32, u32)) -> Vec<T> {
+    let width = size.0 as usize;
+    let height = size.1 as usize;
+    for row in (0..height) {
+        for col in (1..width) {
+            let prev_pixel = image[(row * width + col - 1)];
+            let pixel = &mut image[(row * width + col)];
+            *pixel = *pixel + prev_pixel
+        }
+    }
+    image
+}
+
+fn rev_hpredict_nsamp_chunky<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usize) -> Vec<T> {
+    let width = size.0 as usize;
+    let height = size.1 as usize;
+    for row in (0..height) {
+        for col in (samples..width * samples) {
+            let prev_pixel = image[(row * width * samples + col - samples)];
+            let pixel = &mut image[(row * width * samples + col)];
+            *pixel = *pixel + prev_pixel
+        }
+    }
+    image
+}
+
+fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) -> ImageResult<DecodingResult> {
+    match color_type {
+        ColorType::Grey(n) if n == 8 || n == 16 => {
+            Ok(match image {
+                DecodingResult::U8(buf) => {
+                    DecodingResult::U8(rev_hpredict_grey(buf, size))
+                },
+                DecodingResult::U16(buf) => {
+                    DecodingResult::U16(rev_hpredict_grey(buf, size))
+                }
+            })
+        }
+        ColorType::RGB(n) | ColorType::RGBA(n) if n == 8 || n == 16 => {
+            let samples = if let ColorType::RGB(_) = color_type {
+                3
+            } else {
+                4
+            };
+            Ok(match image {
+                DecodingResult::U8(buf) => {
+                    DecodingResult::U8(rev_hpredict_nsamp_chunky(buf, size, samples))
+                },
+                DecodingResult::U16(buf) => {
+                    DecodingResult::U16(rev_hpredict_nsamp_chunky(buf, size, samples))
+                }
+            })
+        }
+        _ => Err(ImageError::UnsupportedError(format!(
+            "Horizontal predictor for {:?} is unsupported.", color_type
+        )))
+    }
 }
 
 impl<R: Reader + Seek> TIFFDecoder<R> {
@@ -220,7 +222,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                     None => {}
                 }
             }
-            3 => {
+            3 | 4 => {
                 match try!(self.find_tag_u32_vec(ifd::Tag::BitsPerSample)) {
                     Some(val) => {
                         self.bits_per_sample = val.iter().map(|&v| v as u8).collect()
@@ -382,26 +384,34 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<usize> {
         let color_type = try!(self.colortype());
         try!(self.goto_offset(offset));
-        let reader = match self.compression_method {
+        let (bytes, mut reader): (usize, Box<EndianReader>) = match self.compression_method {
             CompressionMethod::None => {
-                &mut self.reader
+                let order = self.reader.byte_order;
+                (length as usize, Box::new(SmartReader::wrap(&mut self.reader, order)))
             },
+            CompressionMethod::LZW => {
+                let (bytes, reader) = try!(LZWReader::new(&mut self.reader));
+                (bytes, Box::new(reader))
+            }
             method => return Err(::image::ImageError::UnsupportedError(format!(
                 "Compression method {:?} is unsupported", method
             )))
         };
         Ok(match (color_type, buffer) {
-            (color::ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
-                for datum in buffer[..length as usize/2].iter_mut() {
+            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+                for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
                 length as usize/2
             }
-            (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n < 8 => {
-                try!(reader.read(&mut buffer[..length as usize]))
+            (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
+                try!(reader.read(&mut buffer[..bytes]))
             }
-            (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
-                try!(reader.read(&mut buffer[..length as usize]))
+            (ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
+                try!(reader.read(&mut buffer[..bytes]))
+            }
+            (ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
+                try!(reader.read(&mut buffer[..bytes]))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_
@@ -416,13 +426,15 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
+    fn colortype(&mut self) -> ImageResult<ColorType> {
         match (&self.bits_per_sample[], self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
-            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(8)),
-            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(16)),
+            ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
+            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
+            ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
+            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
-            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(color::ColorType::Grey(n)),
+            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported", mode, bits
             ))) // TODO: this is bad we should not fail at this point
@@ -454,6 +466,14 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
                 )
             )
         };
+        if let Ok(config) = self.get_tag_u32(ifd::Tag::PlanarConfiguration) {
+            match FromPrimitive::from_u32(config) {
+                Some(PlanarConfiguration::Chunky) => {},
+                config => return Err(ImageError::UnsupportedError(
+                    format!("Unsupported planar configuration “{:?}”.", config)
+                ))
+            }
+        }
         // Safe since the uninizialized values are never read.
         match result {
             DecodingResult::U8(ref mut buffer) =>
@@ -489,6 +509,21 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
                     unsafe { buffer.set_len(units_read) },
                 DecodingResult::U16(ref mut buffer) => 
                     unsafe { buffer.set_len(units_read) },
+            }
+        }
+        if let Ok(predictor) = self.get_tag_u32(ifd::Tag::Predictor) {
+            result = match FromPrimitive::from_u32(predictor) {
+                Some(Predictor::None) => result,
+                Some(Predictor::Horizontal) => {
+                    try!(rev_hpredict(
+                        result, 
+                        try!(self.dimensions()), 
+                        try!(self.colortype())
+                    ))
+                },
+                None => return Err(ImageError::FormatError(
+                    format!("Unkown predictor “{}” encountered", predictor)
+                ))
             }
         }
         Ok(result)

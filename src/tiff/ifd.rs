@@ -45,6 +45,7 @@ tags!{
     ColorMap 320;
     // RGB full-color images BitsPerSample 8,8,8 (baseline)
     SamplesPerPixel 277;
+    Predictor 317;
 }
 
 #[derive(Copy, Debug, FromPrimitive)]

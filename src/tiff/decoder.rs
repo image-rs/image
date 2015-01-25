@@ -25,7 +25,7 @@ use super::stream::{
     LZWReader
 };
 
-#[derive(Copy, Debug, FromPrimitive)]
+#[derive(Copy, Debug, FromPrimitive, PartialEq)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -375,16 +375,30 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             (ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
-            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) |
             (ColorType::RGBA(16), DecodingBuffer::U16(ref mut buffer)) |
             (ColorType:: RGB(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
-                length as usize/2
+                bytes/2
+            }
+            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+                for datum in buffer[..bytes/2].iter_mut() {
+                    *datum = try!(reader.read_u16());
+                    if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
+                        *datum = 0xffff - *datum
+                    }
+                }
+                bytes/2
             }
             (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
-                try!(reader.read(&mut buffer[..bytes]))
+                try!(reader.read(&mut buffer[..bytes]));
+                if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
+                    for byte in buffer[..bytes].iter_mut() {
+                        *byte = 0xff - *byte
+                    }
+                }
+                bytes
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_

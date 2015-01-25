@@ -32,7 +32,7 @@ impl<A: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutS
 
 /// A generalized pixel.
 ///
-/// A pixel object is usually not used standalone but as a view into an image buffer.   
+/// A pixel object is usually not used standalone but as a view into an image buffer.
 pub trait Pixel: Copy + Clone {
     /// The underlying subpixel type.
     type Subpixel: Primitive;
@@ -65,13 +65,13 @@ pub trait Pixel: Copy + Clone {
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
     fn from_slice<'a>(slice: &'a [Self::Subpixel]) -> &'a Self;
-    
+
     /// Returns mutable view into a mutable slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
     fn from_slice_mut<'a>(slice: &'a mut [Self::Subpixel]) -> &'a mut Self;
-    
+
     /// Convert this pixel to RGB
     fn to_rgb(&self) -> Rgb<Self::Subpixel>;
 
@@ -117,7 +117,7 @@ pub trait Pixel: Copy + Clone {
     fn blend(&mut self, other: &Self);
 }
 
-/// Iterate over pixel refs. 
+/// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a> where P::Subpixel: 'a {
     chunks: Chunks<'a, P::Subpixel>
 }
@@ -127,7 +127,7 @@ impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a P> {
-        self.chunks.next().map(|v| 
+        self.chunks.next().map(|v|
             <P as Pixel>::from_slice(v)
         )
     }
@@ -137,7 +137,7 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P> where P::Subpixel:
 
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
-        self.chunks.next_back().map(|v| 
+        self.chunks.next_back().map(|v|
             <P as Pixel>::from_slice(v)
         )
     }
@@ -153,7 +153,7 @@ impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
 
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
-        self.chunks.next().map(|v| 
+        self.chunks.next().map(|v|
             <P as Pixel>::from_slice_mut(v)
         )
     }
@@ -162,13 +162,13 @@ impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
 impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P> where P::Subpixel: 'a {
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut P> {
-        self.chunks.next_back().map(|v| 
+        self.chunks.next_back().map(|v|
             <P as Pixel>::from_slice_mut(v)
         )
     }
 }
 
-/// Enumerate the pixels of an image. 
+/// Enumerate the pixels of an image.
 pub struct EnumeratePixels<'a, P: Pixel + 'a> {
     pixels: Pixels<'a, P>,
     x:      u32,
@@ -194,7 +194,7 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P> where P::Subpixel: '
     }
 }
 
-/// Enumerate the pixels of an image. 
+/// Enumerate the pixels of an image.
 pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> {
     pixels: PixelsMut<'a, P>,
     x:      u32,
@@ -228,21 +228,21 @@ pub struct ImageBuffer<P: Pixel, Container> {
     height: u32,
     type_marker: TypeId,
     data: Container,
-} 
+}
 
-// generic implementation, shared along all image buffers 
+// generic implementation, shared along all image buffers
 impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     ImageBuffer<P, Container>
     where P::Subpixel: 'static {
 
-    /// Contructs a buffer from a generic container 
+    /// Contructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
     /// Returns None if the container is not big enough
     pub fn from_raw(width: u32, height: u32, buf: Container)
                     -> Option<ImageBuffer<P, Container>> {
         if width as usize
            * height as usize
-           * <P as Pixel>::channel_count() as usize 
+           * <P as Pixel>::channel_count() as usize
            <= buf.as_slice().len() {
             Some(ImageBuffer {
                 data: buf,
@@ -264,12 +264,12 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     pub fn dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
     }
-    
+
     /// The width of this image.
     pub fn width(&self) -> u32 {
         self.width
     }
-    
+
     /// The height of this image.
     pub fn height(&self) -> u32 {
         self.height
@@ -293,7 +293,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
             )
         }
     }
- 
+
     /// Returns an iterator over the mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
@@ -432,7 +432,7 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
         ImageBuffer {
             data: repeat(Zero::zero()).take(
                     (width as u64
-                     * height as u64 
+                     * height as u64
                      * (<P as Pixel>::channel_count() as u64)
                     ) as usize
                 ).collect(),
@@ -463,7 +463,7 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
         buf
     }
 
-    /// Creates an image buffer out of an existing buffer. 
+    /// Creates an image buffer out of an existing buffer.
     /// Returns None if the buffer is not big enough.
     pub fn from_vec(width: u32, height: u32, buf: Vec<P::Subpixel>)
                     -> Option<ImageBuffer<P, Vec<P::Subpixel>>> {
@@ -489,10 +489,10 @@ pub trait ConvertBuffer<T> {
 // concrete implementation Luma -> Rgba
 impl GreyImage {
     /// Expands a color palette by re-using the existing buffer.
-    /// Assumes 8 bit per pixel. Uses an optionally transparent index to 
+    /// Assumes 8 bit per pixel. Uses an optionally transparent index to
     /// adjust it's alpha value accordingly.
-    pub fn expand_palette(self, 
-                          palette: &[(u8, u8, u8)], 
+    pub fn expand_palette(self,
+                          palette: &[(u8, u8, u8)],
                           transparent_idx: Option<u8>) -> RgbaImage {
         use std::mem;
         let (width, height) = self.dimensions();
@@ -545,13 +545,13 @@ impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
     }
 }
 
-/// Sendable Rgb image buffer 
+/// Sendable Rgb image buffer
 pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
-/// Sendable Rgb + alpha channel image buffer 
+/// Sendable Rgb + alpha channel image buffer
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
-/// Sendable grayscale image buffer 
+/// Sendable grayscale image buffer
 pub type GreyImage = ImageBuffer<Luma<u8>, Vec<u8>>;
-/// Sendable grayscale + alpha channel image buffer 
+/// Sendable grayscale + alpha channel image buffer
 pub type GreyAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 
 #[cfg(test)]
@@ -577,7 +577,7 @@ mod test {
             let val = a.pixels_mut().next().unwrap();
             *val = color::Rgb([42, 0, 0]);
         }
-        assert_eq!(a.data[0], 42) 
+        assert_eq!(a.data[0], 42)
     }
 
     #[bench]

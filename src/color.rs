@@ -394,7 +394,7 @@ impl<T: Primitive> Blend<LumaA<T>> for LumaA<T> {
         let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
-        let alpha_final = bg_a + fg_a - bg_a * fg_a; 
+        let alpha_final = bg_a + fg_a - bg_a * fg_a;
         let bg_luma_a = bg_luma * bg_a;
         let fg_luma_a = fg_luma * fg_a;
 

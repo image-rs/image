@@ -101,7 +101,7 @@ impl Header {
             image_width: 0,
             image_height: 0,
             pixel_depth: 0,
-            image_desc: 0,      
+            image_desc: 0,
         }
     }
 

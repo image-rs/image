@@ -246,7 +246,7 @@ impl<W: Writer> JPEGEncoder<W> {
                 kind: old_io::InvalidInput,
                 desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",
                 detail: Some(format!(
-                    "Color type {:?} is not suppored by this JPEG encoder.", 
+                    "Color type {:?} is not suppored by this JPEG encoder.",
                     c
                 ))
             })

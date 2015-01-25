@@ -1,8 +1,8 @@
-//! This modules provides an GIF en-/decoder 
-//! 
+//! This modules provides an GIF en-/decoder
+//!
 
 
-// A very good resource for the file format is 
+// A very good resource for the file format is
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
 use std::old_io;
@@ -202,7 +202,7 @@ impl<R: Reader> GIFDecoder<R> {
                 "Interlaced images are not supported.".to_string()
             ))
         }
-        
+
         let local_table = if local_table {
             let entries = 1 << (table_size + 1) as usize;
             let mut table = Vec::with_capacity(entries * 3);
@@ -218,7 +218,7 @@ impl<R: Reader> GIFDecoder<R> {
 
         let code_size = try!(self.r.read_u8());
         let data = try!(self.read_data());
-        
+
         let mut indices = Vec::with_capacity(
             image_width as usize
             * image_height as usize
@@ -243,7 +243,7 @@ impl<R: Reader> GIFDecoder<R> {
         if let Some(image) = image {
             let image = image.expand_palette(table, self.local_transparent_index);
             Ok(Frame::from_parts(
-                image, 
+                image,
                 image_left as u32,
                 image_top as u32,
                 Ratio::new(self.delay, 100)

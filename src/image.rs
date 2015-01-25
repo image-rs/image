@@ -119,14 +119,14 @@ pub trait ImageDecoder: Sized {
 
     /// Returns the length in bytes of one decoded row of the image
     fn row_len(&mut self) -> ImageResult<usize>;
-    
+
     /// Returns true if the image is animated
     fn is_animated(&mut self) -> ImageResult<bool> {
         // since most image formats do not support animation
         // just return false by default
         return Ok(false)
     }
-    
+
     /// Returns the frames of the image
     /// If the image is not animated it returns a single frame
     fn into_frames(self) -> ImageResult<Frames> {
@@ -261,6 +261,18 @@ pub trait GenericImage<P>: Sized {
 
     /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
+
+    /// Returns true if this x, y coordinate is contained inside the image.
+    fn in_bounds(&self, x: u32, y: u32) -> bool {
+        let (ix, iy, iw, ih) = self.bounds();
+        if x < ix || x >= ix + iw {
+            false
+        } else if y < iy || y >= iy + ih {
+            false
+        } else {
+            true
+        }
+    }
 
     /// Returns the pixel located at (x, y)
     ///
@@ -425,5 +437,20 @@ mod tests {
         target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
         assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+    }
+
+    #[test]
+    fn test_in_bounds() {
+        let mut target = ImageBuffer::new(2, 2);
+        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
+
+        assert!(target.in_bounds(0,0));
+        assert!(target.in_bounds(1,0));
+        assert!(target.in_bounds(0,1));
+        assert!(target.in_bounds(1,1));
+
+        assert!(!target.in_bounds(2,0));
+        assert!(!target.in_bounds(0,2));
+        assert!(!target.in_bounds(2,2));
     }
 }

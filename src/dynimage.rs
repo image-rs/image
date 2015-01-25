@@ -507,6 +507,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
         "jpg" |
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::IoError {
             kind: io::InvalidInput,
             desc: "Unsupported image format.",

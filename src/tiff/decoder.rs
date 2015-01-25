@@ -77,20 +77,7 @@ pub struct TIFFDecoder<R> where R: Reader + Seek {
     compression_method: CompressionMethod
 }
 
-fn rev_hpredict_grey<T: Int>(mut image: Vec<T>, size: (u32, u32)) -> Vec<T> {
-    let width = size.0 as usize;
-    let height = size.1 as usize;
-    for row in (0..height) {
-        for col in (1..width) {
-            let prev_pixel = image[(row * width + col - 1)];
-            let pixel = &mut image[(row * width + col)];
-            *pixel = *pixel + prev_pixel
-        }
-    }
-    image
-}
-
-fn rev_hpredict_nsamp_chunky<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usize) -> Vec<T> {
+fn rev_hpredict_nsamp<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usize) -> Vec<T> {
     let width = size.0 as usize;
     let height = size.1 as usize;
     for row in (0..height) {
@@ -104,36 +91,22 @@ fn rev_hpredict_nsamp_chunky<T: Int>(mut image: Vec<T>, size: (u32, u32), sample
 }
 
 fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) -> ImageResult<DecodingResult> {
-    match color_type {
-        ColorType::Grey(n) if n == 8 || n == 16 => {
-            Ok(match image {
-                DecodingResult::U8(buf) => {
-                    DecodingResult::U8(rev_hpredict_grey(buf, size))
-                },
-                DecodingResult::U16(buf) => {
-                    DecodingResult::U16(rev_hpredict_grey(buf, size))
-                }
-            })
-        }
-        ColorType::RGB(n) | ColorType::RGBA(n) if n == 8 || n == 16 => {
-            let samples = if let ColorType::RGB(_) = color_type {
-                3
-            } else {
-                4
-            };
-            Ok(match image {
-                DecodingResult::U8(buf) => {
-                    DecodingResult::U8(rev_hpredict_nsamp_chunky(buf, size, samples))
-                },
-                DecodingResult::U16(buf) => {
-                    DecodingResult::U16(rev_hpredict_nsamp_chunky(buf, size, samples))
-                }
-            })
-        }
-        _ => Err(ImageError::UnsupportedError(format!(
+    let samples = match color_type {
+        ColorType::Grey(8) | ColorType::Grey(16) => 1,
+        ColorType::RGB(8) | ColorType::RGB(16) => 3,
+        ColorType::RGBA(8) | ColorType::RGBA(16) => 4,
+        _ => return Err(ImageError::UnsupportedError(format!(
             "Horizontal predictor for {:?} is unsupported.", color_type
         )))
-    }
+    };
+    Ok(match image {
+        DecodingResult::U8(buf) => {
+            DecodingResult::U8(rev_hpredict_nsamp(buf, size, samples))
+        },
+        DecodingResult::U16(buf) => {
+            DecodingResult::U16(rev_hpredict_nsamp(buf, size, samples))
+        }
+    })
 }
 
 impl<R: Reader + Seek> TIFFDecoder<R> {
@@ -398,19 +371,19 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             )))
         };
         Ok(match (color_type, buffer) {
-            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+            (ColorType:: RGB(8), DecodingBuffer::U8(ref mut buffer)) |
+            (ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
+                try!(reader.read(&mut buffer[..bytes]))
+            }
+            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) |
+            (ColorType::RGBA(16), DecodingBuffer::U16(ref mut buffer)) |
+            (ColorType:: RGB(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
                 length as usize/2
             }
             (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
-                try!(reader.read(&mut buffer[..bytes]))
-            }
-            (ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
-                try!(reader.read(&mut buffer[..bytes]))
-            }
-            (ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
@@ -429,10 +402,10 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match (&self.bits_per_sample[], self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
-            ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
-            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
+            ([ 8,  8,  8, 8],  PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
+            ([ 8,  8,  8],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
             ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
-            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
+            ([16, 16, 16],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
             |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(

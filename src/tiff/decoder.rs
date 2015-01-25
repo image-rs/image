@@ -48,6 +48,18 @@ enum CompressionMethod {
     PackBits = 32773
 }
 
+#[derive(Copy, Debug, FromPrimitive)]
+enum PlanarConfiguration {
+    Chunky = 1,
+    Planar = 2
+}
+
+#[derive(Copy, Debug, FromPrimitive)]
+enum Predictor {
+    None = 1,
+    Horizontal = 2
+}
+
 /// The representation of a PNG decoder
 ///
 /// Currently does not support decoding of interlaced images
@@ -419,6 +431,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
             ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
             ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
+            ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
             ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
             |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
@@ -453,6 +466,14 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
                 )
             )
         };
+        if let Ok(config) = self.get_tag_u32(ifd::Tag::PlanarConfiguration) {
+            match FromPrimitive::from_u32(config) {
+                Some(PlanarConfiguration::Chunky) => {},
+                config => return Err(ImageError::UnsupportedError(
+                    format!("Unsupported planar configuration “{:?}”.", config)
+                ))
+            }
+        }
         // Safe since the uninizialized values are never read.
         match result {
             DecodingResult::U8(ref mut buffer) =>
@@ -491,16 +512,16 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             }
         }
         if let Ok(predictor) = self.get_tag_u32(ifd::Tag::Predictor) {
-            match predictor {
-                1 => {}, // No predictor
-                2 => {   // Horizontal predictor
-                    result = try!(rev_hpredict(
+            result = match FromPrimitive::from_u32(predictor) {
+                Some(Predictor::None) => result,
+                Some(Predictor::Horizontal) => {
+                    try!(rev_hpredict(
                         result, 
                         try!(self.dimensions()), 
                         try!(self.colortype())
                     ))
                 },
-                _ => return Err(ImageError::FormatError(
+                None => return Err(ImageError::FormatError(
                     format!("Unkown predictor “{}” encountered", predictor)
                 ))
             }

@@ -1,7 +1,7 @@
 use std::io;
+use std::io::IoResult;
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
-use std::io::IoResult;
 use std::collections::HashMap;
 
 use image;
@@ -12,142 +12,18 @@ use image::{
     DecodingResult,
     DecodingBuffer
 };
-use color;
+
+use color::{ColorType};
 
 use super::ifd;
 use super::ifd::Directory;
 
-use utils::{lzw, bitstream};
-
-/// Byte order of the TIFF file.
-#[derive(Copy, Debug)]
-pub enum ByteOrder {
-    /// little endian byte order
-    LittleEndian,
-    /// big endian byte order
-    BigEndian
-}
-
-
-/// Reader that is aware of the byte order.
-pub trait EndianReader: Reader {
-    /// Byte order that should be adhered to
-    fn byte_order(&self) -> ByteOrder;
-    
-    /// Reads an u16
-    #[inline(always)]
-    fn read_u16(&mut self) -> IoResult<u16> {
-        match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u16(),
-            ByteOrder::BigEndian => self.read_be_u16()
-        }
-    }
-    
-    /// Reads an u32
-    #[inline(always)]
-    fn read_u32(&mut self) -> IoResult<u32> {
-        match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u32(),
-            ByteOrder::BigEndian => self.read_be_u32()
-        }
-    }
-}
-
-/// Reader that decompresses LZW streams
-struct LZWReader {
-    buffer: io::MemReader,
-    byte_order: ByteOrder
-}
-
-impl LZWReader {
-    /// Wraps a reader
-    pub fn new<R>(reader: &mut SmartReader<R>) -> IoResult<(usize, LZWReader)> where R: Reader {
-        let mut buffer = Vec::new();
-        let order = reader.byte_order;
-        try!(lzw::decode_early_change(bitstream::MsbReader::new(reader), &mut buffer, 8));
-        let bytes = buffer.len();
-        Ok((bytes, LZWReader {
-            buffer: io::MemReader::new(buffer),
-            byte_order: order
-        }))
-    }
-}
-
-impl Reader for LZWReader {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        self.buffer.read(buf)
-    }
-}
-
-impl EndianReader for LZWReader {
-    #[inline(always)]
-    fn byte_order(&self) -> ByteOrder {
-        self.byte_order
-    }
-}
-
-/// Reader that is aware of the byte order.
-#[derive(Debug)]
-pub struct SmartReader<R> where R: Reader + Seek {
-    reader: R,
-    byte_order: ByteOrder
-}
-
-impl<R> SmartReader<R> where R: Reader + Seek {
-    /// Wraps a reader
-    pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
-        SmartReader {
-            reader: reader,
-            byte_order: byte_order
-        }
-    }
-}
-
-impl<R> EndianReader for SmartReader<R> where R: Reader {
-    #[inline(always)]
-    fn byte_order(&self) -> ByteOrder {
-        self.byte_order
-    }
-}
-
-impl<R: Reader> Reader for SmartReader<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        self.reader.read(buf)
-    }
-}
-
-impl<R: Seek> Seek for SmartReader<R> {
-    #[inline]
-    fn tell(&self) -> IoResult<u64> {
-        self.reader.tell()
-    }
-    
-    #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
-        self.reader.seek(pos, style)
-    }
-}
-
-impl<'a, R: Reader> Reader for &'a mut SmartReader<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        self.reader.read(buf)
-    }
-}
-
-impl<'a, R: Seek> Seek for &'a mut SmartReader<R> {
-    #[inline]
-    fn tell(&self) -> IoResult<u64> {
-        self.reader.tell()
-    }
-    
-    #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
-        self.reader.seek(pos, style)
-    }
-}
+use super::stream::{
+    ByteOrder,
+    EndianReader,
+    SmartReader,
+    LZWReader
+};
 
 #[derive(Copy, Debug, FromPrimitive)]
 enum PhotometricInterpretation {
@@ -215,9 +91,9 @@ fn rev_hpredict_nsamp_chunky<T: Int>(mut image: Vec<T>, size: (u32, u32), sample
     image
 }
 
-fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: color::ColorType) -> ImageResult<DecodingResult> {
+fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) -> ImageResult<DecodingResult> {
     match color_type {
-        color::ColorType::Grey(n) if n == 8 || n == 16 => {
+        ColorType::Grey(n) if n == 8 || n == 16 => {
             Ok(match image {
                 DecodingResult::U8(buf) => {
                     DecodingResult::U8(rev_hpredict_grey(buf, size))
@@ -227,8 +103,8 @@ fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: color::Colo
                 }
             })
         }
-        color::ColorType::RGB(n) | color::ColorType::RGBA(n) if n == 8 || n == 16 => {
-            let samples = if let color::ColorType::RGB(_) = color_type {
+        ColorType::RGB(n) | ColorType::RGBA(n) if n == 8 || n == 16 => {
+            let samples = if let ColorType::RGB(_) = color_type {
                 3
             } else {
                 4
@@ -510,19 +386,19 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             )))
         };
         Ok(match (color_type, buffer) {
-            (color::ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16())
                 }
                 length as usize/2
             }
-            (color::ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
+            (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
-            (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
+            (ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
-            (color::ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
+            (ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
@@ -538,14 +414,14 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
+    fn colortype(&mut self) -> ImageResult<ColorType> {
         match (&self.bits_per_sample[], self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
-            ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGBA(8)),
-            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(8)),
-            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(16)),
+            ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
+            ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
+            ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
-            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(color::ColorType::Grey(n)),
+            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported", mode, bits
             ))) // TODO: this is bad we should not fail at this point

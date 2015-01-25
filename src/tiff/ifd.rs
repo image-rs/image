@@ -1,7 +1,9 @@
+//! Function for reading TIFF tags
+
 use std::io;
 use std::collections::{HashMap};
 
-use super::decoder::{ByteOrder, SmartReader, EndianReader};
+use super::stream::{ByteOrder, SmartReader, EndianReader};
 
 use self::Value::{Unsigned, List};
 

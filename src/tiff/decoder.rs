@@ -202,6 +202,19 @@ fn rev_hpredict_grey<T: Int>(mut image: Vec<T>, size: (u32, u32)) -> Vec<T> {
     image
 }
 
+fn rev_hpredict_nsamp_chunky<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usize) -> Vec<T> {
+    let width = size.0 as usize;
+    let height = size.1 as usize;
+    for row in (0..height) {
+        for col in (samples..width * samples) {
+            let prev_pixel = image[(row * width * samples + col - samples)];
+            let pixel = &mut image[(row * width * samples + col)];
+            *pixel = *pixel + prev_pixel
+        }
+    }
+    image
+}
+
 fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: color::ColorType) -> ImageResult<DecodingResult> {
     match color_type {
         color::ColorType::Grey(n) if n == 8 || n == 16 => {
@@ -211,6 +224,21 @@ fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: color::Colo
                 },
                 DecodingResult::U16(buf) => {
                     DecodingResult::U16(rev_hpredict_grey(buf, size))
+                }
+            })
+        }
+        color::ColorType::RGB(n) | color::ColorType::RGBA(n) if n == 8 || n == 16 => {
+            let samples = if let color::ColorType::RGB(_) = color_type {
+                3
+            } else {
+                4
+            };
+            Ok(match image {
+                DecodingResult::U8(buf) => {
+                    DecodingResult::U8(rev_hpredict_nsamp_chunky(buf, size, samples))
+                },
+                DecodingResult::U16(buf) => {
+                    DecodingResult::U16(rev_hpredict_nsamp_chunky(buf, size, samples))
                 }
             })
         }
@@ -306,7 +334,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                     None => {}
                 }
             }
-            3 => {
+            3 | 4 => {
                 match try!(self.find_tag_u32_vec(ifd::Tag::BitsPerSample)) {
                     Some(val) => {
                         self.bits_per_sample = val.iter().map(|&v| v as u8).collect()
@@ -494,6 +522,9 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             (color::ColorType::RGB(8), DecodingBuffer::U8(ref mut buffer)) => {
                 try!(reader.read(&mut buffer[..bytes]))
             }
+            (color::ColorType::RGBA(8), DecodingBuffer::U8(ref mut buffer)) => {
+                try!(reader.read(&mut buffer[..bytes]))
+            }
             (type_, _) => return Err(::image::ImageError::UnsupportedError(format!(
                 "Color type {:?} is unsupported", type_
             )))
@@ -510,6 +541,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
         match (&self.bits_per_sample[], self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
+            ([ 8,  8,  8, 8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGBA(8)),
             ([ 8,  8,  8], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(8)),
             ([16, 16, 16], PhotometricInterpretation::RGB) => Ok(color::ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)

@@ -49,12 +49,12 @@ mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
-pub fn crop<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
-    image:  &mut I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32) -> SubImage<I> {
+// TODO: Is a 'static bound on `I` really required? Acn we avoid it?
+pub fn crop<I: GenericImage + 'static>(image: &mut I, x: u32, y: u32,
+                                       width: u32, height: u32)
+                                       -> SubImage<I>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (iwidth, iheight) = image.dimensions();
 
@@ -68,11 +68,7 @@ pub fn crop<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
 }
 
 /// Overlay an image at a given coordinate (x, y)
-pub fn overlay<P: Primitive, T: Pixel<P>, I: GenericImage<T>>(
-    bottom: &mut I,
-    top: &I,
-    x: u32,
-    y: u32)  {
+pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
     let (top_width, top_height) = top.dimensions();
     let (bottom_width, bottom_height) = bottom.dimensions();
 

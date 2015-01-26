@@ -67,22 +67,25 @@ All pixels are parameterised by their component type.
 A trait that provides functions for manipulating images, parameterised over the image's pixel type.
 
 ```rust
-pub trait GenericImage<P> {
-    ///The width and height of this image.
+pub trait GenericImage {
+    /// The pixel type.
+    type Pixel: Pixel;
+
+    /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
-    ///The bounding rectangle of this image.
+    /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
-    ///Return the pixel located at (x, y)
+    /// Return the pixel located at (x, y)
     fn get_pixel(&self, x: u32, y: u32) -> P;
 
-    ///Put a pixel at location (x, y)
+    /// Put a pixel at location (x, y)
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
 
-    ///Return an Iterator over the pixels of this image.
-    ///The iterator yields the coordinates of each pixel
-    ///along with their value
+    /// Return an Iterator over the pixels of this image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with their value
     fn pixels(&self) -> Pixels<Self>;
 }
 ```

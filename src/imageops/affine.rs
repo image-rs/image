@@ -1,14 +1,14 @@
 //! Functions for performing affine transformations.
 
-use buffer::Pixel;
-use traits::Primitive;
-use image:: {
-    GenericImage,
-};
-use buffer::ImageBuffer;
+use buffer::{ImageBuffer, Pixel};
+use image::GenericImage;
 
 /// Rotate an image 90 degrees clockwise.
-pub fn rotate90<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate90<I: GenericImage + 'static>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -23,7 +23,11 @@ pub fn rotate90<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T
 }
 
 /// Rotate an image 180 degrees clockwise.
-pub fn rotate180<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate180<I: GenericImage + 'static>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -38,7 +42,11 @@ pub fn rotate180<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
 }
 
 /// Rotate an image 270 degrees clockwise.
-pub fn rotate270<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate270<I: GenericImage + 'static>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -53,7 +61,11 @@ pub fn rotate270<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
 }
 
 /// Flip an image horizontally
-pub fn flip_horizontal<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn flip_horizontal<I: GenericImage + 'static>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
@@ -68,7 +80,11 @@ pub fn flip_horizontal<P: Primitive + 'static, T: Pixel<P> + 'static, I: Generic
 }
 
 /// Flip an image vertically
-pub fn flip_vertical<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(image:  &I) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn flip_vertical<I: GenericImage + 'static>(image:  &I)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

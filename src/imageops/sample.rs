@@ -12,13 +12,9 @@ use std::num:: {
 };
 use std::simd::f32x4;
 
-use buffer::Pixel;
+use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
-
-use image:: {
-    GenericImage,
-};
-use buffer::ImageBuffer;
+use image::GenericImage;
 use math::utils::clamp;
 
 /// Available Sampling Filters
@@ -139,16 +135,19 @@ pub fn box_kernel(x: f32) -> f32 {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
-    image:     &I,
-    new_width: u32,
-    filter:    &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+fn horizontal_sample<I: GenericImage + 'static>(image: &I, new_width: u32,
+                                                filter: &mut Filter)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max = cast::<P, f32>(Primitive::max_value()).unwrap();
+        let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
+        let max: f32 = cast(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
 
@@ -195,7 +194,7 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
             }
 
             let f32x4(t1, t2, t3, t4) = t / sum;
-            let t: T = Pixel::from_channels(
+            let t = Pixel::from_channels(
                 cast(clamp(t1, 0.0, max)).unwrap(),
                 cast(clamp(t2, 0.0, max)).unwrap(),
                 cast(clamp(t3, 0.0, max)).unwrap(),
@@ -213,18 +212,20 @@ fn horizontal_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericIm
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
-fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
-    image:      &I,
-    new_height: u32,
-    filter:     &mut Filter) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+fn vertical_sample<I: GenericImage + 'static>(image: &I, new_height: u32,
+                                              filter: &mut Filter)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
 
 
     for x in (0..width) {
-        let max: P = Primitive::max_value();
-        let max = cast::<P, f32>(max).unwrap();
+        let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
+        let max: f32 = cast(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
 
@@ -270,7 +271,7 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
             }
 
             let f32x4(t1, t2, t3, t4) = t / sum;
-            let t: T = Pixel::from_channels(
+            let t = Pixel::from_channels(
                 cast(clamp(t1, 0.0, max)).unwrap(),
                 cast(clamp(t2, 0.0, max)).unwrap(),
                 cast(clamp(t3, 0.0, max)).unwrap(),
@@ -286,9 +287,11 @@ fn vertical_sample<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImag
 
 /// Perform a 3x3 box filter on the supplied image.
 /// ```kernel``` is an array of the filter weights of length 9.
-pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<T>>(
-    image:  &I,
-    kernel: &[f32]) -> ImageBuffer<Vec<P>, P, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn filter3x3<I: GenericImage + 'static>(image: &I, kernel: &[f32])
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -301,8 +304,8 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
 
     let mut out = ImageBuffer::new(width, height);
 
-
-    let max = cast::<P, f32>(Primitive::max_value()).unwrap();
+    let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
+    let max: f32 = cast(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |&: a, f| a + *f) {
         0.0 => 1.0,
@@ -328,18 +331,18 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec = f32x4(
-                                       cast(k1).unwrap(),
-                                       cast(k2).unwrap(),
-                                       cast(k3).unwrap(),
-                                       cast(k4).unwrap()
-                                   );
+                    cast(k1).unwrap(),
+                    cast(k2).unwrap(),
+                    cast(k3).unwrap(),
+                    cast(k4).unwrap()
+                );
 
                 t += vec * k;
             }
 
             let f32x4(t1, t2, t3, t4) = t / sum;
 
-            let t: T = Pixel::from_channels(
+            let t = Pixel::from_channels(
                 cast(clamp(t1, 0.0, max)).unwrap(),
                 cast(clamp(t2, 0.0, max)).unwrap(),
                 cast(clamp(t3, 0.0, max)).unwrap(),
@@ -356,11 +359,12 @@ pub fn filter3x3<P: Primitive + 'static, T: Pixel<P> + 'static, I: GenericImage<
 /// Resize the supplied image to the specified dimensions
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
-    image:   &I,
-    nwidth:  u32,
-    nheight: u32,
-    filter:  FilterType) -> ImageBuffer<Vec<A>, A, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn resize<I: GenericImage + 'static>(image: &I, nwidth: u32, nheight: u32,
+                                         filter: FilterType)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
@@ -391,9 +395,11 @@ pub fn resize<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>
 
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
-pub fn blur<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
-    image:  &I,
-    sigma:  f32) -> ImageBuffer<Vec<A>, A, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn blur<I: GenericImage + 'static>(image: &I, sigma: f32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let sigma = if sigma < 0.0 {
         1.0
@@ -418,14 +424,16 @@ pub fn blur<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
-pub fn unsharpen<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<T>>(
-    image:     &I,
-    sigma:     f32,
-    threshold: i32) -> ImageBuffer<Vec<A>, A, T> {
+// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
+pub fn unsharpen<I: GenericImage + 'static>(image: &I, sigma: f32, threshold: i32)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
 
     let mut tmp = blur(image, sigma);
 
-    let max: A = Primitive::max_value();
+    let max: <I::Pixel as Pixel>::Subpixel = Primitive::max_value();
+    let max: i32 = cast(max).unwrap();
     let (width, height) = image.dimensions();
 
     for y in (0..height) {
@@ -434,15 +442,15 @@ pub fn unsharpen<A: Primitive + 'static, T: Pixel<A> + 'static, I: GenericImage<
             let b = tmp.get_pixel_mut(x, y);
 
             let p = a.map2(b, |&: c, d| {
-                let ic = cast::<A, i32>(c).unwrap();
-                let id = cast::<A, i32>(d).unwrap();
+                let ic: i32 = cast(c).unwrap();
+                let id: i32 = cast(d).unwrap();
 
                 let diff = (ic - id).abs();
 
                 if diff > threshold {
-                let e = clamp(ic + diff, 0, cast::<A, i32>(max).unwrap());
+                let e = clamp(ic + diff, 0, max);
 
-                    cast::<i32, A>(e).unwrap()
+                    cast(e).unwrap()
                 } else {
                     c
                 }

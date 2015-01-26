@@ -318,7 +318,7 @@ impl<R: Reader> ImageDecoder for GIFDecoder<R> {
                         break
                     }
                 }
-                Ok(DecodingResult::U8(canvas.into_vec()))
+                Ok(DecodingResult::U8(canvas.into_raw()))
             },
             None => Err(ImageError::ImageEnd)
         }

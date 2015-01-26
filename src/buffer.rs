@@ -3,10 +3,12 @@ use std::any::TypeId;
 use std::ops::{ Index, IndexMut };
 use std::num::Int;
 use std::iter::repeat;
+use std::old_io::IoResult;
 
 use traits::{ Zero, Primitive };
-use color::{ Rgb, Rgba, Luma, LumaA, FromColor };
+use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
 use image::GenericImage;
+use dynimage::save_buffer;
 
 /// Mutable equivalent to AsSlice.
 /// Should be replaced by a stdlib impl as soon it exists
@@ -49,6 +51,9 @@ pub trait Pixel: Copy + Clone {
     /// Returns a string that can help to interprete the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
     fn color_model() -> &'static str;
+
+    /// Returns the ColorType for this pixel format
+    fn color_type() -> ColorType;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -361,6 +366,22 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     /// Panics if `(x, y)` is out of the bounds (width, height)`.
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
+    }
+}
+
+impl<P: Pixel<Subpixel=u8> + 'static, Container: ArrayLike<u8>>
+    ImageBuffer<P, Container> {
+    /// Saves the buffer to a file at the path specified.
+    ///
+    /// The image format is derived from the file extension.
+    /// Currently only jpeg and png files are supported.
+    pub fn save(&self, path: &Path) -> IoResult<()> {
+        // This is valid as the subpixel is u8.
+        save_buffer(path,
+                    self.as_slice(),
+                    self.width(),
+                    self.height(),
+                    <P as Pixel>::color_type())
     }
 }
 

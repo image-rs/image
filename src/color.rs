@@ -53,6 +53,7 @@ macro_rules! define_colors {
         $channels: expr,
         $alphas: expr,
         $interpretation: expr,
+        $color_type: ident,
         #[$doc:meta];
     )*} => {
 
@@ -71,6 +72,9 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     }
     fn color_model() -> &'static str {
         $interpretation
+    }
+    fn color_type() -> ColorType {
+        ColorType::$color_type(mem::size_of::<T>() as u8 * 8)
     }
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -224,10 +228,10 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", #[doc = "RGB colors"];
-    Luma, 1, 0, "Y", #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", #[doc = "RGB colors + alpha channel"];
-    LumaA, 2, 1, "YA", #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", RGB, #[doc = "RGB colors"];
+    Luma, 1, 0, "Y", Grey, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", RGBA, #[doc = "RGB colors + alpha channel"];
+    LumaA, 2, 1, "YA", GreyA, #[doc = "Grayscale colors + alpha channel"];
 }
 
 

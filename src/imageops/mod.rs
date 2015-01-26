@@ -7,7 +7,6 @@ use image:: {
 };
 
 use buffer::Pixel;
-use traits::Primitive;
 
 pub use self::sample::FilterType;
 

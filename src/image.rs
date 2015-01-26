@@ -8,7 +8,6 @@ use std::iter::repeat;
 use color;
 use color::ColorType;
 use buffer::{ImageBuffer, Pixel};
-use traits::Primitive;
 
 use animation::{Frame, Frames};
 use dynimage::decoder_to_image;

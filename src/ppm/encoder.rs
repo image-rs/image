@@ -5,9 +5,9 @@ use std::fmt;
 
 use color;
 use color::ColorType:: {
-    Grey,
+    Gray,
     Palette,
-    GreyA,
+    GrayA,
     RGB,
     RGBA
 };
@@ -55,7 +55,7 @@ impl<W: Writer> PPMEncoder<W> {
 
         assert!(buf.len() > 0);
         match pixel_type {
-            Grey(8) => {
+            Gray(8) => {
                 for i in (0..(width * height) as usize) {
                     let _ = try!(self.w.write_u8(buf[i]));
                     let _ = try!(self.w.write_u8(buf[i]));
@@ -87,10 +87,10 @@ fn max_pixel_value(pixel_type: color::ColorType) -> u16 {
     use std::num::Int;
 
     match pixel_type {
-        Grey(n)    => 2u16.pow(n as usize) - 1,
+        Gray(n)    => 2u16.pow(n as usize) - 1,
         RGB(n)     => 2u16.pow(n as usize) - 1,
         Palette(n) => 2u16.pow(n as usize) - 1,
-        GreyA(n)   => 2u16.pow(n as usize) - 1,
+        GrayA(n)   => 2u16.pow(n as usize) - 1,
         RGBA(n)    => 2u16.pow(n as usize) - 1
     }
 }

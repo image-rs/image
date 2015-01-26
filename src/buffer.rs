@@ -508,7 +508,7 @@ pub trait ConvertBuffer<T> {
 }
 
 // concrete implementation Luma -> Rgba
-impl GreyImage {
+impl GrayImage {
     /// Expands a color palette by re-using the existing buffer.
     /// Assumes 8 bit per pixel. Uses an optionally transparent index to
     /// adjust it's alpha value accordingly.
@@ -571,16 +571,16 @@ pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 /// Sendable Rgb + alpha channel image buffer
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer
-pub type GreyImage = ImageBuffer<Luma<u8>, Vec<u8>>;
+pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
-pub type GreyAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
+pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {
     extern crate test;
     use std::rand;
 
-    use super::{ImageBuffer, RgbImage, GreyImage, ConvertBuffer, Pixel};
+    use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
     use color;
 
     #[test]
@@ -612,7 +612,7 @@ mod test {
         }
         assert!(a.data[0] != 0);
         b.iter(|| {
-            let b: GreyImage = a.convert();
+            let b: GrayImage = a.convert();
             assert!(0 != b.data[0]);
             assert!(a.data[0] != b.data[0]);
             test::black_box(b);

@@ -92,7 +92,7 @@ fn rev_hpredict_nsamp<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usiz
 
 fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) -> ImageResult<DecodingResult> {
     let samples = match color_type {
-        ColorType::Grey(8) | ColorType::Grey(16) => 1,
+        ColorType::Gray(8) | ColorType::Gray(16) => 1,
         ColorType::RGB(8) | ColorType::RGB(16) => 3,
         ColorType::RGBA(8) | ColorType::RGBA(16) => 4,
         _ => return Err(ImageError::UnsupportedError(format!(
@@ -382,7 +382,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 }
                 bytes/2
             }
-            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+            (ColorType::Gray(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16());
                     if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
@@ -391,7 +391,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 }
                 bytes/2
             }
-            (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
+            (ColorType::Gray(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
                 try!(reader.read(&mut buffer[..bytes]));
                 if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
                     for byte in buffer[..bytes].iter_mut() {
@@ -421,7 +421,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
             ([16, 16, 16],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
-            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
+            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Gray(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported", mode, bits
             ))) // TODO: this is bad we should not fail at this point

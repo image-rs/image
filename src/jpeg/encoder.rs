@@ -240,11 +240,11 @@ impl<W: Writer> JPEGEncoder<W> {
         match c {
             color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as usize, height as usize, 3)),
             color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as usize, height as usize, 4)),
-            color::ColorType::Grey(8)  => try!(self.encode_grey(image, width as usize, height as usize, 1)),
-            color::ColorType::GreyA(8) => try!(self.encode_grey(image, width as usize, height as usize, 2)),
+            color::ColorType::Gray(8)  => try!(self.encode_gray(image, width as usize, height as usize, 1)),
+            color::ColorType::GrayA(8) => try!(self.encode_gray(image, width as usize, height as usize, 2)),
             _  => return Err(old_io::IoError {
                 kind: old_io::InvalidInput,
-                desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",
+                desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Gray(A) instead.",
                 detail: Some(format!(
                     "Color type {:?} is not suppored by this JPEG encoder.",
                     c
@@ -355,7 +355,7 @@ impl<W: Writer> JPEGEncoder<W> {
         Ok(dcval)
     }
 
-    fn encode_grey(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
+    fn encode_gray(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
         let mut yblock     = [0u8; 64];
         let mut y_dcprev   = 0;
         let mut dct_yblock = [0i32; 64];
@@ -363,7 +363,7 @@ impl<W: Writer> JPEGEncoder<W> {
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
                 // RGB -> YCbCr
-                copy_blocks_grey(image, x, y, width, bpp, &mut yblock);
+                copy_blocks_gray(image, x, y, width, bpp, &mut yblock);
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
@@ -602,7 +602,7 @@ fn copy_blocks_ycbcr(source: &[u8],
     }
 }
 
-fn copy_blocks_grey(source: &[u8],
+fn copy_blocks_gray(source: &[u8],
                     x0: usize,
                     y0: usize,
                     width: usize,

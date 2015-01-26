@@ -96,7 +96,7 @@ impl<R: Reader> ImageDecoder for WebpDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        Ok(color::ColorType::Grey(8))
+        Ok(color::ColorType::Gray(8))
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {

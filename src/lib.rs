@@ -18,10 +18,10 @@ pub use color::ColorType as ColorType;
 pub use traits::Primitive;
 
 pub use color::ColorType:: {
-    Grey,
+    Gray,
     RGB,
     Palette,
-    GreyA,
+    GrayA,
     RGBA,
 };
 pub use color:: {
@@ -62,8 +62,8 @@ pub use buffer::{
     ImageBuffer,
     RgbImage,
     RgbaImage,
-    GreyImage,
-    GreyAlphaImage
+    GrayImage,
+    GrayAlphaImage
 };
 
 // Traits

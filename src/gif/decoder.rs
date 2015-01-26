@@ -14,7 +14,7 @@ use imageops::overlay;
 use color;
 use animation::Frame;
 use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
-use buffer::{ImageBuffer, GreyImage, RgbaImage};
+use buffer::{ImageBuffer, GrayImage, RgbaImage};
 
 use utils::lzw;
 use utils::bitstream::{LsbReader};
@@ -235,8 +235,8 @@ impl<R: Reader> GIFDecoder<R> {
             &self.global_table[]
         };
 
-        let image: Option<GreyImage> = ImageBuffer::from_vec(
-            image_width as u32, 
+        let image: Option<GrayImage> = ImageBuffer::from_vec(
+            image_width as u32,
             image_height as u32,
             indices
         );

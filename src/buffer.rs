@@ -1,5 +1,5 @@
 use std::slice::{ Chunks, ChunksMut };
-use std::any::{ Any, TypeId };
+use std::any::TypeId;
 use std::ops::{ Index, IndexMut };
 use std::num::Int;
 use std::iter::repeat;

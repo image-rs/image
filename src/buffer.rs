@@ -38,7 +38,7 @@ pub trait Pixel: Copy + Clone {
     type Subpixel: Primitive;
 
     /// Returns the number of channels of this pixel type.
-    fn channel_count<'a>(_: Option<&'a Self>) -> u8;
+    fn channel_count() -> u8;
 
     /// Returns the components as a slice.
     fn channels(&self) -> &[Self::Subpixel];
@@ -48,7 +48,7 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns a string that can help to interprete the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
-    fn color_model<'a>(_: Option<&'a Self>) -> &'static str;
+    fn color_model() -> &'static str;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -64,13 +64,13 @@ pub trait Pixel: Copy + Clone {
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
-    fn from_slice<'a>(_: Option<&'a Self>, slice: &'a [Self::Subpixel]) -> &'a Self;
+    fn from_slice<'a>(slice: &'a [Self::Subpixel]) -> &'a Self;
     
     /// Returns mutable view into a mutable slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
-    fn from_slice_mut<'a>(_: Option<&'a Self>, slice: &'a mut [Self::Subpixel]) -> &'a mut Self;
+    fn from_slice_mut<'a>(slice: &'a mut [Self::Subpixel]) -> &'a mut Self;
     
     /// Convert this pixel to RGB
     fn to_rgb(&self) -> Rgb<Self::Subpixel>;
@@ -128,7 +128,7 @@ impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
     #[inline(always)]
     fn next(&mut self) -> Option<&'a P> {
         self.chunks.next().map(|v| 
-            Pixel::from_slice(None::<&'a P>, v)
+            <P as Pixel>::from_slice(v)
         )
     }
 }
@@ -138,7 +138,7 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P> where P::Subpixel:
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
         self.chunks.next_back().map(|v| 
-            Pixel::from_slice(None::<&'a P>, v)
+            <P as Pixel>::from_slice(v)
         )
     }
 }
@@ -154,7 +154,7 @@ impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
         self.chunks.next().map(|v| 
-            Pixel::from_slice_mut(None::<&'a P>, v)
+            <P as Pixel>::from_slice_mut(v)
         )
     }
 }
@@ -163,7 +163,7 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P> where P::Subpix
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a mut P> {
         self.chunks.next_back().map(|v| 
-            Pixel::from_slice_mut(None::<&'a P>, v)
+            <P as Pixel>::from_slice_mut(v)
         )
     }
 }
@@ -242,7 +242,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
                     -> Option<ImageBuffer<P, Container>> {
         if width as usize
            * height as usize
-           * Pixel::channel_count(None::<&P>) as usize 
+           * <P as Pixel>::channel_count() as usize 
            <= buf.as_slice().len() {
             Some(ImageBuffer {
                 data: buf,
@@ -289,7 +289,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     pub fn pixels<'a>(&'a self) -> Pixels<'a, P> {
         Pixels {
             chunks: self.data.as_slice().chunks(
-                Pixel::channel_count(None::<&P>) as usize
+                <P as Pixel>::channel_count() as usize
             )
         }
     }
@@ -300,7 +300,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
             chunks: self.data.as_mut_slice().chunks_mut(
-                Pixel::channel_count(None::<&P>) as usize
+                <P as Pixel>::channel_count() as usize
             )
         }
     }
@@ -334,10 +334,9 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
-        let no_channels = Pixel::channel_count(None::<&P>) as usize;
+        let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels * (y * self.width + x) as usize;
-        Pixel::from_slice(
-            None::<&P>,
+        <P as Pixel>::from_slice(
             &self.data.as_slice()[index .. index + no_channels]
         )
     }
@@ -348,10 +347,9 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        let no_channels = Pixel::channel_count(None::<&P>) as usize;
+        let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels * (y * self.width + x) as usize;
-        Pixel::from_slice_mut(
-            None::<&P>,
+        <P as Pixel>::from_slice_mut(
             &mut self.data.as_mut_slice()[index .. index + no_channels]
         )
     }
@@ -435,7 +433,7 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
             data: repeat(Zero::zero()).take(
                     (width as u64
                      * height as u64 
-                     * (Pixel::channel_count(None::<&P>) as u64)
+                     * (<P as Pixel>::channel_count() as u64)
                     ) as usize
                 ).collect(),
             width: width,

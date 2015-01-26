@@ -66,10 +66,10 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     type Subpixel = T;
 
-    fn channel_count<'a>(_: Option<&'a $ident<T>>) -> u8 {
+    fn channel_count() -> u8 {
         $channels
     }
-    fn color_model<'a>(_: Option<&'a $ident<T>>) -> &'static str {
+    fn color_model() -> &'static str {
         $interpretation
     }
     #[inline(always)]
@@ -109,14 +109,14 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     }
 
     fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        *Pixel::from_slice(None::<&$ident<T>>, &[a, b, c, d][..$channels])
+        *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..$channels])
     }
 
-    fn from_slice<'a>(_: Option<&'a $ident<T>>, slice: &'a [T]) -> &'a $ident<T> {
+    fn from_slice<'a>(slice: &'a [T]) -> &'a $ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { mem::transmute(slice.as_ptr()) }
     }
-    fn from_slice_mut<'a>(_: Option<&'a $ident<T>>, slice: &'a mut [T]) -> &'a mut $ident<T> {
+    fn from_slice_mut<'a>(slice: &'a mut [T]) -> &'a mut $ident<T> {
         assert_eq!(slice.len(), $channels);
         unsafe { mem::transmute(slice.as_ptr()) }
     }

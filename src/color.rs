@@ -7,7 +7,7 @@ use buffer::{Pixel};
 use traits::{Primitive, Zero};
 
 /// An enumeration over supported color types and their bit depths
-#[derive(Copy, PartialEq, Eq, Show, Clone)]
+#[derive(Copy, PartialEq, Eq, Debug, Clone)]
 pub enum ColorType {
     /// Pixel is greyscale
     Grey(u8),
@@ -59,7 +59,7 @@ macro_rules! define_colors {
 $( // START Structure definitions
 
 #[$doc]
-#[derive(PartialEq, Eq, Clone, Show, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub struct $ident<T: Primitive>(pub [T; $channels]);
 
 impl<T: Primitive + 'static> Pixel for $ident<T> {

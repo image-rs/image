@@ -1,4 +1,5 @@
 use std::error::FromError;
+use std::fmt;
 use std::mem;
 use std::io;
 use std::slice;
@@ -13,7 +14,7 @@ use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
 /// An enumeration of Image Errors
-#[derive(Clone, Show, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ImageError {
     /// The Image is not formatted properly
     FormatError(String),
@@ -36,6 +37,24 @@ pub enum ImageError {
 
     /// The end of the image has been reached
     ImageEnd
+}
+
+impl fmt::Display for ImageError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            &ImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
+            &ImageError::DimensionError => write!(fmt, "The Image's dimensions are either too \
+                                                        small or too large"),
+            &ImageError::UnsupportedError(ref f) => write!(fmt, "The Decoder does not support the \
+                                                                 image format `{}`", f),
+            &ImageError::UnsupportedColor(ref c) => write!(fmt, "The decoder does not support \
+                                                                 the color type `{:?}`", c),
+            &ImageError::NotEnoughData => write!(fmt, "Not enough data was provided to the \
+                                                       Decoder to decode the image"),
+            &ImageError::IoError(ref e) => e.fmt(fmt),
+            &ImageError::ImageEnd => write!(fmt, "The end of the image has been reached")
+        }
+    }
 }
 
 impl FromError<io::IoError> for ImageError {
@@ -66,7 +85,7 @@ pub enum DecodingBuffer<'a> {
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[derive(Copy, PartialEq, Eq, Show)]
+#[derive(Copy, PartialEq, Eq, Debug)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,
@@ -100,14 +119,14 @@ pub trait ImageDecoder: Sized {
 
     /// Returns the length in bytes of one decoded row of the image
     fn row_len(&mut self) -> ImageResult<usize>;
-    
+
     /// Returns true if the image is animated
     fn is_animated(&mut self) -> ImageResult<bool> {
         // since most image formats do not support animation
         // just return false by default
         return Ok(false)
     }
-    
+
     /// Returns the frames of the image
     /// If the image is not animated it returns a single frame
     fn into_frames(self) -> ImageResult<Frames> {
@@ -248,6 +267,18 @@ pub trait GenericImage: Sized {
 
     /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
+
+    /// Returns true if this x, y coordinate is contained inside the image.
+    fn in_bounds(&self, x: u32, y: u32) -> bool {
+        let (ix, iy, iw, ih) = self.bounds();
+        if x < ix || x >= ix + iw {
+            false
+        } else if y < iy || y >= iy + ih {
+            false
+        } else {
+            true
+        }
+    }
 
     /// Returns the pixel located at (x, y)
     ///
@@ -420,5 +451,20 @@ mod tests {
         target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
         assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+    }
+
+    #[test]
+    fn test_in_bounds() {
+        let mut target = ImageBuffer::new(2, 2);
+        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
+
+        assert!(target.in_bounds(0,0));
+        assert!(target.in_bounds(1,0));
+        assert!(target.in_bounds(0,1));
+        assert!(target.in_bounds(1,1));
+
+        assert!(!target.in_bounds(2,0));
+        assert!(!target.in_bounds(0,2));
+        assert!(!target.in_bounds(2,2));
     }
 }

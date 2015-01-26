@@ -1,7 +1,9 @@
+//! Function for reading TIFF tags
+
 use std::io;
 use std::collections::{HashMap};
 
-use super::decoder::{ByteOrder, SmartReader, EndianReader};
+use super::stream::{ByteOrder, SmartReader, EndianReader};
 
 use self::Value::{Unsigned, List};
 
@@ -12,7 +14,7 @@ macro_rules! tags {
     )*} => {
 
         /// TIFF tag
-        #[derive(Copy, PartialEq, Eq, Show, Hash)]
+        #[derive(Copy, PartialEq, Eq, Debug, Hash)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16)
@@ -27,27 +29,52 @@ macro_rules! tags {
     }
 }
 
+// Note: These tags appear in the order they are mentioned in the TIFF reference
 tags!{
-    // bilevel images
-    PhotometricInterpretation 262;
-    Compression 259;
-    ImageLength 257;
-    ImageWidth 256;
-    ResolutionUnit 296; // 1 or 2 or 3
-    XResolution 282;
-    YResolution 283;
-    RowsPerStrip 278;
-    StripOffsets 273;
-    StripByteCounts 279;
+    // Baseline tags:
+    Artist 315; // TODO add support
     // grayscale images PhotometricInterpretation 1 or 3
     BitsPerSample 258;
+    CellLength 265; // TODO add support
+    CellWidth 264; // TODO add support
     // palette-color images (PhotometricInterpretation 3)
-    ColorMap 320;
-    // RGB full-color images BitsPerSample 8,8,8 (baseline)
+    ColorMap 320; // TODO add support
+    Compression 259; // TODO add support for 2 and 32773
+    Copyright 33432; // TODO add support
+    DateTime 306; // TODO add support
+    ExtraSamples 338; // TODO add support
+    FillOrder 266; // TODO add support
+    FreeByteCounts 289; // TODO add support
+    FreeOffsets 288; // TODO add support
+    GrayResponseCurve 291; // TODO add support
+    GrayResponseUnit 290; // TODO add support
+    HostComputer 316; // TODO add support
+    ImageDescription 270; // TODO add support
+    ImageLength 257;
+    ImageWidth 256;
+    Make 271; // TODO add support
+    MaxSampleValue 281; // TODO add support
+    MinSampleValue 280; // TODO add support
+    Model 272; // TODO add support
+    NewSubfileType 254; // TODO add support
+    Orientation 274; // TODO add support
+    PhotometricInterpretation 262;
+    PlanarConfiguration 284;
+    ResolutionUnit 296; // TODO add support
+    RowsPerStrip 278;
     SamplesPerPixel 277;
+    Software 305;
+    StripByteCounts 279;
+    StripOffsets 273;
+    SubfileType 255; // TODO add support
+    Threshholding 263; // TODO add support
+    XResolution 282;
+    YResolution 283;
+    // Advanced tags
+    Predictor 317;
 }
 
-#[derive(Copy, Show, FromPrimitive)]
+#[derive(Copy, Debug, FromPrimitive)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,
@@ -58,7 +85,7 @@ pub enum Type {
 
 
 #[allow(unused_qualifications)]
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Value {
     //Signed(i32),
     Unsigned(u32),
@@ -95,7 +122,7 @@ pub struct Entry {
     offset: [u8; 4],
 }
 
-impl ::std::fmt::Show for Entry {
+impl ::std::fmt::Debug for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,

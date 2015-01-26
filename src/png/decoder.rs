@@ -39,7 +39,7 @@ enum PNGState {
     HaveIEND
 }
 
-#[derive(Copy, FromPrimitive, Show, PartialEq)]
+#[derive(Copy, FromPrimitive, Debug, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1
@@ -64,7 +64,7 @@ struct Adam7Iterator {
     line_width: u32,
     current_pass: u8,
     width: u32,
-    height: u32, 
+    height: u32,
 }
 
 impl Adam7Iterator {
@@ -80,7 +80,7 @@ impl Adam7Iterator {
         this.init_pass();
         this
     }
-    
+
     /// Calculates the bounds of the current pass
     fn init_pass(&mut self) {
         let w = self.width as f64;
@@ -172,7 +172,7 @@ impl<R: Reader> PNGDecoder<R> {
 
             chunk_length: 0,
             chunk_type: Vec::new(),
-            
+
             bpp: 0,
             bits_per_pixel: 0,
             decoded_rows: 0,
@@ -267,7 +267,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         Ok(())
     }
-    
+
     fn raw_row_length(&self, width: u32) -> u32 {
         (self.bits_per_pixel as u32 * width + 7) / 8
     }
@@ -281,7 +281,7 @@ impl<R: Reader> PNGDecoder<R> {
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
-        let p: Vec<(u8, u8, u8)> = (0..256).map(|i| {
+        let p: Vec<(u8, u8, u8)> = (0us..256).map(|i| {
             if i < len {
                 let r = buf[3 * i];
                 let g = buf[3 * i + 1];
@@ -370,7 +370,7 @@ impl<R: Reader> PNGDecoder<R> {
 
         Ok(())
     }
-    
+
     fn extract_scanline(&mut self, buf: &mut [u8], rlength: u32) -> ImageResult<u32> {
         let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
             Some(v) => v,
@@ -488,7 +488,7 @@ macro_rules! expand_pass(
 );
 
 fn expand_pass(
-    img: &mut[u8], width: u32, scanline: &mut[u8], 
+    img: &mut[u8], width: u32, scanline: &mut[u8],
     pass: u8, line_no: u32, bytes_pp: u8) {
     let line_no = line_no as usize;
     let width = width as usize;

@@ -41,7 +41,7 @@ http://www.piston.rs/image/image/index.html
 | PNG    | All supported color types | Same as decoding|
 | JPEG   | Baseline JPEG | Baseline JPEG |
 | GIF    | Yes | No |
-| TIFF   | Baseline + LZW w/o FAX compressions | No |
+| TIFF   | Baseline + LZW w/o fax compressions | No |
 | Webp   | Lossy(Luma channel only) | No |
 | PPM    | No | Yes |
 

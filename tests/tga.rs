@@ -1,3 +1,5 @@
+#![allow(unstable)]
+
 extern crate image;
 
 use std::io::{fs, File, USER_RWX};

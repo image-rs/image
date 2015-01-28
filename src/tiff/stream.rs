@@ -1,7 +1,7 @@
 //! All IO functionality needed for TIFF decoding
 
-use std::io;
-use std::io::IoResult;
+use std::old_io;
+use std::old_io::IoResult;
 use utils::{lzw, bitstream};
 
 /// Byte order of the TIFF file.
@@ -40,7 +40,7 @@ pub trait EndianReader: Reader {
 
 /// Reader that decompresses LZW streams
 pub struct LZWReader {
-    buffer: io::MemReader,
+    buffer: old_io::MemReader,
     byte_order: ByteOrder
 }
 
@@ -52,7 +52,7 @@ impl LZWReader {
         try!(lzw::decode_early_change(bitstream::MsbReader::new(reader), &mut buffer, 8));
         let bytes = buffer.len();
         Ok((bytes, LZWReader {
-            buffer: io::MemReader::new(buffer),
+            buffer: old_io::MemReader::new(buffer),
             byte_order: order
         }))
     }
@@ -110,7 +110,7 @@ impl<R: Seek> Seek for SmartReader<R> {
     }
     
     #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
+    fn seek(&mut self, pos: i64, style: old_io::SeekStyle) -> IoResult<()> {
         self.reader.seek(pos, style)
     }
 }
@@ -129,7 +129,7 @@ impl<'a, R: Seek> Seek for &'a mut SmartReader<R> {
     }
     
     #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> IoResult<()> {
+    fn seek(&mut self, pos: i64, style: old_io::SeekStyle) -> IoResult<()> {
         self.reader.seek(pos, style)
     }
 }

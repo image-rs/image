@@ -5,9 +5,9 @@
 //! # Related Links
 //! *http://tools.ietf.org/html/rfc1951 - DEFLATE Compressed Data Format Specification
 
-use std::io;
+use std::old_io;
 use std::cmp;
-use std::io::IoResult;
+use std::old_io::IoResult;
 use std::iter::repeat;
 
 static LITERALLENGTHCODES: u16 = 286;
@@ -261,7 +261,7 @@ impl<R: Reader> Reader for Inflater<R> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         if self.pos as usize == self.buf.len() {
             if self.finished {
-                return Err(io::standard_error(io::EndOfFile))
+                return Err(old_io::standard_error(old_io::EndOfFile))
             }
 
             let _ = try!(self.read_block_type());

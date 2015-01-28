@@ -7,7 +7,7 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::io:: {
+use std::old_io:: {
     IoResult,
     MemWriter
 };
@@ -58,7 +58,7 @@ impl<W: Writer> PNGEncoder<W> {
     }
 
     fn write_signature(&mut self) -> IoResult<()> {
-        self.w.write(&PNGSIGNATURE)
+        self.w.write_all(&PNGSIGNATURE)
     }
 
     fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {
@@ -70,7 +70,7 @@ impl<W: Writer> PNGEncoder<W> {
 
         let _ = try!(self.w.write_be_u32(buf.len() as u32));
         let _ = try!(self.w.write_str(name));
-        let _ = try!(self.w.write(buf));
+        let _ = try!(self.w.write_all(buf));
         let _ = try!(self.w.write_be_u32(crc));
 
         Ok(())

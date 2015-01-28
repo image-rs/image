@@ -1,4 +1,4 @@
-use std::io;
+use std::old_io;
 
 use image::ImageError;
 use image::ImageResult;
@@ -250,7 +250,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
-        try!(self.r.seek(self.header.id_length as i64, io::SeekCur));
+        try!(self.r.seek(self.header.id_length as i64, old_io::SeekCur));
         Ok(())
     }
 

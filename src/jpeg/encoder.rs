@@ -1,6 +1,6 @@
-use std::io::MemWriter;
-use std::io;
-use std::io::IoResult;
+use std::old_io::MemWriter;
+use std::old_io;
+use std::old_io::IoResult;
 use std::iter::range_step;
 use std::num::{ Float, SignedInt };
 
@@ -242,8 +242,8 @@ impl<W: Writer> JPEGEncoder<W> {
             color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as usize, height as usize, 4)),
             color::ColorType::Grey(8)  => try!(self.encode_grey(image, width as usize, height as usize, 1)),
             color::ColorType::GreyA(8) => try!(self.encode_grey(image, width as usize, height as usize, 2)),
-            _  => return Err(io::IoError {
-                kind: io::InvalidInput,
+            _  => return Err(old_io::IoError {
+                kind: old_io::InvalidInput,
                 desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Grey(A) instead.",
                 detail: Some(format!(
                     "Color type {:?} is not suppored by this JPEG encoder.", 
@@ -263,7 +263,7 @@ impl<W: Writer> JPEGEncoder<W> {
         if data.is_some() {
             let b = data.unwrap();
             let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
-            let _ = try!(self.w.write(&b[]));
+            let _ = try!(self.w.write_all(&b[]));
         }
 
         Ok(())

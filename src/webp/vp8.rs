@@ -12,7 +12,7 @@
 //! of the VP8 format
 //!
 
-use std::io::IoResult;
+use std::old_io::IoResult;
 use std::default::Default;
 use std::iter::repeat;
 

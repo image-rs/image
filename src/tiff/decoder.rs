@@ -1,5 +1,5 @@
-use std::io;
-use std::io::IoResult;
+use std::old_io;
+use std::old_io::IoResult;
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;
@@ -247,7 +247,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     /// Moves the cursor to the specified offset
     #[inline]
     pub fn goto_offset(&mut self, offset: u32) -> IoResult<()> {
-        self.reader.seek(offset as i64, io::SeekSet)
+        self.reader.seek(offset as i64, old_io::SeekSet)
     }
     
     /// Reads a IFD entry.

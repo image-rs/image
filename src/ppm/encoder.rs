@@ -1,6 +1,6 @@
 //! Encoding of PPM Images
 
-use std::io::IoResult;
+use std::old_io::IoResult;
 use std::fmt;
 
 use color;
@@ -63,8 +63,8 @@ impl<W: Writer> PPMEncoder<W> {
                 }
             }
 
-            RGB(8)  => try!(self.w.write(buf)),
-            RGB(16) => try!(self.w.write(buf)),
+            RGB(8)  => try!(self.w.write_all(buf)),
+            RGB(16) => try!(self.w.write_all(buf)),
             RGBA(8) => {
                 for x in buf.chunks(4) {
 

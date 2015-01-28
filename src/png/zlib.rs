@@ -5,8 +5,8 @@
 //! # Related Links
 //! *http://tools.ietf.org/html/rfc1950 - ZLIB Compressed Data Format Specification
 
-use std::io;
-use std::io::IoResult;
+use std::old_io;
+use std::old_io::IoResult;
 
 use super::hash::Adler32;
 use super::deflate::Inflater;
@@ -93,7 +93,7 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
                 self.read(buf)
             }
 
-            ZlibState::End => Err(io::standard_error(io::EndOfFile))
+            ZlibState::End => Err(old_io::standard_error(old_io::EndOfFile))
         }
     }
 }

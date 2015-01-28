@@ -1,7 +1,7 @@
 //! This module provides a bit reader
 
-use std::io;
-use std::io::{IoResult};
+use std::old_io;
+use std::old_io::{IoResult};
 
 /// Bit reader
 pub trait BitReader: Reader {
@@ -78,8 +78,8 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
 
     fn read_bits(&mut self, n: u8) -> IoResult<u16> {
         if n > 16 {
-            return Err(io::IoError {
-                kind: io::InvalidInput,
+            return Err(old_io::IoError {
+                kind: old_io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None
             })
@@ -100,8 +100,8 @@ impl<R> BitReader for MsbReader<R> where R: Reader {
 
     fn read_bits(&mut self, n: u8) -> IoResult<u16> {
         if n > 16 {
-            return Err(io::IoError {
-                kind: io::InvalidInput,
+            return Err(old_io::IoError {
+                kind: old_io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None
             })
@@ -146,7 +146,7 @@ impl<W> $name<W> where W: Writer {
 
 impl<W> Writer for $name<W> where W: Writer {
 
-    fn write(&mut self, buf: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, buf: &[u8]) -> IoResult<()> {
         if self.acc == 0 {
             self.w.write(buf)
         } else {

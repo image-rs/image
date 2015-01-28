@@ -1,12 +1,12 @@
-use std::io;
+use std::old_io;
 use std::cmp;
 use std::mem;
 use std::iter;
 use std::iter::repeat;
 use std::str;
 use std::slice;
-use std::io::IoResult;
-use std::io::MemReader;
+use std::old_io::IoResult;
+use std::old_io::MemReader;
 use std::num::FromPrimitive;
 
 use image::{
@@ -563,7 +563,7 @@ impl<R:Reader> IDATReader<R> {
 impl<R: Reader> Reader for IDATReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         if self.eof {
-            return Err(io::standard_error(io::EndOfFile))
+            return Err(old_io::standard_error(old_io::EndOfFile))
         }
 
         let len = buf.len();
@@ -585,7 +585,7 @@ impl<R: Reader> Reader for IDATReader<R> {
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
-                    return Err(io::standard_error(io::InvalidInput))
+                    return Err(old_io::standard_error(old_io::InvalidInput))
                 }
 
                 self.crc.reset();
@@ -614,9 +614,9 @@ mod tests {
     extern crate core;
     extern crate test;
 
-    use std::io;
+    use std::old_io;
     use std::result::Result;
-    use std::io::{File, MemReader};
+    use std::old_io::{File, MemReader};
 
     use image::{
         ImageDecoder,
@@ -650,7 +650,7 @@ mod tests {
     }
 
     fn load_image(path: &Path) -> ImageResult<DecodingResult> {
-        PNGDecoder::new(io::File::open(path)).read_image()
+        PNGDecoder::new(old_io::File::open(path)).read_image()
     }
 
     #[test]
@@ -704,9 +704,9 @@ mod tests {
     //                let filename = path.filename_str().unwrap().to_string();
     //                let p1 = "target";
     //                let p2 = "reference renderings";
-    //                let _ = io::fs::mkdir(&Path::new(".").join_many(
+    //                let _ = old_io::fs::mkdir(&Path::new(".").join_many(
     //                    [p1.as_slice(), p2.as_slice()]),
-    //                    io::UserRWX
+    //                    old_io::UserRWX
     //                );
     //                let p = Path::new(".").join_many([p1.as_slice(), p2.as_slice(),
     //                    filename.as_slice()]);

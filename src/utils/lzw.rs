@@ -3,7 +3,7 @@
 // FIXME remove as soon as gif encoder is done
 #![allow(dead_code)]
 
-use std::io;
+use std::old_io;
 
 use utils::bitstream::{BitReader, BitWriter};
 
@@ -47,7 +47,7 @@ impl DecodingDict {
     }
 
     /// Reconstructs the data for the corresponding code
-    fn reconstruct(&mut self, code: Option<Code>) -> io::IoResult<&[u8]> {
+    fn reconstruct(&mut self, code: Option<Code>) -> old_io::IoResult<&[u8]> {
         self.buffer.clear();
         let mut code = code;
         let mut cha;
@@ -59,8 +59,8 @@ impl DecodingDict {
                     code = code_;
                     cha = cha_;
                 }
-                None => return Err(io::IoError {
-                    kind: io::InvalidInput,
+                None => return Err(old_io::IoError {
+                    kind: old_io::InvalidInput,
                     desc: "invalid code occured",
                     detail: Some(format!("{} < {} expected", k, self.table.len()))
                 })
@@ -100,7 +100,7 @@ macro_rules! define_decoder_function {
 $( // START function definition
 
 #[$doc]
-pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
+pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> old_io::IoResult<()>
 where R: BitReader, W: Writer {
     let mut prev = None;
     let clear_code = 1 << min_code_size as usize;
@@ -132,8 +132,8 @@ where R: BitReader, W: Writer {
                     table.push(prev, cha);
                     table.buffer()
                 } else {
-                    return Err(io::IoError {
-                        kind: io::InvalidInput,
+                    return Err(old_io::IoError {
+                        kind: old_io::InvalidInput,
                         desc: "Invalid code",
                         detail: Some(format!("expected {} <= {}", 
                                      code,
@@ -265,7 +265,7 @@ impl EncodingDict {
     }
 }
  
-pub fn encode<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::IoResult<()>
+pub fn encode<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> old_io::IoResult<()>
 where R: Reader, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
     dict.push_node(Node::new(0)); // clear code

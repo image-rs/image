@@ -1,5 +1,5 @@
 use std::slice;
-use std::io::MemReader;
+use std::old_io::MemReader;
 use std::default::Default;
 
 use image;

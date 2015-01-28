@@ -4,7 +4,7 @@
 extern crate image;
 
 use std::os;
-use std::io::File;
+use std::old_io::File;
 
 use image::GenericImage;
 

@@ -4,7 +4,7 @@
 extern crate num;
 extern crate image;
 
-use std::io::File;
+use std::old_io::File;
 
 use num::complex::Complex;
 

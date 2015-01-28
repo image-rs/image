@@ -1,4 +1,5 @@
 //!An example of opening an image.
+#![allow(unstable)]
 
 extern crate image;
 

@@ -1,11 +1,18 @@
 //! This module provides a bit reader
 
 use std::io;
+use std::io::{IoResult};
 
 /// Bit reader
 pub trait BitReader: Reader {
     /// Returns the next `n` bits.
-    fn read_bits(&mut self, n: u8) -> io::IoResult<u16>;
+    fn read_bits(&mut self, n: u8) -> IoResult<u16>;
+}
+
+/// Bit writer
+pub trait BitWriter: Writer {
+    /// Writes the next `n` bits.
+    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()>;
 }
 
 macro_rules! define_bit_readers {
@@ -43,7 +50,7 @@ impl<R: Reader> $name<R> {
 }
 
 impl<R: Reader> Reader for $name<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         if self.is_aligned() {
             self.r.read(buf)
         } else {
@@ -69,7 +76,7 @@ define_bit_readers!{
 
 impl<R> BitReader for LsbReader<R> where R: Reader {
 
-    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+    fn read_bits(&mut self, n: u8) -> IoResult<u16> {
         if n > 16 {
             return Err(io::IoError {
                 kind: io::InvalidInput,
@@ -91,7 +98,7 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
 
 impl<R> BitReader for MsbReader<R> where R: Reader {
 
-    fn read_bits(&mut self, n: u8) -> io::IoResult<u16> {
+    fn read_bits(&mut self, n: u8) -> IoResult<u16> {
         if n > 16 {
             return Err(io::IoError {
                 kind: io::InvalidInput,
@@ -110,60 +117,100 @@ impl<R> BitReader for MsbReader<R> where R: Reader {
     }
 }
 
-/// A bit writer.
-///
-/// Write bits to a byte stream, LSB first.
+macro_rules! define_bit_writers {
+    {$(
+        $name:ident, #[$doc:meta];
+    )*} => {
+
+$( // START Structure definitions
+
+#[$doc]
 #[allow(dead_code)]
-pub struct BitWriter<'a, W> where W: Writer + 'a {
-    w: &'a mut W,
+pub struct $name<W> where W: Writer {
+    w: W,
     bits: u8,
-    buf: u8,
+    acc: u32,
 }
-#[allow(dead_code)]
-impl<'a, W> BitWriter<'a, W> where W: Writer + 'a {
+
+impl<W> $name<W> where W: Writer {
     /// Creates a new bit reader
-    pub fn new(writer: &'a mut W) -> BitWriter<'a, W> {
-        BitWriter {
+    #[allow(dead_code)]
+    pub fn new(writer: W) -> $name<W> {
+        $name {
             w: writer,
             bits: 0,
-            buf: 0,
+            acc: 0,
         }
     }
+}
 
-    /// Returns the next `n` bits.
-    pub fn write_bits(&mut self, mut v: u32, mut n: u8) -> io::IoResult<()> {
-        while n > 0 {
-            self.buf |= (v as u8) << self.bits as usize;
-            let missing = 8u8 - self.bits;
-            if n >= missing {
-                n -= missing;
-                v >>= missing as usize;
-                try!(self.w.write_u8(self.buf));
-                self.bits = 0;
-                self.buf = 0;
-            } else {
-                self.bits += n;
-                break
+impl<W> Writer for $name<W> where W: Writer {
+
+    fn write(&mut self, buf: &[u8]) -> IoResult<()> {
+        if self.acc == 0 {
+            self.w.write(buf)
+        } else {
+            for &byte in buf.iter() {
+                try!(self.write_bits(byte as u16, 8))
             }
+            Ok(())
+        }
+    }
+
+    fn flush(&mut self) -> IoResult<()> {
+        let missing = 8 - self.bits;
+        if missing > 0 {
+            try!(self.write_bits(0, missing));
+        }
+        self.w.flush()
+    }
+}
+
+)* // END Structure definitions
+
+    }
+}
+
+define_bit_writers!{
+    LsbWriter, #[doc = "Writes bits to a byte stream, LSB first."];
+    MsbWriter, #[doc = "Writes bits to a byte stream, MSB first."];
+}
+
+impl<W> BitWriter for LsbWriter<W> where W: Writer {
+
+    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
+        self.acc |= (v as u32) << self.bits;
+        self.bits += n;
+        while self.bits >= 8 {
+            try!(self.w.write_u8(self.acc as u8));
+            self.acc >>= 8;
+            self.bits -= 8
+
         }
         Ok(())
     }
 
+}
 
-    /// Flushes the internal accumulator fill missing bits with 0
-    pub fn flush(&mut self) -> io::IoResult<()> {
-        if self.bits > 0 {
-            try!(self.w.write_u8(self.buf));
-            self.bits = 0;
-            self.buf = 0;
+impl<W> BitWriter for MsbWriter<W> where W: Writer {
+
+    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
+        self.acc |= (v as u32) << (32 - n - self.bits);
+        self.bits += n;
+        while self.bits >= 8 {
+            try!(self.w.write_u8((self.acc >> 24) as u8));
+            self.acc <<= 8;
+            self.bits -= 8
+
         }
         Ok(())
     }
+
 }
 
 #[cfg(test)]
 mod test {
-    use super::BitReader;
+    use super::{BitReader, BitWriter};
 
     #[test]
     fn reader_writer() {
@@ -171,14 +218,15 @@ mod test {
         let mut expanded_data = Vec::new();
         let mut reader = super::LsbReader::new(&data[]);
         while let Ok(b) = reader.read_bits(10) {
-            expanded_data.push(b as u32)
+            expanded_data.push(b)
         }
         let mut compressed_data = Vec::new();
         {
-            let mut writer = super::BitWriter::new(&mut compressed_data);
+            let mut writer = super::LsbWriter::new(compressed_data);
             for &datum in expanded_data.iter() {
                 let _  = writer.write_bits(datum, 10);
-            }   
+            }
+            compressed_data = writer.w;
         }
         assert_eq!(&data[], &compressed_data[])
     }

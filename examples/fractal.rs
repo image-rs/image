@@ -1,4 +1,5 @@
 //!An example of generating julia fractals.
+#![allow(unstable)]
 
 extern crate num;
 extern crate image;

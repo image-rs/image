@@ -77,6 +77,27 @@ macro_rules! dynamic_map(
 );
 
 impl DynamicImage {
+    /// Creates a dynamic image backed by a buffer of grey pixels.
+    pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of grey
+    /// pixels with transparency.
+    pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of RGB pixels.
+    pub fn new_rgb8(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageRgb8(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of RGBA pixels.
+    pub fn new_rgba8(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
+    }
+
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
@@ -411,7 +432,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLumaA8(v))
         }
         (color::ColorType::Grey(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
-            // Note: this conversion assumes that the scanlines begin on byte boundaries 
+            // Note: this conversion assumes that the scanlines begin on byte boundaries
             let mask = (1u8 << bit_depth as usize) - 1;
             let scaling_factor = (255)/((1 << bit_depth as usize) - 1);
             let skip = (w % 8)/bit_depth as u32;
@@ -449,15 +470,15 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
         DynamicImage::ImageLuma8(ref a) => {
             a.as_slice().iter().map(|v| *v).collect()
         }
-    
+
         DynamicImage::ImageLumaA8(ref a) => {
             a.as_slice().iter().map(|v| *v).collect()
         }
-    
+
         DynamicImage::ImageRgb8(ref a)  => {
             a.as_slice().iter().map(|v| *v).collect()
         }
-    
+
         DynamicImage::ImageRgba8(ref a) => {
             a.as_slice().iter().map(|v| *v).collect()
         }
@@ -485,7 +506,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
         "tiff" => image::ImageFormat::TIFF,
         "tga" => image::ImageFormat::TGA,
         format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.", 
+            "Image format image/{:?} is not supported.",
             format
         )))
     };
@@ -496,7 +517,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 /// Saves the supplied buffer to a file at the path specified.
 ///
 /// The image format is derived from the file extension. The buffer is assumed to have
-/// the correct format according to the specified color type. 
+/// the correct format according to the specified color type.
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
@@ -514,7 +535,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
             kind: io::InvalidInput,
             desc: "Unsupported image format.",
             detail: Some(format!(
-                "Image format image/{:?} is not supported.", 
+                "Image format image/{:?} is not supported.",
                 format
             ))
         })

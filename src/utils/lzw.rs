@@ -3,6 +3,10 @@
 // FIXME remove as soon as gif encoder is done
 #![allow(dead_code)]
 
+// Note: This implementation borrows heavily from the work of Julius Pettersson
+// See http://www.cplusplus.com/articles/iL18T05o/ for his extensive explanations
+// and a C++ implementatation
+
 use std::old_io;
 
 use utils::bitstream::{BitReader, BitWriter};

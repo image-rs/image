@@ -19,27 +19,13 @@ use buffer::{ImageBuffer, GreyImage, RgbaImage};
 use utils::lzw;
 use utils::bitstream::{LsbReader};
 
+use super::{Extension, Block};
+
 #[derive(PartialEq)]
 enum State {
     Start,
     HaveHeader,
     HaveLSD,
-}
-
-
-#[derive(FromPrimitive)]
-enum Block {
-    Image = 0x2C,
-    Extension = 0x21,
-    Trailer = 0x3B
-}
-
-#[derive(FromPrimitive)]
-enum Extension {
-    Text = 0x01,
-    Control = 0xF9,
-    Comment = 0xFE,
-    Application = 0xFF
 }
 
 /// A gif decoder

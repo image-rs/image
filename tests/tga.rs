@@ -1,4 +1,4 @@
-#![allow(unstable)]
+#![feature(io, path)]
 
 extern crate image;
 

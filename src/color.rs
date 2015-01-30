@@ -9,8 +9,8 @@ use traits::{Primitive, Zero};
 /// An enumeration over supported color types and their bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone)]
 pub enum ColorType {
-    /// Pixel is greyscale
-    Grey(u8),
+    /// Pixel is grayscale
+    Gray(u8),
 
     /// Pixel contains R, G and B channels
     RGB(u8),
@@ -18,8 +18,8 @@ pub enum ColorType {
     /// Pixel is an index into a color palette
     Palette(u8),
 
-    /// Pixel is greyscale with an alpha channel
-    GreyA(u8),
+    /// Pixel is grayscale with an alpha channel
+    GrayA(u8),
 
     /// Pixel is RGB with an alpha channel
     RGBA(u8)
@@ -28,10 +28,10 @@ pub enum ColorType {
 /// Returns the number of bits contained in a pixel of ColorType c
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
-        ColorType::Grey(n)    => n as usize,
+        ColorType::Gray(n)    => n as usize,
         ColorType::RGB(n)     => 3 * n as usize,
         ColorType::Palette(n) => 3 * n as usize,
-        ColorType::GreyA(n)   => 2 * n as usize,
+        ColorType::GrayA(n)   => 2 * n as usize,
         ColorType::RGBA(n)    => 4 * n as usize,
     }
 }
@@ -39,10 +39,10 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 /// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> usize {
     match c {
-        ColorType::Grey(_)    => 1,
+        ColorType::Gray(_)    => 1,
         ColorType::RGB(_)     => 3,
         ColorType::Palette(_) => 3,
-        ColorType::GreyA(_)   => 2,
+        ColorType::GrayA(_)   => 2,
         ColorType::RGBA(_)    => 4,
     }
 }
@@ -53,6 +53,7 @@ macro_rules! define_colors {
         $channels: expr,
         $alphas: expr,
         $interpretation: expr,
+        $color_type: ident,
         #[$doc:meta];
     )*} => {
 
@@ -71,6 +72,9 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     }
     fn color_model() -> &'static str {
         $interpretation
+    }
+    fn color_type() -> ColorType {
+        ColorType::$color_type(mem::size_of::<T>() as u8 * 8)
     }
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -224,10 +228,10 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", #[doc = "RGB colors"];
-    Luma, 1, 0, "Y", #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", #[doc = "RGB colors + alpha channel"];
-    LumaA, 2, 1, "YA", #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", RGB, #[doc = "RGB colors"];
+    Luma, 1, 0, "Y", Gray, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", RGBA, #[doc = "RGB colors + alpha channel"];
+    LumaA, 2, 1, "YA", GrayA, #[doc = "Grayscale colors + alpha channel"];
 }
 
 
@@ -394,7 +398,7 @@ impl<T: Primitive> Blend<LumaA<T>> for LumaA<T> {
         let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
-        let alpha_final = bg_a + fg_a - bg_a * fg_a; 
+        let alpha_final = bg_a + fg_a - bg_a * fg_a;
         let bg_luma_a = bg_luma * bg_a;
         let fg_luma_a = fg_luma * fg_a;
 

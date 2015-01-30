@@ -1,5 +1,5 @@
 //!An example of opening an image.
-#![allow(unstable)]
+#![feature(path, io, os)]
 
 extern crate image;
 

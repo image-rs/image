@@ -591,8 +591,7 @@ pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageRes
 
 #[cfg(test)]
 mod bench {
-    extern crate test;
-
+    use test;
 
     #[bench]
     fn bench_conversion(b: &mut test::Bencher) {

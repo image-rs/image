@@ -611,12 +611,11 @@ impl<R: Reader> Reader for IDATReader<R> {
 #[cfg(test)]
 mod tests {
     extern crate glob;
-    extern crate core;
-    extern crate test;
 
     use std::old_io;
     use std::result::Result;
     use std::old_io::{File, MemReader};
+    use test;
 
     use image::{
         ImageDecoder,

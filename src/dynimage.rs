@@ -11,7 +11,7 @@ use tiff;
 use tga;
 
 use color;
-use buffer::{ImageBuffer, ConvertBuffer, Pixel, GreyImage, GreyAlphaImage, RgbImage, RgbaImage};
+use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
 use imageops;
 use image;
 use image:: {
@@ -26,10 +26,10 @@ use image::DecodingResult::{U8};
 /// A Dynamic Image
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
-    ImageLuma8(GreyImage),
+    ImageLuma8(GrayImage),
 
     /// Each pixel in this image is 8-bit Luma with alpha
-    ImageLumaA8(GreyAlphaImage),
+    ImageLumaA8(GrayAlphaImage),
 
     /// Each pixel in this image is 8-bit Rgb
     ImageRgb8(RgbImage),
@@ -113,14 +113,14 @@ impl DynamicImage {
     }
 
     /// Returns a copy of this image as a Luma image.
-    pub fn to_luma(&self) -> GreyImage {
+    pub fn to_luma(&self) -> GrayImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
     /// Returns a copy of this image as a LumaA image.
-    pub fn to_luma_alpha(&self) -> GreyAlphaImage {
+    pub fn to_luma_alpha(&self) -> GrayAlphaImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
@@ -169,7 +169,7 @@ impl DynamicImage {
     }
 
     /// Return a reference to an 8bit Grayscale image
-    pub fn as_luma8(& self) -> Option<& GreyImage> {
+    pub fn as_luma8(& self) -> Option<& GrayImage> {
         match *self {
             DynamicImage::ImageLuma8(ref p) => Some(p),
             _                               => None
@@ -177,7 +177,7 @@ impl DynamicImage {
     }
 
     /// Return a mutable reference to an 8bit Grayscale image
-    pub fn as_mut_luma8(&mut self) -> Option<&mut GreyImage> {
+    pub fn as_mut_luma8(&mut self) -> Option<&mut GrayImage> {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => Some(p),
             _                                   => None
@@ -185,7 +185,7 @@ impl DynamicImage {
     }
 
     /// Return a reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_luma_alpha8(&self) -> Option<& GreyAlphaImage> {
+    pub fn as_luma_alpha8(&self) -> Option<& GrayAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref p) => Some(p),
             _                                => None
@@ -193,7 +193,7 @@ impl DynamicImage {
     }
 
     /// Return a mutable reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GreyAlphaImage> {
+    pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GrayAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref mut p) => Some(p),
             _                                    => None
@@ -208,8 +208,8 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::Grey(8),
-            DynamicImage::ImageLumaA8(_) => color::ColorType::GreyA(8),
+            DynamicImage::ImageLuma8(_) => color::ColorType::Gray(8),
+            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA(8),
             DynamicImage::ImageRgb8(_) => color::ColorType::RGB(8),
             DynamicImage::ImageRgba8(_) => color::ColorType::RGBA(8),
         }
@@ -424,14 +424,14 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgba8(v))
         }
 
-        (color::ColorType::Grey(8), U8(buf)) => {
+        (color::ColorType::Gray(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLuma8(v))
         }
 
-        (color::ColorType::GreyA(8), U8(buf)) => {
+        (color::ColorType::GrayA(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLumaA8(v))
         }
-        (color::ColorType::Grey(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+        (color::ColorType::Gray(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries
             let mask = (1u8 << bit_depth as usize) - 1;
             let scaling_factor = (255)/((1 << bit_depth as usize) - 1);
@@ -591,8 +591,7 @@ pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageRes
 
 #[cfg(test)]
 mod bench {
-    extern crate test;
-
+    use test;
 
     #[bench]
     fn bench_conversion(b: &mut test::Bencher) {

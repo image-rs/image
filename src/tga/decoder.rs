@@ -11,11 +11,11 @@ enum ImageType {
     /// Uncompressed images
     RawColorMap = 1,
     RawTrueColor = 2,
-    RawGreyScale = 3,
+    RawGrayScale = 3,
     /// Run length encoded images
     RunColorMap = 9,
     RunTrueColor = 10,
-    RunGreyScale = 11,
+    RunGrayScale = 11,
     Unknown,
 }
 
@@ -27,17 +27,17 @@ impl ImageType {
 
             1  => ImageType::RawColorMap,
             2  => ImageType::RawTrueColor,
-            3  => ImageType::RawGreyScale,
+            3  => ImageType::RawGrayScale,
 
             9  => ImageType::RunColorMap,
             10 => ImageType::RunTrueColor,
-            11 => ImageType::RunGreyScale,
+            11 => ImageType::RunGrayScale,
 
             _  => ImageType::Unknown,
         }
     }
 
-    /// Check if the image format uses colors as opposed to grey scale
+    /// Check if the image format uses colors as opposed to gray scale
     fn is_color(&self) -> bool {
         match *self {
             ImageType::RawColorMap  |
@@ -62,7 +62,7 @@ impl ImageType {
         match *self {
             ImageType::RunColorMap |
             ImageType::RunTrueColor |
-            ImageType::RunGreyScale => true,
+            ImageType::RunGrayScale => true,
             _ => false,
         }
     }
@@ -101,7 +101,7 @@ impl Header {
             image_width: 0,
             image_height: 0,
             pixel_depth: 0,
-            image_desc: 0,      
+            image_desc: 0,
         }
     }
 
@@ -181,7 +181,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
             has_loaded_metadata: false,
 
             image_type: ImageType::Unknown,
-            color_type: ColorType::Grey(1),
+            color_type: ColorType::Gray(1),
 
             header: Header::new(),
             color_map: None,
@@ -236,8 +236,8 @@ impl<R: Reader + Seek> TGADecoder<R> {
             // up with `TGADecoder::reverse_encoding`.
             (8, 24, true) => self.color_type = ColorType::RGBA(8),
             (0, 24, true) => self.color_type = ColorType::RGB(8),
-            (8, 8, false) => self.color_type = ColorType::GreyA(8),
-            (0, 8, false) => self.color_type = ColorType::Grey(8),
+            (8, 8, false) => self.color_type = ColorType::GrayA(8),
+            (0, 8, false) => self.color_type = ColorType::Gray(8),
             _ => return Err(ImageError::UnsupportedError(format!("\
                     Color format not supported. Bit depth: {}, Alpha bits: {}",
                     other_channel_bits, num_alpha_bits).to_string())),

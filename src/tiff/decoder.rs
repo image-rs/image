@@ -92,7 +92,7 @@ fn rev_hpredict_nsamp<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usiz
 
 fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) -> ImageResult<DecodingResult> {
     let samples = match color_type {
-        ColorType::Grey(8) | ColorType::Grey(16) => 1,
+        ColorType::Gray(8) | ColorType::Gray(16) => 1,
         ColorType::RGB(8) | ColorType::RGB(16) => 3,
         ColorType::RGBA(8) | ColorType::RGBA(16) => 4,
         _ => return Err(ImageError::UnsupportedError(format!(
@@ -125,10 +125,10 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             compression_method: CompressionMethod::None
         }.init()
     }
-    
+
     fn read_header(&mut self) -> ImageResult<()> {
         match &try!(self.reader.read_exact(2))[] {
-            b"II" => { 
+            b"II" => {
                 self.byte_order = ByteOrder::LittleEndian;
                 self.reader.byte_order = ByteOrder::LittleEndian; },
             b"MM" => {
@@ -147,13 +147,13 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         };
         Ok(())
     }
-    
+
     /// Initializes the decoder.
     pub fn init(self) -> ImageResult<TIFFDecoder<R>> {
         self.next_image()
     }
-    
-    /// Reads in the next image. 
+
+    /// Reads in the next image.
     /// If there is no further image in the TIFF file a format error is return.
     /// To determine whether there are more images call `TIFFDecoder::more_images` instead.
     pub fn next_image(mut self) -> ImageResult<TIFFDecoder<R>> {
@@ -210,7 +210,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         }
         Ok(self)
     }
-    
+
     /// Returns `true` if there is at least one more image available.
     pub fn more_images(&self) -> bool {
         match self.next_ifd {
@@ -218,24 +218,24 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             None => false
         }
     }
-    
+
     /// Returns the byte_order
     pub fn byte_order(&self) -> ByteOrder {
         self.byte_order
     }
-    
+
     /// Reads a TIFF short value
     #[inline]
     pub fn read_short(&mut self) -> IoResult<u16> {
         self.reader.read_u16()
     }
-    
+
     /// Reads a TIFF long value
     #[inline]
     pub fn read_long(&mut self) -> IoResult<u32> {
         self.reader.read_u32()
     }
-    
+
     /// Reads a TIFF IFA offset/value field
     #[inline]
     pub fn read_offset(&mut self) -> IoResult<[u8; 4]> {
@@ -243,19 +243,19 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         let _ = try!(self.reader.read_at_least(4, &mut val[]));
         Ok(val)
     }
-    
+
     /// Moves the cursor to the specified offset
     #[inline]
     pub fn goto_offset(&mut self, offset: u32) -> IoResult<()> {
         self.reader.seek(offset as i64, old_io::SeekSet)
     }
-    
+
     /// Reads a IFD entry.
     ///
     /// And IFD entry has four fields
-    /// Tag   2 bytes 
-    /// Type  2 bytes 
-    /// Count 4 bytes 
+    /// Tag   2 bytes
+    /// Type  2 bytes
+    /// Count 4 bytes
     /// Value 4 bytes either a pointer the value itself
     fn read_entry(&mut self) -> ImageResult<Option<(ifd::Tag, ifd::Entry)>> {
         let tag = ifd::Tag::from_u16(try!(self.read_short()));
@@ -266,7 +266,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 try!(self.read_long());
                 try!(self.read_long());
                 return Ok(None)
-                
+
             }
         };
         Ok(Some((tag, ifd::Entry::new(
@@ -275,10 +275,10 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             try!(self.read_offset())  // offset
         ))))
     }
-    
+
     /// Reads the next IFD
     fn read_ifd(&mut self) -> ImageResult<Directory> {
-        let mut dir: Directory = HashMap::new(); 
+        let mut dir: Directory = HashMap::new();
         match self.next_ifd {
             None => return Err(image::ImageError::FormatError(
                 "Image file directory not found.".to_string())
@@ -298,11 +298,11 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
         };
         Ok(dir)
     }
-    
+
     /// Tries to retrieve a tag.
     /// Return `Ok(None)` if the tag is not present.
     fn find_tag(&mut self, tag: ifd::Tag) -> ImageResult<Option<ifd::Value>> {
-        let ifd: &Directory = unsafe { 
+        let ifd: &Directory = unsafe {
             let ifd = self.ifd.as_ref().unwrap(); // Ok to fail
             // Get a immutable borrow of self
             // This is ok because entry val only changes the stream
@@ -314,7 +314,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             Some(entry) => Ok(Some(try!(entry.val(self))))
         }
     }
-    
+
     /// Tries to retrieve a tag an convert it to the desired type.
     fn find_tag_u32(&mut self, tag: ifd::Tag) -> ImageResult<Option<u32>> {
         match try!(self.find_tag(tag)) {
@@ -322,7 +322,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             None => Ok(None)
         }
     }
-    
+
     /// Tries to retrieve a tag an convert it to the desired type.
     fn find_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Option<Vec<u32>>> {
         match try!(self.find_tag(tag)) {
@@ -330,7 +330,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             None => Ok(None)
         }
     }
-    
+
     /// Tries to retrieve a tag.
     /// Returns an error if the tag is not present
     fn get_tag(&mut self, tag: ifd::Tag) -> ImageResult<ifd::Value> {
@@ -341,7 +341,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
             )))
         }
     }
-    
+
     /// Tries to retrieve a tag an convert it to the desired type.
     fn get_tag_u32(&mut self, tag: ifd::Tag) -> ImageResult<u32> {
         (try!(self.get_tag(tag))).as_u32()
@@ -351,7 +351,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     fn get_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Vec<u32>> {
         (try!(self.get_tag(tag))).as_u32_vec()
     }
-    
+
     /// Decompresses the strip into the supplied buffer.
     /// Returns the number of bytes read.
     fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<usize> {
@@ -382,7 +382,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 }
                 bytes/2
             }
-            (ColorType::Grey(16), DecodingBuffer::U16(ref mut buffer)) => {
+            (ColorType::Gray(16), DecodingBuffer::U16(ref mut buffer)) => {
                 for datum in buffer[..bytes/2].iter_mut() {
                     *datum = try!(reader.read_u16());
                     if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
@@ -391,7 +391,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
                 }
                 bytes/2
             }
-            (ColorType::Grey(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
+            (ColorType::Gray(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
                 try!(reader.read(&mut buffer[..bytes]));
                 if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
                     for byte in buffer[..bytes].iter_mut() {
@@ -410,7 +410,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
 impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width, self.height))
-        
+
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
@@ -421,7 +421,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
             ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
             ([16, 16, 16],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
             ([ n], PhotometricInterpretation::BlackIsZero)
-            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Grey(n)),
+            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Gray(n)),
             (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported", mode, bits
             ))) // TODO: this is bad we should not fail at this point
@@ -437,7 +437,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let buffer_size = 
+        let buffer_size =
             self.width  as usize
             * self.height as usize
             * self.bits_per_sample.iter().count();
@@ -492,9 +492,9 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
         // Shrink length such that the uninitialized memory is not exposed.
         if units_read < buffer_size {
             match result {
-                DecodingResult::U8(ref mut buffer) => 
+                DecodingResult::U8(ref mut buffer) =>
                     unsafe { buffer.set_len(units_read) },
-                DecodingResult::U16(ref mut buffer) => 
+                DecodingResult::U16(ref mut buffer) =>
                     unsafe { buffer.set_len(units_read) },
             }
         }
@@ -503,8 +503,8 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
                 Some(Predictor::None) => result,
                 Some(Predictor::Horizontal) => {
                     try!(rev_hpredict(
-                        result, 
-                        try!(self.dimensions()), 
+                        result,
+                        try!(self.dimensions()),
                         try!(self.colortype())
                     ))
                 },

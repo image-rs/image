@@ -131,7 +131,7 @@ impl ::std::fmt::Debug for Entry {
         )[])
     }
 }
-    
+
 impl Entry {
     pub fn new(type_: Type, count: u32, offset: [u8; 4]) -> Entry {
         Entry {
@@ -140,7 +140,7 @@ impl Entry {
             offset: offset
         }
     }
-    
+
     /// Returns a mem_reader for the offset/value field
     fn r(&self, byte_order: ByteOrder) -> SmartReader<old_io::MemReader> {
         SmartReader::wrap(
@@ -148,7 +148,7 @@ impl Entry {
             byte_order
         )
     }
-    
+
     pub fn val<R: Reader + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
     -> ::image::ImageResult<Value> {
         let bo = decoder.byte_order();

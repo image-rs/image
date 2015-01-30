@@ -465,11 +465,9 @@ pub fn unsharpen<I: GenericImage + 'static>(image: &I, sigma: f32, threshold: i3
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
-
+    use test;
     use buffer::{ImageBuffer, RgbImage};
     use super::{resize, FilterType};
-
 
     #[bench]
     fn bench_resize(b: &mut test::Bencher) {

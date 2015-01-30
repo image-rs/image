@@ -155,7 +155,7 @@ impl<R: Reader> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
 
         PNGDecoder {
-            pixel_type: color::ColorType::Grey(1),
+            pixel_type: color::ColorType::Gray(1),
             palette: None,
 
             previous: Vec::new(),
@@ -206,19 +206,19 @@ impl<R: Reader> PNGDecoder<R> {
         self.colour_type = try!(m.read_byte());
 
         self.pixel_type = match (self.colour_type, self.bit_depth) {
-            (0, 1)  => color::ColorType::Grey(1),
-            (0, 2)  => color::ColorType::Grey(2),
-            (0, 4)  => color::ColorType::Grey(4),
-            (0, 8)  => color::ColorType::Grey(8),
-            (0, 16) => color::ColorType::Grey(16),
+            (0, 1)  => color::ColorType::Gray(1),
+            (0, 2)  => color::ColorType::Gray(2),
+            (0, 4)  => color::ColorType::Gray(4),
+            (0, 8)  => color::ColorType::Gray(8),
+            (0, 16) => color::ColorType::Gray(16),
             (2, 8)  => color::ColorType::RGB(8),
             (2, 16) => color::ColorType::RGB(16),
             (3, 1)  => color::ColorType::RGB(8),
             (3, 2)  => color::ColorType::RGB(8),
             (3, 4)  => color::ColorType::RGB(8),
             (3, 8)  => color::ColorType::RGB(8),
-            (4, 8)  => color::ColorType::GreyA(8),
-            (4, 16) => color::ColorType::GreyA(16),
+            (4, 8)  => color::ColorType::GrayA(8),
+            (4, 16) => color::ColorType::GrayA(16),
             (6, 8)  => color::ColorType::RGBA(8),
             (6, 16) => color::ColorType::RGBA(16),
             (_, _)  => return Err(ImageError::FormatError(
@@ -611,12 +611,11 @@ impl<R: Reader> Reader for IDATReader<R> {
 #[cfg(test)]
 mod tests {
     extern crate glob;
-    extern crate core;
-    extern crate test;
 
     use std::old_io;
     use std::result::Result;
     use std::old_io::{File, MemReader};
+    use test;
 
     use image::{
         ImageDecoder,

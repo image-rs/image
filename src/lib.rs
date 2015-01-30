@@ -8,20 +8,29 @@
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![warn(unused_typecasts)]
+#![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
-#![allow(unstable)]
+#![feature(core)]
+#![feature(io)]
+#![feature(path)]
+#![feature(collections)]
+#![feature(std_misc)]
+#![feature(hash)]
+#![feature(test)]
+#![feature(rand)]
 
 extern crate flate;
 extern crate num;
+#[cfg(test)] extern crate test;
 
 pub use color::ColorType as ColorType;
 pub use traits::Primitive;
 
 pub use color::ColorType:: {
-    Grey,
+    Gray,
     RGB,
     Palette,
-    GreyA,
+    GrayA,
     RGBA,
 };
 pub use color:: {
@@ -62,8 +71,8 @@ pub use buffer::{
     ImageBuffer,
     RgbImage,
     RgbaImage,
-    GreyImage,
-    GreyAlphaImage
+    GrayImage,
+    GrayAlphaImage
 };
 
 // Traits

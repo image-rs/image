@@ -367,6 +367,10 @@ pub trait GenericImage: Sized {
     /// other image placed at (x, y).
     ///
     /// In order to copy only a pice of the other image, use `sub_image`.
+    ///
+    /// # Returns
+    /// `true` if the copy was successful, `false` if the image could not
+    /// be copied due to size constraints.
     fn copy_from<O>(&mut self, other: &O, x: u32, y:u32) -> bool
     where O: GenericImage<Pixel=Self::Pixel> {
         // Do bounds checking here so we can use the non-bounds-checking

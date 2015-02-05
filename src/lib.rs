@@ -18,6 +18,7 @@
 #![feature(hash)]
 #![feature(test)]
 #![feature(rand)]
+#![feature(rustc_private)]
 
 extern crate flate;
 extern crate num;

@@ -5,7 +5,7 @@
 //!
 //! *http://en.wikipedia.org/wiki/Cyclic_redundancy_check - Cyclic Redundancy Check
 
-use std::path::BytesContainer;
+use std::old_path::BytesContainer;
 
 /// An Implementation of the Adler-32 checksum
 #[derive(Copy)]

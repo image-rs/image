@@ -125,8 +125,8 @@ static CHROMABLUEID: u8 = 2;
 static CHROMAREDID: u8 = 3;
 
 /// The representation of a JPEG encoder
-pub struct JPEGEncoder<W> {
-    w: W,
+pub struct JPEGEncoder<'a, W: 'a> {
+    w: &'a mut W,
 
     components: Vec<Component>,
     tables: Vec<u8>,
@@ -140,9 +140,9 @@ pub struct JPEGEncoder<W> {
     chroma_actable: Vec<(u8, u16)>,
 }
 
-impl<W: Writer> JPEGEncoder<W> {
+impl<'a, W: Writer> JPEGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> JPEGEncoder<W> {
+    pub fn new(w: &mut W) -> JPEGEncoder<W> {
         let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
         let la = build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
 

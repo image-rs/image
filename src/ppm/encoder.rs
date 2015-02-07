@@ -13,15 +13,15 @@ use color::ColorType:: {
 };
 
 /// A representation of a PPM encoder.
-pub struct PPMEncoder<W> {
-    w: W
+pub struct PPMEncoder<'a, W: 'a> {
+    w: &'a mut W
 }
 
-impl<W: Writer> PPMEncoder<W> {
+impl<'a, W: Writer> PPMEncoder<'a, W> {
     /// Create a new PPMEncoder from the Writer ```w```.
     /// This function takes ownership of the Writer.
-    pub fn new(w: W) -> PPMEncoder<W> {
-        PPMEncoder {w: w}
+    pub fn new(w: &mut W) -> PPMEncoder<W> {
+        PPMEncoder { w: w }
     }
 
     /// Encode the buffer ```im``` as a PPM image.

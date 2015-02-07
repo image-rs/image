@@ -21,14 +21,14 @@ use super::filter::filter;
 use super::decoder::PNGSIGNATURE;
 
 /// The representation of a PNG encoder
-pub struct PNGEncoder<W> {
-    w: W,
+pub struct PNGEncoder<'a, W: 'a> {
+    w: &'a mut W,
     crc: Crc32
 }
 
-impl<W: Writer> PNGEncoder<W> {
+impl<'a, W: Writer> PNGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> PNGEncoder<W> {
+    pub fn new(w: &mut W) -> PNGEncoder<W> {
         PNGEncoder {
             w: w,
             crc: Crc32::new()

@@ -443,7 +443,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         }
         let max_rowlen = try!(self.row_len());
         let mut buf: Vec<u8> = repeat(0u8).take(max_rowlen * self.height as usize).collect();
-        if let Some(mut pass_iterator) = self.pass_iterator { // Method == Adam7
+        if let Some(pass_iterator) = self.pass_iterator { // Method == Adam7
             let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
             let bytes = color::bits_per_pixel(self.pixel_type)/8;

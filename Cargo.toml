@@ -29,3 +29,5 @@ git = "https://github.com/rust-lang/num"
 git = "https://github.com/rust-lang/glob"
 #version = "0.1.7"
 
+[dev-dependencies]
+rand = "0.1"

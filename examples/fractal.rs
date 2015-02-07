@@ -1,5 +1,5 @@
 //!An example of generating julia fractals.
-#![feature(path, io)]
+#![feature(path, io, core)]
 
 extern crate num;
 extern crate image;
@@ -46,7 +46,7 @@ fn main() {
 
 
     // Save the image as “fractal.png”
-    let fout = File::create(&Path::new("fractal.png")).unwrap();
+    let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
 
     // We must indicate the image’s color type and what format to save as
     let _    = image::ImageLuma8(imgbuf).save(fout, image::PNG);

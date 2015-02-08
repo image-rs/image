@@ -577,7 +577,7 @@ pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {
-    use std::rand;
+    extern crate rand;
 
     use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
     use color;

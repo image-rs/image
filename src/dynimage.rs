@@ -330,7 +330,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, mut w: W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
+    pub fn save<W: Writer>(&self, w: &mut W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -360,7 +360,7 @@ impl DynamicImage {
             image::ImageFormat::GIF => {
                 let mut j = gif::GIFEncoder::new(self.to_rgba(), None);
 
-                try!(j.encode(&mut w));
+                try!(j.encode(w));
                 Ok(())
             }
 
@@ -529,7 +529,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
 pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  old_io::IoResult<()> {
-    let fout = try!(old_io::File::create(path));
+    let ref mut fout = try!(old_io::File::create(path));
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 

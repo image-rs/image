@@ -264,6 +264,16 @@ pub trait GenericImage: Sized {
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
+    fn width(&self) -> u32 {
+        let (w, _) = self.dimensions();
+        w
+    }
+
+    fn height(&self) -> u32 {
+        let (_, h) = self.dimensions();
+        h
+    }
+
     /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
@@ -294,12 +304,26 @@ pub trait GenericImage: Sized {
     /// Panics if `(x, y)` is out of bounds.
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
+    /// Returns the pixel located at (x, y)
+    ///
+    /// This function can be implemented in a way that ignores bounds checking.
+    unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        self.get_pixel(x, y)
+    }
+
     /// Put a pixel at location (x, y)
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
+
+    /// Puts a pixel at location (x, y)
+    ///
+    /// This function can be implemented in a way that ignores bounds checking.
+    unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
+        self.put_pixel(x, y, pixel);
+    }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
     #[deprecated = "This method will be removed. Blend the pixel directly instead."]
@@ -335,6 +359,45 @@ pub trait GenericImage: Sized {
             width:  width,
             height: height,
         }
+    }
+
+    /// Copies all of the pixels from another image into this image.
+    ///
+    /// The other image is copied with the top-left corner of the
+    /// other image placed at (x, y).
+    ///
+    /// In order to copy only a pice of the other image, use `sub_image`.
+    ///
+    /// # Returns
+    /// `true` if the copy was successful, `false` if the image could not
+    /// be copied due to size constraints.
+    fn copy_from<O>(&mut self, other: &O, x: u32, y:u32) -> bool
+    where O: GenericImage<Pixel=Self::Pixel> {
+        // Do bounds checking here so we can use the non-bounds-checking
+        // functions to copy pixels.
+        if self.width() < other.width() + x {
+            return false;
+        } else if self.height() < other.height() + y {
+            return false;
+        }
+
+        for i in 0 .. other.width() {
+            for k in 0 .. other.height() {
+                unsafe {
+                    let p = other.unsafe_get_pixel(i, k);
+                    self.unsafe_put_pixel(i + x, k + y, p);
+                }
+            }
+        }
+        true
+    }
+
+    /// Returns a subimage that is a view into this image.
+    fn sub_image<'a>(&'a mut self, x: u32, y: u32, width: u32, height: u32)
+    -> SubImage<'a, Self>
+    where Self: 'static, <Self::Pixel as Pixel>::Subpixel: 'static,
+    Self::Pixel: 'static {
+        SubImage::new(self, x, y, width, height)
     }
 }
 

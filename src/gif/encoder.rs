@@ -15,6 +15,7 @@ use super::{Extension, Block, DisposalMethod};
 
 #[derive(Debug, Copy)]
 #[allow(unused_qualifications)]
+/// The color mode the encoder will use to encode the image.
 pub enum ColorMode {
 	/// Image will be encoded in multiple frames if more than 256 colors are present
 	TrueColor,
@@ -23,6 +24,12 @@ pub enum ColorMode {
 }
 use self::ColorMode::{TrueColor, Indexed};
 
+/// A GIF encoder.
+///
+/// Encodes the image either in true color using indexed colors.
+/// If the mode is set to TrueColor the image is split into multiple frames 
+/// when the number of colors including transparent color exceeds 256.
+/// Pixels with an alpha value != 1.0 will be set to alpha = 0.
 pub struct Encoder<Image> {
 	image: Image,
 	bg_color: Option<Rgb<u8>>,
@@ -33,7 +40,7 @@ const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
 
 impl<Container> Encoder<ImageBuffer<Rgba<u8>, Container>>
 where Container: ArrayLike<u8> {
-	/// Creates a new gif encoder
+	/// Creates a new GIF encoder
 	pub fn new(image: ImageBuffer<Rgba<u8>, Container>,
 		       bg_color: Option<Rgb<u8>>,
 		       color_mode: ColorMode,
@@ -45,7 +52,7 @@ where Container: ArrayLike<u8> {
 		}
 	}
 
-	/// Encodes the gif
+	/// Encodes the image
 	pub fn encode<W: Writer>(&mut self, w: &mut W) -> IoResult<()> {
 		// Header
 		try!(w.write_all(b"GIF89a"));

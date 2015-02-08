@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use std::old_io;
-use std::old_io::{MemReader, IoResult};
+use std::old_io::IoResult;
 use std::num::Int;
 
 use color::{Rgb, Rgba};
@@ -81,7 +81,7 @@ where Container: ArrayLike<u8> {
 				// NOTE: copy paste any changes to case: Indexed(n) if n as usize <= num_colors
 				try!(self.write_control_ext(w, 0, transparent));
 				try!(self.write_descriptor(w, None));
-				try!(self.write_image_simple(w, &hist[], 0, transparent));
+				try!(self.write_image_simple(w, &hist[], transparent));
 			},
 			TrueColor => {
 				try!(self.write_true_color(w, hist, transparent));
@@ -90,7 +90,7 @@ where Container: ArrayLike<u8> {
 				// NOTE: copy paste from case: TrueColor if num_colors <= 256
 				try!(self.write_control_ext(w, 0, transparent));
 				try!(self.write_descriptor(w, None));
-				try!(self.write_image_simple(w, &hist[], 0, transparent));
+				try!(self.write_image_simple(w, &hist[], transparent));
 			}
 			Indexed(_) => {
 				panic!("Indexed(n) unimplemented")
@@ -251,14 +251,13 @@ where Container: ArrayLike<u8> {
 	fn write_image_simple<W: Writer>(&mut self, 
 								    w: &mut W, 
 								    hist: &[(Rgba<u8>, usize)],
-								    offset: u8,
 								    transparent: Option<usize>,
 								   ) -> IoResult<()> 
 	{
 		let t_idx = match transparent { Some(i) => i as u8, None => 0 };
 		let data: Vec<u8> = self.image.pixels().map(|p| {
 			if let Some(idx) = hist.iter().position(|x| x.0 == *p) {
-				idx as u8 + offset
+				idx as u8
 			} else {
 				t_idx
 			}
@@ -286,22 +285,41 @@ where Container: ArrayLike<u8> {
 		let val = hist.swap_remove(0);
 		hist.push(val);
 		let transparent = Some(0);
-		for chunk in hist[1..].chunks(255) {
-			// we inject the transparent color in every table thus => +1
+
+		// Calculating the indices is expensive so just do it once
+		let indices: Vec<u32> = self.image.pixels().map(|p| {
+			if let Some(idx) = hist.iter().position(|x| x.0 == *p) {
+				idx as u32
+			} else {
+				0
+			}
+		}).collect();
+		let mut chunk_indices = Vec::with_capacity(self.image.as_slice().len());
+		// starting from 1 since we inject the transparent color in every frame
+		for (j, chunk) in hist[1..].chunks(255).enumerate() {
+			// Now we can reuse the indices for every subimage
+			// if the substract j*255 from each an replace it with 0 if it gets negative
+			chunk_indices.clear();
+			for &idx in indices.iter() {
+				let i: i32 = idx as i32 - j as i32*255;
+				chunk_indices.push(if i < 0 { 0 } else { i as u8 })
+			}
+			// Write local color table
 			let num_local_colors = chunk.len() + 1;
 			let n = flag_n(num_local_colors);
 			try!(self.write_control_ext(w, 0, transparent));
 			try!(self.write_descriptor(w, Some(num_local_colors)));
-			// Transparent color
+			// Inject transparent color
 			try!(w.write_all(&TRANSPARENT.channels()[..3]));
 			for &(color, _) in chunk.iter() {
 				try!(w.write_all(&color.channels()[..3]));
 			}
-			// Waste some space as of gif spec
+			// waste some space as of gif spec
 			for _ in 0..((2 << n) - num_local_colors) {
 				try!(w.write_all(&[0, 0, 0]));
 			}
-			try!(self.write_image_simple(w, chunk, 1, transparent));
+			// write indices
+			try!(self.write_indices(w, &chunk_indices[]));
 		}
 		Ok(())
 	}

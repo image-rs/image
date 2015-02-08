@@ -214,7 +214,6 @@ impl<T: Primitive> Index<usize> for $ident<T> {
 }
 
 impl<T: Primitive> IndexMut<usize> for $ident<T> {
-    type Output = T;
     #[inline(always)]
     fn index_mut<'a>(&'a mut self, _index: &usize) -> &'a mut T {
         let &mut $ident(ref mut this) = self;

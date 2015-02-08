@@ -126,16 +126,16 @@ $( // START Structure definitions
 
 #[$doc]
 #[allow(dead_code)]
-pub struct $name<W> where W: Writer {
-    w: W,
+pub struct $name<'a, W> where W: Writer + 'a {
+    w: &'a mut W,
     bits: u8,
     acc: u32,
 }
 
-impl<W> $name<W> where W: Writer {
+impl<'a, W> $name<'a, W> where W: Writer + 'a  {
     /// Creates a new bit reader
     #[allow(dead_code)]
-    pub fn new(writer: W) -> $name<W> {
+    pub fn new(writer: &'a mut W) -> $name<'a, W> {
         $name {
             w: writer,
             bits: 0,
@@ -144,7 +144,7 @@ impl<W> $name<W> where W: Writer {
     }
 }
 
-impl<W> Writer for $name<W> where W: Writer {
+impl<'a, W> Writer for $name<'a, W> where W: Writer + 'a  {
 
     fn write_all(&mut self, buf: &[u8]) -> IoResult<()> {
         if self.acc == 0 {
@@ -176,7 +176,7 @@ define_bit_writers!{
     MsbWriter, #[doc = "Writes bits to a byte stream, MSB first."];
 }
 
-impl<W> BitWriter for LsbWriter<W> where W: Writer {
+impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Writer + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
         self.acc |= (v as u32) << self.bits;
@@ -192,7 +192,7 @@ impl<W> BitWriter for LsbWriter<W> where W: Writer {
 
 }
 
-impl<W> BitWriter for MsbWriter<W> where W: Writer {
+impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Writer + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
         self.acc |= (v as u32) << (32 - n - self.bits);
@@ -222,11 +222,10 @@ mod test {
         }
         let mut compressed_data = Vec::new();
         {
-            let mut writer = super::LsbWriter::new(compressed_data);
+            let mut writer = super::LsbWriter::new(&mut compressed_data);
             for &datum in expanded_data.iter() {
                 let _  = writer.write_bits(datum, 10);
             }
-            compressed_data = writer.w;
         }
         assert_eq!(&data[], &compressed_data[])
     }

@@ -7,6 +7,7 @@
 //!
 
 pub use self::decoder::GIFDecoder;
+pub use self::encoder::Encoder as GIFEncoder;
 
 mod decoder;
 mod encoder;
@@ -27,4 +28,13 @@ enum Extension {
     Control = 0xF9,
     Comment = 0xFE,
     Application = 0xFF
+}
+
+#[derive(FromPrimitive)]
+/// Method to dispose the image
+enum DisposalMethod {
+	Undefined = 0,
+	None = 1,
+	Previous = 2,
+	Background = 3
 }

@@ -60,7 +60,7 @@ macro_rules! define_colors {
 $( // START Structure definitions
 
 #[$doc]
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
 pub struct $ident<T: Primitive>(pub [T; $channels]);
 
 impl<T: Primitive + 'static> Pixel for $ident<T> {

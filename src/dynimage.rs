@@ -330,7 +330,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, w: W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
+    pub fn save<W: Writer>(&self, mut w: W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -354,6 +354,13 @@ impl DynamicImage {
                 let mut j = jpeg::JPEGEncoder::new(w);
 
                 try!(j.encode(&bytes[], width, height, color));
+                Ok(())
+            }
+
+            image::ImageFormat::GIF => {
+                let mut j = gif::GIFEncoder::new(self.to_rgba(), None);
+
+                try!(j.encode(&mut w));
                 Ok(())
             }
 

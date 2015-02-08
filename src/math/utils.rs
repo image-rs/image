@@ -1,3 +1,6 @@
+//! Shared mathematical utility functions.
+
+
 /// Cut value to be inside given range
 ///
 /// ```

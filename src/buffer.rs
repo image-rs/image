@@ -577,7 +577,6 @@ pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {
-    extern crate rand;
 
     use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
     use color;
@@ -607,8 +606,8 @@ mod test {
         for mut p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
-            rgb[1] = rand::random();
-            rgb[2] = rand::random();
+            rgb[1] = 23;
+            rgb[2] = 42;
         }
         assert!(a.data[0] != 0);
         b.iter(|| {

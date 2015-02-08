@@ -264,11 +264,13 @@ pub trait GenericImage: Sized {
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
+    /// The width of this image.
     fn width(&self) -> u32 {
         let (w, _) = self.dimensions();
         w
     }
 
+    /// The height of this image.
     fn height(&self) -> u32 {
         let (_, h) = self.dimensions();
         h

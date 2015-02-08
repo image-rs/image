@@ -290,7 +290,9 @@ where Container: ArrayLike<u8> {
                 0
             }
         }).collect();
-        let mut chunk_indices = Vec::with_capacity(self.image.as_slice().len());
+        let mut chunk_indices = Vec::with_capacity(
+            self.image.width() as usize * self.image.height() as usize
+        );
         // starting from 1 since we inject the transparent color in every frame
         for (j, chunk) in hist.chunks(255).enumerate() {
             // Now we can reuse the indices for every subimage

@@ -112,7 +112,9 @@ where Container: ArrayLike<u8> {
             // Replace transparent pixels with black, alpha = 0
             if let Some(bg_color) = self.bg_color {
                 p.blend(&bg_color.to_rgba())
-            } else if p[3] != 255 {
+            // do not use 255 as a limit there could be rounding error etc.
+            // thus take 250 to give it some security margin.
+            } else if p[3] < 250 {
                 p = TRANSPARENT;
             }
             match hist.entry(p) {
@@ -274,7 +276,6 @@ where Container: ArrayLike<u8> {
                                    transparent: Option<usize>
                                   ) -> IoResult<()> 
     {
-        try!(self.write_nab(w, 1));
         let mut hist = hist;
         // Remove transparent idx
         if let Some(transparent) = transparent {
@@ -319,7 +320,9 @@ where Container: ArrayLike<u8> {
         Ok(())
     }
 
+
     /// Writes the netscape application block to set the number `n` of repetitions
+    #[allow(dead_code)]
     fn write_nab<W: Writer>(&mut self, w: &mut W, n: u16) -> IoResult<()> {
         try!(w.write_u8(Block::Extension as u8));
         try!(w.write_u8(Extension::Application as u8));

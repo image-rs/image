@@ -78,17 +78,19 @@ where Container: ArrayLike<u8> {
 		match self.color_mode {
 			// Global color table has been written, just write the image data now
 			TrueColor if num_colors <= 256 => {
+				// NOTE: copy paste any changes to case: Indexed(n) if n as usize <= num_colors
 				try!(self.write_control_ext(w, 0, transparent));
 				try!(self.write_descriptor(w, None));
-				try!(self.write_data_simple(w, &hist[], transparent));
+				try!(self.write_image_simple(w, &hist[], 0, transparent));
 			},
 			TrueColor => {
-				panic!("TrueColor unimplemented")
+				try!(self.write_true_color(w, hist, transparent));
 			},
 			Indexed(n) if n as usize <= num_colors => {
+				// NOTE: copy paste from case: TrueColor if num_colors <= 256
 				try!(self.write_control_ext(w, 0, transparent));
 				try!(self.write_descriptor(w, None));
-				try!(self.write_data_simple(w, &hist[], transparent));
+				try!(self.write_image_simple(w, &hist[], 0, transparent));
 			}
 			Indexed(_) => {
 				panic!("Indexed(n) unimplemented")
@@ -164,7 +166,7 @@ where Container: ArrayLike<u8> {
 		} else if let Some(bg_color) = self.bg_color {
 			flags |= 1 << 7; // glocal table flag
 			let mut table = Vec::with_capacity(6);
-			table.push_all(&bg_color.channels()[..2]);
+			table.push_all(&bg_color.channels()[..3]);
 			table.push_all(&[0, 0, 0]);
 			(Some(table), 0)
 		} else {
@@ -223,28 +225,18 @@ where Container: ArrayLike<u8> {
 		}
 	}
 
-	/// Writes the image to the file assuming that every pixel is in the color table
-	/// If not, the index of the transparent pixel is written
-	fn write_data_simple<W: Writer>(&mut self, 
+	/// Writes and compresses the indexed data
+	fn write_indices<W: Writer>(&mut self, 
 								    w: &mut W, 
-								    hist: &[(Rgba<u8>, usize)],
-								    transparent: Option<usize>
+								    indices: &[u8],
 								   ) -> IoResult<()> 
 	{
-		let code_size = match flag_n(hist.len()) + 1 {
+		let code_size = match flag_n(indices.len()) + 1 {
 			1 => 2,
 			n => n
 		};
-		let t_idx = match transparent { Some(i) => i as u8, None => 0 };
-		let data: Vec<u8> = self.image.pixels().map(|p| {
-			if let Some(idx) = hist.iter().position(|x| x.0 == *p) {
-				idx as u8
-			} else {
-				t_idx
-			}
-		}).collect();
 		let mut encoded_data = Vec::new();
-		try!(lzw::encode(MemReader::new(data), LsbWriter::new(&mut encoded_data), code_size));
+		try!(lzw::encode(indices, LsbWriter::new(&mut encoded_data), code_size));
 		try!(w.write_u8(code_size));
 		for chunk in encoded_data.chunks(255) {
 			try!(w.write_u8((chunk.len()) as u8));
@@ -252,6 +244,66 @@ where Container: ArrayLike<u8> {
 		}
 		w.write_u8(0) // block terminator
 
+	}
+
+	/// Writes the image to the file assuming that every pixel is in the color table
+	/// If not, the index of the transparent pixel is written
+	fn write_image_simple<W: Writer>(&mut self, 
+								    w: &mut W, 
+								    hist: &[(Rgba<u8>, usize)],
+								    offset: u8,
+								    transparent: Option<usize>,
+								   ) -> IoResult<()> 
+	{
+		let t_idx = match transparent { Some(i) => i as u8, None => 0 };
+		let data: Vec<u8> = self.image.pixels().map(|p| {
+			if let Some(idx) = hist.iter().position(|x| x.0 == *p) {
+				idx as u8 + offset
+			} else {
+				t_idx
+			}
+		}).collect();
+		self.write_indices(w, &data[])
+
+	}
+
+	/// Writes the graphics control extension
+	fn write_true_color<W: Writer>(&mut self, 
+								    w: &mut W, 
+								    hist: Vec<(Rgba<u8>, usize)>,
+								    transparent: Option<usize>
+								   ) -> IoResult<()> 
+	{
+		let mut hist = hist;
+		// We need a transparent pixel we put it to index 0
+		if let Some(transparent) = transparent {
+			let val = hist.swap_remove(transparent);
+			hist.push(val);
+		} else {
+			hist.reserve(1);
+			hist.push((TRANSPARENT, 0));
+		}
+		let val = hist.swap_remove(0);
+		hist.push(val);
+		let transparent = Some(0);
+		for chunk in hist[1..].chunks(255) {
+			// we inject the transparent color in every table thus => +1
+			let num_local_colors = chunk.len() + 1;
+			let n = flag_n(num_local_colors);
+			try!(self.write_control_ext(w, 0, transparent));
+			try!(self.write_descriptor(w, Some(num_local_colors)));
+			// Transparent color
+			try!(w.write_all(&TRANSPARENT.channels()[..3]));
+			for &(color, _) in chunk.iter() {
+				try!(w.write_all(&color.channels()[..3]));
+			}
+			// Waste some space as of gif spec
+			for _ in 0..((2 << n) - num_local_colors) {
+				try!(w.write_all(&[0, 0, 0]));
+			}
+			try!(self.write_image_simple(w, chunk, 1, transparent));
+		}
+		Ok(())
 	}
 }
 

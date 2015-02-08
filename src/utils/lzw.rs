@@ -113,7 +113,6 @@ where R: BitReader, W: Writer {
     let mut code_size = min_code_size + 1;
     loop {
         let code = try!(r.read_bits(code_size));
-        println!("{:02} {:?}", code_size, code);
         if code == clear_code {
             table.reset();
             table.push(None, 0); // clear code
@@ -269,7 +268,7 @@ impl EncodingDict {
     }
 }
  
-pub fn encode<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> old_io::IoResult<()>
+pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> old_io::IoResult<()>
 where R: Reader, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
     dict.push_node(Node::new(0)); // clear code

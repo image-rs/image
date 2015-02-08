@@ -26,22 +26,6 @@ enum State {
     HaveLSD,
 }
 
-
-#[derive(FromPrimitive)]
-enum Block {
-    Image = 0x2C,
-    Extension = 0x21,
-    Trailer = 0x3B
-}
-
-#[derive(FromPrimitive)]
-enum Extension {
-    Text = 0x01,
-    Control = 0xF9,
-    Comment = 0xFE,
-    Application = 0xFF
-}
-
 /// A gif decoder
 pub struct GIFDecoder<R: Reader> {
     r: R,
@@ -126,7 +110,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn read_extension(&mut self) -> ImageResult<()> {
-        use self::Extension::{Text, Control, Comment, Application};
+        use super::Extension::{Text, Control, Comment, Application};
 
         match FromPrimitive::from_u8(try!(self.r.read_u8())) {
             Some(Text) => try!(self.skip_extension()),
@@ -256,7 +240,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 
     fn next_frame(&mut self) -> ImageResult<Option<Frame>> {
-        use self::Block::{Image, Extension, Trailer};
+        use super::Block::{Image, Extension, Trailer};
 
         try!(self.read_logical_screen_descriptor());
         loop {

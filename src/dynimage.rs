@@ -357,6 +357,15 @@ impl DynamicImage {
                 Ok(())
             }
 
+            image::ImageFormat::GIF => {
+                let mut g = gif::GIFEncoder::new(
+                    self.to_rgba(), None, gif::ColorMode::TrueColor
+                );
+
+                try!(g.encode(w));
+                Ok(())
+            }
+
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),

@@ -274,19 +274,13 @@ where Container: ArrayLike<u8> {
 								    transparent: Option<usize>
 								   ) -> IoResult<()> 
 	{
+		try!(self.write_nab(w, 1));
 		let mut hist = hist;
-		// We need a transparent pixel we put it to index 0
+		// Remove transparent idx
 		if let Some(transparent) = transparent {
-			let val = hist.swap_remove(transparent);
-			hist.push(val);
-		} else {
-			hist.reserve(1);
-			hist.push((TRANSPARENT, 0));
+			let _ = hist.swap_remove(transparent);
 		}
-		let val = hist.swap_remove(0);
-		hist.push(val);
 		let transparent = Some(0);
-
 		// Calculating the indices is expensive so just do it once
 		let indices: Vec<u32> = self.image.pixels().map(|p| {
 			if let Some(idx) = hist.iter().position(|x| x.0 == *p) {
@@ -297,13 +291,13 @@ where Container: ArrayLike<u8> {
 		}).collect();
 		let mut chunk_indices = Vec::with_capacity(self.image.as_slice().len());
 		// starting from 1 since we inject the transparent color in every frame
-		for (j, chunk) in hist[1..].chunks(255).enumerate() {
+		for (j, chunk) in hist.chunks(255).enumerate() {
 			// Now we can reuse the indices for every subimage
 			// if the substract j*255 from each an replace it with 0 if it gets negative
 			chunk_indices.clear();
 			for &idx in indices.iter() {
-				let i: i32 = idx as i32 - j as i32*255;
-				chunk_indices.push(if i < 0 { 0 } else { i as u8 })
+				let i: i64 = idx as i64 - j as i64*255;
+				chunk_indices.push(if i < 0 || i > 255 { 0 } else { i as u8 + 1 })
 			}
 			// Write local color table
 			let num_local_colors = chunk.len() + 1;
@@ -323,6 +317,18 @@ where Container: ArrayLike<u8> {
 			try!(self.write_indices(w, &chunk_indices[]));
 		}
 		Ok(())
+	}
+
+	/// Writes the netscape application block to set the number `n` of repetitions
+	fn write_nab<W: Writer>(&mut self, w: &mut W, n: u16) -> IoResult<()> {
+		try!(w.write_u8(Block::Extension as u8));
+		try!(w.write_u8(Extension::Application as u8));
+		try!(w.write_u8(0x0B)); // size
+		try!(w.write_all(b"NETSCAPE2.0"));
+		try!(w.write_u8(0x03)); // sub-block size
+		try!(w.write_u8(0x01)); // sub-block id
+		try!(w.write_le_u16(n));
+		w.write_u8(0) // terminator
 	}
 }
 

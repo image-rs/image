@@ -266,7 +266,8 @@ where Container: ArrayLike<u8> {
 
 	}
 
-	/// Writes the graphics control extension
+	/// Writes the image as a true color image by splitting the colors 
+	/// over several frames
 	fn write_true_color<W: Writer>(&mut self, 
 								    w: &mut W, 
 								    hist: Vec<(Rgba<u8>, usize)>,

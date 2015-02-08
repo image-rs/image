@@ -19,8 +19,6 @@ use buffer::{ImageBuffer, GrayImage, RgbaImage};
 use utils::lzw;
 use utils::bitstream::{LsbReader};
 
-use super::{Extension, Block};
-
 #[derive(PartialEq)]
 enum State {
     Start,

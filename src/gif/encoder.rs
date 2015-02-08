@@ -1,6 +1,5 @@
 
 use buffer::{ImageBuffer, Pixel, ArrayLike};
-use std::hash::Hash;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
@@ -14,7 +13,9 @@ use utils::bitstream::LsbWriter;
 
 use super::{Extension, Block, DisposalMethod};
 
-enum ColorMode {
+#[derive(Debug, Copy)]
+#[allow(unused_qualifications)]
+pub enum ColorMode {
 	/// Image will be encoded in multiple frames if more than 256 colors are present
 	TrueColor,
 	/// Number of colors will be reduced
@@ -28,16 +29,19 @@ pub struct Encoder<Image> {
 	color_mode: ColorMode
 }
 
-const Transparent: Rgba<u8> = Rgba([0, 0, 0, 0]);
+const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
 
 impl<Container> Encoder<ImageBuffer<Rgba<u8>, Container>>
 where Container: ArrayLike<u8> {
 	/// Creates a new gif encoder
-	pub fn new(image: ImageBuffer<Rgba<u8>, Container>, bg_color: Option<Rgb<u8>>) -> Encoder<ImageBuffer<Rgba<u8>, Container>> {
+	pub fn new(image: ImageBuffer<Rgba<u8>, Container>,
+		       bg_color: Option<Rgb<u8>>,
+		       color_mode: ColorMode,
+		      ) -> Encoder<ImageBuffer<Rgba<u8>, Container>> {
 		Encoder {
 			image: image,
 			bg_color: bg_color,
-			color_mode: ColorMode::TrueColor
+			color_mode: color_mode
 		}
 	}
 
@@ -79,7 +83,7 @@ where Container: ArrayLike<u8> {
 				try!(self.write_descriptor(w, None));
 				try!(self.write_data_simple(w, &hist[], transparent));
 			}
-			Indexed(n) => {
+			Indexed(_) => {
 				panic!("Indexed(n) unimplemented")
 			}
 
@@ -100,7 +104,7 @@ where Container: ArrayLike<u8> {
 			if let Some(bg_color) = self.bg_color {
 				p.blend(&bg_color.to_rgba())
 			} else if p[3] != 255 {
-				p = Transparent;
+				p = TRANSPARENT;
 			}
 			match hist.entry(p) {
 				Occupied(mut entry) => {
@@ -116,7 +120,7 @@ where Container: ArrayLike<u8> {
 		// Sort color map with decreasing color freqs
 		colors.sort_by(|a, b| b.1.cmp(&a.1));
 		// Add bg_color to table
-		let transparent = colors.iter().position(|x| x.0 == Transparent);
+		let transparent = colors.iter().position(|x| x.0 == TRANSPARENT);
 		(colors, transparent)
 	}
 

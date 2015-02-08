@@ -8,6 +8,7 @@
 
 pub use self::decoder::GIFDecoder;
 pub use self::encoder::Encoder as GIFEncoder;
+pub use self::encoder::ColorMode;
 
 mod decoder;
 mod encoder;

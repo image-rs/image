@@ -358,9 +358,11 @@ impl DynamicImage {
             }
 
             image::ImageFormat::GIF => {
-                let mut j = gif::GIFEncoder::new(self.to_rgba(), None);
+                let mut g = gif::GIFEncoder::new(
+                    self.to_rgba(), None, gif::ColorMode::TrueColor
+                );
 
-                try!(j.encode(w));
+                try!(g.encode(w));
                 Ok(())
             }
 

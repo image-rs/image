@@ -41,6 +41,10 @@ pub use self::colorops:: {
     invert,
     contrast,
     brighten,
+    ColorMap,
+    BiLevel,
+    dither,
+    index_colors,
 };
 
 mod affine;

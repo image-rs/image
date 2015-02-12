@@ -111,3 +111,138 @@ pub fn brighten<I: GenericImage + 'static>(image: &I, value: i32)
 
     out
 }
+
+/// A color map
+pub trait ColorMap {
+    /// The color type on which the map operates on
+    type Color;
+    /// Returns the index of the closed match of `color`
+    /// in the color map.
+    fn index_of(&self, color: &Self::Color) -> usize;
+    /// Maps `color` to the closes color in the color map.
+    fn map_color(&self, color: &mut Self::Color);
+}
+
+/// A bi-level color map
+#[derive(Copy)]
+pub struct BiLevel;
+
+impl ColorMap for BiLevel {
+    type Color = Luma<u8>;
+
+    #[inline(always)]
+    fn index_of(&self, color: &Luma<u8>) -> usize {
+        let &Luma([luma]) = color;
+        if luma > 127 {
+            1
+        } else {
+            0
+        }
+    }
+
+    #[inline(always)]
+    fn map_color(&self, color: &mut Luma<u8>) {
+        let new_color = 0xFF * self.index_of(color) as u8;
+        let &mut Luma([ref mut luma]) = color;
+        *luma = new_color;
+    }
+}
+
+/// Floyd-Steinberg error diffusion
+fn diffuse_err<P: Pixel<Subpixel=u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
+    for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
+        *c = match *c as i16 + e * factor / 16 {
+            val if val < 0 => {
+                0
+            },
+            val if val > 0xFF => {
+                0xFF
+            },
+            val => val as u8
+        }
+    }
+
+}
+
+macro_rules! do_dithering(
+    ($map:expr, $image:expr, $err:expr, $x:expr, $y:expr) => (
+        {
+            let old_pixel = $image[($x, $y)];
+            let new_pixel = $image.get_pixel_mut($x, $y);
+            $map.map_color(new_pixel);
+            for ((e, &old), &new) in $err.iter_mut()
+                                        .zip(old_pixel.channels().iter())
+                                        .zip(new_pixel.channels().iter())
+            {
+                *e = old as i16 - new as i16
+            }
+        }
+    )
+);
+
+/// Reduces the colors of the image using the supplied `color_map` while applying
+/// Floyd-Steinberg dithering to improve the visual conception 
+pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map) 
+where Map: ColorMap<Color=Pix>,
+      Pix: Pixel<Subpixel=u8> + 'static,
+{
+    let (width, height) = image.dimensions();
+    let mut err: [i16; 3] = [0; 3];
+    for y in 0..height-1 {
+        let x = 0;
+        do_dithering!(color_map, image, err, x, y);
+        diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
+        diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
+        diffuse_err(image.get_pixel_mut(x+1, y+1), err, 1);
+        for x in 1..width-1 {
+            do_dithering!(color_map, image, err, x, y);
+            diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
+            diffuse_err(image.get_pixel_mut(x-1, y+1), err, 3);
+            diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
+            diffuse_err(image.get_pixel_mut(x+1, y+1), err, 1);
+        }
+        let x = width-1;
+        do_dithering!(color_map, image, err, x, y);
+        diffuse_err(image.get_pixel_mut(x-1, y+1), err, 3);
+        diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
+    }
+    let y = height-1;
+    let x = 0;
+    do_dithering!(color_map, image, err, x, y);
+    diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
+    for x in 1..width-1 {
+        do_dithering!(color_map, image, err, x, y);
+        diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
+    }
+    let x = width-1;
+    do_dithering!(color_map, image, err, x, y);
+}
+
+/// Reduces the colors using the supplied `color_map` and returns an image of the indices
+pub fn index_colors<Pix, Map>(image: &ImageBuffer<Pix, Vec<u8>>, color_map: &Map) -> 
+ImageBuffer<Luma<u8>, Vec<u8>>
+where Map: ColorMap<Color=Pix>,
+      Pix: Pixel<Subpixel=u8> + 'static,
+{
+    let mut indices = ImageBuffer::new(image.width(), image.height());
+    for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
+        *idx = Luma([color_map.index_of(pixel) as u8])
+    }
+    indices
+}
+
+#[cfg(test)]
+mod test {
+
+    use ImageBuffer;
+    use super::*;
+
+    #[test]
+    fn test_opedither() {
+        let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
+        let cmap = BiLevel;
+        dither(&mut image, &cmap);
+        assert_eq!(image.as_slice(), [0, 0xFF, 0xFF, 0].as_slice());
+        assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0])
+    }
+}

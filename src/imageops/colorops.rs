@@ -6,11 +6,12 @@ use std::num:: {
 
 use std::default::Default;
 
-use color::Luma;
+use color::{Luma, Rgba};
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
 use image::GenericImage;
 use math::utils::clamp;
+use math::nq;
 
 /// Convert the supplied image to grayscale
 // TODO: is the 'static bound on `I` really required? Can we avoid it?
@@ -145,6 +146,20 @@ impl ColorMap for BiLevel {
         let new_color = 0xFF * self.index_of(color) as u8;
         let &mut Luma([ref mut luma]) = color;
         *luma = new_color;
+    }
+}
+
+impl ColorMap for nq::NeuQuant {
+    type Color = Rgba<u8>;
+
+    #[inline(always)]
+    fn index_of(&self, color: &Rgba<u8>) -> usize {
+        self.index_of(color.channels())
+    }
+
+    #[inline(always)]
+    fn map_color(&self, color: &mut Rgba<u8>) {
+        self.map_pixel(color.channels_mut())
     }
 }
 

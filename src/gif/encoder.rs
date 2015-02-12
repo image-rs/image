@@ -10,8 +10,11 @@ use std::num::Int;
 use color::{Rgb, Rgba};
 use utils::lzw;
 use utils::bitstream::LsbWriter;
+use imageops::ColorMap;
 
 use super::{Extension, Block, DisposalMethod};
+
+use math::nq;
 
 #[derive(Debug, Copy)]
 #[allow(unused_qualifications)]
@@ -86,14 +89,14 @@ where Container: ArrayLike<u8> {
             TrueColor => {
                 try!(self.write_true_color(w, hist, transparent));
             },
-            Indexed(n) if n as usize <= num_colors => {
+            Indexed(n) if n as usize <= num_colors && num_colors <= 256 => {
                 // NOTE: copy paste from case: TrueColor if num_colors <= 256
                 try!(self.write_control_ext(w, 0, transparent));
                 try!(self.write_descriptor(w, None));
                 try!(self.write_image_simple(w, &hist[], transparent));
             }
-            Indexed(_) => {
-                panic!("Indexed(n) unimplemented")
+            Indexed(n) => {
+                try!(self.write_indexed_colors(w, n))
             }
 
         }
@@ -321,7 +324,36 @@ where Container: ArrayLike<u8> {
         }
         Ok(())
     }
+    /// Writes the image as a true color image by splitting the colors 
+    /// over several frames
+    fn write_indexed_colors<W: Writer>(&mut self, w: &mut W, n: u8) -> IoResult<()> {
+        if n < 64 {
+            return  Err(old_io::IoError{
+                kind: old_io::InvalidInput,
+                desc: "Unsupported number of colors.",
+                detail: Some(
+                    format!("{} colors < 64 colors", n))
+            })
+        }
+        let nq = nq::NeuQuant::new(3, 256, self.image.as_slice());
+        for pixel in self.image.pixels_mut() {
+            nq.map_color(pixel);
+        }
 
+        let (hist, transparent) = self.histogram();
+        let num_local_colors = hist.len();
+        let n = flag_n(num_local_colors);
+        try!(self.write_control_ext(w, 0, transparent));
+        try!(self.write_descriptor(w, Some(num_local_colors)));
+        for &(color, _) in hist.iter() {
+            try!(w.write_all(&color.channels()[..3]));
+        }
+        // waste some space as of gif spec
+        for _ in 0..((2 << n) - num_local_colors) {
+            try!(w.write_all(&[0, 0, 0]));
+        }
+        self.write_image_simple(w, &hist[], transparent)
+    }
 
     /// Writes the netscape application block to set the number `n` of repetitions
     #[allow(dead_code)]

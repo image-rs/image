@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.2.0-alpha.9"
+version = "0.2.0-alpha.10"
 license = "MIT"
 description = "A pure rust imaging library. Note that there is a bug in crates.io use image = \"~0.2.0\" for your dependency instead of the suggested one."
 authors = [

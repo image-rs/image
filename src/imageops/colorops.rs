@@ -238,7 +238,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_opedither() {
+    fn test_dither() {
         let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);

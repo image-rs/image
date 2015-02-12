@@ -1,4 +1,4 @@
-# Rust Image 0.1 Release Notes
+# Rust Image 0.2 Release Notes
 
 Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
 
@@ -10,6 +10,8 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Version 0.2
  - Support for interlaced PNG images.
+ - Writing support for GIF images.
+ - Initial support for TIF images.
  - Initial support for TGA images.
  - Various bug fixes.
 

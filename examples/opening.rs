@@ -1,5 +1,5 @@
 //! An example of opening an image.
-#![feature(path, io, env, os)]
+#![feature(path, io, env)]
 
 extern crate image;
 
@@ -10,7 +10,7 @@ use image::GenericImage;
 
 fn main() {
     let file = if env::args().count() == 2 {
-        env::args().nth(1).unwrap().into_string().unwrap()
+        env::args().nth(1).unwrap()
     } else {
         panic!("Please enter a file")
     };

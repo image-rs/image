@@ -1,5 +1,5 @@
 //!An example of generating julia fractals.
-#![feature(path, io, core)]
+#![feature(path, io)]
 
 extern crate num;
 extern crate image;

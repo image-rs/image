@@ -1,6 +1,4 @@
-use std::old_io::MemWriter;
-use std::old_io;
-use std::old_io::IoResult;
+use std::old_io::{ self, IoResult };
 use std::iter::range_step;
 use std::num::{ Float, SignedInt };
 
@@ -431,7 +429,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 }
 
 fn build_jfif_header() -> Vec<u8> {
-    let mut m = MemWriter::new();
+    let mut m = Vec::new();
 
     let _ = m.write_str("JFIF");
     let _ = m.write_u8(0);
@@ -443,7 +441,7 @@ fn build_jfif_header() -> Vec<u8> {
     let _ = m.write_u8(0);
     let _ = m.write_u8(0);
 
-    m.into_inner()
+    m
 }
 
 fn build_frame_header(precision: u8,
@@ -451,7 +449,7 @@ fn build_frame_header(precision: u8,
                       height: u16,
                       components: &[Component]) -> Vec<u8> {
 
-    let mut m = MemWriter::new();
+    let mut m = Vec::new();
 
     let _ = m.write_u8(precision);
     let _ = m.write_be_u16(height);
@@ -465,11 +463,11 @@ fn build_frame_header(precision: u8,
         let _  = m.write_u8(comp.tq);
     }
 
-    m.into_inner()
+    m
 }
 
 fn build_scan_header(components: &[Component]) -> Vec<u8> {
-    let mut m = MemWriter::new();
+    let mut m = Vec::new();
 
     let _ = m.write_u8(components.len() as u8);
 
@@ -484,14 +482,14 @@ fn build_scan_header(components: &[Component]) -> Vec<u8> {
     let _ = m.write_u8(63);
     let _ = m.write_u8(0);
 
-    m.into_inner()
+    m
 }
 
 fn build_huffman_segment(class: u8,
                          destination: u8,
                          numcodes: &[u8],
                          values: &[u8]) -> Vec<u8> {
-    let mut m = MemWriter::new();
+    let mut m = Vec::new();
 
     let tcth = (class << 4) | destination;
     let _    = m.write_u8(tcth);
@@ -511,7 +509,7 @@ fn build_huffman_segment(class: u8,
         let _ = m.write_u8(i);
     }
 
-    m.into_inner()
+    m
 }
 
 fn build_quantization_segment(precision: u8,
@@ -519,7 +517,7 @@ fn build_quantization_segment(precision: u8,
                               qtable: &[u8]) -> Vec<u8> {
 
     assert!(qtable.len() % 64 == 0);
-    let mut m = MemWriter::new();
+    let mut m = Vec::new();
 
     let p = if precision == 8 {0}
             else {1};
@@ -531,7 +529,7 @@ fn build_quantization_segment(precision: u8,
         let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
     }
 
-    m.into_inner()
+    m
 }
 
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {

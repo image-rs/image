@@ -1,4 +1,5 @@
 use std::num::SignedInt;
+use std::iter::range_step_inclusive;
 
 #[derive(FromPrimitive, Debug)]
 pub enum FilterType {
@@ -67,36 +68,35 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
 
 pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     let len  = current.len();
-    let orig: Vec<u8> = (0..len).map(| i | current[i]).collect();
 
     match method {
         FilterType::NoFilter => (),
         FilterType::Sub      => {
-            for i in (bpp..len) {
-                current[i] = orig[i] - orig[i - bpp];
+            for i in range_step_inclusive(len-1, bpp, -1) {
+                current[i] = current[i] - current[i - bpp];
             }
         }
         FilterType::Up       => {
             for i in (0..len) {
-                current[i] = orig[i] - previous[i];
+                current[i] = current[i] - previous[i];
             }
         }
         FilterType::Avg  => {
             for i in (0..bpp) {
-                current[i] = orig[i] - previous[i] / 2;
+                current[i] = current[i] - previous[i] / 2;
             }
 
-            for i in (bpp..len) {
-                current[i] = orig[i] - ((orig[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+            for i in range_step_inclusive(len-1, bpp, -1) {
+                current[i] = current[i] - ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
             }
         }
         FilterType::Paeth    => {
             for i in (0..bpp) {
-                current[i] = orig[i] - filter_paeth(0, previous[i], 0);
+                current[i] = current[i] - filter_paeth(0, previous[i], 0);
             }
 
-            for i in (bpp..len) {
-                current[i] = orig[i] - filter_paeth(orig[i - bpp], previous[i], previous[i - bpp]);
+            for i in range_step_inclusive(len-1, bpp, -1) {
+                current[i] = current[i] - filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
             }
         }
     }

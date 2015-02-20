@@ -383,12 +383,12 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Rgb<T> {
 }
 
 /// Blends a color inter another one
-pub trait Blend<T> {
+pub trait Blend {
     /// Blends a color in-place.
     fn blend(&mut self, other: &Self);
 }
 
-impl<T: Primitive> Blend<LumaA<T>> for LumaA<T> {
+impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t: T = Primitive::max_value();
         let max_t = max_t.to_f32().unwrap();
@@ -411,13 +411,13 @@ impl<T: Primitive> Blend<LumaA<T>> for LumaA<T> {
     }
 }
 
-impl<T: Primitive> Blend<Luma<T>> for Luma<T> {
+impl<T: Primitive> Blend for Luma<T> {
     fn blend(&mut self, other: &Luma<T>) {
         *self = *other
     }
 }
 
-impl<T: Primitive> Blend<Rgba<T>> for Rgba<T> {
+impl<T: Primitive> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
@@ -452,19 +452,19 @@ impl<T: Primitive> Blend<Rgba<T>> for Rgba<T> {
     }
 }
 
-impl<T: Primitive> Blend<Rgb<T>> for Rgb<T> {
+impl<T: Primitive> Blend for Rgb<T> {
     fn blend(&mut self, other: &Rgb<T>) {
         *self = *other
     }
 }
 
 /// Invert a color
-pub trait Invert<T> {
+pub trait Invert {
     /// Inverts a color in-place.
     fn invert(&mut self);
 }
 
-impl<T: Primitive> Invert<LumaA<T>> for LumaA<T> {
+impl<T: Primitive> Invert for LumaA<T> {
     fn invert(&mut self) {
         let &mut LumaA([l, a]) = self;
         let max: T = Primitive::max_value();
@@ -474,7 +474,7 @@ impl<T: Primitive> Invert<LumaA<T>> for LumaA<T> {
     }
 }
 
-impl<T: Primitive> Invert<Luma<T>> for Luma<T> {
+impl<T: Primitive> Invert for Luma<T> {
     fn invert(&mut self) {
         let &mut Luma([l]) = self;
 
@@ -485,7 +485,7 @@ impl<T: Primitive> Invert<Luma<T>> for Luma<T> {
     }
 }
 
-impl<T: Primitive> Invert<Rgba<T>> for Rgba<T> {
+impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
         let &mut Rgba([r, g, b, a]) = self;
 
@@ -495,7 +495,7 @@ impl<T: Primitive> Invert<Rgba<T>> for Rgba<T> {
     }
 }
 
-impl<T: Primitive> Invert<Rgb<T>> for Rgb<T> {
+impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
         let &mut Rgb([r, g, b]) = self;
 

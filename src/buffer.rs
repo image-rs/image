@@ -475,8 +475,9 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
-    pub fn from_fn(width: u32, height: u32, f: Box<Fn(u32, u32) -> P>)
-                   -> ImageBuffer<P, Vec<P::Subpixel>> {
+    pub fn from_fn<F>(width: u32, height: u32, f: F)
+                      -> ImageBuffer<P, Vec<P::Subpixel>>
+                      where F: Fn(u32, u32) -> P {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y,  p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)

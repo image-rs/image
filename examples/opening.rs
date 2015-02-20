@@ -1,5 +1,5 @@
 //! An example of opening an image.
-#![feature(path, io, env)]
+#![feature(old_path, old_io, env)]
 
 extern crate image;
 

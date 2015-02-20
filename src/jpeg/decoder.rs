@@ -230,7 +230,7 @@ impl<R: Reader>JPEGDecoder<R> {
         let dc = diff + pred;
         tmp[0] = dc * qtable[0] as i32;
 
-        let mut k = 0us;
+        let mut k = 0usize;
         while k < 63 {
             let rs = try!(self.h.decode_symbol(&mut self.r, actable));
 
@@ -424,7 +424,7 @@ impl<R: Reader>JPEGDecoder<R> {
 
             let slice = &mut self.qtables[64 * tq as usize..64 * tq as usize + 64];
 
-            for i in (0us..64) {
+            for i in (0usize..64) {
                 slice[i] = try!(self.r.read_u8());
             }
 
@@ -611,8 +611,8 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
 
 fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &[u8], h: u8, v: u8) {
     if mcu.len() == 64 {
-        for y in (0us..8) {
-            for x in (0us..8) {
+        for y in (0usize..8) {
+            for x in (0usize..8) {
                 out[xoffset + x + (y * width)] = mcu[x + y * 8]
             }
         }
@@ -631,8 +631,8 @@ fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &
             for bx in (0..h as usize) {
                 let x0 = xoffset + bx * 8 * bpp;
 
-                for y in (0us..8) {
-                    for x in (0us..8) {
+                for y in (0usize..8) {
+                    for x in (0usize..8) {
                         let (a, b, c) = (y_blocks[k * 64 + x + y * 8], cb[x + y * 8], cr[x + y * 8]);
                         let (r, g, b) = ycbcr_to_rgb(a , b , c );
 

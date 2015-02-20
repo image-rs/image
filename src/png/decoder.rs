@@ -281,7 +281,7 @@ impl<R: Reader> PNGDecoder<R> {
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
-        let p: Vec<(u8, u8, u8)> = (0us..256).map(|i| {
+        let p: Vec<(u8, u8, u8)> = (0usize..256).map(|i| {
             if i < len {
                 let r = buf[3 * i];
                 let g = buf[3 * i + 1];
@@ -378,8 +378,7 @@ impl<R: Reader> PNGDecoder<R> {
         };
 
         {
-            let mut read = 0us;
-            let read_buffer = &mut buf[..rlength as usize];
+            let mut read = 0usize; let read_buffer = &mut buf[..rlength as usize];
             while read < rlength as usize {
                 let r = try!(self.z.read(&mut read_buffer[read..]));
                 read += r;

@@ -272,7 +272,7 @@ impl<R: Reader> Reader for Inflater<R> {
         }
 
         let n = cmp::min(buf.len(), self.buf.len() - self.pos as usize);
-        for i in (0us..n) {
+        for i in (0usize..n) {
             buf[i] = self.buf[self.pos as usize + i];
         }
 
@@ -306,7 +306,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let max_overflow = max_len - TABLESIZE;
     bl_count[0] = 0;
 
-    for bits in (1us..16) {
+    for bits in (1usize..16) {
         code = (code + bl_count[bits - 1] as u16) << 1;
         next_code[bits] = code;
     }

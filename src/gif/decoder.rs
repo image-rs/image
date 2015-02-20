@@ -88,7 +88,7 @@ impl<R: Reader> GIFDecoder<R> {
             let entries = if global_table {
                 1 << ((fields & 0b111) + 1) as usize
             } else {
-                0us
+                0usize
             };
 
             let b = try!(self.r.read_u8());

@@ -291,7 +291,7 @@ impl NeuQuant {
 
     /// initializes the color map
     fn build_colormap(&mut self) {
-        for i in 0us..self.netsize {
+        for i in 0usize..self.netsize {
             self.colormap[i].b = clamp!((0.5 + self.network[i].b) as i32);
             self.colormap[i].g = clamp!((0.5 + self.network[i].g) as i32);
             self.colormap[i].r = clamp!((0.5 + self.network[i].r) as i32);

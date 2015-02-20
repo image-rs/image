@@ -269,7 +269,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     fn expand_color_map(&mut self, pixel_data: Vec<u8>) -> Vec<u8> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
-            let mut result = 0us;
+            let mut result = 0usize;
             for byte in bytes.iter() {
                 result = result << 8 | *byte as usize;
             }
@@ -328,7 +328,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let data = try!(self.r.read_exact(self.bytes_per_pixel));
-                for _ in (0us..repeat_count) {
+                for _ in (0usize..repeat_count) {
                     pixel_data.push_all(&data[]);
                 }
                 num_read += repeat_count;

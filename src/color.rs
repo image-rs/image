@@ -79,12 +79,12 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     #[inline(always)]
     fn channels(&self) -> &[T] {
         let &$ident(ref this) = self;
-        &this[]
+        this
     }
     #[inline(always)]
     fn channels_mut(&mut self) -> &mut [T] {
         let &mut $ident(ref mut this) = self;
-        &mut this[]
+        this
     }
 
     #[allow(unused_typecasts)]
@@ -157,7 +157,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     fn apply<F>(&mut self, f: F) where F: Fn(T) -> T {
         let &mut $ident(ref mut this) = self;
-        for v in this[].iter_mut() {
+        for v in this.iter_mut() {
             *v = f(*v)
         }
     }

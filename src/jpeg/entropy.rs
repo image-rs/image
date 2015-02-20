@@ -170,7 +170,7 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
     let mut valptr  = repeat(-1isize).take(16).collect::<Vec<isize>>();
     let mut lut     = repeat((0u8, 17u8)).take(256).collect::<Vec<(u8, u8)>>();
 
-    let (huffsize, huffcode) = derive_codes_and_sizes(&bits[]);
+    let (huffsize, huffcode) = derive_codes_and_sizes(&bits);
 
     // Annex F.2.2.3
     // Figure F.15

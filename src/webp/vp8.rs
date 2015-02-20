@@ -894,7 +894,7 @@ impl<R: Reader> VP8Decoder<R> {
         if n > 1 {
             let sizes = try!(self.r.read_exact(3 * n - 3));
 
-            for (i, s) in sizes[].chunks(3).enumerate() {
+            for (i, s) in sizes.chunks(3).enumerate() {
                 let size = s[0] as u32 + ((s[1] as u32) << 8) + ((s[2] as u32) << 8);
                 let buf  = try!(self.r.read_exact(size as usize));
 
@@ -1186,7 +1186,7 @@ impl<R: Reader> VP8Decoder<R> {
         let w  = self.frame.width as usize;
         let mw = self.mbwidth as usize;
         let mut ws = create_border(
-            mbx, mby, mw, &self.top_border[], &self.left_border[]);
+            mbx, mby, mw, &self.top_border, &self.left_border);
 
         match mb.luma_mode {
             V_PRED  => predict_vpred(&mut ws, 16, 1, 1, stride),
@@ -1243,14 +1243,14 @@ impl<R: Reader> VP8Decoder<R> {
 
         let first = if plane == 0 { 1usize } else { 0usize };
         let probs = &self.token_probs[plane];
-        let tree  = &DCT_TOKEN_TREE[];
+        let tree  = &DCT_TOKEN_TREE;
 
         let mut complexity = complexity;
         let mut has_coefficients = false;
         let mut skip = false;
 
         for i in (first..16usize) {
-            let table = &probs[COEFF_BANDS[i] as usize][complexity][];
+            let table = &probs[COEFF_BANDS[i] as usize][complexity];
 
             let token = if !skip {
                 self.partitions[p].read_with_tree(tree, table, 0)

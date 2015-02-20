@@ -76,7 +76,7 @@ where Container: ArrayLike<u8> {
         let (hist, transparent) = self.histogram();
         let num_colors = hist.len();
 
-        try!(self.write_global_table(w, &hist[]));
+        try!(self.write_global_table(w, &hist));
 
         match self.color_mode {
             // Global color table has been written, just write the image data now
@@ -84,7 +84,7 @@ where Container: ArrayLike<u8> {
                 // NOTE: copy paste any changes to case: Indexed(n) if n as usize <= num_colors
                 try!(self.write_control_ext(w, 0, transparent));
                 try!(self.write_descriptor(w, None));
-                try!(self.write_image_simple(w, &hist[], transparent));
+                try!(self.write_image_simple(w, &hist, transparent));
             },
             TrueColor => {
                 try!(self.write_true_color(w, hist, transparent));
@@ -93,7 +93,7 @@ where Container: ArrayLike<u8> {
                 // NOTE: copy paste from case: TrueColor if num_colors <= 256
                 try!(self.write_control_ext(w, 0, transparent));
                 try!(self.write_descriptor(w, None));
-                try!(self.write_image_simple(w, &hist[], transparent));
+                try!(self.write_image_simple(w, &hist, transparent));
             }
             Indexed(n) => {
                 try!(self.write_indexed_colors(w, n))
@@ -181,7 +181,7 @@ where Container: ArrayLike<u8> {
         try!(w.write_u8(bg_index));
         try!(w.write_u8(0)); // aspect ration, disregard
         if let Some(global_table) = global_table {
-            try!(w.write_all(&global_table[]));
+            try!(w.write_all(&global_table));
         }
         Ok(())
     }
@@ -267,7 +267,7 @@ where Container: ArrayLike<u8> {
                 t_idx
             }
         }).collect();
-        self.write_indices(w, &data[])
+        self.write_indices(w, &data)
 
     }
 
@@ -320,7 +320,7 @@ where Container: ArrayLike<u8> {
                 try!(w.write_all(&[0, 0, 0]));
             }
             // write indices
-            try!(self.write_indices(w, &chunk_indices[]));
+            try!(self.write_indices(w, &chunk_indices));
         }
         Ok(())
     }
@@ -352,7 +352,7 @@ where Container: ArrayLike<u8> {
         for _ in 0..((2 << n) - num_local_colors) {
             try!(w.write_all(&[0, 0, 0]));
         }
-        self.write_image_simple(w, &hist[], transparent)
+        self.write_image_simple(w, &hist, transparent)
     }
 
     /// Writes the netscape application block to set the number `n` of repetitions

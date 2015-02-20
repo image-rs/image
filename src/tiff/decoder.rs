@@ -127,7 +127,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
 
     fn read_header(&mut self) -> ImageResult<()> {
-        match &try!(self.reader.read_exact(2))[] {
+        match &*try!(self.reader.read_exact(2)) {
             b"II" => {
                 self.byte_order = ByteOrder::LittleEndian;
                 self.reader.byte_order = ByteOrder::LittleEndian; },
@@ -240,7 +240,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     #[inline]
     pub fn read_offset(&mut self) -> IoResult<[u8; 4]> {
         let mut val = [0; 4];
-        let _ = try!(self.reader.read_at_least(4, &mut val[]));
+        let _ = try!(self.reader.read_at_least(4, &mut val));
         Ok(val)
     }
 
@@ -414,7 +414,7 @@ impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        match (&self.bits_per_sample[], self.photometric_interpretation) {
+        match (&*self.bits_per_sample, self.photometric_interpretation) {
             // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
             ([ 8,  8,  8, 8],  PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
             ([ 8,  8,  8],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),

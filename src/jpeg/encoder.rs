@@ -201,7 +201,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
         let t = self.tables.clone();
 
-        for (i, table) in t[].chunks(64).enumerate().take(numtables) {
+        for (i, table) in t.chunks(64).enumerate().take(numtables) {
             let buf = build_quantization_segment(8, i as u8, table);
             let _   = try!(self.write_segment(DQT, Some(buf)));
         }
@@ -261,7 +261,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         if data.is_some() {
             let b = data.unwrap();
             let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
-            let _ = try!(self.w.write_all(&b[]));
+            let _ = try!(self.w.write_all(&b));
         }
 
         Ok(())
@@ -365,7 +365,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(&yblock[], &mut dct_yblock);
+                transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
                 for i in (0usize..64) {
@@ -375,7 +375,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
                 let la = self.luma_actable.clone();
                 let ld = self.luma_dctable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld, &la));
             }
         }
 
@@ -402,9 +402,9 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(&yblock[], &mut dct_yblock);
-                transform::fdct(&cb_block[], &mut dct_cb_block);
-                transform::fdct(&cr_block[], &mut dct_cr_block);
+                transform::fdct(&yblock, &mut dct_yblock);
+                transform::fdct(&cb_block, &mut dct_cb_block);
+                transform::fdct(&cr_block, &mut dct_cr_block);
 
                 // Quantization
                 for i in (0usize..64) {
@@ -418,9 +418,9 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
                 let cd = self.chroma_dctable.clone();
                 let ca = self.chroma_actable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
-                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, &cd[], &ca[]));
-                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, &cd[], &ca[]));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld, &la));
+                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, &cd, &ca));
+                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, &cd, &ca));
             }
         }
 

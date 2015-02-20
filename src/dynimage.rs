@@ -339,21 +339,21 @@ impl DynamicImage {
             image::ImageFormat::PNG  => {
                 let mut p = png::PNGEncoder::new(w);
 
-                try!(p.encode(&bytes[], width, height, color));
+                try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
 
             image::ImageFormat::PPM  => {
                 let mut p = ppm::PPMEncoder::new(w);
 
-                try!(p.encode(&bytes[], width, height, color));
+                try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
 
             image::ImageFormat::JPEG => {
                 let mut j = jpeg::JPEGEncoder::new(w);
 
-                try!(j.encode(&bytes[], width, height, color));
+                try!(j.encode(&bytes, width, height, color));
                 Ok(())
             }
 
@@ -446,7 +446,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             let scaling_factor = (255)/((1 << bit_depth as usize) - 1);
             let skip = (w % 8)/bit_depth as u32;
             let row_len = w + skip;
-            let p = buf[]
+            let p = buf
                        .iter()
                        .flat_map(|&v|
                            iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
@@ -505,7 +505,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
-    let format = match &ext[] {
+    let format = match &ext[..] {
         "jpg" |
         "jpeg" => image::ImageFormat::JPEG,
         "png"  => image::ImageFormat::PNG,
@@ -535,7 +535,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
-    match &ext[] {
+    match &*ext {
         "jpg" |
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),

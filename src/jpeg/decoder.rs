@@ -176,11 +176,11 @@ impl<R: Reader>JPEGDecoder<R> {
             let _ = try!(self.decode_mcu());
 
             upsample_mcu (
-                &mut self.mcu_row[],
+                &mut self.mcu_row,
                 x0,
                 self.padded_width,
                 bytesperpixel,
-                &self.mcu[],
+                &self.mcu,
                 self.hmax,
                 self.vmax
             );
@@ -601,7 +601,7 @@ impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
         let row = try!(self.row_len());
         let mut buf = repeat(0u8).take(row * self.height as usize).collect::<Vec<u8>>();
 
-        for chunk in buf[].chunks_mut(row) {
+        for chunk in buf.chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));
         }
 

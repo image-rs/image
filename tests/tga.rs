@@ -1,4 +1,4 @@
-#![feature(io, path)]
+#![feature(old_io, old_path)]
 
 extern crate image;
 

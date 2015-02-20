@@ -378,7 +378,8 @@ impl<R: Reader> PNGDecoder<R> {
         };
 
         {
-            let mut read = 0usize; let read_buffer = &mut buf[..rlength as usize];
+            let mut read = 0usize;
+            let read_buffer = &mut buf[..rlength as usize];
             while read < rlength as usize {
                 let r = try!(self.z.read(&mut read_buffer[read..]));
                 read += r;

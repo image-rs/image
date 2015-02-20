@@ -11,8 +11,8 @@
 #![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(io)]
-#![feature(old_io, old_path)]
+#![feature(old_io)]
+#![feature(old_path)]
 #![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]

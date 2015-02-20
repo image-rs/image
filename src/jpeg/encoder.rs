@@ -201,7 +201,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
         let t = self.tables.clone();
 
-        for (i, table) in t[].chunks(64).enumerate().take(numtables) {
+        for (i, table) in t.chunks(64).enumerate().take(numtables) {
             let buf = build_quantization_segment(8, i as u8, table);
             let _   = try!(self.write_segment(DQT, Some(buf)));
         }
@@ -261,7 +261,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         if data.is_some() {
             let b = data.unwrap();
             let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
-            let _ = try!(self.w.write_all(&b[]));
+            let _ = try!(self.w.write_all(&b));
         }
 
         Ok(())
@@ -317,7 +317,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
         // Figure F.2
         let mut zero_run = 0;
-        let mut k = 0us;
+        let mut k = 0usize;
 
         loop {
             k += 1;
@@ -365,17 +365,17 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(&yblock[], &mut dct_yblock);
+                transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
-                for i in (0us..64) {
+                for i in (0usize..64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
                 }
 
                 let la = self.luma_actable.clone();
                 let ld = self.luma_dctable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld, &la));
             }
         }
 
@@ -402,12 +402,12 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
-                transform::fdct(&yblock[], &mut dct_yblock);
-                transform::fdct(&cb_block[], &mut dct_cb_block);
-                transform::fdct(&cr_block[], &mut dct_cr_block);
+                transform::fdct(&yblock, &mut dct_yblock);
+                transform::fdct(&cb_block, &mut dct_cb_block);
+                transform::fdct(&cr_block, &mut dct_cr_block);
 
                 // Quantization
-                for i in (0us..64) {
+                for i in (0usize..64) {
                     dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
@@ -418,9 +418,9 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
                 let cd = self.chroma_dctable.clone();
                 let ca = self.chroma_actable.clone();
 
-                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld[], &la[]));
-                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, &cd[], &ca[]));
-                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, &cd[], &ca[]));
+                y_dcprev  = try!(self.write_block(&dct_yblock, y_dcprev, &ld, &la));
+                cb_dcprev = try!(self.write_block(&dct_cb_block, cb_dcprev, &cd, &ca));
+                cr_dcprev = try!(self.write_block(&dct_cr_block, cr_dcprev, &cd, &ca));
             }
         }
 
@@ -496,7 +496,7 @@ fn build_huffman_segment(class: u8,
 
     assert!(numcodes.len() == 16);
 
-    let mut sum = 0us;
+    let mut sum = 0usize;
 
     for & i in numcodes.iter() {
         let _ = m.write_u8(i);
@@ -525,7 +525,7 @@ fn build_quantization_segment(precision: u8,
     let pqtq = (p << 4) | identifier;
     let _    = m.write_u8(pqtq);
 
-    for i in (0us..64) {
+    for i in (0usize..64) {
         let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
     }
 
@@ -581,10 +581,10 @@ fn copy_blocks_ycbcr(source: &[u8],
                      cbb: &mut [u8; 64],
                      crb: &mut [u8; 64]) {
 
-    for y in (0us..8) {
+    for y in (0usize..8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in (0us..8) {
+        for x in (0usize..8) {
             let xstride = x0 * bpp + x * bpp;
 
             let r = value_at(source, ystride + xstride + 0);
@@ -607,10 +607,10 @@ fn copy_blocks_gray(source: &[u8],
                     bpp: usize,
                     gb: &mut [u8; 64]) {
 
-    for y in (0us..8) {
+    for y in (0usize..8) {
         let ystride = (y0 + y) * bpp * width;
 
-        for x in (0us..8) {
+        for x in (0usize..8) {
             let xstride = x0 * bpp + x * bpp;
             gb[y * 8 + x] = value_at(source, ystride + xstride + 1);
         }

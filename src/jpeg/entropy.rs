@@ -81,9 +81,9 @@ impl HuffDecoder {
         self.consume(size);
             Ok(val)
         } else {
-            let mut code = 0us;
+            let mut code = 0usize;
 
-            for i in (0us..16) {
+            for i in (0usize..16) {
                 let b = try!(self.read_bit(r));
                 code |= b as usize;
 
@@ -116,7 +116,7 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     // Annex C.2
     // Figure C.1
     // Generate table of individual code lengths
-    for i in (0us..16) {
+    for i in (0usize..16) {
         j = 0;
 
         while j < bits[i] {
@@ -165,18 +165,18 @@ pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
 }
 
 pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
-    let mut mincode = repeat(-1is).take(16).collect::<Vec<isize>>();
-    let mut maxcode = repeat(-1is).take(16).collect::<Vec<isize>>();
-    let mut valptr  = repeat(-1is).take(16).collect::<Vec<isize>>();
+    let mut mincode = repeat(-1isize).take(16).collect::<Vec<isize>>();
+    let mut maxcode = repeat(-1isize).take(16).collect::<Vec<isize>>();
+    let mut valptr  = repeat(-1isize).take(16).collect::<Vec<isize>>();
     let mut lut     = repeat((0u8, 17u8)).take(256).collect::<Vec<(u8, u8)>>();
 
-    let (huffsize, huffcode) = derive_codes_and_sizes(&bits[]);
+    let (huffsize, huffcode) = derive_codes_and_sizes(&bits);
 
     // Annex F.2.2.3
     // Figure F.15
     let mut j = 0;
 
-    for i in (0us..16) {
+    for i in (0usize..16) {
         if bits[i] != 0 {
             valptr[i] = j;
             mincode[i] = huffcode[j as usize] as isize;
@@ -194,7 +194,7 @@ pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
 
         let r = 8 - huffsize[i] as usize;
 
-        for j in (0us..1 << r) {
+        for j in (0usize..1 << r) {
             let index = (huffcode[i] << r) + j as u16;
             lut[index as usize] = (*v, huffsize[i]);
         }

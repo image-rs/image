@@ -59,12 +59,12 @@ impl<R: Reader> GIFDecoder<R> {
         if self.state == State::Start {
             let mut signature = [0; 3];
             let mut version = [0; 3];
-            try!(self.r.read_at_least(3, &mut signature[]));
-            try!(self.r.read_at_least(3, &mut version[]));
+            try!(self.r.read_at_least(3, &mut signature));
+            try!(self.r.read_at_least(3, &mut version));
 
-            if &signature[] != b"GIF" {
+            if signature != b"GIF" {
                 Err(ImageError::FormatError("GIF signature not found.".to_string()))
-            } else if &version[] != b"87a" && &version[] != b"89a" {
+            } else if version != b"87a" && version != b"89a" {
                 Err(ImageError::UnsupportedError(
                     format!("GIF version {:?} is not supported.", version)
                 ))
@@ -88,7 +88,7 @@ impl<R: Reader> GIFDecoder<R> {
             let entries = if global_table {
                 1 << ((fields & 0b111) + 1) as usize
             } else {
-                0us
+                0usize
             };
 
             let b = try!(self.r.read_u8());
@@ -101,7 +101,7 @@ impl<R: Reader> GIFDecoder<R> {
 
             let buf = try!(self.r.read_exact(3 * entries));
 
-            for rgb in buf[].chunks(3) {
+            for rgb in buf.chunks(3) {
                 self.global_table.push((rgb[0], rgb[1], rgb[2]));
             }
             self.state = State::HaveLSD;
@@ -162,7 +162,7 @@ impl<R: Reader> GIFDecoder<R> {
         let mut size = try!(self.r.read_u8()) as usize;
         let mut data = Vec::with_capacity(size);
         while size != 0 {
-            data.push_all(&try!(self.r.read_exact(size))[]);
+            data.push_all(&try!(self.r.read_exact(size)));
             size = try!(self.r.read_u8()) as usize;
         }
         Ok(data)
@@ -192,7 +192,7 @@ impl<R: Reader> GIFDecoder<R> {
             let mut table = Vec::with_capacity(entries * 3);
             let buf = try!(self.r.read_exact(3 * entries));
 
-            for rgb in buf[].chunks(3) {
+            for rgb in buf.chunks(3) {
                 table.push((rgb[0], rgb[1], rgb[2]));
             }
             Some(table)
@@ -214,9 +214,9 @@ impl<R: Reader> GIFDecoder<R> {
         ));
 
         let table = if let Some(ref table) = local_table {
-            &table[]
+            table
         } else {
-            &self.global_table[]
+            &self.global_table
         };
 
         let image: Option<GrayImage> = ImageBuffer::from_vec(

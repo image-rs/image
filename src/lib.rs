@@ -12,10 +12,9 @@
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(io)]
-#![feature(path)]
+#![feature(old_io, old_path)]
 #![feature(collections)]
 #![feature(std_misc)]
-#![feature(hash)]
 #![feature(rustc_private)]
 #![cfg_attr(test, feature(test))]
 

@@ -1,5 +1,4 @@
 use std::num::SignedInt;
-use std::iter::range_step_inclusive;
 
 #[derive(FromPrimitive, Debug)]
 pub enum FilterType {
@@ -72,7 +71,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
     match method {
         FilterType::NoFilter => (),
         FilterType::Sub      => {
-            for i in range_step_inclusive(len-1, bpp, -1) {
+            for i in (bpp..len).rev() {
                 current[i] = current[i] - current[i - bpp];
             }
         }
@@ -82,21 +81,21 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
             }
         }
         FilterType::Avg  => {
+            for i in (bpp..len) {
+                current[i] = current[i] - ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+            }
+
             for i in (0..bpp) {
                 current[i] = current[i] - previous[i] / 2;
             }
-
-            for i in range_step_inclusive(len-1, bpp, -1) {
-                current[i] = current[i] - ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
-            }
         }
         FilterType::Paeth    => {
-            for i in (0..bpp) {
-                current[i] = current[i] - filter_paeth(0, previous[i], 0);
+            for i in (bpp..len) {
+                current[i] = current[i] - filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
             }
 
-            for i in range_step_inclusive(len-1, bpp, -1) {
-                current[i] = current[i] - filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
+            for i in (0..bpp) {
+                current[i] = current[i] - filter_paeth(0, previous[i], 0);
             }
         }
     }

@@ -439,6 +439,14 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
     }
 }
 
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> IndexMut<(u32, u32)>
+    for ImageBuffer<P, Container> where P::Subpixel: 'static {
+
+    fn index_mut(&mut self, &(x, y): &(u32, u32)) -> &mut P {
+        self.get_pixel_mut(x, y)
+    }
+}
+
 // concrete implementation for `Vec`-baked buffers
 // TODO: I think that rustc does not "see" this impl any more: the impl with
 // Container meets the same requirements. At least, I got compile errors that

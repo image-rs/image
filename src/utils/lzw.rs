@@ -79,13 +79,13 @@ impl DecodingDict {
             self.buffer.push(cha);
         }
         self.buffer.reverse();
-        Ok(&self.buffer[])
+        Ok(&self.buffer)
     }
 
     /// Returns the buffer constructed by the last reconstruction
     #[inline(always)]
     fn buffer(&self) -> &[u8] {
-        &self.buffer[]
+        &self.buffer
     }
 
     /// Number of entries in the dictionary

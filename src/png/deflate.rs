@@ -143,12 +143,12 @@ impl<R: Reader> Inflater<R> {
             code_lengths[CODEORDER[i] as usize] = length as u8;
         }
 
-        self.ctable = table_from_lengths(&code_lengths[]);
+        self.ctable = table_from_lengths(&code_lengths);
         let mut all_lengths: Vec<u8> = repeat(0u8).take(totalcodes as usize).collect();
 
         let mut i = 0;
         while i < hlit + hdist {
-            let s = try!(self.h.decode_symbol(&self.ctable[]));
+            let s = try!(self.h.decode_symbol(&self.ctable));
 
             match s {
                 0 ... 15 => {
@@ -189,10 +189,10 @@ impl<R: Reader> Inflater<R> {
             else if i < 280 { 7u8 }
             else { 8u8 }
         ).collect();
-        self.lltable = table_from_lengths(&lengths[]);
+        self.lltable = table_from_lengths(&lengths);
 
         let lengths: Vec<u8> = repeat(5u8).take(DISTANCECODES as usize).collect();
-        self.dtable = table_from_lengths(&lengths[]);
+        self.dtable = table_from_lengths(&lengths);
     }
 
     fn read_stored_block_length(&mut self) -> IoResult<()> {
@@ -220,7 +220,7 @@ impl<R: Reader> Inflater<R> {
 
     fn read_compressed_block(&mut self) -> IoResult<()> {
         loop {
-            let s = try!(self.h.decode_symbol(&self.lltable[]));
+            let s = try!(self.h.decode_symbol(&self.lltable));
 
             match s {
                 literal @ 0 ... 255 => self.buf.push(literal as u8),
@@ -235,7 +235,7 @@ impl<R: Reader> Inflater<R> {
 
                     let length = LENGTHS[length as usize] + extra;
 
-                    let distance = try!(self.h.decode_symbol(&self.dtable[]));
+                    let distance = try!(self.h.decode_symbol(&self.dtable));
 
                     let bits = EXTRA_DISTANCES[distance as usize];
                     let extra = try!(self.h.receive(bits));
@@ -272,7 +272,7 @@ impl<R: Reader> Reader for Inflater<R> {
         }
 
         let n = cmp::min(buf.len(), self.buf.len() - self.pos as usize);
-        for i in (0us..n) {
+        for i in (0usize..n) {
             buf[i] = self.buf[self.pos as usize + i];
         }
 
@@ -306,7 +306,7 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let max_overflow = max_len - TABLESIZE;
     bl_count[0] = 0;
 
-    for bits in (1us..16) {
+    for bits in (1usize..16) {
         code = (code + bl_count[bits - 1] as u16) << 1;
         next_code[bits] = code;
     }

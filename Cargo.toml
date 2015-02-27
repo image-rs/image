@@ -26,5 +26,5 @@ git = "https://github.com/rust-lang/num"
 #version = "0.1.10"
 
 [dev-dependencies.glob]
-git = "https://github.com/rust-lang/glob"
-#version = "0.1.7"
+#git = "https://github.com/rust-lang/glob"
+version = "0.1.9"

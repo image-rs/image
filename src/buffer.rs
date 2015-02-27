@@ -1,6 +1,7 @@
 use std::slice::{ Chunks, ChunksMut };
 use std::any::TypeId;
 use std::ops::{ Index, IndexMut };
+use std::marker::PhantomData;
 use std::num::Int;
 use std::iter::repeat;
 use std::old_io::IoResult;
@@ -174,7 +175,7 @@ impl<'a, P: Pixel + 'a> DoubleEndedIterator for PixelsMut<'a, P> where P::Subpix
 }
 
 /// Enumerate the pixels of an image.
-pub struct EnumeratePixels<'a, P: Pixel + 'a> {
+pub struct EnumeratePixels<'a, P: Pixel + 'a> where <P as Pixel>::Subpixel: 'a {
     pixels: Pixels<'a, P>,
     x:      u32,
     y:      u32,
@@ -200,7 +201,7 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P> where P::Subpixel: '
 }
 
 /// Enumerate the pixels of an image.
-pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> {
+pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> where <P as Pixel>::Subpixel: 'a {
     pixels: PixelsMut<'a, P>,
     x:      u32,
     y:      u32,
@@ -232,6 +233,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     type_marker: TypeId,
+    _phantom: PhantomData<P>, 
     data: Container,
 }
 
@@ -253,6 +255,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
                 data: buf,
                 width: width,
                 height: height,
+                _phantom: PhantomData,
                 type_marker: TypeId::of::<P>()
             })
         } else {
@@ -392,7 +395,8 @@ impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<
             data: self.data.clone(),
             width: self.width,
             height: self.height,
-            type_marker: self.type_marker
+            type_marker: self.type_marker,
+            _phantom: PhantomData,
         }
     }
 }
@@ -467,7 +471,8 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
                 ).collect(),
             width: width,
             height: height,
-            type_marker: TypeId::of::<P>()
+            type_marker: TypeId::of::<P>(),
+            _phantom: PhantomData,
         }
     }
 
@@ -483,8 +488,9 @@ impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
-    pub fn from_fn(width: u32, height: u32, f: Box<Fn(u32, u32) -> P>)
-                   -> ImageBuffer<P, Vec<P::Subpixel>> {
+    pub fn from_fn<F>(width: u32, height: u32, f: F)
+                      -> ImageBuffer<P, Vec<P::Subpixel>>
+                      where F: Fn(u32, u32) -> P {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y,  p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)

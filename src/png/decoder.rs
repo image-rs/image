@@ -184,19 +184,19 @@ impl<R: Reader> PNGDecoder<R> {
     /// Each array element is a tuple of RGB values.
     pub fn palette <'a>(&'a self) -> &'a [(u8, u8, u8)] {
         match self.palette {
-            Some(ref p) => &p[],
-            None        => &[][]
+            Some(ref p) => &p,
+            None        => &[]
         }
     }
 
     fn read_signature(&mut self) -> ImageResult<bool> {
         let png = try!(self.z.inner().r.read_exact(8));
 
-        Ok(png == &PNGSIGNATURE[])
+        Ok(&png == &PNGSIGNATURE)
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf[]);
+        self.crc.update(&buf);
         let mut m = MemReader::new(buf);
 
         self.width = try!(m.read_be_u32());
@@ -273,7 +273,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf[]);
+        self.crc.update(&buf);
 
         let len = buf.len() / 3;
 
@@ -281,7 +281,7 @@ impl<R: Reader> PNGDecoder<R> {
             return Err(ImageError::FormatError("Color palette malformed.".to_string()))
         }
 
-        let p: Vec<(u8, u8, u8)> = (0us..256).map(|i| {
+        let p: Vec<(u8, u8, u8)> = (0usize..256).map(|i| {
             if i < len {
                 let r = buf[3 * i];
                 let g = buf[3 * i + 1];
@@ -314,7 +314,7 @@ impl<R: Reader> PNGDecoder<R> {
 
             self.crc.update(chunk);
 
-            match (&self.chunk_type[], self.state) {
+            match (&*self.chunk_type, self.state) {
                 (b"IHDR", PNGState::HaveSignature) => {
                     if length != 13 {
                         return Err(ImageError::FormatError("Invalid PNG signature.".to_string()))
@@ -339,7 +339,7 @@ impl<R: Reader> PNGDecoder<R> {
                 (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
-                    self.z.inner().crc.update(&self.chunk_type[]);
+                    self.z.inner().crc.update(&self.chunk_type);
 
                     break;
                 }
@@ -347,7 +347,7 @@ impl<R: Reader> PNGDecoder<R> {
                 (b"IDAT", PNGState::HavePLTE) if self.colour_type == 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
-                    self.z.inner().crc.update(&self.chunk_type[]);
+                    self.z.inner().crc.update(&self.chunk_type);
 
                     break;
                 }
@@ -378,7 +378,7 @@ impl<R: Reader> PNGDecoder<R> {
         };
 
         {
-            let mut read = 0us;
+            let mut read = 0usize;
             let read_buffer = &mut buf[..rlength as usize];
             while read < rlength as usize {
                 let r = try!(self.z.read(&mut read_buffer[read..]));
@@ -386,11 +386,11 @@ impl<R: Reader> PNGDecoder<R> {
             }
         }
 
-        unfilter(filter_type, self.bpp as usize, &self.previous[], &mut buf[..rlength as usize]);
-        slice::bytes::copy_memory(&mut self.previous[], &buf[..rlength as usize]);
+        unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
+        slice::bytes::copy_memory(&mut self.previous, &buf[..rlength as usize]);
 
         if let Some(ref palette) = self.palette {
-            expand_palette(buf, &palette[], rlength as usize, self.bit_depth);
+            expand_palette(buf, &palette, rlength as usize, self.bit_depth);
         }
 
         self.decoded_rows += 1;
@@ -462,14 +462,14 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                     ], rlength)
                 );
                 expand_pass(
-                    &mut buf[], self.width * bytes as u32,
+                    &mut buf, self.width * bytes as u32,
                     &mut pass_buf[..width as usize * bytes], pass, line, bytes as u8
                 );
                 old_pass = pass;
             }
             Ok(DecodingResult::U8(buf))
         } else {
-            for chunk in buf[].chunks_mut(max_rowlen) {
+            for chunk in buf.chunks_mut(max_rowlen) {
                 let _ = try!(self.read_scanline(chunk));
             }
             Ok(DecodingResult::U8(buf))
@@ -578,7 +578,7 @@ impl<R: Reader> Reader for IDATReader<R> {
             start += r;
 
             self.chunk_length -= r as u32;
-            self.crc.update(&slice[]);
+            self.crc.update(&*slice);
 
             if self.chunk_length == 0 {
                 let chunk_crc = try!(self.r.read_be_u32());
@@ -592,9 +592,9 @@ impl<R: Reader> Reader for IDATReader<R> {
                 self.chunk_length = try!(self.r.read_be_u32());
 
                 let v = try!(self.r.read_exact(4));
-                self.crc.update(&v[]);
+                self.crc.update(&v);
 
-                match str::from_utf8(&v[]) {
+                match str::from_utf8(&v) {
                     Ok("IDAT") => (),
                     _ => {
                         self.eof = true;

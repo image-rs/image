@@ -80,7 +80,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
     // Pass 1: process rows.
     // Results are scaled by sqrt(8) compared to a true DCT
     // furthermore we scale the results by 2**PASS1_BITS
-    for y in (0us..8) {
+    for y in (0usize..8) {
         let y0 = y * 8;
 
         // Even part
@@ -144,7 +144,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
     // Pass 2: process columns
     // We remove the PASS1_BITS scaling but leave the results scaled up an
     // overall factor of 8
-    for x in (0us..8).rev() {
+    for x in (0usize..8).rev() {
         // Even part
         let t0 = coeffs[x + 8 * 0] + coeffs[x + 8 * 7];
         let t1 = coeffs[x + 8 * 1] + coeffs[x + 8 * 6];
@@ -207,7 +207,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
 pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
     let mut tmp = [0i32; 64];
 
-    for x in (0us..8).rev() {
+    for x in (0usize..8).rev() {
         if coeffs[x + 8 * 1] == 0 && coeffs[x + 8 * 2] == 0 && coeffs[x + 8 * 3] == 0 &&
             coeffs[x + 8 * 4] == 0 && coeffs[x + 8 * 5] == 0 && coeffs[x + 8 * 6] == 0 &&
             coeffs[x + 8 * 7] == 0 {
@@ -284,7 +284,7 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
         tmp[x + 8 * 4] = (t13 - t0) >> (CONST_BITS - PASS1_BITS) as usize;
     }
 
-    for y in (0us..8) {
+    for y in (0usize..8) {
         let y0 = y * 8;
 
         let z2 = tmp[y0 + 2];

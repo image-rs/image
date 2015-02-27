@@ -216,7 +216,7 @@ mod test {
     fn reader_writer() {
         let data = [255, 20, 40, 120, 128];
         let mut expanded_data = Vec::new();
-        let mut reader = super::LsbReader::new(&data[]);
+        let mut reader = super::LsbReader::new(&data[..]);
         while let Ok(b) = reader.read_bits(10) {
             expanded_data.push(b)
         }
@@ -227,6 +227,6 @@ mod test {
                 let _  = writer.write_bits(datum, 10);
             }
         }
-        assert_eq!(&data[], &compressed_data[])
+        assert_eq!(&data, &compressed_data)
     }
 }

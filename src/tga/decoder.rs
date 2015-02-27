@@ -269,7 +269,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     fn expand_color_map(&mut self, pixel_data: Vec<u8>) -> Vec<u8> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
-            let mut result = 0us;
+            let mut result = 0usize;
             for byte in bytes.iter() {
                 result = result << 8 | *byte as usize;
             }
@@ -285,7 +285,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
             None => unreachable!(),
         };
 
-        for chunk in pixel_data[].chunks(self.bytes_per_pixel) {
+        for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
             result.push_all(color_map.get(index));
         }
@@ -307,7 +307,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
             pixel_data = self.expand_color_map(pixel_data)
         }
 
-        self.reverse_encoding(&mut pixel_data[]);
+        self.reverse_encoding(&mut pixel_data);
         Ok(pixel_data)
     }
 
@@ -328,15 +328,15 @@ impl<R: Reader + Seek> TGADecoder<R> {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let data = try!(self.r.read_exact(self.bytes_per_pixel));
-                for _ in (0us..repeat_count) {
-                    pixel_data.push_all(&data[]);
+                for _ in (0usize..repeat_count) {
+                    pixel_data.push_all(&data);
                 }
                 num_read += repeat_count;
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded bytes
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
                 let data = try!(self.r.read_exact(num_raw_bytes));
-                pixel_data.push_all(&data[]);
+                pixel_data.push_all(&data);
                 num_read += run_packet as usize;
             }
         }
@@ -352,14 +352,14 @@ impl<R: Reader + Seek> TGADecoder<R> {
         // We only need to reverse the encoding of color images
         match self.color_type {
             ColorType::RGB(8) => {
-                for chunk in pixels[].chunks_mut(self.bytes_per_pixel) {
+                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
                     let r = chunk[0];
                     chunk[0] = chunk[2];
                     chunk[2] = r;
                 }
             }
             ColorType::RGBA(8) => {
-                for chunk in pixels[].chunks_mut(self.bytes_per_pixel) {
+                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
                     let r = chunk[0];
                     chunk[0] = chunk[2];
                     chunk[2] = r;

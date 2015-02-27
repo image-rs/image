@@ -127,8 +127,8 @@ impl ::std::fmt::Debug for Entry {
         fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
             self.type_,
             self.count,
-            &self.offset[]
-        )[])
+            &self.offset
+        ))
     }
 }
 
@@ -144,7 +144,7 @@ impl Entry {
     /// Returns a mem_reader for the offset/value field
     fn r(&self, byte_order: ByteOrder) -> SmartReader<old_io::MemReader> {
         SmartReader::wrap(
-            old_io::MemReader::new(self.offset[].to_vec()),
+            old_io::MemReader::new(self.offset.to_vec()),
             byte_order
         )
     }

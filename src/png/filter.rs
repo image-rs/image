@@ -81,7 +81,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
             }
         }
         FilterType::Avg  => {
-            for i in (bpp..len) {
+            for i in (bpp..len).rev() {
                 current[i] = current[i] - ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
             }
 
@@ -90,7 +90,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
             }
         }
         FilterType::Paeth    => {
-            for i in (bpp..len) {
+            for i in (bpp..len).rev() {
                 current[i] = current[i] - filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
             }
 

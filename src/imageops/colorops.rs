@@ -67,7 +67,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
 
     for y in (0..height) {
         for x in (0..width) {
-            let f = image.get_pixel(x, y).map(|&: b| {
+            let f = image.get_pixel(x, y).map(|b| {
                 let c: f32 = cast(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent  + 0.5) * max;
@@ -101,12 +101,12 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
 
     for y in (0..height) {
         for x in (0..width) {
-            let e = image.get_pixel(x, y).map_with_alpha(|&:b| {
+            let e = image.get_pixel(x, y).map_with_alpha(|b| {
                 let c: i32 = cast(b).unwrap();
                 let d = clamp(c + value, 0, max);
 
                 cast(d).unwrap()
-            }, |&:alpha| alpha);
+            }, |alpha| alpha);
 
             out.put_pixel(x, y, e);
         }

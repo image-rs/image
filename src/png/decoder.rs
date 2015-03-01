@@ -612,9 +612,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::old_io;
-    use std::result::Result;
-    use std::old_io::{File, MemReader};
+    use std::old_io::{ self, File, MemReader };
     use test;
 
     use image::{
@@ -630,7 +628,8 @@ mod tests {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
-        let paths = glob::glob(pattern.as_str().unwrap()).unwrap().filter_map(Result::ok)
+        let paths = glob::glob(pattern.as_str().unwrap()).unwrap()
+            .filter_map(|p| p.ok().map(|p| Path::new(p.to_str().unwrap())))
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 
@@ -638,10 +637,10 @@ mod tests {
             paths.collect()
         } else {
             paths.filter(|ref p| !p.filename_str()
-                 .unwrap()
-                 [2..]
-                 .contains("i"))
-                 .collect()
+                                   .unwrap()
+                                   [2..]
+                                   .contains("i"))
+                                   .collect()
         };
 
         assert!(ret.len() > 0); // fail if no testimages are available

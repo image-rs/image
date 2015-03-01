@@ -4,6 +4,7 @@
 // for some of the theory behind image scaling and convolution
 
 use std::f32;
+use std::iter::AdditiveIterator;
 
 use std::num:: {
     cast,
@@ -310,7 +311,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     let max: S = Primitive::max_value();
     let max: f32 = cast(max).unwrap();
 
-    let sum = match kernel.iter().fold(0.0, |&: a, f| a + *f) {
+    let sum = match kernel.iter().cloned().sum() {
         0.0 => 1.0,
         sum => sum
     };
@@ -371,23 +372,23 @@ pub fn resize<I: GenericImage + 'static>(image: &I, nwidth: u32, nheight: u32,
 
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
-            kernel: Box::new(|&: x| box_kernel(x)),
+            kernel: Box::new(box_kernel),
             support: 0.5
         },
         FilterType::Triangle   => Filter {
-            kernel: Box::new(|&: x| triangle_kernel(x)),
+            kernel: Box::new(triangle_kernel),
             support: 1.0
         },
         FilterType::CatmullRom => Filter {
-            kernel: Box::new(|&: x| catmullrom_kernel(x)),
+            kernel: Box::new(catmullrom_kernel),
             support: 2.0
         },
         FilterType::Gaussian   => Filter {
-            kernel: Box::new(|&: x| gaussian_kernel(x)),
+            kernel: Box::new(gaussian_kernel),
             support: 3.0
         },
         FilterType::Lanczos3   => Filter {
-            kernel: Box::new(|&: x| lanczos3_kernel(x)),
+            kernel: Box::new(lanczos3_kernel),
             support: 3.0
         },
 };
@@ -411,7 +412,7 @@ pub fn blur<I: GenericImage + 'static>(image: &I, sigma: f32)
     };
 
     let mut method = Filter {
-        kernel: Box::new(|&: x| gaussian(x, sigma)),
+        kernel: Box::new(|x| gaussian(x, sigma)),
         support: 2.0 * sigma
     };
 
@@ -445,7 +446,7 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 
-            let p = a.map2(b, |&: c, d| {
+            let p = a.map2(b, |c, d| {
                 let ic: i32 = cast(c).unwrap();
                 let id: i32 = cast(d).unwrap();
 

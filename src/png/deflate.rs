@@ -5,10 +5,11 @@
 //! # Related Links
 //! *http://tools.ietf.org/html/rfc1951 - DEFLATE Compressed Data Format Specification
 
-use std::old_io;
 use std::cmp;
-use std::old_io::IoResult;
 use std::iter::repeat;
+use std::num::wrapping::Wrapping as w;
+use std::old_io::IoResult;
+use std::old_io;
 
 static LITERALLENGTHCODES: u16 = 286;
 static DISTANCECODES: u16 = 30;
@@ -293,21 +294,20 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
     let mut max_len = 0;
     let mut code = 0u16;
     let mut next_code: Vec<u16> = repeat(0u16).take(16).collect();
-    let mut bl_count: Vec<u8> = repeat(0u8).take(16).collect();
+    let mut bl_count: Vec<w<u8>> = repeat(w(0u8)).take(16).collect();
 
     for &len in lengths.iter() {
-        bl_count[len as usize] += 1;
-
+        bl_count[len as usize] = bl_count[len as usize] + w(1);
         if len > max_len {
             max_len = len;
         }
     }
 
-    let max_overflow = max_len - TABLESIZE;
-    bl_count[0] = 0;
+    let max_overflow = (w(max_len) - w(TABLESIZE)).0;
+    bl_count[0] = w(0);
 
     for bits in (1usize..16) {
-        code = (code + bl_count[bits - 1] as u16) << 1;
+        code = (code + bl_count[bits - 1].0 as u16) << 1;
         next_code[bits] = code;
     }
 
@@ -332,8 +332,8 @@ fn table_from_lengths(lengths: &[u8]) -> Vec<TableElement> {
             let index = code & ((1 << TABLESIZE as usize) - 1);
 
             if lut[index as usize] == TableElement::Nothing {
-                let mask  = (1 << max_overflow as usize) - 1;
-                let array: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << max_overflow as usize).collect();
+                let mask  = (1 << max_overflow) - 1;
+                let array: Vec<TableElement> = repeat(TableElement::Nothing).take(1 << max_overflow).collect();
 
                 lut[index as usize] = TableElement::Table(mask, array);
             }

@@ -8,6 +8,7 @@ use std::slice;
 use std::old_io::IoResult;
 use std::old_io::MemReader;
 use std::num::FromPrimitive;
+use std::num::wrapping::Wrapping;
 
 use image::{
     DecodingResult,
@@ -509,7 +510,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: usize, bit_depth: u8) {
     let bpp = 8 / bit_depth as usize;
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (1u8 << bit_depth as usize) - 1;
+    let mask = (Wrapping(1u8 << bit_depth as usize) - Wrapping(1)).0;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {

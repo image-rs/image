@@ -1,4 +1,5 @@
 use std::num::SignedInt;
+use std::num::wrapping::Wrapping as w;
 
 #[derive(FromPrimitive, Debug)]
 pub enum FilterType {
@@ -36,30 +37,30 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
         FilterType::NoFilter => (),
         FilterType::Sub => {
             for i in (bpp..len) {
-                current[i] += current[i - bpp];
+                current[i] = (w(current[i]) + w(current[i - bpp])).0;
             }
         }
         FilterType::Up => {
             for i in (0..len) {
-                current[i] += previous[i];
+                current[i] = (w(current[i]) + w(previous[i])).0;
             }
         }
         FilterType::Avg => {
             for i in (0..bpp) {
-                current[i] += previous[i] / 2;
+                current[i] = (w(current[i]) + w(previous[i] / 2)).0;
             }
 
             for i in (bpp..len) {
-                current[i] += ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+                current[i] = (w(current[i]) + w(((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8)).0;
             }
         }
         FilterType::Paeth => {
             for i in (0..bpp) {
-                current[i] += filter_paeth(0, previous[i], 0);
+                current[i] = (w(current[i]) + w(filter_paeth(0, previous[i], 0))).0;
             }
 
             for i in (bpp..len) {
-                current[i] += filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
+                current[i] = (w(current[i]) + w(filter_paeth(current[i - bpp], previous[i], previous[i - bpp]))).0;
             }
         }
     }
@@ -72,30 +73,30 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
         FilterType::NoFilter => (),
         FilterType::Sub      => {
             for i in (bpp..len).rev() {
-                current[i] = current[i] - current[i - bpp];
+                current[i] = (w(current[i]) - w(current[i - bpp])).0;
             }
         }
         FilterType::Up       => {
             for i in (0..len) {
-                current[i] = current[i] - previous[i];
+                current[i] = (w(current[i]) - w(previous[i])).0;
             }
         }
         FilterType::Avg  => {
             for i in (bpp..len).rev() {
-                current[i] = current[i] - ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+                current[i] = (w(current[i]) - w(((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8)).0;
             }
 
             for i in (0..bpp) {
-                current[i] = current[i] - previous[i] / 2;
+                current[i] = (w(current[i]) - w(previous[i] / 2)).0;
             }
         }
         FilterType::Paeth    => {
             for i in (bpp..len).rev() {
-                current[i] = current[i] - filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
+                current[i] = (w(current[i]) - w(filter_paeth(current[i - bpp], previous[i], previous[i - bpp]))).0;
             }
 
             for i in (0..bpp) {
-                current[i] = current[i] - filter_paeth(0, previous[i], 0);
+                current[i] = (w(current[i]) - w(filter_paeth(0, previous[i], 0))).0;
             }
         }
     }

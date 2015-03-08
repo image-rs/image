@@ -41,7 +41,7 @@ const ALPHA_BIASSHIFT: i32 = 10;            // alpha starts at 1
 const INIT_ALPHA: i32 = 1 << ALPHA_BIASSHIFT; // biased by 10 bits
 
 const GAMMA: f64 = 1024.0;
-const BETA: f64 = 1024.0.recip();
+const BETA: f64 = 1.0 / GAMMA;
 const BETAGAMMA: f64 = BETA * GAMMA;
 
 // four primes near 500 - assume no image has a length so large

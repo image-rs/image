@@ -64,7 +64,7 @@ where Container: ArrayLike<u8> {
         let width = self.image.width();
         if width > <u16 as Int>::max_value() as u32 ||
            height > <u16 as Int>::max_value() as u32 {
-            return Err(io::IoError{
+            return Err(io::Error{
                 kind: io::InvalidInput,
                 desc: "Image dimensions are to large for the gif format.",
                 detail: None
@@ -324,7 +324,7 @@ where Container: ArrayLike<u8> {
     /// over several frames
     fn write_indexed_colors<W: Writer>(&mut self, w: &mut W, n: u8) -> io::Result<()> {
         if n < 64 {
-            return  Err(io::IoError{
+            return  Err(io::Error{
                 kind: io::InvalidInput,
                 desc: "Unsupported number of colors.",
                 detail: Some(

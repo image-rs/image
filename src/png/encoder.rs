@@ -7,9 +7,7 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::io::{
-    MemWriter
-};
+use std::io;
 use std::num::FromPrimitive;
 use std::iter::repeat;
 

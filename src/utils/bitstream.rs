@@ -77,7 +77,7 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
 
     fn read_bits(&mut self, n: u8) -> io::Result<u16> {
         if n > 16 {
-            return Err(io::IoError {
+            return Err(io::Error {
                 kind: io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None
@@ -99,7 +99,7 @@ impl<R> BitReader for MsbReader<R> where R: Reader {
 
     fn read_bits(&mut self, n: u8) -> io::Result<u16> {
         if n > 16 {
-            return Err(io::IoError {
+            return Err(io::Error {
                 kind: io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None

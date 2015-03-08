@@ -63,7 +63,7 @@ impl DecodingDict {
                     code = code_;
                     cha = cha_;
                 }
-                None => return Err(io::IoError {
+                None => return Err(io::Error {
                     kind: io::InvalidInput,
                     desc: "invalid code occured",
                     detail: Some(format!("{} < {} expected", k, self.table.len()))
@@ -135,7 +135,7 @@ where R: BitReader, W: Writer {
                     table.push(prev, cha);
                     table.buffer()
                 } else {
-                    return Err(io::IoError {
+                    return Err(io::Error {
                         kind: io::InvalidInput,
                         desc: "Invalid code",
                         detail: Some(format!("expected {} <= {}",

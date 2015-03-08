@@ -1,17 +1,18 @@
 use std::slice;
-use std::io::MemReader;
 use std::default::Default;
 
-use image;
-use image::ImageResult;
-use image::ImageDecoder;
+use image::{
+    self,
+    ImageResult,
+    ImageDecoder
+};
 
 use color;
 
-use super::vp8::Frame;
-use super::vp8::VP8Decoder;
-
-
+use super::vp8::{
+    Frame,
+    VP8Decoder
+};
 
 /// A Representation of a Webp Image format decoder.
 pub struct WebpDecoder<R> {

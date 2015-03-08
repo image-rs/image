@@ -63,7 +63,7 @@ type Color = Template<i32>;
 pub struct NeuQuant {
     network: Vec<Neuron>,
     colormap: Vec<Color>,
-    netindex: Vec<usize>, // for network lookup - really 256
+    netindex: [usize; 256],
     bias: Vec<f64>, // bias and freq arrays for learning
     freq: Vec<f64>,
     samplefac: i32,
@@ -77,7 +77,7 @@ impl NeuQuant {
         let mut this = NeuQuant {
             network: Vec::with_capacity(netsize),
             colormap: Vec::with_capacity(netsize),
-            netindex: Vec::with_capacity(256),
+            netindex: [0; 256],
             bias: Vec::with_capacity(netsize),
             freq: Vec::with_capacity(netsize),
             samplefac: samplefac,
@@ -91,7 +91,6 @@ impl NeuQuant {
     pub fn init(&mut self, pixels: &[u8]) {
         self.network.clear();
         self.colormap.clear();
-        self.netindex.clear();
         self.bias.clear();
         self.freq.clear();
         let freq = (self.netsize as f64).recip();
@@ -103,9 +102,6 @@ impl NeuQuant {
             self.colormap.push(Color { r: 0, g: 0, b: 0, a: 255 });
             self.freq.push(freq);
             self.bias.push(0.0);
-        }
-        for _ in 0..256 {
-            self.netindex.push(0);
         }
         self.learn(pixels);
         self.build_colormap();

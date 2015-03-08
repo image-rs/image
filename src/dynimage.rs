@@ -1,4 +1,5 @@
 use std::io;
+use std::fs;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
@@ -507,7 +508,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
 pub fn open(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match io::File::open(path) {
+    let fin = match fs::File::open(path) {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
@@ -541,7 +542,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
 pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  io::Result<()> {
-    let ref mut fout = try!(io::File::create(path));
+    let ref mut fout = try!(fs::File::create(path));
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
@@ -553,7 +554,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
-        format => Err(io::IoError {
+        format => Err(io::Error {
             kind: io::InvalidInput,
             desc: "Unsupported image format.",
             detail: Some(format!(

@@ -4,7 +4,7 @@ use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
 use std::num::Int;
 use std::iter::repeat;
-use std::io::Result;
+use std::io;
 
 use traits::{ Zero, Primitive };
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };

@@ -12,7 +12,7 @@
 //! of the VP8 format
 //!
 
-use std::io::Result;
+use std::io;
 use std::default::Default;
 use std::iter::repeat;
 

@@ -5,8 +5,6 @@ use std::iter;
 use std::iter::repeat;
 use std::str;
 use std::slice;
-use std::io::Result;
-use std::io::MemReader;
 use std::num::FromPrimitive;
 use std::num::wrapping::Wrapping;
 
@@ -613,7 +611,8 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::io::{ self, File, MemReader };
+    use std::io;
+    use std::fs::File;
     use test;
 
     use image::{

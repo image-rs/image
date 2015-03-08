@@ -38,10 +38,10 @@ const CHANNELS: usize = 4;
 const RADIUS_DEC: i32 = 30; // factor of 1/30 each cycle
 
 const ALPHA_BIASSHIFT: i32 = 10;            // alpha starts at 1
-const INIT_ALPHA: i32 = 1<<ALPHA_BIASSHIFT; // biased by 10 bits
+const INIT_ALPHA: i32 = 1 << ALPHA_BIASSHIFT; // biased by 10 bits
 
 const GAMMA: f64 = 1024.0;
-const BETA: f64 = 1.0/1024.0;
+const BETA: f64 = 1024.0.recip();
 const BETAGAMMA: f64 = BETA * GAMMA;
 
 // four primes near 500 - assume no image has a length so large
@@ -49,20 +49,15 @@ const BETAGAMMA: f64 = BETA * GAMMA;
 const PRIMES: [usize; 4] = [499, 491, 478, 503];
 
 #[derive(Copy)]
-struct Neuron {
-    r: f64,
-    g: f64,
-    b: f64,
-    a: f64,
+struct Template<T> {
+    r: T,
+    g: T,
+    b: T,
+    a: T,
 }
 
-#[derive(Copy)]
-struct Color {
-    r: i32,
-    g: i32,
-    b: i32,
-    a: i32,
-}
+type Neuron = Template<f64>;
+type Color = Template<i32>;
 
 /// Neural network color quantizer
 pub struct NeuQuant {
@@ -99,9 +94,9 @@ impl NeuQuant {
         self.netindex.clear();
         self.bias.clear();
         self.freq.clear();
-        let freq = 1.0/self.netsize as f64;
+        let freq = (self.netsize as f64).recip();
         for i in 0..self.netsize {
-            let tmp = i as f64 * 256.0/self.netsize as f64;
+            let tmp = (i as f64) * 256.0 / (self.netsize as f64);
             // Sets alpha values at 0 for dark pixels.
             let a = if i < 16 { i as f64 * 16.0 } else { 255.0 };
             self.network.push(Neuron { r: tmp, g: tmp, b: tmp, a: a});
@@ -143,12 +138,6 @@ impl NeuQuant {
         }
     }
 
-    /*
-    /// Returns the color map in the format [r, g, b, r, g, ...]
-    pub fn colormap_rgb(&mut self, pixel: &mut [u8]) -> Vec<u8> {
-    self.colormap.iter().flat_map(|&c| [c.r as u8, c.g as u8, c.b as u8].iter().map(|&v| v)).collect()
-    }*/
-
     /// Move neuron i towards biased (a,b,g,r) by factor alpha
     fn altersingle(&mut self, alpha: f64, i: i32, b: f64, g: f64, r: f64, a: f64) {
         // Move neuron i towards biased (b,g,r) by factor alpha
@@ -161,17 +150,24 @@ impl NeuQuant {
 
     /// Move neuron adjacent neurons towards biased (a,b,g,r) by factor alpha
     fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, b: f64, g: f64, r: f64, a: f64) {
-
-        let mut lo = i-rad;   if lo<0 {lo=0};
-        let mut hi = i+rad;   if hi>self.netsize as i32 {hi=self.netsize as i32};
-        let mut j = i+1;
-        let mut k = i-1;
+        let lo = if i > rad {
+            i - rad
+        } else {
+            0
+        };
+        let mut hi = if i + rad < self.netsize as i32 {
+            i + rad
+        } else {
+            self.netsize as i32
+        };
+        let mut j = i + 1;
+        let mut k = i - 1;
         let mut q = 0;
-        while (j<hi) || (k>lo) {
+        while (j < hi) || (k > lo) {
             let rad_sq = rad as f64 * rad as f64;
             let alpha = (alpha * (rad_sq - q as f64 * q as f64)) / rad_sq;
             q += 1;
-            if j<hi {
+            if j < hi {
                 let p = &mut self.network[j as usize];
                 p.b -= alpha*(p.b - b);
                 p.g -= alpha*(p.g - g);
@@ -179,7 +175,7 @@ impl NeuQuant {
                 p.a -= alpha*(p.a - a);
                 j += 1;
             }
-            if k>lo {
+            if k > lo {
                 let p = &mut self.network[k as usize];
                 p.b -= alpha*(p.b - b);
                 p.g -= alpha*(p.g - g);
@@ -249,7 +245,6 @@ impl NeuQuant {
 
         let mut i = 0;
         while i < samplepixels {
-
             let (r, g, b, a) = {
                 let p = &pixels[CHANNELS * pos..][..CHANNELS];
                 (p[0] as f64, p[1] as f64, p[2] as f64, p[3] as f64)
@@ -259,10 +254,12 @@ impl NeuQuant {
 
             let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
             self.altersingle(alpha_, j, b, g, r, a);
-            if rad > 0 {self.alterneigh (alpha_, rad, j, b, g, r, a)};   // alter neighbours
+            if rad > 0 {
+                self.alterneigh (alpha_, rad, j, b, g, r, a) // alter neighbours
+            };
 
             pos += step;
-            while pos >= lengthcount {pos -= lengthcount};
+            while pos >= lengthcount { pos -= lengthcount };
 
             i += 1;
             if i%delta == 0 {

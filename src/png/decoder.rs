@@ -8,6 +8,7 @@ use std::slice;
 use std::old_io::IoResult;
 use std::old_io::MemReader;
 use std::num::FromPrimitive;
+use std::num::wrapping::Wrapping;
 
 use image::{
     DecodingResult,
@@ -509,7 +510,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: usize, bit_depth: u8) {
     let bpp = 8 / bit_depth as usize;
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (1u8 << bit_depth as usize) - 1;
+    let mask = (Wrapping(1u8 << bit_depth as usize) - Wrapping(1)).0;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {
@@ -612,9 +613,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::old_io;
-    use std::result::Result;
-    use std::old_io::{File, MemReader};
+    use std::old_io::{ self, File, MemReader };
     use test;
 
     use image::{
@@ -630,7 +629,8 @@ mod tests {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
         let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
-        let paths = glob::glob(pattern.as_str().unwrap()).unwrap().filter_map(Result::ok)
+        let paths = glob::glob(pattern.as_str().unwrap()).unwrap()
+            .filter_map(|p| p.ok().map(|p| Path::new(p.to_str().unwrap())))
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 
@@ -638,10 +638,10 @@ mod tests {
             paths.collect()
         } else {
             paths.filter(|ref p| !p.filename_str()
-                 .unwrap()
-                 [2..]
-                 .contains("i"))
-                 .collect()
+                                   .unwrap()
+                                   [2..]
+                                   .contains("i"))
+                                   .collect()
         };
 
         assert!(ret.len() > 0); // fail if no testimages are available

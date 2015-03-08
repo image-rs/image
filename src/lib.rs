@@ -16,7 +16,7 @@
 #![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
-#![cfg_attr(test, feature(test))]
+#![cfg_attr(test, feature(test, path))]
 
 extern crate flate;
 extern crate num;

@@ -1,4 +1,4 @@
-use std::old_io;
+use std::io;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
@@ -330,7 +330,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, w: &mut W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
+    pub fn save<W: Writer>(&self, w: &mut W, format: ImageFormat) -> io::Result<ImageResult<()>> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -497,7 +497,7 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
 pub fn open(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match old_io::File::open(path) {
+    let fin = match io::File::open(path) {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
@@ -530,8 +530,8 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
-pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  old_io::IoResult<()> {
-    let ref mut fout = try!(old_io::File::create(path));
+pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  io::Result<()> {
+    let ref mut fout = try!(io::File::create(path));
     let ext = path.extension_str()
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
@@ -540,8 +540,8 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
-        format => Err(old_io::IoError {
-            kind: old_io::InvalidInput,
+        format => Err(io::IoError {
+            kind: io::InvalidInput,
             desc: "Unsupported image format.",
             detail: Some(format!(
                 "Image format image/{:?} is not supported.",
@@ -554,10 +554,10 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 /// Create a new image from a Reader
 pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(old_io::BufferedReader::new(r))),
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(old_io::BufferedReader::new(r))),
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
@@ -594,7 +594,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// Create a new image from a byte slice
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = old_io::BufReader::new(buf);
+    let b = io::BufReader::new(buf);
     load(b, format)
 }
 

@@ -1,10 +1,10 @@
 //! An example of opening an image.
-#![feature(old_path, old_io)]
+#![feature(old_path, io)]
 
 extern crate image;
 
 use std::env;
-use std::old_io::File;
+use std::io::File;
 
 use image::GenericImage;
 

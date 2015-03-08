@@ -11,7 +11,7 @@
 #![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(old_io)]
+#![feature(io)]
 #![feature(old_path)]
 #![feature(collections)]
 #![feature(std_misc)]

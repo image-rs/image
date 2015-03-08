@@ -1,7 +1,7 @@
 use std::error::FromError;
 use std::fmt;
 use std::mem;
-use std::old_io;
+use std::io;
 use std::slice;
 use std::iter::repeat;
 
@@ -32,7 +32,7 @@ pub enum ImageError {
     NotEnoughData,
 
     /// An I/O Error occurred while decoding the image
-    IoError(old_io::IoError),
+    IoError(io::Error),
 
     /// The end of the image has been reached
     ImageEnd
@@ -56,8 +56,8 @@ impl fmt::Display for ImageError {
     }
 }
 
-impl FromError<old_io::IoError> for ImageError {
-    fn from_error(err: old_io::IoError) -> ImageError {
+impl FromError<io::Error> for ImageError {
+    fn from_error(err: io::Error) -> ImageError {
         ImageError::IoError(err)
     }
 }

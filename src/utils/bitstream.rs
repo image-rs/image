@@ -1,18 +1,17 @@
 //! This module provides a bit reader
 
-use std::old_io;
-use std::old_io::{IoResult};
+use std::io;
 
 /// Bit reader
 pub trait BitReader: Reader {
     /// Returns the next `n` bits.
-    fn read_bits(&mut self, n: u8) -> IoResult<u16>;
+    fn read_bits(&mut self, n: u8) -> io::Result<u16>;
 }
 
 /// Bit writer
 pub trait BitWriter: Writer {
     /// Writes the next `n` bits.
-    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()>;
+    fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()>;
 }
 
 macro_rules! define_bit_readers {
@@ -50,7 +49,7 @@ impl<R: Reader> $name<R> {
 }
 
 impl<R: Reader> Reader for $name<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.is_aligned() {
             self.r.read(buf)
         } else {
@@ -76,10 +75,10 @@ define_bit_readers!{
 
 impl<R> BitReader for LsbReader<R> where R: Reader {
 
-    fn read_bits(&mut self, n: u8) -> IoResult<u16> {
+    fn read_bits(&mut self, n: u8) -> io::Result<u16> {
         if n > 16 {
-            return Err(old_io::IoError {
-                kind: old_io::InvalidInput,
+            return Err(io::IoError {
+                kind: io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None
             })
@@ -98,10 +97,10 @@ impl<R> BitReader for LsbReader<R> where R: Reader {
 
 impl<R> BitReader for MsbReader<R> where R: Reader {
 
-    fn read_bits(&mut self, n: u8) -> IoResult<u16> {
+    fn read_bits(&mut self, n: u8) -> io::Result<u16> {
         if n > 16 {
-            return Err(old_io::IoError {
-                kind: old_io::InvalidInput,
+            return Err(io::IoError {
+                kind: io::InvalidInput,
                 desc: "Cannot read more than 16 bits",
                 detail: None
             })
@@ -146,7 +145,7 @@ impl<'a, W> $name<'a, W> where W: Writer + 'a  {
 
 impl<'a, W> Writer for $name<'a, W> where W: Writer + 'a  {
 
-    fn write_all(&mut self, buf: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         if self.acc == 0 {
             self.w.write(buf)
         } else {
@@ -157,7 +156,7 @@ impl<'a, W> Writer for $name<'a, W> where W: Writer + 'a  {
         }
     }
 
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         let missing = 8 - self.bits;
         if missing > 0 {
             try!(self.write_bits(0, missing));
@@ -178,7 +177,7 @@ define_bit_writers!{
 
 impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Writer + 'a  {
 
-    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
+    fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
         self.acc |= (v as u32) << self.bits;
         self.bits += n;
         while self.bits >= 8 {
@@ -194,7 +193,7 @@ impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Writer + 'a  {
 
 impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Writer + 'a  {
 
-    fn write_bits(&mut self, v: u16, n: u8) -> IoResult<()> {
+    fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
         self.acc |= (v as u32) << (32 - n - self.bits);
         self.bits += n;
         while self.bits >= 8 {

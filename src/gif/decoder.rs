@@ -5,7 +5,7 @@
 // A very good resource for the file format is
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
-use std::old_io;
+use std::io;
 use std::num::FromPrimitive;
 
 use num::rational::Ratio;
@@ -208,7 +208,7 @@ impl<R: Reader> GIFDecoder<R> {
             * image_height as usize
         );
         try!(lzw::decode(
-            LsbReader::new(old_io::MemReader::new(data)),
+            LsbReader::new(io::MemReader::new(data)),
             &mut indices,
             code_size
         ));

@@ -1,12 +1,12 @@
-use std::old_io;
+use std::io;
 use std::cmp;
 use std::mem;
 use std::iter;
 use std::iter::repeat;
 use std::str;
 use std::slice;
-use std::old_io::IoResult;
-use std::old_io::MemReader;
+use std::io::Result;
+use std::io::MemReader;
 use std::num::FromPrimitive;
 use std::num::wrapping::Wrapping;
 
@@ -562,9 +562,9 @@ impl<R:Reader> IDATReader<R> {
 }
 
 impl<R: Reader> Reader for IDATReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
-            return Err(old_io::standard_error(old_io::EndOfFile))
+            return Err(io::standard_error(io::EndOfFile))
         }
 
         let len = buf.len();
@@ -586,7 +586,7 @@ impl<R: Reader> Reader for IDATReader<R> {
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
-                    return Err(old_io::standard_error(old_io::InvalidInput))
+                    return Err(io::standard_error(io::InvalidInput))
                 }
 
                 self.crc.reset();
@@ -613,7 +613,7 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::old_io::{ self, File, MemReader };
+    use std::io::{ self, File, MemReader };
     use test;
 
     use image::{
@@ -649,7 +649,7 @@ mod tests {
     }
 
     fn load_image(path: &Path) -> ImageResult<DecodingResult> {
-        PNGDecoder::new(old_io::File::open(path)).read_image()
+        PNGDecoder::new(io::File::open(path)).read_image()
     }
 
     #[test]
@@ -703,9 +703,9 @@ mod tests {
     //                let filename = path.filename_str().unwrap().to_string();
     //                let p1 = "target";
     //                let p2 = "reference renderings";
-    //                let _ = old_io::fs::mkdir(&Path::new(".").join_many(
+    //                let _ = io::fs::mkdir(&Path::new(".").join_many(
     //                    [p1.as_slice(), p2.as_slice()]),
-    //                    old_io::UserRWX
+    //                    io::UserRWX
     //                );
     //                let p = Path::new(".").join_many([p1.as_slice(), p2.as_slice(),
     //                    filename.as_slice()]);

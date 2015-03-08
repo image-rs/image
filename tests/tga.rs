@@ -1,9 +1,9 @@
-#![feature(old_io, old_path)]
+#![feature(io, old_path)]
 #![cfg(feature = "tga")]
 
 extern crate image;
 
-use std::old_io::{fs, File, USER_RWX};
+use std::io::{fs, File, USER_RWX};
 
 #[test]
 fn test_open_and_save_tga() {

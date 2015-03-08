@@ -1,6 +1,6 @@
 //! Function for reading TIFF tags
 
-use std::old_io;
+use std::io;
 use std::collections::{HashMap};
 
 use super::stream::{ByteOrder, SmartReader, EndianReader};
@@ -142,9 +142,9 @@ impl Entry {
     }
 
     /// Returns a mem_reader for the offset/value field
-    fn r(&self, byte_order: ByteOrder) -> SmartReader<old_io::MemReader> {
+    fn r(&self, byte_order: ByteOrder) -> SmartReader<io::MemReader> {
         SmartReader::wrap(
-            old_io::MemReader::new(self.offset.to_vec()),
+            io::MemReader::new(self.offset.to_vec()),
             byte_order
         )
     }

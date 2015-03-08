@@ -1,10 +1,10 @@
 //!An example of generating julia fractals.
-#![feature(old_path, old_io)]
+#![feature(old_path, io)]
 
 extern crate num;
 extern crate image;
 
-use std::old_io::File;
+use std::io::File;
 
 use num::complex::Complex;
 

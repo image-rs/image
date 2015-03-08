@@ -7,8 +7,7 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::old_io:: {
-    IoResult,
+use std::io::{
     MemWriter
 };
 use std::num::FromPrimitive;
@@ -42,7 +41,7 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
                   image: &[u8],
                   width: u32,
                   height: u32,
-                  c: color::ColorType) -> IoResult<()> {
+                  c: color::ColorType) -> io::Result<()> {
 
         let _ = try!(self.write_signature());
         let (bytes, bpp) = build_ihdr(width, height, c);
@@ -57,11 +56,11 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
         self.write_chunk("IEND", &[])
     }
 
-    fn write_signature(&mut self) -> IoResult<()> {
+    fn write_signature(&mut self) -> io::Result<()> {
         self.w.write_all(&PNGSIGNATURE)
     }
 
-    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {
+    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> io::Result<()> {
         self.crc.reset();
         self.crc.update(name);
         self.crc.update(&buf);

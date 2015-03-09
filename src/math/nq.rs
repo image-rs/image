@@ -90,7 +90,7 @@ pub struct NeuQuant {
 }
 
 impl NeuQuant {
-    
+
     /// Creates a new neuronal network and trains it with the supplied data
     pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> NeuQuant {
         let netsize = colors;
@@ -106,7 +106,7 @@ impl NeuQuant {
         this.init(pixels);
         this
     }
-    
+
     /// Initializes the neuronal network and trains it with the supplied data
     pub fn init(&mut self, pixels: &[u8]) {
         self.network.clear();
@@ -157,7 +157,7 @@ impl NeuQuant {
             _ => panic!()
         }
     }
-    
+
     /*
     /// Returns the color map in the format [r, g, b, r, g, ...]
     pub fn colormap_rgb(&mut self, pixel: &mut [u8]) -> Vec<u8> {
@@ -173,10 +173,10 @@ impl NeuQuant {
         n.r -= alpha*(n.r - r);
         n.a -= alpha*(n.a - a);
     }
-    
+
     /// Move neuron adjacent neurons towards biased (a,b,g,r) by factor alpha
     fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, b: f64, g: f64, r: f64, a: f64) {
-        
+
         let mut lo = i-rad;   if lo<0 {lo=0};
         let mut hi = i+rad;   if hi>self.netsize as i32 {hi=self.netsize as i32};
         let mut j = i+1;
@@ -204,18 +204,18 @@ impl NeuQuant {
             }
         }
     }
-    
+
     /// Search for biased BGR values
-    /// finds closest neuron (min dist) and updates freq 
-    /// finds best neuron (min dist-bias) and returns position 
-    /// for frequently chosen neurons, freq[i] is high and bias[i] is negative 
-    /// bias[i] = gamma*((1/self.netsize)-freq[i]) 
+    /// finds closest neuron (min dist) and updates freq
+    /// finds best neuron (min dist-bias) and returns position
+    /// for frequently chosen neurons, freq[i] is high and bias[i] is negative
+    /// bias[i] = gamma*((1/self.netsize)-freq[i])
     fn contest (&mut self, b: f64, g: f64, r: f64, a: f64) -> i32 {
         let mut bestd = Float::max_value();
         let mut bestbiasd: f64 = bestd;
         let mut bestpos = -1;
         let mut bestbiaspos: i32 = bestpos;
-        
+
         for i in 0..self.netsize {
             let bestbiasd_biased = bestbiasd + self.bias[i];
             let mut dist;
@@ -236,9 +236,9 @@ impl NeuQuant {
         self.bias[bestpos as usize] -= BETAGAMMA;
         return bestbiaspos;
     }
-    
+
     /// Main learning loop
-    /// Note: the number of learning cycles is crucial and the parameters are not 
+    /// Note: the number of learning cycles is crucial and the parameters are not
     /// optimized for net sizes < 26 or > 256. 1064 colors seems to work fine
     fn learn(&mut self, pixels: &[u8]) {
         let initrad: i32 = self.netsize as i32/8;   // for 256 cols, radius starts at 32
@@ -250,13 +250,13 @@ impl NeuQuant {
         let lengthcount = pixels.len() / CHANNELS;
         let samplepixels = lengthcount / self.samplefac as usize;
         // learning cycles
-        let n_cycles = match self.netsize >> 1 { n if n <= 100 => 100, n => n}; 
+        let n_cycles = match self.netsize >> 1 { n if n <= 100 => 100, n => n};
         let delta = match samplepixels / n_cycles { 0 => 1, n => n };
         let mut alpha = INIT_ALPHA;
-        
+
         let mut rad = bias_radius >> radiusbiasshift;
         if rad <= 1 {rad = 0};
-    
+
         let mut pos = 0;
         let step = *PRIMES.iter()
             .find(|&&prime| lengthcount % prime != 0)
@@ -275,12 +275,12 @@ impl NeuQuant {
             let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
             self.altersingle(alpha_, j, b, g, r, a);
             if rad > 0 {self.alterneigh (alpha_, rad, j, b, g, r, a)};   // alter neighbours
-            
+
             pos += step;
             while pos >= lengthcount {pos -= lengthcount};
-            
+
             i += 1;
-            if i%delta == 0 {   
+            if i%delta == 0 {
                 alpha -= alpha / alphadec;
                 bias_radius -= bias_radius / RADIUS_DEC;
                 rad = bias_radius >> radiusbiasshift;
@@ -328,7 +328,7 @@ impl NeuQuant {
             // smallval entry is now in position i
             if smallval != previouscol {
                 self.netindex[previouscol] = (startpos + i)>>1;
-                for j in (previouscol + 1)..smallval { 
+                for j in (previouscol + 1)..smallval {
                     self.netindex[j] = i
                 }
                 previouscol = smallval;

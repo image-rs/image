@@ -50,7 +50,7 @@ pub use self::colorops:: {
 mod affine;
 /// Public only because of Rust bug:
 /// https://github.com/rust-lang/rust/issues/18241
-pub mod colorops; 
+pub mod colorops;
 mod sample;
 
 /// Return a mutable view into an image

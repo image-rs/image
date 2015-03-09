@@ -30,7 +30,7 @@ use self::ColorMode::{TrueColor, Indexed};
 /// A GIF encoder.
 ///
 /// Encodes the image either in true color using indexed colors.
-/// If the mode is set to TrueColor the image is split into multiple frames 
+/// If the mode is set to TrueColor the image is split into multiple frames
 /// when the number of colors including transparent color exceeds 256.
 /// Pixels with an alpha value != 1.0 will be set to alpha = 0.
 pub struct Encoder<Image> {
@@ -62,7 +62,7 @@ where Container: ArrayLike<u8> {
         // Logical screen descriptor
         let height = self.image.height();
         let width = self.image.width();
-        if width > <u16 as Int>::max_value() as u32 || 
+        if width > <u16 as Int>::max_value() as u32 ||
            height > <u16 as Int>::max_value() as u32 {
             return Err(old_io::IoError{
                 kind: old_io::InvalidInput,
@@ -139,10 +139,10 @@ where Container: ArrayLike<u8> {
     }
 
     /// Write the global color table and the corresponding flags
-    fn write_global_table<W: Writer>(&mut self, 
-                                     w: &mut W, 
+    fn write_global_table<W: Writer>(&mut self,
+                                     w: &mut W,
                                      hist: &[(Rgba<u8>, usize)]
-                                    ) -> IoResult<()> 
+                                    ) -> IoResult<()>
     {
         let num_colors = hist.len();
         let mut flags = 0;
@@ -187,11 +187,11 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes the graphics control extension
-    fn write_control_ext<W: Writer>(&mut self, 
-                                    w: &mut W, 
+    fn write_control_ext<W: Writer>(&mut self,
+                                    w: &mut W,
                                     delay: u16,
                                     transparent: Option<usize>
-                                   ) -> IoResult<()> 
+                                   ) -> IoResult<()>
     {
         try!(w.write_u8(Block::Extension as u8));
         try!(w.write_u8(Extension::Control as u8));
@@ -211,10 +211,10 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes the image descriptor
-    fn write_descriptor<W: Writer>(&mut self, 
-                                   w: &mut W, 
+    fn write_descriptor<W: Writer>(&mut self,
+                                   w: &mut W,
                                    table_len: Option<usize>
-                                  ) -> IoResult<()> 
+                                  ) -> IoResult<()>
     {
         try!(w.write_u8(Block::Image as u8));
         try!(w.write_le_u16(0)); // left
@@ -231,10 +231,10 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes and compresses the indexed data
-    fn write_indices<W: Writer>(&mut self, 
-                                w: &mut W, 
+    fn write_indices<W: Writer>(&mut self,
+                                w: &mut W,
                                 indices: &[u8],
-                               ) -> IoResult<()> 
+                               ) -> IoResult<()>
     {
         let code_size = match flag_n(indices.len()) + 1 {
             1 => 2,
@@ -253,11 +253,11 @@ where Container: ArrayLike<u8> {
 
     /// Writes the image to the file assuming that every pixel is in the color table
     /// If not, the index of the transparent pixel is written
-    fn write_image_simple<W: Writer>(&mut self, 
-                                     w: &mut W, 
+    fn write_image_simple<W: Writer>(&mut self,
+                                     w: &mut W,
                                      hist: &[(Rgba<u8>, usize)],
                                      transparent: Option<usize>,
-                                    ) -> IoResult<()> 
+                                    ) -> IoResult<()>
     {
         let t_idx = match transparent { Some(i) => i as u8, None => 0 };
         let data: Vec<u8> = self.image.pixels().map(|p| {
@@ -271,13 +271,13 @@ where Container: ArrayLike<u8> {
 
     }
 
-    /// Writes the image as a true color image by splitting the colors 
+    /// Writes the image as a true color image by splitting the colors
     /// over several frames
-    fn write_true_color<W: Writer>(&mut self, 
-                                   w: &mut W, 
+    fn write_true_color<W: Writer>(&mut self,
+                                   w: &mut W,
                                    hist: Vec<(Rgba<u8>, usize)>,
                                    transparent: Option<usize>
-                                  ) -> IoResult<()> 
+                                  ) -> IoResult<()>
     {
         let mut hist = hist;
         // Remove transparent idx
@@ -324,7 +324,7 @@ where Container: ArrayLike<u8> {
         }
         Ok(())
     }
-    /// Writes the image as a true color image by splitting the colors 
+    /// Writes the image as a true color image by splitting the colors
     /// over several frames
     fn write_indexed_colors<W: Writer>(&mut self, w: &mut W, n: u8) -> IoResult<()> {
         if n < 64 {

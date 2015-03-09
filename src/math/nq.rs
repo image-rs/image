@@ -67,7 +67,7 @@ type Color = Quad<i32>;
 pub struct NeuQuant {
     network: Vec<Neuron>,
     colormap: Vec<Color>,
-    netindex: [usize; 256],
+    netindex: Vec<usize>,
     bias: Vec<f64>, // bias and freq arrays for learning
     freq: Vec<f64>,
     samplefac: i32,
@@ -81,7 +81,7 @@ impl NeuQuant {
         let mut this = NeuQuant {
             network: Vec::with_capacity(netsize),
             colormap: Vec::with_capacity(netsize),
-            netindex: [0; 256],
+            netindex: vec![0; 256],
             bias: Vec::with_capacity(netsize),
             freq: Vec::with_capacity(netsize),
             samplefac: samplefac,

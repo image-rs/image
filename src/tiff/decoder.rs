@@ -1,6 +1,6 @@
 use std::io::{
     self,
-    Read
+    Read,
 };
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
@@ -66,7 +66,7 @@ enum Predictor {
 ///
 /// Currently does not support decoding of interlaced images
 #[derive(Debug)]
-pub struct TIFFDecoder<R> where R: Read + Seek {
+pub struct TIFFDecoder<R> where R: Read + io::Seek {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
     next_ifd: Option<u32>,
@@ -111,7 +111,7 @@ fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) 
     })
 }
 
-impl<R: Read + Seek> TIFFDecoder<R> {
+impl<R: Read + io::Seek> TIFFDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<TIFFDecoder<R>> {
         TIFFDecoder {
@@ -409,7 +409,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
+impl<R: Read + io::Seek> ImageDecoder for TIFFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width, self.height))
 

@@ -1,6 +1,7 @@
 use std::io::{
     self,
-    Read
+    Read,
+    Write
 };
 use std::fs;
 use std::iter;
@@ -349,7 +350,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, w: &mut W, format: ImageFormat) -> io::Result<ImageResult<()>> {
+    pub fn save<W: Write>(&self, w: &mut W, format: ImageFormat) -> io::Result<ImageResult<()>> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -574,7 +575,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
 <<<<<<< HEAD
         #[cfg(feature = "png")]

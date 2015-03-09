@@ -12,7 +12,6 @@
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(io)]
-#![feature(old_path)]
 #![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]

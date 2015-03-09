@@ -2,7 +2,8 @@
 
 use std::io::{
     self,
-    Read
+    Read,
+    Write
 };
 
 /// Bit reader
@@ -12,7 +13,7 @@ pub trait BitReader: Read {
 }
 
 /// Bit writer
-pub trait BitWriter: Writer {
+pub trait BitWriter: Write {
     /// Writes the next `n` bits.
     fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()>;
 }
@@ -128,13 +129,13 @@ macro_rules! define_bit_writers {
 
 #[$doc]
 #[allow(dead_code)]
-              pub struct $name<'a, W> where W: Writer + 'a {
+              pub struct $name<'a, W> where W: Write + 'a {
                   w: &'a mut W,
                   bits: u8,
                   acc: u32,
               }
 
-              impl<'a, W> $name<'a, W> where W: Writer + 'a  {
+              impl<'a, W> $name<'a, W> where W: Write + 'a  {
                   /// Creates a new bit reader
                   #[allow(dead_code)]
                   pub fn new(writer: &'a mut W) -> $name<'a, W> {
@@ -146,7 +147,7 @@ macro_rules! define_bit_writers {
                   }
               }
 
-              impl<'a, W> Writer for $name<'a, W> where W: Writer + 'a  {
+              impl<'a, W> Write for $name<'a, W> where W: Write + 'a  {
 
                   fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
                       if self.acc == 0 {
@@ -178,7 +179,7 @@ define_bit_writers!{
     MsbWriter, #[doc = "Writes bits to a byte stream, MSB first."];
 }
 
-impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Writer + 'a  {
+impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Write + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
         self.acc |= (v as u32) << self.bits;
@@ -194,7 +195,7 @@ impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Writer + 'a  {
 
 }
 
-impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Writer + 'a  {
+impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Write + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
         self.acc |= (v as u32) << (32 - n - self.bits);

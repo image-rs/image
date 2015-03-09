@@ -138,7 +138,7 @@ pub struct JPEGEncoder<'a, W: 'a> {
     chroma_actable: Vec<(u8, u16)>,
 }
 
-impl<'a, W: Writer> JPEGEncoder<'a, W> {
+impl<'a, W: io::Write> JPEGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> JPEGEncoder<W> {
         let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);

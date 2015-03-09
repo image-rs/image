@@ -1,6 +1,6 @@
 use std::io::{
     self,
-    Read
+    Read,
 };
 
 use image::ImageError;
@@ -172,7 +172,7 @@ pub struct TGADecoder<R> {
     color_map: Option<ColorMap>,
 }
 
-impl<R: Read + Seek> TGADecoder<R> {
+impl<R: Read + io::Seek> TGADecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> TGADecoder<R> {
         TGADecoder {
@@ -373,7 +373,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
+impl<R: Read + io::Seek> ImageDecoder for TGADecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 

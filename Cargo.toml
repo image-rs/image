@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.2.0-alpha.11"
+version = "0.2.0-alpha.12"
 license = "MIT"
 description = "A pure rust imaging library. Note that there is a bug in crates.io use image = \"~0.2.0\" for your dependency instead of the suggested one."
 authors = [
@@ -22,9 +22,9 @@ name = "image"
 path = "./src/lib.rs"
 
 [dependencies.num]
-git = "https://github.com/rust-lang/num"
-#version = "0.1.10"
+#git = "https://github.com/rust-lang/num"
+version = "0.1.15"
 
 [dev-dependencies.glob]
-git = "https://github.com/rust-lang/glob"
-#version = "0.2.1"
+#git = "https://github.com/rust-lang/glob"
+version = "0.2.2"

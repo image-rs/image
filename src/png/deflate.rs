@@ -8,8 +8,10 @@
 use std::cmp;
 use std::iter::repeat;
 use std::num::wrapping::Wrapping as w;
-use std::io::Result;
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 
 static LITERALLENGTHCODES: u16 = 286;
 static DISTANCECODES: u16 = 30;
@@ -77,7 +79,7 @@ pub struct Inflater<R> {
     dtable: Vec<TableElement>,
 }
 
-impl<R: Reader> Inflater<R> {
+impl<R: Read> Inflater<R> {
     /// Create a new decoder that decodes from a Reader
     pub fn new(r: R) -> Inflater<R> {
         Inflater {
@@ -258,11 +260,11 @@ impl<R: Reader> Inflater<R> {
     }
 }
 
-impl<R: Reader> Reader for Inflater<R> {
+impl<R: Read> Reader for Inflater<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.pos as usize == self.buf.len() {
             if self.finished {
-                return Err(io::standard_error(io::EndOfFile))
+                return Ok(0)
             }
 
             let _ = try!(self.read_block_type());
@@ -362,7 +364,7 @@ struct HuffReader<R> {
     num_bits: u8,
 }
 
-impl<R: Reader> HuffReader<R> {
+impl<R: Read> HuffReader<R> {
     pub fn new(r: R) -> HuffReader<R> {
         HuffReader {r: r, bits: 0, num_bits: 0}
     }

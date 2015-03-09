@@ -1,5 +1,7 @@
-use std::io;
-use std::io::Result;
+use std::io::{
+    self,
+    Read
+};
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;
@@ -64,7 +66,7 @@ enum Predictor {
 ///
 /// Currently does not support decoding of interlaced images
 #[derive(Debug)]
-pub struct TIFFDecoder<R> where R: Reader + Seek {
+pub struct TIFFDecoder<R> where R: Read + Seek {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
     next_ifd: Option<u32>,
@@ -109,7 +111,7 @@ fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) 
     })
 }
 
-impl<R: Reader + Seek> TIFFDecoder<R> {
+impl<R: Read + Seek> TIFFDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<TIFFDecoder<R>> {
         TIFFDecoder {
@@ -247,7 +249,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     /// Moves the cursor to the specified offset
     #[inline]
     pub fn goto_offset(&mut self, offset: u32) -> io::Result<()> {
-        self.reader.seek(offset as i64, io::SeekSet)
+        self.reader.seek(io::SeekFrom::Start(offset as i64))
     }
 
     /// Reads a IFD entry.
@@ -407,7 +409,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
 }
 
-impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
+impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width, self.height))
 

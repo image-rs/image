@@ -1,4 +1,7 @@
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 
 use image::ImageError;
 use image::ImageResult;
@@ -106,7 +109,7 @@ impl Header {
     }
 
     /// Load the header with values from the reader
-    fn from_reader(r: &mut Reader) -> ImageResult<Header> {
+    fn from_reader(r: &mut Read) -> ImageResult<Header> {
         Ok(Header {
             id_length:         try!(r.read_u8()),
             map_type:          try!(r.read_u8()),
@@ -132,7 +135,7 @@ struct ColorMap {
 }
 
 impl ColorMap {
-    pub fn from_reader(r: &mut Reader,
+    pub fn from_reader(r: &mut Read,
                        start_offset: u16,
                        num_entries: u16,
                        bits_per_entry: u8)
@@ -169,7 +172,7 @@ pub struct TGADecoder<R> {
     color_map: Option<ColorMap>,
 }
 
-impl<R: Reader + Seek> TGADecoder<R> {
+impl<R: Read + Seek> TGADecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> TGADecoder<R> {
         TGADecoder {
@@ -250,7 +253,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
-        try!(self.r.seek(self.header.id_length as i64, io::SeekCur));
+        try!(self.r.seek(io::SeekFrom::Current(self.header.id_length as i64)));
         Ok(())
     }
 
@@ -370,7 +373,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     }
 }
 
-impl<R: Reader + Seek> ImageDecoder for TGADecoder<R> {
+impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 

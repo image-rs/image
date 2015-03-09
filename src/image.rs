@@ -7,9 +7,15 @@ use std::iter::repeat;
 
 use color;
 use color::ColorType;
-use buffer::{ImageBuffer, Pixel};
+use buffer::{
+    ImageBuffer,
+    Pixel
+};
 
-use animation::{Frame, Frames};
+use animation::{
+    Frame,
+    Frames
+};
 use dynimage::decoder_to_image;
 
 /// An enumeration of Image Errors

@@ -5,8 +5,10 @@
 //! # Related Links
 //! *http://tools.ietf.org/html/rfc1950 - ZLIB Compressed Data Format Specification
 
-use std::io;
-use std::io::Result;
+use std::io::{
+    self,
+    Read
+};
 
 use super::hash::Adler32;
 use super::deflate::Inflater;
@@ -24,7 +26,7 @@ pub struct ZlibDecoder<R> {
     state: ZlibState,
 }
 
-impl<R: Reader> ZlibDecoder<R> {
+impl<R: Read> ZlibDecoder<R> {
     /// Create a new decoder that decodes from a Reader
     pub fn new(r: R) -> ZlibDecoder<R> {
         ZlibDecoder {
@@ -67,7 +69,7 @@ impl<R: Reader> ZlibDecoder<R> {
     }
 }
 
-impl<R: Reader> Reader for ZlibDecoder<R> {
+impl<R: Read> Read for ZlibDecoder<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.state {
             ZlibState::CompressedData => {
@@ -93,7 +95,7 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
                 self.read(buf)
             }
 
-            ZlibState::End => Err(io::standard_error(io::EndOfFile))
+            ZlibState::End => Ok(0)
         }
     }
 }

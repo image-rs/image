@@ -1,4 +1,7 @@
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 use std::cmp;
 use std::mem;
 use std::iter;
@@ -148,7 +151,7 @@ pub struct PNGDecoder<R> {
     decoded_rows: u32,
 }
 
-impl<R: Reader> PNGDecoder<R> {
+impl<R: Read> PNGDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
@@ -196,7 +199,7 @@ impl<R: Reader> PNGDecoder<R> {
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         self.crc.update(&buf);
-        let mut m = MemReader::new(buf);
+        let mut m = io::Cursor::new(buf);
 
         self.width = try!(m.read_be_u32());
         self.height = try!(m.read_be_u32());
@@ -398,7 +401,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for PNGDecoder<R> {
+impl<R: Read> ImageDecoder for PNGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
@@ -544,7 +547,7 @@ pub struct IDATReader<R> {
     chunk_length: u32,
 }
 
-impl<R:Reader> IDATReader<R> {
+impl<R:Read> IDATReader<R> {
     pub fn new(r: R) -> IDATReader<R> {
         IDATReader {
             r: r,
@@ -559,10 +562,10 @@ impl<R:Reader> IDATReader<R> {
     }
 }
 
-impl<R: Reader> Reader for IDATReader<R> {
+impl<R: Read> Reader for IDATReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
-            return Err(io::standard_error(io::EndOfFile))
+            return Ok(0)
         }
 
         let len = buf.len();
@@ -584,7 +587,7 @@ impl<R: Reader> Reader for IDATReader<R> {
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
-                    return Err(io::standard_error(io::InvalidInput))
+                    return io::Error::new(io::ErrorKind::InvalidInput, "", None)
                 }
 
                 self.crc.reset();
@@ -743,7 +746,7 @@ mod tests {
         ).collect();
         b.iter(|| {
             for data in image_data.clone().into_iter() {
-                 let _ = PNGDecoder::new(MemReader::new(data)).read_image().unwrap();
+                 let _ = PNGDecoder::new(Cursor::new(data[..])).read_image().unwrap();
             }
         });
         b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
@@ -755,7 +758,7 @@ mod tests {
             &Path::new(".").join_many(&["examples", "fractal.png"])
         ).read_to_end().unwrap();
         b.iter(|| {
-            let _ = PNGDecoder::new(MemReader::new(image_data.clone())).read_image().unwrap();
+            let _ = PNGDecoder::new(Cursor::new(image_data.clone()[..])).read_image().unwrap();
         });
         b.bytes = image_data.len() as u64
     }

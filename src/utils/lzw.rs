@@ -7,7 +7,10 @@
 // See http://www.cplusplus.com/articles/iL18T05o/ for his extensive explanations
 // and a C++ implementatation
 
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 
 use utils::bitstream::{BitReader, BitWriter};
 
@@ -64,7 +67,7 @@ impl DecodingDict {
                     cha = cha_;
                 }
                 None => return Err(io::Error {
-                    kind: io::InvalidInput,
+                    kind: io::ErrorKind::InvalidInput,
                     desc: "invalid code occured",
                     detail: Some(format!("{} < {} expected", k, self.table.len()))
                 })
@@ -136,7 +139,7 @@ where R: BitReader, W: Writer {
                     table.buffer()
                 } else {
                     return Err(io::Error {
-                        kind: io::InvalidInput,
+                        kind: io::ErrorKind::InvalidInput,
                         desc: "Invalid code",
                         detail: Some(format!("expected {} <= {}",
                                      code,
@@ -269,7 +272,7 @@ impl EncodingDict {
 }
 
 pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> io::Result<()>
-where R: Reader, W: BitWriter {
+where R: Read, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
     dict.push_node(Node::new(0)); // clear code
     dict.push_node(Node::new(0)); // end code

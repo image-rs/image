@@ -241,7 +241,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
             color::ColorType::Gray(8)  => try!(self.encode_gray(image, width as usize, height as usize, 1)),
             color::ColorType::GrayA(8) => try!(self.encode_gray(image, width as usize, height as usize, 2)),
             _  => return Err(io::Error {
-                kind: io::InvalidInput,
+                kind: io::ErrorKind::InvalidInput,
                 desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Gray(A) instead.",
                 detail: Some(format!(
                     "Color type {:?} is not suppored by this JPEG encoder.",

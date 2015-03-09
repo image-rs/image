@@ -164,11 +164,13 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
 
         outrow[0]  = filter;
         let out    = &mut outrow[1..];
-        let stride = (filter as usize - 1) * rowlen;
 
         match filter {
             0 => slice::bytes::copy_memory(out, row),
-            _ => slice::bytes::copy_memory(out, &c[stride..stride + rowlen]),
+            _ => {
+                let stride = (filter as usize - 1) * rowlen;
+                slice::bytes::copy_memory(out, &c[stride..stride + rowlen])
+            }
         }
 
         slice::bytes::copy_memory(&mut p, row);

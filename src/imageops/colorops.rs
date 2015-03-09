@@ -198,8 +198,8 @@ macro_rules! do_dithering(
 );
 
 /// Reduces the colors of the image using the supplied `color_map` while applying
-/// Floyd-Steinberg dithering to improve the visual conception 
-pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map) 
+/// Floyd-Steinberg dithering to improve the visual conception
+pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where Map: ColorMap<Color=Pix>,
       Pix: Pixel<Subpixel=u8> + 'static,
 {
@@ -236,7 +236,7 @@ where Map: ColorMap<Color=Pix>,
 }
 
 /// Reduces the colors using the supplied `color_map` and returns an image of the indices
-pub fn index_colors<Pix, Map>(image: &ImageBuffer<Pix, Vec<u8>>, color_map: &Map) -> 
+pub fn index_colors<Pix, Map>(image: &ImageBuffer<Pix, Vec<u8>>, color_map: &Map) ->
 ImageBuffer<Luma<u8>, Vec<u8>>
 where Map: ColorMap<Color=Pix>,
       Pix: Pixel<Subpixel=u8> + 'static,

@@ -18,5 +18,5 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 ### Version 0.1
 - Initial release
 - Basic reading support for png, jpeg, gif, ppm and webp.
-- Basic writing support for png and jpeg. 
+- Basic writing support for png and jpeg.
 - A collection of basic imaging processing function like `blur` or `invert`

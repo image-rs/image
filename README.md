@@ -286,7 +286,7 @@ extern crate image;
 fn main() {
 
     let buffer: &[u8] = ...; // Generate the image data
-    
+
     // Save the buffer as "image.png"
     image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8))
 }

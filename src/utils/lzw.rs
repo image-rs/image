@@ -138,7 +138,7 @@ where R: BitReader, W: Writer {
                     return Err(old_io::IoError {
                         kind: old_io::InvalidInput,
                         desc: "Invalid code",
-                        detail: Some(format!("expected {} <= {}", 
+                        detail: Some(format!("expected {} <= {}",
                                      code,
                                      next_code)
                                 )
@@ -172,7 +172,7 @@ struct Node {
     left: Option<Code>,
     right: Option<Code>,
 }
- 
+
 impl Node {
     #[inline(always)]
     fn new(c: u8) -> Node {
@@ -184,14 +184,14 @@ impl Node {
         }
     }
 }
- 
+
 struct EncodingDict {
     table: Vec<Node>,
     min_size: u8,
- 
+
 }
 
-/// Encoding dictionary based on a binary tree 
+/// Encoding dictionary based on a binary tree
 impl EncodingDict {
     fn new(min_size: u8) -> EncodingDict {
         let mut this = EncodingDict {
@@ -201,29 +201,29 @@ impl EncodingDict {
         this.reset();
         this
     }
-    
+
     fn reset(&mut self) {
         self.table.clear();
         for i in range(0, (1u16 << self.min_size as usize)) {
             self.push_node(Node::new(i as u8));
         }
     }
-    
+
     #[inline(always)]
     fn push_node(&mut self, node: Node) {
         self.table.push(node)
     }
-    
+
     #[inline(always)]
     fn clear_code(&self) -> Code {
         1u16 << self.min_size
     }
-    
+
     #[inline(always)]
     fn end_code(&self) -> Code {
         self.clear_code() + 1
     }
-    
+
     // Searches for a new prefix
     fn search_and_insert(&mut self, i: Option<Code>, c: u8) -> Option<Code> {
         if let Some(i) = i.map(|v| v as usize) {
@@ -258,16 +258,16 @@ impl EncodingDict {
             Some(self.search_initials(c as Code))
         }
     }
-    
+
     fn next_code(&self) -> usize {
         self.table.len()
     }
-    
+
     fn search_initials(&self, i: Code) -> Code {
         self.table[i as usize].c as Code
     }
 }
- 
+
 pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> old_io::IoResult<()>
 where R: Reader, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
@@ -299,7 +299,7 @@ where R: Reader, W: BitWriter {
             try!(w.write_bits(dict.clear_code(), code_size));
             code_size = min_code_size + 1;
         }
- 
+
     }
     if let Some(code) = i {
         try!(w.write_bits(code, code_size));

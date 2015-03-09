@@ -49,15 +49,15 @@ const BETAGAMMA: f64 = BETA * GAMMA;
 const PRIMES: [usize; 4] = [499, 491, 478, 503];
 
 #[derive(Copy)]
-struct Template<T> {
+struct Quad<T> {
     r: T,
     g: T,
     b: T,
     a: T,
 }
 
-type Neuron = Template<f64>;
-type Color = Template<i32>;
+type Neuron = Quad<f64>;
+type Color = Quad<i32>;
 
 /// Neural network color quantizer
 pub struct NeuQuant {

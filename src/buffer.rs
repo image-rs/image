@@ -233,7 +233,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     type_marker: TypeId,
-    _phantom: PhantomData<P>, 
+    _phantom: PhantomData<P>,
     data: Container,
 }
 

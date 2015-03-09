@@ -18,7 +18,7 @@ pub enum ByteOrder {
 pub trait EndianReader: Reader {
     /// Byte order that should be adhered to
     fn byte_order(&self) -> ByteOrder;
-    
+
     /// Reads an u16
     #[inline(always)]
     fn read_u16(&mut self) -> IoResult<u16> {
@@ -27,7 +27,7 @@ pub trait EndianReader: Reader {
             ByteOrder::BigEndian => self.read_be_u16()
         }
     }
-    
+
     /// Reads an u32
     #[inline(always)]
     fn read_u32(&mut self) -> IoResult<u32> {
@@ -108,7 +108,7 @@ impl<R: Reader + Seek> Seek for SmartReader<R> {
     fn tell(&self) -> IoResult<u64> {
         self.reader.tell()
     }
-    
+
     #[inline]
     fn seek(&mut self, pos: i64, style: old_io::SeekStyle) -> IoResult<()> {
         self.reader.seek(pos, style)
@@ -127,7 +127,7 @@ impl<'a, R: Reader + Seek> Seek for &'a mut SmartReader<R> {
     fn tell(&self) -> IoResult<u64> {
         self.reader.tell()
     }
-    
+
     #[inline]
     fn seek(&mut self, pos: i64, style: old_io::SeekStyle) -> IoResult<()> {
         self.reader.seek(pos, style)

@@ -1,4 +1,7 @@
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 use std::fs;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
@@ -12,7 +15,15 @@ use tiff;
 use tga;
 
 use color;
-use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
+use buffer::{
+    ImageBuffer,
+    ConvertBuffer,
+    Pixel,
+    GrayImage,
+    GrayAlphaImage,
+    RgbImage,
+    RgbaImage
+};
 use imageops;
 use image;
 use image:: {
@@ -40,42 +51,42 @@ pub enum DynamicImage {
 }
 
 macro_rules! dynamic_map(
-        ($dynimage: expr, ref $image: ident => $action: expr) => (
-                match $dynimage {
-                        DynamicImage::ImageLuma8(ref $image) => DynamicImage::ImageLuma8($action),
-                        DynamicImage::ImageLumaA8(ref $image) => DynamicImage::ImageLumaA8($action),
-                        DynamicImage::ImageRgb8(ref $image) => DynamicImage::ImageRgb8($action),
-                        DynamicImage::ImageRgba8(ref $image) => DynamicImage::ImageRgba8($action),
-                }
+    ($dynimage: expr, ref $image: ident => $action: expr) => (
+        match $dynimage {
+            DynamicImage::ImageLuma8(ref $image) => DynamicImage::ImageLuma8($action),
+            DynamicImage::ImageLumaA8(ref $image) => DynamicImage::ImageLumaA8($action),
+            DynamicImage::ImageRgb8(ref $image) => DynamicImage::ImageRgb8($action),
+            DynamicImage::ImageRgba8(ref $image) => DynamicImage::ImageRgba8($action),
+        }
         );
 
-        ($dynimage: expr, ref mut $image: ident => $action: expr) => (
-                match $dynimage {
-                        DynamicImage::ImageLuma8(ref mut $image) => DynamicImage::ImageLuma8($action),
-                        DynamicImage::ImageLumaA8(ref mut $image) => DynamicImage::ImageLumaA8($action),
-                        DynamicImage::ImageRgb8(ref mut $image) => DynamicImage::ImageRgb8($action),
-                        DynamicImage::ImageRgba8(ref mut $image) => DynamicImage::ImageRgba8($action),
-                }
+    ($dynimage: expr, ref mut $image: ident => $action: expr) => (
+        match $dynimage {
+            DynamicImage::ImageLuma8(ref mut $image) => DynamicImage::ImageLuma8($action),
+            DynamicImage::ImageLumaA8(ref mut $image) => DynamicImage::ImageLumaA8($action),
+            DynamicImage::ImageRgb8(ref mut $image) => DynamicImage::ImageRgb8($action),
+            DynamicImage::ImageRgba8(ref mut $image) => DynamicImage::ImageRgba8($action),
+        }
         );
 
-        ($dynimage: expr, ref $image: ident -> $action: expr) => (
-                match $dynimage {
-                        DynamicImage::ImageLuma8(ref $image) => $action,
-                        DynamicImage::ImageLumaA8(ref $image) => $action,
-                        DynamicImage::ImageRgb8(ref $image) => $action,
-                        DynamicImage::ImageRgba8(ref $image) => $action,
-                }
+    ($dynimage: expr, ref $image: ident -> $action: expr) => (
+        match $dynimage {
+            DynamicImage::ImageLuma8(ref $image) => $action,
+            DynamicImage::ImageLumaA8(ref $image) => $action,
+            DynamicImage::ImageRgb8(ref $image) => $action,
+            DynamicImage::ImageRgba8(ref $image) => $action,
+        }
         );
 
-        ($dynimage: expr, ref mut $image: ident -> $action: expr) => (
-                match $dynimage {
-                        DynamicImage::ImageLuma8(ref mut $image) => $action,
-                        DynamicImage::ImageLumaA8(ref mut $image) => $action,
-                        DynamicImage::ImageRgb8(ref mut $image) => $action,
-                        DynamicImage::ImageRgba8(ref mut $image) => $action,
-                }
+    ($dynimage: expr, ref mut $image: ident -> $action: expr) => (
+        match $dynimage {
+            DynamicImage::ImageLuma8(ref mut $image) => $action,
+            DynamicImage::ImageLumaA8(ref mut $image) => $action,
+            DynamicImage::ImageRgb8(ref mut $image) => $action,
+            DynamicImage::ImageRgba8(ref mut $image) => $action,
+        }
         );
-);
+    );
 
 impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of grey pixels.
@@ -134,8 +145,8 @@ impl DynamicImage {
                 width: u32,
                 height: u32) -> DynamicImage {
 
-        dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
-    }
+                    dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
+                }
 
     /// Return a reference to an 8bit RGB image
     pub fn as_rgb8(&self) -> Option<&RgbImage> {
@@ -240,22 +251,22 @@ impl DynamicImage {
                   nheight: u32,
                   filter: imageops::FilterType) -> DynamicImage {
 
-        let (width, height) = self.dimensions();
+                      let (width, height) = self.dimensions();
 
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
+                      let ratio  = width as f32 / height as f32;
+                      let nratio = nwidth as f32 / nheight as f32;
 
-        let scale = if nratio > ratio {
-            nheight as f32 / height as f32
-        } else {
-            nwidth as f32 / width as f32
-        };
+                      let scale = if nratio > ratio {
+                          nheight as f32 / height as f32
+                      } else {
+                          nwidth as f32 / width as f32
+                      };
 
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
+                      let width2  = (width as f32 * scale) as u32;
+                      let height2 = (height as f32 * scale) as u32;
 
-        self.resize_exact(width2, height2, filter)
-    }
+                      self.resize_exact(width2, height2, filter)
+                  }
 
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
@@ -265,8 +276,8 @@ impl DynamicImage {
                         nheight: u32,
                         filter: imageops::FilterType) -> DynamicImage {
 
-        dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
-    }
+                            dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
+                        }
 
     /// Performs a Gaussian blur on this image.
     /// ```sigma``` is a measure of how much to blur by.
@@ -361,15 +372,15 @@ impl DynamicImage {
             image::ImageFormat::GIF => {
                 let mut g = gif::GIFEncoder::new(
                     self.to_rgba(), None, gif::ColorMode::Indexed(0xFF)
-                );
+                    );
 
                 try!(g.encode(w));
                 Ok(())
             }
 
             _ => Err(image::ImageError::UnsupportedError(
-                     format!("An encoder for {:?} is not available.", format))
-                 ),
+                    format!("An encoder for {:?} is not available.", format))
+                    ),
         };
 
         Ok(r)
@@ -448,21 +459,21 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             let skip = (w % 8)/bit_depth as u32;
             let row_len = w + skip;
             let p = buf
-                       .iter()
-                       .flat_map(|&v|
-                           iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
-                           .zip(iter::iterate(
-                               v, |v| v
-                           )
-                       ))
-                       // skip the pixels that can be neglected because scanlines should
-                       // start at byte boundaries
-                       .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
-                       .map(|(shift, pixel)|
-                           (pixel & mask << shift as usize) >> shift as usize
-                       )
-                       .map(|pixel| pixel * scaling_factor)
-                       .collect();
+                .iter()
+                .flat_map(|&v|
+                          iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+                          .zip(iter::iterate(
+                                  v, |v| v
+                                  )
+                              ))
+                // skip the pixels that can be neglected because scanlines should
+                // start at byte boundaries
+                .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
+                .map(|(shift, pixel)|
+                     (pixel & mask << shift as usize) >> shift as usize
+                    )
+                .map(|pixel| pixel * scaling_factor)
+                .collect();
             ImageBuffer::from_raw(w, h, p).map(|buf| DynamicImage::ImageLuma8(buf))
         },
         _ => return Err(image::ImageError::UnsupportedColor(color))
@@ -504,21 +515,21 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
     };
 
     let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+        .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
     let format = match &ext[..] {
         "jpg" |
-        "jpeg" => image::ImageFormat::JPEG,
-        "png"  => image::ImageFormat::PNG,
-        "gif"  => image::ImageFormat::GIF,
-        "webp" => image::ImageFormat::WEBP,
-        "tif" |
-        "tiff" => image::ImageFormat::TIFF,
-        "tga" => image::ImageFormat::TGA,
-        format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        )))
+            "jpeg" => image::ImageFormat::JPEG,
+            "png"  => image::ImageFormat::PNG,
+            "gif"  => image::ImageFormat::GIF,
+            "webp" => image::ImageFormat::WEBP,
+            "tif" |
+                "tiff" => image::ImageFormat::TIFF,
+                "tga" => image::ImageFormat::TGA,
+                format => return Err(image::ImageError::UnsupportedError(format!(
+                            "Image format image/{:?} is not supported.",
+                            format
+                            )))
     };
 
     load(fin, format)
@@ -534,31 +545,27 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  io::Result<()> {
     let ref mut fout = try!(fs::File::create(path));
     let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+        .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
     match &*ext {
         "jpg" |
-        "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
-        "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
-        format => Err(io::Error {
-            kind: io::InvalidInput,
-            desc: "Unsupported image format.",
-            detail: Some(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            ))
-        })
+            "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+            "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+            "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
+            format => Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                         "Unsupported image format.",
+                                         Some(format!("Image format image/{:?} is not supported.",
+                                                      format))))
     }
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(io::BufferedReader::new(r))),
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(io::BufferedReader::new(r))),
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(io::BufferedReader::new(r))),
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(io::BufferedReader::new(r))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
@@ -587,15 +594,15 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
         }
     }
     Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string())
-    )
+            "Unsupported image format".to_string())
+       )
 }
 
 
 /// Create a new image from a byte slice
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::BufReader::new(buf);
+    let b = io::Cursor::new(buf);
     load(b, format)
 }
 

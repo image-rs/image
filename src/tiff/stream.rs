@@ -1,8 +1,13 @@
 //! All IO functionality needed for TIFF decoding
 
-use std::io;
-use std::io::Result;
-use utils::{lzw, bitstream};
+use std::io::{
+    self,
+    Read
+};
+use utils::{
+    lzw,
+    bitstream
+};
 
 /// Byte order of the TIFF file.
 #[derive(Copy, Debug)]
@@ -15,7 +20,7 @@ pub enum ByteOrder {
 
 
 /// Reader that is aware of the byte order.
-pub trait EndianReader: Reader {
+pub trait EndianReader: Read {
     /// Byte order that should be adhered to
     fn byte_order(&self) -> ByteOrder;
 
@@ -39,34 +44,34 @@ pub trait EndianReader: Reader {
 }
 
 /// Reader that decompresses LZW streams
-pub struct LZWReader {
-    buffer: io::MemReader,
+pub struct LZWReader<'a> {
+    buffer: io::Cursor<&'a [u8]>,
     byte_order: ByteOrder
 }
 
-impl LZWReader {
+impl<'a> LZWReader<'a> {
     /// Wraps a reader
     pub fn new<R>(reader: &mut SmartReader<R>) -> io::Result<(usize, LZWReader)>
-        where R: Reader + Seek {
+        where R: Read + Seek {
             let mut buffer = Vec::new();
             let order = reader.byte_order;
             try!(lzw::decode_early_change(bitstream::MsbReader::new(reader), &mut buffer, 8));
             let bytes = buffer.len();
             Ok((bytes, LZWReader {
-                buffer: io::MemReader::new(buffer),
+                buffer: io::Cursor::new(buffer),
                 byte_order: order
             }))
         }
 }
 
-impl Reader for LZWReader {
+impl<'a> Read for LZWReader<'a> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.buffer.read(buf)
     }
 }
 
-impl EndianReader for LZWReader {
+impl<'a> EndianReader for LZWReader<'a> {
     #[inline(always)]
     fn byte_order(&self) -> ByteOrder {
         self.byte_order
@@ -76,13 +81,13 @@ impl EndianReader for LZWReader {
 /// Reader that is aware of the byte order.
 #[derive(Debug)]
 pub struct SmartReader<R>
-where R: Reader + Seek {
+where R: Read + Seek {
     reader: R,
     pub byte_order: ByteOrder
 }
 
 impl<R> SmartReader<R>
-where R: Reader + Seek {
+where R: Read + Seek {
     /// Wraps a reader
     pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
         SmartReader {
@@ -93,47 +98,40 @@ where R: Reader + Seek {
 }
 
 impl<R> EndianReader for SmartReader<R>
-where R: Reader + Seek {
+where R: Read + Seek {
     #[inline(always)]
     fn byte_order(&self) -> ByteOrder {
         self.byte_order
     }
 }
 
-impl<R: Reader + Seek> Reader for SmartReader<R> {
-    #[inline]
+impl<R: Read + Seek> Read for SmartReader<R> {
+    // #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.reader.read(buf)
     }
 }
 
-impl<R: Reader + Seek> Seek for SmartReader<R> {
+impl<R: Read + Seek> Seek for SmartReader<R> {
     #[inline]
     fn tell(&self) -> io::Result<u64> {
         self.reader.tell()
     }
 
     #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> io::Result<()> {
-        self.reader.seek(pos, style)
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.reader.seek(pos)
     }
 }
 
-impl<'a, R: Reader + Seek> Reader for &'a mut SmartReader<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.reader.read(buf)
-    }
-}
-
-impl<'a, R: Reader + Seek> Seek for &'a mut SmartReader<R> {
+impl<'a, R: Read + Seek> Seek for &'a mut SmartReader<R> {
     #[inline]
     fn tell(&self) -> io::Result<u64> {
         self.reader.tell()
     }
 
     #[inline]
-    fn seek(&mut self, pos: i64, style: io::SeekStyle) -> io::Result<()> {
-        self.reader.seek(pos, style)
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.reader.seek(pos)
     }
 }

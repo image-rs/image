@@ -75,7 +75,7 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
 }
 
 fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) {
-    let mut m = MemWriter::with_capacity(13);
+    let mut m = Vec::with_capacity(13);
 
     let _ = m.write_be_u32(width);
     let _ = m.write_be_u32(height);
@@ -118,7 +118,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
 
     let bpp = ((channels * bit_depth + 7) / 8) as usize;
 
-    (m.into_inner(), bpp)
+    (m, bpp)
 }
 
 fn sum_abs_difference(buf: &[u8]) -> i32 {

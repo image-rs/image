@@ -1,3 +1,7 @@
+use std::io::{
+    self,
+    Read
+};
 use std::slice;
 use std::default::Default;
 
@@ -22,7 +26,7 @@ pub struct WebpDecoder<R> {
     decoded_rows: u32,
 }
 
-impl<R: Reader> WebpDecoder<R> {
+impl<R: Read> WebpDecoder<R> {
     /// Create a new WebpDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> WebpDecoder<R> {
@@ -66,7 +70,7 @@ impl<R: Reader> WebpDecoder<R> {
 
     fn read_frame(&mut self) -> ImageResult<()> {
         let framedata = try!(self.r.read_to_end());
-        let m = MemReader::new(framedata);
+        let m = io::Cursor::new(framedata);
 
         let mut v = VP8Decoder::new(m);
         let frame = try!(v.decode_frame());
@@ -89,7 +93,7 @@ impl<R: Reader> WebpDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for WebpDecoder<R> {
+impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_metadata());
 

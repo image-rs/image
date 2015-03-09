@@ -1,9 +1,10 @@
 use std::cmp;
+use std::io::Read;
 use std::slice;
 use std::iter::range_step;
 use std::default::Default;
 use std::collections::vec_map::VecMap;
-use std::num::{ Float };
+use std::num::Float;
 use std::iter::repeat;
 
 use color;
@@ -131,7 +132,7 @@ pub struct JPEGDecoder<R> {
     state: JPEGState,
 }
 
-impl<R: Reader>JPEGDecoder<R> {
+impl<R: Read>JPEGDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> JPEGDecoder<R> {
         let h: HuffTable  = Default::default();
@@ -539,7 +540,7 @@ impl<R: Reader>JPEGDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for JPEGDecoder<R> {
+impl<R: Read> ImageDecoder for JPEGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         if self.state == JPEGState::Start {
             let _ = try!(self.read_metadata());

@@ -12,7 +12,10 @@
 //! of the VP8 format
 //!
 
-use std::io;
+use std::io::{
+    self,
+    Read
+};
 use std::default::Default;
 use std::iter::repeat;
 
@@ -829,7 +832,7 @@ pub struct VP8Decoder<R> {
     left_border: Vec<u8>,
 }
 
-impl<R: Reader> VP8Decoder<R> {
+impl<R: Read> VP8Decoder<R> {
     /// Create a new decoder.
     /// The reader must present a raw vp8 bitstream to the decoder
     pub fn new(r: R) -> VP8Decoder<R> {

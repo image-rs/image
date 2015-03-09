@@ -2,7 +2,7 @@
 
 use std::io::{
     self,
-    Read
+    Read,
 };
 use std::collections::{HashMap};
 
@@ -152,7 +152,7 @@ impl Entry {
         )
     }
 
-    pub fn val<R: Read + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
+    pub fn val<R: Read + io::Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
     -> ::image::ImageResult<Value> {
         let bo = decoder.byte_order();
         match (self.type_, self.count) {

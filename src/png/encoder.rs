@@ -23,7 +23,7 @@ pub struct PNGEncoder<'a, W: 'a> {
     crc: Crc32
 }
 
-impl<'a, W: Writer> PNGEncoder<'a, W> {
+impl<'a, W: io::Write> PNGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> PNGEncoder<W> {
         PNGEncoder {

@@ -3,8 +3,10 @@ use buffer::{ImageBuffer, Pixel, ArrayLike};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use std::io;
-use std::io::Result;
+use std::io::{
+    self,
+    Write
+};
 use std::num::Int;
 
 use color::{Rgb, Rgba};
@@ -56,7 +58,7 @@ where Container: ArrayLike<u8> {
     }
 
     /// Encodes the image
-    pub fn encode<W: Writer>(&mut self, w: &mut W) -> io::Result<()> {
+    pub fn encode<W: Write>(&mut self, w: &mut W) -> io::Result<()> {
         // Header
         try!(w.write_all(b"GIF89a"));
         // Logical screen descriptor
@@ -139,9 +141,9 @@ where Container: ArrayLike<u8> {
     }
 
     /// Write the global color table and the corresponding flags
-    fn write_global_table<W: Writer>(&mut self,
-                                     w: &mut W,
-                                     hist: &[(Rgba<u8>, usize)]) -> io::Result<()>
+    fn write_global_table<W: Write>(&mut self,
+                                    w: &mut W,
+                                    hist: &[(Rgba<u8>, usize)]) -> io::Result<()>
     {
         let num_colors = hist.len();
         let mut flags = 0;
@@ -186,7 +188,7 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes the graphics control extension
-    fn write_control_ext<W: Writer>(&mut self,
+    fn write_control_ext<W: Write>(&mut self,
                                     w: &mut W,
                                     delay: u16,
                                     transparent: Option<usize>) -> io::Result<()>
@@ -209,9 +211,10 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes the image descriptor
-    fn write_descriptor<W: Writer>(&mut self,
+    fn write_descriptor<W: Write>(&mut self,
                                    w: &mut W,
-                                   table_len: Option<usize>) -> io::Result<()>
+                                   table_len: Option<usize>
+                                  ) -> io::Result<()>
     {
         try!(w.write_u8(Block::Image as u8));
         try!(w.write_le_u16(0)); // left
@@ -228,7 +231,7 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes and compresses the indexed data
-    fn write_indices<W: Writer>(&mut self,
+    fn write_indices<W: Write>(&mut self,
                                 w: &mut W,
                                 indices: &[u8]) -> io::Result<()>
     {
@@ -249,11 +252,10 @@ where Container: ArrayLike<u8> {
 
     /// Writes the image to the file assuming that every pixel is in the color table
     /// If not, the index of the transparent pixel is written
-    fn write_image_simple<W: Writer>(&mut self,
+    fn write_image_simple<W: Write>(&mut self,
                                      w: &mut W,
                                      hist: &[(Rgba<u8>, usize)],
-                                     transparent: Option<usize>,
-                                    ) -> io::Result<()> 
+                                     transparent: Option<usize>) -> io::Result<()>
     {
         let t_idx = match transparent { Some(i) => i as u8, None => 0 };
         let data: Vec<u8> = self.image.pixels().map(|p| {
@@ -272,8 +274,7 @@ where Container: ArrayLike<u8> {
     fn write_true_color<W: Writer>(&mut self,
                                    w: &mut W,
                                    hist: Vec<(Rgba<u8>, usize)>,
-                                   transparent: Option<usize>
-                                  ) -> io::Result<()> 
+                                   transparent: Option<usize>) -> io::Result<()>
     {
         let mut hist = hist;
         // Remove transparent idx
@@ -322,7 +323,7 @@ where Container: ArrayLike<u8> {
     }
     /// Writes the image as a true color image by splitting the colors
     /// over several frames
-    fn write_indexed_colors<W: Writer>(&mut self, w: &mut W, n: u8) -> io::Result<()> {
+    fn write_indexed_colors<W: Write>(&mut self, w: &mut W, n: u8) -> io::Result<()> {
         if n < 64 {
             return  Err(io::Error{
                 kind: io::ErrorKind::InvalidInput,
@@ -353,7 +354,7 @@ where Container: ArrayLike<u8> {
 
     /// Writes the netscape application block to set the number `n` of repetitions
     #[allow(dead_code)]
-    fn write_nab<W: Writer>(&mut self, w: &mut W, n: u16) -> io::Result<()> {
+    fn write_nab<W: Write>(&mut self, w: &mut W, n: u16) -> io::Result<()> {
         try!(w.write_u8(Block::Extension as u8));
         try!(w.write_u8(Extension::Application as u8));
         try!(w.write_u8(0x0B)); // size

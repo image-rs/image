@@ -9,7 +9,8 @@
 
 use std::io::{
     self,
-    Read
+    Read,
+    Write
 };
 
 use utils::bitstream::{BitReader, BitWriter};
@@ -66,11 +67,9 @@ impl DecodingDict {
                     code = code_;
                     cha = cha_;
                 }
-                None => return Err(io::Error {
-                    kind: io::ErrorKind::InvalidInput,
-                    desc: "invalid code occured",
-                    detail: Some(format!("{} < {} expected", k, self.table.len()))
-                })
+                None => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                                  "invalid code occured",
+                                                  Some(format!("{} < {} expected", k, self.table.len()))))
             }
             self.buffer.push(cha);
         }
@@ -101,10 +100,10 @@ impl DecodingDict {
 
 macro_rules! define_decoder_function {
     {$(
-        $name:ident, $offset:expr, #[$doc:meta];
-    )*} => {
+            $name:ident, $offset:expr, #[$doc:meta];
+      )*} => {
 
-$( // START function definition
+          $( // START function definition
 
 #[$doc]
 pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::Result<()>
@@ -158,9 +157,9 @@ where R: BitReader, W: Writer {
     }
 }
 
-)* // END function definition
+          )* // END function definition
 
-    }
+      }
 }
 
 define_decoder_function!{
@@ -292,9 +291,9 @@ where R: Read, W: BitWriter {
         // There is a hit: do not write out code but continue
         let next_code = dict.next_code();
         if next_code > (1 << code_size as usize)
-           && code_size < MAX_CODESIZE {
-            code_size += 1;
-        }
+            && code_size < MAX_CODESIZE {
+                code_size += 1;
+            }
         if next_code > MAX_ENTRIES {
             dict.reset();
             dict.push_node(Node::new(0)); // clear code

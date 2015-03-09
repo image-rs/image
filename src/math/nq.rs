@@ -31,6 +31,10 @@
  */
 
 use std::num::Float;
+use std::cmp::{
+    max,
+    min
+};
 use super::utils::clamp;
 
 const CHANNELS: usize = 4;
@@ -135,48 +139,40 @@ impl NeuQuant {
     }
 
     /// Move neuron i towards biased (a,b,g,r) by factor alpha
-    fn altersingle(&mut self, alpha: f64, i: i32, b: f64, g: f64, r: f64, a: f64) {
-        // Move neuron i towards biased (b,g,r) by factor alpha
-        let n = &mut self.network[i as usize]; // alter hit neuron
-        n.b -= alpha*(n.b - b);
-        n.g -= alpha*(n.g - g);
-        n.r -= alpha*(n.r - r);
-        n.a -= alpha*(n.a - a);
+    fn altersingle(&mut self, alpha: f64, i: i32, quad: Quad<f64>) {
+        let n = &mut self.network[i as usize];
+        n.b -= alpha * (n.b - quad.b);
+        n.g -= alpha * (n.g - quad.g);
+        n.r -= alpha * (n.r - quad.r);
+        n.a -= alpha * (n.a - quad.a);
     }
 
     /// Move neuron adjacent neurons towards biased (a,b,g,r) by factor alpha
-    fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, b: f64, g: f64, r: f64, a: f64) {
-        let lo = if i > rad {
-            i - rad
-        } else {
-            0
-        };
-        let mut hi = if i + rad < self.netsize as i32 {
-            i + rad
-        } else {
-            self.netsize as i32
-        };
+    fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, quad: Quad<f64>) {
+        let lo = max(i - rad, 0);
+        let hi = min(i + rad, self.netsize as i32);
         let mut j = i + 1;
         let mut k = i - 1;
         let mut q = 0;
+
         while (j < hi) || (k > lo) {
             let rad_sq = rad as f64 * rad as f64;
             let alpha = (alpha * (rad_sq - q as f64 * q as f64)) / rad_sq;
             q += 1;
             if j < hi {
                 let p = &mut self.network[j as usize];
-                p.b -= alpha*(p.b - b);
-                p.g -= alpha*(p.g - g);
-                p.r -= alpha*(p.r - r);
-                p.a -= alpha*(p.a - a);
+                p.b -= alpha * (p.b - quad.b);
+                p.g -= alpha * (p.g - quad.g);
+                p.r -= alpha * (p.r - quad.r);
+                p.a -= alpha * (p.a - quad.a);
                 j += 1;
             }
             if k > lo {
                 let p = &mut self.network[k as usize];
-                p.b -= alpha*(p.b - b);
-                p.g -= alpha*(p.g - g);
-                p.r -= alpha*(p.r - r);
-                p.a -= alpha*(p.a - a);
+                p.b -= alpha * (p.b - quad.b);
+                p.g -= alpha * (p.g - quad.g);
+                p.r -= alpha * (p.r - quad.r);
+                p.a -= alpha * (p.a - quad.a);
                 k -= 1;
             }
         }
@@ -249,9 +245,9 @@ impl NeuQuant {
             let j =  self.contest (b, g, r, a);
 
             let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
-            self.altersingle(alpha_, j, b, g, r, a);
+            self.altersingle(alpha_, j, Quad { b: b, g: g, r: r, a: a });
             if rad > 0 {
-                self.alterneigh (alpha_, rad, j, b, g, r, a) // alter neighbours
+                self.alterneigh(alpha_, rad, j, Quad { b: b, g: g, r: r, a: a })
             };
 
             pos += step;

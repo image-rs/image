@@ -15,9 +15,8 @@ All image processing functions provided operate on types that implement the ```G
 Add the following to the Cargo.toml in your project:
 
 ```
-[dependencies.image]
-
-git = "https://github.com/PistonDevelopers/image"
+[dependencies]
+image = "*"
 ```
 
 and import using ```extern crate```:

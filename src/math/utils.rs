@@ -1,6 +1,5 @@
 //! Shared mathematical utility functions.
 
-
 /// Cut value to be inside given range
 ///
 /// ```
@@ -13,9 +12,7 @@
 #[inline]
 pub fn clamp<N>(a: N, min: N, max: N) -> N
 where N: PartialOrd {
-    match () {
-        () if a < min => min,
-        () if a > max => max,
-        _ => a
-    }
+    if a < min { return min }
+    if a > max { return max }
+    a
 }

@@ -266,10 +266,10 @@ impl NeuQuant {
     /// initializes the color map
     fn build_colormap(&mut self) {
         for i in 0usize..self.netsize {
-            self.colormap[i].b = clamp((0.5 + self.network[i].b) as i32, 0, 255);
-            self.colormap[i].g = clamp((0.5 + self.network[i].g) as i32, 0, 255);
-            self.colormap[i].r = clamp((0.5 + self.network[i].r) as i32, 0, 255);
-            self.colormap[i].a = clamp((0.5 + self.network[i].a) as i32, 0, 255);
+            self.colormap[i].b = clamp(self.network[i].b.round() as i32, 0, 255);
+            self.colormap[i].g = clamp(self.network[i].g.round() as i32, 0, 255);
+            self.colormap[i].r = clamp(self.network[i].r.round() as i32, 0, 255);
+            self.colormap[i].a = clamp(self.network[i].a.round() as i32, 0, 255);
         }
     }
 

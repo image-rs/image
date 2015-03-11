@@ -35,7 +35,7 @@ use std::cmp::{
     max,
     min
 };
-use super::utils::clamp;
+use math::utils::clamp;
 
 const CHANNELS: usize = 4;
 

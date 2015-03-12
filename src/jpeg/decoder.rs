@@ -5,6 +5,7 @@ use std::default::Default;
 use std::collections::vec_map::VecMap;
 use std::num::{ Float };
 use std::iter::repeat;
+use std::num::wrapping::WrappingOps;
 
 use color;
 use super::transform;
@@ -669,7 +670,8 @@ fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> (u8, u8, u8) {
 // Figure F.12
 fn extend(v: i32, t: u8) -> i32 {
 let vt:
-    i32 = 1 << t as usize - 1;
+    // FIXME check if wrapping sub is what we want
+    i32 = 1 << (t as usize).wrapping_sub(1);
 
     if v < vt {
     v + ((-1) << t as usize) + 1

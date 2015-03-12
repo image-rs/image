@@ -1,4 +1,5 @@
 use std::iter::repeat;
+use std::num::wrapping::WrappingOps;
 
 use image;
 use image::ImageResult;
@@ -144,10 +145,11 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
             continue
         }
 
-        let diff = huffsize[k] - size;
+        // FIXME there is something wrong with this code
+        let diff = huffsize[k].wrapping_sub(size);
         code <<= diff as usize;
 
-        size += diff
+        size = size.wrapping_add(diff)
     }
 
     (huffsize, huffcode)

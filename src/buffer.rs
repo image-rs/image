@@ -1,6 +1,6 @@
 use std::slice::{ Chunks, ChunksMut };
 use std::any::TypeId;
-use std::ops::{ Index, IndexMut };
+use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
 use std::num::Int;
 use std::iter::repeat;
@@ -10,28 +10,6 @@ use traits::{ Zero, Primitive };
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
 use image::GenericImage;
 use dynimage::save_buffer;
-
-/// Mutable equivalent to AsSlice.
-/// Should be replaced by a stdlib impl as soon it exists
-pub trait AsMutSlice<T>  {
-    /// Work with `self` as a mutable slice.
-    fn as_mut_slice<'a>(&'a mut self) -> &'a mut [T];
-}
-
-impl<T> AsMutSlice<T> for [T] {
-    #[inline(always)]
-    fn as_mut_slice<'a>(&'a mut self) -> &'a mut [T] { self }
-}
-
-
-impl<T> AsMutSlice<T> for Vec<T> {
-    #[inline(always)]
-    fn as_mut_slice<'a>(&'a mut self) -> &'a mut [T] { self.as_mut_slice() }
-}
-
-/// And array-like type that behaves like Vec<T> or [T].
-pub trait ArrayLike<T>: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutSlice<T> {}
-impl<A: Index<usize, Output=T> + IndexMut<usize, Output=T> + AsSlice<T> + AsMutSlice<T>, T> ArrayLike<T> for A { }
 
 /// A generalized pixel.
 ///
@@ -226,8 +204,6 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P> where P::Subpixel
     }
 }
 
-
-
 /// Generic image buffer
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
@@ -238,9 +214,10 @@ pub struct ImageBuffer<P: Pixel, Container> {
 }
 
 // generic implementation, shared along all image buffers
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
-    ImageBuffer<P, Container>
-    where P::Subpixel: 'static {
+impl<P, Container> ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> {
 
     /// Contructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
@@ -283,31 +260,10 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
         self.height
     }
 
-    /// The raw image data as a slice.
-    pub fn as_slice(& self) -> &[P::Subpixel] {
-        self.data.as_slice()
-    }
-
-    /// The raw image data as a slice.
-    pub fn as_mut_slice(&mut self) -> &mut [P::Subpixel] {
-        self.data.as_mut_slice()
-    }
-
     /// Returns an iterator over the pixels of this image.
     pub fn pixels<'a>(&'a self) -> Pixels<'a, P> {
         Pixels {
             chunks: self.data.as_slice().chunks(
-                <P as Pixel>::channel_count() as usize
-            )
-        }
-    }
-
-    /// Returns an iterator over the mutable pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with a mutable reference to them.
-    pub fn pixels_mut(&mut self) -> PixelsMut<P> {
-        PixelsMut {
-            chunks: self.data.as_mut_slice().chunks_mut(
                 <P as Pixel>::channel_count() as usize
             )
         }
@@ -325,17 +281,6 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
         }
     }
 
-    /// Enumerates over the pixels of the image.
-    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, P> {
-        let width = self.width;
-        EnumeratePixelsMut {
-            pixels: self.pixels_mut(),
-            x: 0,
-            y: 0,
-            width: width
-        }
-    }
-
     /// Gets a reference to the pixel at location `(x, y)`
     ///
     /// # Panics
@@ -347,6 +292,34 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
         <P as Pixel>::from_slice(
             &self.data.as_slice()[index .. index + no_channels]
         )
+    }
+}
+
+impl<P, Container> ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> + DerefMut {
+
+    /// Returns an iterator over the mutable pixels of this image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with a mutable reference to them.
+    pub fn pixels_mut(&mut self) -> PixelsMut<P> {
+        PixelsMut {
+            chunks: self.data.as_mut_slice().chunks_mut(
+                <P as Pixel>::channel_count() as usize
+            )
+        }
+    }
+
+    /// Enumerates over the pixels of the image.
+    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, P> {
+        let width = self.width;
+        EnumeratePixelsMut {
+            pixels: self.pixels_mut(),
+            x: 0,
+            y: 0,
+            width: width
+        }
     }
 
     /// Gets a reference to the mutable pixel at location `(x, y)`
@@ -372,8 +345,9 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>>
     }
 }
 
-impl<P: Pixel<Subpixel=u8> + 'static, Container: ArrayLike<u8>>
-    ImageBuffer<P, Container> {
+impl<P, Container> ImageBuffer<P, Container>
+where P: Pixel<Subpixel=u8> + 'static,
+      Container: Deref<Target=[u8]> {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
@@ -388,7 +362,50 @@ impl<P: Pixel<Subpixel=u8> + 'static, Container: ArrayLike<u8>>
     }
 }
 
-impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<P, Container> {
+impl<P, Container> Deref for ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> {
+    type Target = [P::Subpixel];
+
+    fn deref<'a>(&'a self) -> &'a <Self as Deref>::Target {
+        &*self.data
+    }
+}
+
+impl<P, Container> DerefMut for ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> + DerefMut {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut <Self as Deref>::Target {
+        &mut *self.data
+    }
+}
+
+impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> {
+    type Output = P;
+
+    fn index(&self, &(x, y): &(u32, u32)) -> &P {
+        self.get_pixel(x, y)
+    }
+}
+
+impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
+where P: Pixel + 'static,
+      P::Subpixel: 'static,
+      Container: Deref<Target=[P::Subpixel]> + DerefMut {
+
+    fn index_mut(&mut self, &(x, y): &(u32, u32)) -> &mut P {
+        self.get_pixel_mut(x, y)
+    }
+}
+
+impl<P, Container> Clone for ImageBuffer<P, Container>
+where P: Pixel,
+      Container: Deref<Target=[P::Subpixel]> + Clone {
 
     fn clone(&self) -> ImageBuffer<P, Container> {
         ImageBuffer {
@@ -401,8 +418,10 @@ impl<P: Pixel, Container: ArrayLike<P::Subpixel> + Clone> Clone for ImageBuffer<
     }
 }
 
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage
-    for ImageBuffer<P, Container> where P::Subpixel: 'static {
+impl<P, Container> GenericImage for ImageBuffer<P, Container> 
+where P: Pixel + 'static,
+      Container: Deref<Target=[P::Subpixel]> + DerefMut,
+      P::Subpixel: 'static {
 
     type Pixel = P;
 
@@ -433,24 +452,6 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> GenericImage
     }
 }
 
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
-    for ImageBuffer<P, Container> where P::Subpixel: 'static {
-
-    type Output = P;
-
-    fn index(&self, &(x, y): &(u32, u32)) -> &P {
-        self.get_pixel(x, y)
-    }
-}
-
-impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> IndexMut<(u32, u32)>
-    for ImageBuffer<P, Container> where P::Subpixel: 'static {
-
-    fn index_mut(&mut self, &(x, y): &(u32, u32)) -> &mut P {
-        self.get_pixel_mut(x, y)
-    }
-}
-
 // concrete implementation for `Vec`-baked buffers
 // TODO: I think that rustc does not "see" this impl any more: the impl with
 // Container meets the same requirements. At least, I got compile errors that
@@ -458,7 +459,7 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> IndexMut<(u32, u32)>
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
 impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
-    where P::Subpixel: 'static {
+where P::Subpixel: 'static {
 
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
@@ -565,7 +566,7 @@ impl GrayImage {
 impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>>
     for ImageBuffer<FromType, Container>
-    where Container: ArrayLike<FromType::Subpixel>,
+    where Container: Deref<Target=[FromType::Subpixel]>,
           ToType: FromColor<FromType>,
           FromType::Subpixel: 'static,
           ToType::Subpixel: 'static {
@@ -595,6 +596,14 @@ mod test {
     use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
     use color;
     use test;
+
+    #[test]
+    /// Tests if image buffers from slices work
+    fn slice_buffer() {
+        let data = [0; 9];
+        let buf: ImageBuffer<color::Luma<u8>, _> = ImageBuffer::from_raw(3, 3, &data[..]).unwrap();
+        assert_eq!(&*buf, &data[..])
+    }
 
     #[test]
     fn test_get_pixel() {

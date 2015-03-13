@@ -1,5 +1,4 @@
-
-use buffer::{ImageBuffer, Pixel, ArrayLike};
+use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
@@ -7,6 +6,7 @@ use std::old_io;
 use std::old_io::IoResult;
 use std::num::Int;
 
+use buffer::{ImageBuffer, Pixel};
 use color::{Rgb, Rgba};
 use utils::lzw;
 use utils::bitstream::LsbWriter;
@@ -42,7 +42,7 @@ pub struct Encoder<Image> {
 const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
 
 impl<Container> Encoder<ImageBuffer<Rgba<u8>, Container>>
-where Container: ArrayLike<u8> {
+where Container: Deref<Target=[u8]> + DerefMut {
     /// Creates a new GIF encoder
     pub fn new(image: ImageBuffer<Rgba<u8>, Container>,
                bg_color: Option<Rgb<u8>>,

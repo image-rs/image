@@ -2,12 +2,19 @@ use std::old_io;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
+#[cfg(feature = "ppm")]
 use ppm;
+#[cfg(feature = "gif")]
 use gif;
+#[cfg(feature = "webp")]
 use webp;
+#[cfg(feature = "jpeg")]
 use jpeg;
+#[cfg(feature = "png")]
 use png;
+#[cfg(feature = "tiff")]
 use tiff;
+#[cfg(feature = "tga")]
 use tga;
 
 use color;
@@ -336,13 +343,14 @@ impl DynamicImage {
         let color = self.color();
 
         let r = match format {
+            #[cfg(feature = "png")]
             image::ImageFormat::PNG  => {
                 let mut p = png::PNGEncoder::new(w);
 
                 try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
-
+            #[cfg(feature = "ppm")]
             image::ImageFormat::PPM  => {
                 let mut p = ppm::PPMEncoder::new(w);
 
@@ -350,6 +358,7 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "jpeg")]
             image::ImageFormat::JPEG => {
                 let mut j = jpeg::JPEGEncoder::new(w);
 
@@ -357,6 +366,7 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "gif")]
             image::ImageFormat::GIF => {
                 let mut g = gif::GIFEncoder::new(
                     self.to_rgba(), None, gif::ColorMode::Indexed(0xFF)
@@ -536,9 +546,12 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
     match &*ext {
+        #[cfg(feature = "jpeg")]
         "jpg" |
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "png")]
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
         format => Err(old_io::IoError {
             kind: old_io::InvalidInput,
@@ -554,11 +567,17 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 /// Create a new image from a Reader
 pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
+        #[cfg(feature = "png")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
+        #[cfg(feature = "gif")]
         image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(old_io::BufferedReader::new(r))),
+        #[cfg(feature = "jpeg")]
         image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(old_io::BufferedReader::new(r))),
+        #[cfg(feature = "webp")]
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
+        #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
+        #[cfg(feature = "tga")]
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }

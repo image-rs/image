@@ -475,6 +475,7 @@ mod tests {
     use super::{resize, FilterType};
 
     #[bench]
+    #[cfg(feature = "png")]
     fn bench_resize(b: &mut test::Bencher) {
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {

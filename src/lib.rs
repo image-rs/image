@@ -109,12 +109,19 @@ pub mod math;
 pub mod imageops;
 
 // Image Codecs
+#[cfg(feature = "webp")]
 pub mod webp;
+#[cfg(feature = "ppm")]
 pub mod ppm;
+#[cfg(feature = "png")]
 pub mod png;
+#[cfg(feature = "jpeg")]
 pub mod jpeg;
+#[cfg(feature = "gif")]
 pub mod gif;
+#[cfg(feature = "tiff")]
 pub mod tiff;
+#[cfg(feature = "tga")]
 pub mod tga;
 
 

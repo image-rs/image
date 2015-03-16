@@ -26,3 +26,14 @@ version = "0.1.15"
 
 [dev-dependencies.glob]
 version = "0.2.3"
+
+[features]
+default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp"]
+
+gif = []
+jpeg = []
+png = []
+ppm = []
+tga = []
+tiff = []
+webp = []

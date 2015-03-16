@@ -1,4 +1,5 @@
 #![feature(old_io, old_path)]
+#![cfg(feature = "tga")]
 
 extern crate image;
 

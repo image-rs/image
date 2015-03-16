@@ -7,10 +7,25 @@ os:
 env:
     global:
         - secure: M2MCRtyP5P/Xf2TSqrbz8cs41TQY04mK/5Fi6qgr77OKLNZlDclKiFY8BmQ6f1JhVccoE5gMIFpfPoVUu8wZ0Pe7/X4IyO4vxWawVQfE6f0NYErD9yqiE1KEi/RGKPOQfL5HFUK7ifnXvLwsAMh1ix9XMgaBZfZLQ8KhkxNRXwI=
+    matrix:
+      - FEATURES=''
+      - FEATURES='gif'
+      - FEATURES='jpeg'
+      - FEATURES='png'
+      - FEATURES='ppm'
+      - FEATURES='tga'
+      - FEATURES='tiff'
+      - FEATURES='webp'
 script:
-    - cargo build -v
-    - cargo test -v
-    - cargo doc -v
+    - if [ -z "$FEATURES" ]; then
+        cargo build -v;
+        cargo test -v;
+        cargo doc -v;
+      else
+        cargo build -v --no-default-features --features "$FEATURES";
+        cargo test -v --no-default-features --features "$FEATURES";
+        cargo doc -v;
+      fi
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&

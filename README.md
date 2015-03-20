@@ -188,7 +188,11 @@ The image format is determined from the path's file extension.
 ```rust
 extern crate image;
 
+<<<<<<< HEAD
 use std::fs::File;
+=======
+use std::io::File;
+>>>>>>> hauleth/move-to-new-io
 
 use image::GenericImage;
 
@@ -216,7 +220,11 @@ fn main() {
 extern crate num;
 extern crate image;
 
+<<<<<<< HEAD
 use std::fs::File;
+=======
+use std::io::File;
+>>>>>>> hauleth/move-to-new-io
 
 use num::complex::Complex;
 

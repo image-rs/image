@@ -576,6 +576,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 /// Create a new image from a Reader
 pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
+<<<<<<< HEAD
         #[cfg(feature = "png")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
         #[cfg(feature = "gif")]
@@ -585,6 +586,12 @@ pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicI
         #[cfg(feature = "webp")]
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
         #[cfg(feature = "tiff")]
+=======
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
+>>>>>>> hauleth/move-to-new-io
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),

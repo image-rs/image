@@ -566,18 +566,16 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
-            format => Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                         "Unsupported image format.",
-                                         Some(format!("Image format image/{:?} is not supported.",
-                                                      format))))
-        })
+        format => Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                     "Unsupported image format.",
+                                     Some(format!("Image format image/{:?} is not supported.",
+                                                  format))))
     }
 }
 
 /// Create a new image from a Reader
 pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-<<<<<<< HEAD
         #[cfg(feature = "png")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
         #[cfg(feature = "gif")]
@@ -587,12 +585,6 @@ pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicI
         #[cfg(feature = "webp")]
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
         #[cfg(feature = "tiff")]
-=======
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
->>>>>>> 47d78d83d53cad35d2785564a09835b933ef38bc
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),

@@ -574,16 +574,16 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Read+io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Read + io::Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
         #[cfg(feature = "png")]
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
         #[cfg(feature = "gif")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(r)),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]

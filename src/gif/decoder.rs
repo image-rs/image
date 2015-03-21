@@ -62,9 +62,9 @@ impl<R: Reader> GIFDecoder<R> {
             try!(self.r.read_at_least(3, &mut signature));
             try!(self.r.read_at_least(3, &mut version));
 
-            if signature != b"GIF" {
+            if signature != b"GIF"[..] {
                 Err(ImageError::FormatError("GIF signature not found.".to_string()))
-            } else if version != b"87a" && version != b"89a" {
+            } else if version != b"87a"[..] && version != b"89a"[..] {
                 Err(ImageError::UnsupportedError(
                     format!("GIF version {:?} is not supported.", version)
                 ))

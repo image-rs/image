@@ -1,11 +1,13 @@
 //! This modules provides an GIF en-/decoder
 //!
 
-
 // A very good resource for the file format is
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
-use std::old_io;
+use std::io::{
+    self,
+    Read
+};
 use std::num::FromPrimitive;
 
 use num::rational::Ratio;
@@ -27,7 +29,7 @@ enum State {
 }
 
 /// A gif decoder
-pub struct GIFDecoder<R: Reader> {
+pub struct GIFDecoder<R: Read> {
     r: R,
     state: State,
 
@@ -39,7 +41,7 @@ pub struct GIFDecoder<R: Reader> {
     local_transparent_index: Option<u8>,
 }
 
-impl<R: Reader> GIFDecoder<R> {
+impl<R: Read> GIFDecoder<R> {
     /// Creates a new GIF decoder
     pub fn new(r: R) -> GIFDecoder<R> {
         GIFDecoder {
@@ -208,7 +210,7 @@ impl<R: Reader> GIFDecoder<R> {
             * image_height as usize
         );
         try!(lzw::decode(
-            LsbReader::new(old_io::MemReader::new(data)),
+            LsbReader::new(io::Cursor::new(data)),
             &mut indices,
             code_size
         ));
@@ -256,7 +258,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for GIFDecoder<R> {
+impl<R: Read> ImageDecoder for GIFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_logical_screen_descriptor());
         Ok((self.width as u32, self.height as u32))

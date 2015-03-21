@@ -188,7 +188,7 @@ The image format is determined from the path's file extension.
 ```rust
 extern crate image;
 
-use std::old_io::File;
+use std::fs::File;
 
 use image::GenericImage;
 
@@ -213,12 +213,10 @@ fn main() {
 ### 6.2 Generating Fractals
 ```rust
 //!An example of generating julia fractals.
-#![feature(old_path, old_io)]
-
 extern crate num;
 extern crate image;
 
-use std::old_io::File;
+use std::fs::File;
 
 use num::complex::Complex;
 
@@ -284,5 +282,4 @@ fn main() {
     // Save the buffer as "image.png"
     image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8))
 }
-
 ```

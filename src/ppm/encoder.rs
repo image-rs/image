@@ -1,6 +1,6 @@
 //! Encoding of PPM Images
 
-use std::old_io::IoResult;
+use std::io;
 use std::fmt;
 
 use color;
@@ -17,7 +17,7 @@ pub struct PPMEncoder<'a, W: 'a> {
     w: &'a mut W
 }
 
-impl<'a, W: Writer> PPMEncoder<'a, W> {
+impl<'a, W: io::Write> PPMEncoder<'a, W> {
     /// Create a new PPMEncoder from the Writer ```w```.
     /// This function takes ownership of the Writer.
     pub fn new(w: &mut W) -> PPMEncoder<W> {
@@ -27,18 +27,18 @@ impl<'a, W: Writer> PPMEncoder<'a, W> {
     /// Encode the buffer ```im``` as a PPM image.
     /// ```width``` and ```height``` are the dimensions of the buffer.
     /// ```color``` is the buffers ColorType.
-    pub fn encode(&mut self, im: &[u8], width: u32, height: u32, color: color::ColorType) -> IoResult<()> {
+    pub fn encode(&mut self, im: &[u8], width: u32, height: u32, color: color::ColorType) -> io::Result<()> {
         let _ = try!(self.write_magic_number());
         let _ = try!(self.write_metadata(width, height, color));
 
         self.write_image(im, color, width, height)
     }
 
-    fn write_magic_number(&mut self) -> IoResult<()> {
+    fn write_magic_number(&mut self) -> io::Result<()> {
         self.w.write_str("P6\n")
     }
 
-    fn write_metadata(&mut self, width: u32, height: u32, pixel_type: color::ColorType) -> IoResult<()> {
+    fn write_metadata(&mut self, width: u32, height: u32, pixel_type: color::ColorType) -> io::Result<()> {
         let w = fmt::radix(width, 10);
         let h = fmt::radix(height, 10);
         let m = max_pixel_value(pixel_type);
@@ -51,7 +51,7 @@ impl<'a, W: Writer> PPMEncoder<'a, W> {
         buf: &[u8],
         pixel_type: color::ColorType,
         width: u32,
-        height: u32) -> IoResult<()> {
+        height: u32) -> io::Result<()> {
 
         assert!(buf.len() > 0);
         match pixel_type {

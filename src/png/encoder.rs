@@ -7,10 +7,7 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::old_io:: {
-    IoResult,
-    MemWriter
-};
+use std::io;
 use std::num::FromPrimitive;
 use std::iter::repeat;
 
@@ -26,7 +23,7 @@ pub struct PNGEncoder<'a, W: 'a> {
     crc: Crc32
 }
 
-impl<'a, W: Writer> PNGEncoder<'a, W> {
+impl<'a, W: io::Write> PNGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> PNGEncoder<W> {
         PNGEncoder {
@@ -42,7 +39,7 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
                   image: &[u8],
                   width: u32,
                   height: u32,
-                  c: color::ColorType) -> IoResult<()> {
+                  c: color::ColorType) -> io::Result<()> {
 
         let _ = try!(self.write_signature());
         let (bytes, bpp) = build_ihdr(width, height, c);
@@ -57,11 +54,11 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
         self.write_chunk("IEND", &[])
     }
 
-    fn write_signature(&mut self) -> IoResult<()> {
+    fn write_signature(&mut self) -> io::Result<()> {
         self.w.write_all(&PNGSIGNATURE)
     }
 
-    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {
+    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> io::Result<()> {
         self.crc.reset();
         self.crc.update(name);
         self.crc.update(&buf);
@@ -78,7 +75,7 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
 }
 
 fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) {
-    let mut m = MemWriter::with_capacity(13);
+    let mut m = Vec::with_capacity(13);
 
     let _ = m.write_be_u32(width);
     let _ = m.write_be_u32(height);
@@ -121,7 +118,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
 
     let bpp = ((channels * bit_depth + 7) / 8) as usize;
 
-    (m.into_inner(), bpp)
+    (m, bpp)
 }
 
 fn sum_abs_difference(buf: &[u8]) -> i32 {

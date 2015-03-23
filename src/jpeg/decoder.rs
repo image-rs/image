@@ -6,6 +6,7 @@ use std::collections::vec_map::VecMap;
 use std::num::{ Float };
 use std::iter::repeat;
 use std::num::wrapping::WrappingOps;
+use std::old_io::*;
 
 use color;
 use super::transform;

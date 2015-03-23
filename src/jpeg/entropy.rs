@@ -1,4 +1,5 @@
 use std::iter::repeat;
+use std::old_io::*;
 use std::num::wrapping::WrappingOps;
 
 use image;

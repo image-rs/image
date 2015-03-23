@@ -1,7 +1,7 @@
 //! This module provides a bit reader
 
 use std::old_io;
-use std::old_io::{IoResult};
+use std::old_io::*;
 
 /// Bit reader
 pub trait BitReader: Reader {

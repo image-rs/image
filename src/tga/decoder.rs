@@ -1,4 +1,5 @@
 use std::old_io;
+use std::old_io::*;
 
 use image::ImageError;
 use image::ImageResult;

@@ -1,4 +1,6 @@
-use std::old_io::{ self, IoResult };
+use std::old_io;
+use std::old_io::*;
+
 use std::iter::range_step;
 use std::num::{ Float, SignedInt };
 

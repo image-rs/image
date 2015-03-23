@@ -1,4 +1,6 @@
 use std::old_io;
+use std::old_io::*;
+use std::old_path::*;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 

@@ -6,7 +6,7 @@
 //! *http://tools.ietf.org/html/rfc1950 - ZLIB Compressed Data Format Specification
 
 use std::old_io;
-use std::old_io::IoResult;
+use std::old_io::*;
 
 use super::hash::Adler32;
 use super::deflate::Inflater;

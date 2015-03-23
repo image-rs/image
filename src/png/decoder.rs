@@ -1,12 +1,11 @@
 use std::old_io;
+use std::old_io::*;
 use std::cmp;
 use std::mem;
 use std::iter;
 use std::iter::repeat;
 use std::str;
 use std::slice;
-use std::old_io::IoResult;
-use std::old_io::MemReader;
 use std::num::FromPrimitive;
 use std::num::wrapping::Wrapping;
 

@@ -8,6 +8,8 @@
 // and a C++ implementatation
 
 use std::old_io;
+use std::old_io::*;
+use std::iter::range;
 
 use utils::bitstream::{BitReader, BitWriter};
 

@@ -8,7 +8,7 @@
 use std::cmp;
 use std::iter::repeat;
 use std::num::wrapping::Wrapping as w;
-use std::old_io::IoResult;
+use std::old_io::*;
 use std::old_io;
 
 static LITERALLENGTHCODES: u16 = 286;

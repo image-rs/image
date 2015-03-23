@@ -1,7 +1,7 @@
 //! All IO functionality needed for TIFF decoding
 
 use std::old_io;
-use std::old_io::IoResult;
+use std::old_io::*;
 use utils::{lzw, bitstream};
 
 /// Byte order of the TIFF file.

@@ -6,6 +6,7 @@
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
 use std::old_io;
+use std::old_io::*;
 use std::num::FromPrimitive;
 
 use num::rational::Ratio;

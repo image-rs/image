@@ -1,6 +1,6 @@
 //! Encoding of PPM Images
 
-use std::old_io::IoResult;
+use std::old_io::*;
 use std::fmt;
 
 use color;

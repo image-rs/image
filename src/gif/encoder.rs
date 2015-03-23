@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use std::old_io;
-use std::old_io::IoResult;
+use std::old_io::*;
 use std::num::Int;
 
 use buffer::{ImageBuffer, Pixel};

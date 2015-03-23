@@ -1,5 +1,5 @@
 use std::old_io;
-use std::old_io::IoResult;
+use std::old_io::*;
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;

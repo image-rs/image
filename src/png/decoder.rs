@@ -377,7 +377,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn extract_scanline(&mut self, buf: &mut [u8], rlength: u32) -> ImageResult<u32> {
-        let filter_type = match FromPrimitive::from_u8(try!(try!(self.z.bytes().next().ok_or(ImageError::ImageEnd)))) {
+        let filter_type = match FromPrimitive::from_u8(try!(try!(self.z.by_ref().bytes().next().ok_or(ImageError::ImageEnd)))) {
             Some(v) => v,
             _ => return Err(ImageError::FormatError("Unknown filter type.".to_string()))
         };

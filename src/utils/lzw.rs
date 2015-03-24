@@ -279,7 +279,7 @@ where R: Read, W: BitWriter {
     let mut i = None;
     // gif spec: first clear code
     try!(w.write_bits(dict.clear_code(), code_size));
-    let r = r.bytes();
+    let mut r = r.bytes();
     while let Some(Ok(c)) = r.next() {
         let prev = i;
         i = dict.search_and_insert(prev, c);

@@ -1,10 +1,9 @@
 //! An example of opening an image.
-#![feature(old_path, old_io)]
-
 extern crate image;
 
 use std::env;
-use std::old_io::File;
+use std::fs::File;
+use std::path::PathBuf;
 
 use image::GenericImage;
 
@@ -17,7 +16,7 @@ fn main() {
 
     // Use the open function to load an image from a PAth.
     // ```open``` returns a dynamic image.
-    let im = image::open(&Path::new(file.clone())).unwrap();
+    let im = image::open(&PathBuf::new(file.clone())).unwrap();
 
     // The dimensions method returns the images width and height
     println!("dimensions {:?}", im.dimensions());
@@ -25,7 +24,7 @@ fn main() {
     // The color method returns the image's ColorType
     println!("{:?}", im.color());
 
-    let ref mut fout = File::create(&Path::new(format!("{}.png", file))).unwrap();
+    let ref mut fout = File::create(&PathBuf::new(format!("{}.png", file))).unwrap();
 
     // Write the contents of this image to the Writer in PNG format.
     let _ = im.save(fout, image::PNG).unwrap();

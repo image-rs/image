@@ -1,13 +1,13 @@
-#![feature(old_io, old_path)]
 #![cfg(feature = "tga")]
 
 extern crate image;
 
-use std::old_io::{fs, File, USER_RWX};
+use std::fs::{self, File};
+use std::path::Path;
 
 #[test]
 fn test_open_and_save_tga() {
-    let _ = fs::mkdir(&Path::new("./tests/output"), USER_RWX);
+    let _ = fs::create_dir(&Path::new("./tests/output"));
     let path = Path::new("./tests/images/tga/testsuite/ctc24.tga");
     let img = image::open(&path).unwrap();
     let ref mut fout = File::create(&Path::new("./tests/output/tga-ctc24.png")).unwrap();

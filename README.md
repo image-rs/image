@@ -219,6 +219,7 @@ extern crate num;
 extern crate image;
 
 use std::old_io::File;
+use std::old_path::Path;
 
 use num::complex::Complex;
 
@@ -263,7 +264,7 @@ fn main() {
     let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
 
     // We must indicate the image’s color type and what format to save as
-    let _    = image::ImageLuma8(imgbuf).save(fout, image::PNG);
+    image::ImageLuma8(imgbuf).save(fout, image::PNG);
 }
 ```
 

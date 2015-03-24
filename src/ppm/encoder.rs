@@ -36,7 +36,7 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
     }
 
     fn write_magic_number(&mut self) -> io::Result<()> {
-        self.w.write_str("P6\n")
+        write!(self.w, "P6\n")
     }
 
     fn write_metadata(&mut self, width: u32, height: u32, pixel_type: color::ColorType) -> io::Result<()> {
@@ -44,7 +44,7 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
         let h = fmt::radix(height, 10);
         let m = max_pixel_value(pixel_type);
 
-        self.w.write_str(&format!("{0} {1}\n{2}\n", w, h, m))
+        write!(self.w, "{0} {1}\n{2}\n", w, h, m)
     }
 
     fn write_image(
@@ -58,9 +58,9 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
         match pixel_type {
             Gray(8) => {
                 for i in (0..(width * height) as usize) {
-                    let _ = try!(self.w.write_u8(buf[i]));
-                    let _ = try!(self.w.write_u8(buf[i]));
-                    let _ = try!(self.w.write_u8(buf[i]));
+                    let _ = try!(self.w.write_all(&[buf[i]]));
+                    let _ = try!(self.w.write_all(&[buf[i]]));
+                    let _ = try!(self.w.write_all(&[buf[i]]));
                 }
             }
 
@@ -69,11 +69,11 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
             RGBA(8) => {
                 for x in buf.chunks(4) {
 
-                    let _ = try!(self.w.write_u8(x[0]));
+                    let _ = try!(self.w.write_all(&[x[0]]));
 
-                    let _ = try!(self.w.write_u8(x[1]));
+                    let _ = try!(self.w.write_all(&[x[1]]));
 
-                    let _ = try!(self.w.write_u8(x[2]));
+                    let _ = try!(self.w.write_all(&[x[2]]));
                 }
             }
 

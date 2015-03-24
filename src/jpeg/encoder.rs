@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use byteorder::{WriteBytesExt, BigEndian};
 
 use std::iter::range_step;
 use std::num::{ Float, SignedInt };
@@ -256,12 +257,12 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     }
 
     fn write_segment(&mut self, marker: u8, data: Option<Vec<u8>>) -> io::Result<()> {
-        let _ = try!(self.w.write_u8(0xFF));
-        let _ = try!(self.w.write_u8(marker));
+        let _ = try!(self.w.write_all(&[0xFF]));
+        let _ = try!(self.w.write_all(&[marker]));
 
         if data.is_some() {
             let b = data.unwrap();
-            let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
+            let _ = try!(self.w.write_u16::<BigEndian>(b.len() as u16 + 2));
             let _ = try!(self.w.write_all(&b));
         }
 
@@ -274,10 +275,10 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 
         while self.nbits >= 8 {
             let byte = (self.accumulator & (0xFFFFFFFFu32 << 24)) >> 24;
-            let _ = try!(self.w.write_u8(byte as u8));
+            let _ = try!(self.w.write_all(&[byte as u8]));
 
             if byte == 0xFF {
-                let _ = try!(self.w.write_u8(0x00));
+                let _ = try!(self.w.write_all(&[0x00]));
             }
 
             self.nbits -= 8;
@@ -432,15 +433,15 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 fn build_jfif_header() -> Vec<u8> {
     let mut m = Vec::new();
 
-    let _ = m.write_str("JFIF");
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0x01);
-    let _ = m.write_u8(0x02);
-    let _ = m.write_u8(0);
-    let _ = m.write_be_u16(1);
-    let _ = m.write_be_u16(1);
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
+    let _ = write!(m, "JFIF");
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0x01]);
+    let _ = m.write_all(&[0x02]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_u16::<BigEndian>(1);
+    let _ = m.write_u16::<BigEndian>(1);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
 
     m
 }
@@ -452,16 +453,16 @@ fn build_frame_header(precision: u8,
 
     let mut m = Vec::new();
 
-    let _ = m.write_u8(precision);
-    let _ = m.write_be_u16(height);
-    let _ = m.write_be_u16(width);
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[precision]);
+    let _ = m.write_u16::<BigEndian>(height);
+    let _ = m.write_u16::<BigEndian>(width);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for & comp in components.iter() {
-        let _  = m.write_u8(comp.id);
+        let _  = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _  = m.write_u8(hv);
-        let _  = m.write_u8(comp.tq);
+        let _  = m.write_all(&[hv]);
+        let _  = m.write_all(&[comp.tq]);
     }
 
     m
@@ -470,18 +471,18 @@ fn build_frame_header(precision: u8,
 fn build_scan_header(components: &[Component]) -> Vec<u8> {
     let mut m = Vec::new();
 
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for & comp in components.iter() {
-        let _ 	   = m.write_u8(comp.id);
+        let _ 	   = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ 	   = m.write_u8(tables);
+        let _ 	   = m.write_all(&[tables]);
     }
 
     // spectral start and end, approx. high and low
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(63);
-    let _ = m.write_u8(0);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[63]);
+    let _ = m.write_all(&[0]);
 
     m
 }
@@ -493,21 +494,21 @@ fn build_huffman_segment(class: u8,
     let mut m = Vec::new();
 
     let tcth = (class << 4) | destination;
-    let _    = m.write_u8(tcth);
+    let _    = m.write_all(&[tcth]);
 
     assert!(numcodes.len() == 16);
 
     let mut sum = 0usize;
 
     for & i in numcodes.iter() {
-        let _ = m.write_u8(i);
+        let _ = m.write_all(&[i]);
         sum += i as usize;
     }
 
     assert!(sum == values.len());
 
     for & i in values.iter() {
-        let _ = m.write_u8(i);
+        let _ = m.write_all(&[i]);
     }
 
     m
@@ -524,10 +525,10 @@ fn build_quantization_segment(precision: u8,
             else {1};
 
     let pqtq = (p << 4) | identifier;
-    let _    = m.write_u8(pqtq);
+    let _    = m.write_all(&[pqtq]);
 
     for i in (0usize..64) {
-        let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
+        let _ = m.write_all(&[qtable[UNZIGZAG[i] as usize]]);
     }
 
     m

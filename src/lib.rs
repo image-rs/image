@@ -16,6 +16,7 @@
 #![feature(rustc_private)]
 #![cfg_attr(test, feature(test))]
 
+extern crate byteorder;
 extern crate flate;
 extern crate num;
 #[cfg(test)] extern crate test;

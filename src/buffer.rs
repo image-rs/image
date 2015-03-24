@@ -353,7 +353,7 @@ where P: Pixel<Subpixel=u8> + 'static,
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: &Q) -> io::Result<()> where Q: AsPath {
+    pub fn save<Q>(&self, path: Q) -> io::Result<()> where Q: AsPath {
         // This is valid as the subpixel is u8.
         save_buffer(path,
                     self.as_slice(),

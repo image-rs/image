@@ -8,6 +8,7 @@ use std::collections::vec_map::VecMap;
 use std::num::{ Float };
 use std::iter::repeat;
 use std::num::wrapping::WrappingOps;
+use byteorder::{ReadBytesExt, BigEndian};
 
 use color;
 use super::transform;
@@ -286,8 +287,9 @@ impl<R: Read>JPEGDecoder<R> {
                 }
                 DRI => try!(self.read_restart_interval()),
                 APP0 ... APPF | COM => {
-                    let length = try!(self.r.read_be_u16());
-                    let _ = try!(self.r.read_exact((length - 2) as usize));
+                    let length = try!(self.r.read_u16::<BigEndian>());
+                    let mut buf = Vec::with_capacity((length - 2) as usize);
+                    try!(self.r.by_ref().take((length - 2) as u64).read_to_end(&mut buf));
                 }
                 TEM  => continue,
                 SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
@@ -300,7 +302,7 @@ impl<R: Read>JPEGDecoder<R> {
     }
 
     fn read_frame_header(&mut self) -> ImageResult<()> {
-        let _frame_length = try!(self.r.read_be_u16());
+        let _frame_length = try!(self.r.read_u16::<BigEndian>());
         let sample_precision = try!(self.r.read_u8());
 
         if sample_precision != 8 {
@@ -310,8 +312,8 @@ impl<R: Read>JPEGDecoder<R> {
             )))
         }
 
-        self.height 	    = try!(self.r.read_be_u16());
-        self.width  	    = try!(self.r.read_be_u16());
+        self.height 	    = try!(self.r.read_u16::<BigEndian>());
+        self.width  	    = try!(self.r.read_u16::<BigEndian>());
         self.num_components = try!(self.r.read_u8());
 
         if self.height == 0 || self.width == 0 {
@@ -383,7 +385,7 @@ impl<R: Read>JPEGDecoder<R> {
     }
 
     fn read_scan_header(&mut self) -> ImageResult<()> {
-        let _scan_length = try!(self.r.read_be_u16());
+        let _scan_length = try!(self.r.read_u16::<BigEndian>());
 
         let num_scan_components = try!(self.r.read_u8());
 
@@ -413,7 +415,7 @@ impl<R: Read>JPEGDecoder<R> {
     }
 
     fn read_quantization_tables(&mut self) -> ImageResult<()> {
-        let mut table_length = try!(self.r.read_be_u16()) as i32;
+        let mut table_length = try!(self.r.read_u16::<BigEndian>()) as i32;
         table_length -= 2;
 
         while table_length > 0 {
@@ -438,7 +440,7 @@ impl<R: Read>JPEGDecoder<R> {
     }
 
     fn read_huffman_tables(&mut self) -> ImageResult<()> {
-        let mut table_length = try!(self.r.read_be_u16());
+        let mut table_length = try!(self.r.read_u16::<BigEndian>());
         table_length -= 2;
 
         while table_length > 0 {
@@ -452,11 +454,13 @@ impl<R: Read>JPEGDecoder<R> {
                 )))
             }
 
-            let bits = try!(self.r.read_exact(16));
+            let mut bits = Vec::with_capacity(16);
+            try!(self.r.by_ref().take(16).read_to_end(&mut bits));
             let len = bits.len();
 
             let mt = bits.iter().fold(0, | a, b | a + *b);
-            let huffval = try!(self.r.read_exact(mt as usize));
+            let mut huffval = Vec::with_capacity(mt as usize);
+            try!(self.r.by_ref().take(mt as u64).read_to_end(&mut huffval));
 
             if tc == 0 {
                 self.dctables[th as usize] = derive_tables(bits, huffval);
@@ -472,8 +476,8 @@ impl<R: Read>JPEGDecoder<R> {
 
 
     fn read_restart_interval(&mut self) -> ImageResult<()> {
-        let _length = try!(self.r.read_be_u16());
-        self.interval = try!(self.r.read_be_u16());
+        let _length = try!(self.r.read_u16::<BigEndian>());
+        self.interval = try!(self.r.read_u16::<BigEndian>());
 
         Ok(())
     }

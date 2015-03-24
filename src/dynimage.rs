@@ -509,14 +509,14 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
-pub fn open<P>(path: &P) -> ImageResult<DynamicImage> where P: AsPath {
+pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsPath {
     let fin = match File::open(path) {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
 
-    let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+    let ext = path.as_path().extension().and_then(|s| s.to_str())
+                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
 
     let format = match &ext[..] {
         "jpg" |
@@ -543,10 +543,10 @@ pub fn open<P>(path: &P) -> ImageResult<DynamicImage> where P: AsPath {
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
-pub fn save_buffer<P>(path: &P, buf: &[u8], width: u32, height: u32, color: color::ColorType) -> io::Result<()> where P: AsPath {
+pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color::ColorType) -> io::Result<()> where P: AsPath {
     let ref mut fout = try!(File::create(path));
-    let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+    let ext = path.as_path().extension().and_then(|s| s.to_str())
+                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
 
     match &*ext {
         #[cfg(feature = "jpeg")]
@@ -616,7 +616,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// Create a new image from a byte slice
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = BufReader::new(buf);
+    let b = io::Cursor::new(buf);
     load(b, format)
 }
 

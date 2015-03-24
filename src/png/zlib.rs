@@ -6,6 +6,7 @@
 //! *http://tools.ietf.org/html/rfc1950 - ZLIB Compressed Data Format Specification
 
 use std::io::{self, Read};
+use byteorder::{ReadBytesExt, BigEndian};
 
 use super::hash::Adler32;
 use super::deflate::Inflater;
@@ -46,7 +47,7 @@ impl<R: Read> ZlibDecoder<R> {
         let flg = try!(self.inner().read_u8());
         let fdict  = (flg & 0b100000) != 0;
         if fdict {
-            let _dictid = try!(self.inner().read_be_u32());
+            let _dictid = try!(self.inner().read_u32::<BigEndian>());
             panic!("invalid png: zlib detected fdict true")
         }
 
@@ -56,7 +57,7 @@ impl<R: Read> ZlibDecoder<R> {
     }
 
     fn read_checksum(&mut self) -> io::Result<()> {
-        let stream_adler32 = try!(self.inner().read_be_u32());
+        let stream_adler32 = try!(self.inner().read_u32::<BigEndian>());
         let adler32 = self.adler.checksum();
 
         assert!(adler32 == stream_adler32);

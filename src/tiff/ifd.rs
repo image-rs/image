@@ -143,9 +143,9 @@ impl Entry {
     }
 
     /// Returns a mem_reader for the offset/value field
-    fn r(&self, byte_order: ByteOrder) -> SmartReader<Vec<u8>> {
+    fn r(&self, byte_order: ByteOrder) -> SmartReader<io::Cursor<Vec<u8>>> {
         SmartReader::wrap(
-            self.offset.to_vec(),
+            io::Cursor::new(self.offset.to_vec()),
             byte_order
         )
     }

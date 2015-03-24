@@ -126,7 +126,7 @@ where R: BitReader, W: Write {
         } else {
             let next_code = table.next_code();
             if prev.is_none() {
-                try!(w.write_u8(code as u8));
+                try!(w.write_all(&[code as u8]));
             } else {
                 let data = if code == next_code {
                     let cha = try!(table.reconstruct(prev))[0];
@@ -279,7 +279,8 @@ where R: Read, W: BitWriter {
     let mut i = None;
     // gif spec: first clear code
     try!(w.write_bits(dict.clear_code(), code_size));
-    while let Ok(c) = r.read_byte() {
+    let r = r.bytes();
+    while let Some(Ok(c)) = r.next() {
         let prev = i;
         i = dict.search_and_insert(prev, c);
         if i.is_none() {

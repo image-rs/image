@@ -9,6 +9,7 @@ use std::cmp;
 use std::iter::repeat;
 use std::num::wrapping::Wrapping as w;
 use std::io::{self, Read};
+use byteorder::ReadBytesExt;
 
 static LITERALLENGTHCODES: u16 = 286;
 static DISTANCECODES: u16 = 30;

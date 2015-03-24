@@ -2,6 +2,7 @@
 
 use std::io;
 use std::io::{Read, Write};
+use byteorder::ReadBytesExt;
 
 /// Bit reader
 pub trait BitReader: Read {
@@ -146,14 +147,14 @@ impl<'a, W> $name<'a, W> where W: Write + 'a  {
 
 impl<'a, W> Write for $name<'a, W> where W: Write + 'a  {
 
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if self.acc == 0 {
             self.w.write(buf)
         } else {
             for &byte in buf.iter() {
                 try!(self.write_bits(byte as u16, 8))
             }
-            Ok(())
+            Ok(buf.len())
         }
     }
 
@@ -182,7 +183,7 @@ impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Write + 'a  {
         self.acc |= (v as u32) << self.bits;
         self.bits += n;
         while self.bits >= 8 {
-            try!(self.w.write_u8(self.acc as u8));
+            try!(self.w.write_all(&[self.acc as u8]));
             self.acc >>= 8;
             self.bits -= 8
 
@@ -198,7 +199,7 @@ impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Write + 'a  {
         self.acc |= (v as u32) << (32 - n - self.bits);
         self.bits += n;
         while self.bits >= 8 {
-            try!(self.w.write_u8((self.acc >> 24) as u8));
+            try!(self.w.write_all(&[(self.acc >> 24) as u8]));
             self.acc <<= 8;
             self.bits -= 8
 

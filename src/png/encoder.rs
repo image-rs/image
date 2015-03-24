@@ -11,6 +11,7 @@ use std::io;
 use std::io::Write;
 use std::num::FromPrimitive;
 use std::iter::repeat;
+use byteorder::{WriteBytesExt, BigEndian};
 
 use color;
 use super::hash::Crc32;
@@ -66,10 +67,10 @@ impl<'a, W: Write> PNGEncoder<'a, W> {
 
         let crc = self.crc.checksum();
 
-        let _ = try!(self.w.write_be_u32(buf.len() as u32));
-        let _ = try!(self.w.write_str(name));
+        let _ = try!(self.w.write_u32::<BigEndian>(buf.len() as u32));
+        let _ = try!(write!(self.w, "{}", name));
         let _ = try!(self.w.write_all(buf));
-        let _ = try!(self.w.write_be_u32(crc));
+        let _ = try!(self.w.write_u32::<BigEndian>(crc));
 
         Ok(())
     }
@@ -78,8 +79,8 @@ impl<'a, W: Write> PNGEncoder<'a, W> {
 fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) {
     let mut m = Vec::with_capacity(13);
 
-    let _ = m.write_be_u32(width);
-    let _ = m.write_be_u32(height);
+    let _ = m.write_u32::<BigEndian>(width);
+    let _ = m.write_u32::<BigEndian>(height);
 
     let (colortype, bit_depth) = match c {
         color::ColorType::Gray(1)    => (0, 1),
@@ -100,13 +101,13 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
         _ => panic!("unsupported color type and bitdepth")
     };
 
-    let _ = m.write_u8(bit_depth);
-    let _ = m.write_u8(colortype);
+    let _ = m.write_all(&[bit_depth]);
+    let _ = m.write_all(&[colortype]);
 
     // Compression method, filter method and interlace
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
 
     let channels = match colortype {
         0 => 1,
@@ -119,7 +120,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
 
     let bpp = ((channels * bit_depth + 7) / 8) as usize;
 
-    (m.into_inner(), bpp)
+    (m, bpp)
 }
 
 fn sum_abs_difference(buf: &[u8]) -> i32 {

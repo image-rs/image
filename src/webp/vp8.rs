@@ -16,6 +16,7 @@ use std::io;
 use std::io::Read;
 use std::default::Default;
 use std::iter::repeat;
+use byteorder::{ReadBytesExt, LittleEndian};
 
 use super::transform;
 
@@ -893,17 +894,20 @@ impl<R: Read> VP8Decoder<R> {
 
     fn init_partitions(&mut self, n: usize) -> io::Result<()> {
         if n > 1 {
-            let sizes = try!(self.r.read_exact(3 * n - 3));
+            let mut sizes = Vec::with_capacity(3 * n - 3);
+            try!(self.r.by_ref().take(3 * n as u64 - 3).read_to_end(&mut sizes));
 
             for (i, s) in sizes.chunks(3).enumerate() {
                 let size = s[0] as u32 + ((s[1] as u32) << 8) + ((s[2] as u32) << 8);
-                let buf  = try!(self.r.read_exact(size as usize));
+                let mut buf = Vec::with_capacity(size as usize);
+                try!(self.r.by_ref().take(size as u64).read_to_end(&mut buf));
 
                 self.partitions[i].init(buf);
             }
         }
 
-        let buf = try!(self.r.read_to_end());
+        let mut buf = Vec::new();
+        try!(self.r.read_to_end(&mut buf));
         self.partitions[n - 1].init(buf);
 
         Ok(())
@@ -1035,8 +1039,8 @@ impl<R: Read> VP8Decoder<R> {
             let _ = try!(self.r.read(&mut tag));
             assert!(tag == [0x9d, 0x01, 0x2a]);
 
-            let w = try!(self.r.read_le_u16());
-            let h = try!(self.r.read_le_u16());
+            let w = try!(self.r.read_u16::<LittleEndian>());
+            let h = try!(self.r.read_u16::<LittleEndian>());
 
             self.frame.width = w & 0x3FFF;
             self.frame.height = h & 0x3FFF;
@@ -1054,7 +1058,8 @@ impl<R: Read> VP8Decoder<R> {
             self.left_border = repeat(129u8).take(1 + 16).collect();
         }
 
-        let buf = try!(self.r.read_exact(first_partition_size as usize));
+        let mut buf = Vec::with_capacity(first_partition_size as usize);
+        try!(self.r.by_ref().take(first_partition_size as u64).read_to_end(&mut buf));
         // initialise binary decoder
         self.b.init(buf);
 

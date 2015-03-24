@@ -5,6 +5,8 @@ use std::io;
 use std::slice;
 use std::iter::repeat;
 
+use byteorder;
+
 use color;
 use color::ColorType;
 use buffer::{ImageBuffer, Pixel};
@@ -59,6 +61,15 @@ impl fmt::Display for ImageError {
 impl FromError<io::Error> for ImageError {
     fn from_error(err: io::Error) -> ImageError {
         ImageError::IoError(err)
+    }
+}
+
+impl FromError<byteorder::Error> for ImageError {
+    fn from_error(err: byteorder::Error) -> ImageError {
+        match err {
+            byteorder::Error::UnexpectedEOF => ImageError::ImageEnd,
+            byteorder::Error::Io(err) => ImageError::IoError(err),
+        }
     }
 }
 

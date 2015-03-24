@@ -2,6 +2,7 @@ use std::io::{self, Read, Seek};
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;
+use byteorder;
 
 use image;
 use image::{
@@ -126,7 +127,9 @@ impl<R: Read + Seek> TIFFDecoder<R> {
     }
 
     fn read_header(&mut self) -> ImageResult<()> {
-        match &*try!(self.reader.read_exact(2)) {
+        let mut endianess = Vec::with_capacity(2);
+        try!(self.reader.by_ref().take(2).read_to_end(&mut endianess));
+        match &*endianess {
             b"II" => {
                 self.byte_order = ByteOrder::LittleEndian;
                 self.reader.byte_order = ByteOrder::LittleEndian; },
@@ -225,28 +228,30 @@ impl<R: Read + Seek> TIFFDecoder<R> {
 
     /// Reads a TIFF short value
     #[inline]
-    pub fn read_short(&mut self) -> io::Result<u16> {
+    pub fn read_short(&mut self) -> Result<u16, byteorder::Error> {
         self.reader.read_u16()
     }
 
     /// Reads a TIFF long value
     #[inline]
-    pub fn read_long(&mut self) -> io::Result<u32> {
+    pub fn read_long(&mut self) -> Result<u32, byteorder::Error> {
         self.reader.read_u32()
     }
 
     /// Reads a TIFF IFA offset/value field
     #[inline]
-    pub fn read_offset(&mut self) -> io::Result<[u8; 4]> {
+    pub fn read_offset(&mut self) -> Result<[u8; 4], byteorder::Error> {
         let mut val = [0; 4];
-        let _ = try!(self.reader.read_at_least(4, &mut val));
+        if try!(self.reader.read(&mut val)) != 4 {
+            return Err(byteorder::Error::UnexpectedEOF);
+        }
         Ok(val)
     }
 
     /// Moves the cursor to the specified offset
     #[inline]
     pub fn goto_offset(&mut self, offset: u32) -> io::Result<()> {
-        self.reader.seek(io::SeekFrom::Start(offset as u64))
+        self.reader.seek(io::SeekFrom::Start(offset as u64)).map(|_| ())
     }
 
     /// Reads a IFD entry.

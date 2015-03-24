@@ -2,6 +2,7 @@
 
 use std::io;
 use std::io::{Read, Seek};
+use byteorder::{self, ReadBytesExt, BigEndian, LittleEndian};
 use utils::{lzw, bitstream};
 
 /// Byte order of the TIFF file.
@@ -21,26 +22,26 @@ pub trait EndianReader: Read {
 
     /// Reads an u16
     #[inline(always)]
-    fn read_u16(&mut self) -> io::Result<u16> {
+    fn read_u16(&mut self) -> Result<u16, byteorder::Error> {
         match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u16(),
-            ByteOrder::BigEndian => self.read_be_u16()
+            ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
+            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u16::<BigEndian>(self)
         }
     }
 
     /// Reads an u32
     #[inline(always)]
-    fn read_u32(&mut self) -> io::Result<u32> {
+    fn read_u32(&mut self) -> Result<u32, byteorder::Error> {
         match self.byte_order() {
-            ByteOrder::LittleEndian => self.read_le_u32(),
-            ByteOrder::BigEndian => self.read_be_u32()
+            ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
+            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u32::<BigEndian>(self)
         }
     }
 }
 
 /// Reader that decompresses LZW streams
 pub struct LZWReader {
-    buffer: Vec<u8>,
+    buffer: io::Cursor<Vec<u8>>,
     byte_order: ByteOrder
 }
 
@@ -52,7 +53,7 @@ impl LZWReader {
         try!(lzw::decode_early_change(bitstream::MsbReader::new(reader), &mut buffer, 8));
         let bytes = buffer.len();
         Ok((bytes, LZWReader {
-            buffer: buffer,
+            buffer: io::Cursor::new(buffer),
             byte_order: order
         }))
     }

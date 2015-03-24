@@ -7,6 +7,7 @@ use std::str;
 use std::slice;
 use std::num::FromPrimitive;
 use std::num::wrapping::Wrapping;
+use byteorder::{ReadBytesExt, BigEndian};
 
 use image::{
     DecodingResult,
@@ -189,7 +190,8 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn read_signature(&mut self) -> ImageResult<bool> {
-        let png = try!(self.z.inner().r.read_exact(8));
+        let mut png = Vec::with_capacity(8);
+        try!(self.z.inner().r.by_ref().take(8).read_to_end(&mut png));
 
         Ok(&png == &PNGSIGNATURE)
     }
@@ -198,11 +200,11 @@ impl<R: Read> PNGDecoder<R> {
         self.crc.update(&buf);
         let mut m = io::Cursor::new(buf);
 
-        self.width = try!(m.read_be_u32());
-        self.height = try!(m.read_be_u32());
+        self.width = try!(m.read_u32::<BigEndian>());
+        self.height = try!(m.read_u32::<BigEndian>());
 
-        self.bit_depth = try!(m.read_byte());
-        self.colour_type = try!(m.read_byte());
+        self.bit_depth = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
+        self.colour_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
 
         self.pixel_type = match (self.colour_type, self.bit_depth) {
             (0, 1)  => color::ColorType::Gray(1),
@@ -225,7 +227,7 @@ impl<R: Read> PNGDecoder<R> {
             ))
         };
 
-        let compression_method = try!(m.read_byte());
+        let compression_method = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
         if compression_method != 0 {
             return Err(ImageError::UnsupportedError(format!(
                 "The compression method {} is not supported.",
@@ -233,7 +235,7 @@ impl<R: Read> PNGDecoder<R> {
             )))
         }
 
-        let filter_method = try!(m.read_byte());
+        let filter_method = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
         if filter_method != 0 {
             return Err(ImageError::UnsupportedError(format!(
                 "The filter method {} is not supported.",
@@ -241,7 +243,7 @@ impl<R: Read> PNGDecoder<R> {
             )))
         }
 
-        self.interlace_method = match FromPrimitive::from_u8(try!(m.read_byte())) {
+        self.interlace_method = match FromPrimitive::from_u8(try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)))) {
             Some(method) => method,
             None => return Err(ImageError::UnsupportedError(
                 "Unsupported interlace method.".to_string()
@@ -305,8 +307,9 @@ impl<R: Read> PNGDecoder<R> {
         self.state = PNGState::HaveSignature;
 
         loop {
-            let length = try!(self.z.inner().r.read_be_u32());
-            let chunk  = try!(self.z.inner().r.read_exact(4));
+            let length = try!(self.z.inner().r.read_u32::<BigEndian>());
+            let mut chunk = Vec::with_capacity(4);
+            try!(self.z.inner().r.by_ref().take(4).read_to_end(&mut chunk));
 
             self.chunk_length = length;
             self.chunk_type   = chunk.clone();
@@ -319,14 +322,16 @@ impl<R: Read> PNGDecoder<R> {
                         return Err(ImageError::FormatError("Invalid PNG signature.".to_string()))
                     }
 
-                    let d = try!(self.z.inner().r.read_exact(length as usize));
+                    let mut d = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut d));
                     try!(self.parse_ihdr(d));
 
                     self.state = PNGState::HaveIHDR;
                 }
 
                 (b"PLTE", PNGState::HaveIHDR) => {
-                    let d = try!(self.z.inner().r.read_exact(length as usize));
+                    let mut d = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut d));
                     try!(self.parse_plte(d));
                     self.state = PNGState::HavePLTE;
                 }
@@ -352,12 +357,13 @@ impl<R: Read> PNGDecoder<R> {
                 }
 
                 _ => {
-                    let b = try!(self.z.inner().r.read_exact(length as usize));
+                    let mut b = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut b));
                     self.crc.update(b);
                 }
             }
 
-            let chunk_crc = try!(self.z.inner().r.read_be_u32());
+            let chunk_crc = try!(self.z.inner().r.read_u32::<BigEndian>());
             let crc = self.crc.checksum();
 
             if crc != chunk_crc {
@@ -371,7 +377,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn extract_scanline(&mut self, buf: &mut [u8], rlength: u32) -> ImageResult<u32> {
-        let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
+        let filter_type = match FromPrimitive::from_u8(try!(try!(self.z.bytes().next().ok_or(ImageError::ImageEnd)))) {
             Some(v) => v,
             _ => return Err(ImageError::FormatError("Unknown filter type.".to_string()))
         };
@@ -580,7 +586,7 @@ impl<R: Read> Read for IDATReader<R> {
             self.crc.update(&*slice);
 
             if self.chunk_length == 0 {
-                let chunk_crc = try!(self.r.read_be_u32());
+                let chunk_crc = try!(self.r.read_u32::<BigEndian>());
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
@@ -588,9 +594,10 @@ impl<R: Read> Read for IDATReader<R> {
                 }
 
                 self.crc.reset();
-                self.chunk_length = try!(self.r.read_be_u32());
+                self.chunk_length = try!(self.r.read_u32::<BigEndian>());
 
-                let v = try!(self.r.read_exact(4));
+                let mut v = Vec::with_capacity(4);
+                try!(self.r.by_ref().take(4).read_to_end(&mut v));
                 self.crc.update(&v);
 
                 match str::from_utf8(&v) {
@@ -611,6 +618,7 @@ impl<R: Read> Read for IDATReader<R> {
 mod tests {
     extern crate glob;
 
+    use std::io::{self, Read};
     use std::fs::File;
     use std::path::{AsPath, PathBuf};
     use test;
@@ -626,17 +634,17 @@ mod tests {
     /// Filters the testsuite images for certain features
     fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
-        let pattern = PathBuf::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
+        let pattern = PathBuf::new(".").join("src").join("png").join("testdata").join("pngsuite").join("*.png");
 
-        let paths = glob::glob(pattern.as_str().unwrap()).unwrap()
+        let paths = glob::glob(&format!("{}", pattern.display())).unwrap()
             .filter_map(|p| p.ok().map(|p| PathBuf::new(p.to_str().unwrap())))
-            .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
-            .filter(|ref p| p.filename_str().unwrap().contains(color_type));
+            .filter(|ref p| p.file_name().and_then(|s| s.to_str()).unwrap().starts_with(feature))
+            .filter(|ref p| p.file_name().and_then(|s| s.to_str()).unwrap().contains(color_type));
 
         let ret: Vec<PathBuf> = if test_interlaced {
             paths.collect()
         } else {
-            paths.filter(|ref p| !p.filename_str()
+            paths.filter(|ref p| !p.file_name().and_then(|s| s.to_str())
                                    .unwrap()
                                    [2..]
                                    .contains("i"))
@@ -647,7 +655,7 @@ mod tests {
         ret
     }
 
-    fn load_image<P>(path: &P) -> ImageResult<DecodingResult> where P: AsPath {
+    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsPath {
         PNGDecoder::new(try!(File::open(path))).read_image()
     }
 
@@ -738,12 +746,15 @@ mod tests {
     #[bench]
     /// Test basic formats filters
     fn bench_read_small_files(b: &mut test::Bencher) {
-        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path|
-            File::open(path).read_to_end().unwrap()
-        ).collect();
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| {
+            let mut buf = Vec::new();
+            File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+            buf
+        }).collect();
         b.iter(|| {
             for data in image_data.clone().into_iter() {
-                 let _ = PNGDecoder::new(data).read_image().unwrap();
+                let data = io::Cursor::new(data);
+                let _ = PNGDecoder::new(data).read_image().unwrap();
             }
         });
         b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
@@ -751,11 +762,13 @@ mod tests {
     #[bench]
     /// Test basic formats filters
     fn bench_read_big_file(b: &mut test::Bencher) {
-        let image_data = File::open(
-            &PathBuf::new(".").join_many(&["examples", "fractal.png"])
-        ).read_to_end().unwrap();
+        let mut image_data = Vec::new();
+        File::open(
+            &PathBuf::new(".").join("examples").join("fractal.png")
+        ).unwrap().read_to_end(&mut image_data).unwrap();
         b.iter(|| {
-            let _ = PNGDecoder::new(image_data.clone()).read_image().unwrap();
+            let image_data = io::Cursor::new(image_data.clone());
+            let _ = PNGDecoder::new(image_data).read_image().unwrap();
         });
         b.bytes = image_data.len() as u64
     }

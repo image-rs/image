@@ -1,5 +1,4 @@
-use std::old_io;
-use std::old_io::*;
+use std::io::{self, Read};
 use std::cmp;
 use std::mem;
 use std::iter;
@@ -149,7 +148,7 @@ pub struct PNGDecoder<R> {
     decoded_rows: u32,
 }
 
-impl<R: Reader> PNGDecoder<R> {
+impl<R: Read> PNGDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
@@ -197,7 +196,7 @@ impl<R: Reader> PNGDecoder<R> {
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         self.crc.update(&buf);
-        let mut m = MemReader::new(buf);
+        let mut m = io::Cursor::new(buf);
 
         self.width = try!(m.read_be_u32());
         self.height = try!(m.read_be_u32());
@@ -399,7 +398,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for PNGDecoder<R> {
+impl<R: Read> ImageDecoder for PNGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
@@ -545,7 +544,7 @@ pub struct IDATReader<R> {
     chunk_length: u32,
 }
 
-impl<R:Reader> IDATReader<R> {
+impl<R: Read> IDATReader<R> {
     pub fn new(r: R) -> IDATReader<R> {
         IDATReader {
             r: r,
@@ -560,10 +559,10 @@ impl<R:Reader> IDATReader<R> {
     }
 }
 
-impl<R: Reader> Reader for IDATReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<R: Read> Read for IDATReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
-            return Err(old_io::standard_error(old_io::EndOfFile))
+            return Ok(0);
         }
 
         let len = buf.len();
@@ -585,7 +584,7 @@ impl<R: Reader> Reader for IDATReader<R> {
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
-                    return Err(old_io::standard_error(old_io::InvalidInput))
+                    return Ok(0);
                 }
 
                 self.crc.reset();
@@ -612,7 +611,8 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::old_io::{ self, File, MemReader };
+    use std::fs::File;
+    use std::path::{AsPath, PathBuf};
     use test;
 
     use image::{
@@ -624,16 +624,16 @@ mod tests {
     use super::PNGDecoder;
 
     /// Filters the testsuite images for certain features
-    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
+    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
-        let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
+        let pattern = PathBuf::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
 
         let paths = glob::glob(pattern.as_str().unwrap()).unwrap()
-            .filter_map(|p| p.ok().map(|p| Path::new(p.to_str().unwrap())))
+            .filter_map(|p| p.ok().map(|p| PathBuf::new(p.to_str().unwrap())))
             .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
             .filter(|ref p| p.filename_str().unwrap().contains(color_type));
 
-        let ret: Vec<Path> = if test_interlaced {
+        let ret: Vec<PathBuf> = if test_interlaced {
             paths.collect()
         } else {
             paths.filter(|ref p| !p.filename_str()
@@ -647,8 +647,8 @@ mod tests {
         ret
     }
 
-    fn load_image(path: &Path) -> ImageResult<DecodingResult> {
-        PNGDecoder::new(old_io::File::open(path)).read_image()
+    fn load_image<P>(path: &P) -> ImageResult<DecodingResult> where P: AsPath {
+        PNGDecoder::new(try!(File::open(path))).read_image()
     }
 
     #[test]
@@ -743,7 +743,7 @@ mod tests {
         ).collect();
         b.iter(|| {
             for data in image_data.clone().into_iter() {
-                 let _ = PNGDecoder::new(MemReader::new(data)).read_image().unwrap();
+                 let _ = PNGDecoder::new(data).read_image().unwrap();
             }
         });
         b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
@@ -752,10 +752,10 @@ mod tests {
     /// Test basic formats filters
     fn bench_read_big_file(b: &mut test::Bencher) {
         let image_data = File::open(
-            &Path::new(".").join_many(&["examples", "fractal.png"])
+            &PathBuf::new(".").join_many(&["examples", "fractal.png"])
         ).read_to_end().unwrap();
         b.iter(|| {
-            let _ = PNGDecoder::new(MemReader::new(image_data.clone())).read_image().unwrap();
+            let _ = PNGDecoder::new(image_data.clone()).read_image().unwrap();
         });
         b.bytes = image_data.len() as u64
     }

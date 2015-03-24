@@ -4,8 +4,8 @@ use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
 use std::num::Int;
 use std::iter::repeat;
-use std::old_io::IoResult;
-use std::old_path::*;
+use std::path::AsPath;
+use std::io;
 
 use traits::{ Zero, Primitive };
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
@@ -353,7 +353,7 @@ where P: Pixel<Subpixel=u8> + 'static,
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save(&self, path: &Path) -> IoResult<()> {
+    pub fn save<Q>(&self, path: &Q) -> io::Result<()> where Q: AsPath {
         // This is valid as the subpixel is u8.
         save_buffer(path,
                     self.as_slice(),

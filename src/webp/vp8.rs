@@ -12,7 +12,8 @@
 //! of the VP8 format
 //!
 
-use std::old_io::*;
+use std::io;
+use std::io::Read;
 use std::default::Default;
 use std::iter::repeat;
 
@@ -829,7 +830,7 @@ pub struct VP8Decoder<R> {
     left_border: Vec<u8>,
 }
 
-impl<R: Reader> VP8Decoder<R> {
+impl<R: Read> VP8Decoder<R> {
     /// Create a new decoder.
     /// The reader must present a raw vp8 bitstream to the decoder
     pub fn new(r: R) -> VP8Decoder<R> {
@@ -890,7 +891,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
     }
 
-    fn init_partitions(&mut self, n: usize) -> IoResult<()> {
+    fn init_partitions(&mut self, n: usize) -> io::Result<()> {
         if n > 1 {
             let sizes = try!(self.r.read_exact(3 * n - 3));
 
@@ -1019,7 +1020,7 @@ impl<R: Reader> VP8Decoder<R> {
         }
     }
 
-    fn read_frame_header(&mut self) -> IoResult<()> {
+    fn read_frame_header(&mut self) -> io::Result<()> {
         let mut tag = [0u8; 3];
         let _ = try!(self.r.read(&mut tag));
 
@@ -1385,7 +1386,7 @@ impl<R: Reader> VP8Decoder<R> {
     }
 
     /// Decodes the current frame and returns a reference to it
-    pub fn decode_frame(&mut self) -> IoResult<&Frame> {
+    pub fn decode_frame(&mut self) -> io::Result<&Frame> {
         let _ = try!(self.read_frame_header());
 
         for mby in (0..self.mbheight as usize) {

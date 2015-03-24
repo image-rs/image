@@ -7,8 +7,8 @@
 // See http://www.cplusplus.com/articles/iL18T05o/ for his extensive explanations
 // and a C++ implementatation
 
-use std::old_io;
-use std::old_io::*;
+use std::io;
+use std::io::{Read, Write};
 use std::iter::range;
 
 use utils::bitstream::{BitReader, BitWriter};
@@ -53,7 +53,7 @@ impl DecodingDict {
     }
 
     /// Reconstructs the data for the corresponding code
-    fn reconstruct(&mut self, code: Option<Code>) -> old_io::IoResult<&[u8]> {
+    fn reconstruct(&mut self, code: Option<Code>) -> io::Result<&[u8]> {
         self.buffer.clear();
         let mut code = code;
         let mut cha;
@@ -65,11 +65,11 @@ impl DecodingDict {
                     code = code_;
                     cha = cha_;
                 }
-                None => return Err(old_io::IoError {
-                    kind: old_io::InvalidInput,
-                    desc: "invalid code occured",
-                    detail: Some(format!("{} < {} expected", k, self.table.len()))
-                })
+                None => return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid code occured",
+                    Some(format!("{} < {} expected", k, self.table.len()))
+                ))
             }
             self.buffer.push(cha);
         }
@@ -106,8 +106,8 @@ macro_rules! define_decoder_function {
 $( // START function definition
 
 #[$doc]
-pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> old_io::IoResult<()>
-where R: BitReader, W: Writer {
+pub fn $name<R, W>(mut r: R, w: &mut W, min_code_size: u8) -> io::Result<()>
+where R: BitReader, W: Write {
     let mut prev = None;
     let clear_code = 1 << min_code_size as usize;
     let end_code = clear_code + 1;
@@ -137,14 +137,14 @@ where R: BitReader, W: Writer {
                     table.push(prev, cha);
                     table.buffer()
                 } else {
-                    return Err(old_io::IoError {
-                        kind: old_io::InvalidInput,
-                        desc: "Invalid code",
-                        detail: Some(format!("expected {} <= {}",
-                                     code,
-                                     next_code)
-                                )
-                    })
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Invalid code",
+                        Some(format!("expected {} <= {}",
+                                  code,
+                                  next_code)
+                             )
+                    ))
                 };
                 try!(w.write(data));
             }
@@ -270,8 +270,8 @@ impl EncodingDict {
     }
 }
 
-pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> old_io::IoResult<()>
-where R: Reader, W: BitWriter {
+pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> io::Result<()>
+where R: Read, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
     dict.push_node(Node::new(0)); // clear code
     dict.push_node(Node::new(0)); // end code

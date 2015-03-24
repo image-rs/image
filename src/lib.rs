@@ -11,12 +11,10 @@
 #![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(old_io)]
-#![feature(old_path)]
 #![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
-#![cfg_attr(test, feature(test, path))]
+#![cfg_attr(test, feature(test))]
 
 extern crate flate;
 extern crate num;

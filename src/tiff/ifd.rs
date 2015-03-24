@@ -1,7 +1,6 @@
 //! Function for reading TIFF tags
 
-use std::old_io;
-use std::old_io::*;
+use std::io::{self, Read, Seek};
 use std::collections::{HashMap};
 use std::iter::range;
 
@@ -144,14 +143,14 @@ impl Entry {
     }
 
     /// Returns a mem_reader for the offset/value field
-    fn r(&self, byte_order: ByteOrder) -> SmartReader<old_io::MemReader> {
+    fn r(&self, byte_order: ByteOrder) -> SmartReader<Vec<u8>> {
         SmartReader::wrap(
-            old_io::MemReader::new(self.offset.to_vec()),
+            self.offset.to_vec(),
             byte_order
         )
     }
 
-    pub fn val<R: Reader + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
+    pub fn val<R: Read + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
     -> ::image::ImageResult<Value> {
         let bo = decoder.byte_order();
         match (self.type_, self.count) {

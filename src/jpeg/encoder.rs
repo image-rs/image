@@ -1,5 +1,5 @@
-use std::old_io;
-use std::old_io::*;
+use std::io::{self, Write};
+use byteorder::{WriteBytesExt, BigEndian};
 
 use std::iter::range_step;
 use std::num::{ Float, SignedInt };
@@ -140,7 +140,7 @@ pub struct JPEGEncoder<'a, W: 'a> {
     chroma_actable: Vec<(u8, u16)>,
 }
 
-impl<'a, W: Writer> JPEGEncoder<'a, W> {
+impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> JPEGEncoder<W> {
         let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
@@ -183,7 +183,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
                   image: &[u8],
                   width: u32,
                   height: u32,
-                  c: color::ColorType) -> IoResult<()> {
+                  c: color::ColorType) -> io::Result<()> {
 
         let n = color::num_components(c);
         let num_components = if n == 1 || n == 2 {1}
@@ -242,43 +242,43 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
             color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as usize, height as usize, 4)),
             color::ColorType::Gray(8)  => try!(self.encode_gray(image, width as usize, height as usize, 1)),
             color::ColorType::GrayA(8) => try!(self.encode_gray(image, width as usize, height as usize, 2)),
-            _  => return Err(old_io::IoError {
-                kind: old_io::InvalidInput,
-                desc: "Unsupported color type. Use 8 bit per channel RGB(A) or Gray(A) instead.",
-                detail: Some(format!(
+            _  => return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Unsupported color type. Use 8 bit per channel RGB(A) or Gray(A) instead.",
+                Some(format!(
                     "Color type {:?} is not suppored by this JPEG encoder.",
                     c
                 ))
-            })
+            ))
         };
 
         let _ = try!(self.pad_byte());
         self.write_segment(EOI, None)
     }
 
-    fn write_segment(&mut self, marker: u8, data: Option<Vec<u8>>) -> IoResult<()> {
-        let _ = try!(self.w.write_u8(0xFF));
-        let _ = try!(self.w.write_u8(marker));
+    fn write_segment(&mut self, marker: u8, data: Option<Vec<u8>>) -> io::Result<()> {
+        let _ = try!(self.w.write_all(&[0xFF]));
+        let _ = try!(self.w.write_all(&[marker]));
 
         if data.is_some() {
             let b = data.unwrap();
-            let _ = try!(self.w.write_be_u16(b.len() as u16 + 2));
+            let _ = try!(self.w.write_u16::<BigEndian>(b.len() as u16 + 2));
             let _ = try!(self.w.write_all(&b));
         }
 
         Ok(())
     }
 
-    fn write_bits(&mut self, bits: u16, size: u8) -> IoResult<()> {
+    fn write_bits(&mut self, bits: u16, size: u8) -> io::Result<()> {
         self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as usize;
         self.nbits += size;
 
         while self.nbits >= 8 {
             let byte = (self.accumulator & (0xFFFFFFFFu32 << 24)) >> 24;
-            let _ = try!(self.w.write_u8(byte as u8));
+            let _ = try!(self.w.write_all(&[byte as u8]));
 
             if byte == 0xFF {
-                let _ = try!(self.w.write_u8(0x00));
+                let _ = try!(self.w.write_all(&[0x00]));
             }
 
             self.nbits -= 8;
@@ -288,11 +288,11 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         Ok(())
     }
 
-    fn pad_byte(&mut self) -> IoResult<()> {
+    fn pad_byte(&mut self) -> io::Result<()> {
         self.write_bits(0x7F, 7)
     }
 
-    fn huffman_encode(&mut self, val: u8, table: &[(u8, u16)]) -> IoResult<()> {
+    fn huffman_encode(&mut self, val: u8, table: &[(u8, u16)]) -> io::Result<()> {
         let (size, code) = table[val as usize];
 
         if size > 16 {
@@ -307,7 +307,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         block: &[i32],
         prevdc: i32,
         dctable: &[(u8, u16)],
-        actable: &[(u8, u16)]) -> IoResult<i32> {
+        actable: &[(u8, u16)]) -> io::Result<i32> {
 
         // Differential DC encoding
         let dcval = block[0];
@@ -355,7 +355,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         Ok(dcval)
     }
 
-    fn encode_gray(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
+    fn encode_gray(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> io::Result<()> {
         let mut yblock     = [0u8; 64];
         let mut y_dcprev   = 0;
         let mut dct_yblock = [0i32; 64];
@@ -384,7 +384,7 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
         Ok(())
     }
 
-    fn encode_rgb(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> IoResult<()> {
+    fn encode_rgb(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> io::Result<()> {
         let mut y_dcprev = 0;
         let mut cb_dcprev = 0;
         let mut cr_dcprev = 0;
@@ -433,15 +433,15 @@ impl<'a, W: Writer> JPEGEncoder<'a, W> {
 fn build_jfif_header() -> Vec<u8> {
     let mut m = Vec::new();
 
-    let _ = m.write_str("JFIF");
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0x01);
-    let _ = m.write_u8(0x02);
-    let _ = m.write_u8(0);
-    let _ = m.write_be_u16(1);
-    let _ = m.write_be_u16(1);
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
+    let _ = write!(m, "JFIF");
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0x01]);
+    let _ = m.write_all(&[0x02]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_u16::<BigEndian>(1);
+    let _ = m.write_u16::<BigEndian>(1);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
 
     m
 }
@@ -453,16 +453,16 @@ fn build_frame_header(precision: u8,
 
     let mut m = Vec::new();
 
-    let _ = m.write_u8(precision);
-    let _ = m.write_be_u16(height);
-    let _ = m.write_be_u16(width);
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[precision]);
+    let _ = m.write_u16::<BigEndian>(height);
+    let _ = m.write_u16::<BigEndian>(width);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for & comp in components.iter() {
-        let _  = m.write_u8(comp.id);
+        let _  = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _  = m.write_u8(hv);
-        let _  = m.write_u8(comp.tq);
+        let _  = m.write_all(&[hv]);
+        let _  = m.write_all(&[comp.tq]);
     }
 
     m
@@ -471,18 +471,18 @@ fn build_frame_header(precision: u8,
 fn build_scan_header(components: &[Component]) -> Vec<u8> {
     let mut m = Vec::new();
 
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for & comp in components.iter() {
-        let _ 	   = m.write_u8(comp.id);
+        let _ 	   = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ 	   = m.write_u8(tables);
+        let _ 	   = m.write_all(&[tables]);
     }
 
     // spectral start and end, approx. high and low
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(63);
-    let _ = m.write_u8(0);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[63]);
+    let _ = m.write_all(&[0]);
 
     m
 }
@@ -494,21 +494,21 @@ fn build_huffman_segment(class: u8,
     let mut m = Vec::new();
 
     let tcth = (class << 4) | destination;
-    let _    = m.write_u8(tcth);
+    let _    = m.write_all(&[tcth]);
 
     assert!(numcodes.len() == 16);
 
     let mut sum = 0usize;
 
     for & i in numcodes.iter() {
-        let _ = m.write_u8(i);
+        let _ = m.write_all(&[i]);
         sum += i as usize;
     }
 
     assert!(sum == values.len());
 
     for & i in values.iter() {
-        let _ = m.write_u8(i);
+        let _ = m.write_all(&[i]);
     }
 
     m
@@ -525,10 +525,10 @@ fn build_quantization_segment(precision: u8,
             else {1};
 
     let pqtq = (p << 4) | identifier;
-    let _    = m.write_u8(pqtq);
+    let _    = m.write_all(&[pqtq]);
 
     for i in (0usize..64) {
-        let _ = m.write_u8(qtable[UNZIGZAG[i] as usize]);
+        let _ = m.write_all(&[qtable[UNZIGZAG[i] as usize]]);
     }
 
     m

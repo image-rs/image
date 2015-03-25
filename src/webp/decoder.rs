@@ -1,6 +1,8 @@
 use std::slice;
-use std::old_io::*;
+use std::io;
+use std::io::Read;
 use std::default::Default;
+use byteorder::{ReadBytesExt, LittleEndian};
 
 use image;
 use image::ImageResult;
@@ -21,7 +23,7 @@ pub struct WebpDecoder<R> {
     decoded_rows: u32,
 }
 
-impl<R: Reader> WebpDecoder<R> {
+impl<R: Read> WebpDecoder<R> {
     /// Create a new WebpDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> WebpDecoder<R> {
@@ -36,9 +38,11 @@ impl<R: Reader> WebpDecoder<R> {
     }
 
     fn read_riff_header(&mut self) -> ImageResult<u32> {
-        let riff = try!(self.r.read_exact(4));
-        let size = try!(self.r.read_le_u32());
-        let webp = try!(self.r.read_exact(4));
+        let mut riff = Vec::with_capacity(4);
+        try!(self.r.by_ref().take(4).read_to_end(&mut riff));
+        let size = try!(self.r.read_u32::<LittleEndian>());
+        let mut webp = Vec::with_capacity(4);
+        try!(self.r.by_ref().take(4).read_to_end(&mut webp));
 
         if &*riff != "RIFF".as_bytes() {
             return Err(image::ImageError::FormatError("Invalid RIFF signature.".to_string()))
@@ -52,20 +56,22 @@ impl<R: Reader> WebpDecoder<R> {
     }
 
     fn read_vp8_header(&mut self) -> ImageResult<()> {
-        let vp8 = try!(self.r.read_exact(4));
+        let mut vp8 = Vec::with_capacity(4);
+        try!(self.r.by_ref().take(4).read_to_end(&mut vp8));
 
         if &*vp8 != "VP8 ".as_bytes() {
             return Err(image::ImageError::FormatError("Invalid VP8 signature.".to_string()))
         }
 
-        let _len = try!(self.r.read_le_u32());
+        let _len = try!(self.r.read_u32::<LittleEndian>());
 
         Ok(())
     }
 
     fn read_frame(&mut self) -> ImageResult<()> {
-        let framedata = try!(self.r.read_to_end());
-        let m = MemReader::new(framedata);
+        let mut framedata = Vec::new();
+        try!(self.r.read_to_end(&mut framedata));
+        let m = io::Cursor::new(framedata);
 
         let mut v = VP8Decoder::new(m);
         let frame = try!(v.decode_frame());
@@ -88,7 +94,7 @@ impl<R: Reader> WebpDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for WebpDecoder<R> {
+impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_metadata());
 

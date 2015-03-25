@@ -5,8 +5,8 @@
 // A very good resource for the file format is
 // http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 
-use std::old_io;
-use std::old_io::*;
+use std::io::{self, Read};
+use byteorder::{ReadBytesExt, LittleEndian};
 use std::num::FromPrimitive;
 
 use num::rational::Ratio;
@@ -28,7 +28,7 @@ enum State {
 }
 
 /// A gif decoder
-pub struct GIFDecoder<R: Reader> {
+pub struct GIFDecoder<R: Read> {
     r: R,
     state: State,
 
@@ -40,7 +40,7 @@ pub struct GIFDecoder<R: Reader> {
     local_transparent_index: Option<u8>,
 }
 
-impl<R: Reader> GIFDecoder<R> {
+impl<R: Read> GIFDecoder<R> {
     /// Creates a new GIF decoder
     pub fn new(r: R) -> GIFDecoder<R> {
         GIFDecoder {
@@ -59,9 +59,14 @@ impl<R: Reader> GIFDecoder<R> {
     fn read_header(&mut self) -> ImageResult<()> {
         if self.state == State::Start {
             let mut signature = [0; 3];
+            if try!(self.r.read(&mut signature)) != 3 {
+                return Err(ImageError::ImageEnd);
+            }
+
             let mut version = [0; 3];
-            try!(self.r.read_at_least(3, &mut signature));
-            try!(self.r.read_at_least(3, &mut version));
+            if try!(self.r.read(&mut version)) != 3 {
+                return Err(ImageError::ImageEnd);
+            }
 
             if signature != b"GIF"[..] {
                 Err(ImageError::FormatError("GIF signature not found.".to_string()))
@@ -79,8 +84,8 @@ impl<R: Reader> GIFDecoder<R> {
     fn read_logical_screen_descriptor(&mut self) -> ImageResult<()> {
         try!(self.read_header());
         if self.state == State::HaveHeader {
-            self.width  = try!(self.r.read_le_u16());
-            self.height = try!(self.r.read_le_u16());
+            self.width  = try!(self.r.read_u16::<LittleEndian>());
+            self.height = try!(self.r.read_u16::<LittleEndian>());
 
             let fields = try!(self.r.read_u8());
 
@@ -100,7 +105,8 @@ impl<R: Reader> GIFDecoder<R> {
 
             let _aspect_ratio = try!(self.r.read_u8());
 
-            let buf = try!(self.r.read_exact(3 * entries));
+            let mut buf = Vec::with_capacity(3 * entries);
+            try!(self.r.by_ref().take(3 * entries as u64).read_to_end(&mut buf));
 
             for rgb in buf.chunks(3) {
                 self.global_table.push((rgb[0], rgb[1], rgb[2]));
@@ -131,7 +137,7 @@ impl<R: Reader> GIFDecoder<R> {
             ))
         }
         let fields = try!(self.r.read_u8());
-        self.delay = try!(self.r.read_le_u16());
+        self.delay = try!(self.r.read_u16::<LittleEndian>());
         let trans  = try!(self.r.read_u8());
 
         if fields & 1 != 0 {
@@ -163,7 +169,7 @@ impl<R: Reader> GIFDecoder<R> {
         let mut size = try!(self.r.read_u8()) as usize;
         let mut data = Vec::with_capacity(size);
         while size != 0 {
-            data.push_all(&try!(self.r.read_exact(size)));
+            try!(self.r.by_ref().take(size as u64).read_to_end(&mut data));
             size = try!(self.r.read_u8()) as usize;
         }
         Ok(data)
@@ -171,10 +177,10 @@ impl<R: Reader> GIFDecoder<R> {
 
     #[allow(unused_variables)]
     fn read_frame(&mut self) -> ImageResult<Frame> {
-        let image_left   = try!(self.r.read_le_u16());
-        let image_top    = try!(self.r.read_le_u16());
-        let image_width  = try!(self.r.read_le_u16());
-        let image_height = try!(self.r.read_le_u16());
+        let image_left   = try!(self.r.read_u16::<LittleEndian>());
+        let image_top    = try!(self.r.read_u16::<LittleEndian>());
+        let image_width  = try!(self.r.read_u16::<LittleEndian>());
+        let image_height = try!(self.r.read_u16::<LittleEndian>());
 
         let fields = try!(self.r.read_u8());
 
@@ -191,7 +197,8 @@ impl<R: Reader> GIFDecoder<R> {
         let local_table = if local_table {
             let entries = 1 << (table_size + 1) as usize;
             let mut table = Vec::with_capacity(entries * 3);
-            let buf = try!(self.r.read_exact(3 * entries));
+            let mut buf = Vec::with_capacity(3 * entries);
+            try!(self.r.by_ref().take(3 * entries as u64).read_to_end(&mut buf));
 
             for rgb in buf.chunks(3) {
                 table.push((rgb[0], rgb[1], rgb[2]));
@@ -209,7 +216,7 @@ impl<R: Reader> GIFDecoder<R> {
             * image_height as usize
         );
         try!(lzw::decode(
-            LsbReader::new(old_io::MemReader::new(data)),
+            LsbReader::new(io::Cursor::new(data)),
             &mut indices,
             code_size
         ));
@@ -257,7 +264,7 @@ impl<R: Reader> GIFDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for GIFDecoder<R> {
+impl<R: Read> ImageDecoder for GIFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_logical_screen_descriptor());
         Ok((self.width as u32, self.height as u32))

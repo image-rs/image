@@ -21,6 +21,9 @@ exclude = [
 name = "image"
 path = "./src/lib.rs"
 
+[dependencies.byteorder]
+version = "0.3.1"
+
 [dependencies.num]
 version = "0.1.15"
 

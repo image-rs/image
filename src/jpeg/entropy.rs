@@ -1,5 +1,6 @@
 use std::iter::repeat;
-use std::old_io::*;
+use std::io::Read;
+use byteorder::ReadBytesExt;
 use std::num::wrapping::WrappingOps;
 
 use image;
@@ -31,7 +32,7 @@ impl HuffDecoder {
         }
     }
 
-    fn guarantee<R: Reader>(&mut self, r: &mut R, n: u8) -> ImageResult<()> {
+    fn guarantee<R: Read>(&mut self, r: &mut R, n: u8) -> ImageResult<()> {
         while self.num_bits < n && !self.end {
             let byte = try!(r.read_u8());
 
@@ -50,7 +51,7 @@ impl HuffDecoder {
         Ok(())
     }
 
-    pub fn read_bit<R: Reader>(&mut self, r: &mut R) -> ImageResult<u8> {
+    pub fn read_bit<R: Read>(&mut self, r: &mut R) -> ImageResult<u8> {
         let _   = try!(self.guarantee(r, 1));
         let bit = (self.bits & (1 << 31)) >> 31;
         self.consume(1);
@@ -60,7 +61,7 @@ impl HuffDecoder {
 
     // Section F.2.2.4
     // Figure F.17
-    pub fn receive<R: Reader>(&mut self, r: &mut R, ssss: u8) -> ImageResult<i32> {
+    pub fn receive<R: Read>(&mut self, r: &mut R, ssss: u8) -> ImageResult<i32> {
         let _ = try!(self.guarantee(r, ssss));
         let bits = (self.bits & (0xFFFFFFFFu32 << (32 - ssss as usize))) >> (32 - ssss) as usize;
         self.consume(ssss);
@@ -73,7 +74,7 @@ impl HuffDecoder {
         self.num_bits -= n;
     }
 
-    pub fn decode_symbol<R: Reader>(&mut self, r: &mut R, table: &HuffTable) -> ImageResult<u8> {
+    pub fn decode_symbol<R: Read>(&mut self, r: &mut R, table: &HuffTable) -> ImageResult<u8> {
         let _ = try!(self.guarantee(r, 8));
 
         let index = (self.bits & 0xFF000000) >> (32 - 8);

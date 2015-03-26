@@ -620,7 +620,8 @@ mod tests {
 
     use std::io::{self, Read};
     use std::fs::File;
-    use std::path::{AsPath, PathBuf};
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
     use test;
 
     use image::{
@@ -634,17 +635,16 @@ mod tests {
     /// Filters the testsuite images for certain features
     fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
-        let pattern = PathBuf::new(".").join("src").join("png").join("testdata").join("pngsuite").join("*.png");
+        let pattern: PathBuf = [".", "src", "png", "testdata", "pngsuite", "*.png"].iter().collect();
 
-        let paths = glob::glob(&format!("{}", pattern.display())).unwrap()
-            .filter_map(|p| p.ok().map(|p| PathBuf::new(p.to_str().unwrap())))
-            .filter(|ref p| p.file_name().and_then(|s| s.to_str()).unwrap().starts_with(feature))
-            .filter(|ref p| p.file_name().and_then(|s| s.to_str()).unwrap().contains(color_type));
+        let paths = glob::glob(&pattern.display().to_string()).unwrap().filter_map(Result::ok)
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().starts_with(feature))
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().contains(color_type));
 
         let ret: Vec<PathBuf> = if test_interlaced {
             paths.collect()
         } else {
-            paths.filter(|ref p| !p.file_name().and_then(|s| s.to_str())
+            paths.filter(|ref p| !p.file_name().and_then(OsStr::to_str)
                                    .unwrap()
                                    [2..]
                                    .contains("i"))
@@ -655,7 +655,7 @@ mod tests {
         ret
     }
 
-    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsPath {
+    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsRef<Path> {
         PNGDecoder::new(try!(File::open(path))).read_image()
     }
 
@@ -764,7 +764,7 @@ mod tests {
     fn bench_read_big_file(b: &mut test::Bencher) {
         let mut image_data = Vec::new();
         File::open(
-            &PathBuf::new(".").join("examples").join("fractal.png")
+            &PathBuf::from(".").join("examples").join("fractal.png")
         ).unwrap().read_to_end(&mut image_data).unwrap();
         b.iter(|| {
             let image_data = io::Cursor::new(image_data.clone());

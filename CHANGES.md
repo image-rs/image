@@ -1,4 +1,4 @@
-# Rust Image 0.2 Release Notes
+# Rust Image 0.3 Release Notes
 
 Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
 
@@ -8,6 +8,9 @@ Rust image aims to be a pure-Rust implementation of various popular image format
  - No support for alpha channel in paletted PNG images.
 
 ## Changes
+
+### Version 0.3
+ - Replace `std::old_io` with `std::io`.
 
 ### Version 0.2
  - Support for interlaced PNG images.

@@ -12,6 +12,7 @@
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(collections)]
+#![feature(convert)]
 #![feature(io)]
 #![feature(old_path)]
 #![feature(std_misc)]

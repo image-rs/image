@@ -207,17 +207,17 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 impl<T: Primitive> Index<usize> for $ident<T> {
     type Output = T;
     #[inline(always)]
-    fn index<'a>(&'a self, _index: &usize) -> &'a T {
+    fn index<'a>(&'a self, _index: usize) -> &'a T {
         let &$ident(ref this) = self;
-        &this[*_index]
+        &this[_index]
     }
 }
 
 impl<T: Primitive> IndexMut<usize> for $ident<T> {
     #[inline(always)]
-    fn index_mut<'a>(&'a mut self, _index: &usize) -> &'a mut T {
+    fn index_mut<'a>(&'a mut self, _index: usize) -> &'a mut T {
         let &mut $ident(ref mut this) = self;
-        &mut this[*_index]
+        &mut this[_index]
     }
 }
 

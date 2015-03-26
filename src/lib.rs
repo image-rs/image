@@ -12,6 +12,8 @@
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(collections)]
+#![feature(io)]
+#![feature(old_path)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
 #![cfg_attr(test, feature(test))]

@@ -389,7 +389,7 @@ where P: Pixel + 'static,
       Container: Deref<Target=[P::Subpixel]> {
     type Output = P;
 
-    fn index(&self, &(x, y): &(u32, u32)) -> &P {
+    fn index(&self, (x, y): (u32, u32)) -> &P {
         self.get_pixel(x, y)
     }
 }
@@ -399,7 +399,7 @@ where P: Pixel + 'static,
       P::Subpixel: 'static,
       Container: Deref<Target=[P::Subpixel]> + DerefMut {
 
-    fn index_mut(&mut self, &(x, y): &(u32, u32)) -> &mut P {
+    fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
         self.get_pixel_mut(x, y)
     }
 }

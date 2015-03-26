@@ -14,7 +14,7 @@ use image::{
     ImageDecoder,
     ImageError
 };
-use color;
+use color::{self, ColorType};
 
 use super::filter::unfilter;
 use super::hash::Crc32;
@@ -132,10 +132,11 @@ pub struct PNGDecoder<R> {
     height: u32,
 
     bit_depth: u8,
-    colour_type: u8,
-    pixel_type: color::ColorType,
+    data_color_type: u8,
+    data_pixel_type: ColorType,
 
     palette: Option<Vec<(u8, u8, u8)>>,
+    trns: Option<Vec<u8>>,
 
     interlace_method: InterlaceMethod,
     pass_iterator: Option<Adam7Iterator>,
@@ -154,9 +155,6 @@ impl<R: Read> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
 
         PNGDecoder {
-            pixel_type: color::ColorType::Gray(1),
-            palette: None,
-
             previous: Vec::new(),
             state: PNGState::Start,
             z: ZlibDecoder::new(idat_reader),
@@ -164,8 +162,14 @@ impl<R: Read> PNGDecoder<R> {
 
             width: 0,
             height: 0,
+
             bit_depth: 0,
-            colour_type: 0,
+            data_color_type: 0,
+            data_pixel_type: ColorType::Gray(1),
+
+            palette: None,
+            trns: None,
+
             interlace_method: InterlaceMethod::None,
             pass_iterator: None,
 
@@ -203,24 +207,24 @@ impl<R: Read> PNGDecoder<R> {
         self.height = try!(m.read_u32::<BigEndian>());
 
         self.bit_depth = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
-        self.colour_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
+        self.data_color_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
 
-        self.pixel_type = match (self.colour_type, self.bit_depth) {
-            (0, 1)  => color::ColorType::Gray(1),
-            (0, 2)  => color::ColorType::Gray(2),
-            (0, 4)  => color::ColorType::Gray(4),
-            (0, 8)  => color::ColorType::Gray(8),
-            (0, 16) => color::ColorType::Gray(16),
-            (2, 8)  => color::ColorType::RGB(8),
-            (2, 16) => color::ColorType::RGB(16),
-            (3, 1)  => color::ColorType::RGB(8),
-            (3, 2)  => color::ColorType::RGB(8),
-            (3, 4)  => color::ColorType::RGB(8),
-            (3, 8)  => color::ColorType::RGB(8),
-            (4, 8)  => color::ColorType::GrayA(8),
-            (4, 16) => color::ColorType::GrayA(16),
-            (6, 8)  => color::ColorType::RGBA(8),
-            (6, 16) => color::ColorType::RGBA(16),
+        self.data_pixel_type = match (self.data_color_type, self.bit_depth) {
+            (0, 1)  => ColorType::Gray(1),
+            (0, 2)  => ColorType::Gray(2),
+            (0, 4)  => ColorType::Gray(4),
+            (0, 8)  => ColorType::Gray(8),
+            (0, 16) => ColorType::Gray(16),
+            (2, 8)  => ColorType::RGB(8),
+            (2, 16) => ColorType::RGB(16),
+            (3, 1)  => ColorType::RGB(8),
+            (3, 2)  => ColorType::RGB(8),
+            (3, 4)  => ColorType::RGB(8),
+            (3, 8)  => ColorType::RGB(8),
+            (4, 8)  => ColorType::GrayA(8),
+            (4, 16) => ColorType::GrayA(16),
+            (6, 8)  => ColorType::RGBA(8),
+            (6, 16) => ColorType::RGBA(16),
             (_, _)  => return Err(ImageError::FormatError(
                 "Invalid color/bit depth combination.".to_string()
             ))
@@ -252,7 +256,7 @@ impl<R: Read> PNGDecoder<R> {
             self.pass_iterator = Some(Adam7Iterator::new(self.width, self.height))
         }
 
-        let channels = match self.colour_type {
+        let channels = match self.data_color_type {
             0 => 1,
             2 => 3,
             3 => 1,
@@ -339,7 +343,7 @@ impl<R: Read> PNGDecoder<R> {
                 //     TODO #199: handle transparency
                 // }
 
-                (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
+                (b"IDAT", PNGState::HaveIHDR) if self.data_color_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -347,7 +351,7 @@ impl<R: Read> PNGDecoder<R> {
                     break;
                 }
 
-                (b"IDAT", PNGState::HavePLTE) if self.colour_type == 3 => {
+                (b"IDAT", PNGState::HavePLTE) if self.data_color_type == 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -412,12 +416,21 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         Ok((self.width, self.height))
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
+    fn colortype(&mut self) -> ImageResult<ColorType> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
-
-        Ok(self.pixel_type)
+        if self.trns.is_some() {
+            Ok(match self.data_pixel_type {
+                ColorType::RGB(n) => ColorType::RGBA(n),
+                ColorType::Gray(n) => ColorType::GrayA(n),
+                _ => return Err(ImageError::FormatError(
+                    "Invalid transparency data".to_string()
+                ))
+            })
+        } else {
+            Ok(self.data_pixel_type)
+        }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -425,7 +438,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
 
-        let bits = color::bits_per_pixel(self.pixel_type);
+        let bits = color::bits_per_pixel(try!(self.colortype()));
 
         Ok((bits * self.width as usize + 7) / 8)
     }
@@ -450,7 +463,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         if let Some(pass_iterator) = self.pass_iterator { // Method == Adam7
             let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
-            let bytes = color::bits_per_pixel(self.pixel_type)/8;
+            let bytes = color::bits_per_pixel(try!(self.colortype()))/8;
             for (pass, line, width) in pass_iterator {
                 let rlength = self.raw_row_length(width);
                 if old_pass != pass {
@@ -459,7 +472,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
                         *v = 0;
                     }
                 }
-                let bits = color::bits_per_pixel(self.pixel_type);
+                let bits = color::bits_per_pixel(try!(self.colortype()));
                 let _ = try!(
                     self.extract_scanline(&mut pass_buf[..
                         ((bits * width as usize + 7) / 8)

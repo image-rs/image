@@ -196,7 +196,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
+        self.crc.update(&*buf);
         let mut m = io::Cursor::new(buf);
 
         self.width = try!(m.read_u32::<BigEndian>());
@@ -273,7 +273,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
+        self.crc.update(&*buf);
 
         let len = buf.len() / 3;
 
@@ -313,7 +313,7 @@ impl<R: Read> PNGDecoder<R> {
             self.chunk_length = length;
             self.chunk_type   = chunk.clone();
 
-            self.crc.update(chunk);
+            self.crc.update(&*chunk);
 
             match (&*self.chunk_type, self.state) {
                 (b"IHDR", PNGState::HaveSignature) => {
@@ -358,7 +358,7 @@ impl<R: Read> PNGDecoder<R> {
                 _ => {
                     let mut b = Vec::with_capacity(length as usize);
                     try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut b));
-                    self.crc.update(b);
+                    self.crc.update(&*b);
                 }
             }
 

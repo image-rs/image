@@ -13,7 +13,7 @@ const REFERENCE_DIR: &'static str = "reference";
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where F: Fn(&PathBuf, PathBuf, &str) {
 	let base: PathBuf = BASE_PATH.iter().collect();
-	let decoders = &["tga", "tiff"];
+	let decoders = &["tga", "tiff", "png"];
 	for decoder in decoders {
 		let mut path = base.clone();
 		path.push(dir);
@@ -66,7 +66,14 @@ fn render_images() {
 #[test]
 fn check_references() {
 	process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
-		let ref_img = image::open(&path).unwrap().to_rgba();
+        let ref_img = match image::open(&path) {
+            Ok(img) => img.to_rgba(),
+            /// Do not fail on unsupported error
+            /// This might happen because the testsuite contains unsupported images
+            /// or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(err) => panic!(format!("{}", err))
+        };
 
 		let (filename, testsuite) = {
 			let mut path: Vec<_> = path.components().collect();
@@ -84,7 +91,14 @@ fn check_references() {
 			.take(2)
 			.collect::<Vec<_>>().connect(".")
 		);
-		let test_img = image::open(&img_path).unwrap().to_rgba();
+        let test_img = match image::open(&img_path) {
+            Ok(img) => img.to_rgba(),
+            /// Do not fail on unsupported error
+            /// This might happen because the testsuite contains unsupported images
+            /// or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(err) => panic!(format!("{}", err))
+        };
 		if &*ref_img != &*test_img {
 			panic!("Reference rendering does not match for image at {:?}.", img_path)
 		}

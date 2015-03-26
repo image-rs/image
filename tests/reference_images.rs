@@ -1,44 +1,94 @@
-//! This module provides implementations of common hashing algorithms.
-//!
-//! # Related Links
-//! *http://tools.ietf.org/html/rfc1950 - Adler-32 checksum specification
-//!
-//! *http://en.wikipedia.org/wiki/Cyclic_redundancy_check - Cyclic Redundancy Check
+use std::path::PathBuf;
+use std::fs;
 
-/// An Implementation of the Adler-32 checksum
-#[derive(Copy)]
-pub struct Adler32 {
-    s1: u32,
-    s2: u32
+extern crate image;
+extern crate glob;
+
+const BASE_PATH: [&'static str; 2] = [".", "tests"];
+const IMAGE_DIR: &'static str = "images";
+const OUTPUT_DIR: &'static str = "output";
+const REFERENCE_DIR: &'static str = "reference";
+
+
+fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
+where F: Fn(&PathBuf, PathBuf, &str) {
+	let base: PathBuf = BASE_PATH.iter().collect();
+	let decoders = &["tga", "tiff"];
+	for decoder in decoders {
+		let mut path = base.clone();
+		path.push(dir);
+		path.push(decoder);
+		path.push("*");
+		path.push("*.".to_string() + match input_decoder {
+			Some(val) => val,
+			None => decoder
+		});
+		let pattern = &*format!("{}", path.display());
+		for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+			func(&base, path, decoder)
+		}
+	}
 }
 
-impl Adler32 {
-    /// Create a new hasher.
-    pub fn new() -> Adler32 {
-        Adler32 {s1: 1, s2: 0}
-    }
+#[test]
+fn render_images() {
+	process_images(IMAGE_DIR, None, |base, path, decoder| {
+		let img = match image::open(&path) {
+			Ok(img) => img.to_rgba(),
+			/// Do not fail on unsupported error
+			/// This might happen because the testsuite contains unsupported images
+			/// or because a specific decoder included via a feature.
+			Err(image::ImageError::UnsupportedError(_)) => return,
+			Err(err) => panic!(format!("{}", err))
+		};
+		let mut crc = Crc32::new();
+		crc.update(&*img);
 
-    /// Update the internal hasher with the bytes from ```buf```
-    pub fn update(&mut self, buf: &[u8]) {
-        for &byte in buf {
-            self.s1 = self.s1 + byte as u32;
-            self.s2 = self.s1 + self.s2;
+		let (filename, testsuite) = {
+			let mut path: Vec<_> = path.components().collect();
+			(path.pop().unwrap(), path.pop().unwrap())
+		};
+		let mut out_path = base.clone();
 
-            self.s1 %= 65521;
-            self.s2 %= 65521;
-        }
-    }
+		out_path.push(OUTPUT_DIR);
+		out_path.push(decoder);
+		out_path.push(testsuite.as_os_str());
+		fs::create_dir_all(&out_path).unwrap();
+		out_path.push(format!("{}.{}.{}",
+			filename.as_os_str().to_str().unwrap(),
+			format!("{:x}", crc.checksum()),
+			"png"
+		));
+		img.save(out_path).unwrap();
+	})
+}
 
-    /// Return the computed hash.
-    pub fn checksum(&self) -> u32 {
-        (self.s2 << 16) | self.s1
-    }
+#[test]
+fn check_references() {
+	process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
+		let ref_img = image::open(&path).unwrap().to_rgba();
 
-    /// Reset this hasher to its initial state.
-    pub fn reset(&mut self) {
-        self.s1 = 1;
-        self.s2 = 0;
-    }
+		let (filename, testsuite) = {
+			let mut path: Vec<_> = path.components().collect();
+			(path.pop().unwrap(), path.pop().unwrap())
+		};
+		let mut img_path = base.clone();
+		img_path.push(IMAGE_DIR);
+		img_path.push(decoder);
+		img_path.push(testsuite.as_os_str());
+		img_path.push(filename
+			.as_os_str()
+			.to_str()
+			.unwrap()
+			.split(".")
+			.take(2)
+			.collect::<Vec<_>>().connect(".")
+		);
+		let test_img = image::open(&img_path).unwrap().to_rgba();
+		if &*ref_img != &*test_img {
+			panic!("Reference rendering does not match for image at {:?}.", img_path)
+		}
+	})
 }
 
 const CRC_TABLE: [u32; 256] = [
@@ -97,7 +147,7 @@ const CRC_TABLE: [u32; 256] = [
 ];
 
 /// An Implementation of the Crc-32 checksum
-#[derive(Copy)]
+/// This is copied from png::hash such that it does not have to be exposed in the public interface
 pub struct Crc32 {
     crc: u32,
 }

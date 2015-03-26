@@ -2,7 +2,6 @@
 
 use std::io::{self, Read, Seek};
 use std::collections::{HashMap};
-use std::iter::range;
 
 use super::stream::{ByteOrder, SmartReader, EndianReader};
 
@@ -168,7 +167,7 @@ impl Entry {
             (Type::SHORT, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in range(0, n) {
+                for _ in 0 .. n {
                     v.push(Unsigned(try!(decoder.read_short()) as u32))
                 }
                 Ok(List(v))
@@ -177,7 +176,7 @@ impl Entry {
             (Type::LONG, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in range(0, n) {
+                for _ in 0 .. n {
                     v.push(Unsigned(try!(decoder.read_long())))
                 }
                 Ok(List(v))

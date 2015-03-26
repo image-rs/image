@@ -4,7 +4,7 @@ use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
 use std::num::Int;
 use std::iter::repeat;
-use std::path::AsPath;
+use std::path::Path;
 use std::io;
 
 use traits::{ Zero, Primitive };
@@ -228,7 +228,7 @@ where P: Pixel + 'static,
         if width as usize
            * height as usize
            * <P as Pixel>::channel_count() as usize
-           <= buf.as_slice().len() {
+           <= buf.len() {
             Some(ImageBuffer {
                 data: buf,
                 width: width,
@@ -264,7 +264,7 @@ where P: Pixel + 'static,
     /// Returns an iterator over the pixels of this image.
     pub fn pixels<'a>(&'a self) -> Pixels<'a, P> {
         Pixels {
-            chunks: self.data.as_slice().chunks(
+            chunks: self.data.chunks(
                 <P as Pixel>::channel_count() as usize
             )
         }
@@ -291,7 +291,7 @@ where P: Pixel + 'static,
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels * (y * self.width + x) as usize;
         <P as Pixel>::from_slice(
-            &self.data.as_slice()[index .. index + no_channels]
+            &self.data[index .. index + no_channels]
         )
     }
 }
@@ -306,7 +306,7 @@ where P: Pixel + 'static,
     /// along with a mutable reference to them.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.data.as_mut_slice().chunks_mut(
+            chunks: self.data.chunks_mut(
                 <P as Pixel>::channel_count() as usize
             )
         }
@@ -332,7 +332,7 @@ where P: Pixel + 'static,
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels * (y * self.width + x) as usize;
         <P as Pixel>::from_slice_mut(
-            &mut self.data.as_mut_slice()[index .. index + no_channels]
+            &mut self.data[index .. index + no_channels]
         )
     }
 
@@ -353,10 +353,10 @@ where P: Pixel<Subpixel=u8> + 'static,
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()> where Q: AsPath {
+    pub fn save<Q>(&self, path: Q) -> io::Result<()> where Q: AsRef<Path> {
         // This is valid as the subpixel is u8.
         save_buffer(path,
-                    self.as_slice(),
+                    self,
                     self.width(),
                     self.height(),
                     <P as Pixel>::color_type())
@@ -419,7 +419,7 @@ where P: Pixel,
     }
 }
 
-impl<P, Container> GenericImage for ImageBuffer<P, Container> 
+impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where P: Pixel + 'static,
       Container: Deref<Target=[P::Subpixel]> + DerefMut,
       P::Subpixel: 'static {
@@ -540,7 +540,7 @@ impl GrayImage {
         unsafe { data.set_len(entries.checked_mul(4).unwrap()) }; // 4 channels in total
         // Aquire a second view into the buffer
         let indicies = unsafe {
-            let view: &mut [u8] = mem::transmute_copy(&data.as_mut_slice());
+            let view: &mut [u8] = mem::transmute_copy(&data);
             &view[.. entries]
         };
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();

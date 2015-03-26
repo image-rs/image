@@ -1,11 +1,9 @@
 use std::cmp;
 use std::slice;
-use std::io;
 use std::io::Read;
-use std::iter::range_step;
 use std::default::Default;
 use std::collections::vec_map::VecMap;
-use std::num::{ Float };
+use std::num::Float;
 use std::iter::repeat;
 use std::num::wrapping::WrappingOps;
 use byteorder::{ReadBytesExt, BigEndian};
@@ -175,7 +173,7 @@ impl<R: Read>JPEGDecoder<R> {
     fn decode_mcu_row(&mut self) -> ImageResult<()> {
         let bytesperpixel = self.num_components as usize;
 
-        for x0 in range_step(0, self.padded_width * bytesperpixel, bytesperpixel * 8 * self.hmax as usize) {
+        for x0 in (0 .. self.padded_width * bytesperpixel).step_by(bytesperpixel * 8 * self.hmax as usize) {
 
             let _ = try!(self.decode_mcu());
 

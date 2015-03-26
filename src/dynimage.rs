@@ -1,6 +1,6 @@
 use std::io;
 use std::io::{Read, Write, Seek, BufReader};
-use std::path::AsPath;
+use std::path::Path;
 use std::fs::File;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
@@ -509,15 +509,15 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
-pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsPath {
-    let path = path.as_path();
+pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
+    let path = path.as_ref();
 
     let fin = match File::open(path) {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
 
-    let ext = path.as_path().extension().and_then(|s| s.to_str())
+    let ext = path.extension().and_then(|s| s.to_str())
                   .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
 
     let format = match &ext[..] {
@@ -545,8 +545,9 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsPath {
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
-pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color::ColorType) -> io::Result<()> where P: AsPath {
-    let path = path.as_path();
+pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color::ColorType)
+                      -> io::Result<()> where P: AsRef<Path> {
+    let path = path.as_ref();
     let ref mut fout = try!(File::create(path));
     let ext = path.extension().and_then(|s| s.to_str())
                   .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());

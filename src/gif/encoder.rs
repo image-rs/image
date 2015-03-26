@@ -335,7 +335,7 @@ where Container: Deref<Target=[u8]> + DerefMut {
                 Some(format!("{} colors < 64 colors", n))
             ))
         }
-        let nq = nq::NeuQuant::new(3, 256, self.image.as_slice());
+        let nq = nq::NeuQuant::new(3, 256, &self.image);
         for pixel in self.image.pixels_mut() {
             nq.map_color(pixel);
         }

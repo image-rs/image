@@ -6,7 +6,6 @@ use std::iter::repeat;
 use std::str;
 use std::slice;
 use std::num::FromPrimitive;
-use std::num::wrapping::Wrapping;
 use byteorder::{ReadBytesExt, BigEndian};
 
 use image::{
@@ -197,7 +196,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
+        self.crc.update(&*buf);
         let mut m = io::Cursor::new(buf);
 
         self.width = try!(m.read_u32::<BigEndian>());
@@ -274,7 +273,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
+        self.crc.update(&*buf);
 
         let len = buf.len() / 3;
 
@@ -314,7 +313,7 @@ impl<R: Read> PNGDecoder<R> {
             self.chunk_length = length;
             self.chunk_type   = chunk.clone();
 
-            self.crc.update(chunk);
+            self.crc.update(&*chunk);
 
             match (&*self.chunk_type, self.state) {
                 (b"IHDR", PNGState::HaveSignature) => {
@@ -359,7 +358,7 @@ impl<R: Read> PNGDecoder<R> {
                 _ => {
                     let mut b = Vec::with_capacity(length as usize);
                     try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut b));
-                    self.crc.update(b);
+                    self.crc.update(&*b);
                 }
             }
 
@@ -514,7 +513,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: usize, bit_depth: u8) {
     let bpp = 8 / bit_depth as usize;
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (Wrapping(1u8 << bit_depth as usize) - Wrapping(1)).0;
+    let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {

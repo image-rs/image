@@ -62,7 +62,7 @@ impl<'a, W: Write> PNGEncoder<'a, W> {
 
     fn write_chunk(&mut self, name: &str, buf: &[u8]) -> io::Result<()> {
         self.crc.reset();
-        self.crc.update(name);
+        self.crc.update(name.as_bytes());
         self.crc.update(&buf);
 
         let crc = self.crc.checksum();

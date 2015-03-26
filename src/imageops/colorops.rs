@@ -259,7 +259,7 @@ mod test {
         let mut image = ImageBuffer::from_raw(2, 2, vec![127, 127, 127, 127]).unwrap();
         let cmap = BiLevel;
         dither(&mut image, &cmap);
-        assert_eq!(image.as_slice(), [0, 0xFF, 0xFF, 0].as_slice());
+        assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
         assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0])
     }
 }

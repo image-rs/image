@@ -9,7 +9,6 @@
 
 use std::io;
 use std::io::{Read, Write};
-use std::iter::range;
 
 use utils::bitstream::{BitReader, BitWriter};
 
@@ -206,7 +205,7 @@ impl EncodingDict {
 
     fn reset(&mut self) {
         self.table.clear();
-        for i in range(0, (1u16 << self.min_size as usize)) {
+        for i in 0 .. (1u16 << self.min_size as usize) {
             self.push_node(Node::new(i as u8));
         }
     }
@@ -270,7 +269,7 @@ impl EncodingDict {
     }
 }
 
-pub fn encode<R, W>(mut r: R, mut w: W, min_code_size: u8) -> io::Result<()>
+pub fn encode<R, W>(r: R, mut w: W, min_code_size: u8) -> io::Result<()>
 where R: Read, W: BitWriter {
     let mut dict = EncodingDict::new(min_code_size);
     dict.push_node(Node::new(0)); // clear code

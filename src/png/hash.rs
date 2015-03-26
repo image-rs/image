@@ -21,8 +21,8 @@ impl Adler32 {
     }
 
     /// Update the internal hasher with the bytes from ```buf```
-    pub fn update<T: BytesContainer>(&mut self, buf: T) {
-        for &byte in buf.container_as_bytes().iter() {
+    pub fn update(&mut self, buf: &[u8]) {
+        for &byte in buf {
             self.s1 = self.s1 + byte as u32;
             self.s2 = self.s1 + self.s2;
 

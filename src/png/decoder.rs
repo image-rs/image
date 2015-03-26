@@ -6,7 +6,6 @@ use std::iter::repeat;
 use std::str;
 use std::slice;
 use std::num::FromPrimitive;
-use std::num::wrapping::Wrapping;
 use byteorder::{ReadBytesExt, BigEndian};
 
 use image::{
@@ -514,7 +513,7 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: usize, bit_depth: u8) {
     let bpp = 8 / bit_depth as usize;
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (Wrapping(1u8 << bit_depth as usize) - Wrapping(1)).0;
+    let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {

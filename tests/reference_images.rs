@@ -1,5 +1,10 @@
-use std::path::PathBuf;
+//! Compares the decoding results with reference renderings.
+#![feature(core)] 
+
 use std::fs;
+use std::num;
+use std::path::PathBuf;
+
 
 extern crate image;
 extern crate glob;
@@ -85,12 +90,16 @@ fn check_references() {
 		img_path.push(testsuite.as_os_str());
 		img_path.push(filename
 			.as_os_str()
-			.to_str()
-			.unwrap()
-			.split(".")
-			.take(2)
+			.to_str().unwrap()
+			.split(".").take(2)
 			.collect::<Vec<_>>().connect(".")
 		);
+        let ref_crc = num::from_str_radix(filename
+            .as_os_str()
+            .to_str().unwrap()
+            .split(".").nth(2).unwrap(), 16
+
+        ).unwrap();
         let test_img = match image::open(&img_path) {
             Ok(img) => img.to_rgba(),
             /// Do not fail on unsupported error
@@ -99,7 +108,9 @@ fn check_references() {
             Err(image::ImageError::UnsupportedError(_)) => return,
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
         };
-		if &*ref_img != &*test_img {
+        let mut test_crc = Crc32::new();
+        test_crc.update(&*test_img);
+		if &*ref_img != &*test_img || test_crc.checksum() != ref_crc {
 			panic!("Reference rendering does not match for image at {:?}.", img_path)
 		}
 	})

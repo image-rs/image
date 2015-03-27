@@ -430,21 +430,28 @@ impl<R: Read> PNGDecoder<R> {
                 },
                 2 => {
                     _trns[0] = trns[1];
-                    _trns[1] = trns[3];
                     _trns[2] = trns[5];
+                    _trns[1] = trns[3];
                     &_trns[..3]
                 },
                 // panic is ok this should have been catched earlier
                 _ => panic!("invalid color type for transparency")
             };
-            //println!("{:?}", buf);
-            expand_trns_line(
-                buf,
-                trns,
-                rlength as usize,
-                color::num_components(self.data_pixel_type)
-            );
-            //println!("{:?}", buf);
+            if self.bit_depth < 8 {
+                expand_trns_line_nbits(
+                    buf,
+                    trns[0],
+                    rlength as usize,
+                    self.bit_depth
+                );
+            } else {
+                expand_trns_line(
+                    buf,
+                    trns,
+                    rlength as usize,
+                    color::num_components(self.data_pixel_type)
+                );
+            }
         }
 
         self.decoded_rows += 1;
@@ -466,10 +473,11 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
+        let bits = self.bit_depth;
         if self.trns.is_some() {
             Ok(match self.data_pixel_type {
                 ColorType::RGB(n) => ColorType::RGBA(n),
-                ColorType::Gray(n) => ColorType::GrayA(n),
+                ColorType::Gray(n) if bits == 1 || bits == 2 || bits == 4 => ColorType::GrayA(8),
                 _ => return Err(ImageError::FormatError(
                     "Invalid transparency data".to_string()
                 ))
@@ -568,30 +576,62 @@ fn expand_pass(
     }
 }
 
-fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, bpp: usize) {
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {
         let view: &mut [u8] = mem::transmute_copy(&buf);
         &view[..entries]
     };
-    let pixels = data.chunks(bpp).rev();
-    for (chunk, pixel) in buf.chunks_mut(bpp+1).rev().zip(pixels) {
+    let pixels = data.chunks(channels).rev();
+    for (chunk, pixel) in buf.chunks_mut(channels+1).rev().zip(pixels) {
         if pixel == trns {
-            chunk[bpp] = 0
+            chunk[channels] = 0
         } else {
-            chunk[bpp] = 0xFF
+            chunk[channels] = 0xFF
         }
-        for i in (0..bpp).rev() {
+        for i in (0..channels).rev() {
             chunk[i] = pixel[i];
         }
     }
 }
+
+fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            (0 .. 8).step_by(bit_depth)
+           .zip(iter::iterate(
+               v, |v| v
+           )
+        ))
+        .map(|(shift, pixel)|
+           (pixel & mask << shift as usize) >> shift as usize
+        )
+        .map(|pixel| pixel);
+    for (chunk, pixel) in buf.chunks_mut(2).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[1] = 0
+        } else {
+            chunk[1] = 0xFF
+        }
+        chunk[0] = pixel * scaling_factor
+    }
+}
+
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
                   entries: usize, bit_depth: u8, trns: Option<&[u8]>) {
     let bpp = 8 / bit_depth as usize;
     let extra = if trns.is_some() { entries * bpp } else { 0 };
-    println!("{:?}", bpp);
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
     let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector

@@ -14,7 +14,7 @@ use image::{
     ImageDecoder,
     ImageError
 };
-use color;
+use color::{self, ColorType};
 
 use super::filter::unfilter;
 use super::hash::Crc32;
@@ -132,10 +132,11 @@ pub struct PNGDecoder<R> {
     height: u32,
 
     bit_depth: u8,
-    colour_type: u8,
-    pixel_type: color::ColorType,
+    data_color_type: u8,
+    data_pixel_type: ColorType,
 
     palette: Option<Vec<(u8, u8, u8)>>,
+    trns: Option<Vec<u8>>,
 
     interlace_method: InterlaceMethod,
     pass_iterator: Option<Adam7Iterator>,
@@ -154,9 +155,6 @@ impl<R: Read> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
 
         PNGDecoder {
-            pixel_type: color::ColorType::Gray(1),
-            palette: None,
-
             previous: Vec::new(),
             state: PNGState::Start,
             z: ZlibDecoder::new(idat_reader),
@@ -164,8 +162,14 @@ impl<R: Read> PNGDecoder<R> {
 
             width: 0,
             height: 0,
+
             bit_depth: 0,
-            colour_type: 0,
+            data_color_type: 0,
+            data_pixel_type: ColorType::Gray(1),
+
+            palette: None,
+            trns: None,
+
             interlace_method: InterlaceMethod::None,
             pass_iterator: None,
 
@@ -203,24 +207,24 @@ impl<R: Read> PNGDecoder<R> {
         self.height = try!(m.read_u32::<BigEndian>());
 
         self.bit_depth = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
-        self.colour_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
+        self.data_color_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
 
-        self.pixel_type = match (self.colour_type, self.bit_depth) {
-            (0, 1)  => color::ColorType::Gray(1),
-            (0, 2)  => color::ColorType::Gray(2),
-            (0, 4)  => color::ColorType::Gray(4),
-            (0, 8)  => color::ColorType::Gray(8),
-            (0, 16) => color::ColorType::Gray(16),
-            (2, 8)  => color::ColorType::RGB(8),
-            (2, 16) => color::ColorType::RGB(16),
-            (3, 1)  => color::ColorType::RGB(8),
-            (3, 2)  => color::ColorType::RGB(8),
-            (3, 4)  => color::ColorType::RGB(8),
-            (3, 8)  => color::ColorType::RGB(8),
-            (4, 8)  => color::ColorType::GrayA(8),
-            (4, 16) => color::ColorType::GrayA(16),
-            (6, 8)  => color::ColorType::RGBA(8),
-            (6, 16) => color::ColorType::RGBA(16),
+        self.data_pixel_type = match (self.data_color_type, self.bit_depth) {
+            (0, 1)  => ColorType::Gray(1),
+            (0, 2)  => ColorType::Gray(2),
+            (0, 4)  => ColorType::Gray(4),
+            (0, 8)  => ColorType::Gray(8),
+            (0, 16) => ColorType::Gray(16),
+            (2, 8)  => ColorType::RGB(8),
+            (2, 16) => ColorType::RGB(16),
+            (3, 1)  => ColorType::RGB(8),
+            (3, 2)  => ColorType::RGB(8),
+            (3, 4)  => ColorType::RGB(8),
+            (3, 8)  => ColorType::RGB(8),
+            (4, 8)  => ColorType::GrayA(8),
+            (4, 16) => ColorType::GrayA(16),
+            (6, 8)  => ColorType::RGBA(8),
+            (6, 16) => ColorType::RGBA(16),
             (_, _)  => return Err(ImageError::FormatError(
                 "Invalid color/bit depth combination.".to_string()
             ))
@@ -252,7 +256,7 @@ impl<R: Read> PNGDecoder<R> {
             self.pass_iterator = Some(Adam7Iterator::new(self.width, self.height))
         }
 
-        let channels = match self.colour_type {
+        let channels = match self.data_color_type {
             0 => 1,
             2 => 3,
             3 => 1,
@@ -270,6 +274,27 @@ impl<R: Read> PNGDecoder<R> {
 
     fn raw_row_length(&self, width: u32) -> u32 {
         (self.bits_per_pixel as u32 * width + 7) / 8
+    }
+
+    fn parse_trns(&mut self, len: usize) -> ImageResult<()> {
+        let length =  match self.data_color_type {
+            0 => 2,
+            2 => 6,
+            3 => len,
+            _ => {
+                return Err(ImageError::FormatError(format!(
+                    "tRNS chunk may not appear for color type {}", self.data_color_type
+                )))
+            }
+        };
+        if length != len {
+            return Err(ImageError::FormatError("Invalid tRNS chunk signature.".to_string()))
+        }
+        let mut buf = Vec::with_capacity(length as usize);
+        try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut buf));
+        self.crc.update(&*buf);
+        self.trns = Some(buf);
+        return Ok(())
     }
 
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
@@ -335,11 +360,11 @@ impl<R: Read> PNGDecoder<R> {
                     self.state = PNGState::HavePLTE;
                 }
 
-                // (b"tRNS", HavePLTE) => {
-                //     TODO #199: handle transparency
-                // }
+                (b"tRNS", _) => {
+                    try!(self.parse_trns(length as usize));
+                }
 
-                (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
+                (b"IDAT", PNGState::HaveIHDR) if self.data_color_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -347,7 +372,7 @@ impl<R: Read> PNGDecoder<R> {
                     break;
                 }
 
-                (b"IDAT", PNGState::HavePLTE) if self.colour_type == 3 => {
+                (b"IDAT", PNGState::HavePLTE) if self.data_color_type == 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -393,8 +418,40 @@ impl<R: Read> PNGDecoder<R> {
         unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
         slice::bytes::copy_memory(&mut self.previous, &buf[..rlength as usize]);
 
+
         if let Some(ref palette) = self.palette {
-            expand_palette(buf, &palette, rlength as usize, self.bit_depth);
+            expand_palette(buf, &palette, rlength as usize, self.bit_depth, self.trns.as_ref().map(|v| &**v));
+        } else if let Some(ref trns) = self.trns {
+            let mut _trns = [0u8; 4];
+            let trns = match self.data_color_type {
+                0 => {
+                    _trns[0] = trns[1];
+                    &_trns[..1]
+                },
+                2 => {
+                    _trns[0] = trns[1];
+                    _trns[2] = trns[5];
+                    _trns[1] = trns[3];
+                    &_trns[..3]
+                },
+                // panic is ok this should have been catched earlier
+                _ => panic!("invalid color type for transparency")
+            };
+            if self.bit_depth < 8 {
+                expand_trns_line_nbits(
+                    buf,
+                    trns[0],
+                    rlength as usize,
+                    self.bit_depth
+                );
+            } else {
+                expand_trns_line(
+                    buf,
+                    trns,
+                    rlength as usize,
+                    color::num_components(self.data_pixel_type)
+                );
+            }
         }
 
         self.decoded_rows += 1;
@@ -412,12 +469,22 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         Ok((self.width, self.height))
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
+    fn colortype(&mut self) -> ImageResult<ColorType> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
-
-        Ok(self.pixel_type)
+        let bits = self.bit_depth;
+        if self.trns.is_some() {
+            Ok(match self.data_pixel_type {
+                ColorType::RGB(n) => ColorType::RGBA(n),
+                ColorType::Gray(n) if bits == 1 || bits == 2 || bits == 4 => ColorType::GrayA(8),
+                _ => return Err(ImageError::FormatError(
+                    "Invalid transparency data".to_string()
+                ))
+            })
+        } else {
+            Ok(self.data_pixel_type)
+        }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -425,7 +492,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
 
-        let bits = color::bits_per_pixel(self.pixel_type);
+        let bits = color::bits_per_pixel(try!(self.colortype()));
 
         Ok((bits * self.width as usize + 7) / 8)
     }
@@ -450,7 +517,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         if let Some(pass_iterator) = self.pass_iterator { // Method == Adam7
             let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
-            let bytes = color::bits_per_pixel(self.pixel_type)/8;
+            let bytes = color::bits_per_pixel(try!(self.colortype()))/8;
             for (pass, line, width) in pass_iterator {
                 let rlength = self.raw_row_length(width);
                 if old_pass != pass {
@@ -459,7 +526,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
                         *v = 0;
                     }
                 }
-                let bits = color::bits_per_pixel(self.pixel_type);
+                let bits = color::bits_per_pixel(try!(self.colortype()));
                 let _ = try!(
                     self.extract_scanline(&mut pass_buf[..
                         ((bits * width as usize + 7) / 8)
@@ -509,10 +576,63 @@ fn expand_pass(
     }
 }
 
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let pixels = data.chunks(channels).rev();
+    for (chunk, pixel) in buf.chunks_mut(channels+1).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[channels] = 0
+        } else {
+            chunk[channels] = 0xFF
+        }
+        for i in (0..channels).rev() {
+            chunk[i] = pixel[i];
+        }
+    }
+}
+
+fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            (0 .. 8).step_by(bit_depth)
+           .zip(iter::iterate(
+               v, |v| v
+           )
+        ))
+        .map(|(shift, pixel)|
+           (pixel & mask << shift as usize) >> shift as usize
+        )
+        .map(|pixel| pixel);
+    for (chunk, pixel) in buf.chunks_mut(2).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[1] = 0
+        } else {
+            chunk[1] = 0xFF
+        }
+        chunk[0] = pixel * scaling_factor
+    }
+}
+
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
-                  entries: usize, bit_depth: u8) {
+                  entries: usize, bit_depth: u8, trns: Option<&[u8]>) {
     let bpp = 8 / bit_depth as usize;
-    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
+    let extra = if trns.is_some() { entries * bpp } else { 0 };
+    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
     let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
@@ -532,12 +652,23 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
         ))
         //.skip(buf.len() % bpp) // not necessary, why!?
         .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
-    for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
-        palette[i as usize]
-    )) {
-        chunk[0] = r;
-        chunk[1] = g;
-        chunk[2] = b;
+    if let Some(trns) = trns {
+        for (chunk, ((r, g, b), a)) in buf.chunks_mut(4).rev().zip(pixels.map(|i|
+            (palette[i as usize], *trns.get(i as usize).unwrap_or(&0xFF))
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+            chunk[3] = a;
+        }
+    } else {
+        for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
+            palette[i as usize]
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+        }
     }
 }
 

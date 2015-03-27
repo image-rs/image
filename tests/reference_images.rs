@@ -39,7 +39,7 @@ fn render_images() {
 			/// This might happen because the testsuite contains unsupported images
 			/// or because a specific decoder included via a feature.
 			Err(image::ImageError::UnsupportedError(_)) => return,
-			Err(err) => panic!(format!("{}", err))
+			Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
 		};
 		let mut crc = Crc32::new();
 		crc.update(&*img);
@@ -97,7 +97,7 @@ fn check_references() {
             /// This might happen because the testsuite contains unsupported images
             /// or because a specific decoder included via a feature.
             Err(image::ImageError::UnsupportedError(_)) => return,
-            Err(err) => panic!(format!("{}", err))
+            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
         };
 		if &*ref_img != &*test_img {
 			panic!("Reference rendering does not match for image at {:?}.", img_path)

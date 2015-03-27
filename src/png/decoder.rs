@@ -276,6 +276,27 @@ impl<R: Read> PNGDecoder<R> {
         (self.bits_per_pixel as u32 * width + 7) / 8
     }
 
+    fn parse_trns(&mut self, len: usize) -> ImageResult<()> {
+        let length =  match self.data_color_type {
+            0 => 2,
+            2 => 6,
+            3 => len,
+            _ => {
+                return Err(ImageError::FormatError(format!(
+                    "tRNS chunk may not appear for color type {}", self.data_color_type
+                )))
+            }
+        };
+        if length != len {
+            return Err(ImageError::FormatError("Invalid tRNS chunk signature.".to_string()))
+        }
+        let mut buf = Vec::with_capacity(length as usize);
+        try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut buf));
+        self.crc.update(&*buf);
+        self.trns = Some(buf);
+        return Ok(())
+    }
+
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         self.crc.update(&*buf);
 
@@ -339,9 +360,9 @@ impl<R: Read> PNGDecoder<R> {
                     self.state = PNGState::HavePLTE;
                 }
 
-                // (b"tRNS", HavePLTE) => {
-                //     TODO #199: handle transparency
-                // }
+                (b"tRNS", _) => {
+                    try!(self.parse_trns(length as usize));
+                }
 
                 (b"IDAT", PNGState::HaveIHDR) if self.data_color_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
@@ -397,8 +418,33 @@ impl<R: Read> PNGDecoder<R> {
         unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
         slice::bytes::copy_memory(&mut self.previous, &buf[..rlength as usize]);
 
+
         if let Some(ref palette) = self.palette {
-            expand_palette(buf, &palette, rlength as usize, self.bit_depth);
+            expand_palette(buf, &palette, rlength as usize, self.bit_depth, self.trns.as_ref().map(|v| &**v));
+        } else if let Some(ref trns) = self.trns {
+            let mut _trns = [0u8; 4];
+            let trns = match self.data_color_type {
+                0 => {
+                    _trns[0] = trns[1];
+                    &_trns[..1]
+                },
+                2 => {
+                    _trns[0] = trns[1];
+                    _trns[1] = trns[3];
+                    _trns[2] = trns[5];
+                    &_trns[..3]
+                },
+                // panic is ok this should have been catched earlier
+                _ => panic!("invalid color type for transparency")
+            };
+            //println!("{:?}", buf);
+            expand_trns_line(
+                buf,
+                trns,
+                rlength as usize,
+                color::num_components(self.data_pixel_type)
+            );
+            //println!("{:?}", buf);
         }
 
         self.decoded_rows += 1;
@@ -522,10 +568,31 @@ fn expand_pass(
     }
 }
 
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, bpp: usize) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let pixels = data.chunks(bpp).rev();
+    for (chunk, pixel) in buf.chunks_mut(bpp+1).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[bpp] = 0
+        } else {
+            chunk[bpp] = 0xFF
+        }
+        for i in (0..bpp).rev() {
+            chunk[i] = pixel[i];
+        }
+    }
+}
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
-                  entries: usize, bit_depth: u8) {
+                  entries: usize, bit_depth: u8, trns: Option<&[u8]>) {
     let bpp = 8 / bit_depth as usize;
-    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
+    let extra = if trns.is_some() { entries * bpp } else { 0 };
+    println!("{:?}", bpp);
+    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
     let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
@@ -545,12 +612,23 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
         ))
         //.skip(buf.len() % bpp) // not necessary, why!?
         .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
-    for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
-        palette[i as usize]
-    )) {
-        chunk[0] = r;
-        chunk[1] = g;
-        chunk[2] = b;
+    if let Some(trns) = trns {
+        for (chunk, ((r, g, b), a)) in buf.chunks_mut(4).rev().zip(pixels.map(|i|
+            (palette[i as usize], *trns.get(i as usize).unwrap_or(&0xFF))
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+            chunk[3] = a;
+        }
+    } else {
+        for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
+            palette[i as usize]
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+        }
     }
 }
 

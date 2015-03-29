@@ -17,6 +17,7 @@
 #![feature(rustc_private)]
 #![feature(step_by)]
 #![feature(convert)]
+#![feature(slice_patterns)]
 #![cfg_attr(test, feature(test))]
 
 extern crate byteorder;

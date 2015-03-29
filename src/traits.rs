@@ -4,6 +4,7 @@
 
 use std::ops::{ Add, Div, Mul, Neg, Rem, Sub };
 use std::num::{ Float, Int, NumCast };
+use std::marker::Reflect;
 
 /// Num trait from old stdlib
 pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + Neg<Output=Self> + PartialEq<Self> { }
@@ -43,7 +44,7 @@ zero_impl!(f64, 0.0f64);
 
 
 /// Primitive trait from old stdlib, added max_value
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone {
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Reflect {
     /// The maximum value of primitive.
     fn max_value() -> Self;
 }

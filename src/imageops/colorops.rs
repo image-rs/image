@@ -5,6 +5,7 @@ use std::num:: {
 };
 
 use std::default::Default;
+use std::marker::Reflect;
 
 use color::{Luma, Rgba};
 use buffer::{ImageBuffer, Pixel};
@@ -18,7 +19,7 @@ use math::nq;
 pub fn grayscale<'a, I: GenericImage + 'static>(image: &I)
     -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
     where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: Default + 'static {
+          <I::Pixel as Pixel>::Subpixel: Default + 'static + Reflect {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

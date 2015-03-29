@@ -1,7 +1,7 @@
 use std::slice::{ Chunks, ChunksMut };
 use std::any::TypeId;
 use std::ops::{ Deref, DerefMut, Index, IndexMut };
-use std::marker::PhantomData;
+use std::marker::{Reflect, PhantomData};
 use std::num::Int;
 use std::iter::repeat;
 use std::path::Path;
@@ -15,7 +15,7 @@ use dynimage::save_buffer;
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
-pub trait Pixel: Copy + Clone {
+pub trait Pixel: Copy + Clone + Reflect {
     /// The underlying subpixel type.
     type Subpixel: Primitive;
 

@@ -7,8 +7,6 @@
 
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
-#![warn(unused_typecasts)]
-#![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(collections)]

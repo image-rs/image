@@ -1,12 +1,8 @@
-use std::io::{self, Read};
-use std::cmp;
-use std::mem;
-use std::iter;
+use std::io::{ self, Read };
+use std::{ cmp, mem, iter, str, slice };
 use std::iter::repeat;
-use std::str;
-use std::slice;
-use std::num::FromPrimitive;
-use byteorder::{ReadBytesExt, BigEndian};
+use std::num::{ FromPrimitive, Float };
+use byteorder::{ ReadBytesExt, BigEndian };
 
 use image::{
     DecodingResult,
@@ -14,13 +10,12 @@ use image::{
     ImageDecoder,
     ImageError
 };
-use color::{self, ColorType};
+use color::{ self, ColorType };
 
 use super::filter::unfilter;
 use super::hash::Crc32;
 use super::zlib::ZlibDecoder;
 
-use std::num::Float;
 
 pub static PNGSIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -477,7 +472,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
         if self.trns.is_some() {
             Ok(match self.data_pixel_type {
                 ColorType::RGB(n) => ColorType::RGBA(n),
-                ColorType::Gray(n) if bits == 1 || bits == 2 || bits == 4 => ColorType::GrayA(8),
+                ColorType::Gray(_) if bits == 1 || bits == 2 || bits == 4 => ColorType::GrayA(8),
                 _ => return Err(ImageError::FormatError(
                     "Invalid transparency data".to_string()
                 ))

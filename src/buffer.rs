@@ -1,7 +1,7 @@
 use std::slice::{ Chunks, ChunksMut };
 use std::any::TypeId;
 use std::ops::{ Deref, DerefMut, Index, IndexMut };
-use std::marker::{Reflect, PhantomData};
+use std::marker::{ Reflect, PhantomData };
 use std::num::Int;
 use std::iter::repeat;
 use std::path::Path;
@@ -609,7 +609,10 @@ mod test {
     #[test]
     fn test_get_pixel() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
-        a.as_mut_slice()[3*10] = 255;
+        {
+            let b = a.get_mut(3 * 10).unwrap();
+            *b = 255;
+        }
         assert_eq!(a.get_pixel(0, 1)[0], 255)
 
     }

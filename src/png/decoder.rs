@@ -411,7 +411,7 @@ impl<R: Read> PNGDecoder<R> {
         }
 
         unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
-        slice::bytes::copy_memory(&mut self.previous, &buf[..rlength as usize]);
+        slice::bytes::copy_memory(&buf[..rlength as usize], &mut self.previous);
 
 
         if let Some(ref palette) = self.palette {

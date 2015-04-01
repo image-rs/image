@@ -124,7 +124,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
             self.decoded_rows as usize * rlen + rlen
         ];
 
-        slice::bytes::copy_memory(buf, slice);
+        slice::bytes::copy_memory(slice, buf);
         self.decoded_rows += 1;
 
         Ok(self.decoded_rows)

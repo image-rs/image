@@ -1,5 +1,5 @@
 use std::num::SignedInt;
-use std::num::wrapping::Wrapping as w;
+use std::num::Wrapping as w;
 
 #[derive(FromPrimitive, Debug)]
 pub enum FilterType {

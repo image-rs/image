@@ -156,7 +156,7 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
 
     for (row, outrow) in image.chunks(rowlen).zip(b.chunks_mut(1 + rowlen)) {
         for s in c.chunks_mut(rowlen) {
-            slice::bytes::copy_memory(s, row);
+            slice::bytes::copy_memory(row, s);
         }
 
         let filter = select_filter(rowlen, bpp, &p, &mut c);
@@ -165,14 +165,14 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
         let out    = &mut outrow[1..];
 
         match filter {
-            0 => slice::bytes::copy_memory(out, row),
+            0 => slice::bytes::copy_memory(row, out),
             _ => {
                 let stride = (filter as usize - 1) * rowlen;
-                slice::bytes::copy_memory(out, &c[stride..stride + rowlen])
+                slice::bytes::copy_memory(&c[stride..stride + rowlen], out)
             }
         }
 
-        slice::bytes::copy_memory(&mut p, row);
+        slice::bytes::copy_memory(row, &mut p);
     }
 
     deflate_bytes_zlib(&b).to_vec()

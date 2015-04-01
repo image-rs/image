@@ -183,7 +183,7 @@ pub trait ImageDecoder: Sized {
 
                 let to   = &mut buf[i * width as usize * bpp..width as usize * bpp];
 
-                slice::bytes::copy_memory(to, from);
+                slice::bytes::copy_memory(from, to);
             }
 
             let _ = try!(self.read_scanline(&mut tmp));

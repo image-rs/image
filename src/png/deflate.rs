@@ -7,7 +7,7 @@
 
 use std::cmp;
 use std::iter::repeat;
-use std::num::wrapping::Wrapping as w;
+use std::num::Wrapping as w;
 use std::io::{self, Read};
 use byteorder::ReadBytesExt;
 

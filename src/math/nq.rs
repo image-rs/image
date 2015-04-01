@@ -31,16 +31,21 @@
  */
 
 use std::num::Float;
+use std::cmp::{
+    max,
+    min
+};
+use math::utils::clamp;
 
 const CHANNELS: usize = 4;
 
 const RADIUS_DEC: i32 = 30; // factor of 1/30 each cycle
 
 const ALPHA_BIASSHIFT: i32 = 10;            // alpha starts at 1
-const INIT_ALPHA: i32 = 1<<ALPHA_BIASSHIFT; // biased by 10 bits
+const INIT_ALPHA: i32 = 1 << ALPHA_BIASSHIFT; // biased by 10 bits
 
 const GAMMA: f64 = 1024.0;
-const BETA: f64 = 1.0/1024.0;
+const BETA: f64 = 1.0 / GAMMA;
 const BETAGAMMA: f64 = BETA * GAMMA;
 
 // four primes near 500 - assume no image has a length so large
@@ -48,41 +53,21 @@ const BETAGAMMA: f64 = BETA * GAMMA;
 const PRIMES: [usize; 4] = [499, 491, 478, 503];
 
 #[derive(Copy)]
-struct Neuron {
-    r: f64,
-    g: f64,
-    b: f64,
-    a: f64,
+struct Quad<T> {
+    r: T,
+    g: T,
+    b: T,
+    a: T,
 }
 
-#[derive(Copy)]
-struct Color {
-    r: i32,
-    g: i32,
-    b: i32,
-    a: i32,
-}
-
-macro_rules! clamp(
-    ($x:expr) => (match $x {
-        x if x < 0 => 0,
-        x if x > 255 => 255,
-        x => x
-    })
-);
-
-macro_rules! abs(
-    ($x:expr) => (match $x {
-        x if x < 0.0 => -x,
-        x => x
-    })
-);
+type Neuron = Quad<f64>;
+type Color = Quad<i32>;
 
 /// Neural network color quantizer
 pub struct NeuQuant {
     network: Vec<Neuron>,
     colormap: Vec<Color>,
-    netindex: Vec<usize>, // for network lookup - really 256
+    netindex: Vec<usize>,
     bias: Vec<f64>, // bias and freq arrays for learning
     freq: Vec<f64>,
     samplefac: i32,
@@ -90,14 +75,13 @@ pub struct NeuQuant {
 }
 
 impl NeuQuant {
-
     /// Creates a new neuronal network and trains it with the supplied data
-    pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> NeuQuant {
+    pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> Self {
         let netsize = colors;
         let mut this = NeuQuant {
             network: Vec::with_capacity(netsize),
             colormap: Vec::with_capacity(netsize),
-            netindex: Vec::with_capacity(256),
+            netindex: vec![0; 256],
             bias: Vec::with_capacity(netsize),
             freq: Vec::with_capacity(netsize),
             samplefac: samplefac,
@@ -111,21 +95,17 @@ impl NeuQuant {
     pub fn init(&mut self, pixels: &[u8]) {
         self.network.clear();
         self.colormap.clear();
-        self.netindex.clear();
         self.bias.clear();
         self.freq.clear();
-        let freq = 1.0/self.netsize as f64;
+        let freq = (self.netsize as f64).recip();
         for i in 0..self.netsize {
-            let tmp = i as f64 * 256.0/self.netsize as f64;
+            let tmp = (i as f64) * 256.0 / (self.netsize as f64);
             // Sets alpha values at 0 for dark pixels.
             let a = if i < 16 { i as f64 * 16.0 } else { 255.0 };
             self.network.push(Neuron { r: tmp, g: tmp, b: tmp, a: a});
             self.colormap.push(Color { r: 0, g: 0, b: 0, a: 255 });
             self.freq.push(freq);
             self.bias.push(0.0);
-        }
-        for _ in 0..256 {
-            self.netindex.push(0);
         }
         self.learn(pixels);
         self.build_colormap();
@@ -158,48 +138,41 @@ impl NeuQuant {
         }
     }
 
-    /*
-    /// Returns the color map in the format [r, g, b, r, g, ...]
-    pub fn colormap_rgb(&mut self, pixel: &mut [u8]) -> Vec<u8> {
-        self.colormap.iter().flat_map(|&c| [c.r as u8, c.g as u8, c.b as u8].iter().map(|&v| v)).collect()
-    }*/
-
     /// Move neuron i towards biased (a,b,g,r) by factor alpha
-    fn altersingle(&mut self, alpha: f64, i: i32, b: f64, g: f64, r: f64, a: f64) {
-        // Move neuron i towards biased (b,g,r) by factor alpha
-        let n = &mut self.network[i as usize]; // alter hit neuron
-        n.b -= alpha*(n.b - b);
-        n.g -= alpha*(n.g - g);
-        n.r -= alpha*(n.r - r);
-        n.a -= alpha*(n.a - a);
+    fn altersingle(&mut self, alpha: f64, i: i32, quad: Quad<f64>) {
+        let n = &mut self.network[i as usize];
+        n.b -= alpha * (n.b - quad.b);
+        n.g -= alpha * (n.g - quad.g);
+        n.r -= alpha * (n.r - quad.r);
+        n.a -= alpha * (n.a - quad.a);
     }
 
     /// Move neuron adjacent neurons towards biased (a,b,g,r) by factor alpha
-    fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, b: f64, g: f64, r: f64, a: f64) {
-
-        let mut lo = i-rad;   if lo<0 {lo=0};
-        let mut hi = i+rad;   if hi>self.netsize as i32 {hi=self.netsize as i32};
-        let mut j = i+1;
-        let mut k = i-1;
+    fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, quad: Quad<f64>) {
+        let lo = max(i - rad, 0);
+        let hi = min(i + rad, self.netsize as i32);
+        let mut j = i + 1;
+        let mut k = i - 1;
         let mut q = 0;
-        while (j<hi) || (k>lo) {
+
+        while (j < hi) || (k > lo) {
             let rad_sq = rad as f64 * rad as f64;
             let alpha = (alpha * (rad_sq - q as f64 * q as f64)) / rad_sq;
             q += 1;
-            if j<hi {
+            if j < hi {
                 let p = &mut self.network[j as usize];
-                p.b -= alpha*(p.b - b);
-                p.g -= alpha*(p.g - g);
-                p.r -= alpha*(p.r - r);
-                p.a -= alpha*(p.a - a);
+                p.b -= alpha * (p.b - quad.b);
+                p.g -= alpha * (p.g - quad.g);
+                p.r -= alpha * (p.r - quad.r);
+                p.a -= alpha * (p.a - quad.a);
                 j += 1;
             }
-            if k>lo {
+            if k > lo {
                 let p = &mut self.network[k as usize];
-                p.b -= alpha*(p.b - b);
-                p.g -= alpha*(p.g - g);
-                p.r -= alpha*(p.r - r);
-                p.a -= alpha*(p.a - a);
+                p.b -= alpha * (p.b - quad.b);
+                p.g -= alpha * (p.g - quad.g);
+                p.r -= alpha * (p.r - quad.r);
+                p.a -= alpha * (p.a - quad.a);
                 k -= 1;
             }
         }
@@ -220,11 +193,11 @@ impl NeuQuant {
             let bestbiasd_biased = bestbiasd + self.bias[i];
             let mut dist;
             let n = &self.network[i];
-            dist  = abs!(n.b - b);
-            dist += abs!(n.r - r);
+            dist  = (n.b - b).abs();
+            dist += (n.r - r).abs();
             if dist < bestd || dist < bestbiasd_biased {
-                dist += abs!(n.g - g);
-                dist += abs!(n.a - a);
+                dist += (n.g - g).abs();
+                dist += (n.a - a).abs();
                 if dist < bestd {bestd=dist; bestpos=i as i32;}
                 let biasdist = dist - self.bias [i];
                 if biasdist < bestbiasd {bestbiasd=biasdist; bestbiaspos=i as i32;}
@@ -264,7 +237,6 @@ impl NeuQuant {
 
         let mut i = 0;
         while i < samplepixels {
-
             let (r, g, b, a) = {
                 let p = &pixels[CHANNELS * pos..][..CHANNELS];
                 (p[0] as f64, p[1] as f64, p[2] as f64, p[3] as f64)
@@ -273,11 +245,13 @@ impl NeuQuant {
             let j =  self.contest (b, g, r, a);
 
             let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
-            self.altersingle(alpha_, j, b, g, r, a);
-            if rad > 0 {self.alterneigh (alpha_, rad, j, b, g, r, a)};   // alter neighbours
+            self.altersingle(alpha_, j, Quad { b: b, g: g, r: r, a: a });
+            if rad > 0 {
+                self.alterneigh(alpha_, rad, j, Quad { b: b, g: g, r: r, a: a })
+            };
 
             pos += step;
-            while pos >= lengthcount {pos -= lengthcount};
+            while pos >= lengthcount { pos -= lengthcount };
 
             i += 1;
             if i%delta == 0 {
@@ -292,10 +266,10 @@ impl NeuQuant {
     /// initializes the color map
     fn build_colormap(&mut self) {
         for i in 0usize..self.netsize {
-            self.colormap[i].b = clamp!((0.5 + self.network[i].b) as i32);
-            self.colormap[i].g = clamp!((0.5 + self.network[i].g) as i32);
-            self.colormap[i].r = clamp!((0.5 + self.network[i].r) as i32);
-            self.colormap[i].a = clamp!((0.5 + self.network[i].a) as i32);
+            self.colormap[i].b = clamp(self.network[i].b.round() as i32, 0, 255);
+            self.colormap[i].g = clamp(self.network[i].g.round() as i32, 0, 255);
+            self.colormap[i].r = clamp(self.network[i].r.round() as i32, 0, 255);
+            self.colormap[i].a = clamp(self.network[i].a.round() as i32, 0, 255);
         }
     }
 

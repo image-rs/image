@@ -473,8 +473,10 @@ mod tests {
     use test;
     use buffer::{ImageBuffer, RgbImage};
     use super::{resize, FilterType};
+    use std::path::Path;
 
     #[bench]
+    #[cfg(feature = "png")]
     fn bench_resize(b: &mut test::Bencher) {
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {

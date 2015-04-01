@@ -1,4 +1,6 @@
-use std::old_io;
+use std::io;
+use std::io::{Read, Seek};
+use byteorder::{ReadBytesExt, LittleEndian};
 
 use image::ImageError;
 use image::ImageResult;
@@ -106,18 +108,18 @@ impl Header {
     }
 
     /// Load the header with values from the reader
-    fn from_reader(r: &mut Reader) -> ImageResult<Header> {
+    fn from_reader(r: &mut Read) -> ImageResult<Header> {
         Ok(Header {
             id_length:         try!(r.read_u8()),
             map_type:          try!(r.read_u8()),
             image_type:        try!(r.read_u8()),
-            map_origin:        try!(r.read_le_u16()),
-            map_length:        try!(r.read_le_u16()),
+            map_origin:        try!(r.read_u16::<LittleEndian>()),
+            map_length:        try!(r.read_u16::<LittleEndian>()),
             map_entry_size:    try!(r.read_u8()),
-            x_origin:          try!(r.read_le_u16()),
-            y_origin:          try!(r.read_le_u16()),
-            image_width:       try!(r.read_le_u16()),
-            image_height:      try!(r.read_le_u16()),
+            x_origin:          try!(r.read_u16::<LittleEndian>()),
+            y_origin:          try!(r.read_u16::<LittleEndian>()),
+            image_width:       try!(r.read_u16::<LittleEndian>()),
+            image_height:      try!(r.read_u16::<LittleEndian>()),
             pixel_depth:       try!(r.read_u8()),
             image_desc:        try!(r.read_u8()),
         })
@@ -132,13 +134,18 @@ struct ColorMap {
 }
 
 impl ColorMap {
-    pub fn from_reader(r: &mut Reader,
+    pub fn from_reader(r: &mut Read,
                        start_offset: u16,
                        num_entries: u16,
                        bits_per_entry: u8)
         -> ImageResult<ColorMap> {
             let bytes_per_entry = (bits_per_entry as usize + 7) / 8;
-            let bytes = try!(r.read_exact(bytes_per_entry * num_entries as usize));
+
+            let mut bytes = vec![0; bytes_per_entry * num_entries as usize];
+            if try!(r.read(&mut bytes)) != bytes.len() {
+                return Err(ImageError::ImageEnd);
+            }
+
             Ok(ColorMap {
                 entry_size: bytes_per_entry,
                 start_offset: start_offset as usize,
@@ -169,7 +176,7 @@ pub struct TGADecoder<R> {
     color_map: Option<ColorMap>,
 }
 
-impl<R: Reader + Seek> TGADecoder<R> {
+impl<R: Read + Seek> TGADecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> TGADecoder<R> {
         TGADecoder {
@@ -250,7 +257,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
-        try!(self.r.seek(self.header.id_length as i64, old_io::SeekCur));
+        try!(self.r.seek(io::SeekFrom::Current(self.header.id_length as i64)));
         Ok(())
     }
 
@@ -299,7 +306,9 @@ impl<R: Reader + Seek> TGADecoder<R> {
             try!(self.read_encoded_data())
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
-            try!(self.r.read_exact(num_raw_bytes))
+            let mut buf = Vec::with_capacity(num_raw_bytes);
+            try!(self.r.by_ref().take(num_raw_bytes as u64).read_to_end(&mut buf));
+            buf
         };
 
         // expand the indices using the color map if necessary
@@ -327,7 +336,8 @@ impl<R: Reader + Seek> TGADecoder<R> {
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                let data = try!(self.r.read_exact(self.bytes_per_pixel));
+                let mut data = Vec::with_capacity(self.bytes_per_pixel);
+                try!(self.r.by_ref().take(self.bytes_per_pixel as u64).read_to_end(&mut data));
                 for _ in (0usize..repeat_count) {
                     pixel_data.push_all(&data);
                 }
@@ -335,8 +345,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded bytes
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
-                let data = try!(self.r.read_exact(num_raw_bytes));
-                pixel_data.push_all(&data);
+                try!(self.r.by_ref().take(num_raw_bytes as u64).read_to_end(&mut pixel_data));
                 num_read += run_packet as usize;
             }
         }
@@ -370,7 +379,7 @@ impl<R: Reader + Seek> TGADecoder<R> {
     }
 }
 
-impl<R: Reader + Seek> ImageDecoder for TGADecoder<R> {
+impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 

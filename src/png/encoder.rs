@@ -7,12 +7,11 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::old_io:: {
-    IoResult,
-    MemWriter
-};
+use std::io;
+use std::io::Write;
 use std::num::FromPrimitive;
 use std::iter::repeat;
+use byteorder::{WriteBytesExt, BigEndian};
 
 use color;
 use super::hash::Crc32;
@@ -26,7 +25,7 @@ pub struct PNGEncoder<'a, W: 'a> {
     crc: Crc32
 }
 
-impl<'a, W: Writer> PNGEncoder<'a, W> {
+impl<'a, W: Write> PNGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> PNGEncoder<W> {
         PNGEncoder {
@@ -42,7 +41,7 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
                   image: &[u8],
                   width: u32,
                   height: u32,
-                  c: color::ColorType) -> IoResult<()> {
+                  c: color::ColorType) -> io::Result<()> {
 
         let _ = try!(self.write_signature());
         let (bytes, bpp) = build_ihdr(width, height, c);
@@ -57,31 +56,31 @@ impl<'a, W: Writer> PNGEncoder<'a, W> {
         self.write_chunk("IEND", &[])
     }
 
-    fn write_signature(&mut self) -> IoResult<()> {
+    fn write_signature(&mut self) -> io::Result<()> {
         self.w.write_all(&PNGSIGNATURE)
     }
 
-    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> IoResult<()> {
+    fn write_chunk(&mut self, name: &str, buf: &[u8]) -> io::Result<()> {
         self.crc.reset();
-        self.crc.update(name);
+        self.crc.update(name.as_bytes());
         self.crc.update(&buf);
 
         let crc = self.crc.checksum();
 
-        let _ = try!(self.w.write_be_u32(buf.len() as u32));
-        let _ = try!(self.w.write_str(name));
+        let _ = try!(self.w.write_u32::<BigEndian>(buf.len() as u32));
+        let _ = try!(write!(self.w, "{}", name));
         let _ = try!(self.w.write_all(buf));
-        let _ = try!(self.w.write_be_u32(crc));
+        let _ = try!(self.w.write_u32::<BigEndian>(crc));
 
         Ok(())
     }
 }
 
 fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) {
-    let mut m = MemWriter::with_capacity(13);
+    let mut m = Vec::with_capacity(13);
 
-    let _ = m.write_be_u32(width);
-    let _ = m.write_be_u32(height);
+    let _ = m.write_u32::<BigEndian>(width);
+    let _ = m.write_u32::<BigEndian>(height);
 
     let (colortype, bit_depth) = match c {
         color::ColorType::Gray(1)    => (0, 1),
@@ -102,13 +101,13 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
         _ => panic!("unsupported color type and bitdepth")
     };
 
-    let _ = m.write_u8(bit_depth);
-    let _ = m.write_u8(colortype);
+    let _ = m.write_all(&[bit_depth]);
+    let _ = m.write_all(&[colortype]);
 
     // Compression method, filter method and interlace
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
-    let _ = m.write_u8(0);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
 
     let channels = match colortype {
         0 => 1,
@@ -121,7 +120,7 @@ fn build_ihdr(width: u32, height: u32, c: color::ColorType) -> (Vec<u8>, usize) 
 
     let bpp = ((channels * bit_depth + 7) / 8) as usize;
 
-    (m.into_inner(), bpp)
+    (m, bpp)
 }
 
 fn sum_abs_difference(buf: &[u8]) -> i32 {
@@ -176,5 +175,5 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
         slice::bytes::copy_memory(&mut p, row);
     }
 
-    deflate_bytes_zlib(&b).unwrap().to_vec()
+    deflate_bytes_zlib(&b).to_vec()
 }

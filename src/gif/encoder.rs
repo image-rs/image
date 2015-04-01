@@ -1,12 +1,13 @@
-
-use buffer::{ImageBuffer, Pixel, ArrayLike};
+use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use std::old_io;
-use std::old_io::IoResult;
+use std::io;
+use std::io::Write;
+use byteorder::{WriteBytesExt, LittleEndian};
 use std::num::Int;
 
+use buffer::{ImageBuffer, Pixel};
 use color::{Rgb, Rgba};
 use utils::lzw;
 use utils::bitstream::LsbWriter;
@@ -42,7 +43,7 @@ pub struct Encoder<Image> {
 const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
 
 impl<Container> Encoder<ImageBuffer<Rgba<u8>, Container>>
-where Container: ArrayLike<u8> {
+where Container: Deref<Target=[u8]> + DerefMut {
     /// Creates a new GIF encoder
     pub fn new(image: ImageBuffer<Rgba<u8>, Container>,
                bg_color: Option<Rgb<u8>>,
@@ -56,7 +57,7 @@ where Container: ArrayLike<u8> {
     }
 
     /// Encodes the image
-    pub fn encode<W: Writer>(&mut self, w: &mut W) -> IoResult<()> {
+    pub fn encode<W: Write>(&mut self, w: &mut W) -> io::Result<()> {
         // Header
         try!(w.write_all(b"GIF89a"));
         // Logical screen descriptor
@@ -64,14 +65,14 @@ where Container: ArrayLike<u8> {
         let width = self.image.width();
         if width > <u16 as Int>::max_value() as u32 ||
            height > <u16 as Int>::max_value() as u32 {
-            return Err(old_io::IoError{
-                kind: old_io::InvalidInput,
-                desc: "Image dimensions are to large for the gif format.",
-                detail: None
-            })
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Image dimensions are to large for the gif format.",
+                None
+            ))
         }
-        try!(w.write_le_u16(width as u16));
-        try!(w.write_le_u16(height as u16));
+        try!(w.write_u16::<LittleEndian>(width as u16));
+        try!(w.write_u16::<LittleEndian>(height as u16));
 
         let (hist, transparent) = self.histogram();
         let num_colors = hist.len();
@@ -100,7 +101,7 @@ where Container: ArrayLike<u8> {
             }
 
         }
-        w.write_u8(Block::Trailer as u8)
+        w.write_all(&[Block::Trailer as u8])
     }
 
     /// Returns a histogram of the colors in the image
@@ -139,10 +140,10 @@ where Container: ArrayLike<u8> {
     }
 
     /// Write the global color table and the corresponding flags
-    fn write_global_table<W: Writer>(&mut self,
+    fn write_global_table<W: Write>(&mut self,
                                      w: &mut W,
                                      hist: &[(Rgba<u8>, usize)]
-                                    ) -> IoResult<()>
+                                    ) -> io::Result<()>
     {
         let num_colors = hist.len();
         let mut flags = 0;
@@ -177,9 +178,9 @@ where Container: ArrayLike<u8> {
         } else {
             (None, 0)
         };
-        try!(w.write_u8(flags));
-        try!(w.write_u8(bg_index));
-        try!(w.write_u8(0)); // aspect ration, disregard
+        try!(w.write_all(&[flags]));
+        try!(w.write_all(&[bg_index]));
+        try!(w.write_all(&[0])); // aspect ration, disregard
         if let Some(global_table) = global_table {
             try!(w.write_all(&global_table));
         }
@@ -187,15 +188,15 @@ where Container: ArrayLike<u8> {
     }
 
     /// Writes the graphics control extension
-    fn write_control_ext<W: Writer>(&mut self,
+    fn write_control_ext<W: Write>(&mut self,
                                     w: &mut W,
                                     delay: u16,
                                     transparent: Option<usize>
-                                   ) -> IoResult<()>
+                                   ) -> io::Result<()>
     {
-        try!(w.write_u8(Block::Extension as u8));
-        try!(w.write_u8(Extension::Control as u8));
-        try!(w.write_u8(4)); // size
+        try!(w.write_all(&[Block::Extension as u8]));
+        try!(w.write_all(&[Extension::Control as u8]));
+        try!(w.write_all(&[4])); // size
         let mut field = 0;
         field |= (DisposalMethod::None as u8) << 2;
         let idx = if let Some(idx) = transparent {
@@ -204,37 +205,37 @@ where Container: ArrayLike<u8> {
         } else {
             0
         };
-        try!(w.write_u8(field));
-        try!(w.write_le_u16(delay));
-        try!(w.write_u8(idx));
-        w.write_u8(0)
+        try!(w.write_all(&[field]));
+        try!(w.write_u16::<LittleEndian>(delay));
+        try!(w.write_all(&[idx]));
+        w.write_all(&[0])
     }
 
     /// Writes the image descriptor
-    fn write_descriptor<W: Writer>(&mut self,
+    fn write_descriptor<W: Write>(&mut self,
                                    w: &mut W,
                                    table_len: Option<usize>
-                                  ) -> IoResult<()>
+                                  ) -> io::Result<()>
     {
-        try!(w.write_u8(Block::Image as u8));
-        try!(w.write_le_u16(0)); // left
-        try!(w.write_le_u16(0)); // top
+        try!(w.write_all(&[Block::Image as u8]));
+        try!(w.write_u16::<LittleEndian>(0)); // left
+        try!(w.write_u16::<LittleEndian>(0)); // top
         let height = self.image.height();
         let width = self.image.width();
-        try!(w.write_le_u16(width as u16));
-        try!(w.write_le_u16(height as u16));
+        try!(w.write_u16::<LittleEndian>(width as u16));
+        try!(w.write_u16::<LittleEndian>(height as u16));
         if let Some(len) = table_len {
-            w.write_u8(flag_n(len) | 0x80)
+            w.write_all(&[flag_n(len) | 0x80])
         } else {
-            w.write_u8(0)
+            w.write_all(&[0])
         }
     }
 
     /// Writes and compresses the indexed data
-    fn write_indices<W: Writer>(&mut self,
+    fn write_indices<W: Write>(&mut self,
                                 w: &mut W,
                                 indices: &[u8],
-                               ) -> IoResult<()>
+                               ) -> io::Result<()>
     {
         let code_size = match flag_n(indices.len()) + 1 {
             1 => 2,
@@ -242,22 +243,22 @@ where Container: ArrayLike<u8> {
         };
         let mut encoded_data = Vec::new();
         try!(lzw::encode(indices, LsbWriter::new(&mut encoded_data), code_size));
-        try!(w.write_u8(code_size));
+        try!(w.write_all(&[code_size]));
         for chunk in encoded_data.chunks(255) {
-            try!(w.write_u8((chunk.len()) as u8));
+            try!(w.write_all(&[(chunk.len()) as u8]));
             try!(w.write_all(chunk));
         }
-        w.write_u8(0) // block terminator
+        w.write_all(&[0]) // block terminator
 
     }
 
     /// Writes the image to the file assuming that every pixel is in the color table
     /// If not, the index of the transparent pixel is written
-    fn write_image_simple<W: Writer>(&mut self,
+    fn write_image_simple<W: Write>(&mut self,
                                      w: &mut W,
                                      hist: &[(Rgba<u8>, usize)],
                                      transparent: Option<usize>,
-                                    ) -> IoResult<()>
+                                    ) -> io::Result<()>
     {
         let t_idx = match transparent { Some(i) => i as u8, None => 0 };
         let data: Vec<u8> = self.image.pixels().map(|p| {
@@ -273,11 +274,11 @@ where Container: ArrayLike<u8> {
 
     /// Writes the image as a true color image by splitting the colors
     /// over several frames
-    fn write_true_color<W: Writer>(&mut self,
+    fn write_true_color<W: Write>(&mut self,
                                    w: &mut W,
                                    hist: Vec<(Rgba<u8>, usize)>,
                                    transparent: Option<usize>
-                                  ) -> IoResult<()>
+                                  ) -> io::Result<()>
     {
         let mut hist = hist;
         // Remove transparent idx
@@ -326,16 +327,15 @@ where Container: ArrayLike<u8> {
     }
     /// Writes the image as a true color image by splitting the colors
     /// over several frames
-    fn write_indexed_colors<W: Writer>(&mut self, w: &mut W, n: u8) -> IoResult<()> {
+    fn write_indexed_colors<W: Write>(&mut self, w: &mut W, n: u8) -> io::Result<()> {
         if n < 64 {
-            return  Err(old_io::IoError{
-                kind: old_io::InvalidInput,
-                desc: "Unsupported number of colors.",
-                detail: Some(
-                    format!("{} colors < 64 colors", n))
-            })
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Unsupported number of colors.",
+                Some(format!("{} colors < 64 colors", n))
+            ))
         }
-        let nq = nq::NeuQuant::new(3, 256, self.image.as_slice());
+        let nq = nq::NeuQuant::new(3, 256, &self.image);
         for pixel in self.image.pixels_mut() {
             nq.map_color(pixel);
         }
@@ -357,15 +357,15 @@ where Container: ArrayLike<u8> {
 
     /// Writes the netscape application block to set the number `n` of repetitions
     #[allow(dead_code)]
-    fn write_nab<W: Writer>(&mut self, w: &mut W, n: u16) -> IoResult<()> {
-        try!(w.write_u8(Block::Extension as u8));
-        try!(w.write_u8(Extension::Application as u8));
-        try!(w.write_u8(0x0B)); // size
+    fn write_nab<W: Write>(&mut self, w: &mut W, n: u16) -> io::Result<()> {
+        try!(w.write_all(&[Block::Extension as u8]));
+        try!(w.write_all(&[Extension::Application as u8]));
+        try!(w.write_all(&[0x0B])); // size
         try!(w.write_all(b"NETSCAPE2.0"));
-        try!(w.write_u8(0x03)); // sub-block size
-        try!(w.write_u8(0x01)); // sub-block id
-        try!(w.write_le_u16(n));
-        w.write_u8(0) // terminator
+        try!(w.write_all(&[0x03])); // sub-block size
+        try!(w.write_all(&[0x01])); // sub-block id
+        try!(w.write_u16::<LittleEndian>(n));
+        w.write_all(&[0]) // terminator
     }
 }
 

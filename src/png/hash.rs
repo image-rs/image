@@ -5,8 +5,6 @@
 //!
 //! *http://en.wikipedia.org/wiki/Cyclic_redundancy_check - Cyclic Redundancy Check
 
-use std::old_path::BytesContainer;
-
 /// An Implementation of the Adler-32 checksum
 #[derive(Copy)]
 pub struct Adler32 {
@@ -21,8 +19,8 @@ impl Adler32 {
     }
 
     /// Update the internal hasher with the bytes from ```buf```
-    pub fn update<T: BytesContainer>(&mut self, buf: T) {
-        for &byte in buf.container_as_bytes().iter() {
+    pub fn update(&mut self, buf: &[u8]) {
+        for &byte in buf {
             self.s1 = self.s1 + byte as u32;
             self.s2 = self.s1 + self.s2;
 
@@ -43,7 +41,7 @@ impl Adler32 {
     }
 }
 
-static CRC_TABLE: [u32; 256] = [
+const CRC_TABLE: [u32; 256] = [
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419,
     0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4,
     0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07,
@@ -111,8 +109,8 @@ impl Crc32 {
     }
 
     /// Update the internal hasher with the bytes from ```buf```
-    pub fn update<T: BytesContainer>(&mut self, buf: T) {
-        for &byte in buf.container_as_bytes().iter() {
+    pub fn update(&mut self, buf: &[u8]) {
+        for &byte in buf {
             let a = (self.crc ^ byte as u32) & 0xFF;
             let b = self.crc >> 8;
 

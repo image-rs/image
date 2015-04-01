@@ -1,6 +1,6 @@
 //! Function for reading TIFF tags
 
-use std::old_io;
+use std::io::{self, Read, Seek};
 use std::collections::{HashMap};
 
 use super::stream::{ByteOrder, SmartReader, EndianReader};
@@ -142,14 +142,14 @@ impl Entry {
     }
 
     /// Returns a mem_reader for the offset/value field
-    fn r(&self, byte_order: ByteOrder) -> SmartReader<old_io::MemReader> {
+    fn r(&self, byte_order: ByteOrder) -> SmartReader<io::Cursor<Vec<u8>>> {
         SmartReader::wrap(
-            old_io::MemReader::new(self.offset.to_vec()),
+            io::Cursor::new(self.offset.to_vec()),
             byte_order
         )
     }
 
-    pub fn val<R: Reader + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
+    pub fn val<R: Read + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
     -> ::image::ImageResult<Value> {
         let bo = decoder.byte_order();
         match (self.type_, self.count) {
@@ -167,7 +167,7 @@ impl Entry {
             (Type::SHORT, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in range(0, n) {
+                for _ in 0 .. n {
                     v.push(Unsigned(try!(decoder.read_short()) as u32))
                 }
                 Ok(List(v))
@@ -176,7 +176,7 @@ impl Entry {
             (Type::LONG, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in range(0, n) {
+                for _ in 0 .. n {
                     v.push(Unsigned(try!(decoder.read_long())))
                 }
                 Ok(List(v))

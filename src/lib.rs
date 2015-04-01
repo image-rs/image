@@ -7,17 +7,18 @@
 
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
-#![warn(unused_typecasts)]
-#![warn(unused_features)] // reduce errors due to using test&rand features
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(old_io)]
-#![feature(old_path)]
 #![feature(collections)]
+#![feature(io)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
-#![cfg_attr(test, feature(test, path))]
+#![feature(step_by)]
+#![feature(convert)]
+#![feature(slice_patterns)]
+#![cfg_attr(test, feature(test))]
 
+extern crate byteorder;
 extern crate flate;
 extern crate num;
 #[cfg(test)] extern crate test;
@@ -109,12 +110,19 @@ pub mod math;
 pub mod imageops;
 
 // Image Codecs
+#[cfg(feature = "webp")]
 pub mod webp;
+#[cfg(feature = "ppm")]
 pub mod ppm;
+#[cfg(feature = "png")]
 pub mod png;
+#[cfg(feature = "jpeg")]
 pub mod jpeg;
+#[cfg(feature = "gif")]
 pub mod gif;
+#[cfg(feature = "tiff")]
 pub mod tiff;
+#[cfg(feature = "tga")]
 pub mod tga;
 
 

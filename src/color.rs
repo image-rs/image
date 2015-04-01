@@ -1,10 +1,9 @@
 use std::ops::{ Index, IndexMut };
-use std::num;
-use std::num::NumCast;
+use std::num::{ self, NumCast };
 use std::mem;
 
-use buffer::{Pixel};
-use traits::{Primitive, Zero};
+use buffer::Pixel;
+use traits::{ Primitive, Zero };
 
 /// An enumeration over supported color types and their bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone)]
@@ -87,7 +86,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         this
     }
 
-    #[allow(unused_typecasts)]
+    #[allow(trivial_casts)]
     fn channels4(&self) -> (T, T, T, T) {
         let a;
         let mut b = Primitive::max_value();
@@ -168,14 +167,14 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         this
     }
 
-    #[allow(unused_typecasts)]
+    #[allow(trivial_casts)]
     fn apply_with_alpha<F, G>(&mut self, f: F, g: G) where F: Fn(T) -> T, G: Fn(T) -> T {
         let &mut $ident(ref mut this) = self;
         for v in this[..$channels as usize-$alphas as usize].iter_mut() {
             *v = f(*v)
         }
         if $alphas as usize != 0 {
-            let ref mut v = this[$channels as usize-$alphas as usize-1];
+            let v = &mut this[$channels as usize-$alphas as usize-1];
             *v = g(*v)
         }
     }
@@ -207,17 +206,17 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 impl<T: Primitive> Index<usize> for $ident<T> {
     type Output = T;
     #[inline(always)]
-    fn index<'a>(&'a self, _index: &usize) -> &'a T {
+    fn index<'a>(&'a self, _index: usize) -> &'a T {
         let &$ident(ref this) = self;
-        &this[*_index]
+        &this[_index]
     }
 }
 
 impl<T: Primitive> IndexMut<usize> for $ident<T> {
     #[inline(always)]
-    fn index_mut<'a>(&'a mut self, _index: &usize) -> &'a mut T {
+    fn index_mut<'a>(&'a mut self, _index: usize) -> &'a mut T {
         let &mut $ident(ref mut this) = self;
-        &mut this[*_index]
+        &mut this[_index]
     }
 }
 

@@ -1,14 +1,8 @@
-use std::old_io;
-use std::cmp;
-use std::mem;
-use std::iter;
+use std::io::{ self, Read };
+use std::{ cmp, mem, iter, str, slice };
 use std::iter::repeat;
-use std::str;
-use std::slice;
-use std::old_io::IoResult;
-use std::old_io::MemReader;
-use std::num::FromPrimitive;
-use std::num::wrapping::Wrapping;
+use std::num::{ FromPrimitive, Float };
+use byteorder::{ ReadBytesExt, BigEndian };
 
 use image::{
     DecodingResult,
@@ -16,13 +10,12 @@ use image::{
     ImageDecoder,
     ImageError
 };
-use color;
+use color::{ self, ColorType };
 
 use super::filter::unfilter;
 use super::hash::Crc32;
 use super::zlib::ZlibDecoder;
 
-use std::num::Float;
 
 pub static PNGSIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -134,10 +127,11 @@ pub struct PNGDecoder<R> {
     height: u32,
 
     bit_depth: u8,
-    colour_type: u8,
-    pixel_type: color::ColorType,
+    data_color_type: u8,
+    data_pixel_type: ColorType,
 
     palette: Option<Vec<(u8, u8, u8)>>,
+    trns: Option<Vec<u8>>,
 
     interlace_method: InterlaceMethod,
     pass_iterator: Option<Adam7Iterator>,
@@ -150,15 +144,12 @@ pub struct PNGDecoder<R> {
     decoded_rows: u32,
 }
 
-impl<R: Reader> PNGDecoder<R> {
+impl<R: Read> PNGDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> PNGDecoder<R> {
         let idat_reader = IDATReader::new(r);
 
         PNGDecoder {
-            pixel_type: color::ColorType::Gray(1),
-            palette: None,
-
             previous: Vec::new(),
             state: PNGState::Start,
             z: ZlibDecoder::new(idat_reader),
@@ -166,8 +157,14 @@ impl<R: Reader> PNGDecoder<R> {
 
             width: 0,
             height: 0,
+
             bit_depth: 0,
-            colour_type: 0,
+            data_color_type: 0,
+            data_pixel_type: ColorType::Gray(1),
+
+            palette: None,
+            trns: None,
+
             interlace_method: InterlaceMethod::None,
             pass_iterator: None,
 
@@ -191,43 +188,44 @@ impl<R: Reader> PNGDecoder<R> {
     }
 
     fn read_signature(&mut self) -> ImageResult<bool> {
-        let png = try!(self.z.inner().r.read_exact(8));
+        let mut png = Vec::with_capacity(8);
+        try!(self.z.inner().r.by_ref().take(8).read_to_end(&mut png));
 
         Ok(&png == &PNGSIGNATURE)
     }
 
     fn parse_ihdr(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
-        let mut m = MemReader::new(buf);
+        self.crc.update(&*buf);
+        let mut m = io::Cursor::new(buf);
 
-        self.width = try!(m.read_be_u32());
-        self.height = try!(m.read_be_u32());
+        self.width = try!(m.read_u32::<BigEndian>());
+        self.height = try!(m.read_u32::<BigEndian>());
 
-        self.bit_depth = try!(m.read_byte());
-        self.colour_type = try!(m.read_byte());
+        self.bit_depth = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
+        self.data_color_type = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
 
-        self.pixel_type = match (self.colour_type, self.bit_depth) {
-            (0, 1)  => color::ColorType::Gray(1),
-            (0, 2)  => color::ColorType::Gray(2),
-            (0, 4)  => color::ColorType::Gray(4),
-            (0, 8)  => color::ColorType::Gray(8),
-            (0, 16) => color::ColorType::Gray(16),
-            (2, 8)  => color::ColorType::RGB(8),
-            (2, 16) => color::ColorType::RGB(16),
-            (3, 1)  => color::ColorType::RGB(8),
-            (3, 2)  => color::ColorType::RGB(8),
-            (3, 4)  => color::ColorType::RGB(8),
-            (3, 8)  => color::ColorType::RGB(8),
-            (4, 8)  => color::ColorType::GrayA(8),
-            (4, 16) => color::ColorType::GrayA(16),
-            (6, 8)  => color::ColorType::RGBA(8),
-            (6, 16) => color::ColorType::RGBA(16),
+        self.data_pixel_type = match (self.data_color_type, self.bit_depth) {
+            (0, 1)  => ColorType::Gray(1),
+            (0, 2)  => ColorType::Gray(2),
+            (0, 4)  => ColorType::Gray(4),
+            (0, 8)  => ColorType::Gray(8),
+            (0, 16) => ColorType::Gray(16),
+            (2, 8)  => ColorType::RGB(8),
+            (2, 16) => ColorType::RGB(16),
+            (3, 1)  => ColorType::RGB(8),
+            (3, 2)  => ColorType::RGB(8),
+            (3, 4)  => ColorType::RGB(8),
+            (3, 8)  => ColorType::RGB(8),
+            (4, 8)  => ColorType::GrayA(8),
+            (4, 16) => ColorType::GrayA(16),
+            (6, 8)  => ColorType::RGBA(8),
+            (6, 16) => ColorType::RGBA(16),
             (_, _)  => return Err(ImageError::FormatError(
                 "Invalid color/bit depth combination.".to_string()
             ))
         };
 
-        let compression_method = try!(m.read_byte());
+        let compression_method = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
         if compression_method != 0 {
             return Err(ImageError::UnsupportedError(format!(
                 "The compression method {} is not supported.",
@@ -235,7 +233,7 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        let filter_method = try!(m.read_byte());
+        let filter_method = try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)));
         if filter_method != 0 {
             return Err(ImageError::UnsupportedError(format!(
                 "The filter method {} is not supported.",
@@ -243,7 +241,7 @@ impl<R: Reader> PNGDecoder<R> {
             )))
         }
 
-        self.interlace_method = match FromPrimitive::from_u8(try!(m.read_byte())) {
+        self.interlace_method = match FromPrimitive::from_u8(try!(try!(m.by_ref().bytes().next().ok_or(ImageError::ImageEnd)))) {
             Some(method) => method,
             None => return Err(ImageError::UnsupportedError(
                 "Unsupported interlace method.".to_string()
@@ -253,7 +251,7 @@ impl<R: Reader> PNGDecoder<R> {
             self.pass_iterator = Some(Adam7Iterator::new(self.width, self.height))
         }
 
-        let channels = match self.colour_type {
+        let channels = match self.data_color_type {
             0 => 1,
             2 => 3,
             3 => 1,
@@ -273,8 +271,29 @@ impl<R: Reader> PNGDecoder<R> {
         (self.bits_per_pixel as u32 * width + 7) / 8
     }
 
+    fn parse_trns(&mut self, len: usize) -> ImageResult<()> {
+        let length =  match self.data_color_type {
+            0 => 2,
+            2 => 6,
+            3 => len,
+            _ => {
+                return Err(ImageError::FormatError(format!(
+                    "tRNS chunk may not appear for color type {}", self.data_color_type
+                )))
+            }
+        };
+        if length != len {
+            return Err(ImageError::FormatError("Invalid tRNS chunk signature.".to_string()))
+        }
+        let mut buf = Vec::with_capacity(length as usize);
+        try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut buf));
+        self.crc.update(&*buf);
+        self.trns = Some(buf);
+        return Ok(())
+    }
+
     fn parse_plte(&mut self, buf: Vec<u8>) -> ImageResult<()> {
-        self.crc.update(&buf);
+        self.crc.update(&*buf);
 
         let len = buf.len() / 3;
 
@@ -307,13 +326,14 @@ impl<R: Reader> PNGDecoder<R> {
         self.state = PNGState::HaveSignature;
 
         loop {
-            let length = try!(self.z.inner().r.read_be_u32());
-            let chunk  = try!(self.z.inner().r.read_exact(4));
+            let length = try!(self.z.inner().r.read_u32::<BigEndian>());
+            let mut chunk = Vec::with_capacity(4);
+            try!(self.z.inner().r.by_ref().take(4).read_to_end(&mut chunk));
 
             self.chunk_length = length;
             self.chunk_type   = chunk.clone();
 
-            self.crc.update(chunk);
+            self.crc.update(&*chunk);
 
             match (&*self.chunk_type, self.state) {
                 (b"IHDR", PNGState::HaveSignature) => {
@@ -321,23 +341,25 @@ impl<R: Reader> PNGDecoder<R> {
                         return Err(ImageError::FormatError("Invalid PNG signature.".to_string()))
                     }
 
-                    let d = try!(self.z.inner().r.read_exact(length as usize));
+                    let mut d = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut d));
                     try!(self.parse_ihdr(d));
 
                     self.state = PNGState::HaveIHDR;
                 }
 
                 (b"PLTE", PNGState::HaveIHDR) => {
-                    let d = try!(self.z.inner().r.read_exact(length as usize));
+                    let mut d = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut d));
                     try!(self.parse_plte(d));
                     self.state = PNGState::HavePLTE;
                 }
 
-                // (b"tRNS", HavePLTE) => {
-                //     TODO #199: handle transparency
-                // }
+                (b"tRNS", _) => {
+                    try!(self.parse_trns(length as usize));
+                }
 
-                (b"IDAT", PNGState::HaveIHDR) if self.colour_type != 3 => {
+                (b"IDAT", PNGState::HaveIHDR) if self.data_color_type != 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -345,7 +367,7 @@ impl<R: Reader> PNGDecoder<R> {
                     break;
                 }
 
-                (b"IDAT", PNGState::HavePLTE) if self.colour_type == 3 => {
+                (b"IDAT", PNGState::HavePLTE) if self.data_color_type == 3 => {
                     self.state = PNGState::HaveFirstIDat;
                     self.z.inner().set_inital_length(self.chunk_length);
                     self.z.inner().crc.update(&self.chunk_type);
@@ -354,12 +376,13 @@ impl<R: Reader> PNGDecoder<R> {
                 }
 
                 _ => {
-                    let b = try!(self.z.inner().r.read_exact(length as usize));
-                    self.crc.update(b);
+                    let mut b = Vec::with_capacity(length as usize);
+                    try!(self.z.inner().r.by_ref().take(length as u64).read_to_end(&mut b));
+                    self.crc.update(&*b);
                 }
             }
 
-            let chunk_crc = try!(self.z.inner().r.read_be_u32());
+            let chunk_crc = try!(self.z.inner().r.read_u32::<BigEndian>());
             let crc = self.crc.checksum();
 
             if crc != chunk_crc {
@@ -373,7 +396,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 
     fn extract_scanline(&mut self, buf: &mut [u8], rlength: u32) -> ImageResult<u32> {
-        let filter_type = match FromPrimitive::from_u8(try!(self.z.read_byte())) {
+        let filter_type = match FromPrimitive::from_u8(try!(try!(self.z.by_ref().bytes().next().ok_or(ImageError::ImageEnd)))) {
             Some(v) => v,
             _ => return Err(ImageError::FormatError("Unknown filter type.".to_string()))
         };
@@ -390,8 +413,40 @@ impl<R: Reader> PNGDecoder<R> {
         unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
         slice::bytes::copy_memory(&mut self.previous, &buf[..rlength as usize]);
 
+
         if let Some(ref palette) = self.palette {
-            expand_palette(buf, &palette, rlength as usize, self.bit_depth);
+            expand_palette(buf, &palette, rlength as usize, self.bit_depth, self.trns.as_ref().map(|v| &**v));
+        } else if let Some(ref trns) = self.trns {
+            let mut _trns = [0u8; 4];
+            let trns = match self.data_color_type {
+                0 => {
+                    _trns[0] = trns[1];
+                    &_trns[..1]
+                },
+                2 => {
+                    _trns[0] = trns[1];
+                    _trns[2] = trns[5];
+                    _trns[1] = trns[3];
+                    &_trns[..3]
+                },
+                // panic is ok this should have been catched earlier
+                _ => panic!("invalid color type for transparency")
+            };
+            if self.bit_depth < 8 {
+                expand_trns_line_nbits(
+                    buf,
+                    trns[0],
+                    rlength as usize,
+                    self.bit_depth
+                );
+            } else {
+                expand_trns_line(
+                    buf,
+                    trns,
+                    rlength as usize,
+                    color::num_components(self.data_pixel_type)
+                );
+            }
         }
 
         self.decoded_rows += 1;
@@ -400,7 +455,7 @@ impl<R: Reader> PNGDecoder<R> {
     }
 }
 
-impl<R: Reader> ImageDecoder for PNGDecoder<R> {
+impl<R: Read> ImageDecoder for PNGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
@@ -409,12 +464,22 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         Ok((self.width, self.height))
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
+    fn colortype(&mut self) -> ImageResult<ColorType> {
         if self.state == PNGState::Start {
             let _ = try!(self.read_metadata());
         }
-
-        Ok(self.pixel_type)
+        let bits = self.bit_depth;
+        if self.trns.is_some() {
+            Ok(match self.data_pixel_type {
+                ColorType::RGB(n) => ColorType::RGBA(n),
+                ColorType::Gray(_) if bits == 1 || bits == 2 || bits == 4 => ColorType::GrayA(8),
+                _ => return Err(ImageError::FormatError(
+                    "Invalid transparency data".to_string()
+                ))
+            })
+        } else {
+            Ok(self.data_pixel_type)
+        }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -422,7 +487,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
             let _ = try!(self.read_metadata());
         }
 
-        let bits = color::bits_per_pixel(self.pixel_type);
+        let bits = color::bits_per_pixel(try!(self.colortype()));
 
         Ok((bits * self.width as usize + 7) / 8)
     }
@@ -447,7 +512,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
         if let Some(pass_iterator) = self.pass_iterator { // Method == Adam7
             let mut pass_buf: Vec<u8> = repeat(0u8).take(max_rowlen).collect();
             let mut old_pass = 1;
-            let bytes = color::bits_per_pixel(self.pixel_type)/8;
+            let bytes = color::bits_per_pixel(try!(self.colortype()))/8;
             for (pass, line, width) in pass_iterator {
                 let rlength = self.raw_row_length(width);
                 if old_pass != pass {
@@ -456,7 +521,7 @@ impl<R: Reader> ImageDecoder for PNGDecoder<R> {
                         *v = 0;
                     }
                 }
-                let bits = color::bits_per_pixel(self.pixel_type);
+                let bits = color::bits_per_pixel(try!(self.colortype()));
                 let _ = try!(
                     self.extract_scanline(&mut pass_buf[..
                         ((bits * width as usize + 7) / 8)
@@ -506,11 +571,64 @@ fn expand_pass(
     }
 }
 
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let pixels = data.chunks(channels).rev();
+    for (chunk, pixel) in buf.chunks_mut(channels+1).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[channels] = 0
+        } else {
+            chunk[channels] = 0xFF
+        }
+        for i in (0..channels).rev() {
+            chunk[i] = pixel[i];
+        }
+    }
+}
+
+fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            (0 .. 8).step_by(bit_depth)
+           .zip(iter::iterate(
+               v, |v| v
+           )
+        ))
+        .map(|(shift, pixel)|
+           (pixel & mask << shift as usize) >> shift as usize
+        )
+        .map(|pixel| pixel);
+    for (chunk, pixel) in buf.chunks_mut(2).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[1] = 0
+        } else {
+            chunk[1] = 0xFF
+        }
+        chunk[0] = pixel * scaling_factor
+    }
+}
+
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
-                  entries: usize, bit_depth: u8) {
+                  entries: usize, bit_depth: u8, trns: Option<&[u8]>) {
     let bpp = 8 / bit_depth as usize;
-    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp));
-    let mask = (Wrapping(1u8 << bit_depth as usize) - Wrapping(1)).0;
+    let extra = if trns.is_some() { entries * bpp } else { 0 };
+    assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
+    let mask = ((1u16 << bit_depth) - 1) as u8;
     // Unsafe copy create two views into the vector
     // This is unproblematic since it is only locally to this function and a &[u8]
     let data = unsafe {
@@ -522,19 +640,30 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
         .rev() // Reverse iterator
         .flat_map(|&v|
             // This has to be reversed to
-            iter::range_step(0, 8, bit_depth)
+            (0 .. 8).step_by(bit_depth)
             .zip(iter::iterate(
                 v, |v| v
             )
         ))
         //.skip(buf.len() % bpp) // not necessary, why!?
         .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
-    for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
-        palette[i as usize]
-    )) {
-        chunk[0] = r;
-        chunk[1] = g;
-        chunk[2] = b;
+    if let Some(trns) = trns {
+        for (chunk, ((r, g, b), a)) in buf.chunks_mut(4).rev().zip(pixels.map(|i|
+            (palette[i as usize], *trns.get(i as usize).unwrap_or(&0xFF))
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+            chunk[3] = a;
+        }
+    } else {
+        for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
+            palette[i as usize]
+        )) {
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+        }
     }
 }
 
@@ -546,7 +675,7 @@ pub struct IDATReader<R> {
     chunk_length: u32,
 }
 
-impl<R:Reader> IDATReader<R> {
+impl<R: Read> IDATReader<R> {
     pub fn new(r: R) -> IDATReader<R> {
         IDATReader {
             r: r,
@@ -561,10 +690,10 @@ impl<R:Reader> IDATReader<R> {
     }
 }
 
-impl<R: Reader> Reader for IDATReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<R: Read> Read for IDATReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
-            return Err(old_io::standard_error(old_io::EndOfFile))
+            return Ok(0);
         }
 
         let len = buf.len();
@@ -582,17 +711,18 @@ impl<R: Reader> Reader for IDATReader<R> {
             self.crc.update(&*slice);
 
             if self.chunk_length == 0 {
-                let chunk_crc = try!(self.r.read_be_u32());
+                let chunk_crc = try!(self.r.read_u32::<BigEndian>());
                 let crc = self.crc.checksum();
 
                 if crc != chunk_crc {
-                    return Err(old_io::standard_error(old_io::InvalidInput))
+                    return Ok(0);
                 }
 
                 self.crc.reset();
-                self.chunk_length = try!(self.r.read_be_u32());
+                self.chunk_length = try!(self.r.read_u32::<BigEndian>());
 
-                let v = try!(self.r.read_exact(4));
+                let mut v = Vec::with_capacity(4);
+                try!(self.r.by_ref().take(4).read_to_end(&mut v));
                 self.crc.update(&v);
 
                 match str::from_utf8(&v) {
@@ -613,7 +743,10 @@ impl<R: Reader> Reader for IDATReader<R> {
 mod tests {
     extern crate glob;
 
-    use std::old_io::{ self, File, MemReader };
+    use std::io::{self, Read};
+    use std::fs::File;
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
     use test;
 
     use image::{
@@ -625,19 +758,18 @@ mod tests {
     use super::PNGDecoder;
 
     /// Filters the testsuite images for certain features
-    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<Path> {
+    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
         // Find the files matching "./src/png/testdata/pngsuite/*.png".
-        let pattern = Path::new(".").join_many(&["src", "png", "testdata", "pngsuite", "*.png"]);
+        let pattern: PathBuf = [".", "src", "png", "testdata", "pngsuite", "*.png"].iter().collect();
 
-        let paths = glob::glob(pattern.as_str().unwrap()).unwrap()
-            .filter_map(|p| p.ok().map(|p| Path::new(p.to_str().unwrap())))
-            .filter(|ref p| p.filename_str().unwrap().starts_with(feature))
-            .filter(|ref p| p.filename_str().unwrap().contains(color_type));
+        let paths = glob::glob(&pattern.display().to_string()).unwrap().filter_map(Result::ok)
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().starts_with(feature))
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().contains(color_type));
 
-        let ret: Vec<Path> = if test_interlaced {
+        let ret: Vec<PathBuf> = if test_interlaced {
             paths.collect()
         } else {
-            paths.filter(|ref p| !p.filename_str()
+            paths.filter(|ref p| !p.file_name().and_then(OsStr::to_str)
                                    .unwrap()
                                    [2..]
                                    .contains("i"))
@@ -648,8 +780,8 @@ mod tests {
         ret
     }
 
-    fn load_image(path: &Path) -> ImageResult<DecodingResult> {
-        PNGDecoder::new(old_io::File::open(path)).read_image()
+    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsRef<Path> {
+        PNGDecoder::new(try!(File::open(path))).read_image()
     }
 
     #[test]
@@ -739,12 +871,15 @@ mod tests {
     #[bench]
     /// Test basic formats filters
     fn bench_read_small_files(b: &mut test::Bencher) {
-        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path|
-            File::open(path).read_to_end().unwrap()
-        ).collect();
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| {
+            let mut buf = Vec::new();
+            File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+            buf
+        }).collect();
         b.iter(|| {
             for data in image_data.clone().into_iter() {
-                 let _ = PNGDecoder::new(MemReader::new(data)).read_image().unwrap();
+                let data = io::Cursor::new(data);
+                let _ = PNGDecoder::new(data).read_image().unwrap();
             }
         });
         b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
@@ -752,11 +887,13 @@ mod tests {
     #[bench]
     /// Test basic formats filters
     fn bench_read_big_file(b: &mut test::Bencher) {
-        let image_data = File::open(
-            &Path::new(".").join_many(&["examples", "fractal.png"])
-        ).read_to_end().unwrap();
+        let mut image_data = Vec::new();
+        File::open(
+            &PathBuf::from(".").join("examples").join("fractal.png")
+        ).unwrap().read_to_end(&mut image_data).unwrap();
         b.iter(|| {
-            let _ = PNGDecoder::new(MemReader::new(image_data.clone())).read_image().unwrap();
+            let image_data = io::Cursor::new(image_data.clone());
+            let _ = PNGDecoder::new(image_data).read_image().unwrap();
         });
         b.bytes = image_data.len() as u64
     }

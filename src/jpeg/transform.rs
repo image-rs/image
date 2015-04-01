@@ -1,10 +1,12 @@
+use std::num::wrapping::WrappingOps;
+
 // The forward dct's output coefficients are scaled by 8
 // The inverse dct's output samples are clamped to the range [0, 255]
-
 fn level_shift_up(a: i32) -> u8 {
     if a < -128 {0u8}
     else if a > 127 {255u8}
-    else {a as u8 + 128u8}
+    // FIXME check if wrapping add is what we want
+    else {(a as u8).wrapping_add(128u8)}
 }
 
 /*

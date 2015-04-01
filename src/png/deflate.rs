@@ -8,8 +8,8 @@
 use std::cmp;
 use std::iter::repeat;
 use std::num::wrapping::Wrapping as w;
-use std::old_io::IoResult;
-use std::old_io;
+use std::io::{self, Read};
+use byteorder::ReadBytesExt;
 
 static LITERALLENGTHCODES: u16 = 286;
 static DISTANCECODES: u16 = 30;
@@ -77,7 +77,7 @@ pub struct Inflater<R> {
     dtable: Vec<TableElement>,
 }
 
-impl<R: Reader> Inflater<R> {
+impl<R: Read> Inflater<R> {
     /// Create a new decoder that decodes from a Reader
     pub fn new(r: R) -> Inflater<R> {
         Inflater {
@@ -106,7 +106,7 @@ impl<R: Reader> Inflater<R> {
         &mut self.h.r
     }
 
-    fn read_block_type(&mut self) -> IoResult<()> {
+    fn read_block_type(&mut self) -> io::Result<()> {
         let is_final = try!(self.h.receive(1));
         self.finished = is_final == 1;
 
@@ -130,7 +130,7 @@ impl<R: Reader> Inflater<R> {
         Ok(())
     }
 
-    fn read_dynamic_tables(&mut self) -> IoResult<()> {
+    fn read_dynamic_tables(&mut self) -> io::Result<()> {
         let totalcodes = LITERALLENGTHCODES + DISTANCECODES;
 
         let hlit  = try!(self.h.receive(5)) + 257;
@@ -196,7 +196,7 @@ impl<R: Reader> Inflater<R> {
         self.dtable = table_from_lengths(&lengths);
     }
 
-    fn read_stored_block_length(&mut self) -> IoResult<()> {
+    fn read_stored_block_length(&mut self) -> io::Result<()> {
         self.h.byte_align();
 
         let len   = try!(self.h.receive(16));
@@ -207,7 +207,7 @@ impl<R: Reader> Inflater<R> {
         Ok(())
     }
 
-    fn read_stored_block(&mut self) -> IoResult<()> {
+    fn read_stored_block(&mut self) -> io::Result<()> {
         while self.block_length > 0 {
             let a = try!(self.h.receive(8));
 
@@ -219,7 +219,7 @@ impl<R: Reader> Inflater<R> {
         Ok(())
     }
 
-    fn read_compressed_block(&mut self) -> IoResult<()> {
+    fn read_compressed_block(&mut self) -> io::Result<()> {
         loop {
             let s = try!(self.h.decode_symbol(&self.lltable));
 
@@ -258,11 +258,11 @@ impl<R: Reader> Inflater<R> {
     }
 }
 
-impl<R: Reader> Reader for Inflater<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<R: Read> Read for Inflater<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.pos as usize == self.buf.len() {
             if self.finished {
-                return Err(old_io::standard_error(old_io::EndOfFile))
+                return Ok(0);
             }
 
             let _ = try!(self.read_block_type());
@@ -362,12 +362,12 @@ struct HuffReader<R> {
     num_bits: u8,
 }
 
-impl<R: Reader> HuffReader<R> {
+impl<R: Read> HuffReader<R> {
     pub fn new(r: R) -> HuffReader<R> {
         HuffReader {r: r, bits: 0, num_bits: 0}
     }
 
-    pub fn guarantee(&mut self, n: u8) -> IoResult<()> {
+    pub fn guarantee(&mut self, n: u8) -> io::Result<()> {
         while self.num_bits < n {
             let byte = try!(self.r.read_u8());
 
@@ -390,7 +390,7 @@ impl<R: Reader> HuffReader<R> {
         self.num_bits -= n;
     }
 
-    pub fn receive(&mut self, n: u8) -> IoResult<u16> {
+    pub fn receive(&mut self, n: u8) -> io::Result<u16> {
         let _ = try!(self.guarantee(n));
 
         let val = self.bits & ((1 << n as usize) - 1);
@@ -399,7 +399,7 @@ impl<R: Reader> HuffReader<R> {
         Ok(val as u16)
     }
 
-    pub fn decode_symbol(&mut self, table: &[TableElement]) -> IoResult<u16> {
+    pub fn decode_symbol(&mut self, table: &[TableElement]) -> io::Result<u16> {
         let _ = try!(self.guarantee(1));
 
         loop {

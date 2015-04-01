@@ -1,8 +1,8 @@
 [package]
 name = "image"
-version = "0.2.0-alpha.11"
+version = "0.3.3"
 license = "MIT"
-description = "A pure rust imaging library. Note that there is a bug in crates.io use image = \"~0.2.0\" for your dependency instead of the suggested one."
+description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
     "ccgn",
     "bvssvni <bvssvni@gmail.com>",
@@ -21,10 +21,22 @@ exclude = [
 name = "image"
 path = "./src/lib.rs"
 
+[dependencies.byteorder]
+version = "0.3.3"
+
 [dependencies.num]
-git = "https://github.com/rust-lang/num"
-#version = "0.1.10"
+version = "0.1.18"
 
 [dev-dependencies.glob]
-git = "https://github.com/rust-lang/glob"
-#version = "0.2.1"
+version = "0.2.7"
+
+[features]
+default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp"]
+
+gif = []
+jpeg = []
+png = []
+ppm = []
+tga = []
+tiff = []
+webp = []

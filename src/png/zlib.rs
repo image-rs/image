@@ -5,8 +5,8 @@
 //! # Related Links
 //! *http://tools.ietf.org/html/rfc1950 - ZLIB Compressed Data Format Specification
 
-use std::old_io;
-use std::old_io::IoResult;
+use std::io::{self, Read};
+use byteorder::{ReadBytesExt, BigEndian};
 
 use super::hash::Adler32;
 use super::deflate::Inflater;
@@ -24,7 +24,7 @@ pub struct ZlibDecoder<R> {
     state: ZlibState,
 }
 
-impl<R: Reader> ZlibDecoder<R> {
+impl<R: Read> ZlibDecoder<R> {
     /// Create a new decoder that decodes from a Reader
     pub fn new(r: R) -> ZlibDecoder<R> {
         ZlibDecoder {
@@ -39,7 +39,7 @@ impl<R: Reader> ZlibDecoder<R> {
         self.inflate.inner()
     }
 
-    fn read_header(&mut self) -> IoResult<()> {
+    fn read_header(&mut self) -> io::Result<()> {
         let cmf = try!(self.inner().read_u8());
         let _cm = cmf & 0x0F;
         let _cinfo = cmf >> 4;
@@ -47,7 +47,7 @@ impl<R: Reader> ZlibDecoder<R> {
         let flg = try!(self.inner().read_u8());
         let fdict  = (flg & 0b100000) != 0;
         if fdict {
-            let _dictid = try!(self.inner().read_be_u32());
+            let _dictid = try!(self.inner().read_u32::<BigEndian>());
             panic!("invalid png: zlib detected fdict true")
         }
 
@@ -56,8 +56,8 @@ impl<R: Reader> ZlibDecoder<R> {
         Ok(())
     }
 
-    fn read_checksum(&mut self) -> IoResult<()> {
-        let stream_adler32 = try!(self.inner().read_be_u32());
+    fn read_checksum(&mut self) -> io::Result<()> {
+        let stream_adler32 = try!(self.inner().read_u32::<BigEndian>());
         let adler32 = self.adler.checksum();
 
         assert!(adler32 == stream_adler32);
@@ -67,8 +67,8 @@ impl<R: Reader> ZlibDecoder<R> {
     }
 }
 
-impl<R: Reader> Reader for ZlibDecoder<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<R: Read> Read for ZlibDecoder<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.state {
             ZlibState::CompressedData => {
                 match self.inflate.read(buf) {
@@ -93,7 +93,7 @@ impl<R: Reader> Reader for ZlibDecoder<R> {
                 self.read(buf)
             }
 
-            ZlibState::End => Err(old_io::standard_error(old_io::EndOfFile))
+            ZlibState::End => Ok(0)
         }
     }
 }

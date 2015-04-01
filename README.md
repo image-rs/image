@@ -15,9 +15,8 @@ All image processing functions provided operate on types that implement the ```G
 Add the following to the Cargo.toml in your project:
 
 ```
-[dependencies.image]
-
-git = "https://github.com/PistonDevelopers/image"
+[dependencies]
+image = "*"
 ```
 
 and import using ```extern crate```:
@@ -220,6 +219,7 @@ extern crate num;
 extern crate image;
 
 use std::old_io::File;
+use std::old_path::Path;
 
 use num::complex::Complex;
 
@@ -264,7 +264,7 @@ fn main() {
     let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
 
     // We must indicate the image’s color type and what format to save as
-    let _    = image::ImageLuma8(imgbuf).save(fout, image::PNG);
+    image::ImageLuma8(imgbuf).save(fout, image::PNG);
 }
 ```
 

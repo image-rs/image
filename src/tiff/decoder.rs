@@ -1,8 +1,8 @@
-use std::old_io;
-use std::old_io::IoResult;
+use std::io::{self, Read, Seek};
 use std::mem;
 use std::num::{ Int, Float, FromPrimitive };
 use std::collections::HashMap;
+use byteorder;
 
 use image;
 use image::{
@@ -64,7 +64,7 @@ enum Predictor {
 ///
 /// Currently does not support decoding of interlaced images
 #[derive(Debug)]
-pub struct TIFFDecoder<R> where R: Reader + Seek {
+pub struct TIFFDecoder<R> where R: Read + Seek {
     reader: SmartReader<R>,
     byte_order: ByteOrder,
     next_ifd: Option<u32>,
@@ -109,7 +109,7 @@ fn rev_hpredict(image: DecodingResult, size: (u32, u32), color_type: ColorType) 
     })
 }
 
-impl<R: Reader + Seek> TIFFDecoder<R> {
+impl<R: Read + Seek> TIFFDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<TIFFDecoder<R>> {
         TIFFDecoder {
@@ -127,7 +127,9 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
 
     fn read_header(&mut self) -> ImageResult<()> {
-        match &*try!(self.reader.read_exact(2)) {
+        let mut endianess = Vec::with_capacity(2);
+        try!(self.reader.by_ref().take(2).read_to_end(&mut endianess));
+        match &*endianess {
             b"II" => {
                 self.byte_order = ByteOrder::LittleEndian;
                 self.reader.byte_order = ByteOrder::LittleEndian; },
@@ -226,28 +228,30 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
 
     /// Reads a TIFF short value
     #[inline]
-    pub fn read_short(&mut self) -> IoResult<u16> {
+    pub fn read_short(&mut self) -> Result<u16, byteorder::Error> {
         self.reader.read_u16()
     }
 
     /// Reads a TIFF long value
     #[inline]
-    pub fn read_long(&mut self) -> IoResult<u32> {
+    pub fn read_long(&mut self) -> Result<u32, byteorder::Error> {
         self.reader.read_u32()
     }
 
     /// Reads a TIFF IFA offset/value field
     #[inline]
-    pub fn read_offset(&mut self) -> IoResult<[u8; 4]> {
+    pub fn read_offset(&mut self) -> Result<[u8; 4], byteorder::Error> {
         let mut val = [0; 4];
-        let _ = try!(self.reader.read_at_least(4, &mut val));
+        if try!(self.reader.read(&mut val)) != 4 {
+            return Err(byteorder::Error::UnexpectedEOF);
+        }
         Ok(val)
     }
 
     /// Moves the cursor to the specified offset
     #[inline]
-    pub fn goto_offset(&mut self, offset: u32) -> IoResult<()> {
-        self.reader.seek(offset as i64, old_io::SeekSet)
+    pub fn goto_offset(&mut self, offset: u32) -> io::Result<()> {
+        self.reader.seek(io::SeekFrom::Start(offset as u64)).map(|_| ())
     }
 
     /// Reads a IFD entry.
@@ -407,7 +411,7 @@ impl<R: Reader + Seek> TIFFDecoder<R> {
     }
 }
 
-impl<R: Reader + Seek> ImageDecoder for TIFFDecoder<R> {
+impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width, self.height))
 

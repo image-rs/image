@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::io;
 use std::io::Write;
 use byteorder::{WriteBytesExt, LittleEndian};
-use std::num::Int;
 
 use buffer::{ImageBuffer, Pixel};
 use color::{Rgb, Rgba};
@@ -58,13 +57,14 @@ where Container: Deref<Target=[u8]> + DerefMut {
 
     /// Encodes the image
     pub fn encode<W: Write>(&mut self, w: &mut W) -> io::Result<()> {
+        use std::u16;
         // Header
         try!(w.write_all(b"GIF89a"));
         // Logical screen descriptor
         let height = self.image.height();
         let width = self.image.width();
-        if width > <u16 as Int>::max_value() as u32 ||
-           height > <u16 as Int>::max_value() as u32 {
+        if width > u16::MAX as u32 ||
+           height > u16::MAX as u32 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Image dimensions are too large for the gif format.",

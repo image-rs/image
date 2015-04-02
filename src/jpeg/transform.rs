@@ -1,5 +1,3 @@
-use std::num::wrapping::WrappingOps;
-
 // The forward dct's output coefficients are scaled by 8
 // The inverse dct's output samples are clamped to the range [0, 255]
 fn level_shift_up(a: i32) -> u8 {

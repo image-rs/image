@@ -1,8 +1,9 @@
 use std::io::{self, Read, Seek};
 use std::mem;
-use std::num::{ Int, Float, FromPrimitive };
+use std::num::FromPrimitive;
 use std::collections::HashMap;
 use byteorder;
+use num;
 
 use image;
 use image::{
@@ -77,7 +78,11 @@ pub struct TIFFDecoder<R> where R: Read + Seek {
     compression_method: CompressionMethod
 }
 
-fn rev_hpredict_nsamp<T: Int>(mut image: Vec<T>, size: (u32, u32), samples: usize) -> Vec<T> {
+fn rev_hpredict_nsamp<T>(mut image: Vec<T>,
+                         size: (u32, u32),
+                         samples: usize)
+                         -> Vec<T>
+                         where T: num::Num + Copy {
     let width = size.0 as usize;
     let height = size.1 as usize;
     for row in (0..height) {

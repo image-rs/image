@@ -14,7 +14,7 @@ use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
 /// An enumeration of Image Errors
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ImageError {
     /// The Image is not formatted properly
     FormatError(String),

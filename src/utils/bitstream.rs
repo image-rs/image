@@ -82,7 +82,6 @@ impl<R> BitReader for LsbReader<R> where R: Read {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Cannot read more than 16 bits",
-                None
             ))
         }
         while self.bits < n {
@@ -104,7 +103,6 @@ impl<R> BitReader for MsbReader<R> where R: Read {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Cannot read more than 16 bits",
-                None
             ))
         }
         while self.bits < n {

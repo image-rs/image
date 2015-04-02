@@ -67,8 +67,7 @@ where Container: Deref<Target=[u8]> + DerefMut {
            height > <u16 as Int>::max_value() as u32 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Image dimensions are to large for the gif format.",
-                None
+                "Image dimensions are too large for the gif format.",
             ))
         }
         try!(w.write_u16::<LittleEndian>(width as u16));
@@ -331,8 +330,7 @@ where Container: Deref<Target=[u8]> + DerefMut {
         if n < 64 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Unsupported number of colors.",
-                Some(format!("{} colors < 64 colors", n))
+                &format!("Unsupported number of colors: {} < 64", n)[..],
             ))
         }
         let nq = nq::NeuQuant::new(3, 256, &self.image);

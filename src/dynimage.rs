@@ -562,11 +562,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "Unsupported image format.",
-            Some(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            ))
+            &format!("Unsupported image format image/{:?}", format)[..],
         ))
     }
 }

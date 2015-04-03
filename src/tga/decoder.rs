@@ -294,7 +294,7 @@ impl<R: Read + Seek> TGADecoder<R> {
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
-            result.push_all(color_map.get(index));
+            result.extend(color_map.get(index).iter().map(|&c| c));
         }
 
         result
@@ -339,7 +339,7 @@ impl<R: Read + Seek> TGADecoder<R> {
                 let mut data = Vec::with_capacity(self.bytes_per_pixel);
                 try!(self.r.by_ref().take(self.bytes_per_pixel as u64).read_to_end(&mut data));
                 for _ in (0usize..repeat_count) {
-                    pixel_data.push_all(&data);
+                    pixel_data.extend(data.iter().map(|&c| c));
                 }
                 num_read += repeat_count;
             } else {

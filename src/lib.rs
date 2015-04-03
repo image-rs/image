@@ -9,7 +9,6 @@
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
 #![feature(step_by)]

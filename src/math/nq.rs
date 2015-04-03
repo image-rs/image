@@ -51,7 +51,7 @@ const BETAGAMMA: f64 = BETA * GAMMA;
 // that it is divisible by all four primes
 const PRIMES: [usize; 4] = [499, 491, 478, 503];
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct Quad<T> {
     r: T,
     g: T,

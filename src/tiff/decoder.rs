@@ -26,7 +26,7 @@ use super::stream::{
     LZWReader
 };
 
-#[derive(Copy, Debug, FromPrimitive, PartialEq)]
+#[derive(Clone, Copy, Debug, FromPrimitive, PartialEq)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -38,7 +38,7 @@ enum PhotometricInterpretation {
     CIELab = 8,
 }
 
-#[derive(Copy, Debug, FromPrimitive)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum CompressionMethod {
     None = 1,
     Huffman = 2,
@@ -49,13 +49,13 @@ enum CompressionMethod {
     PackBits = 32773
 }
 
-#[derive(Copy, Debug, FromPrimitive)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum PlanarConfiguration {
     Chunky = 1,
     Planar = 2
 }
 
-#[derive(Copy, Debug, FromPrimitive)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum Predictor {
     None = 1,
     Horizontal = 2

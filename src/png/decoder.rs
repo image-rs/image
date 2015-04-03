@@ -20,7 +20,7 @@ use super::zlib::ZlibDecoder;
 pub static PNGSIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 
-#[derive(Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum PNGState {
     Start,
     HaveSignature,
@@ -33,7 +33,7 @@ enum PNGState {
     HaveIEND
 }
 
-#[derive(Copy, FromPrimitive, Debug, PartialEq)]
+#[derive(Clone, Copy, FromPrimitive, Debug, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1
@@ -51,7 +51,7 @@ enum InterlaceMethod {
 ///     56565656
 ///     77777777
 ///
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct Adam7Iterator {
     line: u32,
     lines: u32,

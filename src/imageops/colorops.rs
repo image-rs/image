@@ -128,7 +128,7 @@ pub trait ColorMap {
 }
 
 /// A bi-level color map
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct BiLevel;
 
 impl ColorMap for BiLevel {

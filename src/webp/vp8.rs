@@ -728,7 +728,7 @@ impl BoolReader {
     }
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct MacroBlock {
     bpred:       [i8; 16],
     complexity:  [u8; 9],
@@ -780,7 +780,7 @@ pub struct Frame {
     sharpness_level: u8,
 }
 
-#[derive(Copy, Default)]
+#[derive(Clone, Copy, Default)]
 struct Segment {
     ydc: i16,
     yac: i16,

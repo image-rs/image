@@ -94,7 +94,7 @@ pub enum DecodingBuffer<'a> {
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[derive(Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     PNG,

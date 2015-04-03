@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.3.4"
+version = "0.3.5"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -22,13 +22,13 @@ name = "image"
 path = "./src/lib.rs"
 
 [dependencies.byteorder]
-version = "0.3.3"
+version = "0.3.5"
 
 [dependencies.num]
-version = "0.1.18"
+version = "0.1.20"
 
 [dev-dependencies.glob]
-version = "0.2.7"
+version = "0.2.9"
 
 [features]
 default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp"]

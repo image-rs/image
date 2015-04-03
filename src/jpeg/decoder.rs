@@ -3,9 +3,7 @@ use std::slice;
 use std::io::Read;
 use std::default::Default;
 use std::collections::vec_map::VecMap;
-use std::num::Float;
 use std::iter::repeat;
-use std::num::wrapping::WrappingOps;
 use byteorder::{ReadBytesExt, BigEndian};
 
 use color;

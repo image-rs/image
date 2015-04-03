@@ -2,7 +2,6 @@ use std::slice::{ Chunks, ChunksMut };
 use std::any::TypeId;
 use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::{ Reflect, PhantomData };
-use std::num::Int;
 use std::iter::repeat;
 use std::path::Path;
 use std::io;

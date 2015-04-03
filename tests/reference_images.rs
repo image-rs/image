@@ -1,10 +1,8 @@
 //! Compares the decoding results with reference renderings.
-#![feature(core)] 
 
 use std::fs;
-use std::num;
+use std::u32;
 use std::path::PathBuf;
-
 
 extern crate image;
 extern crate glob;
@@ -13,7 +11,6 @@ const BASE_PATH: [&'static str; 2] = [".", "tests"];
 const IMAGE_DIR: &'static str = "images";
 const OUTPUT_DIR: &'static str = "output";
 const REFERENCE_DIR: &'static str = "reference";
-
 
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where F: Fn(&PathBuf, PathBuf, &str) {
@@ -94,7 +91,7 @@ fn check_references() {
 			.split(".").take(2)
 			.collect::<Vec<_>>().connect(".")
 		);
-        let ref_crc = num::from_str_radix(filename
+        let ref_crc = u32::from_str_radix(filename
             .as_os_str()
             .to_str().unwrap()
             .split(".").nth(2).unwrap(), 16

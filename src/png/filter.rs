@@ -1,4 +1,3 @@
-use std::num::SignedInt;
 use std::num::Wrapping as w;
 
 #[derive(FromPrimitive, Debug)]

@@ -10,11 +10,9 @@
 #![deny(missing_copy_implementations)]
 #![feature(core)]
 #![feature(collections)]
-#![feature(io)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
 #![feature(step_by)]
-#![feature(convert)]
 #![feature(slice_patterns)]
 #![cfg_attr(test, feature(test))]
 

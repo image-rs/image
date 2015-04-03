@@ -1,7 +1,6 @@
 use std::iter::repeat;
 use std::io::Read;
 use byteorder::ReadBytesExt;
-use std::num::wrapping::WrappingOps;
 
 use image;
 use image::ImageResult;

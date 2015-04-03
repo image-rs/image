@@ -2,13 +2,13 @@
 
 // Note copied from the stdlib under MIT license
 
-use std::ops::{ Add, Div, Mul, Neg, Rem, Sub };
+use std::ops::{ Add, Div, Mul, Rem, Sub };
 use std::num::{ Float, Int, NumCast };
 use std::marker::Reflect;
 
 /// Num trait from old stdlib
-pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + Neg<Output=Self> + PartialEq<Self> { }
-impl<A: Zero + One + Add<Output=A> + Sub<Output=A> + Mul<Output=A> + Div<Output=A> + Rem<Output=A> + Neg<Output=A> + PartialEq<A>> Num for A { }
+pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + PartialEq<Self> { }
+impl<A: Zero + One + Add<Output=A> + Sub<Output=A> + Mul<Output=A> + Div<Output=A> + Rem<Output=A> + PartialEq<A>> Num for A { }
 
 /// Zero trait from old stdlib
 pub trait Zero: Add<Output=Self> {

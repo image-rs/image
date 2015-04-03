@@ -423,17 +423,36 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        match (&*self.bits_per_sample, self.photometric_interpretation) {
-            // TODO: catch also [ 8,  8,  8, _] this does not work due to a bug in rust atm
-            ([ 8,  8,  8, 8],  PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(8)),
-            ([ 8,  8,  8],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(8)),
-            ([16, 16, 16, 16], PhotometricInterpretation::RGB) => Ok(ColorType::RGBA(16)),
-            ([16, 16, 16],     PhotometricInterpretation::RGB) => Ok(ColorType::RGB(16)),
-            ([ n], PhotometricInterpretation::BlackIsZero)
-            |([ n], PhotometricInterpretation::WhiteIsZero) => Ok(ColorType::Gray(n)),
-            (bits, mode) => return Err(::image::ImageError::UnsupportedError(format!(
-                "{:?} with {:?} bits per sample is unsupported", mode, bits
-            ))) // TODO: this is bad we should not fail at this point
+        if self.bits_per_sample == [8, 8, 8, 8] &&
+           self.photometric_interpretation == PhotometricInterpretation::RGB
+        {
+            Ok(ColorType::RGBA(8))
+
+        } else if self.bits_per_sample == [8, 8, 8] &&
+                  self.photometric_interpretation == PhotometricInterpretation::RGB
+        {
+            Ok(ColorType::RGB(8))
+
+        } else if self.bits_per_sample == [16, 16, 16, 16] &&
+                  self.photometric_interpretation == PhotometricInterpretation::RGB
+        {
+            Ok(ColorType::RGBA(16))
+
+        } else if self.bits_per_sample == [16, 16, 16] &&
+                  self.photometric_interpretation == PhotometricInterpretation::RGB
+        {
+            Ok(ColorType::RGB(16))
+
+        } else if self.bits_per_sample.len() == 1 &&
+                  (self.photometric_interpretation == PhotometricInterpretation::BlackIsZero ||
+                   self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero)
+        {
+            Ok(ColorType::Gray(self.bits_per_sample[0]))
+
+        } else {
+            return Err(::image::ImageError::UnsupportedError(format!(
+                "{:?} with {:?} bits per sample is unsupported", self.bits_per_sample, self.photometric_interpretation
+            ))) // TODO: this is bad we should not fail at this point}
         }
     }
 

@@ -14,7 +14,7 @@ macro_rules! tags {
     )*} => {
 
         /// TIFF tag
-        #[derive(Copy, PartialEq, Eq, Debug, Hash)]
+        #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16)
@@ -74,7 +74,7 @@ tags!{
     Predictor 317;
 }
 
-#[derive(Copy, Debug, FromPrimitive)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,

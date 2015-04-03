@@ -16,7 +16,7 @@ use super::{Extension, Block, DisposalMethod};
 
 use math::nq;
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[allow(unused_qualifications)]
 /// The color mode the encoder will use to encode the image.
 pub enum ColorMode {

@@ -19,7 +19,7 @@ use image::GenericImage;
 use math::utils::clamp;
 
 /// Available Sampling Filters
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum FilterType {
     /// Nearest Neighbor
     Nearest,

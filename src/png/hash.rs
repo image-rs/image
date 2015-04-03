@@ -6,7 +6,7 @@
 //! *http://en.wikipedia.org/wiki/Cyclic_redundancy_check - Cyclic Redundancy Check
 
 /// An Implementation of the Adler-32 checksum
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct Adler32 {
     s1: u32,
     s2: u32
@@ -97,7 +97,7 @@ const CRC_TABLE: [u32; 256] = [
 ];
 
 /// An Implementation of the Crc-32 checksum
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct Crc32 {
     crc: u32,
 }

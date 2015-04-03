@@ -6,7 +6,7 @@ use byteorder::{self, ReadBytesExt, BigEndian, LittleEndian};
 use utils::{lzw, bitstream};
 
 /// Byte order of the TIFF file.
-#[derive(Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum ByteOrder {
     /// little endian byte order
     LittleEndian,

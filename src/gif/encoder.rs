@@ -161,18 +161,18 @@ where Container: Deref<Target=[u8]> + DerefMut {
                         bg_index = i;
                     }
                 }
-                table.push_all(channels)
+                table.extend(channels.iter().map(|&c| c))
             }
             // Waste some space as of gif spec
             for _ in 0..((2 << n) - num_colors) {
-                table.push_all(&[0, 0, 0]);
+                table.extend([0, 0, 0].iter().map(|&c| c));
             }
             (Some(table), bg_index as u8)
         } else if let Some(bg_color) = self.bg_color {
             flags |= 1 << 7; // glocal table flag
             let mut table = Vec::with_capacity(6);
-            table.push_all(&bg_color.channels()[..3]);
-            table.push_all(&[0, 0, 0]);
+            table.extend(bg_color.channels().iter().take(3).map(|&c| c));
+            table.extend([0, 0, 0].iter().map(|&c| c));
             (Some(table), 0)
         } else {
             (None, 0)

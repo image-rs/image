@@ -9,11 +9,9 @@
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
 #![feature(core)]
-#![feature(collections)]
 #![feature(std_misc)]
 #![feature(rustc_private)]
 #![feature(step_by)]
-#![feature(slice_patterns)]
 #![cfg_attr(test, feature(test))]
 
 extern crate byteorder;

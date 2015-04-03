@@ -391,8 +391,10 @@ impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t: T = Primitive::max_value();
         let max_t = max_t.to_f32().unwrap();
-        let &mut LumaA([bg_luma, bg_a]) = self;
-        let &LumaA([fg_luma, fg_a]) = other;
+
+        let (bg_luma, bg_a) = match self { &mut LumaA(ref d) => (d[0], d[1]) };
+        let (fg_luma, fg_a) = match other { &LumaA(ref d) => (d[0], d[1]) };
+
         let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
@@ -423,8 +425,8 @@ impl<T: Primitive> Blend for Rgba<T> {
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
         let max_t: T = Primitive::max_value();
         let max_t = max_t.to_f32().unwrap();
-        let &mut Rgba([bg_r, bg_g, bg_b, bg_a]) = self;
-        let &Rgba([fg_r, fg_g, fg_b, fg_a]) = other;
+        let (bg_r, bg_g, bg_b, bg_a) = match self { &mut Rgba(ref d) => (d[0], d[1], d[2], d[3]) };
+        let (fg_r, fg_g, fg_b, fg_a) = match other { &Rgba(ref d) => (d[0], d[1], d[2], d[3]) };
         let (bg_r, bg_g, bg_b, bg_a) = (bg_r.to_f32().unwrap() / max_t, bg_g.to_f32().unwrap() / max_t, bg_b.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
@@ -465,20 +467,20 @@ pub trait Invert {
 
 impl<T: Primitive> Invert for LumaA<T> {
     fn invert(&mut self) {
-        let &mut LumaA([l, a]) = self;
+        let &mut LumaA(l) = self;
         let max: T = Primitive::max_value();
 
-        *self = LumaA([max - l, a])
+        *self = LumaA([max - l[0], l[1]])
 
     }
 }
 
 impl<T: Primitive> Invert for Luma<T> {
     fn invert(&mut self) {
-        let &mut Luma([l]) = self;
+        let &mut Luma(l) = self;
 
         let max: T = Primitive::max_value();
-        let l1 = max - l;
+        let l1 = max - l[0];
 
         *self = Luma([l1])
     }
@@ -486,23 +488,23 @@ impl<T: Primitive> Invert for Luma<T> {
 
 impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
-        let &mut Rgba([r, g, b, a]) = self;
+        let &mut Rgba(rgba) = self;
 
         let max: T = Primitive::max_value();
 
-        *self = Rgba([max - r, max - g, max - b, a])
+        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
 }
 
 impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
-        let &mut Rgb([r, g, b]) = self;
+        let &mut Rgb(rgb) = self;
 
         let max: T = Primitive::max_value();
 
-        let r1 = max - r;
-        let g1 = max - g;
-        let b1 = max - b;
+        let r1 = max - rgb[0];
+        let g1 = max - rgb[1];
+        let b1 = max - rgb[2];
 
         *self = Rgb([r1, g1, b1])
     }

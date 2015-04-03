@@ -2,7 +2,7 @@ use std::cmp;
 use std::slice;
 use std::io::Read;
 use std::default::Default;
-use std::collections::vec_map::VecMap;
+use std::collections::HashMap;
 use std::iter::repeat;
 use byteorder::{ReadBytesExt, BigEndian};
 
@@ -114,7 +114,7 @@ pub struct JPEGDecoder<R> {
 
     num_components: u8,
     scan_components: Vec<u8>,
-    components: VecMap<Component>,
+    components: HashMap<usize, Component>,     // TODO: replace by `VecMap`
 
     mcu_row: Vec<u8>,
     mcu: Vec<u8>,
@@ -150,7 +150,7 @@ impl<R: Read>JPEGDecoder<R> {
 
             num_components: 0,
             scan_components: Vec::new(),
-            components: VecMap::new(),
+            components: HashMap::new(),
 
             mcu_row: Vec::new(),
             mcu: Vec::new(),

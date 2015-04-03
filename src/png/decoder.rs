@@ -571,56 +571,59 @@ fn expand_pass(
     }
 }
 
+#[inline(always)]
+fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
+where F: Fn(u8, &mut[u8]) {
+    let entries = buf.len()/channels/(8/bit_depth as usize);
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    let i =
+        (0..entries)
+        .rev() // Reverse iterator
+        .flat_map(|idx|
+            // This has to be reversed to
+            (0 .. 8).step_by(bit_depth)
+            .zip(iter::iterate(
+                idx, |idx| idx
+            )
+        ));
+    let channels = channels as isize;
+    let j = (buf.len() as isize - channels..-(channels)).step_by(-channels);
+    //let j = (0..buf.len()).step_by(channels).rev() // ideal solution;
+    for ((shift, i), j) in i.zip(j) {
+        let pixel = (buf[i] & (mask << shift)) >> shift;
+        func(pixel, &mut buf[j as usize..(j + channels) as usize])
+    }
+}
+
 fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
-    // Unsafe copy create two views into the vector
-    // This is unproblematic since it is only locally to this function and a &[u8]
-    let data = unsafe {
-        let view: &mut [u8] = mem::transmute_copy(&buf);
-        &view[..entries]
-    };
-    let pixels = data.chunks(channels).rev();
-    for (chunk, pixel) in buf.chunks_mut(channels+1).rev().zip(pixels) {
-        if pixel == trns {
-            chunk[channels] = 0
+    let channels = channels as isize;
+    let i = (buf.len() as isize / (channels+1) * channels - channels..-(channels)).step_by(-channels);
+    let j = (buf.len() as isize - (channels+1)..-(channels+1)).step_by(-(channels+1));
+    let channels = channels as usize;
+    for (i, j) in i.zip(j) {
+        let i_pixel = i as usize;
+        let j_chunk = j as usize;
+        if &buf[i_pixel..i_pixel+channels] == trns {
+            buf[j_chunk+channels] = 0
         } else {
-            chunk[channels] = 0xFF
+            buf[j_chunk+channels] = 0xFF
         }
-        for i in (0..channels).rev() {
-            chunk[i] = pixel[i];
+        for k in (0..channels).rev() {
+            buf[j_chunk+k] = buf[i_pixel+k];
         }
     }
 }
 
 fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
-    // Unsafe copy create two views into the vector
-    // This is unproblematic since it is only locally to this function and a &[u8]
-    let data = unsafe {
-        let view: &mut [u8] = mem::transmute_copy(&buf);
-        &view[..entries]
-    };
     let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
-    let mask = ((1u16 << bit_depth) - 1) as u8;
-    let pixels = data
-        .iter()
-        .rev() // Reverse iterator
-        .flat_map(|&v|
-            (0 .. 8).step_by(bit_depth)
-           .zip(iter::iterate(
-               v, |v| v
-           )
-        ))
-        .map(|(shift, pixel)|
-           (pixel & mask << shift as usize) >> shift as usize
-        )
-        .map(|pixel| pixel);
-    for (chunk, pixel) in buf.chunks_mut(2).rev().zip(pixels) {
+    expand_packed(buf, 2, bit_depth, |pixel, chunk| {
         if pixel == trns {
             chunk[1] = 0
         } else {
             chunk[1] = 0xFF
         }
         chunk[0] = pixel * scaling_factor
-    }
+    })
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
@@ -628,42 +631,24 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
     let bpp = 8 / bit_depth as usize;
     let extra = if trns.is_some() { entries * bpp } else { 0 };
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
-    let mask = ((1u16 << bit_depth) - 1) as u8;
-    // Unsafe copy create two views into the vector
-    // This is unproblematic since it is only locally to this function and a &[u8]
-    let data = unsafe {
-        let view: &mut [u8] = mem::transmute_copy(&buf);
-        &view[..entries]
-    };
-    let pixels = data
-        .iter()
-        .rev() // Reverse iterator
-        .flat_map(|&v|
-            // This has to be reversed to
-            (0 .. 8).step_by(bit_depth)
-            .zip(iter::iterate(
-                v, |v| v
-            )
-        ))
-        //.skip(buf.len() % bpp) // not necessary, why!?
-        .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
     if let Some(trns) = trns {
-        for (chunk, ((r, g, b), a)) in buf.chunks_mut(4).rev().zip(pixels.map(|i|
-            (palette[i as usize], *trns.get(i as usize).unwrap_or(&0xFF))
-        )) {
+        expand_packed(buf, 4, bit_depth, |i, chunk| {
+            let ((r, g, b), a) = (
+                palette[i as usize],
+                *trns.get(i as usize).unwrap_or(&0xFF)
+            );
             chunk[0] = r;
             chunk[1] = g;
             chunk[2] = b;
             chunk[3] = a;
-        }
+        })
     } else {
-        for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
-            palette[i as usize]
-        )) {
+        expand_packed(buf, 3, bit_depth, |i, chunk| {
+            let (r, g, b) = palette[i as usize];
             chunk[0] = r;
             chunk[1] = g;
             chunk[2] = b;
-        }
+        })
     }
 }
 

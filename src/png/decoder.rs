@@ -571,59 +571,56 @@ fn expand_pass(
     }
 }
 
-#[inline(always)]
-fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
-where F: Fn(u8, &mut[u8]) {
-    let entries = buf.len()/channels/(8/bit_depth as usize);
-    let mask = ((1u16 << bit_depth) - 1) as u8;
-    let i =
-        (0..entries)
-        .rev() // Reverse iterator
-        .flat_map(|idx|
-            // This has to be reversed to
-            (0 .. 8).step_by(bit_depth)
-            .zip(iter::iterate(
-                idx, |idx| idx
-            )
-        ));
-    let channels = channels as isize;
-    let j = (buf.len() as isize - channels..-(channels)).step_by(-channels);
-    //let j = (0..buf.len()).step_by(channels).rev() // ideal solution;
-    for ((shift, i), j) in i.zip(j) {
-        let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j as usize..(j + channels) as usize])
-    }
-}
-
 fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
-    let channels = channels as isize;
-    let i = (buf.len() as isize / (channels+1) * channels - channels..-(channels)).step_by(-channels);
-    let j = (buf.len() as isize - (channels+1)..-(channels+1)).step_by(-(channels+1));
-    let channels = channels as usize;
-    for (i, j) in i.zip(j) {
-        let i_pixel = i as usize;
-        let j_chunk = j as usize;
-        if &buf[i_pixel..i_pixel+channels] == trns {
-            buf[j_chunk+channels] = 0
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let pixels = data.chunks(channels).rev();
+    for (chunk, pixel) in buf.chunks_mut(channels+1).rev().zip(pixels) {
+        if pixel == trns {
+            chunk[channels] = 0
         } else {
-            buf[j_chunk+channels] = 0xFF
+            chunk[channels] = 0xFF
         }
-        for k in (0..channels).rev() {
-            buf[j_chunk+k] = buf[i_pixel+k];
+        for i in (0..channels).rev() {
+            chunk[i] = pixel[i];
         }
     }
 }
 
 fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
     let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
-    expand_packed(buf, 2, bit_depth, |pixel, chunk| {
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            (0 .. 8).step_by(bit_depth)
+           .zip(iter::iterate(
+               v, |v| v
+           )
+        ))
+        .map(|(shift, pixel)|
+           (pixel & mask << shift as usize) >> shift as usize
+        )
+        .map(|pixel| pixel);
+    for (chunk, pixel) in buf.chunks_mut(2).rev().zip(pixels) {
         if pixel == trns {
             chunk[1] = 0
         } else {
             chunk[1] = 0xFF
         }
         chunk[0] = pixel * scaling_factor
-    })
+    }
 }
 
 fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
@@ -631,24 +628,42 @@ fn expand_palette(buf: &mut[u8], palette: &[(u8, u8, u8)],
     let bpp = 8 / bit_depth as usize;
     let extra = if trns.is_some() { entries * bpp } else { 0 };
     assert_eq!(buf.len(), 3 * (entries * bpp - buf.len() % bpp) + extra);
+    let mask = ((1u16 << bit_depth) - 1) as u8;
+    // Unsafe copy create two views into the vector
+    // This is unproblematic since it is only locally to this function and a &[u8]
+    let data = unsafe {
+        let view: &mut [u8] = mem::transmute_copy(&buf);
+        &view[..entries]
+    };
+    let pixels = data
+        .iter()
+        .rev() // Reverse iterator
+        .flat_map(|&v|
+            // This has to be reversed to
+            (0 .. 8).step_by(bit_depth)
+            .zip(iter::iterate(
+                v, |v| v
+            )
+        ))
+        //.skip(buf.len() % bpp) // not necessary, why!?
+        .map(|(shift, pixel)| (pixel & mask << shift as usize) >> shift as usize);
     if let Some(trns) = trns {
-        expand_packed(buf, 4, bit_depth, |i, chunk| {
-            let ((r, g, b), a) = (
-                palette[i as usize],
-                *trns.get(i as usize).unwrap_or(&0xFF)
-            );
+        for (chunk, ((r, g, b), a)) in buf.chunks_mut(4).rev().zip(pixels.map(|i|
+            (palette[i as usize], *trns.get(i as usize).unwrap_or(&0xFF))
+        )) {
             chunk[0] = r;
             chunk[1] = g;
             chunk[2] = b;
             chunk[3] = a;
-        })
+        }
     } else {
-        expand_packed(buf, 3, bit_depth, |i, chunk| {
-            let (r, g, b) = palette[i as usize];
+        for (chunk, (r, g, b)) in buf.chunks_mut(3).rev().zip(pixels.map(|i|
+            palette[i as usize]
+        )) {
             chunk[0] = r;
             chunk[1] = g;
             chunk[2] = b;
-        })
+        }
     }
 }
 
@@ -721,5 +736,165 @@ impl<R: Read> Read for IDATReader<R> {
         }
 
         Ok(start)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate glob;
+
+    use std::io::{self, Read};
+    use std::fs::File;
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
+    use test;
+
+    use image::{
+        ImageDecoder,
+        ImageResult,
+        DecodingResult
+    };
+
+    use super::PNGDecoder;
+
+    /// Filters the testsuite images for certain features
+    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
+        // Find the files matching "./src/png/testdata/pngsuite/*.png".
+        let pattern: PathBuf = [".", "src", "png", "testdata", "pngsuite", "*.png"].iter().collect();
+
+        let paths = glob::glob(&pattern.display().to_string()).unwrap().filter_map(Result::ok)
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().starts_with(feature))
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().contains(color_type));
+
+        let ret: Vec<PathBuf> = if test_interlaced {
+            paths.collect()
+        } else {
+            paths.filter(|ref p| !p.file_name().and_then(OsStr::to_str)
+                                   .unwrap()
+                                   [2..]
+                                   .contains("i"))
+                                   .collect()
+        };
+
+        assert!(ret.len() > 0); // fail if no testimages are available
+        ret
+    }
+
+    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsRef<Path> {
+        PNGDecoder::new(try!(File::open(path))).read_image()
+    }
+
+    #[test]
+    /// Test image filters
+    fn test_filters() {
+        let images = get_testimages("f", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => true,
+                Err(err) => { println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+    #[test]
+    /// Test basic formats filters
+    fn test_basic() {
+        let images = get_testimages("b", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => true,
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+
+    #[test]
+    /// Chunk ordering
+    fn test_chunk_ordering() {
+        let images = get_testimages("o", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => { true },
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+
+    //#[test]
+    //fn render_all() {
+    //    let images = get_testimages("f", "", true)
+    //        + get_testimages("b", "", true)
+    //        + get_testimages("o", "", true);
+    //
+    //    for path in images.iter() {
+    //        match ::open(path) {
+    //            Err(_) => {},
+    //            Ok(im) => {
+    //                let filename = path.filename_str().unwrap().to_string();
+    //                let p1 = "target";
+    //                let p2 = "reference renderings";
+    //                let _ = old_io::fs::mkdir(&Path::new(".").join_many(
+    //                    [p1.as_slice(), p2.as_slice()]),
+    //                    old_io::UserRWX
+    //                );
+    //                let p = Path::new(".").join_many([p1.as_slice(), p2.as_slice(),
+    //                    filename.as_slice()]);
+    //                let fout = File::create(&p).unwrap();
+    //
+    //                // Write the contents of this image to the Writer in PNG format.
+    //                let _ = im.save(fout, ::PNG);
+    //            }
+    //        };
+    //    }
+    //}
+
+    #[test]
+    /// Test corrupted images, they should all fail
+    fn test_corrupted() {
+        let images = get_testimages("x", "", true);
+        let num_images = images.len();
+        let mut fails = 0;
+
+        for path in images.iter() {
+            match load_image(path) {
+                Ok(_) => println!("corrupted file {} did not fail", path.display()),
+                Err(_) => {
+                    fails += 1;
+                }
+            }
+        }
+
+        assert_eq!(num_images, fails)
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_read_small_files(b: &mut test::Bencher) {
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| {
+            let mut buf = Vec::new();
+            File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+            buf
+        }).collect();
+        b.iter(|| {
+            for data in image_data.clone().into_iter() {
+                let data = io::Cursor::new(data);
+                let _ = PNGDecoder::new(data).read_image().unwrap();
+            }
+        });
+        b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_read_big_file(b: &mut test::Bencher) {
+        let mut image_data = Vec::new();
+        File::open(
+            &PathBuf::from(".").join("examples").join("fractal.png")
+        ).unwrap().read_to_end(&mut image_data).unwrap();
+        b.iter(|| {
+            let image_data = io::Cursor::new(image_data.clone());
+            let _ = PNGDecoder::new(image_data).read_image().unwrap();
+        });
+        b.bytes = image_data.len() as u64
     }
 }

@@ -723,3 +723,163 @@ impl<R: Read> Read for IDATReader<R> {
         Ok(start)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate glob;
+
+    use std::io::{self, Read};
+    use std::fs::File;
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
+    use test;
+
+    use image::{
+        ImageDecoder,
+        ImageResult,
+        DecodingResult
+    };
+
+    use super::PNGDecoder;
+
+    /// Filters the testsuite images for certain features
+    fn get_testimages(feature: &str, color_type: &str, test_interlaced: bool) -> Vec<PathBuf> {
+        // Find the files matching "./src/png/testdata/pngsuite/*.png".
+        let pattern: PathBuf = [".", "src", "png", "testdata", "pngsuite", "*.png"].iter().collect();
+
+        let paths = glob::glob(&pattern.display().to_string()).unwrap().filter_map(Result::ok)
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().starts_with(feature))
+            .filter(|ref p| p.file_name().and_then(OsStr::to_str).unwrap().contains(color_type));
+
+        let ret: Vec<PathBuf> = if test_interlaced {
+            paths.collect()
+        } else {
+            paths.filter(|ref p| !p.file_name().and_then(OsStr::to_str)
+                                   .unwrap()
+                                   [2..]
+                                   .contains("i"))
+                                   .collect()
+        };
+
+        assert!(ret.len() > 0); // fail if no testimages are available
+        ret
+    }
+
+    fn load_image<P>(path: P) -> ImageResult<DecodingResult> where P: AsRef<Path> {
+        PNGDecoder::new(try!(File::open(path))).read_image()
+    }
+
+    #[test]
+    /// Test image filters
+    fn test_filters() {
+        let images = get_testimages("f", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => true,
+                Err(err) => { println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+    #[test]
+    /// Test basic formats filters
+    fn test_basic() {
+        let images = get_testimages("b", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => true,
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+
+    #[test]
+    /// Chunk ordering
+    fn test_chunk_ordering() {
+        let images = get_testimages("o", "", false);
+
+        for path in images.iter() {
+            assert!(match load_image(path) {
+                Ok(_) => { true },
+                Err(err) => {println!("file {:?}, failed with {:?}", path.display(), err); false }
+            })
+        }
+    }
+
+    //#[test]
+    //fn render_all() {
+    //    let images = get_testimages("f", "", true)
+    //        + get_testimages("b", "", true)
+    //        + get_testimages("o", "", true);
+    //
+    //    for path in images.iter() {
+    //        match ::open(path) {
+    //            Err(_) => {},
+    //            Ok(im) => {
+    //                let filename = path.filename_str().unwrap().to_string();
+    //                let p1 = "target";
+    //                let p2 = "reference renderings";
+    //                let _ = old_io::fs::mkdir(&Path::new(".").join_many(
+    //                    [p1.as_slice(), p2.as_slice()]),
+    //                    old_io::UserRWX
+    //                );
+    //                let p = Path::new(".").join_many([p1.as_slice(), p2.as_slice(),
+    //                    filename.as_slice()]);
+    //                let fout = File::create(&p).unwrap();
+    //
+    //                // Write the contents of this image to the Writer in PNG format.
+    //                let _ = im.save(fout, ::PNG);
+    //            }
+    //        };
+    //    }
+    //}
+
+    #[test]
+    /// Test corrupted images, they should all fail
+    fn test_corrupted() {
+        let images = get_testimages("x", "", true);
+        let num_images = images.len();
+        let mut fails = 0;
+
+        for path in images.iter() {
+            match load_image(path) {
+                Ok(_) => println!("corrupted file {} did not fail", path.display()),
+                Err(_) => {
+                    fails += 1;
+                }
+            }
+        }
+
+        assert_eq!(num_images, fails)
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_read_small_files(b: &mut test::Bencher) {
+        let image_data: Vec<Vec<u8>> = get_testimages("b", "2c", false).iter().map(|path| {
+            let mut buf = Vec::new();
+            File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+            buf
+        }).collect();
+        b.iter(|| {
+            for data in image_data.clone().into_iter() {
+                let data = io::Cursor::new(data);
+                let _ = PNGDecoder::new(data).read_image().unwrap();
+            }
+        });
+        b.bytes = image_data.iter().map(|v| v.len()).fold(0, |a, b| a + b) as u64
+    }
+    #[bench]
+    /// Test basic formats filters
+    fn bench_read_big_file(b: &mut test::Bencher) {
+        let mut image_data = Vec::new();
+        File::open(
+            &PathBuf::from(".").join("examples").join("fractal.png")
+        ).unwrap().read_to_end(&mut image_data).unwrap();
+        b.iter(|| {
+            let image_data = io::Cursor::new(image_data.clone());
+            let _ = PNGDecoder::new(image_data).read_image().unwrap();
+        });
+        b.bytes = image_data.len() as u64
+    }
+}

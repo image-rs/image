@@ -1,5 +1,5 @@
 use std::io::{ self, Read };
-use std::{ cmp, mem, iter, str, slice };
+use std::{ cmp, iter, str, slice };
 use std::iter::repeat;
 use std::num::{ FromPrimitive, Float };
 use byteorder::{ ReadBytesExt, BigEndian };
@@ -436,14 +436,12 @@ impl<R: Read> PNGDecoder<R> {
                 expand_trns_line_nbits(
                     buf,
                     trns[0],
-                    rlength as usize,
                     self.bit_depth
                 );
             } else {
                 expand_trns_line(
                     buf,
                     trns,
-                    rlength as usize,
                     color::num_components(self.data_pixel_type)
                 );
             }
@@ -595,7 +593,7 @@ where F: Fn(u8, &mut[u8]) {
     }
 }
 
-fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize) {
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
     let channels = channels as isize;
     let i = (buf.len() as isize / (channels+1) * channels - channels..-(channels)).step_by(-channels);
     let j = (buf.len() as isize - (channels+1)..-(channels+1)).step_by(-(channels+1));
@@ -614,7 +612,7 @@ fn expand_trns_line(buf: &mut[u8], trns: &[u8], entries: usize, channels: usize)
     }
 }
 
-fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, entries: usize, bit_depth: u8) {
+fn expand_trns_line_nbits(buf: &mut[u8], trns: u8, bit_depth: u8) {
     let scaling_factor = (255)/((1u16 << bit_depth) - 1) as u8;
     expand_packed(buf, 2, bit_depth, |pixel, chunk| {
         if pixel == trns {

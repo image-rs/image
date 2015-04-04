@@ -10,7 +10,6 @@ use num:: {
     NumCast,
     Float,
 };
-use std::num::SignedInt;
 use std::simd::f32x4;
 
 use buffer::{ImageBuffer, Pixel};

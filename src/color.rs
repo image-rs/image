@@ -61,7 +61,9 @@ $( // START Structure definitions
 #[$doc]
 #[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
 #[repr(C)]
+#[allow(missing_docs)]
 pub struct $ident<T: Primitive> { pub data: [T; $channels] }
+#[allow(non_snake_case, missing_docs)]
 pub fn $ident<T: Primitive>(data: [T; $channels]) -> $ident<T> {
     $ident {
         data: data

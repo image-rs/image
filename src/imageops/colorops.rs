@@ -136,7 +136,7 @@ impl ColorMap for BiLevel {
 
     #[inline(always)]
     fn index_of(&self, color: &Luma<u8>) -> usize {
-        let &Luma(luma) = color;
+        let luma = color.data;
         if luma[0] > 127 {
             1
         } else {
@@ -147,7 +147,7 @@ impl ColorMap for BiLevel {
     #[inline(always)]
     fn map_color(&self, color: &mut Luma<u8>) {
         let new_color = 0xFF * self.index_of(color) as u8;
-        let &mut Luma(ref mut luma) = color;
+        let luma = &mut color.data;
         luma[0] = new_color;
     }
 }

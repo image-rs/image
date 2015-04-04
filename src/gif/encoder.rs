@@ -39,7 +39,7 @@ pub struct Encoder<Image> {
     color_mode: ColorMode
 }
 
-const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
+const TRANSPARENT: Rgba<u8> = Rgba {data: [0, 0, 0, 0]};
 
 impl<Container> Encoder<ImageBuffer<Rgba<u8>, Container>>
 where Container: Deref<Target=[u8]> + DerefMut {

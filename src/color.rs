@@ -1,5 +1,5 @@
 use std::ops::{ Index, IndexMut };
-use num::{ self, NumCast };
+use num::NumCast;
 use std::mem;
 
 use buffer::Pixel;

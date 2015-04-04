@@ -3,7 +3,8 @@
 // Note copied from the stdlib under MIT license
 
 use std::ops::{ Add, Div, Mul, Rem, Sub };
-use std::num::{ Float, Int, NumCast };
+use std::num::Int;
+use num::{ Float, NumCast };
 use std::marker::Reflect;
 
 /// Num trait from old stdlib

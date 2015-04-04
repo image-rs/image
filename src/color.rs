@@ -1,5 +1,5 @@
 use std::ops::{ Index, IndexMut };
-use std::num::{ self, NumCast };
+use num::{ self, NumCast };
 use std::mem;
 
 use buffer::Pixel;
@@ -405,8 +405,8 @@ impl<T: Primitive> Blend for LumaA<T> {
         let out_luma = out_luma_a / alpha_final;
 
         *self = LumaA([
-            num::cast::<f32, T>(max_t * out_luma).unwrap(),
-            num::cast::<f32, T>(max_t * alpha_final).unwrap()
+            NumCast::from(max_t * out_luma).unwrap(),
+            NumCast::from(max_t * alpha_final).unwrap()
         ])
     }
 }
@@ -444,10 +444,10 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Cast back to our initial type on return
         *self = Rgba([
-            num::cast::<f32, T>(max_t * out_r).unwrap(),
-            num::cast::<f32, T>(max_t * out_g).unwrap(),
-            num::cast::<f32, T>(max_t * out_b).unwrap(),
-            num::cast::<f32, T>(max_t * alpha_final).unwrap()
+            NumCast::from(max_t * out_r).unwrap(),
+            NumCast::from(max_t * out_g).unwrap(),
+            NumCast::from(max_t * out_b).unwrap(),
+            NumCast::from(max_t * alpha_final).unwrap()
         ])
     }
 }

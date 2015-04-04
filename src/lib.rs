@@ -8,10 +8,6 @@
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
-#![feature(core)]
-#![feature(std_misc)]
-#![feature(rustc_private)]
-#![feature(step_by)]
 #![cfg_attr(test, feature(test))]
 
 extern crate byteorder;

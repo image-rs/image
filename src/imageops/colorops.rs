@@ -1,6 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
-use std::num:: {
-    cast,
+use num:: {
+    NumCast,
     Float,
 };
 
@@ -62,19 +62,19 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
     let mut out = ImageBuffer::new(width, height);
 
     let max: S = Primitive::max_value();
-    let max: f32 = cast(max).unwrap();
+    let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
     for y in (0..height) {
         for x in (0..width) {
             let f = image.get_pixel(x, y).map(|b| {
-                let c: f32 = cast(b).unwrap();
+                let c: f32 = NumCast::from(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent  + 0.5) * max;
                 let e = clamp(d, 0.0, max);
 
-                cast(e).unwrap()
+                NumCast::from(e).unwrap()
             });
 
             out.put_pixel(x, y, f);
@@ -98,15 +98,15 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
     let mut out = ImageBuffer::new(width, height);
 
     let max: S = Primitive::max_value();
-    let max: i32 = cast(max).unwrap();
+    let max: i32 = NumCast::from(max).unwrap();
 
     for y in (0..height) {
         for x in (0..width) {
             let e = image.get_pixel(x, y).map_with_alpha(|b| {
-                let c: i32 = cast(b).unwrap();
+                let c: i32 = NumCast::from(b).unwrap();
                 let d = clamp(c + value, 0, max);
 
-                cast(d).unwrap()
+                NumCast::from(d).unwrap()
             }, |alpha| alpha);
 
             out.put_pixel(x, y, e);

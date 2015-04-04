@@ -6,10 +6,9 @@
 use std::f32;
 use std::iter::AdditiveIterator;
 
-use std::num:: {
-    cast,
+use num:: {
+    NumCast,
     Float,
-    SignedInt,
 };
 use std::simd::f32x4;
 
@@ -149,7 +148,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
     for y in (0..height) {
         let max: S = Primitive::max_value();
-        let max: f32 = cast(max).unwrap();
+        let max: f32 = NumCast::from(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
 
@@ -186,10 +185,10 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec = f32x4(
-                    cast(k1).unwrap(),
-                    cast(k2).unwrap(),
-                    cast(k3).unwrap(),
-                    cast(k4).unwrap()
+                    NumCast::from(k1).unwrap(),
+                    NumCast::from(k2).unwrap(),
+                    NumCast::from(k3).unwrap(),
+                    NumCast::from(k4).unwrap()
                 );
 
                 t += vec * w;
@@ -197,10 +196,10 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
             let f32x4(t1, t2, t3, t4) = t / sum;
             let t = Pixel::from_channels(
-                cast(clamp(t1, 0.0, max)).unwrap(),
-                cast(clamp(t2, 0.0, max)).unwrap(),
-                cast(clamp(t3, 0.0, max)).unwrap(),
-                cast(clamp(t4, 0.0, max)).unwrap()
+                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(outx, y, t);
@@ -228,7 +227,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
     for x in (0..width) {
         let max: S = Primitive::max_value();
-        let max: f32 = cast(max).unwrap();
+        let max: f32 = NumCast::from(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
 
@@ -264,10 +263,10 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec = f32x4(
-                    cast(k1).unwrap(),
-                    cast(k2).unwrap(),
-                    cast(k3).unwrap(),
-                    cast(k4).unwrap()
+                    NumCast::from(k1).unwrap(),
+                    NumCast::from(k2).unwrap(),
+                    NumCast::from(k3).unwrap(),
+                    NumCast::from(k4).unwrap()
                 );
 
                 t += vec * w;
@@ -275,10 +274,10 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
             let f32x4(t1, t2, t3, t4) = t / sum;
             let t = Pixel::from_channels(
-                cast(clamp(t1, 0.0, max)).unwrap(),
-                cast(clamp(t2, 0.0, max)).unwrap(),
-                cast(clamp(t3, 0.0, max)).unwrap(),
-                cast(clamp(t4, 0.0, max)).unwrap()
+                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, outy, t);
@@ -309,7 +308,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     let mut out = ImageBuffer::new(width, height);
 
     let max: S = Primitive::max_value();
-    let max: f32 = cast(max).unwrap();
+    let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().cloned().sum() {
         0.0 => 1.0,
@@ -335,10 +334,10 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec = f32x4(
-                    cast(k1).unwrap(),
-                    cast(k2).unwrap(),
-                    cast(k3).unwrap(),
-                    cast(k4).unwrap()
+                    NumCast::from(k1).unwrap(),
+                    NumCast::from(k2).unwrap(),
+                    NumCast::from(k3).unwrap(),
+                    NumCast::from(k4).unwrap()
                 );
 
                 t += vec * k;
@@ -347,10 +346,10 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
             let f32x4(t1, t2, t3, t4) = t / sum;
 
             let t = Pixel::from_channels(
-                cast(clamp(t1, 0.0, max)).unwrap(),
-                cast(clamp(t2, 0.0, max)).unwrap(),
-                cast(clamp(t3, 0.0, max)).unwrap(),
-                cast(clamp(t4, 0.0, max)).unwrap()
+                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t4, 0.0, max)).unwrap()
             );
 
             out.put_pixel(x, y, t);
@@ -438,7 +437,7 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
     let mut tmp = blur(image, sigma);
 
     let max: S = Primitive::max_value();
-    let max: i32 = cast(max).unwrap();
+    let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 
     for y in (0..height) {
@@ -447,15 +446,15 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
             let b = tmp.get_pixel_mut(x, y);
 
             let p = a.map2(b, |c, d| {
-                let ic: i32 = cast(c).unwrap();
-                let id: i32 = cast(d).unwrap();
+                let ic: i32 = NumCast::from(c).unwrap();
+                let id: i32 = NumCast::from(d).unwrap();
 
                 let diff = (ic - id).abs();
 
                 if diff > threshold {
                 let e = clamp(ic + diff, 0, max);
 
-                    cast(e).unwrap()
+                    NumCast::from(e).unwrap()
                 } else {
                     c
                 }

@@ -210,9 +210,7 @@ impl<R: Read> Inflater<R> {
     fn read_stored_block(&mut self) -> io::Result<()> {
         while self.block_length > 0 {
             let a = try!(self.h.receive(8));
-
             self.buf.push(a as u8);
-            self.h.consume(8);
             self.block_length -= 1;
         }
 

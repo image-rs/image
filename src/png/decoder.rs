@@ -3,6 +3,7 @@ use std::{ cmp, iter, str, slice };
 use std::iter::repeat;
 use std::num::FromPrimitive;
 use byteorder::{ ReadBytesExt, BigEndian };
+use num::range_step;
 
 use image::{
     DecodingResult,
@@ -579,14 +580,14 @@ where F: Fn(u8, &mut[u8]) {
         .rev() // Reverse iterator
         .flat_map(|idx|
             // This has to be reversed to
-            (0 .. 8).step_by(bit_depth)
+            range_step(0, 8, bit_depth)
             .zip(iter::iterate(
                 idx, |idx| idx
             )
         ));
     let channels = channels as isize;
-    let j = (buf.len() as isize - channels..-(channels)).step_by(-channels);
-    //let j = (0..buf.len()).step_by(channels).rev() // ideal solution;
+    let j = range_step(buf.len() as isize - channels, -channels, -channels);
+    //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;
     for ((shift, i), j) in i.zip(j) {
         let pixel = (buf[i] & (mask << shift)) >> shift;
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
@@ -595,8 +596,8 @@ where F: Fn(u8, &mut[u8]) {
 
 fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
     let channels = channels as isize;
-    let i = (buf.len() as isize / (channels+1) * channels - channels..-(channels)).step_by(-channels);
-    let j = (buf.len() as isize - (channels+1)..-(channels+1)).step_by(-(channels+1));
+    let i = range_step(buf.len() as isize / (channels+1) * channels - channels, -channels, -channels);
+    let j = range_step(buf.len() as isize - (channels+1), -(channels+1), -(channels+1));
     let channels = channels as usize;
     for (i, j) in i.zip(j) {
         let i_pixel = i as usize;

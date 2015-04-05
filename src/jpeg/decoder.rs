@@ -5,6 +5,7 @@ use std::default::Default;
 use std::collections::HashMap;
 use std::iter::repeat;
 use byteorder::{ReadBytesExt, BigEndian};
+use num::range_step;
 
 use color;
 use super::transform;
@@ -171,7 +172,7 @@ impl<R: Read>JPEGDecoder<R> {
     fn decode_mcu_row(&mut self) -> ImageResult<()> {
         let bytesperpixel = self.num_components as usize;
 
-        for x0 in (0 .. self.padded_width * bytesperpixel).step_by(bytesperpixel * 8 * self.hmax as usize) {
+        for x0 in range_step(0, self.padded_width * bytesperpixel, bytesperpixel * 8 * self.hmax as usize) {
 
             let _ = try!(self.decode_mcu());
 

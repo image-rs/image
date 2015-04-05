@@ -9,7 +9,7 @@ use std::io::{self, Read};
 use byteorder::{ReadBytesExt, BigEndian};
 
 use super::hash::Adler32;
-use super::deflate::Inflater;
+use super::inflate::Inflater;
 
 enum ZlibState {
     Start,

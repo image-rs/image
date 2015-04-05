@@ -13,5 +13,5 @@ mod filter;
 mod decoder;
 mod encoder;
 pub mod zlib;
-pub mod deflate;
+pub mod inflate;
 pub mod hash;

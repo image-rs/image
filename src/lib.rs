@@ -4,7 +4,9 @@
 
 #![crate_name = "image"]
 #![crate_type = "rlib"]
-#![feature(core, std_misc, step_by, rustc_private)]
+#![feature(core)]
+#![feature(step_by)]
+#![feature(rustc_private)]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]

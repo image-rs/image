@@ -3,7 +3,7 @@ use std::io::{Read, Write, Seek, BufReader};
 use std::path::Path;
 use std::fs::File;
 use std::iter;
-use std::ascii::OwnedAsciiExt;
+use std::ascii::AsciiExt;
 
 #[cfg(feature = "ppm")]
 use ppm;
@@ -518,7 +518,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
     };
 
     let ext = path.extension().and_then(|s| s.to_str())
-                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
+                  .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     let format = match &ext[..] {
         "jpg" |
@@ -550,7 +550,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
     let path = path.as_ref();
     let ref mut fout = try!(File::create(path));
     let ext = path.extension().and_then(|s| s.to_str())
-                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
+                  .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
         #[cfg(feature = "jpeg")]

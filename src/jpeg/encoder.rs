@@ -1,8 +1,6 @@
 use std::io::{self, Write};
 use byteorder::{WriteBytesExt, BigEndian};
 
-use std::num::{ Float, SignedInt };
-
 use color;
 
 use super::transform;

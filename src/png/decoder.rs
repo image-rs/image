@@ -1,7 +1,7 @@
 use std::io::{ self, Read };
 use std::{ cmp, iter, str, slice };
 use std::iter::repeat;
-use std::num::{ FromPrimitive, Float };
+use std::num::FromPrimitive;
 use byteorder::{ ReadBytesExt, BigEndian };
 
 use image::{

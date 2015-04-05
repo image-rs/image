@@ -24,6 +24,9 @@ path = "./src/lib.rs"
 [dependencies.byteorder]
 version = "0.3.5"
 
+[dependencies.flate2]
+version = "0.2"
+
 [dependencies.num]
 version = "0.1.20"
 

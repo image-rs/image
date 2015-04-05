@@ -1,6 +1,6 @@
 //! A PNG Encoder
 //!
-//! This implementation uses the ```flate``` crate for compression
+//! This implementation uses the ```flate2``` crate for compression
 //! and selects the filter type using the sum of absolute differences method.
 //!
 //! For each row the filter method that produces the lowest integer when its bytes
@@ -47,7 +47,7 @@ impl<'a, W: Write> PNGEncoder<'a, W> {
         let (bytes, bpp) = build_ihdr(width, height, c);
 
         let _ = try!(self.write_chunk("IHDR", &bytes));
-        let compressed_bytes = build_idat(image, bpp, width, height);
+        let compressed_bytes = try!(build_idat(image, bpp, width));
 
         for chunk in compressed_bytes.chunks(1024 * 256) {
             let _ = try!(self.write_chunk("IDAT", chunk));
@@ -145,35 +145,35 @@ fn select_filter(rowlength: usize, bpp: usize, previous: &[u8], current_s: &mut 
     method
 }
 
-fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
-    use flate::deflate_bytes_zlib;
+fn build_idat(image: &[u8], bpp: usize, width: u32) -> io::Result<Vec<u8>> {
+    use flate2::Compression;
+    use flate2::write::ZlibEncoder;
 
     let rowlen = bpp * width as usize;
 
     let mut p: Vec<u8> = repeat(0u8).take(rowlen).collect();
     let mut c: Vec<u8> = repeat(0u8).take(4 * rowlen).collect();
-    let mut b: Vec<u8> = repeat(0u8).take(height as usize + rowlen * height as usize).collect();
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::Default);
 
-    for (row, outrow) in image.chunks(rowlen).zip(b.chunks_mut(1 + rowlen)) {
+    for row in image.chunks(rowlen) {
         for s in c.chunks_mut(rowlen) {
             slice::bytes::copy_memory(row, s);
         }
 
         let filter = select_filter(rowlen, bpp, &p, &mut c);
 
-        outrow[0]  = filter;
-        let out    = &mut outrow[1..];
+        try!(e.write_all(&[filter]));
 
         match filter {
-            0 => slice::bytes::copy_memory(row, out),
+            0 => try!(e.write_all(row)),
             _ => {
                 let stride = (filter as usize - 1) * rowlen;
-                slice::bytes::copy_memory(&c[stride..stride + rowlen], out)
+                try!(e.write_all(&c[stride..stride + rowlen]))
             }
         }
 
         slice::bytes::copy_memory(row, &mut p);
     }
 
-    deflate_bytes_zlib(&b).to_vec()
+    e.finish()
 }

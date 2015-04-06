@@ -5,14 +5,12 @@
 #![crate_name = "image"]
 #![crate_type = "rlib"]
 #![feature(core)]
-#![feature(rustc_private)]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
 #![cfg_attr(test, feature(test))]
 
 extern crate byteorder;
-extern crate flate;
 extern crate num;
 #[cfg(test)] extern crate test;
 

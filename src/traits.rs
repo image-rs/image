@@ -3,7 +3,7 @@
 // Note copied from the stdlib under MIT license
 
 use std::ops::{ Add, Div, Mul, Rem, Sub };
-use num::{ Float, NumCast };
+use num::{ Float, NumCast, One };
 use std::marker::Reflect;
 
 /// Num trait from old stdlib
@@ -85,31 +85,3 @@ impl Primitive for f32 {
 impl Primitive for f64 {
     fn max_value() -> f64 { Float::max_value() }
 }
-
-/// One trait from old stdlib, added max_value
-pub trait One: Mul<Output=Self> {
-    /// Returns the unit value of Self
-    fn one() -> Self;
-}
-/// Returns the unit value of T
-#[allow(unused)]
-pub fn one<T: One>() -> T { One::one() }
-macro_rules! one_impl {
-    ($t:ty, $v:expr) => {
-        impl One for $t {
-            fn one() -> $t { $v }
-        }
-    }
-}
-one_impl!(usize, 1usize);
-one_impl!(u8,  1u8);
-one_impl!(u16, 1u16);
-one_impl!(u32, 1u32);
-one_impl!(u64, 1u64);
-one_impl!(isize, 1isize);
-one_impl!(i8,  1i8);
-one_impl!(i16, 1i16);
-one_impl!(i32, 1i32);
-one_impl!(i64, 1i64);
-one_impl!(f32, 1.0f32);
-one_impl!(f64, 1.0f64);

@@ -3,44 +3,12 @@
 // Note copied from the stdlib under MIT license
 
 use std::ops::{ Add, Div, Mul, Rem, Sub };
-use num::{ Float, NumCast, One };
+use num::{ Float, NumCast, One, Zero };
 use std::marker::Reflect;
 
 /// Num trait from old stdlib
 pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + PartialEq<Self> { }
 impl<A: Zero + One + Add<Output=A> + Sub<Output=A> + Mul<Output=A> + Div<Output=A> + Rem<Output=A> + PartialEq<A>> Num for A { }
-
-/// Zero trait from old stdlib
-pub trait Zero: Add<Output=Self> {
-    /// Returns the zero value for T
-    fn zero() -> Self;
-    /// Returns true if zero.
-    fn is_zero(&self) -> bool;
-}
-
-/// Returns the zero value for T
-#[allow(unused)]
-pub fn zero<T: Zero>() -> T { Zero::zero() }
-macro_rules! zero_impl {
-    ($t:ty, $v:expr) => {
-        impl Zero for $t {
-            fn zero() -> $t { $v }
-            fn is_zero(&self) -> bool { *self == $v }
-        }
-    }
-}
-zero_impl!(usize, 0usize);
-zero_impl!(u8,   0u8);
-zero_impl!(u16,  0u16);
-zero_impl!(u32,  0u32);
-zero_impl!(u64,  0u64);
-zero_impl!(isize, 0isize);
-zero_impl!(i8,  0i8);
-zero_impl!(i16, 0i16);
-zero_impl!(i32, 0i32);
-zero_impl!(i64, 0i64);
-zero_impl!(f32, 0.0f32);
-zero_impl!(f64, 0.0f64);
 
 
 /// Primitive trait from old stdlib, added max_value

@@ -1,9 +1,9 @@
 use std::ops::{ Index, IndexMut };
-use num::NumCast;
+use num::{ NumCast, Zero };
 use std::mem;
 
 use buffer::Pixel;
-use traits::{ Primitive, Zero };
+use traits::Primitive;
 
 /// An enumeration over supported color types and their bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone)]

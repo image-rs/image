@@ -5,8 +5,9 @@ use std::marker::{ Reflect, PhantomData };
 use std::iter::repeat;
 use std::path::Path;
 use std::io;
+use num::Zero;
 
-use traits::{ Zero, Primitive };
+use traits::Primitive;
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
 use image::GenericImage;
 use dynimage::save_buffer;

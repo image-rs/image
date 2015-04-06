@@ -57,7 +57,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -92,7 +92,7 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: i32 = NumCast::from(max).unwrap();
 
     for y in (0..height) {

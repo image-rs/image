@@ -147,7 +147,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
     let mut out = ImageBuffer::new(new_width, height);
 
     for y in (0..height) {
-        let max: S = Primitive::max_value();
+        let max = S::max_value();
         let max: f32 = NumCast::from(max).unwrap();
 
         let ratio = width as f32 / new_width as f32;
@@ -226,7 +226,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
 
     for x in (0..width) {
-        let max: S = Primitive::max_value();
+        let max = S::max_value();
         let max: f32 = NumCast::from(max).unwrap();
 
         let ratio = height as f32 / new_height as f32;
@@ -307,7 +307,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().cloned().sum() {
@@ -436,7 +436,7 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
 
     let mut tmp = blur(image, sigma);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 

@@ -2,13 +2,8 @@
 
 // Note copied from the stdlib under MIT license
 
-use std::ops::{ Add, Div, Mul, Rem, Sub };
-use num::{ Float, NumCast, One, Zero };
+use num::{ Float, Num, NumCast };
 use std::marker::Reflect;
-
-/// Num trait from old stdlib
-pub trait Num: Zero + One + Add<Output=Self> + Sub<Output=Self> + Mul<Output=Self> + Div<Output=Self> + Rem<Output=Self> + PartialEq<Self> { }
-impl<A: Zero + One + Add<Output=A> + Sub<Output=A> + Mul<Output=A> + Div<Output=A> + Rem<Output=A> + PartialEq<A>> Num for A { }
 
 
 /// Primitive trait from old stdlib, added max_value

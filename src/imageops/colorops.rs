@@ -10,11 +10,13 @@ use traits::Primitive;
 use image::GenericImage;
 use math::utils::clamp;
 use math::nq;
+use num::Num;
 
 /// Convert the supplied image to grayscale
 pub fn grayscale<'a, I: GenericImage>(image: &I)
     -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where <I::Pixel as Pixel>::Subpixel: 'static {
+    where <I::Pixel as Pixel>::Subpixel: 'static,
+          <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 

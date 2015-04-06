@@ -3,11 +3,10 @@
 // Note copied from the stdlib under MIT license
 
 use num::{ Bounded, Num, NumCast };
-use std::marker::Reflect;
 
 
 /// Primitive trait from old stdlib, added max_value
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Reflect + Bounded {
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
 }
 
 impl Primitive for usize {

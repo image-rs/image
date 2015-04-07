@@ -4,7 +4,6 @@
 // for some of the theory behind image scaling and convolution
 
 use std::f32;
-use std::iter::AdditiveIterator;
 
 use num:: {
     NumCast,
@@ -310,7 +309,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     let max = S::max_value();
     let max: f32 = NumCast::from(max).unwrap();
 
-    let sum = match kernel.iter().cloned().sum() {
+    let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
         0.0 => 1.0,
         sum => sum
     };

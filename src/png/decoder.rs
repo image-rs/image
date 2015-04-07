@@ -1,7 +1,7 @@
 use std::io::{ self, Read };
 use std::{ cmp, iter, str, slice };
 use std::iter::repeat;
-use std::num::FromPrimitive;
+use num::FromPrimitive;
 use byteorder::{ ReadBytesExt, BigEndian };
 use num::range_step;
 
@@ -34,10 +34,12 @@ enum PNGState {
     HaveIEND
 }
 
-#[derive(Clone, Copy, FromPrimitive, Debug, PartialEq)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum InterlaceMethod {
     None = 0,
     Adam7 = 1
+}
 }
 
 /// This iterator iterates over the different passes of an image Adam7 encoded

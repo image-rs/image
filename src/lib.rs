@@ -12,6 +12,8 @@
 
 extern crate byteorder;
 extern crate num;
+#[macro_use]
+extern crate enum_primitive;
 #[cfg(test)] extern crate test;
 
 pub use color::ColorType as ColorType;

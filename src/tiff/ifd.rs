@@ -74,13 +74,15 @@ tags!{
     Predictor 317;
 }
 
-#[derive(Clone, Copy, Debug, FromPrimitive)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug)]
 pub enum Type {
     BYTE = 1,
     ASCII = 2,
     SHORT = 3,
     LONG = 4,
     RATIONAL = 5,
+}
 }
 
 

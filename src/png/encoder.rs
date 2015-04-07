@@ -9,7 +9,7 @@
 use std::slice;
 use std::io;
 use std::io::Write;
-use std::num::FromPrimitive;
+use num::FromPrimitive;
 use std::iter::repeat;
 use byteorder::{WriteBytesExt, BigEndian};
 

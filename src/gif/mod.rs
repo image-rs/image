@@ -14,15 +14,16 @@ mod decoder;
 mod encoder;
 
 
-#[derive(FromPrimitive)]
+enum_from_primitive! {
 /// Known block types
 enum Block {
     Image = 0x2C,
     Extension = 0x21,
     Trailer = 0x3B
 }
+}
 
-#[derive(FromPrimitive)]
+enum_from_primitive! {
 /// Known GIF extensions
 enum Extension {
     Text = 0x01,
@@ -30,12 +31,14 @@ enum Extension {
     Comment = 0xFE,
     Application = 0xFF
 }
+}
 
-#[derive(FromPrimitive)]
+enum_from_primitive! {
 /// Method to dispose the image
 enum DisposalMethod {
 	Undefined = 0,
 	None = 1,
 	Previous = 2,
 	Background = 3
+}
 }

@@ -377,7 +377,7 @@ impl<R: Read> HuffReader<R> {
     }
 
     pub fn byte_align(&mut self) {
-        let n = self.bits & 0b111;
+        let n = self.num_bits & 0b111;
 
         self.bits >>= n as usize;
         self.num_bits -= n as u8;

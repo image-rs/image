@@ -40,8 +40,7 @@ impl<W> Deflater<W> where W: Write {
         let nlen = !len;    // one's complement
 
         let writer = self.writer.as_mut().unwrap();
-        try!(writer.write_u8(if last { 0x29 } else { 0 }));       // bits and stuff
-                  // TODO: should be 1  ^, but a bug in the PNGDecoder can be bypassed with 0x29
+        try!(writer.write_u8(if last { 1 } else { 0 }));       // bits and stuff
         try!(writer.write_u16::<LittleEndian>(len));
         try!(writer.write_u16::<LittleEndian>(nlen));
         try!(writer.write_all(&self.buf));

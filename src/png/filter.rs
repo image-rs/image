@@ -1,12 +1,14 @@
 use std::num::Wrapping as w;
 
-#[derive(FromPrimitive, Debug)]
+enum_from_primitive! {
+#[derive(Debug)]
 pub enum FilterType {
     NoFilter = 0,
     Sub = 1,
     Up = 2,
     Avg = 3,
     Paeth = 4
+}
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {

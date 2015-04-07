@@ -7,7 +7,7 @@
 
 use std::io::{self, Read};
 use byteorder::{ReadBytesExt, LittleEndian};
-use std::num::FromPrimitive;
+use num::FromPrimitive;
 
 use num::rational::Ratio;
 use imageops::overlay;

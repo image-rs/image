@@ -1,6 +1,6 @@
 use std::io::{self, Read, Seek};
 use std::mem;
-use std::num::FromPrimitive;
+use num::FromPrimitive;
 use std::collections::HashMap;
 use byteorder;
 use num;
@@ -26,7 +26,8 @@ use super::stream::{
     LZWReader
 };
 
-#[derive(Clone, Copy, Debug, FromPrimitive, PartialEq)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -37,8 +38,10 @@ enum PhotometricInterpretation {
     YCbCr = 6,
     CIELab = 8,
 }
+}
 
-#[derive(Clone, Copy, Debug, FromPrimitive)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug)]
 enum CompressionMethod {
     None = 1,
     Huffman = 2,
@@ -48,17 +51,22 @@ enum CompressionMethod {
     JPEG = 6,
     PackBits = 32773
 }
+}
 
-#[derive(Clone, Copy, Debug, FromPrimitive)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug)]
 enum PlanarConfiguration {
     Chunky = 1,
     Planar = 2
 }
+}
 
-#[derive(Clone, Copy, Debug, FromPrimitive)]
+enum_from_primitive! {
+#[derive(Clone, Copy, Debug)]
 enum Predictor {
     None = 1,
     Horizontal = 2
+}
 }
 
 /// The representation of a PNG decoder

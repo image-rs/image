@@ -1,9 +1,9 @@
 use std::ops::{ Index, IndexMut };
-use num::NumCast;
+use num::{ NumCast, Zero };
 use std::mem;
 
 use buffer::Pixel;
-use traits::{ Primitive, Zero };
+use traits::Primitive;
 
 /// An enumeration over supported color types and their bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone)]
@@ -95,9 +95,9 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     #[allow(trivial_casts)]
     fn channels4(&self) -> (T, T, T, T) {
         let a;
-        let mut b = Primitive::max_value();
-        let mut c = Primitive::max_value();
-        let mut d = Primitive::max_value();
+        let mut b = T::max_value();
+        let mut c = T::max_value();
+        let mut d = T::max_value();
         let this = self.data;
         if $channels as u8 == 1 {
             a = this[0];
@@ -299,7 +299,7 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for LumaA<T> {
                 0.7154f32 * rgb[1].to_f32().unwrap() +
                 0.0721f32 * rgb[2].to_f32().unwrap();
         gray_a[0] = NumCast::from(l).unwrap();
-        gray_a[1] = Primitive::max_value();
+        gray_a[1] = T::max_value();
     }
 }
 
@@ -307,7 +307,7 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Luma<T>) {
         let gray_a = self.channels_mut();
         gray_a[0] = other.channels()[0];
-        gray_a[1] = Primitive::max_value();
+        gray_a[1] = T::max_value();
     }
 }
 
@@ -320,7 +320,7 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for Rgba<T> {
         rgba[0] = rgb[0];
         rgba[1] = rgb[1];
         rgba[2] = rgb[2];
-        rgba[3] = Primitive::max_value();
+        rgba[3] = T::max_value();
 
     }
 }
@@ -343,7 +343,7 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Rgba<T> {
         rgba[0] = gray;
         rgba[1] = gray;
         rgba[2] = gray;
-        rgba[3] = Primitive::max_value();
+        rgba[3] = T::max_value();
     }
 }
 
@@ -389,7 +389,7 @@ pub trait Blend {
 
 impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
-        let max_t: T = Primitive::max_value();
+        let max_t = T::max_value();
         let max_t = max_t.to_f32().unwrap();
         let (bg_luma, bg_a) = (self.data[0], self.data[1]);
         let (fg_luma, fg_a) = (other.data[0], other.data[1]);
@@ -422,7 +422,7 @@ impl<T: Primitive> Blend for Rgba<T> {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
-        let max_t: T = Primitive::max_value();
+        let max_t = T::max_value();
         let max_t = max_t.to_f32().unwrap();
         let (bg_r, bg_g, bg_b, bg_a) = (self.data[0], self.data[1], self.data[2], self.data[3]);
         let (fg_r, fg_g, fg_b, fg_a) = (other.data[0], other.data[1], other.data[2], other.data[3]);
@@ -467,7 +467,7 @@ pub trait Invert {
 impl<T: Primitive> Invert for LumaA<T> {
     fn invert(&mut self) {
         let l = self.data;
-        let max: T = Primitive::max_value();
+        let max = T::max_value();
 
         *self = LumaA([max - l[0], l[1]])
 
@@ -478,7 +478,7 @@ impl<T: Primitive> Invert for Luma<T> {
     fn invert(&mut self) {
         let l = self.data;
 
-        let max: T = Primitive::max_value();
+        let max = T::max_value();
         let l1 = max - l[0];
 
         *self = Luma {data: [l1]}
@@ -489,7 +489,7 @@ impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.data;
 
-        let max: T = Primitive::max_value();
+        let max = T::max_value();
 
         *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
@@ -499,7 +499,7 @@ impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.data;
 
-        let max: T = Primitive::max_value();
+        let max = T::max_value();
 
         let r1 = max - rgb[0];
         let g1 = max - rgb[1];

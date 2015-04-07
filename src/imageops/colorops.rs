@@ -4,22 +4,19 @@ use num:: {
     Float,
 };
 
-use std::default::Default;
-use std::marker::Reflect;
-
 use color::{Luma, Rgba};
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
 use image::GenericImage;
 use math::utils::clamp;
 use math::nq;
+use num::Num;
 
 /// Convert the supplied image to grayscale
-// TODO: is the 'static bound on `I` really required? Can we avoid it?
-pub fn grayscale<'a, I: GenericImage + 'static>(image: &I)
+pub fn grayscale<'a, I: GenericImage>(image: &I)
     -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: Default + 'static + Reflect {
+    where <I::Pixel as Pixel>::Subpixel: 'static,
+          <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -51,17 +48,16 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 /// Adjust the contrast of the supplied image
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
-// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 pub fn contrast<I, P, S>(image: &I, contrast: f32)
     -> ImageBuffer<P, Vec<S>>
-    where I: GenericImage<Pixel=P> + 'static,
+    where I: GenericImage<Pixel=P>,
           P: Pixel<Subpixel=S> + 'static,
           S: Primitive + 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -87,17 +83,16 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
 /// Brighten the supplied image
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
-// TODO: Is the 'static bound on `I` really required? Can we avoid it?
 pub fn brighten<I, P, S>(image: &I, value: i32)
     -> ImageBuffer<P, Vec<S>>
-    where I: GenericImage<Pixel=P> + 'static,
+    where I: GenericImage<Pixel=P>,
           P: Pixel<Subpixel=S> + 'static,
           S: Primitive + 'static {
 
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max: S = Primitive::max_value();
+    let max = S::max_value();
     let max: i32 = NumCast::from(max).unwrap();
 
     for y in (0..height) {

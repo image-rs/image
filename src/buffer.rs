@@ -1,12 +1,12 @@
 use std::slice::{ Chunks, ChunksMut };
-use std::any::TypeId;
 use std::ops::{ Deref, DerefMut, Index, IndexMut };
-use std::marker::{ Reflect, PhantomData };
+use std::marker::PhantomData;
 use std::iter::repeat;
 use std::path::Path;
 use std::io;
+use num::Zero;
 
-use traits::{ Zero, Primitive };
+use traits::Primitive;
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
 use image::GenericImage;
 use dynimage::save_buffer;
@@ -14,7 +14,7 @@ use dynimage::save_buffer;
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
-pub trait Pixel: Copy + Clone + Reflect {
+pub trait Pixel: Copy + Clone {
     /// The underlying subpixel type.
     type Subpixel: Primitive;
 
@@ -208,7 +208,6 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P> where P::Subpixel
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
-    type_marker: TypeId,
     _phantom: PhantomData<P>,
     data: Container,
 }
@@ -233,7 +232,6 @@ where P: Pixel + 'static,
                 width: width,
                 height: height,
                 _phantom: PhantomData,
-                type_marker: TypeId::of::<P>()
             })
         } else {
             None
@@ -412,7 +410,6 @@ where P: Pixel,
             data: self.data.clone(),
             width: self.width,
             height: self.height,
-            type_marker: self.type_marker,
             _phantom: PhantomData,
         }
     }
@@ -472,7 +469,6 @@ where P::Subpixel: 'static {
                 ).collect(),
             width: width,
             height: height,
-            type_marker: TypeId::of::<P>(),
             _phantom: PhantomData,
         }
     }

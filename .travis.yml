@@ -4,6 +4,9 @@ notifications:
 os:
     - linux
     - osx
+rust:
+    - 1.0.0-beta
+    - nightly
 env:
     global:
         - secure: M2MCRtyP5P/Xf2TSqrbz8cs41TQY04mK/5Fi6qgr77OKLNZlDclKiFY8BmQ6f1JhVccoE5gMIFpfPoVUu8wZ0Pe7/X4IyO4vxWawVQfE6f0NYErD9yqiE1KEi/RGKPOQfL5HFUK7ifnXvLwsAMh1ix9XMgaBZfZLQ8KhkxNRXwI=
@@ -19,11 +22,11 @@ env:
 script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v;
-        cargo test -v;
+        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi;
         cargo doc -v;
       else
         cargo build -v --no-default-features --features "$FEATURES";
-        cargo test -v --no-default-features --features "$FEATURES";
+        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi;
         cargo doc -v;
       fi
 after_success: |

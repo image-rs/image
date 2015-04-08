@@ -1,5 +1,4 @@
 use std::cmp;
-use std::slice;
 use std::io::Read;
 use std::default::Default;
 use std::collections::HashMap;
@@ -589,7 +588,7 @@ impl<R: Read> ImageDecoder for JPEGDecoder<R> {
         let slice = &self.mcu_row[self.row_count as usize * len..
         self.row_count as usize * len + buf.len()];
 
-        slice::bytes::copy_memory(slice, buf);
+        ::copy_memory(slice, buf);
 
         self.row_count = (self.row_count + 1) % (self.vmax * 8);
         self.decoded_rows += 1;

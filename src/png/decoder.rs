@@ -1,5 +1,5 @@
 use std::io::{ self, Read };
-use std::{ cmp, str, slice };
+use std::{ cmp, str };
 use std::iter::repeat;
 use num::FromPrimitive;
 use byteorder::{ ReadBytesExt, BigEndian };
@@ -414,7 +414,7 @@ impl<R: Read> PNGDecoder<R> {
         }
 
         unfilter(filter_type, self.bpp as usize, &self.previous, &mut buf[..rlength as usize]);
-        slice::bytes::copy_memory(&buf[..rlength as usize], &mut self.previous);
+        ::copy_memory(&buf[..rlength as usize], &mut self.previous);
 
 
         if let Some(ref palette) = self.palette {

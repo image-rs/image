@@ -1,4 +1,3 @@
-use std::slice;
 use std::io;
 use std::io::Read;
 use std::default::Default;
@@ -124,7 +123,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
             self.decoded_rows as usize * rlen + rlen
         ];
 
-        slice::bytes::copy_memory(slice, buf);
+        ::copy_memory(slice, buf);
         self.decoded_rows += 1;
 
         Ok(self.decoded_rows)

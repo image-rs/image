@@ -9,7 +9,6 @@ use num:: {
     NumCast,
     Float,
 };
-use std::simd::f32x4;
 
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;
@@ -170,30 +169,31 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             let right = (inputx + filter_radius).floor() as i64;
             let right = clamp(right, 0, width as i64 - 1) as u32;
 
-            let mut sum = f32x4(0., 0., 0., 0.);
+            let mut sum = (0., 0., 0., 0.);
 
-            let mut t = f32x4(0., 0., 0., 0.);
+            let mut t = (0., 0., 0., 0.);
 
             for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
-                let w = f32x4(w, w, w, w);
-                sum += w;
+                let w = (w, w, w, w);
+                sum.0 += w.0; sum.1 += w.1; sum.1 += w.1; sum.1 += w.1;
 
                 let x0  = clamp(i, 0, width - 1);
                 let p = image.get_pixel(x0, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let vec = f32x4(
+                let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
                     NumCast::from(k2).unwrap(),
                     NumCast::from(k3).unwrap(),
                     NumCast::from(k4).unwrap()
                 );
 
-                t += vec * w;
+                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
+                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
             }
 
-            let f32x4(t1, t2, t3, t4) = t / sum;
+            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -248,30 +248,31 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
             let right = (inputy + filter_radius).floor() as i64;
             let right = clamp(right, 0, height as i64 - 1) as u32;
 
-            let mut sum = f32x4(0., 0., 0., 0.);
+            let mut sum = (0., 0., 0., 0.);
 
-            let mut t = f32x4(0., 0., 0., 0.);
+            let mut t = (0., 0., 0., 0.);
 
             for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
-                let w = f32x4(w, w, w, w);
-                sum += w;
+                let w = (w, w, w, w);
+                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
 
                 let y0  = clamp(i, 0, height - 1);
                 let p = image.get_pixel(x, y0);
 
                 let (k1, k2, k3, k4) = p.channels4();
-                let vec = f32x4(
+                let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
                     NumCast::from(k2).unwrap(),
                     NumCast::from(k3).unwrap(),
                     NumCast::from(k4).unwrap()
                 );
 
-                t += vec * w;
+                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
+                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
             }
 
-            let f32x4(t1, t2, t3, t4) = t / sum;
+            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -313,18 +314,18 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
         0.0 => 1.0,
         sum => sum
     };
-    let sum = f32x4(sum, sum, sum, sum);
+    let sum = (sum, sum, sum, sum);
 
     for y in (1..height - 1) {
         for x in (1..width - 1) {
-            let mut t = f32x4(0., 0., 0., 0.);
+            let mut t = (0., 0., 0., 0.);
 
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first
             // in each row.
             for (&k, &(a, b)) in kernel.iter().zip(taps.iter()) {
-                let k = f32x4(k, k, k, k);
+                let k = (k, k, k, k);
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
@@ -332,17 +333,18 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
 
                 let (k1, k2, k3, k4) = p.channels4();
 
-                let vec = f32x4(
+                let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
                     NumCast::from(k2).unwrap(),
                     NumCast::from(k3).unwrap(),
                     NumCast::from(k4).unwrap()
                 );
 
-                t += vec * k;
+                t.0 += vec.0 * k.0; t.1 += vec.1 * k.1;
+                t.2 += vec.2 * k.2; t.3 += vec.3 * k.3;
             }
 
-            let f32x4(t1, t2, t3, t4) = t / sum;
+            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
 
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),

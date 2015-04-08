@@ -1,7 +1,6 @@
 use std::fmt;
 use std::mem;
 use std::io;
-use std::slice;
 use std::iter::repeat;
 
 use byteorder;
@@ -182,7 +181,7 @@ pub trait ImageDecoder: Sized {
 
                 let to   = &mut buf[i * width as usize * bpp..width as usize * bpp];
 
-                slice::bytes::copy_memory(from, to);
+                ::copy_memory(from, to);
             }
 
             let _ = try!(self.read_scanline(&mut tmp));

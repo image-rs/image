@@ -6,7 +6,6 @@
 //! For each row the filter method that produces the lowest integer when its bytes
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
-use std::slice;
 use std::io;
 use std::io::Write;
 use num::FromPrimitive;
@@ -155,7 +154,7 @@ fn build_idat(image: &[u8], bpp: usize, width: u32) -> io::Result<Vec<u8>> {
 
     for row in image.chunks(rowlen) {
         for s in c.chunks_mut(rowlen) {
-            slice::bytes::copy_memory(row, s);
+            ::copy_memory(row, s);
         }
 
         let filter = select_filter(rowlen, bpp, &p, &mut c);
@@ -170,7 +169,7 @@ fn build_idat(image: &[u8], bpp: usize, width: u32) -> io::Result<Vec<u8>> {
             }
         }
 
-        slice::bytes::copy_memory(row, &mut p);
+        ::copy_memory(row, &mut p);
     }
 
     e.into_inner()

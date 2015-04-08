@@ -2,7 +2,6 @@
 
 use std::io;
 use std::io::Write;
-use std::fmt;
 
 use color;
 use color::ColorType:: {
@@ -40,11 +39,8 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
     }
 
     fn write_metadata(&mut self, width: u32, height: u32, pixel_type: color::ColorType) -> io::Result<()> {
-        let w = fmt::radix(width, 10);
-        let h = fmt::radix(height, 10);
         let m = max_pixel_value(pixel_type);
-
-        write!(self.w, "{0} {1}\n{2}\n", w, h, m)
+        write!(self.w, "{0} {1}\n{2}\n", width, height, m)
     }
 
     fn write_image(

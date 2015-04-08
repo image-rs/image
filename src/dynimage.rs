@@ -4,6 +4,7 @@ use std::path::Path;
 use std::fs::File;
 use std::iter;
 use std::ascii::AsciiExt;
+use num;
 
 #[cfg(feature = "ppm")]
 use ppm;
@@ -462,11 +463,9 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             let p = buf
                        .iter()
                        .flat_map(|&v|
-                           iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
-                           .zip(iter::iterate(
-                               v, |v| v
-                           )
-                       ))
+                           num::iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+                           .zip(iter::repeat(v))
+                       )
                        // skip the pixels that can be neglected because scanlines should
                        // start at byte boundaries
                        .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
@@ -490,19 +489,19 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     match *image {
         // TODO: consider transmuting
         DynamicImage::ImageLuma8(ref a) => {
-            a.as_slice().iter().map(|v| *v).collect()
+            a.iter().map(|v| *v).collect()
         }
 
         DynamicImage::ImageLumaA8(ref a) => {
-            a.as_slice().iter().map(|v| *v).collect()
+            a.iter().map(|v| *v).collect()
         }
 
         DynamicImage::ImageRgb8(ref a)  => {
-            a.as_slice().iter().map(|v| *v).collect()
+            a.iter().map(|v| *v).collect()
         }
 
         DynamicImage::ImageRgba8(ref a) => {
-            a.as_slice().iter().map(|v| *v).collect()
+            a.iter().map(|v| *v).collect()
         }
     }
 }

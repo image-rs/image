@@ -1,5 +1,5 @@
 use std::io::{ self, Read };
-use std::{ cmp, iter, str, slice };
+use std::{ cmp, str, slice };
 use std::iter::repeat;
 use num::FromPrimitive;
 use byteorder::{ ReadBytesExt, BigEndian };
@@ -583,10 +583,8 @@ where F: Fn(u8, &mut[u8]) {
         .flat_map(|idx|
             // This has to be reversed to
             range_step(0, 8, bit_depth)
-            .zip(iter::iterate(
-                idx, |idx| idx
-            )
-        ));
+            .zip(repeat(idx))
+        );
     let channels = channels as isize;
     let j = range_step(buf.len() as isize - channels, -channels, -channels);
     //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;

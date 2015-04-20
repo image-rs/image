@@ -22,7 +22,7 @@ use math::nq;
 pub enum ColorMode {
     /// Image will be encoded in multiple frames if more than 256 colors are present
     TrueColor,
-    /// Number of colors will be reduced
+    /// Image will be reduced to `64 < = n <= 256` colors
     Indexed(u8),
 }
 use self::ColorMode::{TrueColor, Indexed};

@@ -2,6 +2,7 @@ use std::fmt;
 use std::mem;
 use std::io;
 use std::iter::repeat;
+use std::error::Error;
 
 use byteorder;
 
@@ -52,6 +53,27 @@ impl fmt::Display for ImageError {
                                                        Decoder to decode the image"),
             &ImageError::IoError(ref e) => e.fmt(fmt),
             &ImageError::ImageEnd => write!(fmt, "The end of the image has been reached")
+        }
+    }
+}
+
+impl Error for ImageError {
+    fn description (&self) -> &str {
+        match *self {
+            ImageError::FormatError(..) => &"Format error",
+            ImageError::DimensionError => &"Dimension error",
+            ImageError::UnsupportedError(..) => &"Unsupported error",
+            ImageError::UnsupportedColor(..) => &"Unsupported color",
+            ImageError::NotEnoughData(..) => &"Not enough data",
+            ImageError::IoError(..) => &"IO error",
+            ImageError::ImageEnd => &"Image end"
+        }
+    }
+
+    fn cause (&self) -> Option<&Error> {
+        match *self {
+            ImageError::IoError(ref e) => Some(e),
+            _ => None
         }
     }
 }

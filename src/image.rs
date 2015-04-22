@@ -246,7 +246,7 @@ impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
 }
 
 /// Mutable pixel iterator
-#[deprecated = "It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead."]
+/// DEPRECATED: It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead.
 pub struct MutPixels<'a, I: 'a> {
     image:  &'a mut I,
     x:      u32,
@@ -359,7 +359,7 @@ pub trait GenericImage: Sized {
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
-    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
+    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Returns an Iterator over the pixels of this image.
@@ -380,8 +380,7 @@ pub trait GenericImage: Sized {
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    #[allow(deprecated)]
-    #[deprecated = "This cannot be implemented safely Rust. Please use the image buffer directly."]
+    /// DEPRECATED: "This cannot be implemented safely Rust. Please use the image buffer directly.
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 
@@ -511,7 +510,7 @@ impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
         self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
-    #[deprecated = "This method will be removed. Blend the pixel directly instead."]
+    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
         self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
@@ -530,7 +529,6 @@ mod tests {
 
     #[test]
     /// Test that alpha blending works as expected
-    #[allow(deprecated)]
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));

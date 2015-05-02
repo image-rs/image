@@ -1,9 +1,7 @@
 //! This crate provides native rust implementations of
-//! Image encoders and decoders and basic image manipulation
+//! image encoders and decoders and basic image manipulation
 //! functions.
 
-#![crate_name = "image"]
-#![crate_type = "rlib"]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
@@ -13,34 +11,38 @@ extern crate byteorder;
 extern crate num;
 #[macro_use]
 extern crate enum_primitive;
-#[cfg(test)] extern crate test;
+#[cfg(test)]
+extern crate test;
 
-pub use color::ColorType as ColorType;
-pub use traits::Primitive;
-
-pub use color::ColorType:: {
+pub use color::ColorType::{
+    self,
     Gray,
     RGB,
     Palette,
     GrayA,
-    RGBA,
+    RGBA
 };
-pub use color:: {
+
+pub use color::{
     Luma,
     LumaA,
     Rgb,
-    Rgba,
+    Rgba
 };
 
-pub use buffer::Pixel;
+pub use image::{
+    ImageDecoder,
+    ImageError,
+    ImageResult,
+    SubImage,
+    GenericImage,
+    // Iterators
+    Pixels,
+    MutPixels
+};
 
-pub use image::ImageDecoder as ImageDecoder;
-pub use image::ImageError as ImageError;
-pub use image::ImageResult as ImageResult;
-pub use image::ImageFormat as ImageFormat;
-pub use imageops::FilterType as FilterType;
-
-pub use imageops:: {
+pub use imageops::FilterType::{
+    self,
     Triangle,
     Nearest,
     CatmullRom,
@@ -48,7 +50,8 @@ pub use imageops:: {
     Lanczos3
 };
 
-pub use image::ImageFormat:: {
+pub use image::ImageFormat::{
+    self,
     PNG,
     JPEG,
     GIF,
@@ -56,10 +59,9 @@ pub use image::ImageFormat:: {
     PPM
 };
 
-// Image Types
-pub use image::SubImage as SubImage;
-pub use dynimage::DynamicImage as DynamicImage;
 pub use buffer::{
+    Pixel,
+    // Image types
     ImageBuffer,
     RgbImage,
     RgbaImage,
@@ -68,40 +70,37 @@ pub use buffer::{
 };
 
 // Traits
-pub use image::GenericImage as GenericImage;
+pub use traits::Primitive;
 
-// Iterators
-pub use image::Pixels as Pixels;
-pub use image::MutPixels as MutPixels;
-
-
-
-/// Opening and loading images
-pub use dynimage:: {
+// Opening and loading images
+pub use dynimage::{
     open,
     load,
     load_from_memory,
     load_from_memory_with_format,
-    save_buffer,
+    save_buffer
 };
-pub use dynimage::DynamicImage:: {
+
+pub use dynimage::DynamicImage::{
+    self,
     ImageRgb8,
     ImageRgba8,
     ImageLuma8,
-    ImageLumaA8,
+    ImageLumaA8
 };
 
-pub use animation:: {
-    Frame, Frames
+pub use animation::{
+    Frame,
+    Frames
 };
 
 // Math utils
 pub mod math;
 
-// Image Processing Functions
+// Image processing functions
 pub mod imageops;
 
-// Image Codecs
+// Image codecs
 #[cfg(feature = "webp")]
 pub mod webp;
 #[cfg(feature = "ppm")]
@@ -117,7 +116,6 @@ pub mod tiff;
 #[cfg(feature = "tga")]
 pub mod tga;
 
-
 mod image;
 mod utils;
 mod dynimage;
@@ -126,12 +124,12 @@ mod buffer;
 mod traits;
 mod animation;
 
-/// Copies data from `src` to `dst`
-///
-/// Panics if the length of `dst` is less than the length of `src`.
-// NOTE: this is a copy-paste of the unstable function `std::::copy_memory`.
+// Copies data from `src` to `dst`
+//
+// Panics if the length of `dst` is less than the length of `src`.
+// NOTE: this is a copy-paste of the unstable function `std::slice::bytes::copy_memory`.
 #[inline]
-pub fn copy_memory(src: &[u8], dst: &mut [u8]) {
+fn copy_memory(src: &[u8], dst: &mut [u8]) {
     let len_src = src.len();
     assert!(dst.len() >= len_src);
     // `dst` is unaliasable, so we know statically it doesn't overlap

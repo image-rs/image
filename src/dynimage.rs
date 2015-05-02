@@ -341,12 +341,12 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Write>(&self, w: &mut W, format: ImageFormat) -> io::Result<ImageResult<()>> {
+    pub fn save<W: Write>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
 
-        let r = match format {
+        match format {
             #[cfg(feature = "png")]
             image::ImageFormat::PNG  => {
                 let mut p = png::PNGEncoder::new(w);
@@ -383,9 +383,7 @@ impl DynamicImage {
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),
-        };
-
-        Ok(r)
+        }
     }
 }
 

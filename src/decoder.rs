@@ -1,11 +1,14 @@
-use std::io;
+use std::io::{self, Read};
 use std::cmp::min;
 use std::convert::From;
+
+use deflate::{Inflater, Flush};
 
 use crc::Crc32;
 use traits::ReadBytesExt;
 
-const EXTENSION_BUFFER: usize = 1024;
+const CHUNCK_BUFFER_SIZE: usize = 10*1024;
+const IMAGE_BUFFER_SIZE: usize = 30*1024;
 
 #[derive(Debug)]
 enum U32Value {
@@ -55,12 +58,18 @@ impl From<io::Error> for DecodingError {
     }
 }
 
-#[derive(Debug)]
 pub struct Decoder {
     state: Option<State>,
     width: u32,
     height: u32,
-    current_chunk: (Crc32, Vec<u8>)
+    current_chunk: (Crc32, Vec<u8>),
+    inflater: Inflater,
+    image_data: Vec<u8>,
+}
+
+pub enum DecodingResult<'a> {
+    None,
+    ImageData(&'a [u8]),
 }
 
 impl Decoder {
@@ -69,35 +78,54 @@ impl Decoder {
             state: Some(State::Signature(0, [0; 7])),
             width: 0,
             height: 0,
-            current_chunk: (Crc32::new(), Vec::with_capacity(EXTENSION_BUFFER))
+            current_chunk: (Crc32::new(), Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
+            inflater: Inflater::new(),
+            image_data: Vec::with_capacity(IMAGE_BUFFER_SIZE)
         }
     }
     
-    pub fn update(&mut self, mut buf: &[u8])
-    -> Result<usize, DecodingError> {
+    pub fn update<'a>(&'a mut self, mut buf: &[u8])
+    -> Result<(usize, DecodingResult<'a>), DecodingError> {
+        // NOTE: Do not change the function signature without double-checking the
+        //       unsafe block!
         let len = buf.len();
         while buf.len() > 0 && self.state.is_some() {
             match self.next_state(buf) {
-                Ok(bytes) => {
+                Ok((bytes, DecodingResult::None)) => {
                     buf = &buf[bytes..]
+                }
+                Ok((bytes, res)) => {
+                    buf = &buf[bytes..];
+                    return Ok(
+                        (len-buf.len(), 
+                        // This transmute just casts the lifetime away. Since Rust only 
+                        // has SESE regions, this early return cannot be worked out and
+                        // such that the borrow region of self includes the whole block.
+                        // The explixit lifetimes in the function signature ensure that
+                        // this is safe.
+                        unsafe { 
+                            ::std::mem::transmute::<DecodingResult, DecodingResult>(res)
+                        }
+                    ))
                 }
                 Err(err) => return Err(err)
             }
         }
-        Ok(len-buf.len())
+        Ok((len-buf.len(), DecodingResult::None))
     }
     
-    fn next_state(&mut self, buf: &[u8]) -> Result<usize, DecodingError> {
+    fn next_state<'a>(&'a mut self, buf: &[u8])
+    -> Result<(usize, DecodingResult<'a>), DecodingError> {
         use self::State::*;
         
         macro_rules! goto (
             ($n:expr, $state:expr) => ({
                 self.state = Some($state); 
-                Ok($n)
+                Ok(($n, DecodingResult::None))
             });
             ($state:expr) => ({
                 self.state = Some($state); 
-                Ok(1)
+                Ok((1, DecodingResult::None))
             })
         );
         
@@ -105,7 +133,7 @@ impl Decoder {
         
         // Driver should ensure that state is never None
         let state = self.state.take().unwrap();
-        println!("{:?}", state);
+        //println!("{:?}", state);
 
         match state {
             Signature(i, mut signature) => if i < 7 {
@@ -121,13 +149,31 @@ impl Decoder {
             StoppedAt(pos) => {
                 use self::StopPosition::*;
                 match pos {
-                    ChunkComplete(type_str) => goto!(
-                        0, try!(self.parse_chunk(type_str))
-                    ),
+                    ChunkComplete(type_str) => {
+                        match &type_str {
+                            b"IDAT" => {
+                                self.image_data.push_all(&self.current_chunk.1);
+                            },
+                            b"IEND" => {
+                                //let mut data = vec![];
+                                //let mut z = png::zlib::ZlibDecoder::new(&*self.image_data);
+                                //try!(z.read_to_end(&mut data));
+                            }
+                            // Skip other chunks
+                            _ => ()
+                        }
+                        goto!(0, try!(self.parse_chunk(type_str)))
+                    },
                     PartialChunk(remaining, type_str) => {
-                        // TODO handle this
+                        match &type_str {
+                            b"IDAT" => {
+                                self.image_data.push_all(&self.current_chunk.1);
+                            },
+                            _ => () // Skip other chunks
+                        }
                         self.current_chunk.1.clear();
                         goto!(0, ReadChunk(remaining, type_str))
+                        
                     },
                 }
             }
@@ -149,6 +195,7 @@ impl Decoder {
                         goto!(ReadChunk(length, type_str))
                     },
                     Crc(type_str) => {
+                        println!("{}", String::from_utf8_lossy(&type_str));
                         if val == self.current_chunk.0.checksum() {
                             goto!(StoppedAt(StopPosition::ChunkComplete(type_str)))
                         } else {

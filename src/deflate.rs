@@ -50,16 +50,17 @@ impl Inflater {
     pub fn inflate<'a>(&mut self, input: &[u8], output: &'a mut [u8], flush: Flush)
     -> io::Result<(bool, usize, &'a mut [u8])> {
         let s = &mut self.stream;
+        let out_len = output.len();
         s.next_in = input.as_ptr();
         s.avail_in = input.len() as c_uint;
         s.next_out = output.as_mut_ptr();
-        s.avail_out = output.len() as c_uint;
+        s.avail_out = out_len as c_uint;
         let result = unsafe { mz_inflate(s, flush as c_int) };
         match result {
             MZ_OK | MZ_STREAM_END => {
                 Ok((if result == MZ_STREAM_END { true } else { false },
                     input.len() - s.avail_in as usize,
-                    &mut output[..s.avail_out as usize]
+                    &mut output[..out_len - s.avail_out as usize]
                 ))
             },
             err => {

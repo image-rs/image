@@ -6,3 +6,6 @@ authors = ["nwin <nwin@users.noreply.github.com>"]
 [dependencies]
 miniz-sys = "0.1"
 libc = "*"
+
+[dev-dependencies]
+getopts = "*"

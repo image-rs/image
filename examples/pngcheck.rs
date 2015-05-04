@@ -76,10 +76,12 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         io::ErrorKind::Other,
         "could not open terminal"
     )));
-    let mut data = Vec::new();
-    try!(try!(File::open(&fname)).read_to_end(&mut data));
+    let mut data = vec![0; 10*1024];
+    let data_p = data.as_mut_ptr();
+    let mut reader = io::BufReader::new(try!(File::open(&fname)));
     let fname = fname.as_ref().to_string_lossy();
-    let mut buf = &data[..];
+    let n = try!(reader.read(&mut data));
+    let mut buf = &data[..n];
     let mut pos = 0;
     let mut decoder = png::Decoder::new();
     // Image data
@@ -92,6 +94,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     let mut compressed_size = 0;
     let mut n_chunks = 0;
     macro_rules! c_ratio(
+        // TODO add palette entries to compressed_size
         () => ({
             compressed_size as f32/(
                 height as u64 *
@@ -112,6 +115,14 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             
     }
     loop {
+        if buf.len() == 0 {
+            // circumvent borrow checker
+            let n = try!(reader.read(unsafe{::std::mem::transmute(
+                ::std::slice::from_raw_parts_mut(data_p, data.len())
+            )}));
+            buf = &data[..n];
+            
+        }
         match decoder.update(buf) {
             Ok((_, ImageEnd)) => {
                 if !c.verbose && !c.quiet {

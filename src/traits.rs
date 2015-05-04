@@ -21,14 +21,16 @@ pub trait ReadBytesExt<T>: io::Read {
 	/// Writes `T` to a bytes stream. Most significant byte first.
 	fn read_be(&mut self) -> io::Result<T>;
 
+}
+
+impl<W: io::Read + ?Sized> ReadBytesExt<u8> for W {
 	#[inline]
-	fn read_byte(&mut self) -> io::Result<u8> {
+	fn read_be(&mut self) -> io::Result<u8> {
         let mut byte = [0];
 		try!(read_all(self, &mut byte));
         Ok(byte[0])
 	}
 }
-
 impl<W: io::Read + ?Sized> ReadBytesExt<u16> for W {
 	#[inline]
 	fn read_be(&mut self) -> io::Result<u16> {

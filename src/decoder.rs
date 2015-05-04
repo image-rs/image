@@ -1,6 +1,11 @@
+use std::borrow::Cow;
+use std::error;
+use std::fmt;
 use std::io::{self, Read};
 use std::cmp::min;
-use std::convert::From;
+use std::convert::{From, AsRef};
+
+use num::FromPrimitive;
 
 use deflate::{Inflater, Flush};
 
@@ -29,6 +34,18 @@ enum ByteValue {
     FilterMethod,
     InterlaceMethod
 }
+
+enum_from_primitive! {
+#[derive(Debug, Clone, Copy)]
+pub enum ColorType {
+    Grayscale = 0,
+    RGB = 2,
+    Indexed = 3,
+    GrayscaleAlpha = 4,
+    RGBA = 6
+}
+}
+
     
 #[derive(Debug)]
 enum State {
@@ -46,6 +63,8 @@ enum State {
 #[derive(Debug)]
 pub enum DecodingResult<'a> {
     None,
+    Header(u32, u32, u8, ColorType, bool),
+    ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
     ImageData(&'a [u8]),
     ImageEnd,
@@ -54,6 +73,7 @@ pub enum DecodingResult<'a> {
 #[derive(Debug)]
 pub enum DecodingError {
     IoError(io::Error),
+    Format(::std::borrow::Cow<'static, str>),
     InvalidSignature,
     CrcMismatch {
         /// bytes to skip to try to recover from this error
@@ -67,6 +87,25 @@ pub enum DecodingError {
     CorruptFlateStream
 }
 
+impl error::Error for DecodingError {
+    fn description(&self) -> &str {
+        use self::DecodingError::*;
+        match *self {
+            IoError(ref err) => err.description(),
+            Format(ref desc) => &desc,
+            InvalidSignature => "invalid signature",
+            CrcMismatch { .. } => "CRC error",
+            CorruptFlateStream => "compressed data stream corrupted"
+        }
+    }
+}
+
+impl fmt::Display for DecodingError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(fmt, "{}", (self as &error::Error).description())
+    }
+}
+
 impl From<io::Error> for DecodingError {
     fn from(err: io::Error) -> DecodingError {
         DecodingError::IoError(err)
@@ -77,6 +116,9 @@ pub struct Decoder {
     state: Option<State>,
     width: u32,
     height: u32,
+    color_type: ColorType,
+    bit_depth: u8,
+    interlaced: bool,
     current_chunk: (Crc32, Vec<u8>),
     inflater: Inflater,
     image_data: Vec<u8>,
@@ -92,6 +134,9 @@ impl Decoder {
             state: Some(State::Signature(0, [0; 7])),
             width: 0,
             height: 0,
+            color_type: ColorType::Grayscale,
+            bit_depth: 0,
+            interlaced: false,
             current_chunk: (Crc32::new(), Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
             inflater: Inflater::new(),
             image_data: vec![0; IMAGE_BUFFER_SIZE]
@@ -180,11 +225,12 @@ impl Decoder {
                     },
                     // Skip other chunks
                     _ => {
-                        goto!(0, if remaining == 0 {
+                        let (state, res) = if remaining == 0 {
                             try!(self.parse_chunk(type_str))
                         } else {
-                            ReadChunk(remaining, type_str, true)
-                        })
+                            (ReadChunk(remaining, type_str, true), DecodingResult::None)
+                        };
+                        goto!(0, state, emit res)
                     }
                 }
                 
@@ -203,10 +249,12 @@ impl Decoder {
                         ];
                         self.current_chunk.0.reset();
                         self.current_chunk.0.update(&type_str);
-                        goto!(ReadChunk(length, type_str, true))
+                        goto!(
+                            ReadChunk(length, type_str, true),
+                            emit DecodingResult::ChunkBegin(length, type_str)
+                        )
                     },
                     Crc(type_str) => {
-                        //println!("{}", String::from_utf8_lossy(&type_str));
                         if val == self.current_chunk.0.checksum() {
                             goto!(
                                 State::U32(U32Value::Length),
@@ -293,22 +341,47 @@ impl Decoder {
         }
     }
     
-    fn parse_chunk(&mut self, type_str: [u8; 4]) -> Result<State, DecodingError> {
-        match &type_str {
+    fn parse_chunk(&mut self, type_str: [u8; 4])
+    -> Result<(State, DecodingResult<'static>), DecodingError> {
+        let result = match &type_str {
             IHDR => {
                 try!(self.parse_ihdr())
             }
             // Skip unknown chunks:
-            _ => ()
-        }
-        Ok(State::U32(U32Value::Crc(type_str)))
+            _ => DecodingResult::None
+        };
+        Ok((State::U32(U32Value::Crc(type_str)), result))
     }
     
-    fn parse_ihdr(&mut self) -> Result<(), DecodingError> {
+    fn parse_ihdr(&mut self)
+    -> Result<DecodingResult<'static>, DecodingError> {
         let mut buf = &self.current_chunk.1[..];
         self.width = try!(buf.read_be());
         self.height = try!(buf.read_be());
-        Ok(())
+        self.bit_depth = try!(buf.read_be());
+        let color_type = try!(buf.read_be());
+        self.color_type = match FromPrimitive::from_u8(color_type) {
+            Some(color_type) => color_type,
+            None => return Err(DecodingError::Format(Cow::Owned(format!(
+                "invalid color type ({})", color_type
+            ))))
+        };
+        let _: u8 = try!(buf.read_be()); // compression method
+        let _: u8 = try!(buf.read_be()); // filter method
+        self.interlaced = match try!(buf.read_be()) {
+            0u8 => false,
+            1 => true,
+            _ => return Err(DecodingError::Format(
+                Cow::Borrowed("invalid interlace method")
+            ))
+        };
+        Ok(DecodingResult::Header(
+            self.width,
+            self.height,
+            self.bit_depth,
+            self.color_type,
+            self.interlaced
+        ))
     }
 }
 
@@ -318,8 +391,32 @@ fn test() {
     use std::fs::File;
     let mut data = Vec::new();
     File::open("tests/samples/lenna_fragment_interlaced.png").unwrap().read_to_end(&mut data).unwrap();
+    //File::open("tests/samples/bug.png").unwrap().read_to_end(&mut data).unwrap();
+    //File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap().read_to_end(&mut data).unwrap();
     let mut decoder = Decoder::new();
     decoder.update(&*data).unwrap();
-    println!("{:?}", decoder);
-    panic!()
+    println!("{}x{}", decoder.width, decoder.height);
+    
+    let mut out_buf = vec![0; 1024*32];
+    let mut data = vec![];
+    //decoder.image_data.zlib_decode().read_to_end(&mut data).unwrap();
+    let mut z = Inflater::new();
+    let mut in_buf = &decoder.image_data[..];
+    let mut eof = false;
+    while !eof {
+        match z.inflate(in_buf, &mut out_buf, Flush::None) {
+            Ok((at_eof, consumed, out)) => {
+                in_buf = &in_buf[consumed..];
+                data.push_all(out);
+                eof = at_eof;
+            },
+            Err(err) => panic!("{:?}", err)
+        }
+    }
+    println!("data count: {}", data.len());
+    //for (i, line) in data.chunks(4 * (decoder.width as usize) +1).enumerate() {
+    //    println!("{}: {}", i, line[0])
+    //}
+    panic!("{:?} {}", data.len(), decoder.width*decoder.height);
+    
 }

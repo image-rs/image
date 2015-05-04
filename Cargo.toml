@@ -6,6 +6,10 @@ authors = ["nwin <nwin@users.noreply.github.com>"]
 [dependencies]
 miniz-sys = "0.1"
 libc = "*"
+num = "*"
+enum_primitive = "*"
 
 [dev-dependencies]
 getopts = "*"
+term = "0.2"
+glob = "*"

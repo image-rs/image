@@ -121,7 +121,6 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                 ::std::slice::from_raw_parts_mut(data_p, data.len())
             )}));
             buf = &data[..n];
-            
         }
         match decoder.update(buf) {
             Ok((_, ImageEnd)) => {
@@ -197,7 +196,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                                 len
                             )
                         }
-                        match &type_str {
+                        match type_str {
                             IDAT => {
                                 compressed_size += len
                             },
@@ -212,7 +211,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                     }
                     ChunkComplete(_, type_str) if c.verbose => {
                         use png::chunks::*;
-                        match &type_str {
+                        match type_str {
                             IHDR => {
                                 println!("");
                                 print!(

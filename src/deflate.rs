@@ -1,3 +1,5 @@
+//! Low-level wrapper around `flate2`.
+
 use std::io;
 use std::mem::zeroed;
 

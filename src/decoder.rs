@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::error;
 use std::fmt;
+use std::mem;
 use std::io::{self, Read};
 use std::cmp::min;
 use std::convert::{From, AsRef};
@@ -14,7 +15,7 @@ use traits::ReadBytesExt;
 
 use chunks::*;
 
-/// TODO check if these sized are reasonable
+/// TODO check if these size are reasonable
 const CHUNCK_BUFFER_SIZE: usize = 10*1024;
 const IMAGE_BUFFER_SIZE: usize = 30*1024;
 
@@ -112,6 +113,9 @@ impl From<io::Error> for DecodingError {
     }
 }
 
+/// PNG info struct
+pub struct Info;
+
 pub struct Decoder {
     state: Option<State>,
     width: u32,
@@ -158,7 +162,7 @@ impl Decoder {
                 Ok((bytes, DecodingResult::None)) => {
                     buf = &buf[bytes..]
                 }
-                Ok((bytes, res)) => {
+                Ok((bytes, result)) => {
                     buf = &buf[bytes..];
                     return Ok(
                         (len-buf.len(), 
@@ -168,7 +172,7 @@ impl Decoder {
                         // The explixit lifetimes in the function signature ensure that
                         // this is safe.
                         unsafe { 
-                            ::std::mem::transmute::<DecodingResult, DecodingResult>(res)
+                            mem::transmute::<DecodingResult, DecodingResult>(result)
                         }
                     ))
                 }
@@ -219,7 +223,7 @@ impl Decoder {
                 }
             },
             PartialChunk(remaining, type_str) => {
-                match &type_str {
+                match type_str {
                     IDAT => {
                         goto!(0, DecodeData(remaining, type_str, 0))
                     },
@@ -258,7 +262,7 @@ impl Decoder {
                         if val == self.current_chunk.0.checksum() {
                             goto!(
                                 State::U32(U32Value::Length),
-                                emit if &type_str == IEND {
+                                emit if type_str == IEND {
                                     DecodingResult::ImageEnd
                                 } else {
                                     DecodingResult::ChunkComplete(val, type_str)
@@ -343,7 +347,7 @@ impl Decoder {
     
     fn parse_chunk(&mut self, type_str: [u8; 4])
     -> Result<(State, DecodingResult<'static>), DecodingError> {
-        let result = match &type_str {
+        let result = match type_str {
             IHDR => {
                 try!(self.parse_ihdr())
             }
@@ -385,38 +389,91 @@ impl Decoder {
     }
 }
 
-#[test]
-fn test() {
-    use std::io::prelude::*;
-    use std::fs::File;
-    let mut data = Vec::new();
-    File::open("tests/samples/lenna_fragment_interlaced.png").unwrap().read_to_end(&mut data).unwrap();
-    //File::open("tests/samples/bug.png").unwrap().read_to_end(&mut data).unwrap();
-    //File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap().read_to_end(&mut data).unwrap();
-    let mut decoder = Decoder::new();
-    decoder.update(&*data).unwrap();
-    println!("{}x{}", decoder.width, decoder.height);
-    
-    let mut out_buf = vec![0; 1024*32];
-    let mut data = vec![];
-    //decoder.image_data.zlib_decode().read_to_end(&mut data).unwrap();
-    let mut z = Inflater::new();
-    let mut in_buf = &decoder.image_data[..];
-    let mut eof = false;
-    while !eof {
-        match z.inflate(in_buf, &mut out_buf, Flush::None) {
-            Ok((at_eof, consumed, out)) => {
-                in_buf = &in_buf[consumed..];
-                data.push_all(out);
-                eof = at_eof;
-            },
-            Err(err) => panic!("{:?}", err)
+/// PNG reader
+///
+/// Provides a high level interface by wrapping a `Read` that iterates over lines
+/// or whole images.
+pub struct Reader<R: Read> {
+    r: R,
+    d: Decoder,
+    /// Read buffer
+    buf: Vec<u8>,
+    /// Buffer position
+    pos: usize,
+    /// Buffer length
+    end: usize,
+    info: Option<Info>
+}
+
+impl<R: Read> Reader<R> {
+    /// Creates a new reader
+    fn new(r: R) -> Reader<R> {
+        Reader {
+            r: r,
+            d: Decoder::new(),
+            buf: vec![0; CHUNCK_BUFFER_SIZE],
+            pos: 0,
+            end: 0,
+            info: None
         }
     }
-    println!("data count: {}", data.len());
-    //for (i, line) in data.chunks(4 * (decoder.width as usize) +1).enumerate() {
-    //    println!("{}: {}", i, line[0])
-    //}
-    panic!("{:?} {}", data.len(), decoder.width*decoder.height);
     
+    /// Reads all meta data until the first IDAT chunk
+    pub fn read_info(&mut self) -> Result<&Info, DecodingError> {
+        use DecodingResult::*;
+        if let Some(ref info) = self.info {
+            Ok(info)
+        } else {
+            let info = Info;
+            while let Some(val) = try!(self.decode_next()) {
+                match val {
+                    ChunkBegin(_, IDAT) => break,
+                    _ => ()
+                }
+            }
+            self.info = Some(info);
+            Ok(self.info.as_ref().unwrap())
+        }
+    }
+    
+    /// Returns the next decoded block
+    pub fn decode_next(&mut self) -> Result<Option<DecodingResult>, DecodingError> {
+        loop {
+            if self.pos == self.end {
+                self.end = try!(self.r.read(&mut self.buf));
+                self.pos = 0;
+            }
+            match try!(self.d.update(&self.buf[self.pos..self.end])) {
+                (n, DecodingResult::None) => self.pos += n,
+                (_, DecodingResult::ImageEnd) => return Ok(None),
+                (n, result) => {
+                    self.pos += n;
+                    return Ok(Some(unsafe {
+                        // This transmute just casts the lifetime away. See comment
+                        // in Decoder::update for more information.
+                        mem::transmute::<DecodingResult, DecodingResult>(result)
+                    }))
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test() {
+    use std::fs::File;
+    let mut reader = Reader::new(File::open("tests/samples/lenna_fragment_interlaced.png").unwrap());
+    while let Some(obj) = reader.decode_next().unwrap() {
+        match obj {
+            DecodingResult::ImageData(data) => {
+                //for (i, line) in data.chunks(4 * (decoder.width as usize) +1).enumerate() {
+                //    println!("{}: {}", i, line[0])
+                //}
+                panic!()
+            }
+            _ => ()
+        }
+    }
+    //File::open("tests/samples/bug.png").unwrap().read_to_end(&mut data).unwrap();
+    //File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap().read_to_end(&mut data).unwrap();    
 }

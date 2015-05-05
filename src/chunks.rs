@@ -7,31 +7,31 @@ pub type ChunkType = [u8; 4];
 // -- Critical chunks --
 
 /// Image header
-pub const IHDR: &'static ChunkType = b"IHDR";
+pub const IHDR: ChunkType = [b'I', b'H', b'D', b'R'];
 /// Palette
-pub const PLTE: &'static ChunkType = b"PLTE";
+pub const PLTE: ChunkType = [b'P', b'L', b'T', b'E'];
 /// Image data
-pub const IDAT: &'static ChunkType = b"IDAT";
+pub const IDAT: ChunkType = [b'I', b'D', b'A', b'T'];
 /// Image trailer
-pub const IEND: &'static ChunkType = b"IEND";
+pub const IEND: ChunkType = [b'I', b'E', b'N', b'D'];
 
 // -- Ancillary chunks --
 
 /// Transparency
-pub const tRNS: &'static ChunkType = b"tRNS";
+pub const tRNS: ChunkType = [b't', b'R', b'N', b'S'];
 /// Background colour
-pub const bKGD: &'static ChunkType = b"bKGD";
+pub const bKGD: ChunkType = [b'b', b'K', b'G', b'D'];
 /// Image last-modification time
-pub const tIME: &'static ChunkType = b"tIME";
+pub const tIME: ChunkType = [b't', b'I', b'M', b'E'];
 
 // -- Extension chunks --
 
 /// Animation control
-pub const acTL: &'static ChunkType = b"acTL";
+pub const acTL: ChunkType = [b'a', b'c', b'T', b'L'];
 /// Frame control
-pub const fcTL: &'static ChunkType = b"fcTL";
+pub const fcTL: ChunkType = [b'f', b'c', b'T', b'L'];
 /// Frame data
-pub const fdAT: &'static ChunkType = b"fdAT";
+pub const fdAT: ChunkType = [b'f', b'd', b'A', b'T'];
 
 // -- Chunk type determination --
 

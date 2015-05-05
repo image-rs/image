@@ -12,4 +12,5 @@ pub mod decoder;
 mod deflate;
 mod traits;
 
-pub use decoder::{Decoder, DecodingResult, ColorType};
+pub use decoder::{Reader, Decoder, DecodingResult};
+pub use decoder::{Info, ColorType};

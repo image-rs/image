@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::default::Default;
 use std::error;
 use std::fmt;
 use std::mem;
@@ -63,7 +64,7 @@ enum State {
 
 #[derive(Debug)]
 pub enum DecodingResult<'a> {
-    None,
+    Nothing,
     Header(u32, u32, u8, ColorType, bool),
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
@@ -114,15 +115,28 @@ impl From<io::Error> for DecodingError {
 }
 
 /// PNG info struct
-pub struct Info;
+pub struct Info {
+    width: u32,
+    height: u32,
+    bit_depth: u8,
+    color_type: ColorType,
+    interlaced: bool
+}
+
+impl Default for Info {
+    fn default() -> Info {
+        Info {
+            width: 0,
+            height: 0,
+            bit_depth: 0,
+            color_type: ColorType::Grayscale,
+            interlaced: false
+        }
+    }
+}
 
 pub struct Decoder {
     state: Option<State>,
-    width: u32,
-    height: u32,
-    color_type: ColorType,
-    bit_depth: u8,
-    interlaced: bool,
     current_chunk: (Crc32, Vec<u8>),
     inflater: Inflater,
     image_data: Vec<u8>,
@@ -136,11 +150,6 @@ impl Decoder {
     pub fn new() -> Decoder {
         Decoder {
             state: Some(State::Signature(0, [0; 7])),
-            width: 0,
-            height: 0,
-            color_type: ColorType::Grayscale,
-            bit_depth: 0,
-            interlaced: false,
             current_chunk: (Crc32::new(), Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
             inflater: Inflater::new(),
             image_data: vec![0; IMAGE_BUFFER_SIZE]
@@ -159,7 +168,7 @@ impl Decoder {
         let len = buf.len();
         while buf.len() > 0 && self.state.is_some() {
             match self.next_state(buf) {
-                Ok((bytes, DecodingResult::None)) => {
+                Ok((bytes, DecodingResult::Nothing)) => {
                     buf = &buf[bytes..]
                 }
                 Ok((bytes, result)) => {
@@ -179,7 +188,7 @@ impl Decoder {
                 Err(err) => return Err(err)
             }
         }
-        Ok((len-buf.len(), DecodingResult::None))
+        Ok((len-buf.len(), DecodingResult::Nothing))
     }
     
     fn next_state<'a>(&'a mut self, buf: &[u8])
@@ -189,11 +198,11 @@ impl Decoder {
         macro_rules! goto (
             ($n:expr, $state:expr) => ({
                 self.state = Some($state); 
-                Ok(($n, DecodingResult::None))
+                Ok(($n, DecodingResult::Nothing))
             });
             ($state:expr) => ({
                 self.state = Some($state); 
-                Ok((1, DecodingResult::None))
+                Ok((1, DecodingResult::Nothing))
             });
             ($n:expr, $state:expr, emit $res:expr) => ({
                 self.state = Some($state); 
@@ -232,7 +241,7 @@ impl Decoder {
                         let (state, res) = if remaining == 0 {
                             try!(self.parse_chunk(type_str))
                         } else {
-                            (ReadChunk(remaining, type_str, true), DecodingResult::None)
+                            (ReadChunk(remaining, type_str, true), DecodingResult::Nothing)
                         };
                         goto!(0, state, emit res)
                     }
@@ -352,7 +361,7 @@ impl Decoder {
                 try!(self.parse_ihdr())
             }
             // Skip unknown chunks:
-            _ => DecodingResult::None
+            _ => DecodingResult::Nothing
         };
         Ok((State::U32(U32Value::Crc(type_str)), result))
     }
@@ -360,11 +369,11 @@ impl Decoder {
     fn parse_ihdr(&mut self)
     -> Result<DecodingResult<'static>, DecodingError> {
         let mut buf = &self.current_chunk.1[..];
-        self.width = try!(buf.read_be());
-        self.height = try!(buf.read_be());
-        self.bit_depth = try!(buf.read_be());
+        let width = try!(buf.read_be());
+        let height = try!(buf.read_be());
+        let bit_depth = try!(buf.read_be());
         let color_type = try!(buf.read_be());
-        self.color_type = match FromPrimitive::from_u8(color_type) {
+        let color_type = match FromPrimitive::from_u8(color_type) {
             Some(color_type) => color_type,
             None => return Err(DecodingError::Format(Cow::Owned(format!(
                 "invalid color type ({})", color_type
@@ -372,7 +381,7 @@ impl Decoder {
         };
         let _: u8 = try!(buf.read_be()); // compression method
         let _: u8 = try!(buf.read_be()); // filter method
-        self.interlaced = match try!(buf.read_be()) {
+        let interlaced = match try!(buf.read_be()) {
             0u8 => false,
             1 => true,
             _ => return Err(DecodingError::Format(
@@ -380,19 +389,18 @@ impl Decoder {
             ))
         };
         Ok(DecodingResult::Header(
-            self.width,
-            self.height,
-            self.bit_depth,
-            self.color_type,
-            self.interlaced
+            width,
+            height,
+            bit_depth,
+            color_type,
+            interlaced
         ))
     }
 }
 
 /// PNG reader
 ///
-/// Provides a high level interface by wrapping a `Read` that iterates over lines
-/// or whole images.
+/// Provides a high level that iterates over lines or whole images.
 pub struct Reader<R: Read> {
     r: R,
     d: Decoder,
@@ -424,9 +432,16 @@ impl<R: Read> Reader<R> {
         if let Some(ref info) = self.info {
             Ok(info)
         } else {
-            let info = Info;
+            let mut info = Info::default();
             while let Some(val) = try!(self.decode_next()) {
                 match val {
+                    Header(w, h, b, c, i) => {
+                        info.width = w;
+                        info.height = h;
+                        info.bit_depth = b;
+                        info.color_type = c;
+                        info.interlaced = i
+                    }
                     ChunkBegin(_, IDAT) => break,
                     _ => ()
                 }
@@ -444,7 +459,7 @@ impl<R: Read> Reader<R> {
                 self.pos = 0;
             }
             match try!(self.d.update(&self.buf[self.pos..self.end])) {
-                (n, DecodingResult::None) => self.pos += n,
+                (n, DecodingResult::Nothing) => self.pos += n,
                 (_, DecodingResult::ImageEnd) => return Ok(None),
                 (n, result) => {
                     self.pos += n;

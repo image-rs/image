@@ -1,6 +1,7 @@
 #![feature(collections)]
-
-#[macro_use] extern crate enum_primitive;
+#![feature(custom_derive)] 
+#![feature(plugin)]
+#![plugin(num_macros)]
 
 extern crate libc;
 extern crate miniz_sys;
@@ -10,7 +11,11 @@ pub mod chunks;
 mod crc;
 pub mod decoder;
 mod deflate;
+mod filter;
 mod traits;
+mod types;
 
-pub use decoder::{Reader, Decoder, DecodingResult};
-pub use decoder::{Info, ColorType};
+pub use decoder::{Reader, Decoder, DecodingResult, DecodingError};
+pub use types::{Info, ColorType};
+
+pub use traits::{Parameter, HasParameters};

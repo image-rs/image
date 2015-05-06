@@ -12,7 +12,9 @@ use num::FromPrimitive;
 use deflate::{Inflater, Flush};
 
 use crc::Crc32;
-use traits::ReadBytesExt;
+use traits::{ReadBytesExt, HasParameters, Parameter};
+use types::{ColorType, Info};
+use filter::unfilter;
 
 use chunks::*;
 
@@ -27,27 +29,6 @@ enum U32Value {
     Type(u32),
     Crc(ChunkType)
 }
-
-#[derive(Debug)]
-enum ByteValue {
-    BitDepth,
-    ColorType,
-    CompressionMethod,
-    FilterMethod,
-    InterlaceMethod
-}
-
-enum_from_primitive! {
-#[derive(Debug, Clone, Copy)]
-pub enum ColorType {
-    Grayscale = 0,
-    RGB = 2,
-    Indexed = 3,
-    GrayscaleAlpha = 4,
-    RGBA = 6
-}
-}
-
     
 #[derive(Debug)]
 enum State {
@@ -59,7 +40,6 @@ enum State {
     ReadChunk(u32, ChunkType, bool),
     PartialChunk(u32, ChunkType),
     DecodeData(u32, ChunkType, usize),
-    //Byte(ByteValue),
 }
 
 #[derive(Debug)]
@@ -114,34 +94,15 @@ impl From<io::Error> for DecodingError {
     }
 }
 
-/// PNG info struct
-pub struct Info {
-    width: u32,
-    height: u32,
-    bit_depth: u8,
-    color_type: ColorType,
-    interlaced: bool
-}
-
-impl Default for Info {
-    fn default() -> Info {
-        Info {
-            width: 0,
-            height: 0,
-            bit_depth: 0,
-            color_type: ColorType::Grayscale,
-            interlaced: false
-        }
-    }
-}
-
+/// PNG decoder (low-level interface)
 pub struct Decoder {
     state: Option<State>,
     current_chunk: (Crc32, Vec<u8>),
     inflater: Inflater,
     image_data: Vec<u8>,
+    row_remaining: usize,
+    info: Option<Info>
 }
-
 
 impl Decoder {
     /// Creates a new decoder
@@ -152,7 +113,9 @@ impl Decoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: (Crc32::new(), Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
             inflater: Inflater::new(),
-            image_data: vec![0; IMAGE_BUFFER_SIZE]
+            image_data: vec![0; IMAGE_BUFFER_SIZE],
+            row_remaining: 0,
+            info: None
         }
     }
     
@@ -297,7 +260,7 @@ impl Decoder {
             U32(type_) => {
                 goto!(U32Byte1(type_,       (current_byte as u32) << 24))
             },
-            ReadChunk(remaining, type_str, clear) => {
+            ReadChunk(remaining, type_str, clear) => { 
                 if clear {
                     self.current_chunk.1.clear();
                 }
@@ -329,15 +292,26 @@ impl Decoder {
                 }
             }
             DecodeData(remaining, type_str, mut n) => {
+                if self.row_remaining == 0 {
+                    self.row_remaining = if let Some(ref info) = self.info {
+                        info.raw_row_length()
+                    } else {
+                        return Err(DecodingError::Format(Cow::Borrowed(
+                            "IHDR chunk missing"
+                        )))
+                    }
+                }
+                let m = min(self.image_data.len(), self.row_remaining);
                 let (eof, c, data) = try!(self.inflater.inflate(
                     &self.current_chunk.1[n..],
-                    &mut self.image_data,
+                    &mut self.image_data[..m],
                     Flush::None
                 ));
                 n += c;
+                self.row_remaining -= data.len();
                 if eof && n != self.current_chunk.1.len() {
                     Err(DecodingError::CorruptFlateStream)
-                } else if n == self.current_chunk.1.len() {
+                } else if n == self.current_chunk.1.len() && (data.len() == 0 || remaining > 0) {
                     goto!(
                         0,
                         ReadChunk(remaining, type_str, true),
@@ -379,15 +353,33 @@ impl Decoder {
                 "invalid color type ({})", color_type
             ))))
         };
-        let _: u8 = try!(buf.read_be()); // compression method
-        let _: u8 = try!(buf.read_be()); // filter method
+        match try!(buf.read_be()) { // compression method
+            0u8 => (),
+            n => return Err(DecodingError::Format(Cow::Owned(format!(
+                "unknown compression method ({})", n
+            ))))
+        }
+        match try!(buf.read_be()) { // filter method
+            0u8 => (),
+            n => return Err(DecodingError::Format(Cow::Owned(format!(
+                "unknown filter method ({})", n
+            ))))
+        }
         let interlaced = match try!(buf.read_be()) {
             0u8 => false,
             1 => true,
-            _ => return Err(DecodingError::Format(
-                Cow::Borrowed("invalid interlace method")
-            ))
+            n => return Err(DecodingError::Format(Cow::Owned(format!(
+                "unknown interlace method ({})", n
+            ))))
         };
+        let mut info = Info::default();
+
+        info.width = width;
+        info.height = height;
+        info.bit_depth = bit_depth;
+        info.color_type = color_type;
+        info.interlaced = interlaced;
+        self.info = Some(info);
         Ok(DecodingResult::Header(
             width,
             height,
@@ -397,8 +389,23 @@ impl Decoder {
         ))
     }
 }
+/*
+pub enum InterlaceHandling {
+    /// Outputs the raw rows
+    RawRows,
+    /// Fill missing the pixels from the existing ones
+    Rectangle,
+    /// Only fill the needed pixels
+    Sparkle
+}
 
-/// PNG reader
+impl Parameter<Reader> for InterlaceHandling {
+    fn set_param(self, this: &mut Reader) {
+        this.color_output = self
+    }
+}*/
+
+/// PNG reader (mostly high-level interface)
 ///
 /// Provides a high level that iterates over lines or whole images.
 pub struct Reader<R: Read> {
@@ -410,19 +417,27 @@ pub struct Reader<R: Read> {
     pos: usize,
     /// Buffer length
     end: usize,
-    info: Option<Info>
+    info: Option<Info>,
+    bpp: usize,
+    rowlen: usize,
+    prev: Vec<u8>,
+    current: Vec<u8>
 }
 
 impl<R: Read> Reader<R> {
-    /// Creates a new reader
-    fn new(r: R) -> Reader<R> {
+    /// Creates a new PNG reader
+    pub fn new(r: R) -> Reader<R> {
         Reader {
             r: r,
             d: Decoder::new(),
             buf: vec![0; CHUNCK_BUFFER_SIZE],
             pos: 0,
             end: 0,
-            info: None
+            bpp: 0,
+            rowlen: 0,
+            info: None,
+            prev: Vec::new(),
+            current: Vec::new()
         }
     }
     
@@ -446,12 +461,46 @@ impl<R: Read> Reader<R> {
                     _ => ()
                 }
             }
+            self.bpp = info.bytes_per_pixel();
+            self.rowlen = info.raw_row_length();
+            self.prev = vec![0; self.rowlen];
             self.info = Some(info);
             Ok(self.info.as_ref().unwrap())
         }
     }
     
-    /// Returns the next decoded block
+    /// Returns an iterator over the rows of an image
+    pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
+        let _ = try!(self.read_info());
+        let bpp = self.bpp;
+        let rowlen = self.rowlen;
+        // Prevent borrow from happening, Rust cannot peek into `decode_next` to see
+        // that this is ok. Todo: use free function.
+        let this: *mut Self = self;
+        while let Some(val) = try!(unsafe{ &mut *this }.decode_next()) {
+            match val {
+                DecodingResult::ImageData(data) => {
+                    self.current.push_all(data);
+                    if self.current.len() == rowlen {
+                        if let Some(filter) = FromPrimitive::from_u8(self.current[0]) {
+                            unfilter(filter, bpp, &self.prev[1..], &mut self.current[1..]);
+                            mem::swap(&mut self.prev, &mut self.current);
+                            self.current.clear();
+                            return Ok(Some(&self.prev[1..]))
+                        } else {
+                            return Err(DecodingError::Format(Cow::Owned(format!(
+                                "invalid filter method ({})", self.current[0]
+                            ))))
+                        }
+                    }
+                },
+                _ => ()
+            }
+        }
+        Ok(None)
+    }
+    
+    /// Returns the next decoded block (low-level)
     pub fn decode_next(&mut self) -> Result<Option<DecodingResult>, DecodingError> {
         loop {
             if self.pos == self.end {

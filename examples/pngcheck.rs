@@ -71,7 +71,7 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
-    use png::DecodingResult::*;
+    use png::Decoded::*;
     let mut t = try!(term::stdout().ok_or(io::Error::new(
         io::ErrorKind::Other,
         "could not open terminal"

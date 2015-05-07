@@ -15,7 +15,7 @@ mod filter;
 mod traits;
 mod types;
 
-pub use decoder::{Reader, Decoder, DecodingResult, DecodingError};
+pub use decoder::{Reader, Decoder, Decoded, DecodingError};
 pub use types::{Info, ColorType};
 
 pub use traits::{Parameter, HasParameters};

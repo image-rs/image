@@ -43,7 +43,8 @@ enum State {
 }
 
 #[derive(Debug)]
-pub enum DecodingResult<'a> {
+/// Result of the decoding process
+pub enum Decoded<'a> {
     Nothing,
     Header(u32, u32, u8, ColorType, bool),
     ChunkBegin(u32, ChunkType),
@@ -125,13 +126,13 @@ impl Decoder {
     /// bytes that have been consumed from the input buffer and the latest decoding
     /// result.
     pub fn update<'a>(&'a mut self, mut buf: &[u8])
-    -> Result<(usize, DecodingResult<'a>), DecodingError> {
+    -> Result<(usize, Decoded<'a>), DecodingError> {
         // NOTE: Do not change the function signature without double-checking the
         //       unsafe block!
         let len = buf.len();
         while buf.len() > 0 && self.state.is_some() {
             match self.next_state(buf) {
-                Ok((bytes, DecodingResult::Nothing)) => {
+                Ok((bytes, Decoded::Nothing)) => {
                     buf = &buf[bytes..]
                 }
                 Ok((bytes, result)) => {
@@ -148,28 +149,28 @@ impl Decoder {
                         // the match (e.g. `return Ok(try!(self.next_state(buf)))`). If
                         // it compiles the returned lifetime is correct.
                         unsafe { 
-                            mem::transmute::<DecodingResult, DecodingResult>(result)
+                            mem::transmute::<Decoded, Decoded>(result)
                         }
                     ))
                 }
                 Err(err) => return Err(err)
             }
         }
-        Ok((len-buf.len(), DecodingResult::Nothing))
+        Ok((len-buf.len(), Decoded::Nothing))
     }
     
     fn next_state<'a>(&'a mut self, buf: &[u8])
-    -> Result<(usize, DecodingResult<'a>), DecodingError> {
+    -> Result<(usize, Decoded<'a>), DecodingError> {
         use self::State::*;
         
         macro_rules! goto (
             ($n:expr, $state:expr) => ({
                 self.state = Some($state); 
-                Ok(($n, DecodingResult::Nothing))
+                Ok(($n, Decoded::Nothing))
             });
             ($state:expr) => ({
                 self.state = Some($state); 
-                Ok((1, DecodingResult::Nothing))
+                Ok((1, Decoded::Nothing))
             });
             ($n:expr, $state:expr, emit $res:expr) => ({
                 self.state = Some($state); 
@@ -208,7 +209,7 @@ impl Decoder {
                         let (state, res) = if remaining == 0 {
                             try!(self.parse_chunk(type_str))
                         } else {
-                            (ReadChunk(remaining, type_str, true), DecodingResult::Nothing)
+                            (ReadChunk(remaining, type_str, true), Decoded::Nothing)
                         };
                         goto!(0, state, emit res)
                     }
@@ -231,7 +232,7 @@ impl Decoder {
                         self.current_chunk.0.update(&type_str);
                         goto!(
                             ReadChunk(length, type_str, true),
-                            emit DecodingResult::ChunkBegin(length, type_str)
+                            emit Decoded::ChunkBegin(length, type_str)
                         )
                     },
                     Crc(type_str) => {
@@ -239,9 +240,9 @@ impl Decoder {
                             goto!(
                                 State::U32(U32Value::Length),
                                 emit if type_str == IEND {
-                                    DecodingResult::ImageEnd
+                                    Decoded::ImageEnd
                                 } else {
-                                    DecodingResult::ChunkComplete(val, type_str)
+                                    Decoded::ChunkComplete(val, type_str)
                                 }
                             )
                         } else {
@@ -319,13 +320,13 @@ impl Decoder {
                     goto!(
                         0,
                         ReadChunk(remaining, type_str, true),
-                        emit DecodingResult::ImageData(data)
+                        emit Decoded::ImageData(data)
                     )
                 } else {
                     goto!(
                         0,
                         DecodeData(remaining, type_str, n),
-                        emit DecodingResult::ImageData(data)
+                        emit Decoded::ImageData(data)
                     )
                 }
             }
@@ -333,19 +334,19 @@ impl Decoder {
     }
     
     fn parse_chunk(&mut self, type_str: [u8; 4])
-    -> Result<(State, DecodingResult<'static>), DecodingError> {
+    -> Result<(State, Decoded<'static>), DecodingError> {
         let result = match type_str {
             IHDR => {
                 try!(self.parse_ihdr())
             }
             // Skip unknown chunks:
-            _ => DecodingResult::Nothing
+            _ => Decoded::Nothing
         };
         Ok((State::U32(U32Value::Crc(type_str)), result))
     }
     
     fn parse_ihdr(&mut self)
-    -> Result<DecodingResult<'static>, DecodingError> {
+    -> Result<Decoded<'static>, DecodingError> {
         let mut buf = &self.current_chunk.1[..];
         let width = try!(buf.read_be());
         let height = try!(buf.read_be());
@@ -384,7 +385,7 @@ impl Decoder {
         info.color_type = color_type;
         info.interlaced = interlaced;
         self.info = Some(info);
-        Ok(DecodingResult::Header(
+        Ok(Decoded::Header(
             width,
             height,
             bit_depth,
@@ -447,7 +448,7 @@ impl<R: Read> Reader<R> {
     
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(&mut self) -> Result<&Info, DecodingError> {
-        use DecodingResult::*;
+        use Decoded::*;
         if let Some(ref info) = self.info {
             Ok(info)
         } else {
@@ -473,7 +474,7 @@ impl<R: Read> Reader<R> {
         }
     }
     
-    /// Returns an iterator over the rows of an image
+    /// Returns the next row of the image
     pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
         let _ = try!(self.read_info());
         let bpp = self.bpp;
@@ -483,7 +484,7 @@ impl<R: Read> Reader<R> {
             &mut self.end, &mut self.buf
         )) {
             match val {
-                DecodingResult::ImageData(data) => {
+                Decoded::ImageData(data) => {
                     self.current.push_all(data);
                     if self.current.len() == rowlen {
                         if let Some(filter) = FromPrimitive::from_u8(self.current[0]) {
@@ -505,7 +506,7 @@ impl<R: Read> Reader<R> {
     }
     
     /// Returns the next decoded block (low-level)
-    pub fn decode_next(&mut self) -> Result<Option<DecodingResult>, DecodingError> {
+    pub fn decode_next(&mut self) -> Result<Option<Decoded>, DecodingError> {
         decode_next(
             &mut self.r, &mut self.d, &mut self.pos,
             &mut self.end, &mut self.buf
@@ -517,21 +518,21 @@ impl<R: Read> Reader<R> {
 fn decode_next<'a, R: Read>(
     r: &mut R, d: &'a mut Decoder,
     pos: &mut usize, end: &mut usize, buf: &mut [u8])
--> Result<Option<DecodingResult<'a>>, DecodingError> {
+-> Result<Option<Decoded<'a>>, DecodingError> {
     loop {
         if pos == end {
             *end = try!(r.read(buf));
             *pos = 0;
         }
         match try!(d.update(&buf[*pos..*end])) {
-            (n, DecodingResult::Nothing) => *pos += n,
-            (_, DecodingResult::ImageEnd) => return Ok(None),
+            (n, Decoded::Nothing) => *pos += n,
+            (_, Decoded::ImageEnd) => return Ok(None),
             (n, result) => {
                 *pos += n;
                 return Ok(Some(unsafe {
                     // This transmute just casts the lifetime away. See comment
                     // in Decoder::update for more information.
-                    mem::transmute::<DecodingResult, DecodingResult>(result)
+                    mem::transmute::<Decoded, Decoded>(result)
                 }))
             }
         }
@@ -548,7 +549,7 @@ fn size_correct() {
     let mut bytes = 0;
     while let Some(obj) = reader.decode_next().unwrap() {
         match obj {
-            DecodingResult::ImageData(data) => bytes += data.len(),
+            Decoded::ImageData(data) => bytes += data.len(),
             _ => ()
         }
     }

@@ -35,30 +35,42 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
         NoFilter => (),
         Sub => {
             for i in (bpp..len) {
-                current[i] += current[i - bpp];
+                current[i] = current[i].wrapping_add(
+                    current[i - bpp]
+                );
             }
         }
         Up => {
             for i in (0..len) {
-                current[i] += previous[i];
+                current[i] = current[i].wrapping_add(
+                    previous[i]
+                );
             }
         }
         Avg => {
             for i in (0..bpp) {
-                current[i] += previous[i] / 2;
+                current[i] = current[i].wrapping_add(
+                    previous[i] / 2
+                );
             }
 
             for i in (bpp..len) {
-                current[i] += ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+                current[i] = current[i].wrapping_add(
+                    ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8
+                );
             }
         }
         Paeth => {
             for i in (0..bpp) {
-                current[i] += filter_paeth(0, previous[i], 0);
+                current[i] = current[i].wrapping_add(
+                    filter_paeth(0, previous[i], 0)
+                );
             }
 
             for i in (bpp..len) {
-                current[i] += filter_paeth(current[i - bpp], previous[i], previous[i - bpp]);
+                current[i] = current[i].wrapping_add(
+                    filter_paeth(current[i - bpp], previous[i], previous[i - bpp])
+                );
             }
         }
     }

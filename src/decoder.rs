@@ -143,6 +143,10 @@ impl Decoder {
                         // such that the borrow region of self includes the whole block.
                         // The explixit lifetimes in the function signature ensure that
                         // this is safe.
+                        // ### NOTE
+                        // To check that everything is sound, return the result without
+                        // the match (e.g. `return Ok(try!(self.next_state(buf)))`). If
+                        // it compiles the returned lifetime is correct.
                         unsafe { 
                             mem::transmute::<DecodingResult, DecodingResult>(result)
                         }
@@ -474,10 +478,10 @@ impl<R: Read> Reader<R> {
         let _ = try!(self.read_info());
         let bpp = self.bpp;
         let rowlen = self.rowlen;
-        // Prevent borrow from happening, Rust cannot peek into `decode_next` to see
-        // that this is ok. Todo: use free function.
-        let this: *mut Self = self;
-        while let Some(val) = try!(unsafe{ &mut *this }.decode_next()) {
+        while let Some(val) = try!(decode_next(
+            &mut self.r, &mut self.d, &mut self.pos,
+            &mut self.end, &mut self.buf
+        )) {
             match val {
                 DecodingResult::ImageData(data) => {
                     self.current.push_all(data);
@@ -502,42 +506,60 @@ impl<R: Read> Reader<R> {
     
     /// Returns the next decoded block (low-level)
     pub fn decode_next(&mut self) -> Result<Option<DecodingResult>, DecodingError> {
-        loop {
-            if self.pos == self.end {
-                self.end = try!(self.r.read(&mut self.buf));
-                self.pos = 0;
-            }
-            match try!(self.d.update(&self.buf[self.pos..self.end])) {
-                (n, DecodingResult::Nothing) => self.pos += n,
-                (_, DecodingResult::ImageEnd) => return Ok(None),
-                (n, result) => {
-                    self.pos += n;
-                    return Ok(Some(unsafe {
-                        // This transmute just casts the lifetime away. See comment
-                        // in Decoder::update for more information.
-                        mem::transmute::<DecodingResult, DecodingResult>(result)
-                    }))
-                }
+        decode_next(
+            &mut self.r, &mut self.d, &mut self.pos,
+            &mut self.end, &mut self.buf
+        )
+    }
+}
+
+/// Free function for of Reader::decode_next to circumvent borrow issues
+fn decode_next<'a, R: Read>(
+    r: &mut R, d: &'a mut Decoder,
+    pos: &mut usize, end: &mut usize, buf: &mut [u8])
+-> Result<Option<DecodingResult<'a>>, DecodingError> {
+    loop {
+        if pos == end {
+            *end = try!(r.read(buf));
+            *pos = 0;
+        }
+        match try!(d.update(&buf[*pos..*end])) {
+            (n, DecodingResult::Nothing) => *pos += n,
+            (_, DecodingResult::ImageEnd) => return Ok(None),
+            (n, result) => {
+                *pos += n;
+                return Ok(Some(unsafe {
+                    // This transmute just casts the lifetime away. See comment
+                    // in Decoder::update for more information.
+                    mem::transmute::<DecodingResult, DecodingResult>(result)
+                }))
             }
         }
     }
 }
 
+impl<R: Read> HasParameters for Reader<R> {}
+
 #[test]
-fn test() {
+fn size_correct() {
     use std::fs::File;
-    let mut reader = Reader::new(File::open("tests/samples/lenna_fragment_interlaced.png").unwrap());
+    let mut reader = Reader::new(File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap());
+    let expected_bytes = reader.read_info().unwrap().raw_bytes();
+    let mut bytes = 0;
     while let Some(obj) = reader.decode_next().unwrap() {
         match obj {
-            DecodingResult::ImageData(data) => {
-                //for (i, line) in data.chunks(4 * (decoder.width as usize) +1).enumerate() {
-                //    println!("{}: {}", i, line[0])
-                //}
-                panic!()
-            }
+            DecodingResult::ImageData(data) => bytes += data.len(),
             _ => ()
         }
     }
-    //File::open("tests/samples/bug.png").unwrap().read_to_end(&mut data).unwrap();
-    //File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap().read_to_end(&mut data).unwrap();    
+    assert_eq!(expected_bytes, bytes);
+}
+
+#[test]
+fn rows_ok() {
+    use std::fs::File;
+    let mut reader = Reader::new(File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap());
+    let expected_bytes = reader.read_info().unwrap().raw_bytes();
+    while let Some(row) = reader.next_row().unwrap() {
+    }
 }

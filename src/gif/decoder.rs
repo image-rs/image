@@ -10,7 +10,7 @@ use byteorder::{ReadBytesExt, LittleEndian};
 use num::FromPrimitive;
 
 use num::rational::Ratio;
-use imageops::overlay;
+use imageops;
 
 use color;
 use animation::Frame;
@@ -299,13 +299,13 @@ impl<R: Read> ImageDecoder for GIFDecoder<R> {
                 let left = frame.left();
                 let top = frame.top();
                 let buffer = frame.into_buffer();
-                overlay(&mut canvas, &buffer, left, top);
+                imageops::replace(&mut canvas, &buffer, left, top);
                 while let Some(frame) = try!(self.next_frame()) {
                     if frame.delay() == Ratio::new(0, 100) {
                         let left = frame.left();
                         let top = frame.top();
                         let buffer = frame.into_buffer();
-                        overlay(&mut canvas, &buffer, left, top);
+                        imageops::overlay(&mut canvas, &buffer, left, top);
                     } else {
                         break
                     }

@@ -34,7 +34,7 @@ version = "0.0.1"
 version = "0.2.9"
 
 [features]
-default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp"]
+default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp", "bmp"]
 
 gif = []
 jpeg = []
@@ -43,3 +43,4 @@ ppm = []
 tga = []
 tiff = []
 webp = []
+bmp = []

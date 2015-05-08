@@ -17,12 +17,14 @@ const BITMAPV3HEADER_SIZE: u32 = 56;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 const BITMAPV5HEADER_SIZE: u32 = 124;
 
+static LOOKUP_TABLE_4_BIT_TO_8_BIT: [u8; 16] = [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255];
 static LOOKUP_TABLE_5_BIT_TO_8_BIT: [u8; 32] = [0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173, 181, 189, 197, 206, 214, 222, 230, 239, 247, 255];
 static LOOKUP_TABLE_6_BIT_TO_8_BIT: [u8; 64] = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125, 130, 134, 138, 142, 146, 150, 154, 158, 162, 166, 170, 174, 178, 182, 186, 190, 194, 198, 202, 206, 210, 215, 219, 223, 227, 231, 235, 239, 243, 247, 251, 255];
 
-const RGB_R5_G5_B5_COLOR_MASK: (u32, u32, u32) = (0x7c00, 0x03e0, 0x1f);
-const RGB_R5_G6_B5_COLOR_MASK: (u32, u32, u32) = (0xf800, 0x07e0, 0x1f);
-const RGB_R8_G8_B8_COLOR_MASK: (u32, u32, u32) = (0xff000000, 0xff0000, 0xff00);
+const R4_G4_B4_COLOR_MASK: (u32, u32, u32) = (0xF00, 0xF0, 0xF);
+const R5_G5_B5_COLOR_MASK: (u32, u32, u32) = (0x7c00, 0x03e0, 0x1f);
+const R5_G6_B5_COLOR_MASK: (u32, u32, u32) = (0xf800, 0x07e0, 0x1f);
+const R8_G8_B8_COLOR_MASK: (u32, u32, u32) = (0xff000000, 0xff0000, 0xff00);
 
 #[derive(PartialEq)]
 enum ImageType {
@@ -42,6 +44,7 @@ enum BMPHeaderType {
 
 #[derive(PartialEq)]
 enum Format16Bit {
+    Format444,
     Format555,
     Format565
 }
@@ -320,7 +323,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     fn read_16_bit_pixel_data(&mut self, format: Format16Bit) -> ImageResult<Vec<u8>> {
         let mut pixel_data: Vec<u8> = repeat(0u8).take(3 * self.width as usize * self.height as usize).collect();
-        let row_padding = (4 - (self.width as i64 * 2) % 4) % 4 ;
+        let row_padding = self.width % 2 * 2;
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
         for h in 0..self.height {
@@ -328,14 +331,20 @@ impl<R: Read + Seek> BMPDecoder<R> {
             for y in 0..self.width {
                 let data = try!(self.r.read_u16::<LittleEndian>());
 
-                let b = LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b11111) as usize];
+                let b = match format {
+                    Format16Bit::Format444 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b1111) as usize],
+                    Format16Bit::Format555 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b11111) as usize],
+                    Format16Bit::Format565 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b11111) as usize]
+                };
 
                 let g = match format {
+                    Format16Bit::Format444 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data >> 4 & 0b1111) as usize],
                     Format16Bit::Format555 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data >> 5 & 0b11111) as usize],
                     Format16Bit::Format565 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data >> 5 & 0b111111) as usize]
                 };
 
                 let r = match format {
+                    Format16Bit::Format444 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data >> 8 & 0b1111) as usize],
                     Format16Bit::Format555 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data >> 10 & 0b11111) as usize],
                     Format16Bit::Format565 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data >> 11 & 0b11111) as usize]
                 };
@@ -345,7 +354,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 pixel_data[(x * self.width + y) as usize * 3 + 2] = b;
             }
             // Seek past row padding
-            try!(self.r.seek(SeekFrom::Current(row_padding)));
+            try!(self.r.seek(SeekFrom::Current(row_padding as i64)));
         }
 
         Ok(pixel_data)
@@ -403,10 +412,13 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 match self.bit_count{
                     16 => {
                         match self.bitfields {
-                            Some(RGB_R5_G5_B5_COLOR_MASK) => {
+                            Some(R4_G4_B4_COLOR_MASK) => {
+                                return self.read_16_bit_pixel_data(Format16Bit::Format444)
+                            },
+                            Some(R5_G5_B5_COLOR_MASK) => {
                                 return self.read_16_bit_pixel_data(Format16Bit::Format555)
                             },
-                            Some(RGB_R5_G6_B5_COLOR_MASK) => {
+                            Some(R5_G6_B5_COLOR_MASK) => {
                                 return self.read_16_bit_pixel_data(Format16Bit::Format565)
                             },
                             _ => return Err(ImageError::UnsupportedError("Unsupported 16-bit bitfield".to_string()))
@@ -414,7 +426,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     },
                     32 => {
                         match self.bitfields {
-                            Some(RGB_R8_G8_B8_COLOR_MASK) => {
+                            Some(R8_G8_B8_COLOR_MASK) => {
                                 return self.read_full_byte_pixel_data(FormatFullBytes::Format888)
                             },
                             _ => return Err(ImageError::UnsupportedError("Unsupported 32-bit bitfield".to_string()))

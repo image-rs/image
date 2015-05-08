@@ -366,6 +366,12 @@ impl Decoder {
         let width = try!(buf.read_be());
         let height = try!(buf.read_be());
         let bit_depth = try!(buf.read_be());
+        match bit_depth {
+            1 | 2 | 4 | 8 | 16 => (),
+            n => return Err(DecodingError::Format(
+                format!("invalid bit depth ({})", n).into()
+            ))
+        }
         let color_type = try!(buf.read_be());
         let color_type = match FromPrimitive::from_u8(color_type) {
             Some(color_type) => color_type,

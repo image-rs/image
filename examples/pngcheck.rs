@@ -94,6 +94,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     let mut interlaced = false;
     let mut compressed_size = 0;
     let mut n_chunks = 0;
+    let mut have_idat = false;
     macro_rules! c_ratio(
         // TODO add palette entries to compressed_size
         () => ({
@@ -103,6 +104,50 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             ) as f32
         });
     );
+    let display_error = |err| -> Result<_, io::Error> {
+        let mut t = try!(term::stdout().ok_or(io::Error::new(
+            io::ErrorKind::Other,
+            "could not open terminal"
+        )));
+        if c.verbose {
+            if c.color {
+                print!(": ");
+                try!(t.fg(color::RED));
+                try!(writeln!(t, "{}", err));
+                try!(t.attr(Attr::Bold));
+                try!(write!(t, "ERRORS DETECTED"));
+                try!(t.reset());
+            } else {
+                println!(": {}", err);
+                print!("ERRORS DETECTED")
+            }
+            println!(" in {}", fname);
+        } else {
+            if !c.quiet { if c.color {
+                try!(t.fg(color::RED));
+                try!(t.attr(Attr::Bold));
+                try!(write!(t, "ERROR"));
+                try!(t.reset());
+                try!(write!(t, ": "));
+                try!(t.fg(color::YELLOW));
+                try!(writeln!(t, "{}", fname));
+                try!(t.reset());
+            } else {
+                println!("ERROR: {}", fname)
+            }}
+            print!("{}: ", fname);
+            if c.color {
+                try!(t.fg(color::RED));
+                try!(writeln!(t, "{}", err));
+                try!(t.reset());
+            } else {
+                println!("{}", err);
+            }
+            
+        }
+        Ok(())
+    };
+    
     if c.verbose {
         print!("File: ");
         if c.color {
@@ -125,6 +170,10 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         }
         match decoder.update(buf) {
             Ok((_, ImageEnd)) => {
+                if !have_idat {
+                    try!(display_error(png::DecodingError::Format("IDAT chunk missing".into())));
+                    break;
+                }
                 if !c.verbose && !c.quiet {
                     if c.color {
                         try!(t.fg(color::GREEN));
@@ -199,6 +248,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         }
                         match type_str {
                             chunk::IDAT => {
+                                have_idat = true;
                                 compressed_size += len
                             },
                             chunk::tRNS => {
@@ -232,42 +282,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                 //println!("{} {:?}", n, res)
             },
             Err(err) => {
-                if c.verbose {
-                    if c.color {
-                        print!(": ");
-                        try!(t.fg(color::RED));
-                        try!(writeln!(t, "{}", err));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "ERRORS DETECTED"));
-                        try!(t.reset());
-                    } else {
-                        println!(": {}", err);
-                        print!("ERRORS DETECTED")
-                    }
-                    println!(" in {}", fname);
-                } else {
-                    if !c.quiet { if c.color {
-                        try!(t.fg(color::RED));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "ERROR"));
-                        try!(t.reset());
-                        try!(write!(t, ": "));
-                        try!(t.fg(color::YELLOW));
-                        try!(writeln!(t, "{}", fname));
-                        try!(t.reset());
-                    } else {
-                        println!("ERROR: {}", fname)
-                    }}
-                    print!("{}: ", fname);
-                    if c.color {
-                        try!(t.fg(color::RED));
-                        try!(writeln!(t, "{}", err));
-                        try!(t.reset());
-                    } else {
-                        println!("{}", err);
-                    }
-                    
-                }
+                display_error(err);
                 break
             }
         }

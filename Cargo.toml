@@ -2,14 +2,22 @@
 name = "png"
 version = "0.1.0"
 authors = ["nwin <nwin@users.noreply.github.com>"]
+repository = "https://github.com/nwin/png.git"
+
 
 [dependencies]
 miniz-sys = "0.1"
 libc = "*"
 num = "*"
+num-macros = "*"
 enum_primitive = "*"
+bitflags = "*"
 
 [dev-dependencies]
 getopts = "*"
 term = "0.2"
 glob = "*"
+objc = "*"
+
+[dev-dependencies.cocoa]
+git = "https://github.com/servo/rust-cocoa.git"

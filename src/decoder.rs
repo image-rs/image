@@ -13,10 +13,10 @@ use deflate::{Inflater, Flush};
 
 use crc::Crc32;
 use traits::{ReadBytesExt, HasParameters, Parameter};
-use types::{ColorType, Info};
+use types::{ColorType, Info, Transformations};
 use filter::unfilter;
-
-use chunks::*;
+use chunk::{ChunkType, IHDR, IDAT, IEND};
+use utils;
 
 /// TODO check if these size are reasonable
 const CHUNCK_BUFFER_SIZE: usize = 10*1024;
@@ -45,10 +45,15 @@ enum State {
 #[derive(Debug)]
 /// Result of the decoding process
 pub enum Decoded<'a> {
+    /// Nothing decoded yet
     Nothing,
     Header(u32, u32, u8, ColorType, bool),
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
+    /// Decoded raw image data
+    /// 
+    /// The buffer is guaranteed not to span over
+    /// row boundaries.
     ImageData(&'a [u8]),
     ImageEnd,
 }
@@ -118,6 +123,16 @@ impl Decoder {
             row_remaining: 0,
             info: None
         }
+    }
+    
+    /// Resets the decoder
+    pub fn reset(&mut self) {
+        self.state = Some(State::Signature(0, [0; 7]));
+        self.current_chunk.0 = Crc32::new();
+        self.current_chunk.1.clear();
+        self.inflater = Inflater::new();
+        self.row_remaining = 0;
+        self.info = None;
     }
     
     /// Low level decoder interface.
@@ -410,6 +425,12 @@ impl Parameter<Reader> for InterlaceHandling {
     }
 }*/
 
+impl<R: Read> Parameter<Reader<R>> for Transformations {
+    fn set_param(self, this: &mut Reader<R>) {
+        this.transform = self
+    }
+}
+
 /// PNG reader (mostly high-level interface)
 ///
 /// Provides a high level that iterates over lines or whole images.
@@ -425,8 +446,14 @@ pub struct Reader<R: Read> {
     info: Option<Info>,
     bpp: usize,
     rowlen: usize,
+    /// Previous raw line
     prev: Vec<u8>,
-    current: Vec<u8>
+    /// Current raw line
+    current: Vec<u8>,
+    /// Output transformations
+    transform: Transformations,
+    /// Processed line
+    processed: Vec<u8>
 }
 
 impl<R: Read> Reader<R> {
@@ -442,7 +469,9 @@ impl<R: Read> Reader<R> {
             rowlen: 0,
             info: None,
             prev: Vec::new(),
-            current: Vec::new()
+            current: Vec::new(),
+            transform: ::TRANSFORM_EXPAND,
+            processed: Vec::new()
         }
     }
     
@@ -473,9 +502,67 @@ impl<R: Read> Reader<R> {
             Ok(self.info.as_ref().unwrap())
         }
     }
-    
-    /// Returns the next row of the image
+    /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
+        use types::ColorType::*;
+        let transform = self.transform;
+        let color_type = try!(self.read_info()).color_type;
+        if transform == ::TRANSFORM_IDENTITY {
+            self.next_raw_row()
+        } else {
+            // swap buffer to circumvent borrow issues
+            let mut buffer = mem::replace(&mut self.processed, Vec::new());
+            let got_next = if let Some(row) = try!(self.next_raw_row()) {
+                buffer.push_all(row);
+                true
+            } else {
+                false
+            };
+            // swap back
+            let _ = mem::replace(&mut self.processed, buffer);
+            if got_next {
+                match color_type {
+                    Indexed => {
+                        self.expand_paletted()
+                    }
+                    _ => unimplemented!()
+                }
+                Ok(Some(&self.processed))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+    
+    fn expand_paletted(&mut self) {
+        let transform = self.transform;
+        if transform.contains(::TRANSFORM_EXPAND) {
+            let info = self.info.as_ref().unwrap();
+            let palette = Vec::new();
+            if let Some(ref trns) = info.trns {
+                utils::unpack_bits(&mut self.processed, 4, info.bit_depth, |i, chunk| {
+                    let (rgb, a) = (
+                        &palette[i as usize..i as usize+3],
+                        *trns.get(i as usize).unwrap_or(&0xFF)
+                    );
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                    chunk[3] = a;
+                })
+            } else {
+                utils::unpack_bits(&mut self.processed, 3, info.bit_depth, |i, chunk| {
+                    let rgb = &palette[i as usize..i as usize+3];
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                })
+            }
+        }
+    }
+    
+    /// Returns the next raw row of the image
+    pub fn next_raw_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
         let _ = try!(self.read_info());
         let bpp = self.bpp;
         let rowlen = self.rowlen;
@@ -514,7 +601,7 @@ impl<R: Read> Reader<R> {
     }
 }
 
-/// Free function for of Reader::decode_next to circumvent borrow issues
+/// Free function form of Reader::decode_next to circumvent borrow issues
 fn decode_next<'a, R: Read>(
     r: &mut R, d: &'a mut Decoder,
     pos: &mut usize, end: &mut usize, buf: &mut [u8])

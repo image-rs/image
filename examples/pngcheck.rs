@@ -21,13 +21,13 @@ fn parse_args() -> Option<Matches> {
         .optflag("v", "", "test verbosely (print most chunk data)")
         .parsing_style(ParsingStyle::StopAtFirstFree);
     if args.len() > 1 {
-        let matches = opts.parse(&args[1..]).unwrap();
-        Some(matches)
-    } else {
-        println!("{}", opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]")));
-        None
+        match opts.parse(&args[1..]) {
+            Ok(matches) => return Some(matches),
+            Err(err) => println!("{}", err)
+        }
     }
-    
+    println!("{}", opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]")));
+    None
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +71,7 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
+    // TODO improve performance by resusing allocations from decoder
     use png::Decoded::*;
     let mut t = try!(term::stdout().ok_or(io::Error::new(
         io::ErrorKind::Other,
@@ -177,7 +178,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         interlaced = i;
                     }
                     ChunkBegin(len, type_str) => {
-                        use png::chunks::*;
+                        use png::chunk;
                         n_chunks += 1;
                         if c.verbose {
                             let chunk = String::from_utf8_lossy(&type_str);
@@ -197,10 +198,10 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             )
                         }
                         match type_str {
-                            IDAT => {
+                            chunk::IDAT => {
                                 compressed_size += len
                             },
-                            tRNS => {
+                            chunk::tRNS => {
                                 trns = true;
                             },    
                             _ => ()
@@ -210,7 +211,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         //println!("got {} bytes of image data", data.len())
                     }
                     ChunkComplete(_, type_str) if c.verbose => {
-                        use png::chunks::*;
+                        use png::chunk::*;
                         match type_str {
                             IHDR => {
                                 println!("");

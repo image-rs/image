@@ -35,6 +35,7 @@ use image:: {
 use image::DecodingResult::{U8};
 
 /// A Dynamic Image
+#[derive(Clone)]
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
     ImageLuma8(GrayImage),

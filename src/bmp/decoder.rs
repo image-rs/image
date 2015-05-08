@@ -281,7 +281,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let row_byte_length = ((self.bit_count as u32 * self.width as u32 + 31) / 32 * 4) as usize;
         let indexes_per_byte = 8 / self.bit_count;
         let bit_mask = ((1 << self.bit_count as u16) - 1) as u8;
-        let mut result: Vec<u8> = repeat(0u8).take(self.width as usize * self.height as usize).collect();
+        let mut result = vec![0; self.width as usize * self.height as usize];
     
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
         for h in 0..self.height {
@@ -307,7 +307,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_palletized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
-        let mut pixel_data: Vec<u8> = repeat(0u8).take(self.width as usize * self.height as usize * 3).collect();
+        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
         let indexes = try!(self.read_color_index_data());
         let palette = self.palette.as_mut().unwrap();
 
@@ -322,7 +322,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_16_bit_pixel_data(&mut self, format: Format16Bit) -> ImageResult<Vec<u8>> {
-        let mut pixel_data: Vec<u8> = repeat(0u8).take(3 * self.width as usize * self.height as usize).collect();
+        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
         let row_padding = self.width % 2 * 2;
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
@@ -361,7 +361,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
-        let mut pixel_data: Vec<u8> = repeat(0u8).take(3 * self.width as usize * self.height as usize).collect();
+        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
         let row_padding = match format {
             FormatFullBytes::FormatRGB24 => (4 - (self.width as i64 * 3) % 4) % 4,
             _ => 0

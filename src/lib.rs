@@ -56,7 +56,8 @@ pub use image::ImageFormat::{
     JPEG,
     GIF,
     WEBP,
-    PPM
+    PPM,
+    BMP
 };
 
 pub use buffer::{
@@ -115,6 +116,8 @@ pub mod gif;
 pub mod tiff;
 #[cfg(feature = "tga")]
 pub mod tga;
+#[cfg(feature = "bmp")]
+pub mod bmp;
 
 mod image;
 mod utils;

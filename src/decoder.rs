@@ -316,7 +316,7 @@ impl Decoder {
                 self.row_remaining -= data.len();
                 if eof && n != self.current_chunk.1.len() {
                     Err(DecodingError::CorruptFlateStream)
-                } else if n == self.current_chunk.1.len() && (data.len() == 0 || remaining > 0) {
+                } else if n == self.current_chunk.1.len() && (data.len() == 0 || remaining >= 0) {
                     goto!(
                         0,
                         ReadChunk(remaining, type_str, true),

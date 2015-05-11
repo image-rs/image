@@ -59,7 +59,7 @@ impl Inflater {
         s.avail_out = out_len as c_uint;
         let result = unsafe { mz_inflate(s, flush as c_int) };
         match result {
-            MZ_OK | MZ_STREAM_END => {
+            MZ_OK | MZ_STREAM_END | MZ_BUF_ERROR => {
                 Ok((if result == MZ_STREAM_END { true } else { false },
                     input.len() - s.avail_in as usize,
                     &mut output[..out_len - s.avail_out as usize]

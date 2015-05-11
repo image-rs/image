@@ -527,7 +527,6 @@ impl GrayImage {
     pub fn expand_palette(self,
                           palette: &[(u8, u8, u8)],
                           transparent_idx: Option<u8>) -> RgbaImage {
-        use std::mem;
         let (width, height) = self.dimensions();
         let mut data = self.into_raw();
         let entries = data.len();

@@ -10,6 +10,7 @@ use traits::Primitive;
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };
 use image::GenericImage;
 use dynimage::save_buffer;
+use utils::expand_packed;
 
 /// A generalized pixel.
 ///
@@ -526,22 +527,16 @@ impl GrayImage {
     pub fn expand_palette(self,
                           palette: &[(u8, u8, u8)],
                           transparent_idx: Option<u8>) -> RgbaImage {
-        use std::mem;
         let (width, height) = self.dimensions();
         let mut data = self.into_raw();
         let entries = data.len();
         data.reserve_exact(entries.checked_mul(3).unwrap()); // 3 additional channels
         // set_len is save since type is u8 an the data never read
         unsafe { data.set_len(entries.checked_mul(4).unwrap()) }; // 4 channels in total
-        // Aquire a second view into the buffer
-        let indicies = unsafe {
-            let view: &mut [u8] = mem::transmute_copy(&data);
-            &view[.. entries]
-        };
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
-        for (pixel, &idx) in buffer.pixels_mut().rev().zip(indicies.iter().rev()) {
+        expand_packed(&mut buffer, 4, 8, |idx, pixel| {
             let (r, g, b) = palette[idx as usize];
-            let alpha = if let Some(t_idx) = transparent_idx {
+            let a = if let Some(t_idx) = transparent_idx {
                 if t_idx == idx {
                     0
                 } else {
@@ -550,8 +545,11 @@ impl GrayImage {
             } else {
                 255
             };
-            *pixel = Rgba([r, g, b, alpha])
-        }
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+            pixel[3] = a;
+        });
         buffer
     }
 }

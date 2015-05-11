@@ -98,6 +98,32 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
     }
 }
 
+/// Replace the contents of an image at a given coordinate (x, y)
+pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
+    let (top_width, top_height) = top.dimensions();
+    let (bottom_width, bottom_height) = bottom.dimensions();
+
+    // Crop our top image if we're going out of bounds
+    let range_width = if x + top_width > bottom_width {
+        bottom_width - x
+    } else {
+        top_width
+    };
+
+    let range_height = if y + top_height > bottom_height {
+        bottom_height - y
+    } else {
+        top_height
+    };
+
+    for top_y in (0..range_height) {
+        for top_x in (0..range_width) {
+            let p = top.get_pixel(top_x, top_y);
+            *bottom.get_pixel_mut(x + top_x, y + top_y)= p;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

@@ -308,8 +308,8 @@ impl<R: Read>JPEGDecoder<R> {
             )))
         }
 
-        self.height 	    = try!(self.r.read_u16::<BigEndian>());
-        self.width  	    = try!(self.r.read_u16::<BigEndian>());
+        self.height         = try!(self.r.read_u16::<BigEndian>());
+        self.width          = try!(self.r.read_u16::<BigEndian>());
         self.num_components = try!(self.r.read_u8());
 
         if self.height == 0 || self.width == 0 {
@@ -671,9 +671,12 @@ fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> (u8, u8, u8) {
 // Section F.2.2.1
 // Figure F.12
 fn extend(v: i32, t: u8) -> i32 {
-let vt:
     // FIXME check if wrapping sub is what we want
-    i32 = 1 << (t as usize).wrapping_sub(1);
+    let mut vt: i32 = 0;
+    let shift = (t as usize).wrapping_sub(1);
+    if shift < 31 {
+        vt = 1 << shift;
+    }
 
     if v < vt {
     v + ((-1) << t as usize) + 1

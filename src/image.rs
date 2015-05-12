@@ -136,7 +136,10 @@ pub enum ImageFormat {
     TIFF,
 
     /// An Image in TGA Format
-    TGA
+    TGA,
+
+    /// An Image in BMP Format
+    BMP
 }
 
 /// The trait that all decoders implement

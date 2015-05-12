@@ -42,6 +42,7 @@ pub struct Info {
     pub color_type: ColorType,
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
+    pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>
 }
@@ -54,6 +55,7 @@ impl Default for Info {
             bit_depth: 0,
             color_type: ColorType::Grayscale,
             interlaced: false,
+            palette: None,
             trns: None,
             frame_control: None,
             animation_control: None
@@ -94,9 +96,10 @@ impl Info {
     
     /// Returns the number of bytes needed for one deinterlaced row 
     pub fn raw_row_length(&self) -> usize {
-        self.width as usize
-        * self.color_type.samples()
-        * ((self.bit_depth as usize + 7) >> 3)
+        let bits = self.width as usize * self.color_type.samples() * self.bit_depth as usize;
+        let extra = bits % 8;
+        bits/8
+        + match extra { 0 => 0, _ => 1 }
         + 1 // filter method
     }
 }

@@ -5,9 +5,9 @@ use num::range_step;
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where F: Fn(u8, &mut[u8]) {
-    let pixels = buf.len()/channels*bit_depth as usize;
-    let extra = pixels % 8;
-    let entries = pixels / 8 + match extra {
+    let bits = buf.len()/channels*bit_depth as usize;
+    let extra = bits % 8;
+    let entries = bits / 8 + match extra {
         0 => 0,
         _ => 1
     };

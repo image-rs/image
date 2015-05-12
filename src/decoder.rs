@@ -15,7 +15,7 @@ use crc::Crc32;
 use traits::{ReadBytesExt, HasParameters, Parameter};
 use types::{ColorType, Info, Transformations};
 use filter::unfilter;
-use chunk::{ChunkType, IHDR, IDAT, IEND, PLTE};
+use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 use utils;
 
 /// TODO check if these size are reasonable
@@ -271,7 +271,7 @@ impl Decoder {
                     },
                     // Skip other chunks
                     _ => {
-                        if self.current_chunk.1 == 0 {
+                        if self.current_chunk.1 == 0 { // complete chunk
                             Ok((0, try!(self.parse_chunk(type_str))))
                         } else {
                             goto!(0, ReadChunk(type_str, true), emit Decoded::Nothing)
@@ -355,8 +355,11 @@ impl Decoder {
             IHDR => {
                 self.parse_ihdr()
             },
-            PLTE => {
+            chunk::PLTE => {
                 self.parse_plte()
+            },
+            chunk::tRNS => {
+                self.parse_trns()
             }
             // Skip other and unknown chunks:
             _ => Ok(Decoded::Nothing)
@@ -370,8 +373,23 @@ impl Decoder {
         }
     }
     
+    fn parse_trns(&mut self)
+    -> Result<Decoded, DecodingError> {
+        let mut vec = Vec::new();
+        vec.push_all(&self.current_chunk.2);
+        self.info.as_mut().map(
+            |info| info.trns = Some(vec)
+        );
+        Ok(Decoded::Nothing)
+    }
+    
     fn parse_plte(&mut self)
     -> Result<Decoded, DecodingError> {
+        let mut vec = Vec::new();
+        vec.push_all(&self.current_chunk.2);
+        self.info.as_mut().map(
+            |info| info.palette = Some(vec)
+        );
         Ok(Decoded::Nothing)
     }
     
@@ -535,7 +553,7 @@ impl<R: Read> Reader<R> {
             // swap buffer to circumvent borrow issues
             let mut buffer = mem::replace(&mut self.processed, Vec::new());
             let got_next = if let Some(row) = try!(self.next_raw_row()) {
-                try!(buffer.write(row));
+                try!((&mut buffer[..]).write(row));
                 true
             } else {
                 false
@@ -562,7 +580,8 @@ impl<R: Read> Reader<R> {
         let t = self.transform;
         let trns = info.trns.is_some();
         let samples = info.color_type.samples() + match info.color_type {
-            Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 1,
+            Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 4,
+            Indexed if t.contains(::TRANSFORM_EXPAND) => 3,
             _ => 0
         };
         self.processed = vec![0; info.width as usize * samples]
@@ -571,22 +590,22 @@ impl<R: Read> Reader<R> {
     fn expand_paletted(&mut self) {
         let transform = self.transform;
         if transform.contains(::TRANSFORM_EXPAND) {
-            let info = self.info.as_ref().unwrap();
-            let palette = Vec::new();
+            let info = self.d.info.as_ref().unwrap();
+            let palette = info.palette.as_ref().unwrap_or_else(|| panic!());
             if let Some(ref trns) = info.trns {
                 utils::unpack_bits(&mut self.processed, 4, info.bit_depth, |i, chunk| {
                     let (rgb, a) = (
-                        &palette[i as usize..i as usize+3],
+                        &palette[3*i as usize..3*i as usize+3],
                         *trns.get(i as usize).unwrap_or(&0xFF)
                     );
                     chunk[0] = rgb[0];
                     chunk[1] = rgb[1];
                     chunk[2] = rgb[2];
                     chunk[3] = a;
-                })
+                });
             } else {
                 utils::unpack_bits(&mut self.processed, 3, info.bit_depth, |i, chunk| {
-                    let rgb = &palette[i as usize..i as usize+3];
+                    let rgb = &palette[3*i as usize..3*i as usize+3];
                     chunk[0] = rgb[0];
                     chunk[1] = rgb[1];
                     chunk[2] = rgb[2];

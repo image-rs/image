@@ -64,7 +64,7 @@ unsafe fn open_window(width: f64, height: f64, data: &[u8]) {
                 alpha: (pixel[3] as f64/255.)
             ];
             let _:() =  msg_send![color, set];
-            let rect = NSRect::new(NSPoint::new(x as f64, y as f64), NSSize::new(1., 1.));
+            let rect = NSRect::new(NSPoint::new(x as f64, height-y as f64), NSSize::new(1., 1.));
             let _:() = msg_send![class("NSBezierPath"), fillRect: rect];
         }
     }
@@ -80,7 +80,7 @@ unsafe fn open_window(width: f64, height: f64, data: &[u8]) {
 
 fn main() {
     use std::fs::File;
-    let mut reader = png::Reader::new(File::open("/Users/nwinter/Desktop/green.png").unwrap());
+    let mut reader = png::Reader::new(File::open("tests/pngsuite/tbwn3p08.png").unwrap());
     let (width, height) = reader.read_info().unwrap().size();
     let mut data = Vec::with_capacity((width*height) as usize);
     while let Some(row) = reader.next_row().unwrap() {

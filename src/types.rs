@@ -84,8 +84,13 @@ impl Info {
         self.frame_control.as_ref()
     }
     
+    /// Returns the bits per pixel
+    pub fn bits_per_pixel(&self) -> usize {
+        self.color_type.samples() * self.bit_depth as usize
+    }
+    
     /// Returns the bytes per pixel
-    pub fn raw_bytes_per_pixel(&self) -> usize {
+    pub fn bytes_per_pixel(&self) -> usize {
         self.color_type.samples() * ((self.bit_depth as usize + 7) >> 3)
     }
     

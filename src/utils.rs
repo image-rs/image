@@ -29,3 +29,22 @@ where F: Fn(u8, &mut[u8]) {
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
     }
 }
+
+fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
+    let channels = channels as isize;
+    let i = range_step(buf.len() as isize / (channels+1) * channels - channels, -channels, -channels);
+    let j = range_step(buf.len() as isize - (channels+1), -(channels+1), -(channels+1));
+    let channels = channels as usize;
+    for (i, j) in i.zip(j) {
+        let i_pixel = i as usize;
+        let j_chunk = j as usize;
+        if &buf[i_pixel..i_pixel+channels] == trns {
+            buf[j_chunk+channels] = 0
+        } else {
+            buf[j_chunk+channels] = 0xFF
+        }
+        for k in (0..channels).rev() {
+            buf[j_chunk+k] = buf[i_pixel+k];
+        }
+    }
+}

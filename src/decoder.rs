@@ -555,8 +555,13 @@ impl<R: Read> Reader<R> {
                 }
             }
             self.allocate_out_buf();
-            let info = self.d.info.as_ref().unwrap();
-            self.bpp = info.raw_bytes_per_pixel();
+            let info = match self.d.info {
+                Some(ref info) => info,
+                None => return Err(DecodingError::Format(
+                  "IHDR chunk missing".into()
+                ))
+            };
+            self.bpp = info.bytes_per_pixel();
             self.rowlen = info.raw_row_length();
             self.prev = vec![0; self.rowlen];
             Ok(info)
@@ -628,12 +633,19 @@ impl<R: Read> Reader<R> {
         let info = self.d.info.as_ref().unwrap();
         let t = self.transform;
         let trns = info.trns.is_some();
-        let bytes_per_pixel = match info.color_type {
-            Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 4,
-            Indexed if t.contains(::TRANSFORM_EXPAND) => 3,
-            _ => 1
-        };
-        self.processed = vec![0; info.width as usize * bytes_per_pixel]
+        // TODO 16 bit
+        let bits = match info.color_type {
+            Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 4 * 8,
+            Indexed if t.contains(::TRANSFORM_EXPAND) => 3 * 8,
+            RGB if trns && t.contains(::TRANSFORM_EXPAND) => 4 * 8,
+            Grayscale if trns && t.contains(::TRANSFORM_EXPAND) => 2 * 8,
+            Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
+            GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
+            t => info.bits_per_pixel()
+        } * info.width as usize;
+        let len = bits / 8;
+        let extra = bits % 8;
+        self.processed = vec![0; len + match extra { 0 => 0, _ => 1 }]
     }
     
     fn expand_gray_u8(&mut self) {

@@ -7,7 +7,7 @@ use cocoa::base::*;
 use cocoa::foundation::*;
 use cocoa::appkit::*;
 
-unsafe fn open_window(width: f64, height: f64, data: &[u8]) {
+unsafe fn open_window(width: f64, height: f64, data: &[u8], color_type: png::ColorType, bits: usize) {
     let _pool = NSAutoreleasePool::new(nil);
 
     let app = NSApp();
@@ -55,14 +55,25 @@ unsafe fn open_window(width: f64, height: f64, data: &[u8]) {
     let _:() = msg_send![image, lockFocus];
     for y in 0..(height as i32) {
         for x in 0..(width as i32) {
-            let pixel = &data[4*(y*width as i32 + x) as usize..];
-            let color: id = msg_send![
-                class("NSColor"),
-                colorWithCalibratedRed: (pixel[0] as f64/255.) 
-                green: (pixel[1] as f64/255.) 
-                blue: (pixel[2] as f64/255.) 
-                alpha: (pixel[3] as f64/255.)
-            ];
+            use png::ColorType::*;
+            let pixel = &data[color_type.samples()*(y*width as i32 + x) as usize..];
+            let color: id = match color_type {
+                RGBA => msg_send![
+                    class("NSColor"),
+                    colorWithCalibratedRed: (pixel[0] as f64/255.) 
+                    green: (pixel[1] as f64/255.) 
+                    blue: (pixel[2] as f64/255.) 
+                    alpha: (pixel[3] as f64/255.)
+                ],
+                RGB => msg_send![
+                    class("NSColor"),
+                    colorWithCalibratedRed: (pixel[0] as f64/255.) 
+                    green: (pixel[1] as f64/255.) 
+                    blue: (pixel[2] as f64/255.) 
+                    alpha: 1.0
+                ],
+                _ => unimplemented!()
+            };
             let _:() =  msg_send![color, set];
             let rect = NSRect::new(NSPoint::new(x as f64, height-y as f64), NSSize::new(1., 1.));
             let _:() = msg_send![class("NSBezierPath"), fillRect: rect];
@@ -82,9 +93,10 @@ fn main() {
     use std::fs::File;
     let mut reader = png::Reader::new(File::open("tests/pngsuite/tbwn3p08.png").unwrap());
     let (width, height) = reader.read_info().unwrap().size();
+    let (ct, bits) = reader.color_type().unwrap();
     let mut data = Vec::with_capacity((width*height) as usize);
     while let Some(row) = reader.next_row().unwrap() {
         data.extend(row.iter().map(|&v| v))
     }
-    unsafe { open_window(width as f64, height as f64, &data) }
+    unsafe { open_window(width as f64, height as f64, &data, ct, bits as usize) }
 }

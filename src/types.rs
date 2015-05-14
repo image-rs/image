@@ -85,7 +85,7 @@ impl Info {
     }
     
     /// Returns the bytes per pixel
-    pub fn bytes_per_pixel(&self) -> usize {
+    pub fn raw_bytes_per_pixel(&self) -> usize {
         self.color_type.samples() * ((self.bit_depth as usize + 7) >> 3)
     }
     

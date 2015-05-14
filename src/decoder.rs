@@ -61,7 +61,7 @@ pub enum Decoded<'a> {
 #[derive(Debug)]
 pub enum DecodingError {
     IoError(io::Error),
-    Format(::std::borrow::Cow<'static, str>),
+    Format(Cow<'static, str>),
     InvalidSignature,
     CrcMismatch {
         /// bytes to skip to try to recover from this error
@@ -315,9 +315,9 @@ impl Decoder {
                     self.row_remaining = if let Some(ref info) = self.info {
                         info.raw_row_length()
                     } else {
-                        return Err(DecodingError::Format(Cow::Borrowed(
-                            "IHDR chunk missing"
-                        )))
+                        return Err(DecodingError::Format(
+                            "IHDR chunk missing".into()
+                        ))
                     }
                 }
                 let m = min(self.image_data.len(), self.row_remaining);
@@ -373,14 +373,10 @@ impl Decoder {
         }
     }
     
-    fn parse_trns(&mut self)
-    -> Result<Decoded, DecodingError> {
-        let mut vec = Vec::new();
-        vec.push_all(&self.current_chunk.2);
-        self.info.as_mut().map(
-            |info| info.trns = Some(vec)
-        );
-        Ok(Decoded::Nothing)
+    fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
+        self.info.as_ref().ok_or(DecodingError::Format(
+            "IHDR chunk missing".into()
+        ))
     }
     
     fn parse_plte(&mut self)
@@ -393,8 +389,42 @@ impl Decoder {
         Ok(Decoded::Nothing)
     }
     
+    fn parse_trns(&mut self)
+    -> Result<Decoded, DecodingError> {
+        use types::ColorType::*;
+        let color_type = {
+            let info = try!(self.get_info_or_err());
+            info.color_type
+        };
+        match color_type {
+            Grayscale => unimplemented!(),
+            RGB => unimplemented!(),
+            Indexed => {
+                {
+                    let _ = try!(self
+                        .info.as_ref().unwrap()
+                        .palette.as_ref().ok_or(DecodingError::Format(
+                        "tRNS chunk occured before PLTE chunk".into()
+                    )));
+                };
+                let mut vec = Vec::new();
+                vec.push_all(&self.current_chunk.2);
+                self.info.as_mut().map(
+                    |info| info.trns = Some(vec)
+                );
+                Ok(Decoded::Nothing)
+            },
+            c => Err(DecodingError::Format(
+                format!("tRNS chunk found for color type ({})", c as u8).into()
+            ))
+        }
+        
+    }
+    
+    
     fn parse_ihdr(&mut self)
     -> Result<Decoded, DecodingError> {
+        // TODO: check if color/bit depths combination is valid
         let mut buf = &self.current_chunk.2[..];
         let width = try!(buf.read_be());
         let height = try!(buf.read_be());
@@ -482,7 +512,6 @@ pub struct Reader<R: Read> {
     pos: usize,
     /// Buffer length
     end: usize,
-    info: Option<Info>,
     bpp: usize,
     rowlen: usize,
     /// Previous raw line
@@ -506,7 +535,6 @@ impl<R: Read> Reader<R> {
             end: 0,
             bpp: 0,
             rowlen: 0,
-            info: None,
             prev: Vec::new(),
             current: Vec::new(),
             transform: ::TRANSFORM_EXPAND,
@@ -517,36 +545,31 @@ impl<R: Read> Reader<R> {
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(&mut self) -> Result<&Info, DecodingError> {
         use Decoded::*;
-        if let Some(ref info) = self.info {
+        if let Some(ref info) = self.d.info {
             Ok(info)
         } else {
-            let mut info = Info::default();
             while let Some(val) = try!(self.decode_next()) {
                 match val {
-                    Header(w, h, b, c, i) => {
-                        info.width = w;
-                        info.height = h;
-                        info.bit_depth = b;
-                        info.color_type = c;
-                        info.interlaced = i
-                    }
                     ChunkBegin(_, IDAT) => break,
                     _ => ()
                 }
             }
-            self.bpp = info.bytes_per_pixel();
+            self.allocate_out_buf();
+            let info = self.d.info.as_ref().unwrap();
+            self.bpp = info.raw_bytes_per_pixel();
             self.rowlen = info.raw_row_length();
             self.prev = vec![0; self.rowlen];
-            self.info = Some(info);
-            self.allocate_out_buf();
-            Ok(self.info.as_ref().unwrap())
+            Ok(info)
         }
     }
     /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
         use types::ColorType::*;
         let transform = self.transform;
-        let color_type = try!(self.read_info()).color_type;
+        let (color_type, bit_depth) = {
+            let info = try!(self.read_info());
+            (info.color_type, info.bit_depth)
+        };
         if transform == ::TRANSFORM_IDENTITY {
             self.next_raw_row()
         } else {
@@ -561,11 +584,14 @@ impl<R: Read> Reader<R> {
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
-                match color_type {
-                    Indexed => {
-                        self.expand_paletted()
+                if transform.contains(::TRANSFORM_EXPAND) {
+                    match color_type {
+                        Indexed => {
+                            self.expand_paletted()
+                        }
+                        Grayscale | GrayscaleAlpha if bit_depth < 8 => self.expand_gray_u8(),
+                        _ => ()
                     }
-                    _ => unimplemented!()
                 }
                 Ok(Some(&self.processed))
             } else {
@@ -574,43 +600,90 @@ impl<R: Read> Reader<R> {
         }
     }
     
+    /// Returns the color type and the number of bits per sample
+    /// of the data returned by `Reader::next_row` and Reader::frames`.
+    pub fn color_type(&mut self) -> Result<(ColorType, u8), DecodingError> {
+        use types::ColorType::*;
+        let t = self.transform;
+        let info = try!(self.read_info());
+        Ok(if t == ::TRANSFORM_IDENTITY {
+            (info.color_type, info.bit_depth)
+        } else if t.contains(::TRANSFORM_EXPAND) {
+            let has_trns = info.trns.is_some();
+            // TODO 16 bits
+            match info.color_type {
+                Grayscale if has_trns => (GrayscaleAlpha, 8),
+                RGB if has_trns => (RGBA, 8),
+                Indexed if has_trns => (RGBA, 8),
+                Indexed => (RGB, 8),
+                ct => (ct, 8)
+            }
+        } else {
+            (info.color_type, info.bit_depth)
+        })
+    }
+    
     fn allocate_out_buf(&mut self) {
         use types::ColorType::*;
-        let info = self.info.as_ref().unwrap();
+        let info = self.d.info.as_ref().unwrap();
         let t = self.transform;
         let trns = info.trns.is_some();
-        let samples = info.color_type.samples() + match info.color_type {
+        let bytes_per_pixel = match info.color_type {
             Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 4,
             Indexed if t.contains(::TRANSFORM_EXPAND) => 3,
-            _ => 0
+            _ => 1
         };
-        self.processed = vec![0; info.width as usize * samples]
+        self.processed = vec![0; info.width as usize * bytes_per_pixel]
+    }
+    
+    fn expand_gray_u8(&mut self) {
+        let info = self.d.info.as_ref().unwrap();
+        let samples = info.color_type.samples();
+        let rescale = true;
+        if let Some(ref trns) = info.trns {
+            let scaling_factor = if rescale {
+                (255)/((1u16 << info.bit_depth) - 1) as u8
+            } else {
+                1
+            };
+            utils::unpack_bits(&mut self.processed, 2, info.bit_depth, |pixel, chunk| {
+                if pixel == trns[1] {
+                    chunk[1] = 0
+                } else {
+                    chunk[1] = 0xFF
+                }
+                chunk[0] = pixel * scaling_factor
+            })
+        } else {
+            utils::unpack_bits(&mut self.processed, 1, info.bit_depth, |val, chunk| {
+                chunk[0] = val
+            })
+        }
     }
     
     fn expand_paletted(&mut self) {
         let transform = self.transform;
-        if transform.contains(::TRANSFORM_EXPAND) {
-            let info = self.d.info.as_ref().unwrap();
-            let palette = info.palette.as_ref().unwrap_or_else(|| panic!());
-            if let Some(ref trns) = info.trns {
-                utils::unpack_bits(&mut self.processed, 4, info.bit_depth, |i, chunk| {
-                    let (rgb, a) = (
-                        &palette[3*i as usize..3*i as usize+3],
-                        *trns.get(i as usize).unwrap_or(&0xFF)
-                    );
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                    chunk[3] = a;
-                });
-            } else {
-                utils::unpack_bits(&mut self.processed, 3, info.bit_depth, |i, chunk| {
-                    let rgb = &palette[3*i as usize..3*i as usize+3];
-                    chunk[0] = rgb[0];
-                    chunk[1] = rgb[1];
-                    chunk[2] = rgb[2];
-                })
-            }
+        let info = self.d.info.as_ref().unwrap();
+        let palette = info.palette.as_ref().unwrap_or_else(|| panic!());
+        if let Some(ref trns) = info.trns {
+            utils::unpack_bits(&mut self.processed, 4, info.bit_depth, |i, chunk| {
+                let (rgb, a) = (
+                    // TODO prevent panic!
+                    &palette[3*i as usize..3*i as usize+3],
+                    *trns.get(i as usize).unwrap_or(&0xFF)
+                );
+                chunk[0] = rgb[0];
+                chunk[1] = rgb[1];
+                chunk[2] = rgb[2];
+                chunk[3] = a;
+            });
+        } else {
+            utils::unpack_bits(&mut self.processed, 3, info.bit_depth, |i, chunk| {
+                let rgb = &palette[3*i as usize..3*i as usize+3];
+                chunk[0] = rgb[0];
+                chunk[1] = rgb[1];
+                chunk[2] = rgb[2];
+            })
         }
     }
     
@@ -633,9 +706,9 @@ impl<R: Read> Reader<R> {
                             self.current.clear();
                             return Ok(Some(&self.prev[1..]))
                         } else {
-                            return Err(DecodingError::Format(Cow::Owned(format!(
-                                "invalid filter method ({})", self.current[0]
-                            ))))
+                            return Err(DecodingError::Format(
+                                format!("invalid filter method ({})", self.current[0]).into()
+                            ))
                         }
                     }
                 },
@@ -701,7 +774,7 @@ fn size_correct() {
         assert_eq!(expected_bytes, bytes);
     }
 }
-/*
+
 #[test]
 fn rows_ok() {
     use std::fs::File;
@@ -710,4 +783,3 @@ fn rows_ok() {
     while let Some(row) = reader.next_row().unwrap() {
     }
 }
-*/

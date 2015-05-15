@@ -176,7 +176,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             for i in (left..right + 1) {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
                 let w = (w, w, w, w);
-                sum.0 += w.0; sum.1 += w.1; sum.1 += w.1; sum.1 += w.1;
+                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
 
                 let x0  = clamp(i, 0, width - 1);
                 let p = image.get_pixel(x0, y);

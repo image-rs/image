@@ -9,16 +9,18 @@ package require Tk
 set title "test"
 wm title . $title 
 wm geometry . [join [list $width "x" $height] ""]
-raise .
 wm protocol . WM_DELETE_WINDOW {
     exit
 }
+bind . <Escape> {exit}
  
 set image [image create photo] 
 $image put $image_data
  
 label .l -image $image
 pack .l
+
+raise .
 vwait forever
 "##;
 

@@ -551,7 +551,7 @@ impl<R: Read> Reader<R> {
             adam7: None,
             prev: Vec::new(),
             current: Vec::new(),
-            transform: ::TRANSFORM_EXPAND,
+            transform: ::TRANSFORM_EXPAND | ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16,
             processed: Vec::new()
         }
     }
@@ -606,6 +606,7 @@ impl<R: Read> Reader<R> {
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
+                let mut len = self.processed.len();
                 if transform.contains(::TRANSFORM_EXPAND) {
                     match color_type {
                         Indexed => {
@@ -615,7 +616,13 @@ impl<R: Read> Reader<R> {
                         _ => ()
                     }
                 }
-                Ok(Some(&self.processed))
+                if transform.intersects(::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16) {
+                    len /= 2;
+                    for i in 0..len {
+                        self.processed[i] = self.processed[2 * i];
+                    }
+                }
+                Ok(Some(&self.processed[..len]))
             } else {
                 Ok(None)
             }
@@ -630,18 +637,27 @@ impl<R: Read> Reader<R> {
         let info = try!(self.read_info());
         Ok(if t == ::TRANSFORM_IDENTITY {
             (info.color_type, info.bit_depth)
-        } else if t.contains(::TRANSFORM_EXPAND) {
-            let has_trns = info.trns.is_some();
-            // TODO 16 bits
-            match info.color_type {
-                Grayscale if has_trns => (GrayscaleAlpha, 8),
-                RGB if has_trns => (RGBA, 8),
-                Indexed if has_trns => (RGBA, 8),
-                Indexed => (RGB, 8),
-                ct => (ct, 8)
-            }
         } else {
-            (info.color_type, info.bit_depth)
+            let bits = match info.bit_depth {
+                16 if t.intersects(
+                    ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
+                ) => 8,
+                n if t.contains(::TRANSFORM_EXPAND) => 8,
+                n => n 
+            };
+            let color_type = if t.contains(::TRANSFORM_EXPAND) {
+                let has_trns = info.trns.is_some();
+                match info.color_type {
+                    Grayscale if has_trns => GrayscaleAlpha,
+                    RGB if has_trns => RGBA,
+                    Indexed if has_trns => RGBA,
+                    Indexed => RGB,
+                    ct => ct
+                }
+            } else {
+                info.color_type
+            };
+            (color_type, bits)
         })
     }
     
@@ -659,7 +675,9 @@ impl<R: Read> Reader<R> {
             Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
             GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
             t => info.bits_per_pixel()
-        } * info.width as usize;
+        }
+        * info.width as usize
+        /* * if info.bit_depth == 16 { 2 } else { 1 }*/;
         let len = bits / 8;
         let extra = bits % 8;
         self.processed = vec![0; len + match extra { 0 => 0, _ => 1 }]

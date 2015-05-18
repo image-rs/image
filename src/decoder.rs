@@ -72,6 +72,7 @@ pub enum DecodingError {
         crc_sum: u32,
         chunk: ChunkType
     },
+    Other(Cow<'static, str>),
     CorruptFlateStream
 }
 
@@ -83,6 +84,7 @@ impl error::Error for DecodingError {
             Format(ref desc) => &desc,
             InvalidSignature => "invalid signature",
             CrcMismatch { .. } => "CRC error",
+            Other(ref desc) => &desc,
             CorruptFlateStream => "compressed data stream corrupted"
         }
     }
@@ -584,8 +586,40 @@ impl<R: Read> Reader<R> {
             Ok(info)
         }
     }
+    
+    
+    /// Decodes the next frame into `buf`
+    pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
+        // TODO 16 bit
+        let (color_type, bit_depth) = try!(self.color_type());
+        let width = self.d.info.as_ref().unwrap().width;
+        if buf.len() < self.buffer_size().unwrap() {
+            return Err(DecodingError::Other(
+                "supplied buffer is too small to hold the image".into()
+            ))
+        }
+        if self.d.info.as_ref().unwrap().interlaced {
+             while let Some((row, adam7)) = try!(self.next_interlaced_row()) {
+                 let (pass, line, _) = adam7.unwrap();
+                 let bytes = color_type.samples() as u8;
+                 utils::expand_pass(buf, width * bytes as u32, row, pass, line, bytes);
+             }
+        } else {
+            let mut len = 0;
+            while let Some(row) = try!(self.next_row()) {
+                len += try!((&mut buf[len..]).write(row));
+            }
+        }
+        Ok(())
+    }
+    
     /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
+        self.next_interlaced_row().map(|v| v.map(|v| v.0))
+    }
+    
+    /// Returns the next processed row of the image
+    pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use types::ColorType::*;
         let transform = self.transform;
         let (color_type, bit_depth) = {
@@ -593,20 +627,25 @@ impl<R: Read> Reader<R> {
             (info.color_type, info.bit_depth)
         };
         if transform == ::TRANSFORM_IDENTITY {
-            self.next_raw_row()
+            self.next_raw_interlaced_row()
         } else {
             // swap buffer to circumvent borrow issues
             let mut buffer = mem::replace(&mut self.processed, Vec::new());
-            let got_next = if let Some(row) = try!(self.next_raw_row()) {
-                try!((&mut buffer[..]).write(row));
-                true
+            let (written, got_next, adam7) = if let Some((row, adam7)) = try!(self.next_raw_interlaced_row()) {
+                (try!((&mut buffer[..]).write(row)), true, adam7)
             } else {
-                false
+                (0, false, None)
             };
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
+                let old_len = self.processed.len();
+                if let Some((_, _, width)) = adam7 {
+                    let width = self.line_size(width).unwrap();
+                    self.processed.resize(width, 0);
+                }
                 let mut len = self.processed.len();
+                                 println!("{:?}", (old_len, len));
                 if transform.contains(::TRANSFORM_EXPAND) {
                     match color_type {
                         Indexed => {
@@ -622,7 +661,11 @@ impl<R: Read> Reader<R> {
                         self.processed[i] = self.processed[2 * i];
                     }
                 }
-                Ok(Some(&self.processed[..len]))
+                self.processed.resize(old_len, 0); // Interlace handling
+                Ok(Some((
+                    &self.processed[..len],
+                    adam7
+                )))
             } else {
                 Ok(None)
             }
@@ -661,10 +704,18 @@ impl<R: Read> Reader<R> {
         })
     }
     
-    fn allocate_out_buf(&mut self) {
+    /// Returns the number of bytes required to hold a deinterlaced image frame
+    /// that is decoded using the given input transformations.
+    pub fn buffer_size(&mut self) -> Result<usize, DecodingError> {
+        let (width, height) = try!(self.read_info()).size();
+        self.line_size(width).map(|v| v*height as usize)
+    }
+    
+    /// Returns the number of bytes required to hold a deinterlaced row.
+    pub fn line_size(&mut self, width: u32) -> Result<usize, DecodingError> {
         use types::ColorType::*;
-        let info = self.d.info.as_ref().unwrap();
         let t = self.transform;
+        let info = try!(self.read_info());
         let trns = info.trns.is_some();
         // TODO 16 bit
         let bits = match info.color_type {
@@ -676,11 +727,16 @@ impl<R: Read> Reader<R> {
             GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
             t => info.bits_per_pixel()
         }
-        * info.width as usize
-        /* * if info.bit_depth == 16 { 2 } else { 1 }*/;
+        * width as usize
+        * if info.bit_depth == 16 { 2 } else { 1 };
         let len = bits / 8;
         let extra = bits % 8;
-        self.processed = vec![0; len + match extra { 0 => 0, _ => 1 }]
+        Ok(len + match extra { 0 => 0, _ => 1 })
+    }
+    
+    fn allocate_out_buf(&mut self) {
+        let width = self.d.info.as_ref().unwrap().width;
+        self.processed = vec![0; self.line_size(width).unwrap()]
     }
     
     fn expand_gray_u8(&mut self) {
@@ -736,21 +792,29 @@ impl<R: Read> Reader<R> {
     
     /// Returns the next raw row of the image
     pub fn next_raw_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
+        self.next_raw_interlaced_row().map(|v| v.map(|v| v.0))
+    }
+    
+    /// Returns the next raw row of the image
+    pub fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         let _ = try!(self.read_info());
         let bpp = self.bpp;
-        let rowlen = if let Some(ref mut adam7) = self.adam7 {
-            if let Some((_, _, len)) = adam7.next() {
+        let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
+            let last_pass = adam7.current_pass();
+            if let Some((pass, line, len)) = adam7.next() {
                 let rowlen = self.d.info.as_ref().unwrap().raw_row_length_from_width(len);
-                self.prev.clear();
-                for _ in 0..rowlen {
-                    self.prev.push(0);
+                if last_pass != pass {
+                    self.prev.clear();
+                    for _ in 0..rowlen {
+                        self.prev.push(0);
+                    }   
                 }
-                rowlen
+                (rowlen, Some((pass, line, len)))
             } else {
                 return Ok(None)
             }
         } else {
-            self.rowlen
+            (self.rowlen, None)
         };
         while let Some(val) = try!(decode_next(
             &mut self.r, &mut self.d, &mut self.pos,
@@ -764,7 +828,12 @@ impl<R: Read> Reader<R> {
                             unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
                             mem::swap(&mut self.prev, &mut self.current);
                             self.current.clear();
-                            return Ok(Some(&self.prev[1..rowlen]))
+                            return Ok(
+                                Some((
+                                    &self.prev[1..rowlen],
+                                    passdata
+                                ))
+                            )
                         } else {
                             return Err(DecodingError::Format(
                                 format!("invalid filter method ({})", self.current[0]).into()
@@ -840,6 +909,17 @@ fn rows_ok() {
     use std::fs::File;
     let mut reader = Reader::new(File::open("tests/samples/lenna_fragment_interlaced.png").unwrap());
     let expected_bytes = reader.read_info().unwrap().raw_bytes();
+    let mut i = 0;
     while let Some(row) = reader.next_row().unwrap() {
+        println!("{}: {}", i, row.len());
+        i += 1;
     }
+}
+#[test]
+fn rows_deinterlaced() {
+    use std::fs::File;
+    let mut reader = Reader::new(File::open("tests/samples/lenna_fragment_interlaced.png").unwrap());
+    let bytes = reader.buffer_size().unwrap();
+    let mut data = vec![0; bytes];
+    reader.next_frame(&mut data).unwrap();
 }

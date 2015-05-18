@@ -104,6 +104,18 @@ impl Adam7Iterator {
         self.lines = lines.ceil() as u32;
         self.line = 0;
     }
+    
+    /// Returns the parameters of the current pass.
+    ///
+    /// Will not yield correct values before `next()` is called at least once.
+    pub fn current(&self) -> (u8, u32, u32) {
+        (self.current_pass, self.line-1, self.line_width)
+    }
+    
+    /// The current pass#.
+    pub fn current_pass(&self) -> u8 {
+        self.current_pass
+    }
 }
 
 /// Iterates over the (passes, lines, widths)
@@ -121,5 +133,34 @@ impl Iterator for Adam7Iterator {
         } else {
             None
         }
+    }
+}
+
+macro_rules! expand_pass(
+    ($img:expr, $scanline:expr, $j:ident, $pos:expr, $bytes_pp:expr) => {
+        for ($j, pixel) in $scanline.chunks($bytes_pp).enumerate() {
+            for (offset, val) in pixel.iter().enumerate() {
+                $img[$pos + offset] = *val
+            }
+        }
+    }
+);
+
+/// Expands an Adam 7 pass
+pub fn expand_pass(
+    img: &mut [u8], width: u32, scanline: &[u8],
+    pass: u8, line_no: u32, bytes_pp: u8) {
+    let line_no = line_no as usize;
+    let width = width as usize;
+    let bytes_pp = bytes_pp as usize;
+    match pass {
+        1 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp * j*8     , bytes_pp),
+        2 => expand_pass!(img, scanline, j,  8*line_no    * width + bytes_pp *(j*8 + 4), bytes_pp),
+        3 => expand_pass!(img, scanline, j, (8*line_no+4) * width + bytes_pp * j*4     , bytes_pp),
+        4 => expand_pass!(img, scanline, j,  4*line_no    * width + bytes_pp *(j*4 + 2), bytes_pp),
+        5 => expand_pass!(img, scanline, j, (4*line_no+2) * width + bytes_pp * j*2     , bytes_pp),
+        6 => expand_pass!(img, scanline, j,  2*line_no    * width + bytes_pp *(j*2+1)  , bytes_pp),
+        7 => expand_pass!(img, scanline, j, (2*line_no+1) * width + bytes_pp * j       , bytes_pp),
+        _ => {}
     }
 }

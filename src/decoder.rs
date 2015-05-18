@@ -107,7 +107,8 @@ pub struct Decoder {
     inflater: Inflater,
     image_data: Vec<u8>,
     row_remaining: usize,
-    info: Option<Info>
+    adam7: Option<utils::Adam7Iterator>,
+    info: Option<Info>,
 }
 
 impl Decoder {
@@ -121,6 +122,7 @@ impl Decoder {
             inflater: Inflater::new(),
             image_data: vec![0; IMAGE_BUFFER_SIZE],
             row_remaining: 0,
+            adam7: None,
             info: None
         }
     }
@@ -312,7 +314,14 @@ impl Decoder {
                 let chunk_len = self.current_chunk.2.len();
                 let remaining = self.current_chunk.1;
                 if self.row_remaining == 0 {
-                    self.row_remaining = if let Some(ref info) = self.info {
+                    self.row_remaining = if let Some(ref mut adam7) = self.adam7 {
+                        match adam7.next() {
+                            Some((_, _, width)) => {
+                                self.info.as_ref().unwrap().raw_row_length_from_width(width)
+                            },
+                            None => -1 as isize as usize // TODO: return at this point
+                        }
+                    } else if let Some(ref info) = self.info {
                         info.raw_row_length()
                     } else {
                         return Err(DecodingError::Format(
@@ -456,7 +465,10 @@ impl Decoder {
         }
         let interlaced = match try!(buf.read_be()) {
             0u8 => false,
-            1 => true,
+            1 => {
+                self.adam7 = Some(utils::Adam7Iterator::new(width, height));
+                true
+            },
             n => return Err(DecodingError::Format(
                 format!("unknown interlace method ({})", n).into()
             ))
@@ -514,6 +526,7 @@ pub struct Reader<R: Read> {
     end: usize,
     bpp: usize,
     rowlen: usize,
+    adam7: Option<utils::Adam7Iterator>,
     /// Previous raw line
     prev: Vec<u8>,
     /// Current raw line
@@ -535,6 +548,7 @@ impl<R: Read> Reader<R> {
             end: 0,
             bpp: 0,
             rowlen: 0,
+            adam7: None,
             prev: Vec::new(),
             current: Vec::new(),
             transform: ::TRANSFORM_EXPAND,
@@ -563,6 +577,7 @@ impl<R: Read> Reader<R> {
             };
             self.bpp = info.bytes_per_pixel();
             self.rowlen = info.raw_row_length();
+            self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height));
             self.prev = vec![0; self.rowlen];
             Ok(info)
         }
@@ -703,7 +718,20 @@ impl<R: Read> Reader<R> {
     pub fn next_raw_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
         let _ = try!(self.read_info());
         let bpp = self.bpp;
-        let rowlen = self.rowlen;
+        let rowlen = if let Some(ref mut adam7) = self.adam7 {
+            if let Some((_, _, len)) = adam7.next() {
+                let rowlen = self.d.info.as_ref().unwrap().raw_row_length_from_width(len);
+                self.prev.clear();
+                for _ in 0..rowlen {
+                    self.prev.push(0);
+                }
+                rowlen
+            } else {
+                return Ok(None)
+            }
+        } else {
+            self.rowlen
+        };
         while let Some(val) = try!(decode_next(
             &mut self.r, &mut self.d, &mut self.pos,
             &mut self.end, &mut self.buf
@@ -713,10 +741,10 @@ impl<R: Read> Reader<R> {
                     self.current.push_all(data);
                     if self.current.len() == rowlen {
                         if let Some(filter) = FromPrimitive::from_u8(self.current[0]) {
-                            unfilter(filter, bpp, &self.prev[1..], &mut self.current[1..]);
+                            unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
                             mem::swap(&mut self.prev, &mut self.current);
                             self.current.clear();
-                            return Ok(Some(&self.prev[1..]))
+                            return Ok(Some(&self.prev[1..rowlen]))
                         } else {
                             return Err(DecodingError::Format(
                                 format!("invalid filter method ({})", self.current[0]).into()
@@ -790,7 +818,7 @@ fn size_correct() {
 #[test]
 fn rows_ok() {
     use std::fs::File;
-    let mut reader = Reader::new(File::open("tests/samples/PNG_transparency_demonstration_1.png").unwrap());
+    let mut reader = Reader::new(File::open("tests/samples/lenna_fragment_interlaced.png").unwrap());
     let expected_bytes = reader.read_info().unwrap().raw_bytes();
     while let Some(row) = reader.next_row().unwrap() {
     }

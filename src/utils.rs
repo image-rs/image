@@ -48,3 +48,78 @@ fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
         }
     }
 }
+
+
+/// This iterator iterates over the different passes of an image Adam7 encoded
+/// PNG image
+/// The pattern is:
+///     16462646
+///     77777777
+///     56565656
+///     77777777
+///     36463646
+///     77777777
+///     56565656
+///     77777777
+///
+#[derive(Clone)]
+pub struct Adam7Iterator {
+    line: u32,
+    lines: u32,
+    line_width: u32,
+    current_pass: u8,
+    width: u32,
+    height: u32,
+}
+
+impl Adam7Iterator {
+    pub fn new(width: u32, height: u32) -> Adam7Iterator {
+        let mut this = Adam7Iterator {
+            line: 0,
+            lines: 0,
+            line_width: 0,
+            current_pass: 1,
+            width: width,
+            height: height
+        };
+        this.init_pass();
+        this
+    }
+
+    /// Calculates the bounds of the current pass
+    fn init_pass(&mut self) {
+        let w = self.width as f64;
+        let h = self.height as f64;
+        let (line_width, lines) = match self.current_pass {
+            1 => (w/8.0, h/8.0),
+            2 => ((w-4.0)/8.0, h/8.0),
+            3 => (w/4.0, (h-4.0)/8.0),
+            4 => ((w-2.0)/4.0, h/4.0),
+            5 => (w/2.0, (h-2.0)/4.0),
+            6 => ((w-1.0)/2.0, h/2.0),
+            7 => (w, (h-1.0)/2.0),
+            _ => unreachable!()
+        };
+        self.line_width = line_width.ceil() as u32;
+        self.lines = lines.ceil() as u32;
+        self.line = 0;
+    }
+}
+
+/// Iterates over the (passes, lines, widths)
+impl Iterator for Adam7Iterator {
+    type Item = (u8, u32, u32);
+    fn next(&mut self) -> Option<(u8, u32, u32)> {
+        if self.line < self.lines {
+            let this_line = self.line;
+            self.line += 1;
+            Some((self.current_pass, this_line, self.line_width))
+        } else if self.current_pass < 7 {
+            self.current_pass += 1;
+            self.init_pass();
+            self.next()
+        } else {
+            None
+        }
+    }
+}

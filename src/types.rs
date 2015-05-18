@@ -107,6 +107,15 @@ impl Info {
         + match extra { 0 => 0, _ => 1 }
         + 1 // filter method
     }
+    
+    /// Returns the number of bytes needed for one deinterlaced row of width `width`
+    pub fn raw_row_length_from_width(&self, width: u32) -> usize {
+        let bits = width as usize * self.color_type.samples() * self.bit_depth as usize;
+        let extra = bits % 8;
+        bits/8
+        + match extra { 0 => 0, _ => 1 }
+        + 1 // filter method
+    }
 }
 
 /// Test

@@ -616,7 +616,7 @@ impl<R: Read> Reader<R> {
                         _ => ()
                     }
                 }
-                if transform.intersects(::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16) {
+                if bit_depth == 16 && transform.intersects(::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16) {
                     len /= 2;
                     for i in 0..len {
                         self.processed[i] = self.processed[2 * i];

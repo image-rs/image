@@ -577,7 +577,9 @@ impl<R: Read> Reader<R> {
             };
             self.bpp = info.bytes_per_pixel();
             self.rowlen = info.raw_row_length();
-            self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height));
+            if info.interlaced {
+                self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height))
+            }
             self.prev = vec![0; self.rowlen];
             Ok(info)
         }

@@ -645,7 +645,6 @@ impl<R: Read> Reader<R> {
                     self.processed.resize(width, 0);
                 }
                 let mut len = self.processed.len();
-                                 println!("{:?}", (old_len, len));
                 if transform.contains(::TRANSFORM_EXPAND) {
                     match color_type {
                         Indexed => {
@@ -685,7 +684,7 @@ impl<R: Read> Reader<R> {
                 16 if t.intersects(
                     ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
                 ) => 8,
-                n if t.contains(::TRANSFORM_EXPAND) => 8,
+                _ if t.contains(::TRANSFORM_EXPAND) => 8,
                 n => n 
             };
             let color_type = if t.contains(::TRANSFORM_EXPAND) {
@@ -725,7 +724,8 @@ impl<R: Read> Reader<R> {
             Grayscale if trns && t.contains(::TRANSFORM_EXPAND) => 2 * 8,
             Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
             GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
-            t => info.bits_per_pixel()
+            _ if info.bit_depth == 16 => info.bits_per_pixel() / 2,
+            _ => info.bits_per_pixel()
         }
         * width as usize
         * if info.bit_depth == 16 { 2 } else { 1 };

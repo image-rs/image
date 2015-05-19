@@ -520,6 +520,7 @@ impl<R: Read> Parameter<Reader<R>> for Transformations {
 pub struct Reader<R: Read> {
     r: R,
     d: Decoder,
+    eof: bool,
     /// Read buffer
     buf: Vec<u8>,
     /// Buffer position
@@ -545,6 +546,7 @@ impl<R: Read> Reader<R> {
         Reader {
             r: r,
             d: Decoder::new(),
+            eof: false,
             buf: vec![0; CHUNCK_BUFFER_SIZE],
             pos: 0,
             end: 0,
@@ -564,10 +566,13 @@ impl<R: Read> Reader<R> {
         if let Some(ref info) = self.d.info {
             Ok(info)
         } else {
-            while let Some(val) = try!(self.decode_next()) {
-                match val {
-                    ChunkBegin(_, IDAT) => break,
-                    _ => ()
+            loop {
+                match try!(self.decode_next()) {
+                    Some(ChunkBegin(_, IDAT)) => break,
+                    None => return Err(DecodingError::Format(
+                        "IDAT chunk missing".into()
+                    )),
+                    _ => (),
                 }
             }
             self.allocate_out_buf();
@@ -797,6 +802,9 @@ impl<R: Read> Reader<R> {
     
     /// Returns the next raw row of the image
     pub fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+        if self.eof {
+            return Ok(None)
+        }
         let _ = try!(self.read_info());
         let bpp = self.bpp;
         let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
@@ -816,12 +824,13 @@ impl<R: Read> Reader<R> {
         } else {
             (self.rowlen, None)
         };
-        while let Some(val) = try!(decode_next(
-            &mut self.r, &mut self.d, &mut self.pos,
-            &mut self.end, &mut self.buf
-        )) {
+        loop {
+            let val = try!(decode_next(
+                &mut self.r, &mut self.d, &mut self.pos,
+                &mut self.end, &mut self.buf
+            ));
             match val {
-                Decoded::ImageData(data) => {
+                Some(Decoded::ImageData(data)) => {
                     self.current.push_all(data);
                     if self.current.len() == rowlen {
                         if let Some(filter) = FromPrimitive::from_u8(self.current[0]) {
@@ -841,10 +850,19 @@ impl<R: Read> Reader<R> {
                         }
                     }
                 },
+                None => {
+                    if self.current.len() > 0 {
+                        return Err(DecodingError::Format(
+                          "file truncated".into()
+                        ))
+                    } else {
+                        self.eof = true;
+                        return Ok(None)
+                    }
+                }
                 _ => ()
             }
         }
-        Ok(None)
     }
     
     /// Returns the next decoded block (low-level)

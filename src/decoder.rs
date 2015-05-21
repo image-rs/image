@@ -7,14 +7,12 @@ use std::io::{self, Read, Write};
 use std::cmp::min;
 use std::convert::{From, AsRef};
 
-use num::FromPrimitive;
-
 use deflate::{Inflater, Flush};
 
 use crc::Crc32;
 use traits::{ReadBytesExt, HasParameters, Parameter};
 use types::{ColorType, Info, Transformations};
-use filter::unfilter;
+use filter::{unfilter, FilterType};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 use utils;
 
@@ -298,7 +296,7 @@ impl Decoder {
                     } else {
                         let buf = &buf[..n as usize];
                         crc.update(buf);
-                        c_buf.push_all(buf);
+                        c_buf.extend(buf.iter().map(|&v| v));
                         *remaining -= n;
                         if *remaining == 0 {
                             goto!(n as usize, PartialChunk(type_str
@@ -393,7 +391,7 @@ impl Decoder {
     fn parse_plte(&mut self)
     -> Result<Decoded, DecodingError> {
         let mut vec = Vec::new();
-        vec.push_all(&self.current_chunk.2);
+        vec.extend(self.current_chunk.2.iter().map(|&v| v));
         self.info.as_mut().map(
             |info| info.palette = Some(vec)
         );
@@ -408,7 +406,7 @@ impl Decoder {
             info.color_type
         };
         let mut vec = Vec::new();
-        vec.push_all(&self.current_chunk.2);
+        vec.extend(self.current_chunk.2.iter().map(|&v| v));
         let len = vec.len();
         self.info.as_mut().map(
             |info| info.trns = Some(vec)
@@ -462,7 +460,7 @@ impl Decoder {
             ))
         }
         let color_type = try!(buf.read_be());
-        let color_type = match FromPrimitive::from_u8(color_type) {
+        let color_type = match ColorType::from_u8(color_type) {
             Some(color_type) => color_type,
             None => return Err(DecodingError::Format(
                 format!("invalid color type ({})", color_type).into()
@@ -855,9 +853,9 @@ impl<R: Read> Reader<R> {
             ));
             match val {
                 Some(Decoded::ImageData(data)) => {
-                    self.current.push_all(data);
+                    self.current.extend(data.iter().map(|&v| v));
                     if self.current.len() == rowlen {
-                        if let Some(filter) = FromPrimitive::from_u8(self.current[0]) {
+                        if let Some(filter) = FilterType::from_u8(self.current[0]) {
                             unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
                             mem::swap(&mut self.prev, &mut self.current);
                             self.current.clear();

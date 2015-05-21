@@ -407,21 +407,36 @@ impl Decoder {
             let info = try!(self.get_info_or_err());
             info.color_type
         };
+        let mut vec = Vec::new();
+        vec.push_all(&self.current_chunk.2);
+        let len = vec.len();
+        self.info.as_mut().map(
+            |info| info.trns = Some(vec)
+        );
         match color_type {
-            Grayscale => unimplemented!(),
-            RGB => unimplemented!(),
+            Grayscale => {
+                if len < 2 {
+                    return Err(DecodingError::Format(
+                        "not enought palette entries".into()
+                    ))
+                }
+                Ok(Decoded::Nothing)
+            },
+            RGB => {
+                if len < 6 {
+                    return Err(DecodingError::Format(
+                        "not enought palette entries".into()
+                    ))
+                }
+                Ok(Decoded::Nothing)
+            },
             Indexed => {
-                {
-                    let _ = try!(self
-                        .info.as_ref().unwrap()
-                        .palette.as_ref().ok_or(DecodingError::Format(
+                let _ = try!(try!(self.info.as_ref().ok_or(DecodingError::Format(
+                        "tRNS chunk occured before IHDR chunk".into()
+                    )))
+                    .palette.as_ref().ok_or(DecodingError::Format(
                         "tRNS chunk occured before PLTE chunk".into()
-                    )));
-                };
-                let mut vec = Vec::new();
-                vec.push_all(&self.current_chunk.2);
-                self.info.as_mut().map(
-                    |info| info.trns = Some(vec)
+                    ))
                 );
                 Ok(Decoded::Nothing)
             },
@@ -627,9 +642,9 @@ impl<R: Read> Reader<R> {
     pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use types::ColorType::*;
         let transform = self.transform;
-        let (color_type, bit_depth) = {
+        let (color_type, bit_depth, trns) = {
             let info = try!(self.read_info());
-            (info.color_type, info.bit_depth)
+            (info.color_type, info.bit_depth, info.trns.is_some())
         };
         if transform == ::TRANSFORM_IDENTITY {
             self.next_raw_interlaced_row()
@@ -656,6 +671,15 @@ impl<R: Read> Reader<R> {
                             self.expand_paletted()
                         }
                         Grayscale | GrayscaleAlpha if bit_depth < 8 => self.expand_gray_u8(),
+                        Grayscale | RGB if trns => {
+                            let channels = color_type.samples();
+                            let trns = self.d.info.as_ref().unwrap().trns.as_ref().unwrap();
+                            if bit_depth == 8 {
+                                utils::expand_trns_line(&mut self.processed, &*trns, channels);
+                            } else {
+                                utils::expand_trns_line16(&mut self.processed, &*trns, 2*channels);
+                            }
+                        },
                         _ => ()
                     }
                 }

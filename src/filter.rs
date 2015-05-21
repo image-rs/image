@@ -1,10 +1,24 @@
-#[derive(NumFromPrimitive, Debug)]
+#![allow(dead_code)] // false positive
+use std::mem;
+
+#[derive(Debug)]
+#[repr(u8)]
 pub enum FilterType {
     NoFilter = 0,
     Sub = 1,
     Up = 2,
     Avg = 3,
     Paeth = 4
+}
+
+ impl FilterType {  
+    /// u8 -> Self. Temporary solution until Rust provides a canonical one.
+    pub fn from_u8(n: u8) -> Option<FilterType> {
+        match n {
+            n if n <= 4 => Some(unsafe { mem::transmute(n) }),
+            _ => None
+        }
+    }
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {

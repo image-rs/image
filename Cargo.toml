@@ -9,8 +9,6 @@ repository = "https://github.com/nwin/png.git"
 miniz-sys = "0.1"
 libc = "*"
 num = "*"
-num-macros = "*"
-enum_primitive = "*"
 bitflags = "*"
 
 [dev-dependencies]
@@ -18,3 +16,4 @@ getopts = "*"
 term = "0.2"
 glob = "*"
 rust-tcl = "*"
+rust-tcl-sys = "*"

@@ -1,7 +1,4 @@
 #![feature(collections)]
-#![feature(custom_derive)] 
-#![feature(plugin)]
-#![plugin(num_macros)]
 
 #[macro_use] extern crate bitflags;
 

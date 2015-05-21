@@ -1,7 +1,8 @@
 //! Common types shared between the encoder and decoder
+use std::mem;
 
-
-#[derive(NumFromPrimitive, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum ColorType {
     Grayscale = 0,
     RGB = 2,
@@ -20,6 +21,14 @@ impl ColorType {
             Indexed => 1,
             GrayscaleAlpha => 2,
             RGBA => 4
+        }
+    }
+    
+    /// u8 -> Self. Temporary solution until Rust provides a canonical one.
+    pub fn from_u8(n: u8) -> Option<ColorType> {
+        match n {
+            0 | 2 | 3 | 4 | 6 => Some(unsafe { mem::transmute(n) }),
+            _ => None
         }
     }
 }

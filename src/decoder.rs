@@ -401,22 +401,31 @@ impl Decoder {
     fn parse_trns(&mut self)
     -> Result<Decoded, DecodingError> {
         use types::ColorType::*;
-        let color_type = {
+        let (color_type, bit_depth) = {
             let info = try!(self.get_info_or_err());
-            info.color_type
+            (info.color_type, info.bit_depth)
         };
         let mut vec = Vec::new();
         vec.extend(self.current_chunk.2.iter().map(|&v| v));
         let len = vec.len();
-        self.info.as_mut().map(
-            |info| info.trns = Some(vec)
-        );
+        let info = match self.info {
+            Some(ref mut info) => info,
+            None => return Err(DecodingError::Format(
+              "tRNS chunk occured before IHDR chunk".into()
+            ))
+        };
+        info.trns = Some(vec);
+        let vec = info.trns.as_mut().unwrap();
         match color_type {
             Grayscale => {
                 if len < 2 {
                     return Err(DecodingError::Format(
                         "not enought palette entries".into()
                     ))
+                }
+                if bit_depth < 16 {
+                    vec[0] = vec[1];
+                    vec.truncate(1);
                 }
                 Ok(Decoded::Nothing)
             },
@@ -426,16 +435,18 @@ impl Decoder {
                         "not enought palette entries".into()
                     ))
                 }
+                if bit_depth < 16 {
+                    vec[0] = vec[1];
+                    vec[1] = vec[3];
+                    vec[2] = vec[5];
+                    vec.truncate(3);
+                }
                 Ok(Decoded::Nothing)
             },
             Indexed => {
-                let _ = try!(try!(self.info.as_ref().ok_or(DecodingError::Format(
-                        "tRNS chunk occured before IHDR chunk".into()
-                    )))
-                    .palette.as_ref().ok_or(DecodingError::Format(
-                        "tRNS chunk occured before PLTE chunk".into()
-                    ))
-                );
+                let _ = info.palette.as_ref().ok_or(DecodingError::Format(
+                    "tRNS chunk occured before PLTE chunk".into()
+                ));
                 Ok(Decoded::Nothing)
             },
             c => Err(DecodingError::Format(
@@ -675,7 +686,7 @@ impl<R: Read> Reader<R> {
                             if bit_depth == 8 {
                                 utils::expand_trns_line(&mut self.processed, &*trns, channels);
                             } else {
-                                utils::expand_trns_line16(&mut self.processed, &*trns, 2*channels);
+                                utils::expand_trns_line16(&mut self.processed, &*trns, channels);
                             }
                         },
                         _ => ()
@@ -734,7 +745,12 @@ impl<R: Read> Reader<R> {
     /// that is decoded using the given input transformations.
     pub fn buffer_size(&mut self) -> Result<usize, DecodingError> {
         let (width, height) = try!(self.read_info()).size();
-        self.line_size(width).map(|v| v*height as usize)
+        match self.line_size(width) {
+            Ok(size) => {
+                Ok(size * height as usize)
+            },
+            err => err
+        }
     }
     
     /// Returns the number of bytes required to hold a deinterlaced row.
@@ -751,6 +767,7 @@ impl<R: Read> Reader<R> {
             Grayscale if trns && t.contains(::TRANSFORM_EXPAND) => 2 * 8,
             Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
             GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
+            // divide by 2 as it will get mutiplied by two later
             _ if info.bit_depth == 16 => info.bits_per_pixel() / 2,
             _ => info.bits_per_pixel()
         }

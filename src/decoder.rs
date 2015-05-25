@@ -629,7 +629,7 @@ impl<R: Read> Reader<R> {
     /// Decodes the next frame into `buf`
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
         // TODO 16 bit
-        let (color_type, bit_depth) = try!(self.output_info());
+        let (color_type, bit_depth) = try!(self.color_type());
         let width = self.d.info.as_ref().unwrap().width;
         if buf.len() < self.buffer_size().unwrap() {
             return Err(DecodingError::Other(
@@ -718,18 +718,9 @@ impl<R: Read> Reader<R> {
         }
     }
     
-    /// Returns the output info
-    pub fn output_info(&mut self) -> Result<OutputInfo, DecodingError> {
-        Ok(OutputInfo {
-            width: info.width,
-            height: info.height,
-            color_type: ct,
-        })
-    }
-    
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
-    pub fn _color_type(&mut self) -> Result<(ColorType, u8), DecodingError> {
+    pub fn color_type(&mut self) -> Result<(ColorType, u8), DecodingError> {
         use types::ColorType::*;
         let t = self.transform;
         let info = try!(self.read_info());

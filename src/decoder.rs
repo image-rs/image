@@ -803,7 +803,7 @@ impl<R: Read> Reader<R> {
         };
         if let Some(ref trns) = info.trns {
             utils::unpack_bits(&mut self.processed, 2, info.bit_depth, |pixel, chunk| {
-                if pixel == trns[1] {
+                if pixel == trns[0] {
                     chunk[1] = 0
                 } else {
                     chunk[1] = 0xFF

@@ -796,12 +796,12 @@ impl<R: Read> Reader<R> {
         let info = self.d.info.as_ref().unwrap();
         let samples = info.color_type.samples();
         let rescale = true;
+        let scaling_factor = if rescale {
+            (255)/((1u16 << info.bit_depth) - 1) as u8
+        } else {
+            1
+        };
         if let Some(ref trns) = info.trns {
-            let scaling_factor = if rescale {
-                (255)/((1u16 << info.bit_depth) - 1) as u8
-            } else {
-                1
-            };
             utils::unpack_bits(&mut self.processed, 2, info.bit_depth, |pixel, chunk| {
                 if pixel == trns[1] {
                     chunk[1] = 0
@@ -812,7 +812,7 @@ impl<R: Read> Reader<R> {
             })
         } else {
             utils::unpack_bits(&mut self.processed, 1, info.bit_depth, |val, chunk| {
-                chunk[0] = val
+                chunk[0] = val * scaling_factor
             })
         }
     }

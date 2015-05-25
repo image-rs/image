@@ -11,16 +11,20 @@ where F: Fn(u8, &mut[u8]) {
         0 => 0,
         _ => 1
     };
+    let skip = match extra_bits {
+        0 => 0,
+        n => (8-n) / bit_depth as usize
+    };
     let mask = ((1u16 << bit_depth) - 1) as u8;
     let i =
         (0..entries)
-        .rev() // Reverse iterator
+        .rev() // reverse iterator
         .flat_map(|idx|
-            // This has to be reversed to
+            // this has to be reversed too
             range_step(0, 8, bit_depth)
             .zip(repeat(idx))
         )
-        .skip(extra_bits / bit_depth as usize);
+        .skip(skip);
     let channels = channels as isize;
     let j = range_step(buf.len() as isize - channels, -channels, -channels);
     //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;

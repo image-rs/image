@@ -6,8 +6,8 @@ use num::range_step;
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where F: Fn(u8, &mut[u8]) {
     let bits = buf.len()/channels*bit_depth as usize;
-    let extra = bits % 8;
-    let entries = bits / 8 + match extra {
+    let extra_bits = bits % 8;
+    let entries = bits / 8 + match extra_bits {
         0 => 0,
         _ => 1
     };
@@ -20,7 +20,7 @@ where F: Fn(u8, &mut[u8]) {
             range_step(0, 8, bit_depth)
             .zip(repeat(idx))
         )
-        .skip(extra);
+        .skip(extra_bits / bit_depth as usize);
     let channels = channels as isize;
     let j = range_step(buf.len() as isize - channels, -channels, -channels);
     //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;

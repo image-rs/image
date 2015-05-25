@@ -52,7 +52,7 @@ pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
 pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
     let channels = channels as isize;
     let c2 = 2 * channels;
-    let i = range_step(buf.len() as isize / (2 * (channels+1)) * c2 - c2, -c2, -c2);
+    let i = range_step(buf.len() as isize / (c2+2) * c2 - c2, -c2, -c2);
     let j = range_step(buf.len() as isize - (c2+2), -(c2+2), -(c2+2));
     let channels = channels as usize;
     let c2 = c2 as usize;

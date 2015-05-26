@@ -149,7 +149,7 @@ impl Adam7Iterator {
 impl Iterator for Adam7Iterator {
     type Item = (u8, u32, u32);
     fn next(&mut self) -> Option<(u8, u32, u32)> {
-        if self.line < self.lines {
+        if self.line < self.lines && self.line_width > 0 {
             let this_line = self.line;
             self.line += 1;
             Some((self.current_pass, this_line, self.line_width))
@@ -190,4 +190,16 @@ pub fn expand_pass(
         7 => expand_pass!(img, scanline, j, (2*line_no+1) * width + bytes_pp * j       , bytes_pp),
         _ => {}
     }
+}
+#[test]
+fn test_adam7() {
+    /*
+        1646
+        7777
+        5656
+        7777
+    */
+    let it = Adam7Iterator::new(4, 4);
+    let passes: Vec<_> = it.collect();
+    assert_eq!(&*passes, &[(1, 0, 1), (4, 0, 1), (5, 0, 2), (6, 0, 2), (6, 1, 2), (7, 0, 4), (7, 1, 4)]);
 }

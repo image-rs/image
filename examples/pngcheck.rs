@@ -222,7 +222,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                     Header(w, h, b, c, i) => {
                         width = w;
                         height = h;
-                        bits = b;
+                        bits = b as u8;
                         color = c;
                         interlaced = i;
                     }

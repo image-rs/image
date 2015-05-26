@@ -213,7 +213,7 @@ impl<R: Read> Reader<R> {
         let transform = self.transform;
         let (color_type, bit_depth, trns) = {
             let info = get_info!(self);
-            (info.color_type, info.bit_depth, info.trns.is_some())
+            (info.color_type, info.bit_depth as u8, info.trns.is_some())
         };
         if transform == ::TRANSFORM_IDENTITY {
             self.next_raw_interlaced_row()
@@ -277,9 +277,9 @@ impl<R: Read> Reader<R> {
         let t = self.transform;
         let info = get_info!(self);
         if t == ::TRANSFORM_IDENTITY {
-            (info.color_type, info.bit_depth)
+            (info.color_type, info.bit_depth as u8)
         } else {
-            let bits = match info.bit_depth {
+            let bits = match info.bit_depth as u8 {
                 16 if t.intersects(
                     ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
                 ) => 8,
@@ -313,7 +313,7 @@ impl<R: Read> Reader<R> {
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let size = self.line_size(width);
-        if get_info!(self).bit_depth == 16 && self.transform.intersects(
+        if get_info!(self).bit_depth as u8 == 16 && self.transform.intersects(
             ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
         ) {
             size / 2
@@ -337,11 +337,11 @@ impl<R: Read> Reader<R> {
             Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
             GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
             // divide by 2 as it will get mutiplied by two later
-            _ if info.bit_depth == 16 => info.bits_per_pixel() / 2,
+            _ if info.bit_depth as u8 == 16 => info.bits_per_pixel() / 2,
             _ => info.bits_per_pixel()
         }
         * width as usize
-        * if info.bit_depth == 16 { 2 } else { 1 };
+        * if info.bit_depth as u8 == 16 { 2 } else { 1 };
         let len = bits / 8;
         let extra = bits % 8;
         len + match extra { 0 => 0, _ => 1 }
@@ -356,12 +356,12 @@ impl<R: Read> Reader<R> {
         let info = get_info!(self);
         let rescale = true;
         let scaling_factor = if rescale {
-            (255)/((1u16 << info.bit_depth) - 1) as u8
+            (255)/((1u16 << info.bit_depth as u8) - 1) as u8
         } else {
             1
         };
         if let Some(ref trns) = info.trns {
-            utils::unpack_bits(&mut self.processed, 2, info.bit_depth, |pixel, chunk| {
+            utils::unpack_bits(&mut self.processed, 2, info.bit_depth as u8, |pixel, chunk| {
                 if pixel == trns[0] {
                     chunk[1] = 0
                 } else {
@@ -370,7 +370,7 @@ impl<R: Read> Reader<R> {
                 chunk[0] = pixel * scaling_factor
             })
         } else {
-            utils::unpack_bits(&mut self.processed, 1, info.bit_depth, |val, chunk| {
+            utils::unpack_bits(&mut self.processed, 1, info.bit_depth as u8, |val, chunk| {
                 chunk[0] = val * scaling_factor
             })
         }
@@ -380,7 +380,7 @@ impl<R: Read> Reader<R> {
         let info = get_info!(self);
         let palette = info.palette.as_ref().unwrap_or_else(|| panic!());
         if let Some(ref trns) = info.trns {
-            utils::unpack_bits(&mut self.processed, 4, info.bit_depth, |i, chunk| {
+            utils::unpack_bits(&mut self.processed, 4, info.bit_depth as u8, |i, chunk| {
                 let (rgb, a) = (
                     // TODO prevent panic!
                     &palette[3*i as usize..3*i as usize+3],
@@ -392,7 +392,7 @@ impl<R: Read> Reader<R> {
                 chunk[3] = a;
             });
         } else {
-            utils::unpack_bits(&mut self.processed, 3, info.bit_depth, |i, chunk| {
+            utils::unpack_bits(&mut self.processed, 3, info.bit_depth as u8, |i, chunk| {
                 let rgb = &palette[3*i as usize..3*i as usize+3];
                 chunk[0] = rgb[0];
                 chunk[1] = rgb[1];

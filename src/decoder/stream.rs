@@ -11,7 +11,7 @@ use deflate::{Inflater, Flush};
 
 use crc::Crc32;
 use traits::ReadBytesExt;
-use common::{ColorType, Info};
+use common::{ColorType, BitDepth, Info};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 use utils;
 
@@ -44,7 +44,7 @@ enum State {
 pub enum Decoded<'a> {
     /// Nothing decoded yet
     Nothing,
-    Header(u32, u32, u8, ColorType, bool),
+    Header(u32, u32, BitDepth, ColorType, bool),
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
     /// Decoded raw image data.
@@ -402,7 +402,7 @@ impl StreamingDecoder {
         use common::ColorType::*;
         let (color_type, bit_depth) = {
             let info = try!(self.get_info_or_err());
-            (info.color_type, info.bit_depth)
+            (info.color_type, info.bit_depth as u8)
         };
         let mut vec = Vec::new();
         vec.extend(self.current_chunk.2.iter().map(|&v| v));
@@ -463,12 +463,12 @@ impl StreamingDecoder {
         let width = try!(buf.read_be());
         let height = try!(buf.read_be());
         let bit_depth = try!(buf.read_be());
-        match bit_depth {
-            1 | 2 | 4 | 8 | 16 => (),
-            n => return Err(DecodingError::Format(
-                format!("invalid bit depth ({})", n).into()
+        let bit_depth = match BitDepth::from_u8(bit_depth) {
+            Some(bits) => bits,
+            None => return Err(DecodingError::Format(
+                format!("invalid bit depth ({})", bit_depth).into()
             ))
-        }
+        };
         let color_type = try!(buf.read_be());
         let color_type = match ColorType::from_u8(color_type) {
             Some(color_type) => color_type,

@@ -33,6 +33,26 @@ impl ColorType {
     }
 }
 
+/// Bit depth of the png file
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum BitDepth {
+    One,
+    Two,
+    Four,
+    Eight,
+    Sixteen,
+}
+
+impl BitDepth {
+    /// u8 -> Self. Temporary solution until Rust provides a canonical one.
+    pub fn from_u8(n: u8) -> Option<BitDepth> {
+        match n {
+            1 | 2 | 4 | 8 | 16 => Some(unsafe { mem::transmute(n) }),
+            _ => None
+        }
+    }
+}
 
 /// Frame control information
 #[derive(Debug)]
@@ -47,7 +67,7 @@ pub struct AnimationControl;
 pub struct Info {
     pub width: u32,
     pub height: u32,
-    pub bit_depth: u8,
+    pub bit_depth: BitDepth,
     pub color_type: ColorType,
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
@@ -61,7 +81,7 @@ impl Default for Info {
         Info {
             width: 0,
             height: 0,
-            bit_depth: 0,
+            bit_depth: BitDepth::Eight,
             color_type: ColorType::Grayscale,
             interlaced: false,
             palette: None,

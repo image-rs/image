@@ -175,3 +175,4 @@
 "tests/pngsuite/z09n2c08.png": 4176991825
 "tests/pngsuite-extra/basi3p01_2.png": 2570215674
 "tests/pngsuite-extra/basi3p02_2.png": 419215269
+"tests/bugfixes/issue#403.png": 2961280239

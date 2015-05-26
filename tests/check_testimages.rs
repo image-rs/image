@@ -13,7 +13,7 @@ const BASE_PATH: [&'static str; 2] = [".", "tests"];
 fn process_images<F>(func: F)
 where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let test_suites = &["pngsuite", "pngsuite-extra"];
+    let test_suites = &["pngsuite", "pngsuite-extra", "bugfixes"];
     let mut results = HashMap::new();
     let mut expected_failures = 0;
     for suite in test_suites {

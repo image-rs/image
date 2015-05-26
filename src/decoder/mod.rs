@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::convert::AsRef;
 
 use traits::{HasParameters, Parameter};
-use common::{ColorType, Info, Transformations};
+use common::{ColorType, BitDepth, Info, Transformations};
 use filter::{unfilter, FilterType};
 use chunk::IDAT;
 use utils;
@@ -42,7 +42,7 @@ pub struct OutputInfo {
     pub width: u32,
     pub height: u32,
     pub color_type: ColorType,
-    pub bit_depth: u8,
+    pub bit_depth: BitDepth,
     pub line_size: usize,
 }
 
@@ -88,6 +88,8 @@ impl<R: Read> Decoder<R> {
         Ok((info, r))
     }
 }
+
+impl<R: Read> HasParameters for Decoder<R> {}
 
 /// PNG reader (mostly high-level interface)
 ///
@@ -173,7 +175,7 @@ impl<R: Read> Reader<R> {
         }
     }
     
-    fn info(&self) -> &Info {
+    pub fn info(&self) -> &Info {
         get_info!(self)
     } 
     
@@ -182,7 +184,7 @@ impl<R: Read> Reader<R> {
         // TODO 16 bit
         let (color_type, _) = self.output_color_type();
         let width = get_info!(self).width;
-        if buf.len() < self.ouput_buffer_size() {
+        if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Other(
                 "supplied buffer is too small to hold the image".into()
             ))
@@ -272,12 +274,12 @@ impl<R: Read> Reader<R> {
     
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
-    pub fn output_color_type(&mut self) -> (ColorType, u8) {
+    pub fn output_color_type(&mut self) -> (ColorType, BitDepth) {
         use common::ColorType::*;
         let t = self.transform;
         let info = get_info!(self);
         if t == ::TRANSFORM_IDENTITY {
-            (info.color_type, info.bit_depth as u8)
+            (info.color_type, info.bit_depth)
         } else {
             let bits = match info.bit_depth as u8 {
                 16 if t.intersects(
@@ -298,13 +300,13 @@ impl<R: Read> Reader<R> {
             } else {
                 info.color_type
             };
-            (color_type, bits)
+            (color_type, BitDepth::from_u8(bits).unwrap())
         }
     }
     
     /// Returns the number of bytes required to hold a deinterlaced image frame
     /// that is decoded using the given input transformations.
-    fn ouput_buffer_size(&self) -> usize {
+    pub fn output_buffer_size(&self) -> usize {
         let (width, height) = get_info!(self).size();
         let size = self.output_line_size(width);
         size * height as usize
@@ -499,5 +501,3 @@ fn decode_next<'a, R: Read>(
         }
     }
 }
-
-impl<R: Read> HasParameters for Reader<R> {}

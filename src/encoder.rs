@@ -8,9 +8,9 @@ use std::error;
 
 use chunk;
 use crc::Crc32;
-use common::Info;
+use common::{Info, ColorType, BitDepth};
 use filter::{FilterType, filter};
-use traits::WriteBytesExt;
+use traits::{WriteBytesExt, HasParameters, Parameter};
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -41,6 +41,14 @@ impl From<io::Error> for EncodingError {
         EncodingError::IoError(err)
     }
 }
+impl From<EncodingError> for io::Error {
+    fn from(err: EncodingError) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::Other,
+            (&err as &error::Error).description()
+        )
+    }
+}
 
 pub struct Encoder<W: Write> {
     w: W,
@@ -63,6 +71,20 @@ impl<W: Write> Encoder<W> {
             self.w,
             self.info
         ).init()
+    }
+}
+
+impl<W: Write> HasParameters for Encoder<W> {}
+
+impl<W: Write> Parameter<Encoder<W>> for ColorType {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.color_type = self
+    }
+}
+
+impl<W: Write> Parameter<Encoder<W>> for BitDepth {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.bit_depth = self
     }
 }
 

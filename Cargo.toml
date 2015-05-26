@@ -31,12 +31,16 @@ glob = "0.2.10"
 version = "0.5"
 optional = true
 
+[dependencies.png]
+version = "*"
+optional = true
+
 [features]
-default = ["gif_codec", "jpeg", "png", "ppm", "tga", "tiff", "webp", "bmp"]
+default = ["gif_codec", "jpeg", "png_codec", "ppm", "tga", "tiff", "webp", "bmp"]
 
 gif_codec = ["gif"]
 jpeg = []
-png = []
+png_codec = ["png"]
 ppm = []
 tga = []
 tiff = []

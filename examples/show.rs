@@ -63,7 +63,7 @@ fn blend(rgba: &[u8], rgb: &[u8]) -> [u8; 3] {
 }
 
 fn load_image<'env>(path: &path::PathBuf, env: &'env tcl::TclEnvironment, interp: &mut tcl::Interpreter)
--> Result<((i32, i32), Object<'env>), png::decoder::DecodingError> {
+-> Result<((i32, i32), Object<'env>), png::DecodingError> {
     let mut data = Object::new(&env, ());
     
     let decoder = png::Decoder::new(try!(File::open(path)));

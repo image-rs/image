@@ -14,7 +14,7 @@ env:
       - FEATURES=''
       - FEATURES='gif_codec'
       - FEATURES='jpeg'
-      - FEATURES='png'
+      - FEATURES='png_codec'
       - FEATURES='ppm'
       - FEATURES='tga'
       - FEATURES='tiff'

@@ -11,7 +11,7 @@ use deflate::{Inflater, Flush};
 
 use crc::Crc32;
 use traits::{ReadBytesExt, HasParameters, Parameter};
-use types::{ColorType, Info, Transformations};
+use common::{ColorType, Info, Transformations};
 use filter::{unfilter, FilterType};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 use utils;
@@ -400,7 +400,7 @@ impl Decoder {
     
     fn parse_trns(&mut self)
     -> Result<Decoded, DecodingError> {
-        use types::ColorType::*;
+        use common::ColorType::*;
         let (color_type, bit_depth) = {
             let info = try!(self.get_info_or_err());
             (info.color_type, info.bit_depth)
@@ -658,7 +658,7 @@ impl<R: Read> Reader<R> {
     
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
-        use types::ColorType::*;
+        use common::ColorType::*;
         let transform = self.transform;
         let (color_type, bit_depth, trns) = {
             let info = try!(self.read_info());
@@ -721,7 +721,7 @@ impl<R: Read> Reader<R> {
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
     pub fn color_type(&mut self) -> Result<(ColorType, u8), DecodingError> {
-        use types::ColorType::*;
+        use common::ColorType::*;
         let t = self.transform;
         let info = try!(self.read_info());
         Ok(if t == ::TRANSFORM_IDENTITY {
@@ -764,7 +764,7 @@ impl<R: Read> Reader<R> {
     
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn line_size(&mut self, width: u32) -> Result<usize, DecodingError> {
-        use types::ColorType::*;
+        use common::ColorType::*;
         let t = self.transform;
         let info = try!(self.read_info());
         let trns = info.trns.is_some();

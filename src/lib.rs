@@ -12,10 +12,10 @@ pub mod decoder;
 mod deflate;
 mod filter;
 mod traits;
-mod types;
+mod common;
 mod utils;
 
 pub use decoder::{Reader, Decoder, Decoded, DecodingError};
-pub use types::*;
+pub use common::*;
 
 pub use traits::{Parameter, HasParameters};

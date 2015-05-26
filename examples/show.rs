@@ -66,16 +66,14 @@ fn load_image<'env>(path: &path::PathBuf, env: &'env tcl::TclEnvironment, interp
 -> Result<((i32, i32), Object<'env>), png::decoder::DecodingError> {
     let mut data = Object::new(&env, ());
     
-    let mut reader = png::Reader::new(try!(File::open(path)));
-    let (width, height) = try!(reader.read_info()).size();
-    let (ct, _) = try!(reader.color_type());
-    let buffer_size = try!(reader.buffer_size());
-    let mut img_data = vec![0; buffer_size];
+    let decoder = png::Decoder::new(try!(File::open(path)));
+    let (info, mut reader) = try!(decoder.read_info());
+    let mut img_data = vec![0; info.buffer_size()];
     try!(reader.next_frame(&mut img_data));
-    for row in img_data.chunks(width as usize * ct.samples()) {
+    for row in img_data.chunks(info.width as usize * info.color_type.samples()) {
         use png::ColorType::*;
         let mut row_data = Object::new(&env, ());
-        match ct {
+        match info.color_type {
             RGBA => for rgba in row.chunks(4) {
                 let rgb = blend(rgba, &BG_COLOR);
                 let str = Object::new(&env, &*format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]));
@@ -99,7 +97,7 @@ fn load_image<'env>(path: &path::PathBuf, env: &'env tcl::TclEnvironment, interp
         
         interp.list_append(&mut data, &row_data);
     }
-    Ok(((width as i32, height as i32), data))
+    Ok(((info.width as i32, info.height as i32), data))
 }
 
 extern "C"

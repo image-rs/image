@@ -84,7 +84,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     let n = try!(reader.read(&mut data));
     let mut buf = &data[..n];
     let mut pos = 0;
-    let mut decoder = png::Decoder::new();
+    let mut decoder = png::StreamingDecoder::new();
     // Image data
     let mut width = 0;
     let mut height = 0;

@@ -58,7 +58,6 @@ pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
     let c2 = 2 * channels;
     let i = range_step(buf.len() as isize / (c2+2) * c2 - c2, -c2, -c2);
     let j = range_step(buf.len() as isize - (c2+2), -(c2+2), -(c2+2));
-    let channels = channels as usize;
     let c2 = c2 as usize;
     for (i, j) in i.zip(j) {
         let i_pixel = i as usize;
@@ -130,13 +129,6 @@ impl Adam7Iterator {
         self.line_width = line_width.ceil() as u32;
         self.lines = lines.ceil() as u32;
         self.line = 0;
-    }
-    
-    /// Returns the parameters of the current pass.
-    ///
-    /// Will not yield correct values before `next()` is called at least once.
-    pub fn current(&self) -> (u8, u32, u32) {
-        (self.current_pass, self.line-1, self.line_width)
     }
     
     /// The current pass#.

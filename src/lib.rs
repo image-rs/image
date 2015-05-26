@@ -15,7 +15,7 @@ mod traits;
 mod common;
 mod utils;
 
-pub use decoder::{Reader, Decoder, Decoded, DecodingError};
+pub use decoder::{Decoder, Reader, StreamingDecoder, Decoded, DecodingError};
 pub use common::*;
 
 pub use traits::{Parameter, HasParameters};

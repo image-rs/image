@@ -2,7 +2,8 @@
 //! # PNG encoder and decoder
 //! This crate contains a PNG decoder. It supports reading of single lines or whole frames.
 //! ## The decoder
-//! The most important types for decoding purposes are `Decoder` and `Reader` the both wrap a `std::io::Read`.
+//! The most important types for decoding purposes are [`Decoder`](struct.Decoder.html) and 
+//! [`Reader`](struct.Reader.html). They both wrap a `std::io::Read`.
 //! `Decoder` serves as a builder for `Reader`. Calling `Decoder::read_info` reads from the `Read` until the 
 //! image data is reached.
 //! ### Using the decoder

@@ -282,7 +282,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                 //println!("{} {:?}", n, res)
             },
             Err(err) => {
-                display_error(err);
+                let _ = display_error(err);
                 break
             }
         }
@@ -303,7 +303,7 @@ fn main() {
                     for entry in try!(glob::glob(&file).map_err(|err| {
                         io::Error::new(io::ErrorKind::Other, err.msg)
                     })) {
-                        try!(check_image(config, try!(entry.map_err(|err| {
+                        try!(check_image(config, try!(entry.map_err(|_| {
                             io::Error::new(io::ErrorKind::Other, "glob error")
                         }))))
                     }

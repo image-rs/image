@@ -180,7 +180,7 @@ fn main() {
                     for entry in try!(glob::glob(&file).map_err(|err| {
                         io::Error::new(io::ErrorKind::Other, err.msg)
                     })) {
-                        files.push(try!(entry.map_err(|err| {
+                        files.push(try!(entry.map_err(|_| {
                             io::Error::new(io::ErrorKind::Other, "glob error")
                         })))
                     }

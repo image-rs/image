@@ -905,12 +905,7 @@ impl<R: Read> Reader<R> {
     }
     
     /// Returns the next raw row of the image
-    pub fn next_raw_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
-        self.next_raw_interlaced_row().map(|v| v.map(|v| v.0))
-    }
-    
-    /// Returns the next raw row of the image
-    pub fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+    fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         if self.eof {
             return Ok(None)
         }

@@ -1,7 +1,7 @@
 #![allow(dead_code)] // false positive
 use std::mem;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum FilterType {
     NoFilter = 0,
@@ -93,37 +93,35 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
 pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     use self::FilterType::*;
     let len  = current.len();
-    // TODO save this allocation
-    let orig: Vec<u8> = (0..len).map(| i | current[i]).collect();
 
     match method {
         NoFilter => (),
         Sub      => {
-            for i in (bpp..len) {
-                current[i] = orig[i] - orig[i - bpp];
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub(current[i - bpp]);
             }
         }
         Up       => {
             for i in (0..len) {
-                current[i] = orig[i] - previous[i];
+                current[i] = current[i].wrapping_sub(previous[i]);
             }
         }
         Avg  => {
-            for i in (0..bpp) {
-                current[i] = orig[i] - previous[i] / 2;
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub((current[i - bpp].wrapping_add(previous[i]) / 2));
             }
 
-            for i in (bpp..len) {
-                current[i] = orig[i] - ((orig[i - bpp] as i16 + previous[i] as i16) / 2) as u8;
+            for i in (0..bpp) {
+                current[i] = current[i].wrapping_sub(previous[i] / 2);
             }
         }
         Paeth    => {
-            for i in (0..bpp) {
-                current[i] = orig[i] - filter_paeth(0, previous[i], 0);
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub(filter_paeth(current[i - bpp], previous[i], previous[i - bpp]));
             }
 
-            for i in (bpp..len) {
-                current[i] = orig[i] - filter_paeth(orig[i - bpp], previous[i], previous[i - bpp]);
+            for i in (0..bpp) {
+                current[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
             }
         }
     }

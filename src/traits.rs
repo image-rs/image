@@ -14,13 +14,13 @@ pub trait HasParameters: Sized {
 }
 
 
-// Will be replace by stdlib solution
+// Will be replaced by stdlib solution
 fn read_all<R: io::Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
     let mut total = 0;
     while total < buf.len() {
         match this.read(&mut buf[total..]) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::Other,
-                                               "failed to read whole buffer")),
+                                               "failed to read the whole buffer")),
             Ok(n) => total += n,
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(e) => return Err(e),
@@ -29,10 +29,32 @@ fn read_all<R: io::Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> io::Resul
     Ok(())
 }
 
-/// Reader extension to read little endian data
+// Will be replaced by stdlib solution
+fn write_all<W: io::Write + ?Sized>(this: &mut W, buf: &[u8]) -> io::Result<()> {
+    let mut total = 0;
+    while total < buf.len() {
+        match this.write(&buf[total..]) {
+            Ok(0) => return Err(io::Error::new(io::ErrorKind::Other,
+                                               "failed to write the whole buffer")),
+            Ok(n) => total += n,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+/// Read extension to read big endian data
 pub trait ReadBytesExt<T>: io::Read {
-	/// Writes `T` to a bytes stream. Most significant byte first.
-	fn read_be(&mut self) -> io::Result<T>;
+    /// Read `T` from a bytes stream. Most significant byte first.
+    fn read_be(&mut self) -> io::Result<T>;
+
+}
+
+/// Write extension to write big endian data
+pub trait WriteBytesExt<T>: io::Write {
+    /// Writes `T` to a bytes stream. Most significant byte first.
+    fn write_be(&mut self, T) -> io::Result<()>;
 
 }
 
@@ -65,12 +87,15 @@ impl<W: io::Read + ?Sized> ReadBytesExt<u32> for W {
         )
 	}
 }
-/*
-impl<W: io::Write + ?Sized> WriteBytesExt<u64> for W {
-	#[inline]
-	fn write_le(&mut self, n: u64) -> io::Result<()> {
-		try!(self.write_le(n as u32));
-		self.write_le((n >> 32) as u32)
-		
-	}
-}*/
+
+impl<W: io::Write + ?Sized> WriteBytesExt<u32> for W {
+    #[inline]
+    fn write_be(&mut self, n: u32) -> io::Result<()> {
+        write_all(self, &[
+            (n >> 24) as u8,
+            (n >> 16) as u8,
+            (n >>  8) as u8,
+            n         as u8
+        ])
+    }
+}

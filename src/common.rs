@@ -37,11 +37,11 @@ impl ColorType {
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum BitDepth {
-    One,
-    Two,
-    Four,
-    Eight,
-    Sixteen,
+    One     = 1,
+    Two     = 2,
+    Four    = 4,
+    Eight   = 8,
+    Sixteen = 16,
 }
 
 impl BitDepth {

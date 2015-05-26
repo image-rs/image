@@ -12,7 +12,7 @@
 //!     // The decoder is a build for reader and can be used to set various decoding options
 //!     // via `Transformations`. The default output transformation is `TRANSFORM_EXPAND
 //!     // | TRANSFORM_STRIP_ALPHA`.
-//!     let mut decoder = png::Decoder::new(File::open("tests/pngsuite/basi0g01.png").unwrap());
+//!     let decoder = png::Decoder::new(File::open("tests/pngsuite/basi0g01.png").unwrap());
 //!     let (info, mut reader) = decoder.read_info().unwrap();
 //!     // Allocate the output buffer.
 //!     let mut buf = vec![0; info.buffer_size()];
@@ -31,13 +31,15 @@ extern crate num;
 pub mod chunk;
 mod crc;
 mod decoder;
+mod encoder;
 mod deflate;
 mod filter;
 mod traits;
 mod common;
 mod utils;
 
-pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError};
 pub use common::*;
+pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError};
+pub use encoder::{Encoder, Writer, EncodingError};
 
 pub use traits::{Parameter, HasParameters};

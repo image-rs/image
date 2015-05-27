@@ -7,17 +7,16 @@ use std::io::{self, Read, Write};
 use std::cmp::min;
 use std::convert::{From, AsRef};
 
-use deflate::{Inflater, Flush};
+extern crate inflate;
+use self::inflate::InflateStream;
 
 use crc::Crc32;
 use traits::ReadBytesExt;
 use common::{ColorType, BitDepth, Info};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
-use utils;
 
 /// TODO check if these size are reasonable
-pub const CHUNCK_BUFFER_SIZE: usize = 10*1024;
-pub const IMAGE_BUFFER_SIZE: usize = 30*1024;
+pub const CHUNCK_BUFFER_SIZE: usize = 32*1024;
 
 #[derive(Debug)]
 enum U32Value {
@@ -52,6 +51,7 @@ pub enum Decoded<'a> {
     /// The buffer is guaranteed not to span over
     /// line boundaries.
     ImageData(&'a [u8]),
+    PartialChunk(ChunkType, &'a [u8]),
     ImageEnd,
 }
 
@@ -99,14 +99,30 @@ impl From<io::Error> for DecodingError {
     }
 }
 
+impl From<String> for DecodingError {
+    fn from(err: String) -> DecodingError {
+        DecodingError::Other(err.into())
+    }
+}
+
+impl From<DecodingError> for io::Error {
+    fn from(err: DecodingError) -> io::Error {
+        use std::error::Error;
+        match err {
+            DecodingError::IoError(err) => err,
+            err => io::Error::new(
+                io::ErrorKind::Other,
+                err.description()
+            )
+        }
+    }
+}
+
 /// PNG StreamingDecoder (low-level interface)
 pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: (Crc32, u32, Vec<u8>),
-    inflater: Inflater,
-    image_data: Vec<u8>,
-    row_remaining: usize,
-    adam7: Option<utils::Adam7Iterator>,
+    inflater: InflateStream,
     info: Option<Info>,
 }
 
@@ -118,10 +134,7 @@ impl StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: (Crc32::new(), 0, Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
-            inflater: Inflater::new(),
-            image_data: vec![0; IMAGE_BUFFER_SIZE],
-            row_remaining: 0,
-            adam7: None,
+            inflater: InflateStream::from_zlib(),
             info: None
         }
     }
@@ -131,8 +144,7 @@ impl StreamingDecoder {
         self.state = Some(State::Signature(0, [0; 7]));
         self.current_chunk.0 = Crc32::new();
         self.current_chunk.2.clear();
-        self.inflater = Inflater::new();
-        self.row_remaining = 0;
+        self.inflater = InflateStream::from_zlib();
         self.info = None;
     }
     
@@ -202,7 +214,7 @@ impl StreamingDecoder {
         
         // Driver should ensure that state is never None
         let state = self.state.take().unwrap();
-        //println!("{:?}", state);
+        //println!("state: {:?}", state);
 
         match state {
             Signature(i, mut signature) => if i < 7 {
@@ -268,7 +280,11 @@ impl StreamingDecoder {
             PartialChunk(type_str) => {
                 match type_str {
                     IDAT => {
-                        goto!(0, DecodeData(type_str, 0))
+                        goto!(
+                            0,
+                            DecodeData(type_str, 0),
+                            emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                        )
                     },
                     // Skip other chunks
                     _ => {
@@ -311,34 +327,9 @@ impl StreamingDecoder {
             }
             DecodeData(type_str, mut n) => {
                 let chunk_len = self.current_chunk.2.len();
-                let remaining = self.current_chunk.1;
-                if self.row_remaining == 0 {
-                    self.row_remaining = if let Some(ref mut adam7) = self.adam7 {
-                        match adam7.next() {
-                            Some((_, _, width)) => {
-                                self.info.as_ref().unwrap().raw_row_length_from_width(width)
-                            },
-                            None => -1 as isize as usize // TODO: return at this point
-                        }
-                    } else if let Some(ref info) = self.info {
-                        info.raw_row_length()
-                    } else {
-                        return Err(DecodingError::Format(
-                            "IHDR chunk missing".into()
-                        ))
-                    }
-                }
-                let m = min(self.image_data.len(), self.row_remaining);
-                let (eof, c, data) = try!(self.inflater.inflate(
-                    &self.current_chunk.2[n..],
-                    &mut self.image_data[..m],
-                    Flush::None
-                ));
+                let (c, data) = try!(self.inflater.update(&self.current_chunk.2[n..]));
                 n += c;
-                self.row_remaining -= data.len();
-                if eof && n != chunk_len {
-                    Err(DecodingError::CorruptFlateStream)
-                } else if n == chunk_len && (data.len() == 0 || remaining != 0) {
+                if n == chunk_len && data.len() == 0 && c == 0 {
                     goto!(
                         0,
                         ReadChunk(type_str, true),
@@ -491,7 +482,6 @@ impl StreamingDecoder {
         let interlaced = match try!(buf.read_be()) {
             0u8 => false,
             1 => {
-                self.adam7 = Some(utils::Adam7Iterator::new(width, height));
                 true
             },
             n => return Err(DecodingError::Format(

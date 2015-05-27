@@ -428,42 +428,45 @@ impl<R: Read> Reader<R> {
             (self.rowlen, None)
         };
         loop {
-            let val = try!(decode_next(
-                &mut self.r, &mut self.d, &mut self.pos,
-                &mut self.end, &mut self.buf
-            ));
-            match val {
-                Some(Decoded::ImageData(data)) => {
-                    self.current.extend(data.iter().map(|&v| v));
-                    if self.current.len() == rowlen {
-                        if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                            unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
-                            mem::swap(&mut self.prev, &mut self.current);
-                            self.current.clear();
-                            return Ok(
-                                Some((
-                                    &self.prev[1..rowlen],
-                                    passdata
-                                ))
-                            )
-                        } else {
+            if self.current.len() >= rowlen {
+                if let Some(filter) = FilterType::from_u8(self.current[0]) {
+                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
+                    utils::copy_memory(&self.current[..rowlen], &mut self.prev[..rowlen]);
+                    // TODO optimize
+                    self.current = self.current[rowlen..].into();
+                    return Ok(
+                        Some((
+                            &self.prev[1..rowlen],
+                            passdata
+                        ))
+                    )
+                } else {
+                    return Err(DecodingError::Format(
+                        format!("invalid filter method ({})", self.current[0]).into()
+                    ))
+                }
+            } else {
+                let val = try!(decode_next(
+                    &mut self.r, &mut self.d, &mut self.pos,
+                    &mut self.end, &mut self.buf
+                ));
+                match val {
+                    Some(Decoded::ImageData(data)) => {
+                        //self.current.extend(data.iter().map(|&v| v));
+                        self.current.push_all(data);
+                    },
+                    None => {
+                        if self.current.len() > 0 {
                             return Err(DecodingError::Format(
-                                format!("invalid filter method ({})", self.current[0]).into()
+                              "file truncated".into()
                             ))
+                        } else {
+                            self.eof = true;
+                            return Ok(None)
                         }
                     }
-                },
-                None => {
-                    if self.current.len() > 0 {
-                        return Err(DecodingError::Format(
-                          "file truncated".into()
-                        ))
-                    } else {
-                        self.eof = true;
-                        return Ok(None)
-                    }
+                    _ => ()
                 }
-                _ => ()
             }
         }
     }
@@ -499,5 +502,33 @@ fn decode_next<'a, R: Read>(
                 }))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    extern crate test;
+    
+    use std::fs::File;
+    use std::io::Read;
+    
+    use super::Decoder;
+    use HasParameters;
+    
+    #[bench]
+    fn bench_big(b: &mut test::Bencher) {
+        let mut data = Vec::new();
+        File::open("/Users/nwinter/Desktop/Ducati_side_shadow.png").unwrap().read_to_end(&mut data).unwrap();
+        let mut decoder = Decoder::new(&*data);
+        decoder.set(::TRANSFORM_IDENTITY);
+        let (info, mut decoder) = decoder.read_info().unwrap();
+        let mut image = vec![0; info.buffer_size()];
+        b.iter(|| {
+            let mut decoder = Decoder::new(&*data);
+            decoder.set(::TRANSFORM_IDENTITY);
+            let (_, mut decoder) = decoder.read_info().unwrap();
+            test::black_box(decoder.next_frame(&mut image));
+        });
+        b.bytes = info.buffer_size() as u64
     }
 }

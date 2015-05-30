@@ -28,8 +28,8 @@ pub struct Decoder<R: Read> {
 impl<R: Read> Decoder<R> {
     /// Creates a new decoder that decodes the input steam ```r```
     pub fn new(r: R) -> Decoder<R> {
-    	let mut decoder = gif::Decoder::new(r);
-    	decoder.set(ColorOutput::RGBA);
+        let mut decoder = gif::Decoder::new(r);
+        decoder.set(ColorOutput::RGBA);
         Decoder {
             inner: Some(Either::Left(decoder))
         }
@@ -60,7 +60,7 @@ impl<R: Read> ImageDecoder for Decoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
-    	Ok(color::ColorType::RGBA(8))
+        Ok(color::ColorType::RGBA(8))
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -78,43 +78,43 @@ impl<R: Read> ImageDecoder for Decoder<R> {
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let reader = try!(self.get_reader());
         if let Some(_) = try!(reader.next_frame_info()) {
-        	let mut buf = vec![0; reader.buffer_size()];
-        	try!(reader.fill_buffer(&mut buf));
-        	Ok(DecodingResult::U8(buf))
+            let mut buf = vec![0; reader.buffer_size()];
+            try!(reader.fill_buffer(&mut buf));
+            Ok(DecodingResult::U8(buf))
         } else {
-        	Err(ImageError::ImageEnd)
+            Err(ImageError::ImageEnd)
         }
     }
 }
 
 /// GIF encoder.
 pub struct Encoder<W: Write> {
-	w: W,
+    w: W,
 }
 
 impl<W: Write> Encoder<W> {
-	/// Creates a new GIF encoder.
-	pub fn new(w: W) -> Encoder<W> {
-		Encoder {
-			w: w
-		}
-	}
-	/// Encodes a frame.
-	pub fn encode(self, frame: Frame) -> ImageResult<()> {
-		let mut encoder = try!(
-			gif::Encoder::new(self.w, frame.width, frame.height).write_global_palette(&[])
-		);
-		encoder.write_frame(&frame).map_err(|err| err.into())
-	}
+    /// Creates a new GIF encoder.
+    pub fn new(w: W) -> Encoder<W> {
+        Encoder {
+            w: w
+        }
+    }
+    /// Encodes a frame.
+    pub fn encode(self, frame: Frame) -> ImageResult<()> {
+        let mut encoder = try!(
+            gif::Encoder::new(self.w, frame.width, frame.height).write_global_palette(&[])
+        );
+        encoder.write_frame(&frame).map_err(|err| err.into())
+    }
 }
 
 impl From<gif::DecodingError> for ImageError {
     fn from(err: gif::DecodingError) -> ImageError {
         use self::gif::DecodingError::*;
         match err {
-		    Format(desc) => ImageError::FormatError(desc.into()),
-		    Internal(desc) => ImageError::FormatError(desc.into()),
-		    Io(io_err) => ImageError::IoError(io_err),
+            Format(desc) => ImageError::FormatError(desc.into()),
+            Internal(desc) => ImageError::FormatError(desc.into()),
+            Io(io_err) => ImageError::IoError(io_err),
         }
     }
 }

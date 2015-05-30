@@ -110,7 +110,7 @@ pub mod ppm;
 pub mod png;
 #[cfg(feature = "jpeg")]
 pub mod jpeg;
-#[cfg(feature = "gif")]
+#[cfg(feature = "gif_codec")]
 pub mod gif;
 #[cfg(feature = "tiff")]
 pub mod tiff;

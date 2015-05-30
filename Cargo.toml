@@ -21,22 +21,20 @@ exclude = [
 name = "image"
 path = "./src/lib.rs"
 
-[dependencies.byteorder]
-version = "0.3.9"
+[dependencies]
+byteorder = "0.3.9"
+num = "0.1.24"
+enum_primitive = "0.0.1"
+glob = "0.2.10"
 
-[dependencies.num]
-version = "0.1.24"
-
-[dependencies.enum_primitive]
-version = "0.0.1"
-
-[dev-dependencies.glob]
-version = "0.2.10"
+[dependencies.gif]
+version = "0.4"
+optional = true
 
 [features]
-default = ["gif", "jpeg", "png", "ppm", "tga", "tiff", "webp", "bmp"]
+default = ["gif_codec", "jpeg", "png", "ppm", "tga", "tiff", "webp", "bmp"]
 
-gif = []
+gif_codec = ["gif"]
 jpeg = []
 png = []
 ppm = []

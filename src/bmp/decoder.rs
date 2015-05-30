@@ -1,6 +1,5 @@
 use std::io::{Read, Seek, SeekFrom};
 use byteorder::{ReadBytesExt, LittleEndian};
-use std::iter::repeat;
 
 use image::{
     DecodingResult,

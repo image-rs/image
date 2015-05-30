@@ -8,7 +8,7 @@ use num;
 
 #[cfg(feature = "ppm")]
 use ppm;
-#[cfg(feature = "gif")]
+#[cfg(feature = "gif_codec")]
 use gif;
 #[cfg(feature = "webp")]
 use webp;
@@ -373,13 +373,15 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "gif")]
+            #[cfg(feature = "gif_codec")]
             image::ImageFormat::GIF => {
-                let mut g = gif::GIFEncoder::new(
-                    self.to_rgba(), None, gif::ColorMode::Indexed(0xFF)
-                );
+                let g = gif::Encoder::new(w);
 
-                try!(g.encode(w));
+                try!(g.encode(gif::Frame::from_rgba(
+                    width as u16,
+                    height as u16,
+                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>()
+                )));
                 Ok(())
             }
 
@@ -573,8 +575,8 @@ pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage
     match format {
         #[cfg(feature = "png")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(BufReader::new(r))),
-        #[cfg(feature = "gif")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(BufReader::new(r))),
+        #[cfg(feature = "gif_codec")]
+        image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(BufReader::new(r))),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(BufReader::new(r))),
         #[cfg(feature = "webp")]

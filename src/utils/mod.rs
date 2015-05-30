@@ -1,5 +1,6 @@
 //!  Utilities
 
+#[allow(dead_code)]
 pub mod bitstream;
 pub mod lzw;
 

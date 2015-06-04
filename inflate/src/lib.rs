@@ -602,12 +602,11 @@ impl InflateStream {
                 );
                 match next {
                     BlockHeader => {
+                        if self.final_block {
+                            return ok_state!(CheckCRC)
+                        }
                         let h = take!(3);
                         let (final_, block_type) = ((h & 1) != 0, (h >> 1) & 0b11);
-
-                        if self.final_block {
-                            return Err("DEFLATE data after the final block".into());
-                        }
 
                         self.final_block = final_;
 

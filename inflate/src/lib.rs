@@ -172,7 +172,10 @@ impl<'a> BitStream<'a> {
     }
 
     fn take(&mut self, n: u8) -> Option<u8> {
-        assert!(n <= 8);
+        if n > 8 {
+            // HACK(eddyb) in place of a static assert.
+            abort();
+        }
         self.take16(n).map(|v: u16| v as u8)
     }
 }

@@ -518,7 +518,7 @@ mod test {
     #[bench]
     fn bench_big(b: &mut test::Bencher) {
         let mut data = Vec::new();
-        File::open("tests/pngsuite/pngsuite.png").unwrap().read_to_end(&mut data).unwrap();
+        File::open("tests/pngsuite/PngSuite.png").unwrap().read_to_end(&mut data).unwrap();
         let mut decoder = Decoder::new(&*data);
         decoder.set(::TRANSFORM_IDENTITY);
         let (info, mut decoder) = decoder.read_info().unwrap();

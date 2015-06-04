@@ -1,171 +1,124 @@
-#![feature(collections)]
-
-extern crate tcl;
-extern crate rust_tcl_sys;
-extern crate libc;
-extern crate png;
+#[macro_use]
+extern crate glium;
 extern crate glob;
+extern crate png;
 
-use std::ptr;
-use std::mem;
 use std::env;
 use std::io;
-use std::path;
 use std::fs::File;
-use std::ffi::CString;
+use std::borrow::Cow;
+use std::path;
+use std::error::Error;
 
-use tcl::Object;
+use glium::{DisplayBuild, Surface, Rect, BlitTarget};
+use glium::texture::{RawImage2d, ClientFormat};
+use glium::glutin::{self, Event, VirtualKeyCode};
 
-use rust_tcl_sys::tcl::{ClientData, Tcl_Interp, Tcl_Obj, Tcl_CreateObjCommand};
-use rust_tcl_sys::shims::{TCL_OK};
-use libc::c_int;
-
-const CREATE_WINDOW: &'static str = r##"
-package require Tk
-
-set title "test"
-wm protocol . WM_DELETE_WINDOW {
-    exit
-}
-bind . <Escape> {exit}
-bind . <Right> {next_image} 
-
-set image [image create photo] 
-
-next_image
-
-wm geometry . [join [list $width "x" $height] ""]
-$image put $image_data
- 
-label .l -image $image
-pack .l
-raise .
-vwait forever
-"##;
-
-const LOAD_IMAGE: &'static str = r##"
-wm geometry . [join [list $width "x" $height] ""]
-wm geometry . "800x600"
-wm title . $title 
-$image put $image_data
-"##;
-
-
-const BG_COLOR: [u8; 3] = [0xF0, 0xF0, 0xF0];
-
-fn blend(rgba: &[u8], rgb: &[u8]) -> [u8; 3] {
-    let alpha = rgba[3] as f32/255.0;
-    let mut res = [0; 3];
-    for ((&a, &b), c) in rgba[..3].iter().zip(rgb.iter()).zip(res.iter_mut()) {
-        *c = (alpha * a as f32 + (1.0 - alpha) * b as f32) as u8
-    }
-    res
-}
-
-fn load_image<'env>(path: &path::PathBuf, env: &'env tcl::TclEnvironment, interp: &mut tcl::Interpreter)
--> Result<((i32, i32), Object<'env>), png::DecodingError> {
-    let mut data = Object::new(&env, ());
-    
+/// Load the image using `png`
+fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
+    use png::ColorType::*;
     let decoder = png::Decoder::new(try!(File::open(path)));
     let (info, mut reader) = try!(decoder.read_info());
     let mut img_data = vec![0; info.buffer_size()];
     try!(reader.next_frame(&mut img_data));
-    for row in img_data.chunks(info.width as usize * info.color_type.samples()) {
-        use png::ColorType::*;
-        let mut row_data = Object::new(&env, ());
-        match info.color_type {
-            RGBA => for rgba in row.chunks(4) {
-                let rgb = blend(rgba, &BG_COLOR);
-                let str = Object::new(&env, &*format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]));
-                interp.list_append(&mut row_data, &str);
+    
+    let (data, format) = match info.color_type {
+        RGB => (img_data, ClientFormat::U8U8U8),
+        RGBA => (img_data, ClientFormat::U8U8U8U8),
+        Grayscale => (
+            {
+                let mut vec = Vec::with_capacity(img_data.len()*3);
+                for g in img_data {
+                    vec.extend([g, g, g].iter().cloned())
+                }
+                vec
             },
-            RGB => for rgb in row.chunks(3) {
-                let str = Object::new(&env, &*format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]));
-                interp.list_append(&mut row_data, &str);
+            ClientFormat::U8U8U8
+        ),
+        GrayscaleAlpha => (
+            {
+                let mut vec = Vec::with_capacity(img_data.len()*3);
+                for ga in img_data.chunks(2) {
+                    let g = ga[0]; let a = ga[1];
+                    vec.extend([g, g, g, a].iter().cloned())
+                }
+                vec
             },
-            Grayscale => for g in row {
-                let str = Object::new(&env, &*format!("#{:02X}{:02X}{:02X}", g, g, g));
-                interp.list_append(&mut row_data, &str);
-            },
-            GrayscaleAlpha => for ga in row.chunks(2) {
-                let rgb = blend(&[ga[0], ga[0], ga[0], ga[1]], &BG_COLOR);
-                let str = Object::new(&env, &*format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]));
-                interp.list_append(&mut row_data, &str);
-            },
-            _ => unimplemented!()
-        }
-        
-        interp.list_append(&mut data, &row_data);
-    }
-    Ok(((info.width as i32, info.height as i32), data))
+            ClientFormat::U8U8U8U8
+        ),
+        _ => unreachable!("uncovered color type")
+    };
+    
+    Ok(RawImage2d {
+        data: Cow::Owned(data),
+        width: info.width,
+        height: info.height,
+        format: format
+    })
 }
 
-extern "C"
-fn next_image(state: ClientData, _: *mut Tcl_Interp, _: c_int, _: *const Tcl_Obj) -> c_int {
-    //use tcl::TclResult::TCL_OK;
-    //let interp: &mut tcl::Interpreter = unsafe { mem::transmute(interp) };
-    let state: &mut State = unsafe { mem::transmute(state) };
+fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
+    let mut files = files.iter();
+    let image = try!(load_image(files.next().unwrap()));
+    // building the display, ie. the main object
+    let display = try!(glutin::WindowBuilder::new()
+        .with_vsync()
+        .build_glium()
+        .map_err(|err| io::Error::new(
+            io::ErrorKind::Other,
+            err.description()
+        ))
+    );
+    resize_window(&display, &image);
+    let mut opengl_texture = glium::Texture2d::new(&display, image);
     
-    let env = state.env;
-    let ref mut interp = state.interp;
-    
-    if state.files.len() < 1 {
-        return 0
-    }
-    
-    let tail = state.files.split_off(1);
-    let first = mem::replace(&mut state.files, tail);
-    
-    if let Ok(((width, height), image_data)) = load_image(
-        //"tests/samples/PNG_transparency_demonstration_1.png",
-        //"tests/samples/lenna_fragment_interlaced.png",
-        //"tests/pngsuite/basn2c16.png",
-        //"tests/pngsuite/basi3p04.png",
-        //"tests/pngsuite/tbbn2c16.png",
-        //"tests/pngsuite/tbrn2c08.png",
-        //"tests/pngsuite/tbbn3p08.png",
-        &first[0],
-        &env, interp
-    ) {
-        interp.set_object_variable(
-            &env.new_object("image_data"),
-            &image_data,
-            tcl::SetVariableScope::Standard,
-            tcl::LeaveError::Yes,
-            tcl::AppendStyle::Replace
-        );
-        interp.set_variable("width", width);
-        interp.set_variable("height", height);
-        interp.set_variable("title", &*first[0].to_string_lossy());
-        
-        match interp.eval(LOAD_IMAGE, tcl::EvalScope::Local) {
-            tcl::TclResult::Ok => TCL_OK,
-            _ => {
-                -1
+    'main: loop {
+        fill_v_flipped(&opengl_texture.as_surface(), &display.draw(), glium::uniforms::MagnifySamplerFilter::Linear);
+        // polling and handling the events received by the window
+        for event in display.poll_events() {
+            match event {
+                Event::Closed => break 'main,
+                Event::KeyboardInput(glutin::ElementState::Pressed, _, code) => match code {
+                    Some(VirtualKeyCode::Escape) => break 'main,
+                    Some(VirtualKeyCode::Right) => {
+                        match files.next() {
+                            Some(path) => {
+                                let image = try!(load_image(path));
+                                resize_window(&display, &image);
+                                opengl_texture = glium::Texture2d::new(&display, image);
+                            },
+                            None => break 'main
+                        }
+                    },
+                    _ => ()
+                },
+                _ => ()
             }
         }
-    } else {
-        -1
     }
+    Ok(())
 }
 
-fn crate_commands(state: &mut State) {
-    let name = CString::new("next_image").unwrap();
-    unsafe {
-        Tcl_CreateObjCommand(
-            state.interp.raw(),
-            name.as_ptr(),
-            mem::transmute(next_image),
-            mem::transmute(state),
-            ptr::null_mut()
-        );
-    }
+fn fill_v_flipped<S1, S2>(src: &S1, target: &S2, filter: glium::uniforms::MagnifySamplerFilter)
+where S1: Surface, S2: Surface {
+    let src_dim = src.get_dimensions();
+    let src_rect = Rect { left: 0, bottom: 0, width: src_dim.0 as u32, height: src_dim.1 as u32 };
+    let target_dim = target.get_dimensions();
+    let target_rect = BlitTarget { left: 0, bottom: target_dim.1, width: target_dim.0 as i32, height: -(target_dim.1 as i32) };
+    src.blit_color(&src_rect, target, &target_rect, filter);
 }
 
-struct State<'a, 'env: 'a> {
-    env: &'env tcl::TclEnvironment,
-    interp: &'a mut tcl::Interpreter<'env>,
-    files: Vec<path::PathBuf>
+fn resize_window(display: &glium::backend::glutin_backend::GlutinFacade, image: &RawImage2d<'static, u8>) {
+    let mut width = image.width;
+    let mut height = image.height;
+    if width < 50 && height < 50 {
+        width *= 10;
+        height *= 10;
+    } else if width < 5 && height < 5 {
+        width *= 10;
+        height *= 10;
+    }
+    display.get_window().unwrap().set_inner_size(width, height);
 }
 
 fn main() {
@@ -198,15 +151,10 @@ fn main() {
             }
             
         }
-        let env = tcl::init();
-        let mut interp = env.interpreter().unwrap();
-        let interpp = &mut interp as *mut tcl::Interpreter;
-        let mut state = State {
-            env: &env,
-            interp: &mut interp,
-            files: files
-        };
-        crate_commands(&mut state);
-        println!("{:?}", unsafe {&mut *interpp}.eval(CREATE_WINDOW, tcl::EvalScope::Local));
+        // "tests/pngsuite/pngsuite.png"
+        match main_loop(files) {
+            Ok(_) => (),
+            Err(err) => println!("Error: {}", err)
+        }
     }
 }

@@ -19,8 +19,7 @@ bitflags = "*"
 getopts = "*"
 term = "0.2"
 glob = "*"
-rust-tcl = "*"
-rust-tcl-sys = "*"
+glium = "*"
 
 [dependencies.inflate]
 path = "./inflate"

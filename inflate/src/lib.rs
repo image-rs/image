@@ -103,13 +103,14 @@ struct BitState {
     v: u32
 }
 
+#[derive(Clone)]
 struct BitStream<'a> {
     bytes: slice::Iter<'a, u8>,
     used: usize,
     state: BitState
 }
 
-// Use this instead of triggering a failure (that may unwind).
+// Use this instead of triggering a panic (that will unwind).
 fn abort() -> ! {
     unsafe {
         ::std::intrinsics::abort()
@@ -178,6 +179,11 @@ impl<'a> BitStream<'a> {
         }
         self.take16(n).map(|v: u16| v as u8)
     }
+
+    fn fill(&mut self) -> BitState {
+        while self.state.n + 8 <= 32 && self.use_byte() {}
+        self.state
+    }
 }
 
 macro_rules! with_codes (($clens:expr, $max_bits:expr => $code_ty:ty, $cb:expr) => ({
@@ -238,11 +244,11 @@ impl CodeLengthReader {
             if !stream.need(7) {
                 return false;
             }
-            let save = stream.state;
+            let save = stream.clone();
             macro_rules! take (($n:expr) => (match stream.take($n) {
                 Some(v) => v,
                 None => {
-                    stream.state = save;
+                    *stream = save;
                     return false;
                 }
             }));
@@ -347,14 +353,14 @@ impl DynHuffman16 {
         }
     }
 
-    fn read(&self, stream: &mut BitStream) -> Option<(BitState, u16)> {
+    fn read<'a>(&self, stream: &mut BitStream<'a>) -> Option<(BitStream<'a>, u16)> {
         let has8 = stream.need(8);
         let entry = self.patterns[(stream.state.v & 0xff) as usize];
         let bits = (entry >> 12) as u8;
 
         if !has8 {
             if bits <= stream.state.n {
-                let save = stream.state;
+                let save = stream.clone();
                 stream.state.n -= bits;
                 stream.state.v >>= bits;
                 Some((save, entry & 0xfff))
@@ -362,7 +368,7 @@ impl DynHuffman16 {
                 None
             }
         } else if bits <= 8 {
-            let save = stream.state;
+            let save = stream.clone();
             stream.state.n -= bits;
             stream.state.v >>= bits;
             Some((save, entry & 0xfff))
@@ -376,7 +382,7 @@ impl DynHuffman16 {
             };
             let trie_bits = (trie_entry >> 12) as u8;
             if has16 || trie_bits <= stream.state.n {
-                let save = stream.state;
+                let save = stream.clone();
                 stream.state.n -= trie_bits;
                 stream.state.v >>= trie_bits;
                 Some((save, trie_entry & 0xfff))
@@ -406,7 +412,7 @@ enum BitsNext {
     BlockDynHclen(/* hlit */ u8, /* hdist */ u8),
     BlockDynClenCodeLengths(/* hlit */ u8, /* hdist */ u8, /* hclen */ u8, /* idx */ u8, /* clens */ Box<[u8; 19]>),
     BlockDynCodeLengths(CodeLengthReader),
-    BlockDyn(/* lit/len */ DynHuffman16, /* dist */ DynHuffman16)
+    BlockDyn(/* lit/len */ DynHuffman16, /* dist */ DynHuffman16, /* prev_len */ u16)
 }
 use self::BitsNext::*;
 
@@ -564,8 +570,8 @@ impl InflateStream {
             }
             Bits(next, state) => {
                 let mut stream = BitStream::new(data, state);
-                macro_rules! ok_state (($state:expr) => (ok_bytes!(stream.used, $state)));
-                macro_rules! ok (($next:expr) => (ok_state!(Bits($next, stream.state))));
+                macro_rules! ok_state (($state:expr) => ({self.state = Some($state); Ok(stream.used)}));
+                macro_rules! ok (($next:expr) => (ok_state!(Bits($next, stream.fill()))));
                 macro_rules! need (($n:expr) => (if !stream.need($n) { return ok!(next); }));
                 macro_rules! take (
                     ($n:expr => $next:expr) => (match stream.take($n) {
@@ -582,16 +588,16 @@ impl InflateStream {
                     ($n:expr) => (take16!($n => next))
                 );
                 macro_rules! len_dist (
-                    ($len:expr, $code:expr, $bits:expr => $next:expr) => ({
+                    ($len:expr, $code:expr, $bits:expr => $next_early:expr, $next:expr) => ({
                         let dist = 1 + if $bits == 0 { 0 } else { // new_base
                             2 << $bits
                         } + (($code as u16 - if $bits == 0 { 0 } else { // old_base
                             $bits * 2 + 2
-                        }) << $bits) + take16!($bits => $next) as u16;
+                        }) << $bits) + take16!($bits => $next_early) as u16;
                         run_len_dist!($len, dist => (stream.used, $next, stream.state));
                     });
                     ($len:expr, $code:expr, $bits:expr) => (
-                        len_dist!($len, $code, $bits => next)
+                        len_dist!($len, $code, $bits => next, next)
                     )
                 );
                 match next {
@@ -639,7 +645,7 @@ impl InflateStream {
                                     5, 5, 5, 5, 5, 5, 5, 5,
                                     5, 5, 5, 5, 5, 5, 5, 5
                                 ]);
-                                ok!(BlockDyn(lit, dist))
+                                ok!(BlockDyn(lit, dist, 0))
                                 */
                                 ok!(BlockFixed)
                             }
@@ -656,8 +662,9 @@ impl InflateStream {
                         ok_state!(Uncompressed(len))
                     }
                     BlockFixed => {
+                        let mut save;
                         macro_rules! len_dist2 (($len:expr, $code_const:expr, $code_rev:expr, $bits:expr) => ({
-                            len_dist!($len, $code_const + ($code_rev >> 4), $bits);
+                            len_dist!($len, $code_const + ($code_rev >> 4), $bits => {stream = save; next}, next);
                         }));
                         macro_rules! len (($code:expr, $bits:expr) => ({
                             let len = 3 + if $bits == 0 { 0 } else { // new_base
@@ -668,8 +675,8 @@ impl InflateStream {
                                 $code as u16
                             } - if $bits == 0 { 0 } else { // old_base
                                 $bits * 4 + 4
-                            } - 1) << $bits) + take!($bits) as u16;
-                            let code = take!(5);
+                            } - 1) << $bits) + take!($bits => {stream = save; next}) as u16;
+                            let code = take!(5 => {stream = save; next});
                             debug!("  {:05b}", BIT_REV_U8[(code << 3) as usize]);
                             match code {
                                 0b00000 | 0b10000 => len_dist2!(len, 0, code, 0),
@@ -695,7 +702,7 @@ impl InflateStream {
                             // 0000000 through 0010111
                             if (stream.state.v & 0b11) == 0b00 &&
                                 (stream.state.v & 0b1100) != 0b1100 {
-                                //let save = stream.state;
+                                save = stream.clone();
                                 // FIXME(eddyb) use a 7-bit rev LUT or match the huffman code directly.
                                 let code = BIT_REV_U8[(stream.take(7).unwrap() << 1) as usize];
                                 debug!("{:09b}", code as u16 + 256);
@@ -712,23 +719,22 @@ impl InflateStream {
                                     21...23 => len!(code, 4),
                                     _ => return Err(format!("bad DEFLATE len code {}", code as u16 + 256))
                                 };
-                                //if do_return { return ok!(Bits(next, save)) }
                                 continue;
                             }
 
                             need!(8);
                             // 00110000 through 10111111
                             if (stream.state.v & 0b11) != 0b11 {
-                                let save = stream.state;
+                                save = stream.clone();
                                 // FIXME(eddyb) use a specialized rev LUT with addend.
                                 let code = BIT_REV_U8[(stream.take(8).unwrap()) as usize] - 0b0011_0000;
                                 debug!("{:09b}", code);
-                                push_or!(code, {stream.state = save; ok!(next)});
+                                push_or!(code, ok!({stream = save; next}));
                                 continue;
                             }
                             // 11000000 through 11000111
                             if (stream.state.v & 0b11100) == 0b00000 {
-                                //let save = stream.state;
+                                save = stream.clone();
                                 // FIXME(eddyb) use a 3-bit rev LUT or match the huffman code directly.
                                 let code = 24 + (BIT_REV_U8[stream.take(8).unwrap() as usize] - 0b11000000);
                                 debug!("{:09b}", code as u16 + 256);
@@ -738,17 +744,16 @@ impl InflateStream {
                                     29 => len!(29, 0),
                                     _ => return Err(format!("bad DEFLATE len code {}", code as u16 + 256))
                                 };
-                                //if do_return { return ok!(Bits(next, save)) }
                                 continue;
                             }
 
                             need!(9);
                             // 110010000 through 111111111
-                            let save = stream.state;
+                            save = stream.clone();
                             // FIXME(eddyb) use a specialized rev LUT with addend.
                             let code = BIT_REV_U8[(stream.take16(9).unwrap() >> 1) as usize];
                             debug!("{:09b}", code);
-                            push_or!(code, {stream.state = save; ok!(next)});
+                            push_or!(code, ok!({stream = save; next}));
                         }
                     }
                     BlockDynHlit => ok!(BlockDynHdist(take!(5) + 1)),
@@ -772,80 +777,88 @@ impl InflateStream {
                         let finished = reader.read(&mut stream);
                         if finished {
                             let (lit, dist) = reader.to_lit_and_dist();
-                            ok!(BlockDyn(lit, dist))
+                            ok!(BlockDyn(lit, dist, 0))
                         } else {
                             ok!(BlockDynCodeLengths(reader))
                         }
                     }
-                    BlockDyn(lit_len, dist) => {
-                        macro_rules! len (($code:expr, $bits:expr) => ({
-                            let len = 3 + if $bits == 0 { 0 } else { // new_base
-                                4 << $bits
-                            } + ((if $code == 29 {
-                                256
-                            } else {
-                                $code as u16
-                            } - if $bits == 0 { 0 } else { // old_base
-                                $bits * 4 + 4
-                            } - 1) << $bits) + take!($bits => BlockDyn(lit_len, dist)) as u16;
-                            let (_, code) = match dist.read(&mut stream) {
-                                Some(data) => data,
-                                None => break
-                            };
-                            debug!("  {:05b}", code);
-                            match code {
-                                0...3 => len_dist!(len, code, 0 => BlockDyn(lit_len, dist)),
-                                4...5 => len_dist!(len, code, 1 => BlockDyn(lit_len, dist)),
-                                6...7 => len_dist!(len, code, 2 => BlockDyn(lit_len, dist)),
-                                8...9 => len_dist!(len, code, 3 => BlockDyn(lit_len, dist)),
-                                10...11 => len_dist!(len, code, 4 => BlockDyn(lit_len, dist)),
-                                12...13 => len_dist!(len, code, 5 => BlockDyn(lit_len, dist)),
-                                14...15 => len_dist!(len, code, 6 => BlockDyn(lit_len, dist)),
-                                16...17 => len_dist!(len, code, 7 => BlockDyn(lit_len, dist)),
-                                18...19 => len_dist!(len, code, 8 => BlockDyn(lit_len, dist)),
-                                20...21 => len_dist!(len, code, 9 => BlockDyn(lit_len, dist)),
-                                22...23 => len_dist!(len, code, 10 => BlockDyn(lit_len, dist)),
-                                24...25 => len_dist!(len, code, 11 => BlockDyn(lit_len, dist)),
-                                26...27 => len_dist!(len, code, 12 => BlockDyn(lit_len, dist)),
-                                28...29 => len_dist!(len, code, 13 => BlockDyn(lit_len, dist)),
-                                _ => return Err(format!("bad DEFLATE dist code {}", code))
-                            }
-                        }));
+                    BlockDyn(huff_lit_len, huff_dist, mut prev_len) => {
+                        macro_rules! next (($save_len:expr) => (BlockDyn(huff_lit_len, huff_dist, $save_len)));
                         loop {
-                            let (save, code16) = match lit_len.read(&mut stream) {
-                                Some(data) => data,
-                                None => break
-                            };
-                            let code = code16 as u8;
-                            debug!("{:09b}", code16);
-                            match code16 {
-                                0...255 => {
-                                    push_or!(code, {
-                                        stream.state = save;
-                                        ok!(BlockDyn(lit_len, dist))
-                                    });
-                                    continue;
+                            let len = if prev_len != 0 {
+                                let len = prev_len;
+                                prev_len = 0;
+                                len
+                            } else {
+                                let (save, code16) = match huff_lit_len.read(&mut stream) {
+                                    Some(data) => data,
+                                    None => return ok!(next!(0))
+                                };
+                                let code = code16 as u8;
+                                debug!("{:09b}", code16);
+                                match code16 {
+                                    0...255 => {
+                                        push_or!(code, ok!({stream = save; next!(0)}));
+                                        continue;
+                                    }
+                                    256...285 => {}
+                                    _ => return Err(format!("bad DEFLATE len code {}", code))
                                 }
-                                256...285 => {}
-                                _ => return Err(format!("bad DEFLATE len code {}", code))
-                            }
-                            match code {
-                                0 => return if self.final_block {
-                                    ok_state!(CheckCRC)
-                                } else {
-                                    ok!(BlockHeader)
-                                },
-                                1...8 => len!(code, 0),
-                                9...12 => len!(code, 1),
-                                13...16 => len!(code, 2),
-                                17...20 => len!(code, 3),
-                                21...24 => len!(code, 4),
-                                25...28 => len!(code, 5),
-                                29 => len!(29, 0),
-                                _ => return Err(format!("bad DEFLATE len code {}", code as u16 + 256))
+
+                                macro_rules! len (($code:expr, $bits:expr) => (
+                                    3 + if $bits == 0 { 0 } else { // new_base
+                                        4 << $bits
+                                    } + ((if $code == 29 {
+                                        256
+                                    } else {
+                                        $code as u16
+                                    } - if $bits == 0 { 0 } else { // old_base
+                                        $bits * 4 + 4
+                                    } - 1) << $bits) + take!($bits => {stream = save; next!(0)}) as u16
+                                ));
+                                match code {
+                                    0 => return if self.final_block {
+                                        ok_state!(CheckCRC)
+                                    } else {
+                                        ok!(BlockHeader)
+                                    },
+                                    1...8 => len!(code, 0),
+                                    9...12 => len!(code, 1),
+                                    13...16 => len!(code, 2),
+                                    17...20 => len!(code, 3),
+                                    21...24 => len!(code, 4),
+                                    25...28 => len!(code, 5),
+                                    29 => len!(29, 0),
+                                    _ => return Err(format!("bad DEFLATE len code {}", code as u16 + 256))
+                                }
+                            };
+
+                            let (save, dist_code) = match huff_dist.read(&mut stream) {
+                                Some(data) => data,
+                                None => return ok!(next!(len))
+                            };
+                            debug!("  {:05b}", dist_code);
+                            macro_rules! len_dist_case (($bits:expr) => (
+                                len_dist!(len, dist_code, $bits => {stream = save; next!(len)}, next!(0))
+                            ));
+                            match dist_code {
+                                0...3 => len_dist_case!(0),
+                                4...5 => len_dist_case!(1),
+                                6...7 => len_dist_case!(2),
+                                8...9 => len_dist_case!(3),
+                                10...11 => len_dist_case!(4),
+                                12...13 => len_dist_case!(5),
+                                14...15 => len_dist_case!(6),
+                                16...17 => len_dist_case!(7),
+                                18...19 => len_dist_case!(8),
+                                20...21 => len_dist_case!(9),
+                                22...23 => len_dist_case!(10),
+                                24...25 => len_dist_case!(11),
+                                26...27 => len_dist_case!(12),
+                                28...29 => len_dist_case!(13),
+                                _ => return Err(format!("bad DEFLATE dist code {}", dist_code))
                             }
                         }
-                        ok!(BlockDyn(lit_len, dist))
                     }
                 }
             }

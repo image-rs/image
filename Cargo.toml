@@ -15,11 +15,15 @@ libc = "*"
 num = "*"
 bitflags = "*"
 
+[dependencies.inflate]
+path = "./inflate"
+
 [dev-dependencies]
 getopts = "*"
 term = "0.2"
 glob = "*"
-glium = "*"
 
-[dependencies.inflate]
-path = "./inflate"
+[dev-dependencies.glium]
+version = "*"
+features = ["glutin"]
+default-features = false

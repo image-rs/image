@@ -22,8 +22,7 @@
 //! Not available yet
 #![feature(box_patterns)]
 #![feature(collections)]
-
-
+#![feature(test)]
 
 #[macro_use] extern crate bitflags;
 

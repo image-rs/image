@@ -177,3 +177,5 @@
 "tests/pngsuite-extra/basi3p02_2.png": 419215269
 "tests/bugfixes/acid2.png": 2380843583
 "tests/bugfixes/issue#403.png": 2961280239
+"tests/bugfixes/x_ihdr_missing.png": Expected failure
+"tests/bugfixes/x_unexpected_eof.png": Expected failure

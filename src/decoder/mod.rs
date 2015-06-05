@@ -4,7 +4,7 @@ pub use self::stream::{StreamingDecoder, Decoded, DecodingError};
 use self::stream::{CHUNCK_BUFFER_SIZE, get_info};
 
 use std::mem;
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufReader, BufRead};
 use std::convert::AsRef;
 
 use traits::{HasParameters, Parameter};
@@ -91,19 +91,48 @@ impl<R: Read> Decoder<R> {
 
 impl<R: Read> HasParameters for Decoder<R> {}
 
+struct ReadDecoder<R: Read> {
+    reader: BufReader<R>,
+    decoder: StreamingDecoder,
+    at_eof: bool
+}
+
+impl<R: Read> ReadDecoder<R> {
+    fn decode_next(&mut self) -> Result<Option<Decoded>, DecodingError> {
+        while !self.at_eof {
+            let (consumed, result) = {
+                let buf = try!(self.reader.fill_buf());
+                if buf.len() == 0 {
+                    return Err(DecodingError::Format(
+                        "unexpected EOF".into()
+                    ))
+                }
+                try!(self.decoder.update(buf))
+            };
+            self.reader.consume(consumed);
+            match result {
+                Decoded::Nothing => (),
+                Decoded::ImageEnd => self.at_eof = true,
+                result => return Ok(Some(unsafe {
+                    // This transmute just casts the lifetime away. See comment
+                    // in StreamingDecoder::update for more information.
+                    mem::transmute::<Decoded, Decoded>(result)
+                }))
+            }
+        }
+        Ok(None)
+    }
+    
+    fn info(&self) -> Option<&Info> {
+        get_info(&self.decoder)
+    }
+}
+
 /// PNG reader (mostly high-level interface)
 ///
 /// Provides a high level that iterates over lines or whole images.
 pub struct Reader<R: Read> {
-    r: R,
-    d: StreamingDecoder,
-    eof: bool,
-    /// Read buffer
-    buf: Vec<u8>,
-    /// Buffer position
-    pos: usize,
-    /// Buffer length
-    end: usize,
+    decoder: ReadDecoder<R>,
     bpp: usize,
     rowlen: usize,
     adam7: Option<utils::Adam7Iterator>,
@@ -119,7 +148,7 @@ pub struct Reader<R: Read> {
 
 macro_rules! get_info(
     ($this:expr) => {
-        get_info(&$this.d).unwrap()
+        $this.decoder.info().unwrap()
     }
 );
 
@@ -127,12 +156,11 @@ impl<R: Read> Reader<R> {
     /// Creates a new PNG reader
     fn new(r: R, d: StreamingDecoder, t: Transformations) -> Reader<R> {
         Reader {
-            r: r,
-            d: d,
-            eof: false,
-            buf: vec![0; CHUNCK_BUFFER_SIZE],
-            pos: 0,
-            end: 0,
+            decoder: ReadDecoder {
+                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
+                decoder: d,
+                at_eof: false
+            },
             bpp: 0,
             rowlen: 0,
             adam7: None,
@@ -146,11 +174,11 @@ impl<R: Read> Reader<R> {
     /// Reads all meta data until the first IDAT chunk
     fn init(&mut self) -> Result<(), DecodingError> {
         use Decoded::*;
-        if let Some(_) = get_info(&self.d) {
+        if let Some(_) = self.decoder.info() {
             Ok(())
         } else {
             loop {
-                match try!(self.decode_next()) {
+                match try!(self.decoder.decode_next()) {
                     Some(ChunkBegin(_, IDAT)) => break,
                     None => return Err(DecodingError::Format(
                         "IDAT chunk missing".into()
@@ -158,18 +186,20 @@ impl<R: Read> Reader<R> {
                     _ => (),
                 }
             }
-            self.allocate_out_buf();
-            let info = match get_info(&self.d) {
-                Some(info) => info,
-                None => return Err(DecodingError::Format(
-                  "IHDR chunk missing".into()
-                ))
-            };
-            self.bpp = info.bytes_per_pixel();
-            self.rowlen = info.raw_row_length();
-            if info.interlaced {
-                self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height))
+            {
+                let info = match self.decoder.info() {
+                    Some(info) => info,
+                    None => return Err(DecodingError::Format(
+                      "IHDR chunk missing".into()
+                    ))
+                };
+                self.bpp = info.bytes_per_pixel();
+                self.rowlen = info.raw_row_length();
+                if info.interlaced {
+                    self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height))
+                }
             }
+            self.allocate_out_buf();
             self.prev = vec![0; self.rowlen];
             Ok(())
         }
@@ -405,9 +435,6 @@ impl<R: Read> Reader<R> {
     
     /// Returns the next raw row of the image
     fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
-        if self.eof {
-            return Ok(None)
-        }
         let _ = get_info!(self);
         let bpp = self.bpp;
         let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
@@ -446,10 +473,7 @@ impl<R: Read> Reader<R> {
                     ))
                 }
             } else {
-                let val = try!(decode_next(
-                    &mut self.r, &mut self.d, &mut self.pos,
-                    &mut self.end, &mut self.buf
-                ));
+                let val = try!(self.decoder.decode_next());
                 match val {
                     Some(Decoded::ImageData(data)) => {
                         //self.current.extend(data.iter().map(|&v| v));
@@ -461,45 +485,11 @@ impl<R: Read> Reader<R> {
                               "file truncated".into()
                             ))
                         } else {
-                            self.eof = true;
                             return Ok(None)
                         }
                     }
                     _ => ()
                 }
-            }
-        }
-    }
-    
-    /// Returns the next decoded block (low-level)
-    pub fn decode_next(&mut self) -> Result<Option<Decoded>, DecodingError> {
-        decode_next(
-            &mut self.r, &mut self.d, &mut self.pos,
-            &mut self.end, &mut self.buf
-        )
-    }
-}
-
-/// Free function form of Reader::decode_next to circumvent borrow issues
-fn decode_next<'a, R: Read>(
-    r: &mut R, d: &'a mut StreamingDecoder,
-    pos: &mut usize, end: &mut usize, buf: &mut [u8])
--> Result<Option<Decoded<'a>>, DecodingError> {
-    loop {
-        if pos == end {
-            *end = try!(r.read(buf));
-            *pos = 0;
-        }
-        match try!(d.update(&buf[*pos..*end])) {
-            (n, Decoded::Nothing) => *pos += n,
-            (_, Decoded::ImageEnd) => return Ok(None),
-            (n, result) => {
-                *pos += n;
-                return Ok(Some(unsafe {
-                    // This transmute just casts the lifetime away. See comment
-                    // in StreamingDecoder::update for more information.
-                    mem::transmute::<Decoded, Decoded>(result)
-                }))
             }
         }
     }

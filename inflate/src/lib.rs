@@ -205,7 +205,10 @@ macro_rules! with_codes (($clens:expr, $max_bits:expr => $code_ty:ty, $cb:expr) 
         if bits != 0 {
             let code = next_code[bits as usize];
             next_code[bits as usize] += 1;
-            $cb(i as $code_ty, code, bits);
+            match $cb(i as $code_ty, code, bits) {
+                Ok(()) => (),
+                Err(err) => return Err(err)
+            }
         }
     }
 }));
@@ -219,45 +222,57 @@ struct CodeLengthReader {
 }
 
 impl CodeLengthReader {
-    fn new(clens: Box<[u8; 19]>, num_lit: u16, num_dist: u8) -> CodeLengthReader {
+    fn new(clens: Box<[u8; 19]>, num_lit: u16, num_dist: u8) -> Result<CodeLengthReader, String> {
         // Fill in the 7-bit patterns that match each code.
         let mut patterns = Box::new([0xffu8; 128]);
-        with_codes!(clens, 7 => u8, |i: u8, code: u8, bits| {
+        with_codes!(clens, 7 => u8, |i: u8, code: u8, bits| -> _ {
+            /*let base = match BIT_REV_U8.get((code << (8 - bits)) as usize) {
+                Some(&base) => base,
+                None => return Err("invalid length code".to_owned())
+            }*/
             let base = BIT_REV_U8[(code << (8 - bits)) as usize];
             for rest in 0u8 .. 1u8 << (7 - bits) {
                 patterns[(base | (rest << bits)) as usize] = i;
             }
+            Ok(())
         });
 
-        CodeLengthReader {
+        Ok(CodeLengthReader {
             patterns: patterns,
             clens: clens,
             result: Vec::with_capacity(num_lit as usize + num_dist as usize),
             num_lit: num_lit,
             num_dist: num_dist
-        }
+        })
     }
 
-    fn read(&mut self, stream: &mut BitStream) -> bool {
+    fn read(&mut self, stream: &mut BitStream) -> Result<bool, String> {
         let total_len = self.num_lit as usize + self.num_dist as usize;
         while self.result.len() < total_len {
             if !stream.need(7) {
-                return false;
+                return Ok(false);
             }
             let save = stream.clone();
             macro_rules! take (($n:expr) => (match stream.take($n) {
                 Some(v) => v,
                 None => {
                     *stream = save;
-                    return false;
+                    return Ok(false);
                 }
             }));
             let code = self.patterns[(stream.state.v & 0x7f) as usize];
-            stream.take(self.clens[code as usize]);
+            stream.take(match self.clens.get(code as usize) {
+                Some(&len) => len,
+                None => return Err("invalid length code".to_owned())
+            });
             match code {
                 0...15 => self.result.push(code),
                 16 => {
-                    let last = *self.result.last().unwrap();
+                    let last = match self.result.last() {
+                        Some(&v) => v,
+                        // 16 appeared before anything else
+                        None => return Err("invalid length code".to_owned())
+                    };
                     for _ in 0 .. 3 + take!(2) {
                         self.result.push(last);
                     }
@@ -271,14 +286,14 @@ impl CodeLengthReader {
                 _ => abort()
             }
         }
-        true
+        Ok(true)
     }
 
-    fn to_lit_and_dist(self) -> (DynHuffman16, DynHuffman16) {
+    fn to_lit_and_dist(self) -> Result<(DynHuffman16, DynHuffman16), String> {
         let num_lit = self.num_lit as usize;
-        let lit = DynHuffman16::new(&self.result[..num_lit]);
-        let dist = DynHuffman16::new(&self.result[num_lit..]);
-        (lit, dist)
+        let lit = try!(DynHuffman16::new(&self.result[..num_lit]));
+        let dist = try!(DynHuffman16::new(&self.result[num_lit..]));
+        Ok((lit, dist))
     }
 }
 
@@ -293,20 +308,26 @@ struct DynHuffman16 {
 }
 
 impl DynHuffman16 {
-    fn new(clens: &[u8]) -> DynHuffman16 {
+    fn new(clens: &[u8]) -> Result<DynHuffman16, String> {
         // Fill in the 8-bit patterns that match each code.
         // Longer patterns go into the trie.
         let mut patterns = Box::new([0xffffu16; 256]);
         let mut rest = Vec::new();
-        with_codes!(clens, 15 => u16, |i: u16, code: u16, bits: u8| {
+        with_codes!(clens, 15 => u16, |i: u16, code: u16, bits: u8| -> _ {
             let entry = i | ((bits as u16) << 12);
             if bits <= 8 {
-                let base = BIT_REV_U8[(code << (8 - bits)) as usize];
+                let base = match BIT_REV_U8.get((code << (8 - bits)) as usize) {
+                    Some(&v) => v,
+                    None => return Err("invalid length code".to_owned())
+                };
                 for rest in 0u8 .. 1 << (8 - bits) {
                     patterns[(base | (rest << (bits & 7))) as usize] = entry;
                 }
             } else {
-                let low = BIT_REV_U8[(code >> (bits - 8)) as usize];
+                let low = match BIT_REV_U8.get((code >> (bits - 8)) as usize) {
+                    Some(&v) => v,
+                    None => return Err("invalid length code".to_owned())
+                };
                 let high = BIT_REV_U8[((code << (16 - bits)) & 0xff) as usize];
                 let (min_bits, idx) = if patterns[low as usize] != 0xffff {
                     let bits_prev = (patterns[low as usize] >> 12) as u8;
@@ -324,7 +345,10 @@ impl DynHuffman16 {
                     (bits, (rest.len() - 1) as u16)
                 };
                 patterns[low as usize] = idx | 0x800 | ((min_bits as u16) << 12);
-                let trie_entry = &mut rest[idx as usize];
+                let trie_entry = match rest.get_mut(idx as usize) {
+                    Some(v) => v,
+                    None => return Err("invalid huffman code".to_owned())
+                };
                 if bits <= 12 {
                     for rest in 0u8 .. 1 << (12 - bits) {
                         trie_entry.data[(high | (rest << (bits - 8))) as usize] = entry;
@@ -341,24 +365,25 @@ impl DynHuffman16 {
                     }
                 }
             }
+            Ok(())
         });
         debug!("=== DYN HUFFMAN ===");
         for _i in 0..256 {
             debug!("{:08b} {:04x}", i, patterns[BIT_REV_U8[_i] as usize]);
         }
         debug!("===================");
-        DynHuffman16 {
+        Ok(DynHuffman16 {
             patterns: patterns,
             rest: rest
-        }
+        })
     }
 
-    fn read<'a>(&self, stream: &mut BitStream<'a>) -> Option<(BitStream<'a>, u16)> {
+    fn read<'a>(&self, stream: &mut BitStream<'a>) -> Result<Option<(BitStream<'a>, u16)>, String> {
         let has8 = stream.need(8);
         let entry = self.patterns[(stream.state.v & 0xff) as usize];
         let bits = (entry >> 12) as u8;
 
-        if !has8 {
+        Ok(if !has8 {
             if bits <= stream.state.n {
                 let save = stream.clone();
                 stream.state.n -= bits;
@@ -374,7 +399,10 @@ impl DynHuffman16 {
             Some((save, entry & 0xfff))
         } else {
             let has16 = stream.need(16);
-            let trie = &self.rest[(entry & 0x7ff) as usize];
+            let trie = match self.rest.get((entry & 0x7ff) as usize) {
+                Some(trie) => trie,
+                None => return Err("invalid entry in stream".to_owned())
+            };
             let idx = stream.state.v >> 8;
             let trie_entry = match trie.children[(idx & 0xf) as usize] {
                 Some(ref child) => child[((idx >> 4) & 0xf) as usize],
@@ -389,7 +417,7 @@ impl DynHuffman16 {
             } else {
                 None
             }
-        }
+        })
     }
 }
 
@@ -444,7 +472,7 @@ impl InflateStream {
         }
     }
 
-    fn run_len_dist(&mut self, len: u16, dist: u16) -> Option<u16> {
+    fn run_len_dist(&mut self, len: u16, dist: u16) -> Result<Option<u16>, String> {
         debug!("RLE -{}; {} (cap={} len={})", dist, len,
                self.buffer.capacity(), self.buffer.len());
         let buffer_size = self.buffer.capacity() as u16;
@@ -457,7 +485,9 @@ impl InflateStream {
                 (dist, pos_end - dist)
             };
             let forward = buffer_size - dist;
-            assert!(pos_end + forward <= self.buffer.len() as u16);
+            if pos_end + forward > self.buffer.len() as u16 {
+                return Err("invalid run length in stream".to_owned())
+            }
             unsafe {
                 // HACK(eddyb) avoid bound checks, LLVM can't optimize these.
                 let buffer = self.buffer.as_mut_ptr();
@@ -500,7 +530,7 @@ impl InflateStream {
             }
         }
         self.pos = pos_end;
-        left
+        Ok(left)
     }
 
     fn next_state(&mut self, data: &[u8]) -> Result<usize, String> {
@@ -526,7 +556,7 @@ impl InflateStream {
         }));
         macro_rules! run_len_dist (($len:expr, $dist:expr => ($bytes:expr, $next:expr, $state:expr)) => ({
             let dist = $dist;
-            let left = self.run_len_dist($len, dist);
+            let left = try!(self.run_len_dist($len, dist));
             match left {
                 Some(len) => {
                     return ok_bytes!($bytes, LenDist(($next, $state), len, dist));
@@ -657,7 +687,9 @@ impl InflateStream {
                         let len = take16!(16);
                         let nlen = take16!(16);
                         assert_eq!(stream.state.n, 0);
-                        assert_eq!(!len, nlen);
+                        if !len != nlen {
+                            return Err("invalid uncompressed block len".to_owned())
+                        }
                         ok_state!(Uncompressed(len))
                     }
                     BlockFixed => {
@@ -769,13 +801,13 @@ impl InflateStream {
                         if i < hclen - 1 {
                             ok!(BlockDynClenCodeLengths(hlit, hdist, hclen, i + 1, clens))
                         } else {
-                            ok!(BlockDynCodeLengths(CodeLengthReader::new(clens, hlit as u16 + 256, hdist)))
+                            ok!(BlockDynCodeLengths(try!(CodeLengthReader::new(clens, hlit as u16 + 256, hdist))))
                         }
                     }
                     BlockDynCodeLengths(mut reader) => {
-                        let finished = reader.read(&mut stream);
+                        let finished = try!(reader.read(&mut stream));
                         if finished {
-                            let (lit, dist) = reader.to_lit_and_dist();
+                            let (lit, dist) = try!(reader.to_lit_and_dist());
                             ok!(BlockDyn(lit, dist, 0))
                         } else {
                             ok!(BlockDynCodeLengths(reader))
@@ -789,7 +821,7 @@ impl InflateStream {
                                 prev_len = 0;
                                 len
                             } else {
-                                let (save, code16) = match huff_lit_len.read(&mut stream) {
+                                let (save, code16) = match try!(huff_lit_len.read(&mut stream)) {
                                     Some(data) => data,
                                     None => return ok!(next!(0))
                                 };
@@ -832,7 +864,7 @@ impl InflateStream {
                                 }
                             };
 
-                            let (save, dist_code) = match huff_dist.read(&mut stream) {
+                            let (save, dist_code) = match try!(huff_dist.read(&mut stream)) {
                                 Some(data) => data,
                                 None => return ok!(next!(len))
                             };

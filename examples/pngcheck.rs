@@ -1,3 +1,5 @@
+#![allow(non_upper_case_globals)]
+
 extern crate getopts;
 extern crate glob;
 extern crate png;
@@ -273,9 +275,39 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                                     (if trns { "+trns" } else { "" }),
                                     display_interlaced(interlaced),
                                 );
-                            },
+                            }
                             _ => ()
                         }
+                    }
+                    AnimationControl(actl) => {
+                        println!("");
+                        print!(
+                            "    {} frames, {} plays",
+                            actl.num_frames,
+                            actl.num_plays,
+                        );
+                    }
+                    FrameControl(fctl) => {
+                        println!("");
+                        println!(
+                            "    sequence #{}, {} x {} pixels @ ({}, {})",
+                            fctl.sequence_number,
+                            fctl.width,
+                            fctl.height,
+                            fctl.x_offset,
+                            fctl.y_offset,
+                            /*fctl.delay_num,
+                            fctl.delay_den,
+                            fctl.dispose_op,
+                            fctl.blend_op,*/
+                        );
+                        print!(
+                            "    {}/{} s delay, dispose: {}, blend: {}",
+                            fctl.delay_num,
+                            if fctl.delay_den == 0 { 100 } else {fctl.delay_den},
+                            fctl.dispose_op,
+                            fctl.blend_op,
+                        );
                     }
                     _ => ()
                 }

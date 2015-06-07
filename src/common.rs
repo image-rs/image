@@ -56,11 +56,35 @@ impl BitDepth {
 
 /// Frame control information
 #[derive(Debug)]
-pub struct FrameControl;
+pub struct FrameControl {
+    /// Sequence number of the animation chunk, starting from 0
+    pub sequence_number: u32,
+    /// Width of the following frame
+    pub width: u32,
+    /// Height of the following frame
+    pub height: u32,
+    /// X position at which to render the following frame
+    pub x_offset: u32,
+    /// Y position at which to render the following frame
+    pub y_offset: u32,
+    /// Frame delay fraction numerator
+    pub delay_num: u16,
+    /// Frame delay fraction denominator
+    pub delay_den: u16,
+    /// Type of frame area disposal to be done after rendering this frame
+    pub dispose_op: u8,
+    /// Type of frame area rendering for this frame
+    pub blend_op: u8,
+}
 
 /// Animation control information
-#[derive(Debug)]
-pub struct AnimationControl;
+#[derive(Clone, Copy, Debug)]
+pub struct AnimationControl {
+    /// Number of frames
+    pub num_frames: u32,
+    /// Number of times to loop this APNG.  0 indicates infinite looping.
+    pub num_plays: u32,
+}
 
 /// PNG info struct
 #[derive(Debug)]

@@ -12,7 +12,7 @@ use self::inflate::InflateStream;
 
 use crc::Crc32;
 use traits::ReadBytesExt;
-use common::{ColorType, BitDepth, Info};
+use common::{ColorType, BitDepth, Info, AnimationControl, FrameControl};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 
 /// TODO check if these size are reasonable
@@ -46,6 +46,8 @@ pub enum Decoded<'a> {
     Header(u32, u32, BitDepth, ColorType, bool),
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
+    AnimationControl(AnimationControl),
+    FrameControl(&'a FrameControl),
     /// Decoded raw image data.
     ImageData(&'a [u8]),
     PartialChunk(ChunkType, &'a [u8]),
@@ -121,6 +123,8 @@ pub struct StreamingDecoder {
     current_chunk: (Crc32, u32, Vec<u8>),
     inflater: InflateStream,
     info: Option<Info>,
+    current_seq_no: Option<u32>,
+    have_idat: bool,
 }
 
 impl StreamingDecoder {
@@ -132,7 +136,9 @@ impl StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: (Crc32::new(), 0, Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
             inflater: InflateStream::from_zlib(),
-            info: None
+            info: None,
+            current_seq_no: None,
+            have_idat: false
         }
     }
     
@@ -140,9 +146,12 @@ impl StreamingDecoder {
     pub fn reset(&mut self) {
         self.state = Some(State::Signature(0, [0; 7]));
         self.current_chunk.0 = Crc32::new();
+        self.current_chunk.1 = 0;
         self.current_chunk.2.clear();
         self.inflater = InflateStream::from_zlib();
         self.info = None;
+        self.current_seq_no = None;
+        self.have_idat = false;
     }
     
     /// Low level StreamingDecoder interface.
@@ -277,9 +286,31 @@ impl StreamingDecoder {
             PartialChunk(type_str) => {
                 match type_str {
                     IDAT => {
+                        self.have_idat = true;
                         goto!(
                             0,
                             DecodeData(type_str, 0),
+                            emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                        )
+                    },
+                    chunk::fdAT => {
+                        if let Some(seq_no) = self.current_seq_no {
+                            let mut buf = &self.current_chunk.2[..];
+                            let next_seq_no = try!(buf.read_be());
+                            if next_seq_no != seq_no + 1 {
+                                return Err(DecodingError::Format(format!(
+                                    "Sequence is not in order, expected #{} got #{}.",
+                                    seq_no + 1,
+                                    next_seq_no
+                                ).into()))
+                            }
+                            self.current_seq_no = Some(next_seq_no);
+                        } else {
+                            return Err(DecodingError::Format("fcTL chunk missing before fdAT chunk.".into()))
+                        }
+                        goto!(
+                            0,
+                            DecodeData(type_str, 4),
                             emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
                         )
                     },
@@ -288,7 +319,10 @@ impl StreamingDecoder {
                         if self.current_chunk.1 == 0 { // complete chunk
                             Ok((0, try!(self.parse_chunk(type_str))))
                         } else {
-                            goto!(0, ReadChunk(type_str, true), emit Decoded::Nothing)
+                            goto!(
+                                0, ReadChunk(type_str, true),
+                                emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                            )
                         }
                     }
                 }
@@ -347,15 +381,26 @@ impl StreamingDecoder {
     -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
         let state_ptr: *mut _ = &mut self.state;
+        if self.info.is_none() && type_str != IHDR {
+            return Err(DecodingError::Format(format!(
+                "{} chunk appeared before IHDR chunk", String::from_utf8_lossy(&type_str)
+            ).into()))
+        }
         match match type_str {
             IHDR => {
                 self.parse_ihdr()
-            },
+            }
             chunk::PLTE => {
                 self.parse_plte()
-            },
+            }
             chunk::tRNS => {
                 self.parse_trns()
+            }
+            chunk::acTL => {
+                self.parse_actl()
+            }
+            chunk::fcTL => {
+                self.parse_fctl()
             }
             // Skip other and unknown chunks:
             _ => Ok(Decoded::Nothing)
@@ -373,6 +418,63 @@ impl StreamingDecoder {
         self.info.as_ref().ok_or(DecodingError::Format(
             "IHDR chunk missing".into()
         ))
+    }
+    
+    fn parse_fctl(&mut self)
+    -> Result<Decoded, DecodingError> {
+        let mut buf = &self.current_chunk.2[..];
+        let next_seq_no = try!(buf.read_be());
+        
+        // Asuming that fcTL is required before *every* fdAT-sequence
+        self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
+            if next_seq_no != seq_no + 1 {
+                return Err(DecodingError::Format(format!(
+                    "Sequence is not in order, expected #{} got #{}.",
+                    seq_no + 1,
+                    next_seq_no
+                ).into()))
+            }
+            next_seq_no
+        } else {
+            if next_seq_no != 0 {
+                return Err(DecodingError::Format(format!(
+                    "Sequence is not in order, expected #{} got #{}.",
+                    0,
+                    next_seq_no
+                ).into()))
+            }
+            0
+        });
+        self.inflater = InflateStream::from_zlib();
+        self.info.as_mut().unwrap().frame_control = Some(FrameControl {
+            sequence_number: next_seq_no,
+            width: try!(buf.read_be()),
+            height: try!(buf.read_be()),
+            x_offset: try!(buf.read_be()),
+            y_offset: try!(buf.read_be()),
+            delay_num: try!(buf.read_be()),
+            delay_den: try!(buf.read_be()),
+            dispose_op: try!(buf.read_be()),
+            blend_op : try!(buf.read_be()),
+        });
+        Ok(Decoded::FrameControl(self.info.as_ref().unwrap().frame_control.as_ref().unwrap()))
+    }
+    
+    fn parse_actl(&mut self)
+    -> Result<Decoded, DecodingError> {
+        if self.have_idat {
+            return Err(DecodingError::Format(
+                "acTL chunk appeared after first IDAT chunk".into()
+            ))
+        } else {
+            let mut buf = &self.current_chunk.2[..];
+            let actl = AnimationControl {
+                num_frames: try!(buf.read_be()),
+                num_plays: try!(buf.read_be())
+            };
+            self.info.as_mut().unwrap().animation_control = Some(actl);
+            Ok(Decoded::AnimationControl(actl))
+        }
     }
     
     fn parse_plte(&mut self)

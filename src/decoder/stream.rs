@@ -47,9 +47,6 @@ pub enum Decoded<'a> {
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
     /// Decoded raw image data.
-    /// 
-    /// The buffer is guaranteed not to span over
-    /// line boundaries.
     ImageData(&'a [u8]),
     PartialChunk(ChunkType, &'a [u8]),
     ImageEnd,

@@ -20,8 +20,7 @@
 //!     reader.next_frame(&mut buf).unwrap();
 //! ## Encoder
 //! Not available yet
-#![feature(collections)]
-#![cfg_attr(test, feature(test))]
+//#![cfg_attr(test, feature(test))]
 
 #[macro_use] extern crate bitflags;
 

@@ -261,25 +261,28 @@ impl<R: Read> Reader<R> {
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
-                let old_len = self.processed.len();
-                if let Some((_, _, width)) = adam7 {
+                let output_buffer = if let Some((_, _, width)) = adam7 {
                     let width = self.line_size(width);
-                    self.processed.resize(width, 0);
-                }
-                let mut len = self.processed.len();
+                    &mut self.processed[..width]
+                } else {
+                    &mut *self.processed
+                };
+                let mut len = output_buffer.len();
                 if transform.contains(::TRANSFORM_EXPAND) {
                     match color_type {
                         Indexed => {
-                            self.expand_paletted()
+                            expand_paletted(output_buffer, get_info!(self))
                         }
-                        Grayscale | GrayscaleAlpha if bit_depth < 8 => self.expand_gray_u8(),
+                        Grayscale | GrayscaleAlpha if bit_depth < 8 => expand_gray_u8(
+                            output_buffer, get_info!(self)
+                        ),
                         Grayscale | RGB if trns => {
                             let channels = color_type.samples();
                             let trns = get_info!(self).trns.as_ref().unwrap();
                             if bit_depth == 8 {
-                                utils::expand_trns_line(&mut self.processed, &*trns, channels);
+                                utils::expand_trns_line(output_buffer, &*trns, channels);
                             } else {
-                                utils::expand_trns_line16(&mut self.processed, &*trns, channels);
+                                utils::expand_trns_line16(output_buffer, &*trns, channels);
                             }
                         },
                         _ => ()
@@ -288,12 +291,11 @@ impl<R: Read> Reader<R> {
                 if bit_depth == 16 && transform.intersects(::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16) {
                     len /= 2;
                     for i in 0..len {
-                        self.processed[i] = self.processed[2 * i];
+                        output_buffer[i] = output_buffer[2 * i];
                     }
                 }
-                self.processed.resize(old_len, 0); // Interlace handling
                 Ok(Some((
-                    &self.processed[..len],
+                    &output_buffer[..len],
                     adam7
                 )))
             } else {
@@ -384,55 +386,6 @@ impl<R: Read> Reader<R> {
         self.processed = vec![0; self.line_size(width)]
     }
     
-    fn expand_gray_u8(&mut self) {
-        let info = get_info!(self);
-        let rescale = true;
-        let scaling_factor = if rescale {
-            (255)/((1u16 << info.bit_depth as u8) - 1) as u8
-        } else {
-            1
-        };
-        if let Some(ref trns) = info.trns {
-            utils::unpack_bits(&mut self.processed, 2, info.bit_depth as u8, |pixel, chunk| {
-                if pixel == trns[0] {
-                    chunk[1] = 0
-                } else {
-                    chunk[1] = 0xFF
-                }
-                chunk[0] = pixel * scaling_factor
-            })
-        } else {
-            utils::unpack_bits(&mut self.processed, 1, info.bit_depth as u8, |val, chunk| {
-                chunk[0] = val * scaling_factor
-            })
-        }
-    }
-    
-    fn expand_paletted(&mut self) {
-        let info = get_info!(self);
-        let palette = info.palette.as_ref().unwrap_or_else(|| panic!());
-        if let Some(ref trns) = info.trns {
-            utils::unpack_bits(&mut self.processed, 4, info.bit_depth as u8, |i, chunk| {
-                let (rgb, a) = (
-                    // TODO prevent panic!
-                    &palette[3*i as usize..3*i as usize+3],
-                    *trns.get(i as usize).unwrap_or(&0xFF)
-                );
-                chunk[0] = rgb[0];
-                chunk[1] = rgb[1];
-                chunk[2] = rgb[2];
-                chunk[3] = a;
-            });
-        } else {
-            utils::unpack_bits(&mut self.processed, 3, info.bit_depth as u8, |i, chunk| {
-                let rgb = &palette[3*i as usize..3*i as usize+3];
-                chunk[0] = rgb[0];
-                chunk[1] = rgb[1];
-                chunk[2] = rgb[2];
-            })
-        }
-    }
-    
     /// Returns the next raw row of the image
     fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         let _ = get_info!(self);
@@ -494,6 +447,53 @@ impl<R: Read> Reader<R> {
     }
 }
 
+fn expand_paletted(buffer: &mut [u8], info: &Info) {
+    let palette = info.palette.as_ref().unwrap();
+    if let Some(ref trns) = info.trns {
+        utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
+            let (rgb, a) = (
+                // TODO prevent panic!
+                &palette[3*i as usize..3*i as usize+3],
+                *trns.get(i as usize).unwrap_or(&0xFF)
+            );
+            chunk[0] = rgb[0];
+            chunk[1] = rgb[1];
+            chunk[2] = rgb[2];
+            chunk[3] = a;
+        });
+    } else {
+        utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
+            let rgb = &palette[3*i as usize..3*i as usize+3];
+            chunk[0] = rgb[0];
+            chunk[1] = rgb[1];
+            chunk[2] = rgb[2];
+        })
+    }
+}
+
+fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
+    let rescale = true;
+    let scaling_factor = if rescale {
+        (255)/((1u16 << info.bit_depth as u8) - 1) as u8
+    } else {
+        1
+    };
+    if let Some(ref trns) = info.trns {
+        utils::unpack_bits(buffer, 2, info.bit_depth as u8, |pixel, chunk| {
+            if pixel == trns[0] {
+                chunk[1] = 0
+            } else {
+                chunk[1] = 0xFF
+            }
+            chunk[0] = pixel * scaling_factor
+        })
+    } else {
+        utils::unpack_bits(buffer, 1, info.bit_depth as u8, |val, chunk| {
+            chunk[0] = val * scaling_factor
+        })
+    }
+}
+/*
 #[cfg(test)]
 mod test {
     extern crate test;
@@ -521,3 +521,4 @@ mod test {
         b.bytes = info.buffer_size() as u64
     }
 }
+*/

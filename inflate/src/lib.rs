@@ -1,5 +1,3 @@
-#![feature(box_patterns)]
-#![feature(core)]
 // Copyright 2014-2015 The Servo Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution.
 //
@@ -8,7 +6,7 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use std::iter::range_inclusive;
+#![cfg_attr(feature = "fast_unsafe", feature(core))]
 use std::cmp;
 use std::slice;
 
@@ -111,10 +109,15 @@ struct BitStream<'a> {
 }
 
 // Use this instead of triggering a panic (that will unwind).
+#[cfg(feature = "unstable")]
 fn abort() -> ! {
     unsafe {
         ::std::intrinsics::abort()
     }
+}
+#[cfg(not(feature = "unstable"))]
+fn abort() -> ! {
+    panic!()
 }
 
 #[cfg(debug)]
@@ -197,7 +200,9 @@ macro_rules! with_codes (($clens:expr, $max_bits:expr => $code_ty:ty, $cb:expr) 
 
     // Compute the first code value for each bit length.
     let mut next_code = [0 as $code_ty; ($max_bits+1)];
-    for bits in range_inclusive(1, $max_bits) {
+    // TODO use range_inclusive as soon as it is stable
+    //for bits in range_inclusive(1, $max_bits) {
+    for bits in 1..$max_bits + 1 {
         next_code[bits as usize] = (next_code[bits as usize - 1] + bl_count[bits as usize - 1]) << 1;
     }
 
@@ -358,7 +363,7 @@ impl DynHuffman16 {
                     if child.is_none() {
                         *child = Some(Box::new([0xffff; 16]));
                     }
-                    let box ref mut child = *child.as_mut().unwrap();
+                    let child = &mut **child.as_mut().unwrap();
                     let high_top = high >> 4;
                     for rest in 0u8 .. 1 << (16 - bits) {
                         child[(high_top | (rest << (bits - 12))) as usize] = entry;
@@ -485,6 +490,7 @@ impl InflateStream {
                 (dist, pos_end - dist)
             };
             let forward = buffer_size - dist;
+            // assert for unsafe code:
             if pos_end + forward > self.buffer.len() as u16 {
                 return Err("invalid run length in stream".to_owned())
             }
@@ -500,6 +506,11 @@ impl InflateStream {
                     src = src.offset(1);
                 }
             }
+            /*
+            for i in self.pos as usize..pos_end as usize {
+                self.buffer[i] = self.buffer[i + forward as usize]
+            }
+            */
             self.pos = pos_end;
             left
         } else {
@@ -512,6 +523,17 @@ impl InflateStream {
         } else {
             (buffer_size, Some(pos_end - buffer_size))
         };
+        
+        if self.buffer.len() < pos_end as usize {
+            unsafe {
+                self.buffer.set_len(pos_end as usize);
+            }
+        }
+        
+        // assert for unsafe code:
+        if self.pos < dist && pos_end > self.pos {
+            return Err("invalid run length in stream".to_owned())
+        }
         unsafe {
             // HACK(eddyb) avoid bound checks, LLVM can't optimize these.
             let buffer = self.buffer.as_mut_ptr();
@@ -524,11 +546,11 @@ impl InflateStream {
                 src = src.offset(1);
             }
         }
-        if self.buffer.len() < pos_end as usize {
-            unsafe {
-                self.buffer.set_len(pos_end as usize);
-            }
+        /*
+        for i in self.pos as usize..pos_end as usize {
+            self.buffer[i] = self.buffer[i - dist as usize]
         }
+        */
         self.pos = pos_end;
         Ok(left)
     }

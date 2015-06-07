@@ -1,6 +1,6 @@
 [package]
 name = "png"
-version = "0.2.0"
+version = "0.3.0"
 license = "MIT"
 description = "PNG decoding library"
 authors = ["nwin <nwin@users.noreply.github.com>"]

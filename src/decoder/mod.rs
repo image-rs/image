@@ -476,8 +476,7 @@ impl<R: Read> Reader<R> {
                 let val = try!(self.decoder.decode_next());
                 match val {
                     Some(Decoded::ImageData(data)) => {
-                        //self.current.extend(data.iter().map(|&v| v));
-                        self.current.push_all(data);
+                        utils::push_all(&mut self.current, data);
                     },
                     None => {
                         if self.current.len() > 0 {
@@ -511,13 +510,13 @@ mod test {
         File::open("tests/pngsuite/PngSuite.png").unwrap().read_to_end(&mut data).unwrap();
         let mut decoder = Decoder::new(&*data);
         decoder.set(::TRANSFORM_IDENTITY);
-        let (info, mut decoder) = decoder.read_info().unwrap();
+        let (info, _) = decoder.read_info().unwrap();
         let mut image = vec![0; info.buffer_size()];
         b.iter(|| {
             let mut decoder = Decoder::new(&*data);
             decoder.set(::TRANSFORM_IDENTITY);
             let (_, mut decoder) = decoder.read_info().unwrap();
-            test::black_box(decoder.next_frame(&mut image));
+            test::black_box(decoder.next_frame(&mut image)).unwrap();
         });
         b.bytes = info.buffer_size() as u64
     }

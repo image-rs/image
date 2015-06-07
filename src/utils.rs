@@ -187,7 +187,7 @@ pub fn expand_pass(
 // Copies data from `src` to `dst`
 //
 // Panics if the length of `dst` is less than the length of `src`.
-// NOTE: this is a copy-paste of the unstable function `std::slice::bytes::copy_memory`.
+// NOTE: this is copied from the stdlib (`std::slice::bytes::copy_memory`).
 #[inline]
 pub fn copy_memory(src: &[u8], dst: &mut [u8]) {
     let len_src = src.len();
@@ -200,6 +200,42 @@ pub fn copy_memory(src: &[u8], dst: &mut [u8]) {
                                       len_src);
     }
 }
+
+/// Appends all elements in a slice to the `Vec`.
+///
+/// Iterates over the slice `other`, clones each element, and then appends
+/// it to this `Vec`. The `other` vector is traversed in-order.
+///
+/// # Examples
+///
+/// ```
+/// # #![feature(collections)]
+/// let mut vec = vec![1];
+/// vec.push_all(&[2, 3, 4]);
+/// assert_eq!(vec, [1, 2, 3, 4]);
+/// ```
+// NOTE: this is copied from the stdlib (`std::collections::vec::Vec::push_all`).
+#[inline]
+pub fn push_all<T: Clone>(this: &mut Vec<T>, other: &[T]) {
+    use std::ptr;
+    this.reserve(other.len());
+
+    for i in 0..other.len() {
+        let len = this.len();
+
+        // Unsafe code so this can be optimised to a memcpy (or something similarly
+        // fast) when T is Copy. LLVM is easily confused, so any extra operations
+        // during the loop can prevent this optimisation.
+        unsafe {
+            ptr::write(
+                this.get_unchecked_mut(len),
+                other.get_unchecked(i).clone());
+            this.set_len(len + 1);
+        }
+    }
+}
+
+
 
 #[test]
 fn test_adam7() {

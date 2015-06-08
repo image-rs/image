@@ -106,7 +106,7 @@ pub mod imageops;
 pub mod webp;
 #[cfg(feature = "ppm")]
 pub mod ppm;
-#[cfg(feature = "png")]
+#[cfg(feature = "png_codec")]
 pub mod png;
 #[cfg(feature = "jpeg")]
 pub mod jpeg;

@@ -153,6 +153,12 @@ pub trait ImageDecoder: Sized {
     /// Returns the length in bytes of one decoded row of the image
     fn row_len(&mut self) -> ImageResult<usize>;
 
+    /// Reads one row from the image into buf and returns the row index
+    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
+
+    /// Decodes the entire image and return it as a Vector
+    fn read_image(&mut self) -> ImageResult<DecodingResult>;
+
     /// Returns true if the image is animated
     fn is_animated(&mut self) -> ImageResult<bool> {
         // since most image formats do not support animation
@@ -167,12 +173,6 @@ pub trait ImageDecoder: Sized {
             Frame::new(try!(decoder_to_image(self)).to_rgba())
         ]))
     }
-
-    /// Reads one row from the image into buf and returns the row index
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
-
-    /// Decodes the entire image and return it as a Vector
-    fn read_image(&mut self) -> ImageResult<DecodingResult>;
 
     /// Decodes a specific region of the image, represented by the rectangle
     /// starting from ```x``` and ```y``` and having ```length``` and ```width```

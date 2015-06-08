@@ -14,7 +14,7 @@ use gif;
 use webp;
 #[cfg(feature = "jpeg")]
 use jpeg;
-#[cfg(feature = "png")]
+#[cfg(feature = "png_codec")]
 use png;
 #[cfg(feature = "tiff")]
 use tiff;
@@ -350,9 +350,9 @@ impl DynamicImage {
         let color = self.color();
 
         match format {
-            #[cfg(feature = "png")]
+            #[cfg(feature = "png_codec")]
             image::ImageFormat::PNG  => {
-                let mut p = png::PNGEncoder::new(w);
+                let p = png::PNGEncoder::new(w);
 
                 try!(p.encode(&bytes, width, height, color));
                 Ok(())
@@ -559,7 +559,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
         #[cfg(feature = "jpeg")]
         "jpg" |
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png")]
+        #[cfg(feature = "png_codec")]
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
@@ -573,7 +573,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
 /// Create a new image from a Reader
 pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
-        #[cfg(feature = "png")]
+        #[cfg(feature = "png_codec")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(BufReader::new(r))),
         #[cfg(feature = "gif_codec")]
         image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(BufReader::new(r))),

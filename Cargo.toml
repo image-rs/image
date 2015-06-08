@@ -32,7 +32,7 @@ version = "0.5"
 optional = true
 
 [dependencies.png]
-version = "*"
+version = "0.3"
 optional = true
 
 [features]

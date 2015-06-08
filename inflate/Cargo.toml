@@ -1,9 +1,7 @@
 [package]
 name = "inflate"
 version = "0.1.0"
-authors = ["nwin <nwin@users.noreply.github.com>"]
 
 [features]
 default = []
-
 unstable = []

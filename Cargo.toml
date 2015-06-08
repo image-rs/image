@@ -15,8 +15,9 @@ libc = "*"
 num = "*"
 bitflags = "*"
 
-[dependencies.inflate]
-path = "./inflate"
+# Development only
+#[dependencies.inflate]
+#path = "inflate"
 
 [dev-dependencies]
 getopts = "*"
@@ -27,3 +28,7 @@ glob = "*"
 version = "*"
 features = ["glutin"]
 default-features = false
+
+[features]
+default = []
+unstable = []

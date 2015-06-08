@@ -7,7 +7,11 @@ use std::io::{self, Read, Write};
 use std::cmp::min;
 use std::convert::{From, AsRef};
 
-extern crate inflate;
+// # Development only:
+// extern crate inflate;
+// # For publishing
+#[path = "../../inflate/src/lib.rs"]
+mod inflate;
 use self::inflate::InflateStream;
 
 use crc::Crc32;

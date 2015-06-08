@@ -6,7 +6,7 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-#![cfg_attr(feature = "fast_unsafe", feature(core))]
+#![cfg_attr(feature = "unstable", feature(core))]
 use std::cmp;
 use std::slice;
 

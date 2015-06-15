@@ -143,9 +143,9 @@ impl<W: Write> Writer<W> {
         let filter_method = FilterType::Sub;
         for line in data.chunks(in_len) {
             ::utils::copy_memory(&line, &mut current);
-            try!(zlib.write(&[filter_method as u8]));
+            try!(zlib.write_all(&[filter_method as u8]));
             filter(filter_method, bpp, &prev, &mut current);
-            try!(zlib.write(&current));
+            try!(zlib.write_all(&current));
             ::utils::copy_memory(&current, &mut prev);
         }
         self.write_chunk(chunk::IDAT, &try!(zlib.finish()))

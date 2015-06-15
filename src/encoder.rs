@@ -138,7 +138,7 @@ impl<W: Write> Writer<W> {
         }
         let mut zlib = flate2::write::ZlibEncoder::new(
             Vec::new(),
-            flate2::Compression::Best
+            flate2::Compression::Fast
         );
         let filter_method = FilterType::Sub;
         for line in data.chunks(in_len) {

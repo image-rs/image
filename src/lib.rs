@@ -101,6 +101,9 @@ pub mod math;
 // Image processing functions
 pub mod imageops;
 
+// Image statistics functions
+pub mod imagestat;
+
 // Image codecs
 #[cfg(feature = "webp")]
 pub mod webp;

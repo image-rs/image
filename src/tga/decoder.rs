@@ -72,7 +72,6 @@ impl ImageType {
 
 /// Header used by TGA image files
 #[derive(Debug)]
-#[repr(packed)]
 struct Header {
     id_length: u8,         // length of ID string
     map_type: u8,          // color map type

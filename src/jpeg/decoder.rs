@@ -122,7 +122,7 @@ pub struct JPEGDecoder<R> {
     vmax: u8,
 
     interval: u16,
-    mcucount: u16,
+    mcucount: u32,
     expected_rst: u8,
 
     row_count: u8,
@@ -479,11 +479,11 @@ impl<R: Read>JPEGDecoder<R> {
     }
 
     fn read_restart(&mut self) -> ImageResult<()> {
-        let w = (self.width + 7) / (self.hmax * 8) as u16;
-        let h = (self.height + 7) / (self.vmax * 8) as u16;
+        let w = ((self.width + 7) / (self.hmax * 8) as u16) as u32;
+        let h = ((self.height + 7) / (self.vmax * 8) as u16) as u32;
 
         if self.interval != 0  &&
-           self.mcucount % self.interval == 0 &&
+           self.mcucount % (self.interval as u32) == 0 &&
            self.mcucount < w * h {
 
             let rst = try!(self.find_restart_marker());

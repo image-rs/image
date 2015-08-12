@@ -188,38 +188,37 @@ The image format is determined from the path's file extension.
 ```rust
 extern crate image;
 
-use std::old_io::File;
+use std::fs::File;
+use std::path::Path;
 
 use image::GenericImage;
 
 fn main() {
-    //Use the open function to load an image from a PAth.
-    //```open``` returns a dynamic image.
+    // Use the open function to load an image from a Path.
+    // ```open``` returns a dynamic image.
     let img = image::open(&Path::new("test.jpg")).unwrap();
 
-    //The dimensions method returns the images width and height
+    // The dimensions method returns the images width and height
     println!("dimensions {:?}", img.dimensions());
 
-    //The color method returns the image's ColorType
+    // The color method returns the image's ColorType
     println!("{:?}", img.color());
 
     let ref mut fout = File::create(&Path::new("test.png")).unwrap();
 
-    //Write the contents of this image to the Writer in PNG format.
-    let _ = img.save(fout, image::PNG);
+    // Write the contents of this image to the Writer in PNG format.
+    let _ = img.save(fout, image::PNG).unwrap();
 }
 ```
 
 ### 6.2 Generating Fractals
 ```rust
 //!An example of generating julia fractals.
-#![feature(old_path, old_io)]
-
 extern crate num;
 extern crate image;
 
-use std::old_io::File;
-use std::old_path::Path;
+use std::fs::File;
+use std::path::Path;
 
 use num::complex::Complex;
 
@@ -264,7 +263,7 @@ fn main() {
     let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
 
     // We must indicate the image’s color type and what format to save as
-    image::ImageLuma8(imgbuf).save(fout, image::PNG);
+    let _ = image::ImageLuma8(imgbuf).save(fout, image::PNG);
 }
 ```
 

@@ -2,7 +2,6 @@ use std::cmp;
 use std::io::Read;
 use std::default::Default;
 use std::collections::HashMap;
-use std::iter::repeat;
 use byteorder::{ReadBytesExt, BigEndian};
 use num::range_step;
 
@@ -370,12 +369,12 @@ impl<R: Read>JPEGDecoder<R> {
             self.vmax = 1;
         }
 
-        self.mcu = repeat(0u8).take(blocks_per_mcu as usize * 64).collect::<Vec<u8>>();
+        self.mcu = vec![0; blocks_per_mcu as usize * 64];
 
         let mcus_per_row = (self.width as f32 / (8 * hmax) as f32).ceil() as usize;
         let mcu_row_len = (hmax as usize * vmax as usize) * self.mcu.len() * mcus_per_row;
 
-        self.mcu_row = repeat(0u8).take(mcu_row_len).collect::<Vec<u8>>();
+        self.mcu_row = vec![0; mcu_row_len];
 
         Ok(())
     }
@@ -602,7 +601,7 @@ impl<R: Read> ImageDecoder for JPEGDecoder<R> {
         }
 
         let row = try!(self.row_len());
-        let mut buf = repeat(0u8).take(row * self.height as usize).collect::<Vec<u8>>();
+        let mut buf = vec![0u8; row * self.height as usize];
 
         for chunk in buf.chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));

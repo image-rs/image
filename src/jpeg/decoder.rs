@@ -230,8 +230,8 @@ impl<R: Read>JPEGDecoder<R> {
         let dc = diff + pred;
         tmp[0] = dc * qtable[0] as i32;
 
-        let mut k = 0usize;
-        while k < 63 {
+        let mut k = 1usize;
+        while k < 64 {
             let rs = try!(self.h.decode_symbol(&mut self.r, actable));
 
             let ssss = rs & 0x0F;
@@ -249,7 +249,7 @@ impl<R: Read>JPEGDecoder<R> {
                 // Figure F.14
                 let t = try!(self.h.receive(&mut self.r, ssss));
 
-                tmp[UNZIGZAG[k + 1] as usize] = extend(t, ssss) * qtable[k + 1] as i32;
+                tmp[UNZIGZAG[k] as usize] = extend(t, ssss) * qtable[k] as i32;
                 k += 1;
             }
         }

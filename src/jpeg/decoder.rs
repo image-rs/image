@@ -2,7 +2,6 @@ use std::cmp;
 use std::io::Read;
 use std::default::Default;
 use std::collections::HashMap;
-use std::iter::repeat;
 use byteorder::{ReadBytesExt, BigEndian};
 use num::range_step;
 
@@ -230,8 +229,8 @@ impl<R: Read>JPEGDecoder<R> {
         let dc = diff + pred;
         tmp[0] = dc * qtable[0] as i32;
 
-        let mut k = 0usize;
-        while k < 63 {
+        let mut k = 1usize;
+        while k < 64 {
             let rs = try!(self.h.decode_symbol(&mut self.r, actable));
 
             let ssss = rs & 0x0F;
@@ -249,7 +248,7 @@ impl<R: Read>JPEGDecoder<R> {
                 // Figure F.14
                 let t = try!(self.h.receive(&mut self.r, ssss));
 
-                tmp[UNZIGZAG[k + 1] as usize] = extend(t, ssss) * qtable[k + 1] as i32;
+                tmp[UNZIGZAG[k] as usize] = extend(t, ssss) * qtable[k] as i32;
                 k += 1;
             }
         }
@@ -370,12 +369,12 @@ impl<R: Read>JPEGDecoder<R> {
             self.vmax = 1;
         }
 
-        self.mcu = repeat(0u8).take(blocks_per_mcu as usize * 64).collect::<Vec<u8>>();
+        self.mcu = vec![0; blocks_per_mcu as usize * 64];
 
         let mcus_per_row = (self.width as f32 / (8 * hmax) as f32).ceil() as usize;
         let mcu_row_len = (hmax as usize * vmax as usize) * self.mcu.len() * mcus_per_row;
 
-        self.mcu_row = repeat(0u8).take(mcu_row_len).collect::<Vec<u8>>();
+        self.mcu_row = vec![0; mcu_row_len];
 
         Ok(())
     }
@@ -602,7 +601,7 @@ impl<R: Read> ImageDecoder for JPEGDecoder<R> {
         }
 
         let row = try!(self.row_len());
-        let mut buf = repeat(0u8).take(row * self.height as usize).collect::<Vec<u8>>();
+        let mut buf = vec![0u8; row * self.height as usize];
 
         for chunk in buf.chunks_mut(row) {
             let _len = try!(self.read_scanline(chunk));

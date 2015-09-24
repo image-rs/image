@@ -295,8 +295,9 @@ impl NeuQuant {
             q = self.colormap[smallpos];
             // swap p (i) and q (smallpos) entries
             if i != smallpos {
-                let mut j;
-                j = q;   q = p;   p = j;
+                let j = q;
+                q = p;
+                p = j;
                 self.colormap[i] = p;
                 self.colormap[smallpos] = q;
             }

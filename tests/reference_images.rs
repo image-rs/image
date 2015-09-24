@@ -89,7 +89,7 @@ fn check_references() {
 			.as_os_str()
 			.to_str().unwrap()
 			.split(".").take(2)
-			.collect::<Vec<_>>().connect(".")
+			.collect::<Vec<_>>().join(".")
 		);
         let ref_crc = u32::from_str_radix(filename
             .as_os_str()

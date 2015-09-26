@@ -98,11 +98,70 @@ pub fn flip_vertical<I: GenericImage + 'static>(image:  &I)
     out
 }
 
+/// Rotate an image clockwise about center by theta radians by choosing
+/// the nearest source pixel to the pre-image of a given output pixel.
+/// The output image has the same dimensions as the input. Output pixels
+/// whose pre-image lies outside the input image are set to default.
+// TODO: We don't actually choose the nearest pixel - we always round down.
+// TODO: Using f32::round() doubles the runtime of this function.
+// TODO: Is the 'static bound on `I` really required? Can we avoid it?
+pub fn rotate_nearest<I: GenericImage + 'static>(
+    image: &I,
+    center: (u32, u32),
+    theta: f32,
+    default: I::Pixel)
+    -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where I::Pixel: 'static,
+          <I::Pixel as Pixel>::Subpixel: 'static {
+
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(width, height);
+
+    let cos_theta = theta.cos();
+    let sin_theta = theta.sin();
+
+    for y in (0..height) {
+        let dy = y as f32 - center.1 as f32;
+
+        let mut px = center.0 as f32 + sin_theta * dy;
+        let mut py = center.1 as f32 + cos_theta * dy;
+
+        for x in (0..width) {
+            let dx = x as f32 - center.0 as f32;
+
+            px += cos_theta * dx;
+            py -= sin_theta * dx;
+
+            let x_out_of_bounds = px < 0f32 || px >= width as f32;
+            let y_out_of_bounds = py < 0f32 || py >= height as f32;
+
+            if x_out_of_bounds || y_out_of_bounds {
+                out.put_pixel(x, y, default);
+                continue;
+            }
+
+            let source = image.get_pixel(px as u32, py as u32);
+            out.put_pixel(x, y, source);
+        }
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod test {
-    use super::{rotate90,rotate180,rotate270,flip_horizontal,flip_vertical};
+
+    use super::{
+        rotate90,
+        rotate180,
+        rotate270,
+        rotate_nearest,
+        flip_horizontal,
+        flip_vertical};
     use buffer::{ImageBuffer,Pixel,GrayImage};
+    use color::{Luma};
     use image::{GenericImage};
+    use test;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => ({
@@ -197,6 +256,47 @@ mod test {
             00u8, 01u8, 02u8]).unwrap();
 
         assert_pixels_eq!(&flip_vertical(&image), &expected);
+    }
+
+    // PHIL: tests for arbitrary rotate:
+    // 1. rotate by quarters and check the results are the same
+    //    as the rotateX functions, up to clipping
+    // 2. handwritten examples for small images
+
+    #[test]
+    fn text_rotate_nearest() {
+        use std::f32;
+
+        // PHIL!!!!
+        // rotate around 1, 1
+        let image: GrayImage = ImageBuffer::from_raw(3, 2, vec![
+            00u8, 01u8, 02u8,
+            10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage = ImageBuffer::from_raw(3, 2, vec![
+            11u8, 01u8, 99u8,
+            12u8, 02u8, 99u8]).unwrap();
+
+        let rotated
+            = rotate_nearest(&image, (1, 0), f32::consts::PI / 2f32, Luma([99u8]));
+
+        assert_pixels_eq!(&rotated, &expected);
+
+    }
+
+    // try a load of small images and check that we never end up out of bounds?
+
+    #[bench]
+    fn bench_rotate_nearest(b: &mut test::Bencher) {
+        let mut image: GrayImage = ImageBuffer::new(200, 200);
+        for pix in image.pixels_mut() {
+            *pix = Luma([15u8]);
+        }
+
+        b.iter(|| {
+            let rotated = rotate_nearest(&image, (3, 3), 1f32, Luma([0u8]));
+            test::black_box(rotated);
+            });
     }
 
     fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>

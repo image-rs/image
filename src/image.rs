@@ -139,7 +139,10 @@ pub enum ImageFormat {
     TGA,
 
     /// An Image in BMP Format
-    BMP
+    BMP,
+
+    /// An Image in ICO Format
+    ICO
 }
 
 /// The trait that all decoders implement

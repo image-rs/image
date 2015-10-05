@@ -22,6 +22,8 @@ use tiff;
 use tga;
 #[cfg(feature = "bmp")]
 use bmp;
+#[cfg(feature = "ico")]
+use ico;
 
 use color;
 use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
@@ -532,6 +534,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
         "tiff" => image::ImageFormat::TIFF,
         "tga" => image::ImageFormat::TGA,
         "bmp" => image::ImageFormat::BMP,
+        "ico" => image::ImageFormat::ICO,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -587,6 +590,8 @@ pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         #[cfg(feature = "bmp")]
         image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)),
+        #[cfg(feature = "ico")]
+        image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }

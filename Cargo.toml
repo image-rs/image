@@ -36,9 +36,10 @@ version = "0.3"
 optional = true
 
 [features]
-default = ["gif_codec", "jpeg", "png_codec", "ppm", "tga", "tiff", "webp", "bmp"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp"]
 
 gif_codec = ["gif"]
+ico = ["bmp", "png_codec"]
 jpeg = []
 png_codec = ["png"]
 ppm = []

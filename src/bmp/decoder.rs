@@ -52,6 +52,7 @@ enum Format16Bit {
 enum FormatFullBytes {
     FormatRGB24,
     FormatRGB32,
+    FormatRGBA32,
     Format888
 }
 
@@ -432,6 +433,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 pixel_data[(x * self.width + y) as usize * num_channels + 0] = r;
                 pixel_data[(x * self.width + y) as usize * num_channels + 1] = g;
                 pixel_data[(x * self.width + y) as usize * num_channels + 2] = b;
+
+                if format == FormatFullBytes::FormatRGBA32 {
+                    let a = try!(self.r.read_u8());
+                    pixel_data[(x * self.width + y) as usize * num_channels + 3] = a;
+                }
             }
             // Seek past row padding
             try!(self.r.seek(SeekFrom::Current(row_padding)));
@@ -449,7 +455,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     },
                     16 => return self.read_16_bit_pixel_data(Format16Bit::Format555),
                     24 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
-                    32 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32),
+                    32 => return if self.add_alpha_channel {
+                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGBA32)
+                    } else {
+                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32)
+                    },
                     _ => return Err(ImageError::FormatError("Invalid bit count for RGB bitmap".to_string()))
                 }
             },

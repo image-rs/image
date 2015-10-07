@@ -15,7 +15,7 @@ const REFERENCE_DIR: &'static str = "reference";
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where F: Fn(&PathBuf, PathBuf, &str) {
 	let base: PathBuf = BASE_PATH.iter().collect();
-	let decoders = &["tga", "tiff", "png", "gif", "bmp"];
+	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico"];
 	for decoder in decoders {
 		let mut path = base.clone();
 		path.push(dir);

@@ -52,6 +52,7 @@ enum Format16Bit {
 enum FormatFullBytes {
     FormatRGB24,
     FormatRGB32,
+    FormatRGBA32,
     Format888
 }
 
@@ -65,6 +66,8 @@ pub struct BMPDecoder<R> {
     height: i32,
     data_offset: u64,
     top_down: bool,
+    no_file_header: bool,
+    add_alpha_channel: bool,
     has_loaded_metadata: bool,
     image_type: ImageType,
 
@@ -86,6 +89,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
             height: 0,
             data_offset: 0,
             top_down: false,
+            no_file_header: false,
+            add_alpha_channel: false,
             has_loaded_metadata: false,
             image_type: ImageType::RGB,
 
@@ -96,7 +101,16 @@ impl<R: Read + Seek> BMPDecoder<R> {
         }
     }
 
+    #[cfg(feature = "ico")]
+    #[doc(hidden)]
+    pub fn reader(&mut self) -> &mut R {
+        &mut self.r
+    }
+
     fn read_file_header(&mut self) -> ImageResult<()> {
+        if self.no_file_header {
+            return Ok(())
+        }
         let mut signature = [0; 2];
         if try!(self.r.read(&mut signature)) != 2 {
              return Err(ImageError::ImageEnd);
@@ -239,6 +253,21 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(())
     }
 
+    #[cfg(feature = "ico")]
+    #[doc(hidden)]
+    pub fn read_metadata_in_ico_format(&mut self, info_header_offset: u32) -> ImageResult<()> {
+        // Use the offset from the ICO header instead of reading a BMP file header.
+        self.data_offset = (info_header_offset + BITMAPINFOHEADER_SIZE) as u64;
+        self.no_file_header = true;
+        self.add_alpha_channel = true;
+
+        // The height field in an ICO file is doubled to account for the AND mask
+        // (whether or not an AND mask is actually present).
+        try!(self.read_metadata());
+        self.height = self.height / 2;
+        Ok(())
+    }
+
     fn get_palette_size(&mut self) -> ImageResult<usize> {
         match self.colors_used {
             0 => match self.bit_count {
@@ -257,8 +286,15 @@ impl<R: Read + Seek> BMPDecoder<R> {
         }
     }
 
+    fn bytes_per_color(&self) -> usize {
+        match self.bmp_header_type {
+            BMPHeaderType::CoreHeader => 3,
+            _ => 4
+        }
+    }
+
     fn read_palette(&mut self) -> ImageResult<()> {
-        let bytes_per_color = match self.bmp_header_type { BMPHeaderType::CoreHeader => 3, _ => 4};
+        let bytes_per_color = self.bytes_per_color();
         let palette_size = try!(self.get_palette_size());
         let length = palette_size * bytes_per_color;
         let mut buf = Vec::with_capacity(length as usize);
@@ -305,23 +341,33 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(result)
     }
 
+    fn num_channels(&self) -> usize {
+        if self.add_alpha_channel { 4 } else { 3 }
+    }
+
+    fn create_pixel_data(&self) -> Vec<u8> {
+        vec![0xFF; self.num_channels() * self.width as usize * self.height as usize]
+    }
+
     fn read_palletized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
+        let mut pixel_data = self.create_pixel_data();
+        let num_channels = self.num_channels();
         let indexes = try!(self.read_color_index_data());
         let palette = self.palette.as_mut().unwrap();
 
         for i in 0..indexes.len() {
             let (r, g, b)= palette[indexes[i] as usize];
-            pixel_data[i * 3 + 0] = r;
-            pixel_data[i * 3 + 1] = g;
-            pixel_data[i * 3 + 2] = b;
+            pixel_data[i * num_channels + 0] = r;
+            pixel_data[i * num_channels + 1] = g;
+            pixel_data[i * num_channels + 2] = b;
         }
 
         Ok(pixel_data)
     }
 
     fn read_16_bit_pixel_data(&mut self, format: Format16Bit) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
+        let mut pixel_data = self.create_pixel_data();
+        let num_channels = self.num_channels();
         let row_padding = self.width % 2 * 2;
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
@@ -348,9 +394,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     Format16Bit::Format565 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data >> 11 & 0b11111) as usize]
                 };
 
-                pixel_data[(x * self.width + y) as usize * 3 + 0] = r;
-                pixel_data[(x * self.width + y) as usize * 3 + 1] = g;
-                pixel_data[(x * self.width + y) as usize * 3 + 2] = b;
+                pixel_data[(x * self.width + y) as usize * num_channels + 0] = r;
+                pixel_data[(x * self.width + y) as usize * num_channels + 1] = g;
+                pixel_data[(x * self.width + y) as usize * num_channels + 2] = b;
             }
             // Seek past row padding
             try!(self.r.seek(SeekFrom::Current(row_padding as i64)));
@@ -360,7 +406,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = vec![0; 3 * self.width as usize * self.height as usize];
+        let mut pixel_data = self.create_pixel_data();
+        let num_channels = self.num_channels();
         let row_padding = match format {
             FormatFullBytes::FormatRGB24 => (4 - (self.width as i64 * 3) % 4) % 4,
             _ => 0
@@ -383,9 +430,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     try!(self.r.seek(SeekFrom::Current(1)));
                 }
 
-                pixel_data[(x * self.width + y) as usize * 3 + 0] = r;
-                pixel_data[(x * self.width + y) as usize * 3 + 1] = g;
-                pixel_data[(x * self.width + y) as usize * 3 + 2] = b;
+                pixel_data[(x * self.width + y) as usize * num_channels + 0] = r;
+                pixel_data[(x * self.width + y) as usize * num_channels + 1] = g;
+                pixel_data[(x * self.width + y) as usize * num_channels + 2] = b;
+
+                if format == FormatFullBytes::FormatRGBA32 {
+                    let a = try!(self.r.read_u8());
+                    pixel_data[(x * self.width + y) as usize * num_channels + 3] = a;
+                }
             }
             // Seek past row padding
             try!(self.r.seek(SeekFrom::Current(row_padding)));
@@ -403,7 +455,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     },
                     16 => return self.read_16_bit_pixel_data(Format16Bit::Format555),
                     24 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
-                    32 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32),
+                    32 => return if self.add_alpha_channel {
+                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGBA32)
+                    } else {
+                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32)
+                    },
                     _ => return Err(ImageError::FormatError("Invalid bit count for RGB bitmap".to_string()))
                 }
             },
@@ -445,7 +501,11 @@ impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        Ok(ColorType::RGB(8))      
+        if self.add_alpha_channel {
+            Ok(ColorType::RGBA(8))
+        } else {
+            Ok(ColorType::RGB(8))
+        }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {

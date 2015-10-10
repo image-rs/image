@@ -22,6 +22,8 @@ use tiff;
 use tga;
 #[cfg(feature = "bmp")]
 use bmp;
+#[cfg(feature = "ico")]
+use ico;
 
 use color;
 use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
@@ -532,6 +534,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
         "tiff" => image::ImageFormat::TIFF,
         "tga" => image::ImageFormat::TGA,
         "bmp" => image::ImageFormat::BMP,
+        "ico" => image::ImageFormat::ICO,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -587,11 +590,13 @@ pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
         #[cfg(feature = "bmp")]
         image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)),
+        #[cfg(feature = "ico")]
+        image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 7] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 8] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
     (b"GIF89a", ImageFormat::GIF),
@@ -599,6 +604,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 7] = [
     (b"WEBP", ImageFormat::WEBP),
     (b"MM.*", ImageFormat::TIFF),
     (b"II*.", ImageFormat::TIFF),
+    (&[0, 0, 1, 0], ImageFormat::ICO),
 ];
 
 /// Create a new image from a byte slice

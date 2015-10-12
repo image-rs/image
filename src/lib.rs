@@ -63,6 +63,7 @@ pub use image::ImageFormat::{
 
 pub use buffer::{
     Pixel,
+    ConvertBuffer,
     // Image types
     ImageBuffer,
     RgbImage,

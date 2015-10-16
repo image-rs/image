@@ -1,4 +1,5 @@
 use std::io::{Read, Seek, SeekFrom};
+use std::iter::repeat;
 use byteorder::{ReadBytesExt, LittleEndian};
 
 use image::{
@@ -294,13 +295,24 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_palette(&mut self) -> ImageResult<()> {
+        const MAX_PALETTE_SIZE: usize = 256; // Palette indices are u8.
+
         let bytes_per_color = self.bytes_per_color();
         let palette_size = try!(self.get_palette_size());
         let length = palette_size * bytes_per_color;
-        let mut buf = Vec::with_capacity(length as usize);
+        let max_length = MAX_PALETTE_SIZE * bytes_per_color;
+        let mut buf = Vec::with_capacity(max_length);
 
         try!(self.r.by_ref().take(length as u64).read_to_end(&mut buf));
-        let p: Vec<(u8, u8, u8)> = (0usize..palette_size as usize).map(|i| {
+
+        // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
+        // causing an out-of-bounds array access.
+        if length < max_length {
+            // TODO: Use Vec::resize when it become stable.
+            buf.extend(repeat(0).take(max_length - length));
+        }
+
+        let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE).map(|i| {
             let b = buf[bytes_per_color * i];
             let g = buf[bytes_per_color * i + 1];
             let r = buf[bytes_per_color * i + 2];

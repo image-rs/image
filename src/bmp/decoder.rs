@@ -1,5 +1,6 @@
 use std::io::{Read, Seek, SeekFrom};
-use std::iter::repeat;
+use std::iter::{Iterator, repeat, Rev};
+use std::slice::ChunksMut;
 use byteorder::{ReadBytesExt, LittleEndian};
 
 use image::{
@@ -55,6 +56,27 @@ enum FormatFullBytes {
     FormatRGB32,
     FormatRGBA32,
     Format888
+}
+
+enum Chunker<'a> {
+    FromTop(ChunksMut<'a, u8>),
+    FromBottom(Rev<ChunksMut<'a, u8>>),
+}
+
+pub struct RowIterator<'a> {
+    chunks: Chunker<'a>
+}
+
+impl<'a> Iterator for RowIterator<'a> {
+    type Item = &'a mut [u8];
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<&'a mut [u8]> {
+        match self.chunks {
+            Chunker::FromTop(ref mut chunks) => chunks.next(),
+            Chunker::FromBottom(ref mut chunks) => chunks.next()
+        }
+    }
 }
 
 /// A bmp decoder
@@ -361,6 +383,15 @@ impl<R: Read + Seek> BMPDecoder<R> {
         vec![0xFF; self.num_channels() * self.width as usize * self.height as usize]
     }
 
+    fn rows<'a>(&self, pixel_data: &'a mut Vec<u8>) -> RowIterator<'a> {
+        let stride = self.width as usize * self.num_channels();
+        if self.top_down {
+            RowIterator{ chunks: Chunker::FromTop(pixel_data.chunks_mut(stride)) }
+        } else {
+            RowIterator{ chunks: Chunker::FromBottom(pixel_data.chunks_mut(stride).rev()) }
+        }
+    }
+
     fn read_palletized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
@@ -383,9 +414,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let row_padding = self.width % 2 * 2;
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for h in 0..self.height {
-            let x = if self.top_down { h } else { self.height - h - 1 };
-            for y in 0..self.width {
+        for row in self.rows(&mut pixel_data) {
+            for pixel in row.chunks_mut(num_channels) {
                 let data = try!(self.r.read_u16::<LittleEndian>());
 
                 let b = match format {
@@ -406,9 +436,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     Format16Bit::Format565 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data >> 11 & 0b11111) as usize]
                 };
 
-                pixel_data[(x * self.width + y) as usize * num_channels + 0] = r;
-                pixel_data[(x * self.width + y) as usize * num_channels + 1] = g;
-                pixel_data[(x * self.width + y) as usize * num_channels + 2] = b;
+                pixel[0] = r;
+                pixel[1] = g;
+                pixel[2] = b;
             }
             // Seek past row padding
             try!(self.r.seek(SeekFrom::Current(row_padding as i64)));
@@ -426,9 +456,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
         };
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for h in 0..self.height {
-            let x = if self.top_down { h } else { self.height - h - 1 };
-            for y in 0..self.width {
+        for row in self.rows(&mut pixel_data) {
+            for pixel in row.chunks_mut(num_channels) {
 
                 if format == FormatFullBytes::Format888 {
                     try!(self.r.seek(SeekFrom::Current(1)));
@@ -442,13 +471,13 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     try!(self.r.seek(SeekFrom::Current(1)));
                 }
 
-                pixel_data[(x * self.width + y) as usize * num_channels + 0] = r;
-                pixel_data[(x * self.width + y) as usize * num_channels + 1] = g;
-                pixel_data[(x * self.width + y) as usize * num_channels + 2] = b;
+                pixel[0] = r;
+                pixel[1] = g;
+                pixel[2] = b;
 
                 if format == FormatFullBytes::FormatRGBA32 {
                     let a = try!(self.r.read_u8());
-                    pixel_data[(x * self.width + y) as usize * num_channels + 3] = a;
+                    pixel[3] = a;
                 }
             }
             // Seek past row padding

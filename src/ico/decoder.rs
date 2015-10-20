@@ -78,10 +78,10 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 /// Find the entry with the highest (color depth, size).
 fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
     let mut best = try!(entries.pop().ok_or(ImageError::ImageEnd));
-    let mut best_score = (best.bits_per_pixel, best.real_width() * best.real_height());
+    let mut best_score = (best.bits_per_pixel, best.real_width() as u32 * best.real_height() as u32);
 
     for entry in entries.into_iter() {
-        let score = (entry.bits_per_pixel, entry.real_width() * entry.real_height());
+        let score = (entry.bits_per_pixel, entry.real_width() as u32 * entry.real_height() as u32);
         if score > best_score {
             best = entry;
             best_score = score;

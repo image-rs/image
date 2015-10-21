@@ -1,14 +1,18 @@
-# Rust Image 0.3 Release Notes
+# Rust Image 0.4 Release Notes
 
 Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
 
 ## Known issues
  - Interlaced (progressive) or animated images are not well supported.
  - Images with *n* bit/channel (*n ≠ 8*) are not well supported.
- - No support for alpha channel in paletted PNG images.
 
 ## Changes
 
+### Version 0.4
+ - Various improvements.
+ - Additional supported image formats (BMP and ICO).
+ - GIF and PNG codec moved into separate crates.
+ 
 ### Version 0.3
  - Replace `std::old_io` with `std::io`.
 

@@ -22,9 +22,9 @@ image = "*"
 and import using ```extern crate```:
 
 ```rust
-    extern crate image;
+extern crate image;
 
-    //Use image::
+//Use image::
 ```
 
 ## 1. Documentation

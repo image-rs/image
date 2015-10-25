@@ -14,7 +14,7 @@ All image processing functions provided operate on types that implement the ```G
 
 Add the following to the Cargo.toml in your project:
 
-```
+```toml
 [dependencies]
 image = "*"
 ```

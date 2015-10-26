@@ -176,6 +176,10 @@ impl<R: Read + Seek> BMPDecoder<R> {
             return Err(ImageError::FormatError("Negative width".to_string()));
         }
 
+        if self.height == i32::min_value() {
+            return Err(ImageError::FormatError("Invalid height".to_string()));
+        }
+
         if self.height < 0 {
             self.height *= -1;
             self.top_down = true;

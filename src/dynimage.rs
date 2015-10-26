@@ -612,10 +612,8 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 9] = [
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    let max_len = MAGIC_BYTES.iter().map(|v| v.0.len()).max().unwrap_or(0);
-    let beginning = &buffer[..max_len];
     for &(signature, format) in MAGIC_BYTES.iter() {
-        if beginning.starts_with(signature) {
+        if buffer.starts_with(signature) {
             return load_from_memory_with_format(buffer, format)
         }
     }
@@ -643,5 +641,13 @@ mod bench {
             a.to_luma()
         });
         b.bytes = 1000*1000*3
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_empty_file() {
+        assert!(super::load_from_memory(b"").is_err());
     }
 }

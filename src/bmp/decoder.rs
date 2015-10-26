@@ -180,7 +180,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             self.height *= -1;
             self.top_down = true;
         }
-        
+
         // Don't care about number of planes
         try!(self.r.seek(SeekFrom::Current(2)));
 

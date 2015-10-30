@@ -24,15 +24,15 @@ script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v;
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi;
-        cargo doc -v;
       else
         cargo build -v --no-default-features --features "$FEATURES";
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi;
-        cargo doc -v;
       fi
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
+    [ "$TRAVIS_RUST_VERSION" = "nightly" ] &&
+    [ -z "$FEATURES" ] &&
     cargo doc &&
     echo '<meta http-equiv=refresh content=0;url=image/index.html>' > target/doc/index.html &&
     pip install --user ghp-import &&

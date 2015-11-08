@@ -798,6 +798,7 @@ struct Segment {
 }
 
 /// VP8 Decoder
+///
 /// Only decodes keyframes
 pub struct VP8Decoder<R> {
     r: R,

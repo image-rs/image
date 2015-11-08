@@ -1,11 +1,11 @@
-//! This module provides usefull traits that where deprecated in rust
+//! This module provides useful traits that were deprecated in rust
 
 // Note copied from the stdlib under MIT license
 
 use num::{ Bounded, Num, NumCast };
 
 
-/// Primitive trait from old stdlib, added max_value
+/// Primitive trait from old stdlib
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
 }
 

@@ -289,10 +289,11 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
-    /// Performs an unsharpen mask on this image
+    /// Performs an unsharpen mask on this image.
     /// ```sigma``` is the amount to blur the image by.
     /// ```threshold``` is a control of how much to sharpen.
-    /// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+    ///
+    /// See https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }
@@ -609,6 +610,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 9] = [
 ];
 
 /// Create a new image from a byte slice
+///
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {

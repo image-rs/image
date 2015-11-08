@@ -2,7 +2,7 @@ use num::rational::Ratio;
 
 use buffer::RgbaImage;
 
-/// Hold the frames of the animated image
+/// Holds the frames of the animated image
 pub struct Frames {
     frames: Vec<Frame>,
     current_frame: usize,
@@ -71,7 +71,7 @@ impl Frame {
         self.left
     }
 
-    /// Returns the x offset
+    /// Returns the y offset
     pub fn top(&self) -> u32 {
         self.top
     }

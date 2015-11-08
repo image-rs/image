@@ -19,7 +19,9 @@ const MAX_ENTRIES: usize = 1 << MAX_CODESIZE as usize;
 type Code = u16;
 
 /// Decoding dictionary
+///
 /// It is not generic due to current limitations of Rust
+///
 /// Inspired by http://www.cplusplus.com/articles/iL18T05o/
 struct DecodingDict {
     min_size: u8,

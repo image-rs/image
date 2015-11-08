@@ -24,7 +24,7 @@ pub enum ColorType {
     RGBA(u8)
 }
 
-/// Returns the number of bits contained in a pixel of ColorType c
+/// Returns the number of bits contained in a pixel of ColorType ```c```
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
         ColorType::Gray(n)    => n as usize,

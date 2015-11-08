@@ -360,7 +360,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     out
 }
 
-/// Resize the supplied image to the specified dimensions
+/// Resize the supplied image to the specified dimensions.
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
@@ -424,10 +424,11 @@ pub fn blur<I: GenericImage + 'static>(image: &I, sigma: f32)
     horizontal_sample(&tmp, width, &mut method)
 }
 
-/// Performs an unsharpen mask on the supplied image
+/// Performs an unsharpen mask on the supplied image.
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
-/// see https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+///
+/// See https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
     -> ImageBuffer<P, Vec<S>>

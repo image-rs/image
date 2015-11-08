@@ -30,7 +30,7 @@ pub fn grayscale<'a, I: GenericImage>(image: &I)
     out
 }
 
-/// Invert each pixel within the supplied image
+/// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
     let (width, height) = image.dimensions();
@@ -45,7 +45,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
     }
 }
 
-/// Adjust the contrast of the supplied image
+/// Adjust the contrast of the supplied image.
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
 pub fn contrast<I, P, S>(image: &I, contrast: f32)
@@ -80,7 +80,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
     out
 }
 
-/// Brighten the supplied image
+/// Brighten the supplied image.
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
 pub fn brighten<I, P, S>(image: &I, value: i32)
@@ -118,7 +118,7 @@ pub trait ColorMap {
     /// Returns the index of the closed match of `color`
     /// in the color map.
     fn index_of(&self, color: &Self::Color) -> usize;
-    /// Maps `color` to the closes color in the color map.
+    /// Maps `color` to the closest color in the color map.
     fn map_color(&self, color: &mut Self::Color);
 }
 

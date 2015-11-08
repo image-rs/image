@@ -37,11 +37,13 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
+    ///
     /// TODO deprecate
     fn channels4(&self) -> (Self::Subpixel, Self::Subpixel, Self::Subpixel, Self::Subpixel);
 
     /// Construct a pixel from the 4 channels a, b, c and d.
     /// If the pixel does not contain 4 channels the extra are ignored.
+    ///
     /// TODO deprecate
     fn from_channels(a: Self::Subpixel, b: Self::Subpixel, c: Self::Subpixel, d: Self::Subpixel) -> Self;
 
@@ -75,13 +77,13 @@ pub trait Pixel: Copy + Clone {
     /// Apply the function ```f``` to each channel of this pixel.
     fn apply<F>(&mut self, f: F) where F: Fn(Self::Subpixel) -> Self::Subpixel;
 
-    /// Apply the function f to each channel except the alpha channel.
-    /// Apply the function g to the alpha channel.
+    /// Apply the function ```f``` to each channel except the alpha channel.
+    /// Apply the function ```g``` to the alpha channel.
     fn map_with_alpha<F, G>(&self, f: F, g: G) -> Self
         where F: Fn(Self::Subpixel) -> Self::Subpixel, G: Fn(Self::Subpixel) -> Self::Subpixel;
 
-    /// Apply the function f to each channel except the alpha channel.
-    /// Apply the function g to the alpha channel. Works in-place.
+    /// Apply the function ```f``` to each channel except the alpha channel.
+    /// Apply the function ```g``` to the alpha channel. Works in-place.
     fn apply_with_alpha<F, G>(&mut self, f: F, g: G)
         where F: Fn(Self::Subpixel) -> Self::Subpixel, G: Fn(Self::Subpixel) -> Self::Subpixel;
 
@@ -221,6 +223,7 @@ where P: Pixel + 'static,
 
     /// Contructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
+    ///
     /// Returns None if the container is not big enough
     pub fn from_raw(width: u32, height: u32, buf: Container)
                     -> Option<ImageBuffer<P, Container>> {
@@ -338,7 +341,7 @@ where P: Pixel + 'static,
     ///
     /// # Panics
     ///
-    /// Panics if `(x, y)` is out of the bounds (width, height)`.
+    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }
@@ -444,6 +447,7 @@ where P: Pixel + 'static,
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
+    ///
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
         self.get_pixel_mut(x, y).blend(&p)

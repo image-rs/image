@@ -176,6 +176,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// Encodes the image ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
+    ///
     /// The Image in encoded with subsampling ratio 4:2:2
     pub fn encode(&mut self,
                   image: &[u8],

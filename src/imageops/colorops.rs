@@ -20,8 +20,8 @@ pub fn grayscale<'a, I: GenericImage>(image: &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y).to_luma();
             out.put_pixel(x, y, p);
         }
@@ -35,8 +35,8 @@ pub fn grayscale<'a, I: GenericImage>(image: &I)
 pub fn invert<I: GenericImage>(image: &mut I) {
     let (width, height) = image.dimensions();
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let mut p = image.get_pixel(x, y);
             p.invert();
 
@@ -62,8 +62,8 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let f = image.get_pixel(x, y).map(|b| {
                 let c: f32 = NumCast::from(b).unwrap();
 
@@ -95,8 +95,8 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
     let max = S::max_value();
     let max: i32 = NumCast::from(max).unwrap();
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let e = image.get_pixel(x, y).map_with_alpha(|b| {
                 let c: i32 = NumCast::from(b).unwrap();
                 let d = clamp(c + value, 0, max);

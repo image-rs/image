@@ -337,7 +337,7 @@ impl<R: Read + Seek> TGADecoder<R> {
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let mut data = Vec::with_capacity(self.bytes_per_pixel);
                 try!(self.r.by_ref().take(self.bytes_per_pixel as u64).read_to_end(&mut data));
-                for _ in (0usize..repeat_count) {
+                for _ in 0usize..repeat_count {
                     pixel_data.extend(data.iter().map(|&c| c));
                 }
                 num_read += repeat_count;

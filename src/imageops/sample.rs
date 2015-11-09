@@ -144,7 +144,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
-    for y in (0..height) {
+    for y in 0..height {
         let max = S::max_value();
         let max: f32 = NumCast::from(max).unwrap();
 
@@ -159,7 +159,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
         let filter_radius = (filter.support * filter_scale).ceil();
 
-        for outx in (0..new_width) {
+        for outx in 0..new_width {
 
             let inputx = (outx as f32 + 0.5) * ratio;
 
@@ -173,7 +173,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
             let mut t = (0., 0., 0., 0.);
 
-            for i in (left..right + 1) {
+            for i in left..right + 1 {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
                 let w = (w, w, w, w);
                 sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
@@ -224,7 +224,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
     let mut out = ImageBuffer::new(width, new_height);
 
 
-    for x in (0..width) {
+    for x in 0..width {
         let max = S::max_value();
         let max: f32 = NumCast::from(max).unwrap();
 
@@ -239,7 +239,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
         let filter_radius = (filter.support * filter_scale).ceil();
 
-        for outy in (0..new_height) {
+        for outy in 0..new_height {
             let inputy = (outy as f32 + 0.5) * ratio;
 
             let left  = (inputy - filter_radius).ceil() as i64;
@@ -252,7 +252,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
             let mut t = (0., 0., 0., 0.);
 
-            for i in (left..right + 1) {
+            for i in left..right + 1 {
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
                 let w = (w, w, w, w);
                 sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
@@ -316,8 +316,8 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     };
     let sum = (sum, sum, sum, sum);
 
-    for y in (1..height - 1) {
-        for x in (1..width - 1) {
+    for y in 1..height - 1 {
+        for x in 1..width - 1 {
             let mut t = (0., 0., 0., 0.);
 
 
@@ -442,8 +442,8 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let a = image.get_pixel(x, y);
             let b = tmp.get_pixel_mut(x, y);
 

@@ -48,40 +48,40 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
     match filter {
         NoFilter => (),
         Sub => {
-            for i in (bpp..len) {
+            for i in bpp..len {
                 current[i] = current[i].wrapping_add(
                     current[i - bpp]
                 );
             }
         }
         Up => {
-            for i in (0..len) {
+            for i in 0..len {
                 current[i] = current[i].wrapping_add(
                     previous[i]
                 );
             }
         }
         Avg => {
-            for i in (0..bpp) {
+            for i in 0..bpp {
                 current[i] = current[i].wrapping_add(
                     previous[i] / 2
                 );
             }
 
-            for i in (bpp..len) {
+            for i in bpp..len {
                 current[i] = current[i].wrapping_add(
                     ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8
                 );
             }
         }
         Paeth => {
-            for i in (0..bpp) {
+            for i in 0..bpp {
                 current[i] = current[i].wrapping_add(
                     filter_paeth(0, previous[i], 0)
                 );
             }
 
-            for i in (bpp..len) {
+            for i in bpp..len {
                 current[i] = current[i].wrapping_add(
                     filter_paeth(current[i - bpp], previous[i], previous[i - bpp])
                 );
@@ -102,7 +102,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
             }
         }
         Up       => {
-            for i in (0..len) {
+            for i in 0..len {
                 current[i] = current[i].wrapping_sub(previous[i]);
             }
         }
@@ -111,7 +111,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
                 current[i] = current[i].wrapping_sub((current[i - bpp].wrapping_add(previous[i]) / 2));
             }
 
-            for i in (0..bpp) {
+            for i in 0..bpp {
                 current[i] = current[i].wrapping_sub(previous[i] / 2);
             }
         }
@@ -120,7 +120,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
                 current[i] = current[i].wrapping_sub(filter_paeth(current[i - bpp], previous[i], previous[i - bpp]));
             }
 
-            for i in (0..bpp) {
+            for i in 0..bpp {
                 current[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
             }
         }

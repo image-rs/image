@@ -1,6 +1,6 @@
 [package]
 name = "png"
-version = "0.3.1"
+version = "0.4.0"
 license = "MIT"
 description = "PNG decoding library"
 authors = ["nwin <nwin@users.noreply.github.com>"]
@@ -10,10 +10,10 @@ exclude = [
 ]
 
 [dependencies]
-flate2 = "*"
-libc = "*"
-num = "*"
-bitflags = "*"
+flate2 = "0.2.11"
+libc = "0.2.1"
+num = "0.1.27"
+bitflags = "0.3.2"
 
 # Development only
 #[dependencies.inflate]

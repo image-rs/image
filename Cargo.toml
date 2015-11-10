@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.4.1"
+version = "0.5.0"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -23,16 +23,16 @@ path = "./src/lib.rs"
 
 [dependencies]
 byteorder = "0.3.10"
-num = "0.1.25"
-enum_primitive = "0.0.1"
+num = "0.1.27"
+enum_primitive = "0.1.0"
 glob = "0.2.10"
 
 [dependencies.gif]
-version = "0.5"
+version = "0.6"
 optional = true
 
 [dependencies.png]
-version = "0.3"
+version = "0.4"
 optional = true
 
 [features]

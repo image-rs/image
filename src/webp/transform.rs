@@ -4,7 +4,7 @@ static CONST2:
 i32 = 35468;
 
 pub fn idct4x4(block: &mut [i32]) {
-    for i in (0usize..4) {
+    for i in 0usize..4 {
         let a1 = block[0 + i] + block[8 + i];
         let b1 = block[0 + i] - block[8 + i];
 
@@ -22,7 +22,7 @@ pub fn idct4x4(block: &mut [i32]) {
         block[4 * 2 + i] = b1 - c1;
     }
 
-    for i in (0usize..4) {
+    for i in 0usize..4 {
         let a1 = block[4 * i + 0] + block[4 * i + 2];
         let b1 = block[4 * i + 0] - block[4 * i + 2];
 
@@ -43,7 +43,7 @@ pub fn idct4x4(block: &mut [i32]) {
 
 // 14.3
 pub fn iwht4x4(block: &mut [i32]) {
-    for i in (0usize..4) {
+    for i in 0usize..4 {
         let a1 = block[0 + i] + block[12 + i];
         let b1 = block[4 + i] + block[8  + i];
         let c1 = block[4 + i] - block[8  + i];
@@ -55,7 +55,7 @@ pub fn iwht4x4(block: &mut [i32]) {
         block[12 + i] = d1 - c1;
     }
 
-    for i in (0usize..4) {
+    for i in 0usize..4 {
         let a1 = block[4 * i + 0] + block[4 * i + 3];
         let b1 = block[4 * i + 1] + block[4 * i + 2];
         let c1 = block[4 * i + 1] - block[4 * i + 2];

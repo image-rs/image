@@ -195,7 +195,7 @@ impl<R: Read>JPEGDecoder<R> {
         for id in tmp.iter() {
             let mut c = self.components.get(&(*id as usize)).unwrap().clone();
 
-            for _ in (0..c.h * c.v) {
+            for _ in 0..c.h * c.v {
                 let pred  = try!(self.decode_block(i, c.dc_table, c.dc_pred, c.ac_table, c.tq));
                 c.dc_pred = pred;
                 i += 1;
@@ -331,7 +331,7 @@ impl<R: Read>JPEGDecoder<R> {
     fn read_frame_components(&mut self, n: u8) -> ImageResult<()> {
         let mut blocks_per_mcu = 0;
 
-        for _ in (0..n) {
+        for _ in 0..n {
             let id = try!(self.r.read_u8());
             let hv = try!(self.r.read_u8());
             let tq = try!(self.r.read_u8());
@@ -386,7 +386,7 @@ impl<R: Read>JPEGDecoder<R> {
 
         self.scan_components = Vec::new();
 
-        for _ in (0..num_scan_components as usize) {
+        for _ in 0..num_scan_components as usize {
             let id = try!(self.r.read_u8());
             let tables = try!(self.r.read_u8());
 
@@ -424,7 +424,7 @@ impl<R: Read>JPEGDecoder<R> {
 
             let slice = &mut self.qtables[64 * tq as usize..64 * tq as usize + 64];
 
-            for i in (0usize..64) {
+            for i in 0usize..64 {
                 slice[i] = try!(self.r.read_u8());
             }
 
@@ -613,8 +613,8 @@ impl<R: Read> ImageDecoder for JPEGDecoder<R> {
 
 fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &[u8], h: u8, v: u8) {
     if mcu.len() == 64 {
-        for y in (0usize..8) {
-            for x in (0usize..8) {
+        for y in 0usize..8 {
+            for x in 0usize..8 {
                 out[xoffset + x + (y * width)] = mcu[x + y * 8]
             }
         }
@@ -627,14 +627,14 @@ fn upsample_mcu(out: &mut [u8], xoffset: usize, width: usize, bpp: usize, mcu: &
 
         let mut k = 0;
 
-        for by in (0..v as usize) {
+        for by in 0..v as usize {
             let y0 = by * 8;
 
-            for bx in (0..h as usize) {
+            for bx in 0..h as usize {
                 let x0 = xoffset + bx * 8 * bpp;
 
-                for y in (0usize..8) {
-                    for x in (0usize..8) {
+                for y in 0usize..8 {
+                    for x in 0usize..8 {
                         let (a, b, c) = (y_blocks[k * 64 + x + y * 8], cb[x + y * 8], cr[x + y * 8]);
                         let (r, g, b) = ycbcr_to_rgb(a , b , c );
 

@@ -12,8 +12,8 @@ pub fn rotate90<I: GenericImage + 'static>(image:  &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y);
             out.put_pixel(height - 1 - y, x, p);
         }
@@ -31,8 +31,8 @@ pub fn rotate180<I: GenericImage + 'static>(image:  &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y);
             out.put_pixel(width - 1 - x, height - 1 - y, p);
         }
@@ -50,8 +50,8 @@ pub fn rotate270<I: GenericImage + 'static>(image:  &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y);
             out.put_pixel(y, width - 1 - x, p);
         }
@@ -69,8 +69,8 @@ pub fn flip_horizontal<I: GenericImage + 'static>(image:  &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y);
             out.put_pixel(width - 1 - x, y, p);
         }
@@ -88,8 +88,8 @@ pub fn flip_vertical<I: GenericImage + 'static>(image:  &I)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in (0..height) {
-        for x in (0..width) {
+    for y in 0..height {
+        for x in 0..width {
             let p = image.get_pixel(x, y);
             out.put_pixel(x, height - 1 - y, p);
         }

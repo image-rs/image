@@ -93,8 +93,8 @@ fn rev_hpredict_nsamp<T>(mut image: Vec<T>,
                          where T: num::Num + Copy {
     let width = size.0 as usize;
     let height = size.1 as usize;
-    for row in (0..height) {
-        for col in (samples..width * samples) {
+    for row in 0..height {
+        for col in samples..width * samples {
             let prev_pixel = image[(row * width * samples + col - samples)];
             let pixel = &mut image[(row * width * samples + col)];
             *pixel = *pixel + prev_pixel
@@ -302,7 +302,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
             ),
             Some(offset) => try!(self.goto_offset(offset))
         }
-        for _ in (0..try!(self.read_short())) {
+        for _ in 0..try!(self.read_short()) {
             let (tag, entry) = match try!(self.read_entry()) {
                 Some(val) => val,
                 None => continue // Unknown data type in tag, skip

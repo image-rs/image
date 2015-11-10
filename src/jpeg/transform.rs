@@ -80,7 +80,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
     // Pass 1: process rows.
     // Results are scaled by sqrt(8) compared to a true DCT
     // furthermore we scale the results by 2**PASS1_BITS
-    for y in (0usize..8) {
+    for y in 0usize..8 {
         let y0 = y * 8;
 
         // Even part
@@ -284,7 +284,7 @@ pub fn idct(coeffs: &[i32], samples: &mut [u8]) {
         tmp[x + 8 * 4] = (t13 - t0) >> (CONST_BITS - PASS1_BITS) as usize;
     }
 
-    for y in (0usize..8) {
+    for y in 0usize..8 {
         let y0 = y * 8;
 
         let z2 = tmp[y0 + 2];

@@ -7,13 +7,9 @@ use std::io::{self, Read, Write};
 use std::cmp::min;
 use std::convert::{From, AsRef};
 
-// # Development only:
-// extern crate inflate;
-// # For publishing
-#[path = "../../inflate/src/lib.rs"]
-mod inflate;
-use self::inflate::InflateStream;
+extern crate inflate;
 
+use self::inflate::InflateStream;
 use crc::Crc32;
 use traits::ReadBytesExt;
 use common::{ColorType, BitDepth, Info, AnimationControl, FrameControl};
@@ -29,7 +25,7 @@ enum U32Value {
     Type(u32),
     Crc(ChunkType)
 }
-    
+
 #[derive(Debug)]
 enum State {
     Signature(u8, [u8; 7]),
@@ -145,7 +141,7 @@ impl StreamingDecoder {
             have_idat: false
         }
     }
-    
+
     /// Resets the StreamingDecoder
     pub fn reset(&mut self) {
         self.state = Some(State::Signature(0, [0; 7]));
@@ -157,10 +153,10 @@ impl StreamingDecoder {
         self.current_seq_no = None;
         self.have_idat = false;
     }
-    
+
     /// Low level StreamingDecoder interface.
     ///
-    /// Allows to stream partial data to the encoder. Returns a tuple containing the 
+    /// Allows to stream partial data to the encoder. Returns a tuple containing the
     /// bytes that have been consumed from the input buffer and the current decoding
     /// result.
     pub fn update<'a>(&'a mut self, mut buf: &[u8])
@@ -176,8 +172,8 @@ impl StreamingDecoder {
                 Ok((bytes, result)) => {
                     buf = &buf[bytes..];
                     return Ok(
-                        (len-buf.len(), 
-                        // This transmute just casts the lifetime away. Since Rust only 
+                        (len-buf.len(),
+                        // This transmute just casts the lifetime away. Since Rust only
                         // has SESE regions, this early return cannot be worked out and
                         // such that the borrow region of self includes the whole block.
                         // The explixit lifetimes in the function signature ensure that
@@ -186,7 +182,7 @@ impl StreamingDecoder {
                         // To check that everything is sound, return the result without
                         // the match (e.g. `return Ok(try!(self.next_state(buf)))`). If
                         // it compiles the returned lifetime is correct.
-                        unsafe { 
+                        unsafe {
                             mem::transmute::<Decoded, Decoded>(result)
                         }
                     ))
@@ -196,32 +192,32 @@ impl StreamingDecoder {
         }
         Ok((len-buf.len(), Decoded::Nothing))
     }
-    
+
     fn next_state<'a>(&'a mut self, buf: &[u8])
     -> Result<(usize, Decoded<'a>), DecodingError> {
         use self::State::*;
-        
+
         macro_rules! goto (
             ($n:expr, $state:expr) => ({
-                self.state = Some($state); 
+                self.state = Some($state);
                 Ok(($n, Decoded::Nothing))
             });
             ($state:expr) => ({
-                self.state = Some($state); 
+                self.state = Some($state);
                 Ok((1, Decoded::Nothing))
             });
             ($n:expr, $state:expr, emit $res:expr) => ({
-                self.state = Some($state); 
+                self.state = Some($state);
                 Ok(($n, $res))
             });
             ($state:expr, emit $res:expr) => ({
-                self.state = Some($state); 
+                self.state = Some($state);
                 Ok((1, $res))
             })
         );
-        
+
         let current_byte = buf[0];
-        
+
         // Driver should ensure that state is never None
         let state = self.state.take().unwrap();
         //println!("state: {:?}", state);
@@ -270,8 +266,8 @@ impl StreamingDecoder {
                         } else {
                             Err(DecodingError::CrcMismatch {
                                 recover: 1,
-                                crc_val: val, 
-                                crc_sum: self.current_chunk.0.checksum(), 
+                                crc_val: val,
+                                crc_sum: self.current_chunk.0.checksum(),
                                 chunk: type_str
                             })
                         }
@@ -330,9 +326,9 @@ impl StreamingDecoder {
                         }
                     }
                 }
-                
+
             },
-            ReadChunk(type_str, clear) => { 
+            ReadChunk(type_str, clear) => {
                 if clear {
                     self.current_chunk.2.clear();
                 }
@@ -354,7 +350,7 @@ impl StreamingDecoder {
                         } else {
                             goto!(n as usize, ReadChunk(type_str, false))
                         }
-                        
+
                     }
                 } else {
                     goto!(0, U32(U32Value::Crc(type_str)))
@@ -380,7 +376,7 @@ impl StreamingDecoder {
             }
         }
     }
-    
+
     fn parse_chunk(&mut self, type_str: [u8; 4])
     -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
@@ -417,18 +413,18 @@ impl StreamingDecoder {
             ok => ok
         }
     }
-    
+
     fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
         self.info.as_ref().ok_or(DecodingError::Format(
             "IHDR chunk missing".into()
         ))
     }
-    
+
     fn parse_fctl(&mut self)
     -> Result<Decoded, DecodingError> {
         let mut buf = &self.current_chunk.2[..];
         let next_seq_no = try!(buf.read_be());
-        
+
         // Asuming that fcTL is required before *every* fdAT-sequence
         self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
             if next_seq_no != seq_no + 1 {
@@ -463,7 +459,7 @@ impl StreamingDecoder {
         });
         Ok(Decoded::FrameControl(self.info.as_ref().unwrap().frame_control.as_ref().unwrap()))
     }
-    
+
     fn parse_actl(&mut self)
     -> Result<Decoded, DecodingError> {
         if self.have_idat {
@@ -480,7 +476,7 @@ impl StreamingDecoder {
             Ok(Decoded::AnimationControl(actl))
         }
     }
-    
+
     fn parse_plte(&mut self)
     -> Result<Decoded, DecodingError> {
         let mut vec = Vec::new();
@@ -490,7 +486,7 @@ impl StreamingDecoder {
         );
         Ok(Decoded::Nothing)
     }
-    
+
     fn parse_trns(&mut self)
     -> Result<Decoded, DecodingError> {
         use common::ColorType::*;
@@ -546,10 +542,10 @@ impl StreamingDecoder {
                 format!("tRNS chunk found for color type ({})", c as u8).into()
             ))
         }
-        
+
     }
-    
-    
+
+
     fn parse_ihdr(&mut self)
     -> Result<Decoded, DecodingError> {
         // TODO: check if color/bit depths combination is valid

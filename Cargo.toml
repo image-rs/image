@@ -4,20 +4,17 @@ version = "0.4.0"
 license = "MIT"
 description = "PNG decoding library"
 authors = ["nwin <nwin@users.noreply.github.com>"]
-repository = "https://github.com/nwin/png.git"
+repository = "https://github.com/PistonDevelopers/image-png.git"
 exclude = [
     "tests/*",
 ]
 
 [dependencies]
+inflate = "0.1.0"
 flate2 = "0.2.11"
 libc = "0.2.1"
 num = "0.1.27"
 bitflags = "0.3.2"
-
-# Development only
-#[dependencies.inflate]
-#path = "inflate"
 
 [dev-dependencies]
 getopts = "*"

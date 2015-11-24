@@ -287,9 +287,9 @@ impl<R: Read>JPEGDecoder<R> {
                     try!(self.r.by_ref().take((length - 2) as u64).read_to_end(&mut buf));
                 }
                 TEM  => continue,
-                SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
-                DNL  => return Err(image::ImageError::UnsupportedError("Marker DNL ist not supported.".to_string())),
-                marker => return Err(image::ImageError::FormatError(format!("Unkown marker {} encountered.", marker))),
+                SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 is not supported.".to_string())),
+                DNL  => return Err(image::ImageError::UnsupportedError("Marker DNL is not supported.".to_string())),
+                marker => return Err(image::ImageError::FormatError(format!("Unknown marker {} encountered.", marker))),
             }
         }
 

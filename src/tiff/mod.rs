@@ -8,8 +8,5 @@
 //!
 
 pub use self::decoder::TIFFDecoder;
-pub use self::stream::ByteOrder;
 
 mod decoder;
-mod ifd;
-mod stream;

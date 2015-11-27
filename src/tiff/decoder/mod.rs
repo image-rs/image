@@ -16,15 +16,17 @@ use image::{
 
 use color::{ColorType};
 
-use super::ifd;
-use super::ifd::Directory;
+use self::ifd::Directory;
 
-use super::stream::{
+use self::stream::{
     ByteOrder,
     EndianReader,
     SmartReader,
     LZWReader
 };
+
+mod ifd;
+mod stream;
 
 enum_from_primitive! {
 #[derive(Clone, Copy, Debug, PartialEq)]

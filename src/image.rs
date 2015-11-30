@@ -64,7 +64,7 @@ impl Error for ImageError {
             ImageError::DimensionError => &"Dimension error",
             ImageError::UnsupportedError(..) => &"Unsupported error",
             ImageError::UnsupportedColor(..) => &"Unsupported color",
-            ImageError::NotEnoughData(..) => &"Not enough data",
+            ImageError::NotEnoughData => &"Not enough data",
             ImageError::IoError(..) => &"IO error",
             ImageError::ImageEnd => &"Image end"
         }

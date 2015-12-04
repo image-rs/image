@@ -287,9 +287,9 @@ impl<R: Read>JPEGDecoder<R> {
                     try!(self.r.by_ref().take((length - 2) as u64).read_to_end(&mut buf));
                 }
                 TEM  => continue,
-                SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 ist not supported.".to_string())),
-                DNL  => return Err(image::ImageError::UnsupportedError("Marker DNL ist not supported.".to_string())),
-                marker => return Err(image::ImageError::FormatError(format!("Unkown marker {} encountered.", marker))),
+                SOF2 => return Err(image::ImageError::UnsupportedError("Marker SOF2 is not supported.".to_string())),
+                DNL  => return Err(image::ImageError::UnsupportedError("Marker DNL is not supported.".to_string())),
+                marker => return Err(image::ImageError::FormatError(format!("Unknown marker {} encountered.", marker))),
             }
         }
 
@@ -359,7 +359,7 @@ impl<R: Read>JPEGDecoder<R> {
 
         // only 1 component no interleaving
         if n == 1 {
-        for (_, c) in self.components.iter_mut() {
+            for (_, c) in self.components.iter_mut() {
                 c.h = 1;
                 c.v = 1;
             }
@@ -517,7 +517,7 @@ impl<R: Read>JPEGDecoder<R> {
             b = try!(self.r.read_u8());
 
             if b == 0xFF {
-            b = try!(self.r.read_u8());
+                b = try!(self.r.read_u8());
                 match b {
                     RST0 ... RST7 => break,
                     EOI => return Err(image::ImageError::FormatError("Restart marker not found.".to_string())),
@@ -678,7 +678,7 @@ fn extend(v: i32, t: u8) -> i32 {
     }
 
     if v < vt {
-    v + ((-1) << t as usize) + 1
+        v + ((-1) << t as usize) + 1
     }
     else {
         v

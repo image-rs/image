@@ -80,7 +80,7 @@ impl HuffDecoder {
         let (val, size) = table.lut[index as usize];
 
         if index < 256 && size < 9 {
-        self.consume(size);
+            self.consume(size);
             Ok(val)
         } else {
             let mut code = 0usize;

@@ -529,11 +529,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let indexes = try!(self.read_color_index_data());
         let palette = self.palette.as_mut().unwrap();
 
-        for i in 0..indexes.len() {
-            let (r, g, b)= palette[indexes[i] as usize];
-            pixel_data[i * num_channels + 0] = r;
-            pixel_data[i * num_channels + 1] = g;
-            pixel_data[i * num_channels + 2] = b;
+        for (i, pixel) in pixel_data.chunks_mut(num_channels).enumerate() {
+            let (r, g, b) = palette[indexes[i] as usize];
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
         }
 
         Ok(pixel_data)

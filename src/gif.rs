@@ -102,7 +102,7 @@ impl<W: Write> Encoder<W> {
     /// Encodes a frame.
     pub fn encode(self, frame: Frame) -> ImageResult<()> {
         let mut encoder = try!(
-            gif::Encoder::new(self.w, frame.width, frame.height).write_global_palette(&[])
+            gif::Encoder::new(self.w, frame.width, frame.height, &[])
         );
         encoder.write_frame(&frame).map_err(|err| err.into())
     }

@@ -542,7 +542,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
         )))
     };
 
-    load(fin, format)
+    load(BufReader::new(fin), format)
 }
 
 /// Saves the supplied buffer to a file at the path specified.
@@ -574,25 +574,73 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
     }
 }
 
+#[cfg(feature = "png_codec")]
+/// Create a new png image from a Reader
+pub fn load_png<R: Read>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(png::PNGDecoder::new(r))
+}
+
+#[cfg(feature = "gif_codec")]
+/// Create a new gif image from a Reader
+pub fn load_gif<R: Read>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(gif::Decoder::new(r))
+}
+
+#[cfg(feature = "jpeg")]
+/// Create a new jpeg image from a Reader
+pub fn load_jpeg<R: Read>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(jpeg::JPEGDecoder::new(r))
+}
+
+#[cfg(feature = "webp")]
+/// Create a new webp image from a Reader
+pub fn load_webp<R: Read>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(webp::WebpDecoder::new(r))
+}
+
+#[cfg(feature = "tiff")]
+/// Create a new tiff image from a Reader
+pub fn load_tiff<R: Read + Seek>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(try!(tiff::TIFFDecoder::new(r)))
+}
+
+#[cfg(feature = "tga")]
+/// Create a new tga image from a Reader
+pub fn load_tga<R: Read + Seek>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(tga::TGADecoder::new(r))
+}
+
+#[cfg(feature = "bmp")]
+/// Create a new bmp image from a Reader
+pub fn load_bmp<R: Read + Seek>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(bmp::BMPDecoder::new(r))
+}
+
+#[cfg(feature = "ico")]
+/// Create a new ico image from a Reader
+pub fn load_ico<R: Read + Seek>(r: R) -> ImageResult<DynamicImage> {
+  decoder_to_image(try!(ico::ICODecoder::new(r)))
+}
+
 /// Create a new image from a Reader
 pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(BufReader::new(r))),
+        image::ImageFormat::PNG  => load_png(r),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(BufReader::new(r))),
+        image::ImageFormat::GIF  => load_gif(r),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(BufReader::new(r))),
+        image::ImageFormat::JPEG => load_jpeg(r),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(BufReader::new(r))),
+        image::ImageFormat::WEBP => load_webp(r),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
+        image::ImageFormat::TIFF => load_tiff(r),
         #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
+        image::ImageFormat::TGA => load_tga(r),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)),
+        image::ImageFormat::BMP => load_bmp(r),
         #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
+        image::ImageFormat::ICO => load_ico(r),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }

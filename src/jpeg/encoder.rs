@@ -265,6 +265,10 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     }
 
     fn write_bits(&mut self, bits: u16, size: u8) -> io::Result<()> {
+        if size == 0 {
+          return Ok(())
+        }
+
         self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as usize;
         self.nbits += size;
 

@@ -70,7 +70,7 @@ fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
         ))
     );
     resize_window(&display, &image);
-    let mut opengl_texture = glium::Texture2d::new(&display, image);
+    let mut opengl_texture = glium::Texture2d::new(&display, image).unwrap();
     
     'main: loop {
         fill_v_flipped(&opengl_texture.as_surface(), &display.draw(), glium::uniforms::MagnifySamplerFilter::Linear);
@@ -85,7 +85,7 @@ fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
                             Some(path) => {
                                 let image = try!(load_image(path));
                                 resize_window(&display, &image);
-                                opengl_texture = glium::Texture2d::new(&display, image);
+                                opengl_texture = glium::Texture2d::new(&display, image).unwrap();
                             },
                             None => break 'main
                         }

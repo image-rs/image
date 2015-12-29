@@ -209,6 +209,7 @@ pub fn copy_memory(src: &[u8], dst: &mut [u8]) {
 /// # Examples
 ///
 /// ```
+/// # #![feature(vec_push_all)]
 /// # #![feature(collections)]
 /// let mut vec = vec![1];
 /// vec.push_all(&[2, 3, 4]);

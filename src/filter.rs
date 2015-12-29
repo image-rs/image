@@ -1,7 +1,7 @@
 #![allow(dead_code)] // false positive
 use std::mem;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum FilterType {
     NoFilter = 0,

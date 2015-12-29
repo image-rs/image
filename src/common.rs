@@ -1,7 +1,7 @@
 //! Common types shared between the encoder and decoder
 use std::mem;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ColorType {
     Grayscale = 0,
@@ -34,7 +34,7 @@ impl ColorType {
 }
 
 /// Bit depth of the png file
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BitDepth {
     One     = 1,

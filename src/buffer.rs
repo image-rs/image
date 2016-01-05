@@ -1,7 +1,6 @@
 use std::slice::{ Chunks, ChunksMut };
 use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
-use std::iter::repeat;
 use std::path::Path;
 use std::io;
 use num::Zero;
@@ -466,12 +465,11 @@ where P::Subpixel: 'static {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         ImageBuffer {
-            data: repeat(Zero::zero()).take(
-                    (width as u64
-                     * height as u64
-                     * (<P as Pixel>::channel_count() as u64)
-                    ) as usize
-                ).collect(),
+            data: vec![Zero::zero(); 
+                      (width as u64
+                      * height as u64
+                      * (<P as Pixel>::channel_count() as u64)
+                      ) as usize],
             width: width,
             height: height,
             _phantom: PhantomData,

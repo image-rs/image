@@ -293,20 +293,7 @@ where P: Pixel + 'static,
         <P as Pixel>::from_slice(
             &self.data[index .. index + no_channels]
         )
-    }
-    
-    /// Returns the pixel located at (x, y)
-    ///
-    /// This function can be implemented in a way that ignores bounds checking.
-    pub unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> &P {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index  = no_channels as isize * (y * self.width + x) as isize;
-        <P as Pixel>::from_slice(
-            ::std::slice::from_raw_parts(self.data.as_ptr().offset(index), 
-                                         no_channels)
-        )
-    }
-
+    }    
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -357,20 +344,6 @@ where P: Pixel + 'static,
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }
-
-    /// Puts a pixel at location (x, y)
-    ///
-    /// This function can be implemented in a way that ignores bounds checking.
-    pub unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index  = no_channels as isize * (y * self.width + x) as isize;
-        let p = <P as Pixel>::from_slice_mut(
-            ::std::slice::from_raw_parts_mut(self.data.as_mut_ptr().offset(index), 
-                                             no_channels)
-        );
-        *p = pixel
-    }
-
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -467,9 +440,30 @@ where P: Pixel + 'static,
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.get_pixel_mut(x, y)
     }
+    
+    /// Returns the pixel located at (x, y), ignoring bounds checking.
+    unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
+        let no_channels = <P as Pixel>::channel_count() as usize;
+        let index  = no_channels as isize * (y * self.width + x) as isize;
+        *<P as Pixel>::from_slice(
+            ::std::slice::from_raw_parts(self.data.as_ptr().offset(index), 
+                                         no_channels)
+        )
+    }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
+    }
+    
+    /// Puts a pixel at location (x, y), ignoring bounds checking.
+    unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
+        let no_channels = <P as Pixel>::channel_count() as usize;
+        let index  = no_channels as isize * (y * self.width + x) as isize;
+        let p = <P as Pixel>::from_slice_mut(
+            ::std::slice::from_raw_parts_mut(self.data.as_mut_ptr().offset(index), 
+                                             no_channels)
+        );
+        *p = pixel
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels

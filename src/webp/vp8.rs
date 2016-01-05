@@ -15,7 +15,6 @@
 use std::io;
 use std::io::Read;
 use std::default::Default;
-use std::iter::repeat;
 use byteorder::{ReadBytesExt, LittleEndian};
 
 use super::transform;
@@ -1052,11 +1051,11 @@ impl<R: Read> VP8Decoder<R> {
             self.mbwidth  = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;
 
-            self.frame.ybuf = repeat(0u8).take(self.frame.width as usize
-                * self.frame.height as usize).collect();
+            self.frame.ybuf = vec![0u8; self.frame.width as usize * 
+                                        self.frame.height as usize];
 
-            self.top_border = repeat(127u8).take(self.frame.width as usize + 4 + 16).collect();
-            self.left_border = repeat(129u8).take(1 + 16).collect();
+            self.top_border = vec![127u8; self.frame.width as usize + 4 + 16];
+            self.left_border = vec![129u8; 1 + 16];
         }
 
         let mut buf = Vec::with_capacity(first_partition_size as usize);
@@ -1420,7 +1419,7 @@ impl<R: Read> VP8Decoder<R> {
                 self.intra_predict(mbx, mby, &mb, &blocks);
             }
 
-            self.left_border = repeat(129u8).take(1 + 16).collect();
+            self.left_border = vec![129u8; 1 + 16];
         }
 
         Ok(&self.frame)

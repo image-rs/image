@@ -1,4 +1,3 @@
-use std::iter::repeat;
 use std::io::Read;
 use byteorder::ReadBytesExt;
 
@@ -109,8 +108,8 @@ impl HuffDecoder {
 /// this function generates the huffman codes lengths and their respective
 /// code lengths as specified by the JPEG spec.
 fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
-    let mut huffsize = repeat(0u8).take(256).collect::<Vec<u8>>();
-    let mut huffcode = repeat(0u16).take(256).collect::<Vec<u16>>();
+    let mut huffsize = vec![0u8; 256];
+    let mut huffcode = vec![0u16; 256];
 
     let mut k = 0;
     let mut j;
@@ -157,7 +156,7 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
 }
 
 pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
-    let mut lut = repeat((17u8, 0u16)).take(256).collect::<Vec<(u8, u16)>>();
+    let mut lut = vec![(17u8, 0u16); 256];
     let (huffsize, huffcode) = derive_codes_and_sizes(bits);
 
     for (i, &v) in huffval.iter().enumerate() {
@@ -168,10 +167,10 @@ pub fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> Vec<(u8, u16)> {
 }
 
 pub fn derive_tables(bits: Vec<u8>, huffval: Vec<u8>) -> HuffTable {
-    let mut mincode = repeat(-1isize).take(16).collect::<Vec<isize>>();
-    let mut maxcode = repeat(-1isize).take(16).collect::<Vec<isize>>();
-    let mut valptr  = repeat(-1isize).take(16).collect::<Vec<isize>>();
-    let mut lut     = repeat((0u8, 17u8)).take(256).collect::<Vec<(u8, u8)>>();
+    let mut mincode = vec![-1isize; 16];
+    let mut maxcode = vec![-1isize; 16];
+    let mut valptr  = vec![-1isize; 16];
+    let mut lut     = vec![(0u8, 17u8); 256];
 
     let (huffsize, huffcode) = derive_codes_and_sizes(&bits);
 

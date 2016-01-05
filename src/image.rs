@@ -1,7 +1,6 @@
 use std::fmt;
 use std::mem;
 use std::io;
-use std::iter::repeat;
 use std::error::Error;
 
 use byteorder;
@@ -193,8 +192,8 @@ pub trait ImageDecoder: Sized {
 
         let rowlen  = try!(self.row_len());
 
-        let mut buf = repeat(0u8).take(length as usize * width as usize * bpp).collect::<Vec<u8>>();
-        let mut tmp = repeat(0u8).take(rowlen).collect::<Vec<u8>>();
+        let mut buf = vec![0u8; length as usize * width as usize * bpp];
+        let mut tmp = vec![0u8; rowlen];
 
         loop {
             let row = try!(self.read_scanline(&mut tmp));

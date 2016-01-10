@@ -442,6 +442,7 @@ where P: Pixel + 'static,
     }
     
     /// Returns the pixel located at (x, y), ignoring bounds checking.
+    #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels as isize * (y * self.width + x) as isize;
@@ -456,6 +457,7 @@ where P: Pixel + 'static,
     }
     
     /// Puts a pixel at location (x, y), ignoring bounds checking.
+    #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels as isize * (y * self.width + x) as isize;

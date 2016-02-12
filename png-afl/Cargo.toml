@@ -7,8 +7,8 @@ authors = ["nwin <nwin@users.noreply.github.com>"]
 version = "*"
 path = "../"
 
-[dependencies.afl-coverage-plugin]
+[dependencies.afl-plugin]
 git = "https://github.com/kmcallister/afl.rs"
 
-[dependencies.afl-coverage]
+[dependencies.afl]
 git = "https://github.com/kmcallister/afl.rs"

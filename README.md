@@ -38,7 +38,7 @@ http://www.piston.rs/image/image/index.html
 | Format | Decoding | Encoding |
 |---     |---       | --- |
 | PNG    | All supported color types | Same as decoding|
-| JPEG   | Baseline JPEG | Baseline JPEG |
+| JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
 | BMP    | Yes | No |
 | ICO    | Yes | No |

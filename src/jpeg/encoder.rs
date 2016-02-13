@@ -5,8 +5,6 @@ use num::range_step;
 use color;
 
 use super::transform;
-use super::decoder::Component;
-use super::decoder::UNZIGZAG;
 use super::entropy::build_huff_lut;
 
 // Markers
@@ -121,6 +119,43 @@ static CHROMADESTINATION: u8 = 1;
 static LUMAID: u8 = 1;
 static CHROMABLUEID: u8 = 2;
 static CHROMAREDID: u8 = 3;
+
+/// The permutation of dct coefficients.
+static UNZIGZAG: [u8; 64] = [
+    0,  1,  8, 16,  9,  2,  3, 10,
+    17, 24, 32, 25, 18, 11,  4,  5,
+    12, 19, 26, 33, 40, 48, 41, 34,
+    27, 20, 13,  6,  7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63,
+];
+
+/// A representation of a JPEG component
+#[derive(Copy, Clone)]
+struct Component {
+    /// The Component's identifier
+    id: u8,
+
+    /// Horizontal sampling factor
+    h: u8,
+
+    /// Vertical sampling factor
+    v: u8,
+
+    /// The quantization table selector
+    tq: u8,
+
+    /// Index to the Huffman DC Table
+    dc_table: u8,
+
+    /// Index to the AC Huffman Table
+    ac_table: u8,
+
+    /// The dc prediction of the component
+    dc_pred: i32
+}
 
 /// The representation of a JPEG encoder
 pub struct JPEGEncoder<'a, W: 'a> {

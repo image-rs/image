@@ -31,6 +31,10 @@ glob = "0.2.10"
 version = "0.7"
 optional = true
 
+[dependencies.jpeg-decoder]
+version = "0.1"
+optional = true
+
 [dependencies.png]
 version = "0.4"
 optional = true
@@ -40,7 +44,7 @@ default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp"
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]
-jpeg = []
+jpeg = ["jpeg-decoder"]
 png_codec = ["png"]
 ppm = []
 tga = []

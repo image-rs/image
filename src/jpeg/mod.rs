@@ -9,7 +9,6 @@
 
 pub use self::decoder::JPEGDecoder;
 pub use self::encoder::JPEGEncoder;
-pub use self::decoder::Component;
 
 mod encoder;
 mod decoder;

@@ -17,12 +17,12 @@ num = "0.1.27"
 bitflags = "0.3.2"
 
 [dev-dependencies]
-getopts = "*"
+getopts = "0.2.14"
 term = "0.2"
-glob = "*"
+glob = "0.2.11"
 
 [dev-dependencies.glium]
-version = "*"
+version = "0.13.5"
 features = ["glutin"]
 default-features = false
 

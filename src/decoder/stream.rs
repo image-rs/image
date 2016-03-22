@@ -509,7 +509,7 @@ impl StreamingDecoder {
             Grayscale => {
                 if len < 2 {
                     return Err(DecodingError::Format(
-                        "not enought palette entries".into()
+                        "not enough palette entries".into()
                     ))
                 }
                 if bit_depth < 16 {
@@ -521,7 +521,7 @@ impl StreamingDecoder {
             RGB => {
                 if len < 6 {
                     return Err(DecodingError::Format(
-                        "not enought palette entries".into()
+                        "not enough palette entries".into()
                     ))
                 }
                 if bit_depth < 16 {

@@ -133,7 +133,7 @@ impl<W: Write> Writer<W> {
         let mut current = vec![0; in_len];
         if data.len() < in_len * self.info.height as usize {
             return Err(EncodingError::Format(
-                "not enought image data provided".into()
+                "not enough image data provided".into()
             ))
         }
         let mut zlib = flate2::write::ZlibEncoder::new(

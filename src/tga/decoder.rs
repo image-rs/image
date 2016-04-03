@@ -321,12 +321,10 @@ impl<R: Read + Seek> TGADecoder<R> {
 
     /// Reads a run length encoded packet
     fn read_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
-        let num_pixels = self.width * self.height;
-        let mut num_read = 0;
-        let mut pixel_data = Vec::with_capacity(self.width * self.height *
-                                                self.bytes_per_pixel);
+        let num_bytes = self.width * self.height * self.bytes_per_pixel;
+        let mut pixel_data = Vec::with_capacity(num_bytes);
 
-        while num_read < num_pixels {
+        while pixel_data.len() < num_bytes {
             let run_packet = try!(self.r.read_u8());
             // If the highest bit in `run_packet` is set, then we repeat pixels
             //
@@ -340,12 +338,10 @@ impl<R: Read + Seek> TGADecoder<R> {
                 for _ in 0usize..repeat_count {
                     pixel_data.extend(data.iter().map(|&c| c));
                 }
-                num_read += repeat_count;
             } else {
-                // not set, so `run_packet+1` is the number of non-encoded bytes
+                // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
                 try!(self.r.by_ref().take(num_raw_bytes as u64).read_to_end(&mut pixel_data));
-                num_read += run_packet as usize;
             }
         }
 

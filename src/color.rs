@@ -252,9 +252,9 @@ impl<T: Primitive + 'static> FromColor<Rgba<T>> for Luma<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
             let gray = self.channels_mut();
             let rgb = other.channels();
-            let l = 0.2125f32 * rgb[0].to_f32().unwrap() +
-                    0.7154f32 * rgb[1].to_f32().unwrap() +
-                    0.0721f32 * rgb[2].to_f32().unwrap();
+            let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
+                    0.7152f32 * rgb[1].to_f32().unwrap() +
+                    0.0722f32 * rgb[2].to_f32().unwrap();
             gray[0] = NumCast::from(l).unwrap()
     }
 }
@@ -263,9 +263,9 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for Luma<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
             let gray = self.channels_mut();
             let rgb = other.channels();
-            let l = 0.2125f32 * rgb[0].to_f32().unwrap() +
-                    0.7154f32 * rgb[1].to_f32().unwrap() +
-                    0.0721f32 * rgb[2].to_f32().unwrap();
+            let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
+                    0.7152f32 * rgb[1].to_f32().unwrap() +
+                    0.0722f32 * rgb[2].to_f32().unwrap();
             gray[0] = NumCast::from(l).unwrap()
     }
 }
@@ -283,9 +283,9 @@ impl<T: Primitive + 'static> FromColor<Rgba<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
         let gray_a = self.channels_mut();
         let rgba = other.channels();
-        let l = 0.2125f32 * rgba[0].to_f32().unwrap() +
-                0.7154f32 * rgba[1].to_f32().unwrap() +
-                0.0721f32 * rgba[2].to_f32().unwrap();
+        let l = 0.2126f32 * rgba[0].to_f32().unwrap() +
+                0.7152f32 * rgba[1].to_f32().unwrap() +
+                0.0722f32 * rgba[2].to_f32().unwrap();
         gray_a[0] = NumCast::from(l).unwrap();
         gray_a[1] = rgba[3];
     }
@@ -295,9 +295,9 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
         let gray_a = self.channels_mut();
         let rgb = other.channels();
-        let l = 0.2125f32 * rgb[0].to_f32().unwrap() +
-                0.7154f32 * rgb[1].to_f32().unwrap() +
-                0.0721f32 * rgb[2].to_f32().unwrap();
+        let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
+                0.7152f32 * rgb[1].to_f32().unwrap() +
+                0.0722f32 * rgb[2].to_f32().unwrap();
         gray_a[0] = NumCast::from(l).unwrap();
         gray_a[1] = T::max_value();
     }

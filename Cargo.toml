@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.7.2"
+version = "0.8.0"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -28,7 +28,7 @@ enum_primitive = "0.1.0"
 glob = "0.2.10"
 
 [dependencies.gif]
-version = "0.7"
+version = "0.8"
 optional = true
 
 [dependencies.jpeg-decoder]

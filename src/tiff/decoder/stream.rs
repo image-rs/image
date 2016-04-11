@@ -2,7 +2,7 @@
 
 use std::io;
 use std::io::{Read, Seek};
-use byteorder::{self, ReadBytesExt, BigEndian, LittleEndian};
+use byteorder::{ReadBytesExt, BigEndian, LittleEndian};
 use utils::{lzw, bitstream};
 
 /// Byte order of the TIFF file.
@@ -22,7 +22,7 @@ pub trait EndianReader: Read {
 
     /// Reads an u16
     #[inline(always)]
-    fn read_u16(&mut self) -> Result<u16, byteorder::Error> {
+    fn read_u16(&mut self) -> Result<u16, io::Error> {
         match self.byte_order() {
             ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
             ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u16::<BigEndian>(self)
@@ -31,7 +31,7 @@ pub trait EndianReader: Read {
 
     /// Reads an u32
     #[inline(always)]
-    fn read_u32(&mut self) -> Result<u32, byteorder::Error> {
+    fn read_u32(&mut self) -> Result<u32, io::Error> {
         match self.byte_order() {
             ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
             ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u32::<BigEndian>(self)

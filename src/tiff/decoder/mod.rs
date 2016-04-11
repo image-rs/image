@@ -2,7 +2,6 @@ use std::io::{self, Read, Seek};
 use std::mem;
 use num::FromPrimitive;
 use std::collections::HashMap;
-use byteorder;
 use num;
 
 use image;
@@ -243,22 +242,22 @@ impl<R: Read + Seek> TIFFDecoder<R> {
 
     /// Reads a TIFF short value
     #[inline]
-    pub fn read_short(&mut self) -> Result<u16, byteorder::Error> {
+    pub fn read_short(&mut self) -> Result<u16, io::Error> {
         self.reader.read_u16()
     }
 
     /// Reads a TIFF long value
     #[inline]
-    pub fn read_long(&mut self) -> Result<u32, byteorder::Error> {
+    pub fn read_long(&mut self) -> Result<u32, io::Error> {
         self.reader.read_u32()
     }
 
     /// Reads a TIFF IFA offset/value field
     #[inline]
-    pub fn read_offset(&mut self) -> Result<[u8; 4], byteorder::Error> {
+    pub fn read_offset(&mut self) -> Result<[u8; 4], io::Error> {
         let mut val = [0; 4];
         if try!(self.reader.read(&mut val)) != 4 {
-            return Err(byteorder::Error::UnexpectedEOF);
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Unexpected end of file"));
         }
         Ok(val)
     }

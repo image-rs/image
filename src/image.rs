@@ -3,8 +3,6 @@ use std::mem;
 use std::io;
 use std::error::Error;
 
-use byteorder;
-
 use color;
 use color::ColorType;
 use buffer::{ImageBuffer, Pixel};
@@ -80,15 +78,6 @@ impl Error for ImageError {
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
         ImageError::IoError(err)
-    }
-}
-
-impl From<byteorder::Error> for ImageError {
-    fn from(err: byteorder::Error) -> ImageError {
-        match err {
-            byteorder::Error::UnexpectedEOF => ImageError::ImageEnd,
-            byteorder::Error::Io(err) => ImageError::IoError(err),
-        }
     }
 }
 

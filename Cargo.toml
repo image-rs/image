@@ -22,7 +22,7 @@ name = "image"
 path = "./src/lib.rs"
 
 [dependencies]
-byteorder = "0.4.0"
+byteorder = "0.5.1"
 num = "0.1.27"
 enum_primitive = "0.1.0"
 glob = "0.2.10"

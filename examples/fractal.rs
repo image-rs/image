@@ -1,11 +1,11 @@
 //!An example of generating julia fractals.
-extern crate num;
+extern crate num_complex;
 extern crate image;
 
 use std::fs::File;
 use std::path::Path;
 
-use num::complex::Complex;
+use num_complex::Complex;
 
 fn main() {
     let max_iterations = 256u16;

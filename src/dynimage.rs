@@ -4,7 +4,7 @@ use std::path::Path;
 use std::fs::File;
 use std::iter;
 use std::ascii::AsciiExt;
-use num;
+use num_iter;
 
 #[cfg(feature = "ppm")]
 use ppm;
@@ -469,7 +469,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             let p = buf
                        .iter()
                        .flat_map(|&v|
-                           num::iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+                           num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
                            .zip(iter::repeat(v))
                        )
                        // skip the pixels that can be neglected because scanlines should

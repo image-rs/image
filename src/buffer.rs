@@ -3,7 +3,7 @@ use std::ops::{ Deref, DerefMut, Index, IndexMut };
 use std::marker::PhantomData;
 use std::path::Path;
 use std::io;
-use num::Zero;
+use num_traits::Zero;
 
 use traits::Primitive;
 use color::{ Rgb, Rgba, Luma, LumaA, FromColor, ColorType };

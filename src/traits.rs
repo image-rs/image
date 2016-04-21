@@ -2,7 +2,7 @@
 
 // Note copied from the stdlib under MIT license
 
-use num::{ Bounded, Num, NumCast };
+use num_traits::{ Bounded, Num, NumCast };
 
 
 /// Primitive trait from old stdlib

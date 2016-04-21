@@ -1,8 +1,7 @@
 use std::io::{self, Read, Seek};
 use std::mem;
-use num::FromPrimitive;
+use num_traits::{FromPrimitive, Num};
 use std::collections::HashMap;
-use num;
 
 use image;
 use image::{
@@ -91,7 +90,7 @@ fn rev_hpredict_nsamp<T>(mut image: Vec<T>,
                          size: (u32, u32),
                          samples: usize)
                          -> Vec<T>
-                         where T: num::Num + Copy {
+                         where T: Num + Copy {
     let width = size.0 as usize;
     let height = size.1 as usize;
     for row in 0..height {

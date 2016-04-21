@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 use byteorder::{WriteBytesExt, BigEndian};
-use num::range_step;
+use num_iter::range_step;
 
 use color;
 

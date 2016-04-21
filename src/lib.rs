@@ -8,7 +8,9 @@
 #![cfg_attr(test, feature(test))]
 
 extern crate byteorder;
-extern crate num;
+extern crate num_iter;
+extern crate num_rational;
+extern crate num_traits;
 #[macro_use]
 extern crate enum_primitive;
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use num::rational::Ratio;
+use num_rational::Ratio;
 
 use buffer::RgbaImage;
 

@@ -5,7 +5,7 @@
 
 use std::f32;
 
-use num:: {
+use num_traits:: {
     NumCast,
     Float,
 };

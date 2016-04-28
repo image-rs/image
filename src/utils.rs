@@ -1,6 +1,6 @@
 //! Utility functions
 use std::iter::repeat;
-use num::range_step;
+use num_iter::range_step;
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)

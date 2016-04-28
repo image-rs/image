@@ -13,7 +13,7 @@ exclude = [
 inflate = "0.1.0"
 flate2 = { version = "0.2.11", optional = true }
 libc = "0.2.1"
-num = "0.1.27"
+num-iter = "0.1.32"
 bitflags = "0.3.2"
 
 [dev-dependencies]

@@ -429,7 +429,7 @@ impl<R: Read> Reader<R> {
                 let val = try!(self.decoder.decode_next());
                 match val {
                     Some(Decoded::ImageData(data)) => {
-                        utils::push_all(&mut self.current, data);
+                        self.current.extend_from_slice(data);
                     },
                     None => {
                         if self.current.len() > 0 {

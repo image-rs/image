@@ -176,7 +176,7 @@ bitflags! {
     /// # Output transformations
     ///
     /// Only `TRANSFORM_IDENTITY` and `TRANSFORM_EXPAND | TRANSFORM_STRIP_ALPHA` can be used at the moment.
-    flags Transformations: u32 {
+    pub flags Transformations: u32 {
         /// No transformation
         const TRANSFORM_IDENTITY            = 0x0000, // read and write */
         /// Strip 16-bit samples to 8 bits

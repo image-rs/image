@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::{Iterator, once, repeat, Rev};
 use std::slice::ChunksMut;
@@ -189,14 +188,10 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
                             length = (length + 1) / 2;
                         }
                         length += length & 1;
-                        let mut buffer : Vec<u8> = Vec::with_capacity(length);
-                        // XXX, should use resize()
-                        buffer.extend(0..length as u8);
-                        match self.r.read(buffer.borrow_mut()) {
-                            Ok(n) if n == length as usize => {
-                                Some(RLEInsn::Absolute(op, buffer))
-                            },
-                            _ => None
+                        let mut buffer = vec![0; length];
+                        match self.r.read_exact(&mut buffer) {
+                            Ok(()) => Some(RLEInsn::Absolute(op, buffer)),
+                            Err(_) => None
                         }
                     }
                 }
@@ -248,9 +243,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             return Ok(())
         }
         let mut signature = [0; 2];
-        if try!(self.r.read(&mut signature)) != 2 {
-             return Err(ImageError::ImageEnd);
-        }
+        try!(self.r.read_exact(&mut signature));
 
         if signature != b"BM"[..] {
             return Err(ImageError::FormatError("BMP signature not found".to_string()));
@@ -461,8 +454,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
         if length < max_length {
-            // TODO: Use Vec::resize when it become stable.
-            buf.extend(repeat(0).take(max_length - length));
+            buf.resize(max_length, 0);
         }
 
         let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE).map(|i| {

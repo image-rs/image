@@ -115,11 +115,8 @@ impl DirEntry {
         try!(self.seek_to_start(r));
 
         // Read the first 8 bytes to sniff the image.
-        // TODO: Use Read::read_exact when it is stabilized.
         let mut signature = [0u8; 8];
-        if try!(r.read(&mut signature)) != signature.len() {
-            return Err(ImageError::ImageEnd)
-        }
+        try!(r.read_exact(&mut signature));
 
         Ok(signature == PNG_SIGNATURE)
     }

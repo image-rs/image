@@ -1026,7 +1026,7 @@ impl<R: Read> VP8Decoder<R> {
 
     fn read_frame_header(&mut self) -> io::Result<()> {
         let mut tag = [0u8; 3];
-        let _ = try!(self.r.read(&mut tag));
+        try!(self.r.read_exact(&mut tag));
 
         self.frame.keyframe = tag[0] & 1 == 0;
         self.frame.version = (tag[0] >> 1) & 7;
@@ -1036,7 +1036,7 @@ impl<R: Read> VP8Decoder<R> {
             ((tag[2] as u32) << 16) | ((tag[1] as u32) << 8) | tag[0] as u32) >> 5;
 
         if self.frame.keyframe {
-            let _ = try!(self.r.read(&mut tag));
+            try!(self.r.read_exact(&mut tag));
             assert!(tag == [0x9d, 0x01, 0x2a]);
 
             let w = try!(self.r.read_u16::<LittleEndian>());

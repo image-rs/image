@@ -141,9 +141,7 @@ impl ColorMap {
             let bytes_per_entry = (bits_per_entry as usize + 7) / 8;
 
             let mut bytes = vec![0; bytes_per_entry * num_entries as usize];
-            if try!(r.read(&mut bytes)) != bytes.len() {
-                return Err(ImageError::ImageEnd);
-            }
+            try!(r.read_exact(&mut bytes));
 
             Ok(ColorMap {
                 entry_size: bytes_per_entry,

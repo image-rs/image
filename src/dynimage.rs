@@ -388,6 +388,14 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "ico")]
+            image::ImageFormat::ICO => {
+                let i = ico::ICOEncoder::new(w);
+
+                try!(i.encode(&bytes, width, height, color));
+                Ok(())
+            }
+
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),
@@ -568,6 +576,8 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
                   .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
+        #[cfg(feature = "ico")]
+        "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]
         "jpg" |
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),

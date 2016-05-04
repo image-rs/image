@@ -14,15 +14,15 @@ inflate = "0.1.0"
 flate2 = { version = "0.2.11", optional = true }
 libc = "0.2.1"
 num-iter = "0.1.32"
-bitflags = "0.3.2"
+bitflags = "0.6"
 
 [dev-dependencies]
 getopts = "0.2.14"
-term = "0.2"
+term = "0.4"
 glob = "0.2.11"
 
 [dev-dependencies.glium]
-version = "0.13.5"
+version = "0.14"
 features = ["glutin"]
 default-features = false
 

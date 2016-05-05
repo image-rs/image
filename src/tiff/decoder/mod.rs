@@ -255,9 +255,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
     #[inline]
     pub fn read_offset(&mut self) -> Result<[u8; 4], io::Error> {
         let mut val = [0; 4];
-        if try!(self.reader.read(&mut val)) != 4 {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Unexpected end of file"));
-        }
+        try!(self.reader.read_exact(&mut val));
         Ok(val)
     }
 

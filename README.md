@@ -41,7 +41,7 @@ http://www.piston.rs/image/image/index.html
 | JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
 | BMP    | Yes | No |
-| ICO    | Yes | No |
+| ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax and packbits support) + LZW | No |
 | Webp   | Lossy(Luma channel only) | No |
 | PPM    | No | Yes |

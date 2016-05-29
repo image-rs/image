@@ -449,7 +449,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let max_length = MAX_PALETTE_SIZE * bytes_per_color;
         let mut buf = Vec::with_capacity(max_length);
 
-        try!(self.r.by_ref().take(length as u64).read_to_end(&mut buf));
+        buf.resize(length, 0);
+        try!(self.r.by_ref().read_exact(&mut buf));
 
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.

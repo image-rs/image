@@ -303,8 +303,8 @@ impl<R: Read + Seek> TGADecoder<R> {
             try!(self.read_encoded_data())
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
-            let mut buf = Vec::with_capacity(num_raw_bytes);
-            try!(self.r.by_ref().take(num_raw_bytes as u64).read_to_end(&mut buf));
+            let mut buf = vec![0; num_raw_bytes];
+            try!(self.r.by_ref().read_exact(&mut buf));
             buf
         };
 

@@ -129,7 +129,7 @@ impl DirEntry {
             Ok(PNG(PNGDecoder::new(r)))
         } else {
             let mut decoder = BMPDecoder::new(r);
-            try!(decoder.read_metadata_in_ico_format(self.image_offset));
+            try!(decoder.read_metadata_in_ico_format());
             Ok(BMP(decoder))
         }
     }

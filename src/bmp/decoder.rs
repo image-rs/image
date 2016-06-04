@@ -118,6 +118,29 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u
     true
 }
 
+fn set_1bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
+                                                    palette: &Vec<(u8, u8, u8)>,
+                                                    indices: T) {
+    for idx in indices {
+        let mut bit = 0x80;
+        loop {
+            if let Some(pixel) = pixel_iter.next() {
+                let (r, g, b) = palette[((idx & bit) != 0) as usize];
+                pixel[0] = r;
+                pixel[1] = g;
+                pixel[2] = b;
+            } else {
+                return
+            }
+
+            bit = bit >> 1;
+            if bit == 0 {
+                break;
+            }
+        }
+    }
+}
+
 /// A bmp decoder
 pub struct BMPDecoder<R> {
     r: R,
@@ -470,35 +493,6 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(())
     }
 
-    fn read_color_index_data(&mut self) -> ImageResult<Vec<u8>> {
-        let row_byte_length = ((self.bit_count as u32 * self.width as u32 + 31) / 32 * 4) as usize;
-        let indexes_per_byte = 8 / self.bit_count;
-        let bit_mask = ((1 << self.bit_count as u16) - 1) as u8;
-        let mut result = vec![0; self.width as usize * self.height as usize];
-    
-        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for h in 0..self.height {
-            let mut line = Vec::with_capacity(row_byte_length);
-            try!(self.r.by_ref().take(row_byte_length as u64).read_to_end(&mut line));
-
-            let x = if self.top_down { h } else { self.height - h - 1 };
-            let mut y = 0;
-            
-            for i in 0..line.len() {
-                let byte = line[i];
-                for j in 0..indexes_per_byte {
-                    if y >= self.width {
-                        break;
-                    }
-                    result[x as usize * self.width as usize + y as usize] = byte >> (8 - self.bit_count * (j + 1)) & bit_mask;
-                    y += 1;
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
     fn num_channels(&self) -> usize {
         if self.add_alpha_channel { 4 } else { 3 }
     }
@@ -516,17 +510,23 @@ impl<R: Read + Seek> BMPDecoder<R> {
         }
     }
 
-    fn read_palletized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_palettized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
-        let indexes = try!(self.read_color_index_data());
-        let palette = self.palette.as_mut().unwrap();
+        let row_byte_length = ((self.bit_count as u32 * self.width as u32 + 31) / 32 * 4) as usize;
+        let mut indices = vec![0; row_byte_length];
+        let palette = self.palette.as_ref().unwrap();
 
-        for (i, pixel) in pixel_data.chunks_mut(num_channels).enumerate() {
-            let (r, g, b) = palette[indexes[i] as usize];
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
+        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
+        for row in self.rows(&mut pixel_data) {
+            try!(self.r.by_ref().read_exact(&mut indices));
+            let mut pixel_iter = row.chunks_mut(num_channels);
+            match self.bit_count {
+                1 => { set_1bit_pixel_run(&mut pixel_iter, &palette, indices.iter()); },
+                4 => { set_4bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
+                8 => { set_8bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
+                _ => panic!(),
+            }
         }
 
         Ok(pixel_data)
@@ -719,8 +719,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
         match self.image_type {
             ImageType::RGB => {
                 match self.bit_count {
-                     1 | 4 | 8 => {
-                        return self.read_palletized_pixel_data();
+                    1 | 4 | 8 => {
+                        return self.read_palettized_pixel_data();
                     },
                     16 => return self.read_16_bit_pixel_data(Format16Bit::Format555),
                     24 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),

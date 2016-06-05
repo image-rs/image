@@ -807,3 +807,51 @@ impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
         self.read_image_data().map(|v| DecodingResult::U8(v) )
     }
 }
+
+#[cfg(test)]
+mod bench {
+    use super::BMPDecoder;
+    use image::ImageDecoder;
+    use std::{fs, io, path};
+    use std::io::Read;
+    use test;
+
+    const IMAGE_DIR: [&'static str; 5] = [".", "tests", "images", "bmp", "images"];
+    fn bench_read_image(b: &mut test::Bencher, filename: &str) {
+        let mut path: path::PathBuf = IMAGE_DIR.iter().collect();
+        path.push(filename);
+        let mut fin = fs::File::open(path).unwrap();
+        let mut buf = Vec::new();
+        fin.read_to_end(&mut buf).unwrap();
+        b.iter(|| {
+            let r = io::Cursor::new(&buf);
+            let mut d = BMPDecoder::new(r);
+            d.read_image().unwrap();
+        })
+    }
+
+    #[bench]
+    fn bench_read_1bit(b: &mut test::Bencher) {
+        bench_read_image(b, "Core_1_Bit.bmp");
+    }
+
+    #[bench]
+    fn bench_read_4bit(b: &mut test::Bencher) {
+        bench_read_image(b, "Core_4_Bit.bmp");
+    }
+
+    #[bench]
+    fn bench_read_8bit(b: &mut test::Bencher) {
+        bench_read_image(b, "Core_8_Bit.bmp");
+    }
+
+    #[bench]
+    fn bench_read_4rle(b: &mut test::Bencher) {
+        bench_read_image(b, "pal4rle.bmp");
+    }
+
+    #[bench]
+    fn bench_read_8rle(b: &mut test::Bencher) {
+        bench_read_image(b, "pal8rle.bmp");
+    }
+}

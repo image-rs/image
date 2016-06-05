@@ -402,15 +402,16 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     #[cfg(feature = "ico")]
     #[doc(hidden)]
-    pub fn read_metadata_in_ico_format(&mut self, info_header_offset: u32) -> ImageResult<()> {
-        // Use the offset from the ICO header instead of reading a BMP file header.
-        self.data_offset = (info_header_offset + BITMAPINFOHEADER_SIZE) as u64;
+    pub fn read_metadata_in_ico_format(&mut self) -> ImageResult<()> {
         self.no_file_header = true;
         self.add_alpha_channel = true;
+        try!(self.read_metadata());
+
+        // Use the offset of the end of metadata instead of reading a BMP file header.
+        self.data_offset = try!(self.r.seek(SeekFrom::Current(0)));
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).
-        try!(self.read_metadata());
         self.height = self.height / 2;
         Ok(())
     }

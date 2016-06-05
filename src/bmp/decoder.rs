@@ -1,5 +1,5 @@
 use std::io::{Read, Seek, SeekFrom};
-use std::iter::{Iterator, once, repeat, Rev};
+use std::iter::{Iterator, repeat, Rev};
 use std::slice::ChunksMut;
 use byteorder::{ReadBytesExt, LittleEndian};
 
@@ -104,16 +104,26 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u
 
 fn set_4bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
                                                     palette: &Vec<(u8, u8, u8)>,
-                                                    indices: T, n_pixels: usize) -> bool {
-    for idx in indices.flat_map(|i| once(i >> 4).chain(once(i & 0xf))).take(n_pixels) {
-        if let Some(pixel) = pixel_iter.next() {
-            let (r, g, b) = palette[idx as usize];
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
-        } else {
-            return false;
+                                                    indices: T, mut n_pixels: usize) -> bool {
+    for idx in indices {
+        macro_rules! set_pixel {
+            ($i:expr) => (
+                if n_pixels == 0 {
+                    break;
+                }
+                if let Some(pixel) = pixel_iter.next() {
+                    let (r, g, b) = palette[$i as usize];
+                    pixel[0] = r;
+                    pixel[1] = g;
+                    pixel[2] = b;
+                } else {
+                    return false;
+                }
+                n_pixels -= 1;
+            )
         }
+        set_pixel!(idx >> 4);
+        set_pixel!(idx & 0xf);
     }
     true
 }

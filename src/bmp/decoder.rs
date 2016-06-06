@@ -428,6 +428,12 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     }
                 },
             };
+
+            if self.no_file_header {
+                // Use the offset of the end of metadata instead of reading a BMP file header.
+                self.data_offset = try!(self.r.seek(SeekFrom::Current(0)));
+            }
+
             self.has_loaded_metadata = true;
         }
         Ok(())
@@ -439,9 +445,6 @@ impl<R: Read + Seek> BMPDecoder<R> {
         self.no_file_header = true;
         self.add_alpha_channel = true;
         try!(self.read_metadata());
-
-        // Use the offset of the end of metadata instead of reading a BMP file header.
-        self.data_offset = try!(self.r.seek(SeekFrom::Current(0)));
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).

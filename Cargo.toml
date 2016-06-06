@@ -30,7 +30,7 @@ enum_primitive = "0.1.0"
 glob = "0.2.10"
 
 [dependencies.gif]
-version = "0.8"
+version = "0.9"
 optional = true
 
 [dependencies.jpeg-decoder]

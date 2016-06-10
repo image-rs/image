@@ -34,10 +34,15 @@ const RLE_ESCAPE_DELTA: u8 = 2;
 
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
-    RGB,
+    Palette,
+    RGB16,
+    RGB24,
+    RGB32,
+    RGBA32,
     RLE8,
     RLE4,
-    Bitfields,
+    Bitfields16,
+    Bitfields32,
 }
 
 #[derive(PartialEq)]
@@ -256,7 +261,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             no_file_header: false,
             add_alpha_channel: false,
             has_loaded_metadata: false,
-            image_type: ImageType::RGB,
+            image_type: ImageType::Palette,
 
             bit_count: 0,
             colors_used: 0,
@@ -299,10 +304,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
         try!(self.r.seek(SeekFrom::Current(2)));
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
-        match self.bit_count {
-            1 | 4 | 8 | 24 => (),
+        self.image_type = match self.bit_count {
+            1 | 4 | 8 => ImageType::Palette,
+            24 => ImageType::RGB24,
             _ => return Err(ImageError::FormatError("Invalid bit count".to_string())),
-        }
+        };
 
         Ok(())
     }
@@ -328,19 +334,30 @@ impl<R: Read + Seek> BMPDecoder<R> {
         try!(self.r.seek(SeekFrom::Current(2)));
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
-        match self.bit_count {
-            1 | 4 | 8 | 16 | 24 | 32 => (),
-            _ => return Err(ImageError::FormatError("Invalid bit count".to_string())),
-        }
-
         let image_type_u32 = try!(self.r.read_u32::<LittleEndian>());
-        match image_type_u32 {
-            0 => self.image_type = ImageType::RGB,
-            1 => self.image_type = ImageType::RLE8,
-            2 => self.image_type = ImageType::RLE4,
-            3 => self.image_type = ImageType::Bitfields,
+        self.image_type = match image_type_u32 {
+            0 => match self.bit_count {
+                1 | 4 | 8 => ImageType::Palette,
+                16 => ImageType::RGB16,
+                24 => ImageType::RGB24,
+                32 => if self.add_alpha_channel { ImageType::RGBA32 } else { ImageType::RGB32 },
+                _ => return Err(ImageError::FormatError("Invalid RGB bit count".to_string())),
+            },
+            1 => match self.bit_count {
+                8 => ImageType::RLE8,
+                _ => return Err(ImageError::FormatError("Invalid RLE8 bit count".to_string())),
+            },
+            2 => match self.bit_count {
+                4 => ImageType::RLE4,
+                _ => return Err(ImageError::FormatError("Invalid RLE4 bit count".to_string())),
+            },
+            3 => match self.bit_count {
+                16 => ImageType::Bitfields16,
+                32 => ImageType::Bitfields32,
+                _ => return Err(ImageError::FormatError("Invalid bitfields bit count".to_string())),
+            },
             _  => return Err(ImageError::UnsupportedError("Unsupported image type".to_string())),
-        }
+        };
 
         // The next 12 bytes represent data array size in bytes,
         // followed the horizontal and vertical printing resolutions
@@ -392,46 +409,22 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 }
             };
 
-            if self.image_type == ImageType::Bitfields {
-                match self.bit_count {
-                    16 | 32 => {
-                        if self.bmp_header_type ==  BMPHeaderType::CoreHeader {
-                            return Err(ImageError::FormatError("Cannot use bitfield mode with BITMAPCOREHEADER BMP".to_string()));
-                        }
+            match self.image_type {
+                ImageType::Bitfields16 | ImageType::Bitfields32 => {
+                    try!(self.read_bitmasks());
 
-                        try!(self.read_bitmasks());
-
-                        // Skip past alpha mask
-                        if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
-                            try!(self.r.seek(SeekFrom::Current(1)));
-                        }
-                    },
-                    _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
-                }
+                    // Skip past alpha mask
+                    if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
+                        try!(self.r.seek(SeekFrom::Current(1)));
+                    }
+                },
+                _ => { }
             };
 
             try!(self.r.seek(SeekFrom::Start(bmp_header_end)));
 
             match self.image_type {
-                ImageType::RGB => {
-                    match self.bit_count {
-                        1 | 4 | 8  => try!(self.read_palette()),
-                        16 | 24 | 32 => (),
-                        _ => return Err(ImageError::UnsupportedError(format!("Unsupported bit count: {}", self.bit_count ))),
-                    };
-                },
-                ImageType::RLE8 => {
-                    match self.bit_count {
-                        8 => try!(self.read_palette()),
-                        _ => return Err(ImageError::UnsupportedError(format!("Unsupported bit count: {}", self.bit_count))),
-                    };
-                },
-                ImageType::RLE4 => {
-                    match self.bit_count {
-                        4 => try!(self.read_palette()),
-                        _ => return Err(ImageError::UnsupportedError(format!("Unsupported bit count: {}", self.bit_count))),
-                    };
-                },
+                ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => try!(self.read_palette()),
                 _ => { }
             };
 
@@ -460,10 +453,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     fn get_palette_size(&mut self) -> ImageResult<usize> {
         match self.colors_used {
-            0 => match self.bit_count {
-                8 | 4 | 1 => Ok(1 << self.bit_count),
-                _ => Err(ImageError::FormatError("Invalid bit count for palletized BMP".to_string()))
-            },
+            0 => Ok(1 << self.bit_count),
             _ => {
                 if self.colors_used > 1 << self.bit_count {
                     return Err(ImageError::FormatError(format!(
@@ -736,63 +726,34 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        match self.image_type {
-            ImageType::RGB => {
-                match self.bit_count {
-                    1 | 4 | 8 => {
-                        return self.read_palettized_pixel_data();
+        return match self.image_type {
+            ImageType::Palette => self.read_palettized_pixel_data(),
+            ImageType::RGB16 => self.read_16_bit_pixel_data(Format16Bit::Format555),
+            ImageType::RGB24 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
+            ImageType::RGB32 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32),
+            ImageType::RGBA32 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGBA32),
+            ImageType::RLE8 => self.read_rle_data(ImageType::RLE8),
+            ImageType::RLE4 => self.read_rle_data(ImageType::RLE4),
+            ImageType::Bitfields16 => {
+                match self.bitfields {
+                    Some(R4_G4_B4_COLOR_MASK) => {
+                        self.read_16_bit_pixel_data(Format16Bit::Format444)
                     },
-                    16 => return self.read_16_bit_pixel_data(Format16Bit::Format555),
-                    24 => return self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
-                    32 => return if self.add_alpha_channel {
-                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGBA32)
-                    } else {
-                        self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32)
+                    Some(R5_G5_B5_COLOR_MASK) => {
+                        self.read_16_bit_pixel_data(Format16Bit::Format555)
                     },
-                    _ => return Err(ImageError::FormatError("Invalid bit count for RGB bitmap".to_string()))
+                    Some(R5_G6_B5_COLOR_MASK) => {
+                        self.read_16_bit_pixel_data(Format16Bit::Format565)
+                    },
+                    _ => Err(ImageError::UnsupportedError("Unsupported 16-bit bitfield".to_string()))
                 }
             },
-            ImageType::RLE8 => {
-                match self.bit_count {
-                    8 => {
-                        return self.read_rle_data(ImageType::RLE8);
+            ImageType::Bitfields32 => {
+                match self.bitfields {
+                    Some(R8_G8_B8_COLOR_MASK) => {
+                        self.read_full_byte_pixel_data(FormatFullBytes::Format888)
                     },
-                    _ => return Err(ImageError::FormatError("Invalid bit count for RLE8 bitmap".to_string()))
-                }
-            },
-            ImageType::RLE4 => {
-                match self.bit_count {
-                    4 => {
-                        return self.read_rle_data(ImageType::RLE4);
-                    },
-                    _ => return Err(ImageError::FormatError("Invalid bit count for RLE4 bitmap".to_string()))
-                }
-            },
-            ImageType::Bitfields => {
-                match self.bit_count{
-                    16 => {
-                        match self.bitfields {
-                            Some(R4_G4_B4_COLOR_MASK) => {
-                                return self.read_16_bit_pixel_data(Format16Bit::Format444)
-                            },
-                            Some(R5_G5_B5_COLOR_MASK) => {
-                                return self.read_16_bit_pixel_data(Format16Bit::Format555)
-                            },
-                            Some(R5_G6_B5_COLOR_MASK) => {
-                                return self.read_16_bit_pixel_data(Format16Bit::Format565)
-                            },
-                            _ => return Err(ImageError::UnsupportedError("Unsupported 16-bit bitfield".to_string()))
-                        }
-                    },
-                    32 => {
-                        match self.bitfields {
-                            Some(R8_G8_B8_COLOR_MASK) => {
-                                return self.read_full_byte_pixel_data(FormatFullBytes::Format888)
-                            },
-                            _ => return Err(ImageError::UnsupportedError("Unsupported 32-bit bitfield".to_string()))
-                        }
-                    },
-                    _ => return Err(ImageError::FormatError("Invalid bit count for bitfield bitmap".to_string())),
+                    _ => Err(ImageError::UnsupportedError("Unsupported 32-bit bitfield".to_string()))
                 }
             },
         }

@@ -86,18 +86,34 @@ pub struct TIFFDecoder<R> where R: Read + Seek {
     compression_method: CompressionMethod
 }
 
+trait Wrapping {
+    fn wrapping_add(&self, other: Self) -> Self;
+}
+
+impl Wrapping for u8 {
+    fn wrapping_add(&self, other: Self) -> Self {
+        u8::wrapping_add(*self, other)
+    }
+}
+
+impl Wrapping for u16 {
+    fn wrapping_add(&self, other: Self) -> Self {
+        u16::wrapping_add(*self, other)
+    }
+}
+
 fn rev_hpredict_nsamp<T>(mut image: Vec<T>,
                          size: (u32, u32),
                          samples: usize)
                          -> Vec<T>
-                         where T: Num + Copy {
+                         where T: Num + Copy + Wrapping {
     let width = size.0 as usize;
     let height = size.1 as usize;
     for row in 0..height {
         for col in samples..width * samples {
             let prev_pixel = image[(row * width * samples + col - samples)];
             let pixel = &mut image[(row * width * samples + col)];
-            *pixel = *pixel + prev_pixel
+            *pixel = pixel.wrapping_add(prev_pixel);
         }
     }
     image

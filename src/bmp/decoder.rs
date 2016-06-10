@@ -369,7 +369,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.has_loaded_metadata {
             try!(self.read_file_header());
-            let bmp_header_size  = try!(self.r.read_u32::<LittleEndian>());
+            let bmp_header_offset = try!(self.r.seek(SeekFrom::Current(0)));
+            let bmp_header_size = try!(self.r.read_u32::<LittleEndian>());
+            let bmp_header_end = bmp_header_offset + bmp_header_size as u64;
 
             self.bmp_header_type = match bmp_header_size {
                 BITMAPCOREHEADER_SIZE => BMPHeaderType::CoreHeader,
@@ -389,6 +391,26 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     try!(self.read_bitmap_info_header());
                 }
             };
+
+            if self.image_type == ImageType::Bitfields {
+                match self.bit_count {
+                    16 | 32 => {
+                        if self.bmp_header_type ==  BMPHeaderType::CoreHeader {
+                            return Err(ImageError::FormatError("Cannot use bitfield mode with BITMAPCOREHEADER BMP".to_string()));
+                        }
+
+                        try!(self.read_bitmasks());
+
+                        // Skip past alpha mask
+                        if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
+                            try!(self.r.seek(SeekFrom::Current(1)));
+                        }
+                    },
+                    _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
+                }
+            };
+
+            try!(self.r.seek(SeekFrom::Start(bmp_header_end)));
 
             match self.image_type {
                 ImageType::RGB => {
@@ -410,24 +432,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
                         _ => return Err(ImageError::UnsupportedError(format!("Unsupported bit count: {}", self.bit_count))),
                     };
                 },
-                ImageType::Bitfields => {
-                    match self.bit_count {
-                        16 | 32 => {
-                            if self.bmp_header_type ==  BMPHeaderType::CoreHeader {
-                                return Err(ImageError::FormatError("Cannot use bitfield mode with BITMAPCOREHEADER BMP".to_string()));
-                            }
-
-                            try!(self.read_bitmasks());
-
-                            // Skip past alpha mask
-                            if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
-                                try!(self.r.seek(SeekFrom::Current(1)));
-                            }
-                        },
-                        _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
-                    }
-                },
+                _ => { }
             };
+
+            if self.no_file_header {
+                // Use the offset of the end of metadata instead of reading a BMP file header.
+                self.data_offset = try!(self.r.seek(SeekFrom::Current(0)));
+            }
+
             self.has_loaded_metadata = true;
         }
         Ok(())
@@ -439,9 +451,6 @@ impl<R: Read + Seek> BMPDecoder<R> {
         self.no_file_header = true;
         self.add_alpha_channel = true;
         try!(self.read_metadata());
-
-        // Use the offset of the end of metadata instead of reading a BMP file header.
-        self.data_offset = try!(self.r.seek(SeekFrom::Current(0)));
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).

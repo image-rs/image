@@ -369,7 +369,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.has_loaded_metadata {
             try!(self.read_file_header());
-            let bmp_header_size  = try!(self.r.read_u32::<LittleEndian>());
+            let bmp_header_offset = try!(self.r.seek(SeekFrom::Current(0)));
+            let bmp_header_size = try!(self.r.read_u32::<LittleEndian>());
+            let bmp_header_end = bmp_header_offset + bmp_header_size as u64;
 
             self.bmp_header_type = match bmp_header_size {
                 BITMAPCOREHEADER_SIZE => BMPHeaderType::CoreHeader,
@@ -407,6 +409,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
                 }
             };
+
+            try!(self.r.seek(SeekFrom::Start(bmp_header_end)));
 
             match self.image_type {
                 ImageType::RGB => {

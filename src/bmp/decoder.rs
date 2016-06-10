@@ -390,6 +390,24 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 }
             };
 
+            if self.image_type == ImageType::Bitfields {
+                match self.bit_count {
+                    16 | 32 => {
+                        if self.bmp_header_type ==  BMPHeaderType::CoreHeader {
+                            return Err(ImageError::FormatError("Cannot use bitfield mode with BITMAPCOREHEADER BMP".to_string()));
+                        }
+
+                        try!(self.read_bitmasks());
+
+                        // Skip past alpha mask
+                        if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
+                            try!(self.r.seek(SeekFrom::Current(1)));
+                        }
+                    },
+                    _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
+                }
+            };
+
             match self.image_type {
                 ImageType::RGB => {
                     match self.bit_count {
@@ -410,23 +428,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                         _ => return Err(ImageError::UnsupportedError(format!("Unsupported bit count: {}", self.bit_count))),
                     };
                 },
-                ImageType::Bitfields => {
-                    match self.bit_count {
-                        16 | 32 => {
-                            if self.bmp_header_type ==  BMPHeaderType::CoreHeader {
-                                return Err(ImageError::FormatError("Cannot use bitfield mode with BITMAPCOREHEADER BMP".to_string()));
-                            }
-
-                            try!(self.read_bitmasks());
-
-                            // Skip past alpha mask
-                            if self.bmp_header_type != BMPHeaderType::InfoHeader && self.bmp_header_type != BMPHeaderType::V2Header {
-                                try!(self.r.seek(SeekFrom::Current(1)));
-                            }
-                        },
-                        _ => return Err(ImageError::FormatError("Invalid bit count for bitfield BMP".to_string())),
-                    }
-                },
+                _ => { }
             };
 
             if self.no_file_header {

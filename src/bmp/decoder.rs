@@ -647,6 +647,28 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(pixel_data)
     }
 
+    fn read_32_bit_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
+        let mut pixel_data = self.create_pixel_data();
+        let num_channels = self.num_channels();
+        let bitfields = self.bitfields.as_ref().unwrap();
+
+        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
+        for row in self.rows(&mut pixel_data) {
+            for pixel in row.chunks_mut(num_channels) {
+                let data = try!(self.r.read_u32::<LittleEndian>());
+
+                pixel[0] = bitfields.r.read(data);
+                pixel[1] = bitfields.g.read(data);
+                pixel[2] = bitfields.b.read(data);
+                if num_channels == 4 {
+                    pixel[3] = bitfields.a.read(data);
+                }
+            }
+        }
+
+        Ok(pixel_data)
+    }
+
     fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
@@ -811,7 +833,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     Some(R8_G8_B8_COLOR_MASK) => {
                         self.read_full_byte_pixel_data(FormatFullBytes::Format888)
                     },
-                    _ => Err(ImageError::UnsupportedError("Unsupported 32-bit bitfield".to_string()))
+                    Some(_) => self.read_32_bit_pixel_data(),
+                    None => Err(ImageError::FormatError("Missing 32-bit bitfield masks".to_string()))
                 }
             },
         }

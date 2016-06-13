@@ -88,6 +88,23 @@ pub use dynimage::{
     save_buffer
 };
 
+#[cfg(feature = "png_codec")]
+pub use dynimage::load_png;
+#[cfg(feature = "gif_codec")]
+pub use dynimage::load_gif;
+#[cfg(feature = "jpeg")]
+pub use dynimage::load_jpeg;
+#[cfg(feature = "webp")]
+pub use dynimage::load_webp;
+#[cfg(feature = "tiff")]
+pub use dynimage::load_tiff;
+#[cfg(feature = "tga")]
+pub use dynimage::load_tga;
+#[cfg(feature = "bmp")]
+pub use dynimage::load_bmp;
+#[cfg(feature = "ico")]
+pub use dynimage::load_ico;
+
 pub use dynimage::DynamicImage::{
     self,
     ImageRgb8,

@@ -185,7 +185,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
     }
 
     /// Reads in the next image.
-    /// If there is no further image in the TIFF file a format error is return.
+    /// If there is no further image in the TIFF file a format error is returned.
     /// To determine whether there are more images call `TIFFDecoder::more_images` instead.
     pub fn next_image(mut self) -> ImageResult<TIFFDecoder<R>> {
         try!(self.read_header());

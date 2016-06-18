@@ -102,6 +102,7 @@ pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> RGBE8Pixel {
 }
 
 impl RGBE8Pixel {
+    /// Converts RGBE8Pixel into Rgb<f32> linearly
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -113,11 +114,26 @@ impl RGBE8Pixel {
         }
     }
 
+    /// Converts RGBE8Pixel into Rgb<T> with scale=1 and gamma=2.2
+    ///
+    /// color_ldr = (color_hdr*scale)^gamma
+    ///
+    /// # Panic
+    ///
+    /// Panics when T::max_value() cannot be represented as f32.
     #[inline]
     pub fn to_ldr<T: Primitive + Zero>(self) -> Rgb<T> {
         self.to_ldr_scale_gamma(1.0, 2.2)
     }
 
+    /// Converts RGBE8Pixel into Rgb<T> using provided scale and gamma
+    ///
+    /// color_ldr = (color_hdr*scale)^gamma
+    ///
+    /// # Panic
+    ///
+    /// Panics when T::max_value() cannot be represented as f32.
+    /// Panics when scale or gamma is NaN
     #[inline]
     pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
         let Rgb{data} = self.to_hdr();

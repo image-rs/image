@@ -615,7 +615,7 @@ pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage
         #[cfg(feature = "ico")]
         image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(r))),
+        image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }

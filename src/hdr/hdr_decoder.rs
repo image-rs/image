@@ -3,7 +3,7 @@ use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{Read, self};
+use std::io::{BufRead, Read, self};
 use std::iter::{Iterator};
 
 use color::{ColorType, Rgb};
@@ -16,12 +16,13 @@ use image::{
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
-pub struct HDRAdapter<R: Read> {
+pub struct HDRAdapter<R: BufRead> {
     inner: Option<HDRDecoder<R>>,
     meta: HDRMetadata,
 }
 
-impl<R: Read> HDRAdapter<R> {
+impl<R: BufRead> HDRAdapter<R> {
+    /// Adapter to conform to ```ImageDecoder``` trait
     pub fn new(r: R) -> ImageResult<HDRAdapter<R>> {
         let decoder = try!(HDRDecoder::new(r));
         let meta = decoder.metadata();
@@ -32,7 +33,7 @@ impl<R: Read> HDRAdapter<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for HDRAdapter<R> {
+impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.meta.width, self.meta.height))
     }
@@ -72,6 +73,7 @@ impl<R: Read> ImageDecoder for HDRAdapter<R> {
     }
 }
 
+/// Radiance HDR file signature
 pub const SIGNATURE: &'static [u8] = b"#?RADIANCE";
 const SIGNATURE_LENGTH: usize = 10;
 
@@ -97,6 +99,7 @@ pub struct RGBE8Pixel {
     pub e: u8,
 }
 
+/// Convenience function
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> RGBE8Pixel {
     RGBE8Pixel { r: r, g: g, b: b, e: e }
 }
@@ -157,7 +160,7 @@ impl RGBE8Pixel {
 
 }
 
-impl<R: Read> HDRDecoder<R> {
+impl<R: BufRead> HDRDecoder<R> {
 
     /// Reads Radiance HDR image header from stream ```r```
     /// if the header is valid, creates HDRDecoder 
@@ -169,7 +172,8 @@ impl<R: Read> HDRDecoder<R> {
     /// Reads Radiance HDR image header from stream ```reader```,
     /// if the header is valid, creates ```HDRDecoder```.
     ///
-    /// strict enables strict mode
+    /// Setting ```strict``` to false enables reading Radiance PIC files, which don't have 
+    /// signature at the beginning of the file
     ///
     /// Warning! Reading wrong file in non-strict mode
     ///   could consume file size worth of memory in the process.
@@ -238,6 +242,7 @@ impl<R: Read> HDRDecoder<R> {
         })
     } // end with_strictness
 
+    /// Returns file metadata. Refer to ```HDRMetadata``` for details.
     pub fn metadata(&self) -> HDRMetadata {
         self.meta.clone()
     }
@@ -296,19 +301,19 @@ impl<R: Read> HDRDecoder<R> {
 
     /// Consumes decoder and returns a vector of Rgb<u8> pixels.
     /// scale = 1, gamma = 2.2
-    pub fn read_image_ldr(mut self) -> ImageResult<Vec<Rgb<u8>>> {
+    pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
         self.read_image_transform(|pix|pix.to_ldr())
     }
 
     /// Consumes decoder and returns a vector of Rgb<f32> pixels.
     /// 
-    pub fn read_image_hdr(mut self) -> ImageResult<Vec<Rgb<f32>>> {
+    pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
         self.read_image_transform(|pix|pix.to_hdr())
     }
 
 }
 
-impl<R: Read> IntoIterator for HDRDecoder<R> {
+impl<R: BufRead> IntoIterator for HDRDecoder<R> {
     type Item = ImageResult<RGBE8Pixel>;
     type IntoIter = HDRImageDecoderIterator<R>;
 
@@ -333,7 +338,7 @@ impl<R: Read> IntoIterator for HDRDecoder<R> {
 }
 
 /// Scanline buffered pixel by pixel iterator
-pub struct HDRImageDecoderIterator<R: Read> {
+pub struct HDRImageDecoderIterator<R: BufRead> {
     r: R,
     scanline_cnt: usize,
     buf: Vec<RGBE8Pixel>, // scanline buffer
@@ -343,7 +348,7 @@ pub struct HDRImageDecoderIterator<R: Read> {
     error_encountered: bool,
 }
 
-impl<R: Read> HDRImageDecoderIterator<R> {
+impl<R: BufRead> HDRImageDecoderIterator<R> {
 
     // Advances counter to the next pixel
     #[inline]
@@ -357,7 +362,7 @@ impl<R: Read> HDRImageDecoderIterator<R> {
     }
 }
 
-impl<R: Read> Iterator for HDRImageDecoderIterator<R> {
+impl<R: BufRead> Iterator for HDRImageDecoderIterator<R> {
     type Item = ImageResult<RGBE8Pixel>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -406,10 +411,10 @@ impl<R: Read> Iterator for HDRImageDecoderIterator<R> {
     }
 }
 
-impl<R: Read> ExactSizeIterator for HDRImageDecoderIterator<R> {} 
+impl<R: BufRead> ExactSizeIterator for HDRImageDecoderIterator<R> {} 
 
 // Precondition: buf.len() > 0
-fn read_scanline<R: Read>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
+fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
     assert!(buf.len()>0);
     let width = buf.len();
     // first 4 bytes in scanline allow to determine compression method
@@ -430,7 +435,7 @@ fn read_scanline<R: Read>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<()> 
 }
 
 #[inline(always)]
-fn read_byte<R: Read>(r: &mut R) -> io::Result<u8> {
+fn read_byte<R: BufRead>(r: &mut R) -> io::Result<u8> {
     let mut buf = [0u8];
     try!(r.read_exact(&mut buf[..]));
     Ok(buf[0])
@@ -438,7 +443,7 @@ fn read_byte<R: Read>(r: &mut R) -> io::Result<u8> {
 
 // Guaranties that first parameter of set_component will be within pos .. pos+width
 #[inline]
-fn decode_component<R: Read, S: FnMut(usize, u8)>(r: &mut R, width: usize, mut set_component: S) -> ImageResult<()> {
+fn decode_component<R: BufRead, S: FnMut(usize, u8)>(r: &mut R, width: usize, mut set_component: S) -> ImageResult<()> {
     let mut buf = [0; 128];
     let mut pos = 0;
     while pos < width {
@@ -481,7 +486,7 @@ fn decode_component<R: Read, S: FnMut(usize, u8)>(r: &mut R, width: usize, mut s
 // Decodes scanline, places it into buf
 // Precondition: buf.len() > 0
 // fb - first 4 bytes of scanline
-fn decode_old_rle<R: Read>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
+fn decode_old_rle<R: BufRead>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
     assert!(buf.len() > 0);
     let width = buf.len();
     // convenience function. 
@@ -535,7 +540,7 @@ fn decode_old_rle<R: Read>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel]) ->
     Ok(())
 }
 
-fn read_rgbe<R: Read>(r: &mut R) -> io::Result<RGBE8Pixel> {
+fn read_rgbe<R: BufRead>(r: &mut R) -> io::Result<RGBE8Pixel> {
     let mut buf = [0u8; 4];
     try!(r.read_exact(&mut buf[..]));
     // It's actually safe: RGBE8Pixel is repr(C) and it doesn't implement Drop
@@ -758,30 +763,17 @@ fn split_at_first_test() {
 // Reads inpult until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
-fn read_line_u8<R: Read>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
+fn read_line_u8<R: BufRead>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
-    let mut no_data = true;
-
-    loop {
-        // read_byte uses Read::read_exact, so I don't need to bother myself about EINTR
-        match read_byte(r) {
-            Ok(byte) => {
-                no_data = false;
-                // HDR format doesn't specify encoding of end-of-line
-                // C implementation uses fgets
-                // Let's assume it is '\n'
-                if byte == b'\n' {
-                    // "\n" line ending
-                    return Ok(Some(ret));
-                } // end of EOL processing
-                ret.push(byte);
-            },
-            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => {
-                // EOF
-                return if no_data { Ok(None) } else { Ok(Some(ret)) };
-            },
-            Err(err) => return Err(err), // report all other errors
-        }
+    match r.read_until(b'\n', &mut ret) {
+        Ok(0) => Ok(None),
+        Ok(_) => {
+            if let Some(&b'\n') = ret[..].last() {
+                let _ = ret.pop();
+            }
+            Ok(Some(ret))
+        },
+        Err(err) => Err(err),
     }
 }
 

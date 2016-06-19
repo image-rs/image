@@ -594,15 +594,16 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
 
 /// Create a new image from a Reader
 pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    let r = BufReader::new(r);
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(BufReader::new(r))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(BufReader::new(r))),
+        image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(r)),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(BufReader::new(r))),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(BufReader::new(r))),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]

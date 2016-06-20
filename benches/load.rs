@@ -45,6 +45,21 @@ fn bench_load_bmp_8bit(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn bench_load_bmp_16bit(b: &mut test::Bencher) {
+    bench_load(b, &BMP, "rgb16.bmp");
+}
+
+#[bench]
+fn bench_load_bmp_24bit(b: &mut test::Bencher) {
+    bench_load(b, &BMP, "rgb24.bmp");
+}
+
+#[bench]
+fn bench_load_bmp_32bit(b: &mut test::Bencher) {
+    bench_load(b, &BMP, "rgb32.bmp");
+}
+
+#[bench]
 fn bench_load_bmp_4rle(b: &mut test::Bencher) {
     bench_load(b, &BMP, "pal4rle.bmp");
 }
@@ -52,4 +67,14 @@ fn bench_load_bmp_4rle(b: &mut test::Bencher) {
 #[bench]
 fn bench_load_bmp_8rle(b: &mut test::Bencher) {
     bench_load(b, &BMP, "pal8rle.bmp");
+}
+
+#[bench]
+fn bench_load_bmp_16bf(b: &mut test::Bencher) {
+    bench_load(b, &BMP, "rgb16-565.bmp");
+}
+
+#[bench]
+fn bench_load_bmp_32bf(b: &mut test::Bencher) {
+    bench_load(b, &BMP, "rgb32bf.bmp");
 }

@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Read, Write, Seek, BufReader};
+use std::io::{Write, Seek, BufRead, BufReader};
 use std::path::Path;
 use std::fs::File;
 use std::iter;
@@ -532,6 +532,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
+    let fin = BufReader::new(fin);
 
     let ext = path.extension().and_then(|s| s.to_str())
                   .map_or("".to_string(), |s| s.to_ascii_lowercase());
@@ -593,8 +594,7 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    let r = BufReader::new(r);
+pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
         #[cfg(feature = "png_codec")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),

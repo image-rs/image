@@ -1,9 +1,11 @@
-use Primitive;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
+use Primitive;
+use super::scoped_threadpool::Pool;
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{BufRead, Read, self};
+use std::path::Path;
+use std::io::{BufRead, self};
 use std::iter::{Iterator};
 
 use color::{ColorType, Rgb};
@@ -22,9 +24,19 @@ pub struct HDRAdapter<R: BufRead> {
 }
 
 impl<R: BufRead> HDRAdapter<R> {
-    /// Adapter to conform to ```ImageDecoder``` trait
+    /// Creates adapter 
     pub fn new(r: R) -> ImageResult<HDRAdapter<R>> {
         let decoder = try!(HDRDecoder::new(r));
+        let meta = decoder.metadata();
+        Ok(HDRAdapter{ 
+            inner: Some(decoder), 
+            meta: meta,
+        })
+    }
+
+    /// Allows reading old Radiance HDR images
+    pub fn new_nonstrict(r: R) -> ImageResult<HDRAdapter<R>> {
+        let decoder = try!(HDRDecoder::with_strictness(r, false));
         let meta = decoder.metadata();
         Ok(HDRAdapter{ 
             inner: Some(decoder), 
@@ -89,23 +101,19 @@ pub struct HDRDecoder<R> {
 /// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
 #[repr(C)] #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RGBE8Pixel {
-    /// Red mantissa
-    pub r: u8,
-    /// Green mantissa
-    pub g: u8,
-    /// Blue mantissa
-    pub b: u8,
-    /// Colorless exponent
+    /// Color components
+    pub c: [u8; 3],
+    /// Exponent
     pub e: u8,
 }
 
-/// Convenience function
+/// Creates ```RGBE8Pixel``` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> RGBE8Pixel {
-    RGBE8Pixel { r: r, g: g, b: b, e: e }
+    RGBE8Pixel { c: [r, g, b], e: e }
 }
 
 impl RGBE8Pixel {
-    /// Converts RGBE8Pixel into Rgb<f32> linearly
+    /// Converts ```RGBE8Pixel``` into ```Rgb<f32>``` linearly    
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -113,17 +121,17 @@ impl RGBE8Pixel {
         } else {
 //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
             let exp = f32::exp2(self.e as f32 - (128. + 8.));
-            Rgb([exp*(self.r as f32), exp*(self.g as f32), exp*(self.b as f32)])
+            Rgb([exp*(self.c[0] as f32), exp*(self.c[1] as f32), exp*(self.c[2] as f32)])
         }
     }
 
-    /// Converts RGBE8Pixel into Rgb<T> with scale=1 and gamma=2.2
-    ///
-    /// color_ldr = (color_hdr*scale)^gamma
-    ///
-    /// # Panic
-    ///
-    /// Panics when T::max_value() cannot be represented as f32.
+    /// Converts ```RGBE8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2  
+    ///  
+ 	/// color_ldr = (color_hdr*scale)^gamma  
+    ///  
+ 	/// # Panic  
+ 	///  
+ 	/// Panics when ```T::max_value()``` cannot be represented as f32.  
     #[inline]
     pub fn to_ldr<T: Primitive + Zero>(self) -> Rgb<T> {
         self.to_ldr_scale_gamma(1.0, 2.2)
@@ -154,7 +162,6 @@ impl RGBE8Pixel {
                 NumCast::from(fv).expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
         }
-        // TODO: use huon's simd
         Rgb([sg(r, scale, gamma), sg(g, scale, gamma), sg(b, scale, gamma)])
     }
 
@@ -172,8 +179,7 @@ impl<R: BufRead> HDRDecoder<R> {
     /// Reads Radiance HDR image header from stream ```reader```,
     /// if the header is valid, creates ```HDRDecoder```.
     ///
-    /// Setting ```strict``` to false enables reading Radiance PIC files, which don't have 
-    /// signature at the beginning of the file
+    /// strict enables strict mode
     ///
     /// Warning! Reading wrong file in non-strict mode
     ///   could consume file size worth of memory in the process.
@@ -260,16 +266,14 @@ impl<R: BufRead> HDRDecoder<R> {
             // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
             ret.set_len(pixel_count);
         } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
-        for y in 0 .. self.height as usize {
-            // first 4 bytes in scanline allow to determine compression method
-            let y_off = y * self.width as usize;
-            try!(read_scanline(&mut self.r, &mut ret[y_off .. y_off + self.width as usize]));
+        for chunk in ret.chunks_mut(self.width as usize) {
+            try!(read_scanline(&mut self.r, chunk));
         }
         Ok(ret)
     }
 
     /// Consumes decoder and returns a vector of tranformed pixels
-    pub fn read_image_transform<T, F: Fn(RGBE8Pixel)-> T>(mut self, f: F) -> ImageResult<Vec<T>> {
+    pub fn read_image_transform<T: Send, F: Send + Sync + Fn(RGBE8Pixel)-> T>(mut self, f: F) -> ImageResult<Vec<T>> {
         // Don't read anything if image is empty 
         if self.width == 0 || self.height ==0 {
             return Ok(vec![]);
@@ -277,10 +281,6 @@ impl<R: BufRead> HDRDecoder<R> {
         // expression self.width > 0 && self.height > 0 is true from now to the end of this method
         // scanline buffer
         let uszwidth = self.width as usize;
-        let mut buf = Vec::<RGBE8Pixel>::with_capacity(uszwidth);
-        unsafe {
-            buf.set_len(uszwidth)
-        }
 
         let pixel_count = self.width as usize * self.height as usize;
         let mut ret = Vec::with_capacity(pixel_count);
@@ -288,14 +288,29 @@ impl<R: BufRead> HDRDecoder<R> {
             // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
             ret.set_len(pixel_count);
         } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
-        for y in 0 .. self.height as usize {
-            // first 4 bytes in scanline allow to determine compression method
-            let y_off = y * self.width as usize;
-            try!(read_scanline(&mut self.r, &mut buf[..]));
-            for (x, &pix) in buf.iter().enumerate() {
-                ret[y_off + x] = f(pix);
-            }
+
+        {
+            let chunks_iter = ret.chunks_mut(uszwidth);
+            let mut pool = Pool::new(8); //  
+
+            try!(pool.scoped(|scope| {
+                for chunk in chunks_iter {
+                    let mut buf = Vec::<RGBE8Pixel>::with_capacity(uszwidth);
+                    unsafe {
+                        buf.set_len(uszwidth);
+                    }
+                    try!(read_scanline(&mut self.r, &mut buf[..]));
+                    let f = &f;
+                    scope.execute(move || {
+                        for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
+                            *dst = f(pix);
+                        }
+                    });
+                }
+                Ok(())
+            }) as Result<(), ImageError>);
         }
+
         Ok(ret)
     }
 
@@ -419,13 +434,13 @@ fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<(
     let width = buf.len();
     // first 4 bytes in scanline allow to determine compression method
     let fb = try!(read_rgbe(r)); 
-    if fb.r == 2 && fb.g == 2 && fb.b < 128 {
+    if fb.c[0] == 2 && fb.c[1] == 2 && fb.c[2] < 128 {
         // denormalized pixel value (2,2,<128,_) indicates new per component RLE method
         // decode_component guaranties that offset is within 0 .. width
         // therefore we can skip bounds checking here, but we will not
-        try!(decode_component(r, width, |offset, value| buf[offset].r = value ));
-        try!(decode_component(r, width, |offset, value| buf[offset].g = value ));
-        try!(decode_component(r, width, |offset, value| buf[offset].b = value ));
+        try!(decode_component(r, width, |offset, value| buf[offset].c[0] = value ));
+        try!(decode_component(r, width, |offset, value| buf[offset].c[1] = value ));
+        try!(decode_component(r, width, |offset, value| buf[offset].c[2] = value ));
         try!(decode_component(r, width, |offset, value| buf[offset].e = value ));
     } else { 
         // old RLE method (it was considered old around 1991, should it be here?)
@@ -493,7 +508,7 @@ fn decode_old_rle<R: BufRead>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel])
     // returns run length if pixel is a run length marker
     #[inline]  
     fn rl_marker(pix : RGBE8Pixel) -> Option<usize> {
-        if pix.r == 1 && pix.g == 1 && pix.b == 1 {
+        if pix.c == [1, 1, 1] {
             Some(pix.e as usize)
         } else {
             None
@@ -788,4 +803,26 @@ fn read_line_u8_test() {
     assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
     assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
     assert_eq!(read_line_u8(input).unwrap(), None);
+}
+
+/// Helper function for reading raw 3-channel f32 images
+pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>> {
+    use byteorder::{LittleEndian as LE, ReadBytesExt};
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let mut r = BufReader::new(try!(File::open(path)));
+    let w = try!(r.read_u32::<LE>()) as usize;
+    let h = try!(r.read_u32::<LE>()) as usize;
+    let c = try!(r.read_u32::<LE>()) as usize;
+    assert_eq!(c, 3);
+    let cnt = w*h;
+    let mut ret = Vec::with_capacity(cnt);
+    for _ in 0 .. cnt {
+        let cr = try!(r.read_f32::<LE>());
+        let cg = try!(r.read_f32::<LE>());
+        let cb = try!(r.read_f32::<LE>());
+        ret.push(Rgb([cr, cg, cb]));
+    }
+    Ok(ret)
 }

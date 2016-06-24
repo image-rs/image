@@ -13,7 +13,7 @@ const IMAGE_DIR: &'static str = "images";
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where F: Fn(PathBuf) {
 	let base: PathBuf = BASE_PATH.iter().collect();
-	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg"];
+	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr"];
 	for decoder in decoders {
 		let mut path = base.clone();
 		path.push(dir);
@@ -76,4 +76,9 @@ fn truncate_ico() {
 #[test] #[ignore]
 fn truncate_jpg() {
     truncate_images("jpg")
+}
+
+#[test]
+fn truncate_hdr() {
+    truncate_images("hdr");
 }

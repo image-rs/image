@@ -4,6 +4,7 @@ use Primitive;
 use super::scoped_threadpool::Pool;
 use std::borrow::Cow;
 use std::error::Error;
+use std::path::Path;
 use std::io::{BufRead, self};
 use std::iter::{Iterator};
 
@@ -802,4 +803,26 @@ fn read_line_u8_test() {
     assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
     assert_eq!(&read_line_u8(input).unwrap().unwrap()[..], &b""[..]);
     assert_eq!(read_line_u8(input).unwrap(), None);
+}
+
+/// Helper function for reading raw 3-channel f32 images
+pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>> {
+    use byteorder::{LittleEndian as LE, ReadBytesExt};
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let mut r = BufReader::new(try!(File::open(path)));
+    let w = try!(r.read_u32::<LE>()) as usize;
+    let h = try!(r.read_u32::<LE>()) as usize;
+    let c = try!(r.read_u32::<LE>()) as usize;
+    assert_eq!(c, 3);
+    let cnt = w*h;
+    let mut ret = Vec::with_capacity(cnt);
+    for _ in 0 .. cnt {
+        let cr = try!(r.read_f32::<LE>());
+        let cg = try!(r.read_f32::<LE>());
+        let cb = try!(r.read_f32::<LE>());
+        ret.push(Rgb([cr, cg, cb]));
+    }
+    Ok(ret)
 }

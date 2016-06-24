@@ -78,7 +78,7 @@ fn truncate_jpg() {
     truncate_images("jpg")
 }
 
-#[test]
+#[test] #[ignore]
 fn truncate_hdr() {
     truncate_images("hdr");
 }

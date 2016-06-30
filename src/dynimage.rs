@@ -249,7 +249,8 @@ impl DynamicImage {
 
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. The image's aspect ratio is preserved.
-    /// ```nwidth``` and ```nheight``` are the new image's dimensions
+    /// The image is scaled to the maximum possible size that fits
+    /// within the bounds specified by ```nwidth``` and ```nheight```.
     pub fn resize(&self,
                   nwidth: u32,
                   nheight: u32,

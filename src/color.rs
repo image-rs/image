@@ -21,7 +21,8 @@ pub enum ColorType {
     GrayA(u8),
 
     /// Pixel is RGB with an alpha channel
-    RGBA(u8)
+    RGBA(u8),
+
 }
 
 /// Returns the number of bits contained in a pixel of ColorType ```c```

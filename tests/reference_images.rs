@@ -1,6 +1,7 @@
 //! Compares the decoding results with reference renderings.
 
 use std::fs;
+use std::io;
 use std::u32;
 use std::path::PathBuf;
 
@@ -15,7 +16,7 @@ const REFERENCE_DIR: &'static str = "reference";
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where F: Fn(&PathBuf, PathBuf, &str) {
 	let base: PathBuf = BASE_PATH.iter().collect();
-	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg"];
+	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr"];
 	for decoder in decoders {
 		let mut path = base.clone();
 		path.push(dir);
@@ -111,6 +112,37 @@ fn check_references() {
 			panic!("Reference rendering does not match for image at {:?}.", img_path)
 		}
 	})
+}
+
+#[test]
+fn check_hdr_references() {
+    let mut ref_path: PathBuf = BASE_PATH.iter().collect();
+    ref_path.push(REFERENCE_DIR);
+    ref_path.push("hdr");
+	let mut path: PathBuf = BASE_PATH.iter().collect();
+    path.push(IMAGE_DIR);
+    path.push("hdr");
+    path.push("*");
+    path.push("*.hdr");
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        use std::path::Component::Normal;
+        let mut ref_path = ref_path.clone();
+        // append 2 last components of image path to reference path
+        for c in path.components().rev().take(2).collect::<Vec<_>>().iter().rev() {
+            match c {
+                &Normal(name) => ref_path.push(name),
+                _ => panic!(),
+            }
+        }
+        ref_path.set_extension("raw");
+        println!("{}", ref_path.display());
+        println!("{}", path.display());
+        let decoder = image::hdr::HDRDecoder::new(io::BufReader::new(fs::File::open(&path).unwrap())).unwrap();
+        let decoded = decoder.read_image_hdr().unwrap();
+        let reference = image::hdr::read_raw_file(&ref_path).unwrap();
+        assert_eq!(decoded, reference);
+    }
 }
 
 const CRC_TABLE: [u32; 256] = [

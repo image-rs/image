@@ -21,6 +21,7 @@ env:
       - FEATURES='tga'
       - FEATURES='tiff'
       - FEATURES='webp'
+      - FEATURES='hdr'
 script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v;

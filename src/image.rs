@@ -130,7 +130,10 @@ pub enum ImageFormat {
     BMP,
 
     /// An Image in ICO Format
-    ICO
+    ICO,
+
+    /// An Image in Radiance HDR Format
+    HDR,
 }
 
 /// The trait that all decoders implement

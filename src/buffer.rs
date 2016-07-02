@@ -476,7 +476,7 @@ where P: Pixel + 'static,
     }
 }
 
-// concrete implementation for `Vec`-baked buffers
+// concrete implementation for `Vec`-backed buffers
 // TODO: I think that rustc does not "see" this impl any more: the impl with
 // Container meets the same requirements. At least, I got compile errors that
 // there is no such function as `into_vec`, whereas `into_raw` did work, and

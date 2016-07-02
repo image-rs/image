@@ -41,11 +41,15 @@ optional = true
 version = "0.5"
 optional = true
 
+[dependencies.scoped_threadpool]
+version = "0.1"
+optional = true
+
 [dev-dependencies]
 num-complex = "0.1.32"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp", "hdr"]
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]
@@ -56,3 +60,4 @@ tga = []
 tiff = []
 webp = []
 bmp = []
+hdr = ["scoped_threadpool"]

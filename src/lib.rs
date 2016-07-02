@@ -126,6 +126,8 @@ pub mod tiff;
 pub mod tga;
 #[cfg(feature = "bmp")]
 pub mod bmp;
+#[cfg(feature = "hdr")]
+pub mod hdr;
 
 mod image;
 mod utils;

@@ -356,7 +356,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         // The next 8 bytes represent file size, followed the 4 reserved bytes
         // We're not interesting these values
-        try!(self.r.seek(SeekFrom::Current(8)));
+        try!(self.r.read_u32::<LittleEndian>());
+        try!(self.r.read_u32::<LittleEndian>());
 
         self.data_offset = try!(self.r.read_u32::<LittleEndian>()) as u64;
 
@@ -368,7 +369,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         self.height = try!(self.r.read_u16::<LittleEndian>()) as i32;
 
         // Don't care about number of planes
-        try!(self.r.seek(SeekFrom::Current(2)));
+        try!(self.r.read_u16::<LittleEndian>());
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
         self.image_type = match self.bit_count {
@@ -398,7 +399,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         }
 
         // Don't care about number of planes
-        try!(self.r.seek(SeekFrom::Current(2)));
+        try!(self.r.read_u16::<LittleEndian>());
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
         let image_type_u32 = try!(self.r.read_u32::<LittleEndian>());
@@ -430,13 +431,15 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // followed the horizontal and vertical printing resolutions
         // We will calculate the pixel array size using width & height of image
         // We're not interesting the horz or vert printing resolutions
-        try!(self.r.seek(SeekFrom::Current(12)));
+        try!(self.r.read_u32::<LittleEndian>());
+        try!(self.r.read_u32::<LittleEndian>());
+        try!(self.r.read_u32::<LittleEndian>());
 
         self.colors_used = try!(self.r.read_u32::<LittleEndian>());
 
         // The next 4 bytes represent number of "important" colors
         // We're not interested in this value, so we'll skip it
-        try!(self.r.seek(SeekFrom::Current(4)));
+        try!(self.r.read_u32::<LittleEndian>());
 
         Ok(())
     }
@@ -622,7 +625,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_16_bit_pixel_data(&mut self, bitfields: Option<&Bitfields>) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
-        let row_padding = self.width % 2 * 2;
+        let row_padding_len = self.width as usize % 2 * 2;
+        let row_padding = &mut [0; 2][..row_padding_len];
         let bitfields = match bitfields {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap()
@@ -640,8 +644,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     pixel[3] = bitfields.a.read(data);
                 }
             }
-            // Seek past row padding
-            try!(self.r.seek(SeekFrom::Current(row_padding as i64)));
+            try!(self.r.read_exact(row_padding));
         }
 
         Ok(pixel_data)
@@ -672,17 +675,18 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
-        let row_padding = match format {
-            FormatFullBytes::FormatRGB24 => (4 - (self.width as i64 * 3) % 4) % 4,
+        let row_padding_len = match format {
+            FormatFullBytes::FormatRGB24 => (4 - (self.width as usize * 3) % 4) % 4,
             _ => 0
         };
+        let row_padding = &mut [0; 4][..row_padding_len];
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
         for row in self.rows(&mut pixel_data) {
             for pixel in row.chunks_mut(num_channels) {
 
                 if format == FormatFullBytes::Format888 {
-                    try!(self.r.seek(SeekFrom::Current(1)));
+                    try!(self.r.read_u8());
                 }
 
                 let b = try!(self.r.read_u8());
@@ -690,7 +694,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 let r = try!(self.r.read_u8());
 
                 if format == FormatFullBytes::FormatRGB32 {
-                    try!(self.r.seek(SeekFrom::Current(1)));
+                    try!(self.r.read_u8());
                 }
 
                 pixel[0] = r;
@@ -702,8 +706,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     pixel[3] = a;
                 }
             }
-            // Seek past row padding
-            try!(self.r.seek(SeekFrom::Current(row_padding)));
+            try!(self.r.read_exact(row_padding));
         }
 
         Ok(pixel_data)
@@ -888,53 +891,5 @@ mod test {
                 assert_eq!(read, calc);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod bench {
-    use super::BMPDecoder;
-    use image::ImageDecoder;
-    use std::{fs, io, path};
-    use std::io::Read;
-    use test;
-
-    const IMAGE_DIR: [&'static str; 5] = [".", "tests", "images", "bmp", "images"];
-    fn bench_read_image(b: &mut test::Bencher, filename: &str) {
-        let mut path: path::PathBuf = IMAGE_DIR.iter().collect();
-        path.push(filename);
-        let mut fin = fs::File::open(path).unwrap();
-        let mut buf = Vec::new();
-        fin.read_to_end(&mut buf).unwrap();
-        b.iter(|| {
-            let r = io::Cursor::new(&buf);
-            let mut d = BMPDecoder::new(r);
-            d.read_image().unwrap();
-        })
-    }
-
-    #[bench]
-    fn bench_read_1bit(b: &mut test::Bencher) {
-        bench_read_image(b, "Core_1_Bit.bmp");
-    }
-
-    #[bench]
-    fn bench_read_4bit(b: &mut test::Bencher) {
-        bench_read_image(b, "Core_4_Bit.bmp");
-    }
-
-    #[bench]
-    fn bench_read_8bit(b: &mut test::Bencher) {
-        bench_read_image(b, "Core_8_Bit.bmp");
-    }
-
-    #[bench]
-    fn bench_read_4rle(b: &mut test::Bencher) {
-        bench_read_image(b, "pal4rle.bmp");
-    }
-
-    #[bench]
-    fn bench_read_8rle(b: &mut test::Bencher) {
-        bench_read_image(b, "pal8rle.bmp");
     }
 }

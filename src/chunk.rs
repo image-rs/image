@@ -23,6 +23,8 @@ pub const tRNS: ChunkType = [b't', b'R', b'N', b'S'];
 pub const bKGD: ChunkType = [b'b', b'K', b'G', b'D'];
 /// Image last-modification time
 pub const tIME: ChunkType = [b't', b'I', b'M', b'E'];
+/// Physical pixel dimensions
+pub const pHYs: ChunkType = [b'p', b'H', b'Y', b's'];
 
 // -- Extension chunks --
 

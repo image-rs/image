@@ -54,6 +54,35 @@ impl BitDepth {
     }
 }
 
+/// Pixel dimensions information
+#[derive(Clone, Copy, Debug)]
+pub struct PixelDimensions {
+    /// Pixels per unit, X axis
+    pub xppu: u32,
+    /// Pixels per unit, Y axis
+    pub yppu: u32,
+    /// Either *Meter* or *Unspecified*
+    pub unit: Unit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+/// Physical unit of the pixel dimensions
+pub enum Unit {
+    Unspecified = 0,
+    Meter = 1,
+}
+
+impl Unit {
+    /// u8 -> Self. Temporary solution until Rust provides a canonical one.
+    pub fn from_u8(n: u8) -> Option<Unit> {
+        match n {
+            0 | 1 => Some(unsafe { mem::transmute(n) }),
+            _ => None
+        }
+    }
+}
+
 /// Frame control information
 #[derive(Debug)]
 pub struct FrameControl {
@@ -95,6 +124,7 @@ pub struct Info {
     pub color_type: ColorType,
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
+    pub pixel_dims: Option<PixelDimensions>,
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>
@@ -110,6 +140,7 @@ impl Default for Info {
             interlaced: false,
             palette: None,
             trns: None,
+            pixel_dims: None,
             frame_control: None,
             animation_control: None
         }

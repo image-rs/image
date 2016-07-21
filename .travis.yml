@@ -26,11 +26,11 @@ script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v;
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi;
-        cargo doc -v;
+        if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; cargo doc -v; fi;
       else
         cargo build -v --no-default-features --features "$FEATURES";
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi;
-        cargo doc -v;
+        if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; cargo doc -v --no-default-features --features "$FEATURES"; fi;
       fi
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&

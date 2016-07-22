@@ -12,7 +12,7 @@ extern crate inflate;
 use self::inflate::InflateStream;
 use crc::Crc32;
 use traits::ReadBytesExt;
-use common::{ColorType, BitDepth, Info, AnimationControl, FrameControl};
+use common::{ColorType, BitDepth, Info, Unit, PixelDimensions, AnimationControl, FrameControl};
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 
 /// TODO check if these size are reasonable
@@ -46,6 +46,7 @@ pub enum Decoded<'a> {
     Header(u32, u32, BitDepth, ColorType, bool),
     ChunkBegin(u32, ChunkType),
     ChunkComplete(u32, ChunkType),
+    PixelDimensions(PixelDimensions),
     AnimationControl(AnimationControl),
     FrameControl(&'a FrameControl),
     /// Decoded raw image data.
@@ -396,6 +397,9 @@ impl StreamingDecoder {
             chunk::tRNS => {
                 self.parse_trns()
             }
+            chunk::pHYs => {
+                self.parse_phys()
+            }
             chunk::acTL => {
                 self.parse_actl()
             }
@@ -545,6 +549,32 @@ impl StreamingDecoder {
 
     }
 
+    fn parse_phys(&mut self)
+    -> Result<Decoded, DecodingError> {
+        if self.have_idat {
+            return Err(DecodingError::Format(
+                "pHYs chunk appeared after first IDAT chunk".into()
+            ))
+        } else {
+            let mut buf = &self.current_chunk.2[..];
+            let xppu = try!(buf.read_be());
+            let yppu = try!(buf.read_be());
+            let unit = try!(buf.read_be());
+            let unit = match Unit::from_u8(unit) {
+                Some(unit) => unit,
+                None => return Err(DecodingError::Format(
+                    format!("invalid unit ({})", unit).into()
+                ))
+            };
+            let pixel_dims = PixelDimensions {
+                xppu: xppu,
+                yppu: yppu,
+                unit: unit,
+            };
+            self.info.as_mut().unwrap().pixel_dims = Some(pixel_dims);
+            Ok(Decoded::PixelDimensions(pixel_dims))
+        }
+    }
 
     fn parse_ihdr(&mut self)
     -> Result<Decoded, DecodingError> {

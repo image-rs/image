@@ -1,8 +1,4 @@
 //! Functions for altering and converting the color of pixelbufs
-use num_traits:: {
-    NumCast,
-    Float,
-};
 
 use color::{Luma, Rgba};
 use buffer::{ImageBuffer, Pixel};
@@ -10,7 +6,7 @@ use traits::Primitive;
 use image::GenericImage;
 use math::utils::clamp;
 use math::nq;
-use num_traits::Num;
+use num_traits::{Num, NumCast};
 
 /// Convert the supplied image to grayscale
 pub fn grayscale<'a, I: GenericImage>(image: &I)

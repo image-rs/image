@@ -95,27 +95,9 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     #[allow(trivial_casts)]
     fn channels4(&self) -> (T, T, T, T) {
-        let a;
-        let mut b = T::max_value();
-        let mut c = T::max_value();
-        let mut d = T::max_value();
-        let this = self.data;
-        if $channels as u8 == 1 {
-            a = this[0];
-        } else if $channels as u8 == 2 {
-            a = this[0];
-            b = this[1];
-        } else if $channels as u8 == 3 {
-            a = this[0];
-            b = this[1];
-            c = this[2];
-        } else {
-            a = this[0];
-            b = this[1];
-            c = this[2];
-            d = this[3];
-        }
-        (a, b, c, d)
+        let mut channels = [T::max_value(); 4];
+        channels[0..$channels].copy_from_slice(&self.data);
+        (channels[0], channels[1], channels[2], channels[3])
     }
 
     fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {

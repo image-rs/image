@@ -5,10 +5,7 @@
 
 use std::f32;
 
-use num_traits:: {
-    NumCast,
-    Float,
-};
+use num_traits::NumCast;
 
 use buffer::{ImageBuffer, Pixel};
 use traits::Primitive;

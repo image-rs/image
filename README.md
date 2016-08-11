@@ -279,12 +279,14 @@ If the high level interface is not needed because the image was obtained by othe
 ```rust
 extern crate image;
 
+use std::path::Path;
+
 fn main() {
 
     let buffer: &[u8] = ...; // Generate the image data
 
     // Save the buffer as "image.png"
-    image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8))
+    image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8)).unwrap()
 }
 
 ```

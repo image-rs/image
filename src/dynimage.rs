@@ -632,7 +632,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 10] = [
     (b"II*.", ImageFormat::TIFF),
     (b"BM", ImageFormat::BMP),
     (&[0, 0, 1, 0], ImageFormat::ICO),
-    (hdr::SIGNATURE, ImageFormat::HDR),
+    (b"#?RADIANCE", ImageFormat::HDR),
 ];
 
 /// Create a new image from a byte slice

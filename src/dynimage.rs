@@ -658,6 +658,22 @@ pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageRes
     load(b, format)
 }
 
+/// Guess image format from memory block
+///
+/// Makes an educated guess about the image format based on the Magic Bytes at the beginning.
+/// TGA is not supported by this function.
+/// This is not to be trusted on the validity of the whole memory block
+pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
+    for &(signature, format) in MAGIC_BYTES.iter() {
+        if buffer.starts_with(signature) {
+            return Ok(format);
+        }
+    }
+    Err(image::ImageError::UnsupportedError(
+        "Unsupported image format".to_string())
+    )
+}
+
 #[cfg(test)]
 mod bench {
     use test;

@@ -640,14 +640,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 10] = [
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    for &(signature, format) in MAGIC_BYTES.iter() {
-        if buffer.starts_with(signature) {
-            return load_from_memory_with_format(buffer, format)
-        }
-    }
-    Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string())
-    )
+    load_from_memory_with_format(buffer, try!(guess_format(buffer)))
 }
 
 

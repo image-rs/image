@@ -85,6 +85,7 @@ pub use dynimage::{
     load,
     load_from_memory,
     load_from_memory_with_format,
+    guess_format,
     save_buffer
 };
 

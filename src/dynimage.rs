@@ -640,14 +640,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 10] = [
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    for &(signature, format) in MAGIC_BYTES.iter() {
-        if buffer.starts_with(signature) {
-            return load_from_memory_with_format(buffer, format)
-        }
-    }
-    Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string())
-    )
+    load_from_memory_with_format(buffer, try!(guess_format(buffer)))
 }
 
 
@@ -656,6 +649,22 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);
     load(b, format)
+}
+
+/// Guess image format from memory block
+///
+/// Makes an educated guess about the image format based on the Magic Bytes at the beginning.
+/// TGA is not supported by this function.
+/// This is not to be trusted on the validity of the whole memory block
+pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
+    for &(signature, format) in MAGIC_BYTES.iter() {
+        if buffer.starts_with(signature) {
+            return Ok(format);
+        }
+    }
+    Err(image::ImageError::UnsupportedError(
+        "Unsupported image format".to_string())
+    )
 }
 
 #[cfg(test)]

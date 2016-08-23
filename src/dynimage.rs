@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Write, Seek, BufRead, BufReader};
+use std::io::{Write, Seek, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use std::fs::File;
 use std::iter;
@@ -576,7 +576,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
 
 fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType)
                       -> io::Result<()> {
-    let ref mut fout = try!(File::create(path));
+    let ref mut fout = BufWriter::new(try!(File::create(path)));
     let ext = path.extension().and_then(|s| s.to_str())
                   .map_or("".to_string(), |s| s.to_ascii_lowercase());
 

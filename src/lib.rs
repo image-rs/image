@@ -38,6 +38,7 @@ pub use image::{
     ImageDecoder,
     ImageError,
     ImageResult,
+    DecodingResult,
     SubImage,
     GenericImage,
     // Iterators

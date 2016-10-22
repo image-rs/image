@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use byteorder::{WriteBytesExt, BigEndian};
 use num_iter::range_step;
+use math::utils::clamp;
 
 use color;
 
@@ -176,6 +177,13 @@ pub struct JPEGEncoder<'a, W: 'a> {
 impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> JPEGEncoder<W> {
+        return JPEGEncoder::new_with_quality(w, 75);
+    }
+
+    /// Create a new encoder that writes its output to ```w```, and has
+    /// the quality parameter ```quality``` with a value in the range 1-100
+    /// where 1 is the worst and 100 is the best.
+    pub fn new_with_quality(w: &mut W, quality: u8) -> JPEGEncoder<W> {
         let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
         let la = build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
 
@@ -188,9 +196,24 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             Component {id: CHROMAREDID, h: 1, v: 1, tq: CHROMADESTINATION, dc_table: CHROMADESTINATION, ac_table: CHROMADESTINATION, dc_pred: 0}
         ];
 
+        // Derive our quantization table scaling value using the libjpeg algorithm
+        let scale: u32 = clamp(quality, 1, 100) as u32;
+        let scale = if scale < 50 {
+            5000 / scale
+        } else {
+            200 - scale * 2
+        };
+
         let mut tables = Vec::new();
-        tables.extend(STD_LUMA_QTABLE.iter().map(|&v| v));
-        tables.extend(STD_CHROMA_QTABLE.iter().map(|&v| v));
+        let scale_value = |&v: &u8| {
+            let value = (v as u32 * scale + 50) / 100;
+
+            return clamp(value,
+                         1,
+                         u8::max_value() as u32) as u8;
+        };
+        tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
+        tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
 
         JPEGEncoder {
             w: w,

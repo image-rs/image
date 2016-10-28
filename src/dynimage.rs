@@ -669,9 +669,11 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
 
 #[cfg(test)]
 mod bench {
+    #[cfg(benchmarks)]
     use test;
 
     #[bench]
+    #[cfg(benchmarks)]
     fn bench_conversion(b: &mut test::Bencher) {
         let a = super::DynamicImage::ImageRgb8(::ImageBuffer::new(1000, 1000));
         b.iter(|| {

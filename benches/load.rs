@@ -1,3 +1,4 @@
+#[cfg(benchmarks)]
 #![feature(test)]
 
 extern crate image;

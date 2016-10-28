@@ -61,3 +61,5 @@ tiff = []
 webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
+
+benchmarks = []

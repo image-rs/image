@@ -107,6 +107,35 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
     out
 }
 
+/// Hue roatate the supplied image.
+/// ```value``` is the degrees to rotate each pixel by.
+/// 0 and 360 do nothing, the rest rotates by the give degree value.
+// just like the css webkit filter hue-rotate(180)
+pub fn huerotate<I, P, S>(image: &I, value: i32)
+    -> ImageBuffer<P, Vec<S>>
+    where I: GenericImage<Pixel=P>,
+          P: Pixel<Subpixel=S> + 'static,
+          S: Primitive + 'static {
+
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(width, height);
+
+    let max = S::max_value();
+    let max: i32 = NumCast::from(max).unwrap();
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut pixel = image.get_pixel(x, y);
+
+            // TODO add code for rotating from other repo
+
+            out.put_pixel(x, y, pixel);
+        }
+    }
+
+    out
+}
+
 /// A color map
 pub trait ColorMap {
     /// The color type on which the map operates on

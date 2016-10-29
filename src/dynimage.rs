@@ -404,6 +404,19 @@ impl DynamicImage {
                  ),
         }
     }
+
+    /// Encode this image as JPEG with specified quality and write it to ```w```
+    #[cfg(feature = "jpeg")]
+    pub fn save_jpeg_with_quality<W: Write>(&self, w: &mut W, quality: u8) -> ImageResult<()> {
+        let bytes = self.raw_pixels();
+        let (width, height) = self.dimensions();
+        let color = self.color();
+
+        let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+
+        try!(j.encode(&bytes, width, height, color));
+        Ok(())
+    }
 }
 
 #[allow(deprecated)]

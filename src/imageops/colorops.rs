@@ -117,7 +117,7 @@ fn clamp_u8(num:f64) -> u8 {
     }
 }
 
-/// Hue roatate the supplied image.
+/// Hue rotate the supplied image.
 /// ```value``` is the degrees to rotate each pixel by.
 /// 0 and 360 do nothing, the rest rotates by the given degree value.
 /// just like the css webkit filter hue-rotate(180)
@@ -130,8 +130,7 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let angle = value;
-    let angle: i32 = NumCast::from(angle).unwrap();
+    let angle: i32 = NumCast::from(value).unwrap();
 
     let cosv = (angle as f64 * PI / 180.0).cos();
     let sinv = (angle as f64 * PI / 180.0).sin();
@@ -140,6 +139,17 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
         0.0, 1.0, 0.0,   // Greens
         0.0, 0.0, 1.0    // Blues
     ];
+    matrix[0] = 0.213 + cosv * 0.787 - sinv * 0.213;
+    matrix[1] = 0.715 - cosv * 0.715 - sinv * 0.715;
+    matrix[2] = 0.072 - cosv * 0.072 + sinv * 0.928;
+
+    matrix[3] = 0.213 - cosv * 0.213 + sinv * 0.143;
+    matrix[4] = 0.715 + cosv * 0.285 + sinv * 0.140;
+    matrix[5] = 0.072 - cosv * 0.072 - sinv * 0.283;
+
+    matrix[6] = 0.213 - cosv * 0.213 - sinv * 0.787;
+    matrix[7] = 0.715 - cosv * 0.715 + sinv * 0.715;
+    matrix[8] = 0.072 + cosv * 0.928 + sinv * 0.072;
 
     for y in 0..height {
         for x in 0..width {
@@ -157,18 +167,6 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
             let g = vec.1 as f64;
             let b = vec.2 as f64;
 
-            matrix[0] = 0.213 + cosv * 0.787 - sinv * 0.213;
-            matrix[1] = 0.715 - cosv * 0.715 - sinv * 0.715;
-            matrix[2] = 0.072 - cosv * 0.072 + sinv * 0.928;
-
-            matrix[3] = 0.213 - cosv * 0.213 + sinv * 0.143;
-            matrix[4] = 0.715 + cosv * 0.285 + sinv * 0.140;
-            matrix[5] = 0.072 - cosv * 0.072 - sinv * 0.283;
-
-            matrix[6] = 0.213 - cosv * 0.213 - sinv * 0.787;
-            matrix[7] = 0.715 - cosv * 0.715 + sinv * 0.715;
-            matrix[8] = 0.072 + cosv * 0.928 + sinv * 0.072;
-
             let new_r = clamp_u8(matrix[0] * r + matrix[1] * g + matrix[2] * b);
             let new_g = clamp_u8(matrix[3] * r + matrix[4] * g + matrix[5] * b);
             let new_b = clamp_u8(matrix[6] * r + matrix[7] * g + matrix[8] * b);
@@ -180,7 +178,6 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
                 NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
             );
 
-            //image.put_pixel(x, y, outpixel);
             out.put_pixel(x, y, outpixel);
         }
     }

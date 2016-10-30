@@ -136,6 +136,13 @@ pub enum ImageFormat {
     HDR,
 }
 
+/// An enumeration of supported compressible image formats.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CompressedImageFormat {
+    /// An Image in JPEG Format with specified quality
+    JPEG(u8),
+}
+
 /// The trait that all decoders implement
 pub trait ImageDecoder: Sized {
     /// Returns a tuple containing the width and height of the image

@@ -5,7 +5,7 @@ use std::env;
 use std::fs::File;
 use std::path::Path;
 
-use image::GenericImage;
+use image::{CompressedImageFormat, GenericImage};
 
 fn main() {
     let file = env::args().nth(1).expect("Please enter a file");
@@ -20,5 +20,5 @@ fn main() {
     let ref mut fout = File::create(format!("{}.jpg", file)).unwrap();
 
     // Write the image contents to the Writer in a compressed JPEG format.
-    let _ = im.save_jpeg_with_quality(fout, qual).unwrap();
+    im.save_compressed(fout, CompressedImageFormat::JPEG(qual)).unwrap();
 }

@@ -6,6 +6,7 @@ use traits::Primitive;
 use image::GenericImage;
 use math::utils::clamp;
 use math::nq;
+use std::f64::consts::PI;
 use num_traits::{Num, NumCast};
 
 /// Convert the supplied image to grayscale
@@ -120,14 +121,42 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
-    let max: i32 = NumCast::from(max).unwrap();
+    let angle = value as f64;
 
+    let cosv = (angle as f64 * PI / 180.0).cos();
+    let sinv = (angle as f64 * PI / 180.0).sin();
+    let mut matrix: [f64; 9] = [
+        1.0, 0.0, 0.0,   // Reds
+        0.0, 1.0, 0.0,   // Greens
+        0.0, 0.0, 1.0    // Blues
+    ];
     for y in 0..height {
         for x in 0..width {
             let mut pixel = image.get_pixel(x, y);
+            // taken from webkit:
+            // /Source/WebCore/platform/graphics/texmap/TextureMapperShaderProgram.cpp
+            matrix[0] = 0.213 + cosv * 0.787 - sinv * 0.213;
+            matrix[1] = 0.715 - cosv * 0.715 - sinv * 0.715;
+            matrix[2] = 0.072 - cosv * 0.072 + sinv * 0.928;
 
-            // TODO add code for rotating from other repo
+            matrix[3] = 0.213 - cosv * 0.213 + sinv * 0.143;
+            matrix[4] = 0.715 + cosv * 0.285 + sinv * 0.140;
+            matrix[5] = 0.072 - cosv * 0.072 - sinv * 0.283;
+
+            matrix[6] = 0.213 - cosv * 0.213 - sinv * 0.787;
+            matrix[7] = 0.715 - cosv * 0.715 + sinv * 0.715;
+            matrix[8] = 0.072 + cosv * 0.928 + sinv * 0.072;
+
+            // array of u8 [u8; 4]
+            let pixel_data = pixel.data;
+
+            let r = pixel_data[0] as f64;
+            let g = pixel_data[1] as f64;
+            let b = pixel_data[2] as f64;
+            // clamp(d, 0.0, max)
+            original_pixel.data[0] = clamp(matrix[0] * r + matrix[1] * g + matrix[2] * b, 0.0, 255.0) as u8;
+            original_pixel.data[1] = clamp(matrix[3] * r + matrix[4] * g + matrix[5] * b, 0.0, 255.0) as u8;
+            original_pixel.data[2] = clamp(matrix[6] * r + matrix[7] * g + matrix[8] * b, 0.0, 255.0) as u8;
 
             out.put_pixel(x, y, pixel);
         }

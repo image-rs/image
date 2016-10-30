@@ -168,6 +168,7 @@ These are the functions defined in the ```imageops``` module. All functions oper
 
 + **blur**: Performs a Gaussian blur on the supplied image.
 + **brighten**: Brighten the supplied image
++ **huerotate**: Hue rotate the supplied image by degrees
 + **contrast**: Adjust the contrast of the supplied image
 + **crop**: Return a mutable view into an image
 + **filter3x3**: Perform a 3x3 box filter on the supplied image.

@@ -41,7 +41,7 @@ pub use self::colorops:: {
     invert,
     contrast,
     brighten,
-    huerotate
+    huerotate,
     ColorMap,
     BiLevel,
     dither,

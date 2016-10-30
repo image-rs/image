@@ -107,11 +107,20 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
 
     out
 }
+fn clamp_u8(num:f64) -> u8 {
+    if num < 0.0 {
+        return u8::min_value();
+    } else if num > 255.0 {
+        return u8::max_value();
+    } else {
+        return num as u8;
+    }
+}
 
 /// Hue roatate the supplied image.
 /// ```value``` is the degrees to rotate each pixel by.
-/// 0 and 360 do nothing, the rest rotates by the give degree value.
-// just like the css webkit filter hue-rotate(180)
+/// 0 and 360 do nothing, the rest rotates by the given degree value.
+/// just like the css webkit filter hue-rotate(180)
 pub fn huerotate<I, P, S>(image: &I, value: i32)
     -> ImageBuffer<P, Vec<S>>
     where I: GenericImage<Pixel=P>,
@@ -121,7 +130,8 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let angle = value as f64;
+    let angle = value;
+    let angle: i32 = NumCast::from(angle).unwrap();
 
     let cosv = (angle as f64 * PI / 180.0).cos();
     let sinv = (angle as f64 * PI / 180.0).sin();
@@ -130,11 +140,23 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
         0.0, 1.0, 0.0,   // Greens
         0.0, 0.0, 1.0    // Blues
     ];
+
     for y in 0..height {
         for x in 0..width {
-            let mut pixel = image.get_pixel(x, y);
-            // taken from webkit:
-            // /Source/WebCore/platform/graphics/texmap/TextureMapperShaderProgram.cpp
+
+            let p = image.get_pixel(x, y);
+            let (k1, k2, k3, k4) = p.channels4();
+            let vec: (f32, f32, f32, f32) = (
+                NumCast::from(k1).unwrap(),
+                NumCast::from(k2).unwrap(),
+                NumCast::from(k3).unwrap(),
+                NumCast::from(k4).unwrap()
+            );
+
+            let r = vec.0 as f64;
+            let g = vec.1 as f64;
+            let b = vec.2 as f64;
+
             matrix[0] = 0.213 + cosv * 0.787 - sinv * 0.213;
             matrix[1] = 0.715 - cosv * 0.715 - sinv * 0.715;
             matrix[2] = 0.072 - cosv * 0.072 + sinv * 0.928;
@@ -147,21 +169,21 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
             matrix[7] = 0.715 - cosv * 0.715 + sinv * 0.715;
             matrix[8] = 0.072 + cosv * 0.928 + sinv * 0.072;
 
-            // array of u8 [u8; 4]
-            let pixel_data = pixel.data;
+            let new_r = clamp_u8(matrix[0] * r + matrix[1] * g + matrix[2] * b);
+            let new_g = clamp_u8(matrix[3] * r + matrix[4] * g + matrix[5] * b);
+            let new_b = clamp_u8(matrix[6] * r + matrix[7] * g + matrix[8] * b);
+            let max = 255f32;
+            let outpixel = Pixel::from_channels(
+                NumCast::from(clamp(new_r as f32, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_g as f32, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_b as f32, 0.0, max)).unwrap(),
+                NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
+            );
 
-            let r = pixel_data[0] as f64;
-            let g = pixel_data[1] as f64;
-            let b = pixel_data[2] as f64;
-            // clamp(d, 0.0, max)
-            original_pixel.data[0] = clamp(matrix[0] * r + matrix[1] * g + matrix[2] * b, 0.0, 255.0) as u8;
-            original_pixel.data[1] = clamp(matrix[3] * r + matrix[4] * g + matrix[5] * b, 0.0, 255.0) as u8;
-            original_pixel.data[2] = clamp(matrix[6] * r + matrix[7] * g + matrix[8] * b, 0.0, 255.0) as u8;
-
-            out.put_pixel(x, y, pixel);
+            //image.put_pixel(x, y, outpixel);
+            out.put_pixel(x, y, outpixel);
         }
     }
-
     out
 }
 

@@ -324,6 +324,10 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))
     }
 
+    pub fn hueroate(&self, value: i32) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::huerotate(p, value))
+    }
+
     /// Flip this image vertically
     pub fn flipv(&self) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::flip_vertical(p))

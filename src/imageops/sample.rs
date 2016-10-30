@@ -468,13 +468,14 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
 
 #[cfg(test)]
 mod tests {
+    #[cfg(benchmarks)]
     use test;
     use buffer::{ImageBuffer, RgbImage};
     use super::{resize, FilterType};
     use std::path::Path;
 
     #[bench]
-    #[cfg(feature = "png_codec")]
+    #[cfg(all(benchmarks, feature = "png_codec"))]
     fn bench_resize(b: &mut test::Bencher) {
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {

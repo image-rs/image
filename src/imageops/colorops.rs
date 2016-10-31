@@ -79,7 +79,6 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
 /// The sepia filter effect is a brownish-grey to dark yellowish-brown tone
 /// imparted to an image and is expressed in percentages from 0.0 to 1.0
 /// `value` is the amount/percentage e.g. sepia(1.0) just like the css filter sepia(100%)
-/// https://developer.mozilla.org/de/docs/Web/CSS/filter
 pub fn sepia<I, P, S>(image: &I, value: f64)
     -> ImageBuffer<P, Vec<S>>
     where I: GenericImage<Pixel=P>,
@@ -89,8 +88,7 @@ pub fn sepia<I, P, S>(image: &I, value: f64)
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    // TODO: clamp to 0.0/1.0
-    let amount: f64 = 1.0f64 - value;
+    let amount: f64 = 1.0f64 - clamp(value, 0.0f64, 1.0f64);
 
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);

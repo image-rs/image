@@ -140,36 +140,31 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
         0.072 + cosv * 0.928 + sinv * 0.072
 
     ];
+    for (x, y, pixel) in out.enumerate_pixels_mut() {
+        let p = image.get_pixel(x, y);
+        let (k1, k2, k3, k4) = p.channels4();
+        let vec: (f64, f64, f64, f64) = (
+            NumCast::from(k1).unwrap(),
+            NumCast::from(k2).unwrap(),
+            NumCast::from(k3).unwrap(),
+            NumCast::from(k4).unwrap()
+        );
 
-    for y in 0..height {
-        for x in 0..width {
+        let r = vec.0;
+        let g = vec.1;
+        let b = vec.2;
 
-            let p = image.get_pixel(x, y);
-            let (k1, k2, k3, k4) = p.channels4();
-            let vec: (f64, f64, f64, f64) = (
-                NumCast::from(k1).unwrap(),
-                NumCast::from(k2).unwrap(),
-                NumCast::from(k3).unwrap(),
-                NumCast::from(k4).unwrap()
-            );
-
-            let r = vec.0;
-            let g = vec.1;
-            let b = vec.2;
-
-            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
-            let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-                NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
-            );
-
-            out.put_pixel(x, y, outpixel);
-        }
+        let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
+        let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
+        let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+        let max = 255f64;
+        let outpixel = Pixel::from_channels(
+            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+            NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
+        );
+        *pixel = outpixel;
     }
     out
 }

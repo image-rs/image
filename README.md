@@ -167,6 +167,7 @@ assert!(subimg.dimensions() == (100, 100));
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
++ **sepia**: Sepia filter the supplied image by given amount
 + **brighten**: Brighten the supplied image
 + **contrast**: Adjust the contrast of the supplied image
 + **crop**: Return a mutable view into an image

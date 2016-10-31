@@ -317,6 +317,11 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }
 
+
+    pub fn sepia(&self, value: f64) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::sepia(p, value))
+    }
+
     /// Brighten the pixels of this image.
     /// ```value``` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.

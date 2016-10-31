@@ -107,15 +107,6 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
 
     out
 }
-fn clamp_u8(num:f64) -> u8 {
-    if num < 0.0 {
-        return u8::min_value();
-    } else if num > 255.0 {
-        return u8::max_value();
-    } else {
-        return num as u8;
-    }
-}
 
 /// Hue rotate the supplied image.
 /// ```value``` is the degrees to rotate each pixel by.
@@ -134,47 +125,46 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
 
     let cosv = (angle as f64 * PI / 180.0).cos();
     let sinv = (angle as f64 * PI / 180.0).sin();
-    let mut matrix: [f64; 9] = [
-        1.0, 0.0, 0.0,   // Reds
-        0.0, 1.0, 0.0,   // Greens
-        0.0, 0.0, 1.0    // Blues
+    let matrix: [f64; 9] = [
+        // Reds
+        0.213 + cosv * 0.787 - sinv * 0.213,
+        0.715 - cosv * 0.715 - sinv * 0.715,
+        0.072 - cosv * 0.072 + sinv * 0.928,
+        // Greens
+        0.213 - cosv * 0.213 + sinv * 0.143,
+        0.715 + cosv * 0.285 + sinv * 0.140,
+        0.072 - cosv * 0.072 - sinv * 0.283,
+        // Blues
+        0.213 - cosv * 0.213 - sinv * 0.787,
+        0.715 - cosv * 0.715 + sinv * 0.715,
+        0.072 + cosv * 0.928 + sinv * 0.072
+
     ];
-    matrix[0] = 0.213 + cosv * 0.787 - sinv * 0.213;
-    matrix[1] = 0.715 - cosv * 0.715 - sinv * 0.715;
-    matrix[2] = 0.072 - cosv * 0.072 + sinv * 0.928;
-
-    matrix[3] = 0.213 - cosv * 0.213 + sinv * 0.143;
-    matrix[4] = 0.715 + cosv * 0.285 + sinv * 0.140;
-    matrix[5] = 0.072 - cosv * 0.072 - sinv * 0.283;
-
-    matrix[6] = 0.213 - cosv * 0.213 - sinv * 0.787;
-    matrix[7] = 0.715 - cosv * 0.715 + sinv * 0.715;
-    matrix[8] = 0.072 + cosv * 0.928 + sinv * 0.072;
 
     for y in 0..height {
         for x in 0..width {
 
             let p = image.get_pixel(x, y);
             let (k1, k2, k3, k4) = p.channels4();
-            let vec: (f32, f32, f32, f32) = (
+            let vec: (f64, f64, f64, f64) = (
                 NumCast::from(k1).unwrap(),
                 NumCast::from(k2).unwrap(),
                 NumCast::from(k3).unwrap(),
                 NumCast::from(k4).unwrap()
             );
 
-            let r = vec.0 as f64;
-            let g = vec.1 as f64;
-            let b = vec.2 as f64;
+            let r = vec.0;
+            let g = vec.1;
+            let b = vec.2;
 
-            let new_r = clamp_u8(matrix[0] * r + matrix[1] * g + matrix[2] * b);
-            let new_g = clamp_u8(matrix[3] * r + matrix[4] * g + matrix[5] * b);
-            let new_b = clamp_u8(matrix[6] * r + matrix[7] * g + matrix[8] * b);
-            let max = 255f32;
+            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
+            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
+            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+            let max = 255f64;
             let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r as f32, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g as f32, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b as f32, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
                 NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
             );
 

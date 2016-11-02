@@ -40,6 +40,8 @@ pub use self::colorops:: {
     grayscale,
     invert,
     contrast,
+    tint_rgb,
+    tint_hex,
     brighten,
     ColorMap,
     BiLevel,

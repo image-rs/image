@@ -76,6 +76,52 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
     out
 }
 
+/// Tints an image with a given color by a given amount
+/// from 0.0 to 1.0 * r,g,b
+/// `value` is the amount/percentage
+/// `r` is between 0 and 255u8
+/// `g` is between 0 and 255u8
+/// `b` is between 0 and 255u8
+pub fn tint<I, P, S>(image: &I, value: f64, red: u8, green: u8, blue: u8)
+    -> ImageBuffer<P, Vec<S>>
+    where I: GenericImage<Pixel=P>,
+          P: Pixel<Subpixel=S> + 'static,
+          S: Primitive + 'static {
+
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(width, height);
+
+    let tint_factor: f64 = clamp(value, 0.0f64, 1.0f64);
+
+    for (x, y, pixel) in out.enumerate_pixels_mut() {
+        let p = image.get_pixel(x, y);
+        let (k1, k2, k3, k4) = p.channels4();
+        let vec: (f64, f64, f64, f64) = (
+            NumCast::from(k1).unwrap(),
+            NumCast::from(k2).unwrap(),
+            NumCast::from(k3).unwrap(),
+            NumCast::from(k4).unwrap()
+        );
+
+        let r = vec.0;
+        let g = vec.1;
+        let b = vec.2;
+
+        let new_r = r + (red as f64 - r) * tint_factor;
+        let new_g = g + (green as f64 - g) * tint_factor;
+        let new_b = b + (blue as f64 - b) * tint_factor;
+        let max = 255f64;
+        let outpixel = Pixel::from_channels(
+            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+            NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
+        );
+        *pixel = outpixel;
+    }
+    out
+}
+
 /// Brighten the supplied image.
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.

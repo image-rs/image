@@ -163,7 +163,7 @@ let subimg  = imageops::crop(img, 0, 0, 100, 100);
 assert!(subimg.dimensions() == (100, 100));
 ```
 
-## 5 Image Processing Functions
+## 19 Image Processing Functions
 These are the functions defined in the ```imageops``` module. All functions operate on types that implement the ```GenericImage``` trait.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
@@ -179,6 +179,8 @@ These are the functions defined in the ```imageops``` module. All functions oper
 + **rotate180**: Rotate an image 180 degrees clockwise.
 + **rotate270**: Rotate an image 270 degrees clockwise.
 + **rotate90**: Rotate an image 90 degrees clockwise.
++ **tint_rgb**: Tint an image by a given amount and a given color(u8,u8,u8).
++ **tint_hex**: Tint an image by a given amount and a given color("#ACDCAC").
 + **unsharpen**: Performs an unsharpen mask on the supplied image
 
 ## 6 Examples

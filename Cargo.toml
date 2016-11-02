@@ -28,6 +28,8 @@ num-rational = "0.1.32"
 num-traits = "0.1.32"
 enum_primitive = "0.1.0"
 glob = "0.2.10"
+regex = "0.1"
+lazy_static = "0.2.1"
 
 [dependencies.gif]
 version = "0.9"

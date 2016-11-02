@@ -11,10 +11,15 @@ extern crate byteorder;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
+extern crate regex;
 #[macro_use]
 extern crate enum_primitive;
+#[macro_use]
+extern crate lazy_static;
+
 #[cfg(test)]
 extern crate test;
+
 
 use std::io::Write;
 

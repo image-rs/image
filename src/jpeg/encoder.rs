@@ -262,16 +262,14 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         Ok(dcval)
     }
 
-    fn write_segment(&mut self, marker: u8, data: Option<Vec<u8>>) -> io::Result<()> {
-        let _ = try!(self.w.write_all(&[0xFF]));
-        let _ = try!(self.w.write_all(&[marker]));
+    fn write_segment(&mut self, marker: u8, data: Option<&[u8]>) -> io::Result<()> {
+        try!(self.w.write_all(&[0xFF]));
+        try!(self.w.write_all(&[marker]));
 
-        if data.is_some() {
-            let b = data.unwrap();
-            let _ = try!(self.w.write_u16::<BigEndian>(b.len() as u16 + 2));
-            let _ = try!(self.w.write_all(&b));
+        if let Some(b) = data {
+            try!(self.w.write_u16::<BigEndian>(b.len() as u16 + 2));
+            try!(self.w.write_all(&b));
         }
-
         Ok(())
     }
 }
@@ -360,37 +358,39 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 
         try!(self.writer.write_segment(SOI, None));
 
-        let buf = build_jfif_header();
-        try!(self.writer.write_segment(APP0, Some(buf)));
+        let mut buf = Vec::new();
 
-        let buf = build_frame_header(8, width as u16, height as u16, &self.components[..num_components]);
-        try!(self.writer.write_segment(SOF0, Some(buf)));
+        build_jfif_header(&mut buf);
+        try!(self.writer.write_segment(APP0, Some(&buf)));
+
+        build_frame_header(&mut buf, 8, width as u16, height as u16, &self.components[..num_components]);
+        try!(self.writer.write_segment(SOF0, Some(&buf)));
 
         assert!(self.tables.len() / 64 == 2);
         let numtables = if num_components == 1 {1}
                         else {2};
 
         for (i, table) in self.tables.chunks(64).enumerate().take(numtables) {
-            let buf = build_quantization_segment(8, i as u8, table);
-            try!(self.writer.write_segment(DQT, Some(buf)));
+            build_quantization_segment(&mut buf, 8, i as u8, table);
+            try!(self.writer.write_segment(DQT, Some(&buf)));
         }
 
-        let buf = build_huffman_segment(ACCLASS, LUMADESTINATION,
-                                        &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
-        try!(self.writer.write_segment(DHT, Some(buf)));
+        build_huffman_segment(&mut buf, ACCLASS, LUMADESTINATION,
+                              &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
+        try!(self.writer.write_segment(DHT, Some(&buf)));
 
         if num_components == 3 {
-            let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION,
-                                            &STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
-            try!(self.writer.write_segment(DHT, Some(buf)));
+            build_huffman_segment(&mut buf, DCCLASS, CHROMADESTINATION,
+                                  &STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
+            try!(self.writer.write_segment(DHT, Some(&buf)));
 
-            let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION,
-                                            &STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
-            try!(self.writer.write_segment(DHT, Some(buf)));
+            build_huffman_segment(&mut buf, ACCLASS, CHROMADESTINATION,
+                                  &STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
+            try!(self.writer.write_segment(DHT, Some(&buf)));
         }
 
-        let buf = build_scan_header(&self.components[..num_components]);
-        try!(self.writer.write_segment(SOS, Some(buf)));
+        build_scan_header(&mut buf, &self.components[..num_components]);
+        try!(self.writer.write_segment(SOS, Some(&buf)));
 
         match c {
             color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as usize, height as usize, 3)),
@@ -483,8 +483,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     }
 }
 
-fn build_jfif_header() -> Vec<u8> {
-    let mut m = Vec::new();
+fn build_jfif_header(m: &mut Vec<u8>) {
+    m.clear();
 
     let _ = write!(m, "JFIF");
     let _ = m.write_all(&[0]);
@@ -495,16 +495,14 @@ fn build_jfif_header() -> Vec<u8> {
     let _ = m.write_u16::<BigEndian>(1);
     let _ = m.write_all(&[0]);
     let _ = m.write_all(&[0]);
-
-    m
 }
 
-fn build_frame_header(precision: u8,
+fn build_frame_header(m: &mut Vec<u8>,
+                      precision: u8,
                       width: u16,
                       height: u16,
-                      components: &[Component]) -> Vec<u8> {
-
-    let mut m = Vec::new();
+                      components: &[Component]) {
+    m.clear();
 
     let _ = m.write_all(&[precision]);
     let _ = m.write_u16::<BigEndian>(height);
@@ -517,12 +515,10 @@ fn build_frame_header(precision: u8,
         let _  = m.write_all(&[hv]);
         let _  = m.write_all(&[comp.tq]);
     }
-
-    m
 }
 
-fn build_scan_header(components: &[Component]) -> Vec<u8> {
-    let mut m = Vec::new();
+fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
+    m.clear();
 
     let _ = m.write_all(&[components.len() as u8]);
 
@@ -536,15 +532,14 @@ fn build_scan_header(components: &[Component]) -> Vec<u8> {
     let _ = m.write_all(&[0]);
     let _ = m.write_all(&[63]);
     let _ = m.write_all(&[0]);
-
-    m
 }
 
-fn build_huffman_segment(class: u8,
+fn build_huffman_segment(m: &mut Vec<u8>,
+                         class: u8,
                          destination: u8,
                          numcodes: &[u8],
-                         values: &[u8]) -> Vec<u8> {
-    let mut m = Vec::new();
+                         values: &[u8]) {
+    m.clear();
 
     let tcth = (class << 4) | destination;
     let _    = m.write_all(&[tcth]);
@@ -563,16 +558,15 @@ fn build_huffman_segment(class: u8,
     for & i in values.iter() {
         let _ = m.write_all(&[i]);
     }
-
-    m
 }
 
-fn build_quantization_segment(precision: u8,
+fn build_quantization_segment(m: &mut Vec<u8>,
+                              precision: u8,
                               identifier: u8,
-                              qtable: &[u8]) -> Vec<u8> {
+                              qtable: &[u8]) {
 
     assert!(qtable.len() % 64 == 0);
-    let mut m = Vec::new();
+    m.clear();
 
     let p = if precision == 8 {0}
             else {1};
@@ -583,8 +577,6 @@ fn build_quantization_segment(precision: u8,
     for i in 0usize..64 {
         let _ = m.write_all(&[qtable[UNZIGZAG[i] as usize]]);
     }
-
-    m
 }
 
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {

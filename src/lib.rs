@@ -5,7 +5,7 @@
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
-#![cfg_attr(all(test, benchmarks), feature(test))]
+#![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 
 extern crate byteorder;
 extern crate num_iter;
@@ -13,7 +13,7 @@ extern crate num_rational;
 extern crate num_traits;
 #[macro_use]
 extern crate enum_primitive;
-#[cfg(all(test, benchmarks))]
+#[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 
 use std::io::Write;

@@ -614,7 +614,7 @@ mod test {
 
     use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
     use color;
-    #[cfg(benchmarks)]
+    #[cfg(feature = "benchmarks")]
     use test;
 
     #[test]
@@ -647,7 +647,7 @@ mod test {
     }
 
     #[bench]
-    #[cfg(benchmarks)]
+    #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for mut p in a.pixels_mut() {

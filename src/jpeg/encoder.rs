@@ -376,29 +376,17 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             let _   = try!(self.writer.write_segment(DQT, Some(buf)));
         }
 
-        let numcodes = STD_LUMA_DC_CODE_LENGTHS;
-        let values   = STD_LUMA_DC_VALUES;
-
-        let buf = build_huffman_segment(DCCLASS, LUMADESTINATION, &numcodes, &values);
-        let _   = try!(self.writer.write_segment(DHT, Some(buf)));
-
-        let numcodes = STD_LUMA_AC_CODE_LENGTHS;
-        let values   = STD_LUMA_AC_VALUES;
-
-        let buf = build_huffman_segment(ACCLASS, LUMADESTINATION, &numcodes, &values);
+        let buf = build_huffman_segment(ACCLASS, LUMADESTINATION,
+                                        &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
         let _   = try!(self.writer.write_segment(DHT, Some(buf)));
 
         if num_components == 3 {
-            let numcodes = STD_CHROMA_DC_CODE_LENGTHS;
-            let values   = STD_CHROMA_DC_VALUES;
-
-            let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION, &numcodes, &values);
+            let buf = build_huffman_segment(DCCLASS, CHROMADESTINATION,
+                                            &STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
             let _   = try!(self.writer.write_segment(DHT, Some(buf)));
 
-            let numcodes = STD_CHROMA_AC_CODE_LENGTHS;
-            let values   = STD_CHROMA_AC_VALUES;
-
-            let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION, &numcodes, &values);
+            let buf = build_huffman_segment(ACCLASS, CHROMADESTINATION,
+                                            &STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
             let _   = try!(self.writer.write_segment(DHT, Some(buf)));
         }
 

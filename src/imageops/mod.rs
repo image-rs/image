@@ -94,7 +94,10 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
     for top_y in 0..range_height {
         for top_x in 0..range_width {
             let p = top.get_pixel(top_x, top_y);
-            bottom.get_pixel_mut(x + top_x, y + top_y).blend(&p);
+            let mut bottom_pixel = bottom.get_pixel(x + top_x, y + top_y);
+            bottom_pixel.blend(&p);
+
+            bottom.put_pixel(x + top_x, y + top_y, bottom_pixel);
         }
     }
 }
@@ -120,7 +123,7 @@ pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
     for top_y in 0..range_height {
         for top_x in 0..range_width {
             let p = top.get_pixel(top_x, top_y);
-            *bottom.get_pixel_mut(x + top_x, y + top_y)= p;
+            bottom.put_pixel(x + top_x, y + top_y, p);
         }
     }
 }

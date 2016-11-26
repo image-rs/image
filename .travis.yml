@@ -11,7 +11,7 @@ rust:
     - nightly
 env:
     global:
-        - secure: M2MCRtyP5P/Xf2TSqrbz8cs41TQY04mK/5Fi6qgr77OKLNZlDclKiFY8BmQ6f1JhVccoE5gMIFpfPoVUu8wZ0Pe7/X4IyO4vxWawVQfE6f0NYErD9yqiE1KEi/RGKPOQfL5HFUK7ifnXvLwsAMh1ix9XMgaBZfZLQ8KhkxNRXwI=
+        - secure: "WI/r7hbDhenb7zPXht8J0mhcx5aUgY22cCrwYmNksMmgIK9hYfPjZ68XzaQ7+Ity8b12TlHM8lGRN9bIsyAZEiRIkxkZAArY9bXAOExJaAT+yOyxhEs/QdrGB6iRhC6FTxPwgUH82j0nFL1UI7HqBnOy3g3tv23jq1AlD9N3t0k="
     matrix:
       - FEATURES=''
       - FEATURES='gif_codec'
@@ -39,4 +39,4 @@ after_success: |
     echo '<meta http-equiv=refresh content=0;url=image/index.html>' > target/doc/index.html &&
     pip install --user ghp-import &&
     ghp-import -n target/doc &&
-    git push -fq https://${GH_TOKEN}:x-oauth-basic@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+    git push -fq https://${GH_TOKEN}:x-oauth-basic@github.com/${TRAVIS_REPO_SLUG}.git gh-pages > /dev/null 2>&1

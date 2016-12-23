@@ -328,7 +328,7 @@ impl DynamicImage {
     /// `value` is the degrees to rotate each pixel by.
     /// 0 and 360 do nothing, the rest rotates by the given degree value.
     /// just like the css webkit filter hue-rotate(180)
-    pub fn hueroate(&self, value: i32) -> DynamicImage {
+    pub fn huerotate(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::huerotate(p, value))
     }
 

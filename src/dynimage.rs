@@ -677,11 +677,11 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
 
 #[cfg(test)]
 mod bench {
-    #[cfg(benchmarks)]
+    #[cfg(feature = "benchmarks")]
     use test;
 
     #[bench]
-    #[cfg(benchmarks)]
+    #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
         let a = super::DynamicImage::ImageRgb8(::ImageBuffer::new(1000, 1000));
         b.iter(|| {

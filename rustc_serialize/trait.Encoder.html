@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Encoder` trait in crate `rustc_serialize`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Encoder">
+
+    <title>rustc_serialize::Encoder - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <a href='../rustc_serialize/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'><a href='index.html'>rustc_serialize</a></p><script>window.sidebarCurrent = {name: 'Encoder', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>rustc_serialize</a>::<wbr><a class='trait' href=''>Encoder</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/rustc_serialize/serialize.rs.html#47-489' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Encoder {
+    type <a href='#associatedtype.Error' class='type'>Error</a>;
+    fn <a href='#tymethod.emit_nil' class='fnname'>emit_nil</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_usize' class='fnname'>emit_usize</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_u64' class='fnname'>emit_u64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_u32' class='fnname'>emit_u32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_u16' class='fnname'>emit_u16</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_u8' class='fnname'>emit_u8</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_isize' class='fnname'>emit_isize</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.isize.html'>isize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_i64' class='fnname'>emit_i64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_i32' class='fnname'>emit_i32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_i16' class='fnname'>emit_i16</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i16.html'>i16</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_i8' class='fnname'>emit_i8</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i8.html'>i8</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_bool' class='fnname'>emit_bool</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_f64' class='fnname'>emit_f64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_f32' class='fnname'>emit_f32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_char' class='fnname'>emit_char</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_str' class='fnname'>emit_str</a>(&amp;mut self, v: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_enum' class='fnname'>emit_enum</a>&lt;F&gt;(&amp;mut self, name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_enum_variant' class='fnname'>emit_enum_variant</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_id: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_enum_variant_arg' class='fnname'>emit_enum_variant_arg</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; a_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_enum_struct_variant' class='fnname'>emit_enum_struct_variant</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_id: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_enum_struct_variant_field' class='fnname'>emit_enum_struct_variant_field</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_struct' class='fnname'>emit_struct</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_struct_field' class='fnname'>emit_struct_field</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_tuple' class='fnname'>emit_tuple</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_tuple_arg' class='fnname'>emit_tuple_arg</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_tuple_struct' class='fnname'>emit_tuple_struct</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_tuple_struct_arg' class='fnname'>emit_tuple_struct_arg</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_option' class='fnname'>emit_option</a>&lt;F&gt;(&amp;mut self, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_option_none' class='fnname'>emit_option_none</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;;
+    fn <a href='#tymethod.emit_option_some' class='fnname'>emit_option_some</a>&lt;F&gt;(&amp;mut self, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_seq' class='fnname'>emit_seq</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_seq_elt' class='fnname'>emit_seq_elt</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_map' class='fnname'>emit_map</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_map_elt_key' class='fnname'>emit_map_elt_key</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+    fn <a href='#tymethod.emit_map_elt_val' class='fnname'>emit_map_elt_val</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span>;
+}</pre><div class='docblock'><p>Trait for writing out an encoding when serializing.</p>
+
+<p>This trait provides methods to encode basic types and generic forms of
+collections.  Implementations of <code>Encodable</code> use it to perform the actual
+encoding of a type.</p>
+
+<p>It is unspecified what is done with the encoding - it could be stored in a
+variable, or written directly to a file, for example.</p>
+
+<p>Encoders can expect to only have a single &quot;root&quot; method call made on this
+trait. Non-trivial types will call one of the collection-emitting methods,
+passing a function that may call other methods on the trait, but once the
+collection-emitting method has returned, encoding should be complete.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Error' class='method stab '><span id='Error.t' class='invisible'><code>type <a href='#associatedtype.Error' class='type'>Error</a></code></span></h3><div class='docblock'><p>The error type for method results.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.emit_nil' class='method stab '><span id='emit_nil.v' class='invisible'><code>fn <a href='#tymethod.emit_nil' class='fnname'>emit_nil</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a nil value.</p>
+
+<p>For example, this might be stored as the null keyword in JSON.</p>
+</div><h3 id='tymethod.emit_usize' class='method stab '><span id='emit_usize.v' class='invisible'><code>fn <a href='#tymethod.emit_usize' class='fnname'>emit_usize</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a usize value.</p>
+</div><h3 id='tymethod.emit_u64' class='method stab '><span id='emit_u64.v' class='invisible'><code>fn <a href='#tymethod.emit_u64' class='fnname'>emit_u64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a u64 value.</p>
+</div><h3 id='tymethod.emit_u32' class='method stab '><span id='emit_u32.v' class='invisible'><code>fn <a href='#tymethod.emit_u32' class='fnname'>emit_u32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a u32 value.</p>
+</div><h3 id='tymethod.emit_u16' class='method stab '><span id='emit_u16.v' class='invisible'><code>fn <a href='#tymethod.emit_u16' class='fnname'>emit_u16</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a u16 value.</p>
+</div><h3 id='tymethod.emit_u8' class='method stab '><span id='emit_u8.v' class='invisible'><code>fn <a href='#tymethod.emit_u8' class='fnname'>emit_u8</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a u8 value.</p>
+</div><h3 id='tymethod.emit_isize' class='method stab '><span id='emit_isize.v' class='invisible'><code>fn <a href='#tymethod.emit_isize' class='fnname'>emit_isize</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.isize.html'>isize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a isize value.</p>
+</div><h3 id='tymethod.emit_i64' class='method stab '><span id='emit_i64.v' class='invisible'><code>fn <a href='#tymethod.emit_i64' class='fnname'>emit_i64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a i64 value.</p>
+</div><h3 id='tymethod.emit_i32' class='method stab '><span id='emit_i32.v' class='invisible'><code>fn <a href='#tymethod.emit_i32' class='fnname'>emit_i32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a i32 value.</p>
+</div><h3 id='tymethod.emit_i16' class='method stab '><span id='emit_i16.v' class='invisible'><code>fn <a href='#tymethod.emit_i16' class='fnname'>emit_i16</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i16.html'>i16</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a i16 value.</p>
+</div><h3 id='tymethod.emit_i8' class='method stab '><span id='emit_i8.v' class='invisible'><code>fn <a href='#tymethod.emit_i8' class='fnname'>emit_i8</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i8.html'>i8</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a i8 value.</p>
+</div><h3 id='tymethod.emit_bool' class='method stab '><span id='emit_bool.v' class='invisible'><code>fn <a href='#tymethod.emit_bool' class='fnname'>emit_bool</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a bool value.</p>
+
+<p>For example, this might be stored as the true and false keywords in
+JSON.</p>
+</div><h3 id='tymethod.emit_f64' class='method stab '><span id='emit_f64.v' class='invisible'><code>fn <a href='#tymethod.emit_f64' class='fnname'>emit_f64</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a f64 value.</p>
+</div><h3 id='tymethod.emit_f32' class='method stab '><span id='emit_f32.v' class='invisible'><code>fn <a href='#tymethod.emit_f32' class='fnname'>emit_f32</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a f32 value.</p>
+</div><h3 id='tymethod.emit_char' class='method stab '><span id='emit_char.v' class='invisible'><code>fn <a href='#tymethod.emit_char' class='fnname'>emit_char</a>(&amp;mut self, v: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a char value.</p>
+
+<p>Note that strings should be emitted using <code>emit_str</code>, not as a sequence
+of <code>emit_char</code> calls.</p>
+</div><h3 id='tymethod.emit_str' class='method stab '><span id='emit_str.v' class='invisible'><code>fn <a href='#tymethod.emit_str' class='fnname'>emit_str</a>(&amp;mut self, v: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit a string value.</p>
+</div><h3 id='tymethod.emit_enum' class='method stab '><span id='emit_enum.v' class='invisible'><code>fn <a href='#tymethod.emit_enum' class='fnname'>emit_enum</a>&lt;F&gt;(&amp;mut self, name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit an enumeration value.</p>
+
+<ul>
+<li><code>name</code> indicates the enumeration type name.</li>
+<li><code>f</code> is a function that will call <code>emit_enum_variant</code> or
+<code>emit_enum_struct_variant</code> as appropriate to write the actual value.</li>
+</ul>
+</div><h3 id='tymethod.emit_enum_variant' class='method stab '><span id='emit_enum_variant.v' class='invisible'><code>fn <a href='#tymethod.emit_enum_variant' class='fnname'>emit_enum_variant</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_id: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a enumeration variant value with no or unnamed data.</p>
+
+<p>This should only be called from a function passed to <code>emit_enum</code>.
+Variants with named data should use <code>emit_enum_struct_variant</code>.</p>
+
+<ul>
+<li><code>v_name</code> is the variant name</li>
+<li><code>v_id</code> is the numeric identifier for the variant.</li>
+<li><code>len</code> is the number of data items associated with the variant.</li>
+<li><code>f</code> is a function that will call <code>emit_enum_variant_arg</code> for each data
+item. It may not be called if len is 0.</li>
+</ul>
+
+<h1 id='examples' class='section-header'><a href='#examples'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encodable</span>;
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encoder</span>;
+
+<span class='kw'>enum</span> <span class='ident'>Message</span> {
+    <span class='ident'>Quit</span>,
+    <span class='ident'>ChangeColor</span>(<span class='ident'>i32</span>, <span class='ident'>i32</span>, <span class='ident'>i32</span>),
+}
+
+<span class='kw'>impl</span> <span class='ident'>Encodable</span> <span class='kw'>for</span> <span class='ident'>Message</span> {
+    <span class='kw'>fn</span> <span class='ident'>encode</span><span class='op'>&lt;</span><span class='ident'>S</span>: <span class='ident'>Encoder</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>S</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
+        <span class='ident'>s</span>.<span class='ident'>emit_enum</span>(<span class='string'>&quot;Message&quot;</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+            <span class='kw'>match</span> <span class='op'>*</span><span class='self'>self</span> {
+                <span class='ident'>Message</span>::<span class='ident'>Quit</span> <span class='op'>=&gt;</span> {
+                    <span class='ident'>s</span>.<span class='ident'>emit_enum_variant</span>(<span class='string'>&quot;Quit&quot;</span>, <span class='number'>0</span>, <span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='prelude-val'>Ok</span>(()))
+                }
+                <span class='ident'>Message</span>::<span class='ident'>ChangeColor</span>(<span class='ident'>r</span>, <span class='ident'>g</span>, <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
+                    <span class='ident'>s</span>.<span class='ident'>emit_enum_variant</span>(<span class='string'>&quot;ChangeColor&quot;</span>, <span class='number'>1</span>, <span class='number'>3</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_enum_variant_arg</span>(<span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                            <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>r</span>)
+                        }));
+                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_enum_variant_arg</span>(<span class='number'>1</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                            <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>g</span>)
+                        }));
+                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_enum_variant_arg</span>(<span class='number'>2</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                            <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>b</span>)
+                        }));
+                        <span class='prelude-val'>Ok</span>(())
+                    })
+                }
+            }
+        })
+    }
+}</pre>
+</div><h3 id='tymethod.emit_enum_variant_arg' class='method stab '><span id='emit_enum_variant_arg.v' class='invisible'><code>fn <a href='#tymethod.emit_enum_variant_arg' class='fnname'>emit_enum_variant_arg</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; a_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit an unnamed data item for an enumeration variant.</p>
+
+<p>This should only be called from a function passed to
+<code>emit_enum_variant</code>.</p>
+
+<ul>
+<li><code>a_idx</code> is the (zero-based) index of the data item.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that variant data items must be emitted in order - starting with
+index <code>0</code> and finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_enum_struct_variant' class='method stab '><span id='emit_enum_struct_variant.v' class='invisible'><code>fn <a href='#tymethod.emit_enum_struct_variant' class='fnname'>emit_enum_struct_variant</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; v_id: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a enumeration variant value with no or named data.</p>
+
+<p>This should only be called from a function passed to <code>emit_enum</code>.
+Variants with unnamed data should use <code>emit_enum_variant</code>.</p>
+
+<ul>
+<li><code>v_name</code> is the variant name.</li>
+<li><code>v_id</code> is the numeric identifier for the variant.</li>
+<li><code>len</code> is the number of data items associated with the variant.</li>
+<li><code>f</code> is a function that will call <code>emit_enum_struct_variant_field</code> for
+each data item. It may not be called if <code>len</code> is <code>0</code>.</li>
+</ul>
+
+<h1 id='examples-1' class='section-header'><a href='#examples-1'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encodable</span>;
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encoder</span>;
+
+<span class='kw'>enum</span> <span class='ident'>Message</span> {
+    <span class='ident'>Quit</span>,
+    <span class='ident'>Move</span> { <span class='ident'>x</span>: <span class='ident'>i32</span>, <span class='ident'>y</span>: <span class='ident'>i32</span> },
+}
+
+<span class='kw'>impl</span> <span class='ident'>Encodable</span> <span class='kw'>for</span> <span class='ident'>Message</span> {
+    <span class='kw'>fn</span> <span class='ident'>encode</span><span class='op'>&lt;</span><span class='ident'>S</span>: <span class='ident'>Encoder</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>S</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
+        <span class='ident'>s</span>.<span class='ident'>emit_enum</span>(<span class='string'>&quot;Message&quot;</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+            <span class='kw'>match</span> <span class='op'>*</span><span class='self'>self</span> {
+                <span class='ident'>Message</span>::<span class='ident'>Quit</span> <span class='op'>=&gt;</span> {
+                    <span class='ident'>s</span>.<span class='ident'>emit_enum_struct_variant</span>(<span class='string'>&quot;Quit&quot;</span>, <span class='number'>0</span>, <span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='prelude-val'>Ok</span>(()))
+                }
+                <span class='ident'>Message</span>::<span class='ident'>Move</span> { <span class='ident'>x</span>: <span class='ident'>x</span>, <span class='ident'>y</span>: <span class='ident'>y</span> } <span class='op'>=&gt;</span> {
+                    <span class='ident'>s</span>.<span class='ident'>emit_enum_struct_variant</span>(<span class='string'>&quot;Move&quot;</span>, <span class='number'>1</span>, <span class='number'>2</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_enum_struct_variant_field</span>(<span class='string'>&quot;x&quot;</span>, <span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                            <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>x</span>)
+                        }));
+                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_enum_struct_variant_field</span>(<span class='string'>&quot;y&quot;</span>, <span class='number'>1</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                            <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>y</span>)
+                        }));
+                        <span class='prelude-val'>Ok</span>(())
+                    })
+                }
+            }
+        })
+    }
+}</pre>
+</div><h3 id='tymethod.emit_enum_struct_variant_field' class='method stab '><span id='emit_enum_struct_variant_field.v' class='invisible'><code>fn <a href='#tymethod.emit_enum_struct_variant_field' class='fnname'>emit_enum_struct_variant_field</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a named data item for an enumeration variant.</p>
+
+<p>This should only be called from a function passed to
+<code>emit_enum_struct_variant</code>.</p>
+
+<ul>
+<li><code>f_name</code> is the name of the data item field.</li>
+<li><code>f_idx</code> is its (zero-based) index.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that fields must be emitted in order - starting with index <code>0</code> and
+finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_struct' class='method stab '><span id='emit_struct.v' class='invisible'><code>fn <a href='#tymethod.emit_struct' class='fnname'>emit_struct</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a struct value.</p>
+
+<ul>
+<li><code>name</code> is the name of the struct.</li>
+<li><code>len</code> is the number of members.</li>
+<li><code>f</code> is a function that calls <code>emit_struct_field</code> for each member.</li>
+</ul>
+
+<h1 id='examples-2' class='section-header'><a href='#examples-2'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encodable</span>;
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encoder</span>;
+
+<span class='kw'>struct</span> <span class='ident'>Point</span> {
+    <span class='ident'>x</span>: <span class='ident'>i32</span>,
+    <span class='ident'>y</span>: <span class='ident'>i32</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>Encodable</span> <span class='kw'>for</span> <span class='ident'>Point</span> {
+    <span class='kw'>fn</span> <span class='ident'>encode</span><span class='op'>&lt;</span><span class='ident'>S</span>: <span class='ident'>Encoder</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>S</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
+        <span class='ident'>s</span>.<span class='ident'>emit_struct</span>(<span class='string'>&quot;Point&quot;</span>, <span class='number'>2</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_struct_field</span>(<span class='string'>&quot;x&quot;</span>, <span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='self'>self</span>.<span class='ident'>x</span>)
+            }));
+            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_struct_field</span>(<span class='string'>&quot;y&quot;</span>, <span class='number'>1</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='self'>self</span>.<span class='ident'>y</span>)
+            }));
+            <span class='prelude-val'>Ok</span>(())
+        })
+    }
+}</pre>
+</div><h3 id='tymethod.emit_struct_field' class='method stab '><span id='emit_struct_field.v' class='invisible'><code>fn <a href='#tymethod.emit_struct_field' class='fnname'>emit_struct_field</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a field item for a struct.</p>
+
+<p>This should only be called from a function passed to <code>emit_struct</code>.</p>
+
+<ul>
+<li><code>f_name</code> is the name of the data item field.</li>
+<li><code>f_idx</code> is its (zero-based) index.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that fields must be emitted in order - starting with index <code>0</code> and
+finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_tuple' class='method stab '><span id='emit_tuple.v' class='invisible'><code>fn <a href='#tymethod.emit_tuple' class='fnname'>emit_tuple</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a tuple value.</p>
+
+<ul>
+<li><code>len</code> is the number of items in the tuple.</li>
+<li><code>f</code> is a function that calls <code>emit_tuple_arg</code> for each member.</li>
+</ul>
+
+<p>Note that external <code>Encodable</code> implementations should not normally need
+to use this method directly; it is meant for the use of this module&#39;s
+own implementation of <code>Encodable</code> for tuples.</p>
+</div><h3 id='tymethod.emit_tuple_arg' class='method stab '><span id='emit_tuple_arg.v' class='invisible'><code>fn <a href='#tymethod.emit_tuple_arg' class='fnname'>emit_tuple_arg</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a data item for a tuple.</p>
+
+<p>This should only be called from a function passed to <code>emit_tuple</code>.</p>
+
+<ul>
+<li><code>idx</code> is the (zero-based) index of the data item.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that tuple items must be emitted in order - starting with index <code>0</code>
+and finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_tuple_struct' class='method stab '><span id='emit_tuple_struct.v' class='invisible'><code>fn <a href='#tymethod.emit_tuple_struct' class='fnname'>emit_tuple_struct</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a tuple struct value.</p>
+
+<ul>
+<li><code>name</code> is the name of the tuple struct.</li>
+<li><code>len</code> is the number of items in the tuple struct.</li>
+<li><code>f</code> is a function that calls <code>emit_tuple_struct_arg</code> for each member.</li>
+</ul>
+
+<h1 id='examples-3' class='section-header'><a href='#examples-3'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encodable</span>;
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encoder</span>;
+
+<span class='kw'>struct</span> <span class='ident'>Pair</span>(<span class='ident'>i32</span>,<span class='ident'>i32</span>);
+
+<span class='kw'>impl</span> <span class='ident'>Encodable</span> <span class='kw'>for</span> <span class='ident'>Pair</span> {
+    <span class='kw'>fn</span> <span class='ident'>encode</span><span class='op'>&lt;</span><span class='ident'>S</span>: <span class='ident'>Encoder</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>S</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>Pair</span>(<span class='ident'>first</span>,<span class='ident'>second</span>) <span class='op'>=</span> <span class='op'>*</span><span class='self'>self</span>;
+        <span class='ident'>s</span>.<span class='ident'>emit_tuple_struct</span>(<span class='string'>&quot;Pair&quot;</span>, <span class='number'>2</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_tuple_arg</span>(<span class='number'>0</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>first</span>)
+            }));
+            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_tuple_arg</span>(<span class='number'>1</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+                <span class='ident'>s</span>.<span class='ident'>emit_i32</span>(<span class='ident'>second</span>)
+            }));
+            <span class='prelude-val'>Ok</span>(())
+        })
+    }
+}</pre>
+</div><h3 id='tymethod.emit_tuple_struct_arg' class='method stab '><span id='emit_tuple_struct_arg.v' class='invisible'><code>fn <a href='#tymethod.emit_tuple_struct_arg' class='fnname'>emit_tuple_struct_arg</a>&lt;F&gt;(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f_idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; f: F)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a data item for a tuple struct.</p>
+
+<p>This should only be called from a function passed to
+<code>emit_tuple_struct</code>.</p>
+
+<ul>
+<li><code>f_idx</code> is the (zero-based) index of the data item.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that tuple items must be emitted in order - starting with index <code>0</code>
+and finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_option' class='method stab '><span id='emit_option.v' class='invisible'><code>fn <a href='#tymethod.emit_option' class='fnname'>emit_option</a>&lt;F&gt;(&amp;mut self, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit an optional value.</p>
+
+<p><code>f</code> is a function that will call either <code>emit_option_none</code> or
+<code>emit_option_some</code> as appropriate.</p>
+
+<p>This method allows encoders to handle <code>Option&lt;T&gt;</code> values specially,
+rather than using the generic enum methods, because many encoding
+formats have a built-in &quot;optional&quot; concept.</p>
+
+<p>Note that external <code>Encodable</code> implementations should not normally need
+to use this method directly; it is meant for the use of this module&#39;s
+own implementation of <code>Encodable</code> for <code>Option&lt;T&gt;</code>.</p>
+</div><h3 id='tymethod.emit_option_none' class='method stab '><span id='emit_option_none.v' class='invisible'><code>fn <a href='#tymethod.emit_option_none' class='fnname'>emit_option_none</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</code></span></h3><div class='docblock'><p>Emit the <code>None</code> optional value.</p>
+
+<p>This should only be called from a function passed to <code>emit_option</code>.</p>
+</div><h3 id='tymethod.emit_option_some' class='method stab '><span id='emit_option_some.v' class='invisible'><code>fn <a href='#tymethod.emit_option_some' class='fnname'>emit_option_some</a>&lt;F&gt;(&amp;mut self, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit the <code>Some(x)</code> optional value.</p>
+
+<p><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</p>
+
+<p>This should only be called from a function passed to <code>emit_option</code>.</p>
+</div><h3 id='tymethod.emit_seq' class='method stab '><span id='emit_seq.v' class='invisible'><code>fn <a href='#tymethod.emit_seq' class='fnname'>emit_seq</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit a sequence of values.</p>
+
+<p>This should be used for both array-like ordered sequences and set-like
+unordered ones.</p>
+
+<ul>
+<li><code>len</code> is the number of values in the sequence.</li>
+<li><code>f</code> is a function that will call <code>emit_seq_elt</code> for each value in the
+sequence.</li>
+</ul>
+</div><h3 id='tymethod.emit_seq_elt' class='method stab '><span id='emit_seq_elt.v' class='invisible'><code>fn <a href='#tymethod.emit_seq_elt' class='fnname'>emit_seq_elt</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit an element in a sequence.</p>
+
+<p>This should only be called from a function passed to <code>emit_seq</code>.</p>
+
+<ul>
+<li><code>idx</code> is the (zero-based) index of the value in the sequence.</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the data object.</li>
+</ul>
+
+<p>Note that sequence elements must be emitted in order - starting with
+index <code>0</code> and finishing with index <code>len-1</code>.</p>
+</div><h3 id='tymethod.emit_map' class='method stab '><span id='emit_map.v' class='invisible'><code>fn <a href='#tymethod.emit_map' class='fnname'>emit_map</a>&lt;F&gt;(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit an associative container (map).</p>
+
+<ul>
+<li><code>len</code> is the number of entries in the map.</li>
+<li><code>f</code> is a function that will call <code>emit_map_elt_key</code> and
+<code>emit_map_elt_val</code> for each entry in the map.</li>
+</ul>
+
+<h1 id='examples-4' class='section-header'><a href='#examples-4'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encodable</span>;
+<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>Encoder</span>;
+
+<span class='kw'>struct</span> <span class='ident'>SimpleMap</span><span class='op'>&lt;</span><span class='ident'>K</span>,<span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='ident'>entries</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>K</span>,<span class='ident'>V</span>)<span class='op'>&gt;</span>,
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>:<span class='ident'>Encodable</span>,<span class='ident'>V</span>:<span class='ident'>Encodable</span><span class='op'>&gt;</span> <span class='ident'>Encodable</span> <span class='kw'>for</span> <span class='ident'>SimpleMap</span><span class='op'>&lt;</span><span class='ident'>K</span>,<span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>encode</span><span class='op'>&lt;</span><span class='ident'>S</span>: <span class='ident'>Encoder</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>S</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
+        <span class='ident'>s</span>.<span class='ident'>emit_map</span>(<span class='self'>self</span>.<span class='ident'>entries</span>.<span class='ident'>len</span>(), <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
+            <span class='kw'>for</span> (<span class='ident'>i</span>, <span class='ident'>e</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>entries</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
+                <span class='kw'>let</span> (<span class='kw-2'>ref</span> <span class='ident'>k</span>, <span class='kw-2'>ref</span> <span class='ident'>v</span>) <span class='op'>=</span> <span class='op'>*</span><span class='ident'>e</span>;
+                <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_map_elt_key</span>(<span class='ident'>i</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>k</span>.<span class='ident'>encode</span>(<span class='ident'>s</span>)));
+                <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>emit_map_elt_val</span>(<span class='ident'>i</span>, <span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>v</span>.<span class='ident'>encode</span>(<span class='ident'>s</span>)));
+            }
+            <span class='prelude-val'>Ok</span>(())
+        })
+    }
+}</pre>
+</div><h3 id='tymethod.emit_map_elt_key' class='method stab '><span id='emit_map_elt_key.v' class='invisible'><code>fn <a href='#tymethod.emit_map_elt_key' class='fnname'>emit_map_elt_key</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit the key for an entry in a map.</p>
+
+<p>This should only be called from a function passed to <code>emit_map</code>.</p>
+
+<ul>
+<li><code>idx</code> is the (zero-based) index of the entry in the map</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the key.</li>
+</ul>
+
+<p>Note that map entries must be emitted in order - starting with index <code>0</code>
+and finishing with index <code>len-1</code> - and for each entry, the key should be
+emitted followed immediately by the value.</p>
+</div><h3 id='tymethod.emit_map_elt_val' class='method stab '><span id='emit_map_elt_val.v' class='invisible'><code>fn <a href='#tymethod.emit_map_elt_val' class='fnname'>emit_map_elt_val</a>&lt;F&gt;(&amp;mut self, idx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(&amp;mut Self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../rustc_serialize/trait.Encoder.html' title='rustc_serialize::Encoder'>Error</a>&gt;</span></code></span></h3><div class='docblock'><p>Emit the value for an entry in a map.</p>
+
+<p>This should only be called from a function passed to <code>emit_map</code>.</p>
+
+<ul>
+<li><code>idx</code> is the (zero-based) index of the entry in the map</li>
+<li><code>f</code> is a function that will call the appropriate emit method to encode
+the value.</li>
+</ul>
+
+<p>Note that map entries must be emitted in order - starting with index <code>0</code>
+and finishing with index <code>len-1</code> - and for each entry, the key should be
+emitted followed immediately by the value.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;'a&gt; Encoder for <a class='struct' href='../rustc_serialize/json/struct.Encoder.html' title='rustc_serialize::json::Encoder'>Encoder</a>&lt;'a&gt;</code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/rustc_serialize/trait.Encoder.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "rustc_serialize";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

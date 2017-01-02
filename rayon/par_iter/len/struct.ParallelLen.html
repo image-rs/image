@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ParallelLen` struct in crate `rayon`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ParallelLen">
+
+    <title>rayon::par_iter::len::ParallelLen - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>len</a></p><script>window.sidebarCurrent = {name: 'ParallelLen', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>len</a>::<wbr><a class='struct' href=''>ParallelLen</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/rayon/par_iter/len.rs.html#2-18' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ParallelLen {
+    pub maximal_len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,
+    pub cost: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>,
+    pub sparse: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>,
+}</pre><h2 class='fields'>Fields</h2><span id='structfield.maximal_len' class='structfield'>
+                           <span id='maximal_len.v' class='invisible'>
+                           <code>maximal_len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code>
+                           </span></span><span class='stab '></span><div class='docblock'><p>Maximal number of elements that we will write</p>
+</div><span id='structfield.cost' class='structfield'>
+                           <span id='cost.v' class='invisible'>
+                           <code>cost: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code>
+                           </span></span><span class='stab '></span><div class='docblock'><p>An estimate of the &quot;cost&quot; of this operation. This is a kind of
+abstract concept you can use to influence how fine-grained the
+threads are.</p>
+
+<p>TODO: refine this metric.</p>
+</div><span id='structfield.sparse' class='structfield'>
+                           <span id='sparse.v' class='invisible'>
+                           <code>sparse: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code>
+                           </span></span><span class='stab '></span><div class='docblock'><p>If true, all elements will be written. If false, some may not.
+For example, <code>sparse</code> will be false if there is a filter.
+When doing a collect, sparse iterators require a compression
+step.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/rayon/par_iter/len.rs.html#20-36' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.left_cost' class='method'><span id='left_cost.v' class='invisible'><code>fn <a href='#method.left_cost' class='fnname'>left_cost</a>(&amp;self, mid: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span></h4>
+<h4 id='method.right_cost' class='method'><span id='right_cost.v' class='invisible'><code>fn <a href='#method.right_cost' class='fnname'>right_cost</a>(&amp;self, mid: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> for <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/rayon/par_iter/len.rs.html#1' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/rayon/par_iter/len.rs.html#1' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../../../rayon/par_iter/len/struct.ParallelLen.html' title='rayon::par_iter::len::ParallelLen'>ParallelLen</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rayon";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

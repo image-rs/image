@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Consumer` trait in crate `rayon`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Consumer">
+
+    <title>rayon::par_iter::internal::Consumer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>internal</a></p><script>window.sidebarCurrent = {name: 'Consumer', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>internal</a>::<wbr><a class='trait' href=''>Consumer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/rayon/par_iter/internal.rs.html#34-63' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Consumer&lt;Item&gt;: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Send.html' title='core::marker::Send'>Send</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a> {
+    type <a href='#associatedtype.Folder' class='type'>Folder</a>: <a class='trait' href='../../../rayon/par_iter/internal/trait.Folder.html' title='rayon::par_iter::internal::Folder'>Folder</a>&lt;Item, Result=Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Result</a>&gt;;
+    type <a href='#associatedtype.Reducer' class='type'>Reducer</a>: <a class='trait' href='../../../rayon/par_iter/internal/trait.Reducer.html' title='rayon::par_iter::internal::Reducer'>Reducer</a>&lt;Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Result</a>&gt;;
+    type <a href='#associatedtype.Result' class='type'>Result</a>: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Send.html' title='core::marker::Send'>Send</a>;
+    fn <a href='#tymethod.cost' class='fnname'>cost</a>(&amp;mut self, producer_cost: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>;
+    fn <a href='#tymethod.split_at' class='fnname'>split_at</a>(self, index: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>Self, Self, Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Reducer</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>;
+    fn <a href='#tymethod.into_folder' class='fnname'>into_folder</a>(self) -&gt; Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Folder</a>;
+
+    fn <a href='#method.weighted' class='fnname'>weighted</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> { ... }
+    fn <a href='#method.full' class='fnname'>full</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> { ... }
+}</pre><div class='docblock'><p>A consumer which consumes items that are fed to it.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Folder' class='method stab '><span id='Folder.t' class='invisible'><code>type <a href='#associatedtype.Folder' class='type'>Folder</a>: <a class='trait' href='../../../rayon/par_iter/internal/trait.Folder.html' title='rayon::par_iter::internal::Folder'>Folder</a>&lt;Item, Result=Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Result</a>&gt;</code></span></h3><h3 id='associatedtype.Reducer' class='method stab '><span id='Reducer.t' class='invisible'><code>type <a href='#associatedtype.Reducer' class='type'>Reducer</a>: <a class='trait' href='../../../rayon/par_iter/internal/trait.Reducer.html' title='rayon::par_iter::internal::Reducer'>Reducer</a>&lt;Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Result</a>&gt;</code></span></h3><h3 id='associatedtype.Result' class='method stab '><span id='Result.t' class='invisible'><code>type <a href='#associatedtype.Result' class='type'>Result</a>: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Send.html' title='core::marker::Send'>Send</a></code></span></h3></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.cost' class='method stab '><span id='cost.v' class='invisible'><code>fn <a href='#tymethod.cost' class='fnname'>cost</a>(&amp;mut self, producer_cost: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></span></h3><div class='docblock'><p>If it costs <code>producer_cost</code> to produce the items we will
+consume, returns cost adjusted to account for consuming them.</p>
+</div><h3 id='tymethod.split_at' class='method stab '><span id='split_at.v' class='invisible'><code>fn <a href='#tymethod.split_at' class='fnname'>split_at</a>(self, index: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>Self, Self, Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Reducer</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h3><div class='docblock'><p>Divide the consumer into two consumers, one processing items
+<code>0..index</code> and one processing items from <code>index..</code>. Also
+produces a reducer that can be used to reduce the results at
+the end.</p>
+</div><h3 id='tymethod.into_folder' class='method stab '><span id='into_folder.v' class='invisible'><code>fn <a href='#tymethod.into_folder' class='fnname'>into_folder</a>(self) -&gt; Self::<a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Folder</a></code></span></h3><div class='docblock'><p>Convert the consumer into a folder that can consume items
+sequentially, eventually producing a final result.</p>
+</div></div>
+            <h2 id='provided-methods'>Provided Methods</h2>
+            <div class='methods'>
+        <h3 id='method.weighted' class='method stab '><span id='weighted.v' class='invisible'><code>fn <a href='#method.weighted' class='fnname'>weighted</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h3><div class='docblock'><p>Reports whether the consumer has explicit weights.</p>
+</div><h3 id='method.full' class='method stab '><span id='full.v' class='invisible'><code>fn <a href='#method.full' class='fnname'>full</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h3><div class='docblock'><p>Hint whether this <code>Consumer</code> would like to stop processing
+further items, e.g. if a search has been completed.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;'r, U, T, C, IDENTITY, FOLD_OP&gt; Consumer&lt;T&gt; for <a class='struct' href='../../../rayon/par_iter/fold/struct.FoldConsumer.html' title='rayon::par_iter::fold::FoldConsumer'>FoldConsumer</a>&lt;'r, C, IDENTITY, FOLD_OP&gt; <span class='where fmt-newline'>where C: <a class='trait' href='../../../rayon/par_iter/internal/trait.Consumer.html' title='rayon::par_iter::internal::Consumer'>Consumer</a>&lt;U&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;FOLD_OP: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(U, T) -&gt; U + <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html' title='core::marker::Sync'>Sync</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IDENTITY: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>() -&gt; U + <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html' title='core::marker::Sync'>Sync</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;U: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Send.html' title='core::marker::Send'>Send</a></span></code></li>
+<li><code>impl&lt;ITEM&gt; Consumer&lt;ITEM&gt; for <a class='struct' href='../../../rayon/par_iter/noop/struct.NoopConsumer.html' title='rayon::par_iter::noop::NoopConsumer'>NoopConsumer</a></code></li>
+</ul><script type="text/javascript" async
+                         src="../../../implementors/rayon/par_iter/internal/trait.Consumer.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rayon";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

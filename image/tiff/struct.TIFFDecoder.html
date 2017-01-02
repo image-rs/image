@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `TIFFDecoder` struct in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, TIFFDecoder">
+
+    <title>image::tiff::TIFFDecoder - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>image</a>::<wbr><a href='index.html'>tiff</a></p><script>window.sidebarCurrent = {name: 'TIFFDecoder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>image</a>::<wbr><a href='index.html'>tiff</a>::<wbr><a class='struct' href=''>TIFFDecoder</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/image/tiff/decoder/mod.rs.html#76-87' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct TIFFDecoder&lt;R&gt; <span class='where'>where R: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a></span> { /* fields omitted */ }</pre><div class='docblock'><p>The representation of a TIFF decoder</p>
+
+<p>Currently does not support decoding of interlaced images</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;R:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a>&gt; <a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/image/tiff/decoder/mod.rs.html#141-439' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>(r: R) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt;&gt;</code></span></h4>
+<div class='docblock'><p>Create a new decoder that decodes from the stream <code>r</code></p>
+</div><h4 id='method.init' class='method'><span id='init.v' class='invisible'><code>fn <a href='#method.init' class='fnname'>init</a>(self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt;&gt;</code></span></h4>
+<div class='docblock'><p>Initializes the decoder.</p>
+</div><h4 id='method.next_image' class='method'><span id='next_image.v' class='invisible'><code>fn <a href='#method.next_image' class='fnname'>next_image</a>(self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt;&gt;</code></span></h4>
+<div class='docblock'><p>Reads in the next image.
+If there is no further image in the TIFF file a format error is returned.
+To determine whether there are more images call <code>TIFFDecoder::more_images</code> instead.</p>
+</div><h4 id='method.more_images' class='method'><span id='more_images.v' class='invisible'><code>fn <a href='#method.more_images' class='fnname'>more_images</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h4>
+<div class='docblock'><p>Returns <code>true</code> if there is at least one more image available.</p>
+</div><h4 id='method.byte_order' class='method'><span id='byte_order.v' class='invisible'><code>fn <a href='#method.byte_order' class='fnname'>byte_order</a>(&amp;self) -&gt; ByteOrder</code></span></h4>
+<div class='docblock'><p>Returns the byte_order</p>
+</div><h4 id='method.read_short' class='method'><span id='read_short.v' class='invisible'><code>fn <a href='#method.read_short' class='fnname'>read_short</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a>, <a class='struct' href='https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html' title='std::io::error::Error'>Error</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads a TIFF short value</p>
+</div><h4 id='method.read_long' class='method'><span id='read_long.v' class='invisible'><code>fn <a href='#method.read_long' class='fnname'>read_long</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='struct' href='https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html' title='std::io::error::Error'>Error</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads a TIFF long value</p>
+</div><h4 id='method.read_offset' class='method'><span id='read_offset.v' class='invisible'><code>fn <a href='#method.read_offset' class='fnname'>read_offset</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>; 4]</a>, <a class='struct' href='https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html' title='std::io::error::Error'>Error</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads a TIFF IFA offset/value field</p>
+</div><h4 id='method.goto_offset' class='method'><span id='goto_offset.v' class='invisible'><code>fn <a href='#method.goto_offset' class='fnname'>goto_offset</a>(&amp;mut self, offset: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></span></h4>
+<div class='docblock'><p>Moves the cursor to the specified offset</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;R:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt; <span class='where'>where R: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a></span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/image/tiff/decoder/mod.rs.html#75' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl&lt;R:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a>&gt; <a class='trait' href='../../image/trait.ImageDecoder.html' title='image::ImageDecoder'>ImageDecoder</a> for <a class='struct' href='../../image/tiff/struct.TIFFDecoder.html' title='image::tiff::TIFFDecoder'>TIFFDecoder</a>&lt;R&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/image/tiff/decoder/mod.rs.html#441-550' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.dimensions' class='method'><span id='dimensions.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#tymethod.dimensions' class='fnname'>dimensions</a>(&amp;mut self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns a tuple containing the width and height of the image</p>
+</div><h4 id='method.colortype' class='method'><span id='colortype.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#tymethod.colortype' class='fnname'>colortype</a>(&amp;mut self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='enum' href='../../image/enum.ColorType.html' title='image::ColorType'>ColorType</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the color type of the image e.g. RGB(8) (8bit RGB)</p>
+</div><h4 id='method.row_len' class='method'><span id='row_len.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#tymethod.row_len' class='fnname'>row_len</a>(&amp;mut self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the length in bytes of one decoded row of the image</p>
+</div><h4 id='method.read_scanline' class='method'><span id='read_scanline.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#tymethod.read_scanline' class='fnname'>read_scanline</a>(&amp;mut self, _: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads one row from the image into <code>buf</code> and returns the row index</p>
+</div><h4 id='method.read_image' class='method'><span id='read_image.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#tymethod.read_image' class='fnname'>read_image</a>(&amp;mut self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='enum' href='../../image/enum.DecodingResult.html' title='image::DecodingResult'>DecodingResult</a>&gt;</code></span></h4>
+<div class='docblock'><p>Decodes the entire image and return it as a Vector</p>
+</div><h4 id='method.is_animated' class='method'><span id='is_animated.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#method.is_animated' class='fnname'>is_animated</a>(&amp;mut self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns true if the image is animated</p>
+</div><h4 id='method.into_frames' class='method'><span id='into_frames.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#method.into_frames' class='fnname'>into_frames</a>(self) -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='struct' href='../../image/struct.Frames.html' title='image::Frames'>Frames</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the frames of the image <a href="../../image/trait.ImageDecoder.html#method.into_frames">Read more</a></p>
+</div><h4 id='method.load_rect' class='method'><span id='load_rect.v' class='invisible'><code>fn <a href='../../image/trait.ImageDecoder.html#method.load_rect' class='fnname'>load_rect</a>(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; length: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='type' href='../../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;&gt;</code></span></h4>
+<div class='docblock'><p>Decodes a specific region of the image, represented by the rectangle starting from <code>x</code> and <code>y</code> and having <code>length</code> and <code>width</code> <a href="../../image/trait.ImageDecoder.html#method.load_rect">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

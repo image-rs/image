@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Reader` struct in crate `gif`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Reader">
+
+    <title>gif::Reader - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>gif</a></p><script>window.sidebarCurrent = {name: 'Reader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>gif</a>::<wbr><a class='struct' href=''>Reader</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/gif/reader/mod.rs.html#125-136' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Reader&lt;R:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a>&gt; { /* fields omitted */ }</pre><div class='docblock'><p>GIF decoder</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;R&gt; <a class='struct' href='../gif/struct.Reader.html' title='gif::Reader'>Reader</a>&lt;R&gt; <span class='where'>where R: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a></span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/gif/reader/mod.rs.html#138-372' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.next_frame_info' class='method'><span id='next_frame_info.v' class='invisible'><code>fn <a href='#method.next_frame_info' class='fnname'>next_frame_info</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='struct' href='../gif/struct.Frame.html' title='gif::Frame'>Frame</a>&lt;'static&gt;&gt;, <a class='enum' href='../gif/enum.DecodingError.html' title='gif::DecodingError'>DecodingError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the next frame info</p>
+</div><h4 id='method.read_next_frame' class='method'><span id='read_next_frame.v' class='invisible'><code>fn <a href='#method.read_next_frame' class='fnname'>read_next_frame</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='struct' href='../gif/struct.Frame.html' title='gif::Frame'>Frame</a>&lt;'static&gt;&gt;, <a class='enum' href='../gif/enum.DecodingError.html' title='gif::DecodingError'>DecodingError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads the next frame from the image.</p>
+
+<p>Do not call <code>Self::next_frame_info</code> beforehand.
+Deinterlaces the result.</p>
+</div><h4 id='method.read_into_buffer' class='method'><span id='read_into_buffer.v' class='invisible'><code>fn <a href='#method.read_into_buffer' class='fnname'>read_into_buffer</a>(&amp;mut self, buf: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='enum' href='../gif/enum.DecodingError.html' title='gif::DecodingError'>DecodingError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads the data of the current frame into a pre-allocated buffer.</p>
+
+<p><code>Self::next_frame_info</code> needs to be called beforehand.
+The length of <code>buf</code> must be at least <code>Self::buffer_size</code>.
+Deinterlaces the result.</p>
+</div><h4 id='method.fill_buffer' class='method'><span id='fill_buffer.v' class='invisible'><code>fn <a href='#method.fill_buffer' class='fnname'>fill_buffer</a>(&amp;mut self, buf: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, <a class='enum' href='../gif/enum.DecodingError.html' title='gif::DecodingError'>DecodingError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads data of the current frame into a pre-allocated buffer until the buffer has been
+filled completely.</p>
+
+<p><code>Self::next_frame_info</code> needs to be called beforehand. Returns <code>true</code> if the supplied
+buffer could be filled completely. Should not be called after <code>false</code> had been returned.</p>
+</div><h4 id='method.buffer_size' class='method'><span id='buffer_size.v' class='invisible'><code>fn <a href='#method.buffer_size' class='fnname'>buffer_size</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Output buffer size</p>
+</div><h4 id='method.line_length' class='method'><span id='line_length.v' class='invisible'><code>fn <a href='#method.line_length' class='fnname'>line_length</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Line length of the current frame</p>
+</div><h4 id='method.palette' class='method'><span id='palette.v' class='invisible'><code>fn <a href='#method.palette' class='fnname'>palette</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, <a class='enum' href='../gif/enum.DecodingError.html' title='gif::DecodingError'>DecodingError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the color palette relevant for the current (next) frame</p>
+</div><h4 id='method.global_palette' class='method'><span id='global_palette.v' class='invisible'><code>fn <a href='#method.global_palette' class='fnname'>global_palette</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>&gt;</code></span></h4>
+<div class='docblock'><p>The global color palette</p>
+</div><h4 id='method.width' class='method'><span id='width.v' class='invisible'><code>fn <a href='#method.width' class='fnname'>width</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a></code></span></h4>
+<div class='docblock'><p>Width of the image</p>
+</div><h4 id='method.height' class='method'><span id='height.v' class='invisible'><code>fn <a href='#method.height' class='fnname'>height</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a></code></span></h4>
+<div class='docblock'><p>Height of the image</p>
+</div><h4 id='method.bg_color' class='method'><span id='bg_color.v' class='invisible'><code>fn <a href='#method.bg_color' class='fnname'>bg_color</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>&gt;</code></span></h4>
+<div class='docblock'><p>Index of the background color in the global palette</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "gif";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

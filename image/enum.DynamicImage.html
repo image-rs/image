@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `DynamicImage` enum in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, DynamicImage">
+
+    <title>image::DynamicImage - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>image</a></p><script>window.sidebarCurrent = {name: 'DynamicImage', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content enum">
+<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>image</a>::<wbr><a class='enum' href=''>DynamicImage</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/image/dynimage.rs.html#45-57' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum DynamicImage {
+    ImageLuma8(<a class='type' href='../image/type.GrayImage.html' title='image::GrayImage'>GrayImage</a>),
+    ImageLumaA8(<a class='type' href='../image/type.GrayAlphaImage.html' title='image::GrayAlphaImage'>GrayAlphaImage</a>),
+    ImageRgb8(<a class='type' href='../image/type.RgbImage.html' title='image::RgbImage'>RgbImage</a>),
+    ImageRgba8(<a class='type' href='../image/type.RgbaImage.html' title='image::RgbaImage'>RgbaImage</a>),
+}</pre><div class='docblock'><p>A Dynamic Image</p>
+</div><h2 class='variants'>Variants</h2>
+<span id='variant.ImageLuma8' class='variant'><span id='ImageLuma8.v' class='invisible'><code>ImageLuma8(<a class='type' href='../image/type.GrayImage.html' title='image::GrayImage'>GrayImage</a>)</code></span></span><div class='docblock'><p>Each pixel in this image is 8-bit Luma</p>
+</div><span id='variant.ImageLumaA8' class='variant'><span id='ImageLumaA8.v' class='invisible'><code>ImageLumaA8(<a class='type' href='../image/type.GrayAlphaImage.html' title='image::GrayAlphaImage'>GrayAlphaImage</a>)</code></span></span><div class='docblock'><p>Each pixel in this image is 8-bit Luma with alpha</p>
+</div><span id='variant.ImageRgb8' class='variant'><span id='ImageRgb8.v' class='invisible'><code>ImageRgb8(<a class='type' href='../image/type.RgbImage.html' title='image::RgbImage'>RgbImage</a>)</code></span></span><div class='docblock'><p>Each pixel in this image is 8-bit Rgb</p>
+</div><span id='variant.ImageRgba8' class='variant'><span id='ImageRgba8.v' class='invisible'><code>ImageRgba8(<a class='type' href='../image/type.RgbaImage.html' title='image::RgbaImage'>RgbaImage</a>)</code></span></span><div class='docblock'><p>Each pixel in this image is 8-bit Rgb with alpha</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/image/dynimage.rs.html#97-415' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new_luma8' class='method'><span id='new_luma8.v' class='invisible'><code>fn <a href='#method.new_luma8' class='fnname'>new_luma8</a>(w: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Creates a dynamic image backed by a buffer of grey pixels.</p>
+</div><h4 id='method.new_luma_a8' class='method'><span id='new_luma_a8.v' class='invisible'><code>fn <a href='#method.new_luma_a8' class='fnname'>new_luma_a8</a>(w: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Creates a dynamic image backed by a buffer of grey
+pixels with transparency.</p>
+</div><h4 id='method.new_rgb8' class='method'><span id='new_rgb8.v' class='invisible'><code>fn <a href='#method.new_rgb8' class='fnname'>new_rgb8</a>(w: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Creates a dynamic image backed by a buffer of RGB pixels.</p>
+</div><h4 id='method.new_rgba8' class='method'><span id='new_rgba8.v' class='invisible'><code>fn <a href='#method.new_rgba8' class='fnname'>new_rgba8</a>(w: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Creates a dynamic image backed by a buffer of RGBA pixels.</p>
+</div><h4 id='method.to_rgb' class='method'><span id='to_rgb.v' class='invisible'><code>fn <a href='#method.to_rgb' class='fnname'>to_rgb</a>(&amp;self) -&gt; <a class='type' href='../image/type.RgbImage.html' title='image::RgbImage'>RgbImage</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of this image as an RGB image.</p>
+</div><h4 id='method.to_rgba' class='method'><span id='to_rgba.v' class='invisible'><code>fn <a href='#method.to_rgba' class='fnname'>to_rgba</a>(&amp;self) -&gt; <a class='type' href='../image/type.RgbaImage.html' title='image::RgbaImage'>RgbaImage</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of this image as an RGBA image.</p>
+</div><h4 id='method.to_luma' class='method'><span id='to_luma.v' class='invisible'><code>fn <a href='#method.to_luma' class='fnname'>to_luma</a>(&amp;self) -&gt; <a class='type' href='../image/type.GrayImage.html' title='image::GrayImage'>GrayImage</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of this image as a Luma image.</p>
+</div><h4 id='method.to_luma_alpha' class='method'><span id='to_luma_alpha.v' class='invisible'><code>fn <a href='#method.to_luma_alpha' class='fnname'>to_luma_alpha</a>(&amp;self) -&gt; <a class='type' href='../image/type.GrayAlphaImage.html' title='image::GrayAlphaImage'>GrayAlphaImage</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of this image as a LumaA image.</p>
+</div><h4 id='method.crop' class='method'><span id='crop.v' class='invisible'><code>fn <a href='#method.crop' class='fnname'>crop</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Return a cut out of this image delimited by the bounding rectangle.</p>
+</div><h4 id='method.as_rgb8' class='method'><span id='as_rgb8.v' class='invisible'><code>fn <a href='#method.as_rgb8' class='fnname'>as_rgb8</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='type' href='../image/type.RgbImage.html' title='image::RgbImage'>RgbImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a reference to an 8bit RGB image</p>
+</div><h4 id='method.as_mut_rgb8' class='method'><span id='as_mut_rgb8.v' class='invisible'><code>fn <a href='#method.as_mut_rgb8' class='fnname'>as_mut_rgb8</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;mut <a class='type' href='../image/type.RgbImage.html' title='image::RgbImage'>RgbImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a mutable reference to an 8bit RGB image</p>
+</div><h4 id='method.as_rgba8' class='method'><span id='as_rgba8.v' class='invisible'><code>fn <a href='#method.as_rgba8' class='fnname'>as_rgba8</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='type' href='../image/type.RgbaImage.html' title='image::RgbaImage'>RgbaImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a reference to an 8bit RGBA image</p>
+</div><h4 id='method.as_mut_rgba8' class='method'><span id='as_mut_rgba8.v' class='invisible'><code>fn <a href='#method.as_mut_rgba8' class='fnname'>as_mut_rgba8</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;mut <a class='type' href='../image/type.RgbaImage.html' title='image::RgbaImage'>RgbaImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a mutable reference to an 8bit RGBA image</p>
+</div><h4 id='method.as_luma8' class='method'><span id='as_luma8.v' class='invisible'><code>fn <a href='#method.as_luma8' class='fnname'>as_luma8</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='type' href='../image/type.GrayImage.html' title='image::GrayImage'>GrayImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a reference to an 8bit Grayscale image</p>
+</div><h4 id='method.as_mut_luma8' class='method'><span id='as_mut_luma8.v' class='invisible'><code>fn <a href='#method.as_mut_luma8' class='fnname'>as_mut_luma8</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;mut <a class='type' href='../image/type.GrayImage.html' title='image::GrayImage'>GrayImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a mutable reference to an 8bit Grayscale image</p>
+</div><h4 id='method.as_luma_alpha8' class='method'><span id='as_luma_alpha8.v' class='invisible'><code>fn <a href='#method.as_luma_alpha8' class='fnname'>as_luma_alpha8</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='type' href='../image/type.GrayAlphaImage.html' title='image::GrayAlphaImage'>GrayAlphaImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a reference to an 8bit Grayscale image with an alpha channel</p>
+</div><h4 id='method.as_mut_luma_alpha8' class='method'><span id='as_mut_luma_alpha8.v' class='invisible'><code>fn <a href='#method.as_mut_luma_alpha8' class='fnname'>as_mut_luma_alpha8</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;mut <a class='type' href='../image/type.GrayAlphaImage.html' title='image::GrayAlphaImage'>GrayAlphaImage</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return a mutable reference to an 8bit Grayscale image with an alpha channel</p>
+</div><h4 id='method.raw_pixels' class='method'><span id='raw_pixels.v' class='invisible'><code>fn <a href='#method.raw_pixels' class='fnname'>raw_pixels</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></span></h4>
+<div class='docblock'><p>Return this image&#39;s pixels as a byte vector.</p>
+</div><h4 id='method.color' class='method'><span id='color.v' class='invisible'><code>fn <a href='#method.color' class='fnname'>color</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>ColorType</a></code></span></h4>
+<div class='docblock'><p>Return this image&#39;s color type.</p>
+</div><h4 id='method.grayscale' class='method'><span id='grayscale.v' class='invisible'><code>fn <a href='#method.grayscale' class='fnname'>grayscale</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Return a grayscale version of this image.</p>
+</div><h4 id='method.invert' class='method'><span id='invert.v' class='invisible'><code>fn <a href='#method.invert' class='fnname'>invert</a>(&amp;mut self)</code></span></h4>
+<div class='docblock'><p>Invert the colors of this image.
+This method operates inplace.</p>
+</div><h4 id='method.resize' class='method'><span id='resize.v' class='invisible'><code>fn <a href='#method.resize' class='fnname'>resize</a>(&amp;self, nwidth: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, nheight: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, filter: <a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>FilterType</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Resize this image using the specified filter algorithm.
+Returns a new image. The image&#39;s aspect ratio is preserved.
+The image is scaled to the maximum possible size that fits
+within the bounds specified by <code>nwidth</code> and <code>nheight</code>.</p>
+</div><h4 id='method.resize_exact' class='method'><span id='resize_exact.v' class='invisible'><code>fn <a href='#method.resize_exact' class='fnname'>resize_exact</a>(&amp;self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; nwidth: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; nheight: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; filter: <a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>FilterType</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Resize this image using the specified filter algorithm.
+Returns a new image. Does not preserve aspect ratio.
+<code>nwidth</code> and <code>nheight</code> are the new image&#39;s dimensions</p>
+</div><h4 id='method.blur' class='method'><span id='blur.v' class='invisible'><code>fn <a href='#method.blur' class='fnname'>blur</a>(&amp;self, sigma: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Performs a Gaussian blur on this image.
+<code>sigma</code> is a measure of how much to blur by.</p>
+</div><h4 id='method.unsharpen' class='method'><span id='unsharpen.v' class='invisible'><code>fn <a href='#method.unsharpen' class='fnname'>unsharpen</a>(&amp;self, sigma: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>, threshold: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Performs an unsharpen mask on this image.
+<code>sigma</code> is the amount to blur the image by.
+<code>threshold</code> is a control of how much to sharpen.</p>
+
+<p>See <a href="https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking">https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking</a></p>
+</div><h4 id='method.filter3x3' class='method'><span id='filter3x3.v' class='invisible'><code>fn <a href='#method.filter3x3' class='fnname'>filter3x3</a>(&amp;self, kernel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Filters this image with the specified 3x3 kernel.</p>
+</div><h4 id='method.adjust_contrast' class='method'><span id='adjust_contrast.v' class='invisible'><code>fn <a href='#method.adjust_contrast' class='fnname'>adjust_contrast</a>(&amp;self, c: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Adjust the contrast of this image.
+<code>contrast</code> is the amount to adjust the contrast by.
+Negative values decrease the contrast and positive values increase the contrast.</p>
+</div><h4 id='method.brighten' class='method'><span id='brighten.v' class='invisible'><code>fn <a href='#method.brighten' class='fnname'>brighten</a>(&amp;self, value: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Brighten the pixels of this image.
+<code>value</code> is the amount to brighten each pixel by.
+Negative values decrease the brightness and positive values increase it.</p>
+</div><h4 id='method.huerotate' class='method'><span id='huerotate.v' class='invisible'><code>fn <a href='#method.huerotate' class='fnname'>huerotate</a>(&amp;self, value: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Hue rotate the supplied image.
+<code>value</code> is the degrees to rotate each pixel by.
+0 and 360 do nothing, the rest rotates by the given degree value.
+just like the css webkit filter hue-rotate(180)</p>
+</div><h4 id='method.flipv' class='method'><span id='flipv.v' class='invisible'><code>fn <a href='#method.flipv' class='fnname'>flipv</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Flip this image vertically</p>
+</div><h4 id='method.fliph' class='method'><span id='fliph.v' class='invisible'><code>fn <a href='#method.fliph' class='fnname'>fliph</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Flip this image horizontally</p>
+</div><h4 id='method.rotate90' class='method'><span id='rotate90.v' class='invisible'><code>fn <a href='#method.rotate90' class='fnname'>rotate90</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Rotate this image 90 degrees clockwise.</p>
+</div><h4 id='method.rotate180' class='method'><span id='rotate180.v' class='invisible'><code>fn <a href='#method.rotate180' class='fnname'>rotate180</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Rotate this image 180 degrees clockwise.</p>
+</div><h4 id='method.rotate270' class='method'><span id='rotate270.v' class='invisible'><code>fn <a href='#method.rotate270' class='fnname'>rotate270</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Rotate this image 270 degrees clockwise.</p>
+</div><h4 id='method.save' class='method'><span id='save.v' class='invisible'><code>fn <a href='#method.save' class='fnname'>save</a>&lt;W:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Write.html' title='std::io::Write'>Write</a>&gt;(&amp;self, w: &amp;mut W, format: <a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>ImageFormat</a>) -&gt; <a class='type' href='../image/type.ImageResult.html' title='image::ImageResult'>ImageResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></span></h4>
+<div class='docblock'><p>Encode this image and write it to <code>w</code></p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/image/dynimage.rs.html#44' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>GenericImage</a> for <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/image/dynimage.rs.html#418-455' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Pixel' class='type'><span id='Pixel.t' class='invisible'><code>type <a href='../image/trait.GenericImage.html#associatedtype.Pixel' class='type'>Pixel</a> = <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></span></h4>
+<div class='docblock'><p>The type of pixel.</p>
+</div><h4 id='method.dimensions' class='method'><span id='dimensions.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.dimensions' class='fnname'>dimensions</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h4>
+<div class='docblock'><p>The width and height of this image.</p>
+</div><h4 id='method.bounds' class='method'><span id='bounds.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.bounds' class='fnname'>bounds</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h4>
+<div class='docblock'><p>The bounding rectangle of this image.</p>
+</div><h4 id='method.get_pixel' class='method'><span id='get_pixel.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.get_pixel' class='fnname'>get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the pixel located at (x, y) <a href="../image/trait.GenericImage.html#tymethod.get_pixel">Read more</a></p>
+</div><h4 id='method.put_pixel' class='method'><span id='put_pixel.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.put_pixel' class='fnname'>put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;)</code></span></h4>
+<div class='docblock'><p>Put a pixel at location (x, y) <a href="../image/trait.GenericImage.html#tymethod.put_pixel">Read more</a></p>
+</div><h4 id='method.blend_pixel' class='method'><span id='blend_pixel.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.blend_pixel' class='fnname'>blend_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;)</code></span></h4>
+<div class='docblock'><p>DEPRECATED: Use iterator <code>pixels_mut</code> to blend the pixels directly.</p>
+</div><h4 id='method.get_pixel_mut' class='method'><span id='get_pixel_mut.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#tymethod.get_pixel_mut' class='fnname'>get_pixel_mut</a>(&amp;mut self, _: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, _: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; &amp;mut <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></span></h4>
+<div class='docblock'><p>DEPRECATED: Do not use is function: It is unimplemented!</p>
+</div><h4 id='method.width' class='method'><span id='width.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.width' class='fnname'>width</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></span></h4>
+<div class='docblock'><p>The width of this image.</p>
+</div><h4 id='method.height' class='method'><span id='height.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.height' class='fnname'>height</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></span></h4>
+<div class='docblock'><p>The height of this image.</p>
+</div><h4 id='method.in_bounds' class='method'><span id='in_bounds.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.in_bounds' class='fnname'>in_bounds</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h4>
+<div class='docblock'><p>Returns true if this x, y coordinate is contained inside the image.</p>
+</div><h4 id='method.unsafe_get_pixel' class='method'><span id='unsafe_get_pixel.v' class='invisible'><code>unsafe fn <a href='../image/trait.GenericImage.html#method.unsafe_get_pixel' class='fnname'>unsafe_get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a></code></span></h4>
+<div class='docblock'><p>Returns the pixel located at (x, y) <a href="../image/trait.GenericImage.html#method.unsafe_get_pixel">Read more</a></p>
+</div><h4 id='method.unsafe_put_pixel' class='method'><span id='unsafe_put_pixel.v' class='invisible'><code>unsafe fn <a href='../image/trait.GenericImage.html#method.unsafe_put_pixel' class='fnname'>unsafe_put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>)</code></span></h4>
+<div class='docblock'><p>Puts a pixel at location (x, y) <a href="../image/trait.GenericImage.html#method.unsafe_put_pixel">Read more</a></p>
+</div><h4 id='method.pixels' class='method'><span id='pixels.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.pixels' class='fnname'>pixels</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Pixels.html' title='image::Pixels'>Pixels</a>&lt;Self&gt;</code></span></h4>
+<div class='docblock'><p>Returns an Iterator over the pixels of this image. The iterator yields the coordinates of each pixel along with their value <a href="../image/trait.GenericImage.html#method.pixels">Read more</a></p>
+</div><h4 id='method.pixels_mut' class='method'><span id='pixels_mut.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.pixels_mut' class='fnname'>pixels_mut</a>(&amp;mut self) -&gt; <a class='struct' href='../image/struct.MutPixels.html' title='image::MutPixels'>MutPixels</a>&lt;Self&gt;</code></span></h4>
+<div class='docblock'><p>Returns an Iterator over mutable pixels of this image. The iterator yields the coordinates of each pixel along with a mutable reference to them. <a href="../image/trait.GenericImage.html#method.pixels_mut">Read more</a></p>
+</div><h4 id='method.copy_from' class='method'><span id='copy_from.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.copy_from' class='fnname'>copy_from</a>&lt;O&gt;(&amp;mut self, other: &amp;O, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> <span class='where'>where O: <a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>GenericImage</a>&lt;Pixel=Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Copies all of the pixels from another image into this image. <a href="../image/trait.GenericImage.html#method.copy_from">Read more</a></p>
+</div><h4 id='method.sub_image' class='method'><span id='sub_image.v' class='invisible'><code>fn <a href='../image/trait.GenericImage.html#method.sub_image' class='fnname'>sub_image</a>&lt;'a&gt;(&amp;'a mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='struct' href='../image/struct.SubImage.html' title='image::SubImage'>SubImage</a>&lt;'a, Self&gt; <span class='where'>where Self: 'static, Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>: 'static, Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>: 'static</span></code></span></h4>
+<div class='docblock'><p>Returns a subimage that is a view into this image.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

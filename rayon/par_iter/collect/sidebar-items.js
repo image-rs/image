@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["collect_into","Collects the results of the exact iterator into the specified vector."]]});

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ZipProducer` struct in crate `rayon`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ZipProducer">
+
+    <title>rayon::par_iter::zip::ZipProducer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>zip</a></p><script>window.sidebarCurrent = {name: 'ZipProducer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rayon</a>::<wbr><a href='../index.html'>par_iter</a>::<wbr><a href='index.html'>zip</a>::<wbr><a class='struct' href=''>ZipProducer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/rayon/par_iter/zip.rs.html#117-120' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ZipProducer&lt;A:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>, B:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>&gt; { /* fields omitted */ }</pre><div class='docblock'><p>////////////////////////////////////////////////////////////////////////</p>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;A:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>, B:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>&gt; <a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a> for <a class='struct' href='../../../rayon/par_iter/zip/struct.ZipProducer.html' title='rayon::par_iter::zip::ZipProducer'>ZipProducer</a>&lt;A, B&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/rayon/par_iter/zip.rs.html#122-144' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.weighted' class='method'><span id='weighted.v' class='invisible'><code>fn <a href='../../../rayon/par_iter/internal/trait.Producer.html#method.weighted' class='fnname'>weighted</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h4>
+<div class='docblock'><p>Reports whether the producer has explicit weights.</p>
+</div><h4 id='method.cost' class='method'><span id='cost.v' class='invisible'><code>fn <a href='../../../rayon/par_iter/internal/trait.Producer.html#tymethod.cost' class='fnname'>cost</a>(&amp;mut self, len: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></span></h4>
+<div class='docblock'><p>Cost to produce <code>len</code> items, where <code>len</code> must be <code>N</code>.</p>
+</div><h4 id='method.split_at' class='method'><span id='split_at.v' class='invisible'><code>fn <a href='../../../rayon/par_iter/internal/trait.Producer.html#tymethod.split_at' class='fnname'>split_at</a>(self, index: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>Self, Self<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h4>
+<div class='docblock'><p>Split into two producers; one produces items <code>0..index</code>, the other <code>index..N</code>. Index must be less than <code>N</code>. <a href="../../../rayon/par_iter/internal/trait.Producer.html#tymethod.split_at">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl&lt;A:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>, B:&nbsp;<a class='trait' href='../../../rayon/par_iter/internal/trait.Producer.html' title='rayon::par_iter::internal::Producer'>Producer</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>IntoIterator</a> for <a class='struct' href='../../../rayon/par_iter/zip/struct.ZipProducer.html' title='rayon::par_iter::zip::ZipProducer'>ZipProducer</a>&lt;A, B&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/rayon/par_iter/zip.rs.html#146-153' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Item' class='type'><span id='Item.t' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item' class='type'>Item</a> = <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>A::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>Item</a>, B::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>Item</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h4>
+<div class='docblock'><p>The type of the elements being iterated over.</p>
+</div><h4 id='associatedtype.IntoIter' class='type'><span id='IntoIter.t' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.IntoIter' class='type'>IntoIter</a> = <a class='struct' href='https://doc.rust-lang.org/nightly/core/iter/struct.Zip.html' title='core::iter::Zip'>Zip</a>&lt;A::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>IntoIter</a>, B::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>IntoIter</a>&gt;</code></span></h4>
+<div class='docblock'><p>Which kind of iterator are we turning this into?</p>
+</div><h4 id='method.into_iter' class='method'><span id='into_iter.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#tymethod.into_iter' class='fnname'>into_iter</a>(self) -&gt; Self::<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html' title='core::iter::traits::IntoIterator'>IntoIter</a></code></span></h4>
+<div class='docblock'><p>Creates an iterator from a value. <a href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#tymethod.into_iter">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rayon";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

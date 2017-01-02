@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["PPMEncoder","A representation of a PPM encoder."]]});

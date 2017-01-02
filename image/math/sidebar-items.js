@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["nq","NEUQUANT Neural-Net quantization algorithm by Anthony Dekker, 1994. See \"Kohonen neural networks for optimal colour quantization\" in \"Network: Computation in Neural Systems\" Vol. 5 (1994) pp 351-367. for a discussion of the algorithm. See also  http://www.acm.org/~dekker/NEUQUANT.HTML"],["utils","Shared mathematical utility functions."]]});

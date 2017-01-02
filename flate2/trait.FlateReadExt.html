@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FlateReadExt` trait in crate `flate2`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FlateReadExt">
+
+    <title>flate2::FlateReadExt - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>flate2</a></p><script>window.sidebarCurrent = {name: 'FlateReadExt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>flate2</a>::<wbr><a class='trait' href=''>FlateReadExt</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/flate2/lib.rs.html#116-149' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait FlateReadExt: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a> {
+    fn <a href='#method.gz_encode' class='fnname'>gz_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.GzEncoder.html' title='flate2::read::GzEncoder'>GzEncoder</a>&lt;Self&gt; { ... }
+    fn <a href='#method.gz_decode' class='fnname'>gz_decode</a>(self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='../flate2/read/struct.GzDecoder.html' title='flate2::read::GzDecoder'>GzDecoder</a>&lt;Self&gt;&gt; { ... }
+    fn <a href='#method.zlib_encode' class='fnname'>zlib_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.ZlibEncoder.html' title='flate2::read::ZlibEncoder'>ZlibEncoder</a>&lt;Self&gt; { ... }
+    fn <a href='#method.zlib_decode' class='fnname'>zlib_decode</a>(self) -&gt; <a class='struct' href='../flate2/read/struct.ZlibDecoder.html' title='flate2::read::ZlibDecoder'>ZlibDecoder</a>&lt;Self&gt; { ... }
+    fn <a href='#method.deflate_encode' class='fnname'>deflate_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.DeflateEncoder.html' title='flate2::read::DeflateEncoder'>DeflateEncoder</a>&lt;Self&gt; { ... }
+    fn <a href='#method.deflate_decode' class='fnname'>deflate_decode</a>(self) -&gt; <a class='struct' href='../flate2/read/struct.DeflateDecoder.html' title='flate2::read::DeflateDecoder'>DeflateDecoder</a>&lt;Self&gt; { ... }
+}</pre><div class='docblock'><p>A helper trait to create encoder/decoders with method syntax.</p>
+</div>
+            <h2 id='provided-methods'>Provided Methods</h2>
+            <div class='methods'>
+        <h3 id='method.gz_encode' class='method stab '><span id='gz_encode.v' class='invisible'><code>fn <a href='#method.gz_encode' class='fnname'>gz_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.GzEncoder.html' title='flate2::read::GzEncoder'>GzEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a compression stream at the specified
+compression level.</p>
+</div><h3 id='method.gz_decode' class='method stab '><span id='gz_decode.v' class='invisible'><code>fn <a href='#method.gz_decode' class='fnname'>gz_decode</a>(self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='../flate2/read/struct.GzDecoder.html' title='flate2::read::GzDecoder'>GzDecoder</a>&lt;Self&gt;&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a decompression stream of this stream.</p>
+</div><h3 id='method.zlib_encode' class='method stab '><span id='zlib_encode.v' class='invisible'><code>fn <a href='#method.zlib_encode' class='fnname'>zlib_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.ZlibEncoder.html' title='flate2::read::ZlibEncoder'>ZlibEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a compression stream at the specified
+compression level.</p>
+</div><h3 id='method.zlib_decode' class='method stab '><span id='zlib_decode.v' class='invisible'><code>fn <a href='#method.zlib_decode' class='fnname'>zlib_decode</a>(self) -&gt; <a class='struct' href='../flate2/read/struct.ZlibDecoder.html' title='flate2::read::ZlibDecoder'>ZlibDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a decompression stream of this stream.</p>
+</div><h3 id='method.deflate_encode' class='method stab '><span id='deflate_encode.v' class='invisible'><code>fn <a href='#method.deflate_encode' class='fnname'>deflate_encode</a>(self, lvl: <a class='enum' href='../flate2/enum.Compression.html' title='flate2::Compression'>Compression</a>) -&gt; <a class='struct' href='../flate2/read/struct.DeflateEncoder.html' title='flate2::read::DeflateEncoder'>DeflateEncoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a compression stream at the specified
+compression level.</p>
+</div><h3 id='method.deflate_decode' class='method stab '><span id='deflate_decode.v' class='invisible'><code>fn <a href='#method.deflate_decode' class='fnname'>deflate_decode</a>(self) -&gt; <a class='struct' href='../flate2/read/struct.DeflateDecoder.html' title='flate2::read::DeflateDecoder'>DeflateDecoder</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Consume this reader to create a decompression stream of this stream.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;T:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a>&gt; FlateReadExt for T</code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/flate2/trait.FlateReadExt.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "flate2";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

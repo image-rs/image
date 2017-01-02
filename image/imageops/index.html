@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `imageops` mod in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, imageops">
+
+    <title>image::imageops - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>image</a></p><script>window.sidebarCurrent = {name: 'imageops', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>image</a>::<wbr><a class='mod' href=''>imageops</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/image/imageops/mod.rs.html#1-163' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Image Processing Functions</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use self::<a class='mod'
+                                       href='./sample/index.html'>sample</a>::<a class='mod'
+                                       href='./sample/FilterType/index.html'>FilterType</a>::<a class='enum' href='../../image/enum.FilterType.html' title='image::FilterType'>Triangle</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./sample/index.html'>sample</a>::<a class='mod'
+                                       href='./sample/FilterType/index.html'>FilterType</a>::<a class='enum' href='../../image/enum.FilterType.html' title='image::FilterType'>Nearest</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./sample/index.html'>sample</a>::<a class='mod'
+                                       href='./sample/FilterType/index.html'>FilterType</a>::<a class='enum' href='../../image/enum.FilterType.html' title='image::FilterType'>CatmullRom</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./sample/index.html'>sample</a>::<a class='mod'
+                                       href='./sample/FilterType/index.html'>FilterType</a>::<a class='enum' href='../../image/enum.FilterType.html' title='image::FilterType'>Gaussian</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./sample/index.html'>sample</a>::<a class='mod'
+                                       href='./sample/FilterType/index.html'>FilterType</a>::<a class='enum' href='../../image/enum.FilterType.html' title='image::FilterType'>Lanczos3</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.grayscale.html' title='image::imageops::colorops::grayscale'>grayscale</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.invert.html' title='image::imageops::colorops::invert'>invert</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.contrast.html' title='image::imageops::colorops::contrast'>contrast</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.brighten.html' title='image::imageops::colorops::brighten'>brighten</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.huerotate.html' title='image::imageops::colorops::huerotate'>huerotate</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='trait' href='../../image/imageops/colorops/trait.ColorMap.html' title='image::imageops::colorops::ColorMap'>ColorMap</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='struct' href='../../image/imageops/colorops/struct.BiLevel.html' title='image::imageops::colorops::BiLevel'>BiLevel</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.dither.html' title='image::imageops::colorops::dither'>dither</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./colorops/index.html'>colorops</a>::<a class='fn' href='../../image/imageops/colorops/fn.index_colors.html' title='image::imageops::colorops::index_colors'>index_colors</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='colorops/index.html'
+                                  title='image::imageops::colorops'>colorops</a></td>
+                           <td class='docblock-short'>
+                                <p>Public only because of Rust bug:
+<a href="https://github.com/rust-lang/rust/issues/18241">https://github.com/rust-lang/rust/issues/18241</a>
+Functions for altering and converting the color of pixelbufs</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.FilterType.html'
+                                  title='image::imageops::FilterType'>FilterType</a></td>
+                           <td class='docblock-short'>
+                                <p>Available Sampling Filters</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.blur.html'
+                                  title='image::imageops::blur'>blur</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs a Gaussian blur on the supplied image.
+<code>sigma</code> is a measure of how much to blur by.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.crop.html'
+                                  title='image::imageops::crop'>crop</a></td>
+                           <td class='docblock-short'>
+                                <p>Return a mutable view into an image</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.filter3x3.html'
+                                  title='image::imageops::filter3x3'>filter3x3</a></td>
+                           <td class='docblock-short'>
+                                <p>Perform a 3x3 box filter on the supplied image.
+<code>kernel</code> is an array of the filter weights of length 9.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.flip_horizontal.html'
+                                  title='image::imageops::flip_horizontal'>flip_horizontal</a></td>
+                           <td class='docblock-short'>
+                                <p>Flip an image horizontally</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.flip_vertical.html'
+                                  title='image::imageops::flip_vertical'>flip_vertical</a></td>
+                           <td class='docblock-short'>
+                                <p>Flip an image vertically</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.overlay.html'
+                                  title='image::imageops::overlay'>overlay</a></td>
+                           <td class='docblock-short'>
+                                <p>Overlay an image at a given coordinate (x, y)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.replace.html'
+                                  title='image::imageops::replace'>replace</a></td>
+                           <td class='docblock-short'>
+                                <p>Replace the contents of an image at a given coordinate (x, y)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.resize.html'
+                                  title='image::imageops::resize'>resize</a></td>
+                           <td class='docblock-short'>
+                                <p>Resize the supplied image to the specified dimensions.
+<code>nwidth</code> and <code>nheight</code> are the new dimensions.
+<code>filter</code> is the sampling filter to use.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.rotate180.html'
+                                  title='image::imageops::rotate180'>rotate180</a></td>
+                           <td class='docblock-short'>
+                                <p>Rotate an image 180 degrees clockwise.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.rotate270.html'
+                                  title='image::imageops::rotate270'>rotate270</a></td>
+                           <td class='docblock-short'>
+                                <p>Rotate an image 270 degrees clockwise.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.rotate90.html'
+                                  title='image::imageops::rotate90'>rotate90</a></td>
+                           <td class='docblock-short'>
+                                <p>Rotate an image 90 degrees clockwise.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.unsharpen.html'
+                                  title='image::imageops::unsharpen'>unsharpen</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs an unsharpen mask on the supplied image.
+<code>sigma</code> is the amount to blur the image by.
+<code>threshold</code> is the threshold for the difference between</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

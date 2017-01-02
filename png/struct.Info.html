@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Info` struct in crate `png`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Info">
+
+    <title>png::Info - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>png</a></p><script>window.sidebarCurrent = {name: 'Info', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>png</a>::<wbr><a class='struct' href=''>Info</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/png/common.rs.html#120-131' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Info {
+    pub width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,
+    pub height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,
+    pub bit_depth: <a class='enum' href='../png/enum.BitDepth.html' title='png::BitDepth'>BitDepth</a>,
+    pub color_type: <a class='enum' href='../png/enum.ColorType.html' title='png::ColorType'>ColorType</a>,
+    pub interlaced: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>,
+    pub trns: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;&gt;,
+    pub pixel_dims: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.PixelDimensions.html' title='png::PixelDimensions'>PixelDimensions</a>&gt;,
+    pub palette: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;&gt;,
+    pub frame_control: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.FrameControl.html' title='png::FrameControl'>FrameControl</a>&gt;,
+    pub animation_control: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.AnimationControl.html' title='png::AnimationControl'>AnimationControl</a>&gt;,
+}</pre><div class='docblock'><p>PNG info struct</p>
+</div><h2 class='fields'>Fields</h2><span id='structfield.width' class='structfield'>
+                           <span id='width.v' class='invisible'>
+                           <code>width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code>
+                           </span></span><span class='stab '></span><span id='structfield.height' class='structfield'>
+                           <span id='height.v' class='invisible'>
+                           <code>height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code>
+                           </span></span><span class='stab '></span><span id='structfield.bit_depth' class='structfield'>
+                           <span id='bit_depth.v' class='invisible'>
+                           <code>bit_depth: <a class='enum' href='../png/enum.BitDepth.html' title='png::BitDepth'>BitDepth</a></code>
+                           </span></span><span class='stab '></span><span id='structfield.color_type' class='structfield'>
+                           <span id='color_type.v' class='invisible'>
+                           <code>color_type: <a class='enum' href='../png/enum.ColorType.html' title='png::ColorType'>ColorType</a></code>
+                           </span></span><span class='stab '></span><span id='structfield.interlaced' class='structfield'>
+                           <span id='interlaced.v' class='invisible'>
+                           <code>interlaced: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code>
+                           </span></span><span class='stab '></span><span id='structfield.trns' class='structfield'>
+                           <span id='trns.v' class='invisible'>
+                           <code>trns: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;&gt;</code>
+                           </span></span><span class='stab '></span><span id='structfield.pixel_dims' class='structfield'>
+                           <span id='pixel_dims.v' class='invisible'>
+                           <code>pixel_dims: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.PixelDimensions.html' title='png::PixelDimensions'>PixelDimensions</a>&gt;</code>
+                           </span></span><span class='stab '></span><span id='structfield.palette' class='structfield'>
+                           <span id='palette.v' class='invisible'>
+                           <code>palette: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;&gt;</code>
+                           </span></span><span class='stab '></span><span id='structfield.frame_control' class='structfield'>
+                           <span id='frame_control.v' class='invisible'>
+                           <code>frame_control: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.FrameControl.html' title='png::FrameControl'>FrameControl</a>&gt;</code>
+                           </span></span><span class='stab '></span><span id='structfield.animation_control' class='structfield'>
+                           <span id='animation_control.v' class='invisible'>
+                           <code>animation_control: <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../png/struct.AnimationControl.html' title='png::AnimationControl'>AnimationControl</a>&gt;</code>
+                           </span></span><span class='stab '></span><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../png/struct.Info.html' title='png::Info'>Info</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/png/common.rs.html#150-203' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.size' class='method'><span id='size.v' class='invisible'><code>fn <a href='#method.size' class='fnname'>size</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h4>
+<div class='docblock'><p>Size of the image</p>
+</div><h4 id='method.is_animated' class='method'><span id='is_animated.v' class='invisible'><code>fn <a href='#method.is_animated' class='fnname'>is_animated</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h4>
+<div class='docblock'><p>Returns true if the image is an APNG image.</p>
+</div><h4 id='method.animation_control' class='method'><span id='animation_control.v-1' class='invisible'><code>fn <a href='#method.animation_control' class='fnname'>animation_control</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='struct' href='../png/struct.AnimationControl.html' title='png::AnimationControl'>AnimationControl</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the frame control information of the image</p>
+</div><h4 id='method.frame_control' class='method'><span id='frame_control.v-1' class='invisible'><code>fn <a href='#method.frame_control' class='fnname'>frame_control</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='struct' href='../png/struct.FrameControl.html' title='png::FrameControl'>FrameControl</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the frame control information of the current frame</p>
+</div><h4 id='method.bits_per_pixel' class='method'><span id='bits_per_pixel.v' class='invisible'><code>fn <a href='#method.bits_per_pixel' class='fnname'>bits_per_pixel</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the bits per pixel</p>
+</div><h4 id='method.bytes_per_pixel' class='method'><span id='bytes_per_pixel.v' class='invisible'><code>fn <a href='#method.bytes_per_pixel' class='fnname'>bytes_per_pixel</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the bytes per pixel</p>
+</div><h4 id='method.raw_bytes' class='method'><span id='raw_bytes.v' class='invisible'><code>fn <a href='#method.raw_bytes' class='fnname'>raw_bytes</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the number of bytes needed for one deinterlaced image</p>
+</div><h4 id='method.raw_row_length' class='method'><span id='raw_row_length.v' class='invisible'><code>fn <a href='#method.raw_row_length' class='fnname'>raw_row_length</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the number of bytes needed for one deinterlaced row</p>
+</div><h4 id='method.raw_row_length_from_width' class='method'><span id='raw_row_length_from_width.v' class='invisible'><code>fn <a href='#method.raw_row_length_from_width' class='fnname'>raw_row_length_from_width</a>(&amp;self, width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the number of bytes needed for one deinterlaced row of width <code>width</code></p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../png/struct.Info.html' title='png::Info'>Info</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/png/common.rs.html#119' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html' title='core::default::Default'>Default</a> for <a class='struct' href='../png/struct.Info.html' title='png::Info'>Info</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/png/common.rs.html#133-148' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.default' class='method'><span id='default.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default' class='fnname'>default</a>() -&gt; <a class='struct' href='../png/struct.Info.html' title='png::Info'>Info</a></code></span></h4>
+<div class='docblock'><p>Returns the &quot;default value&quot; for a type. <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "png";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `png` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, png">
+
+    <title>png - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'png', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>png</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/png/lib.rs.html#1-44' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='png-encoder-and-decoder' class='section-header'><a href='#png-encoder-and-decoder'>PNG encoder and decoder</a></h1>
+<p>This crate contains a PNG decoder. It supports reading of single lines or whole frames.</p>
+
+<h2 id='the-decoder' class='section-header'><a href='#the-decoder'>The decoder</a></h2>
+<p>The most important types for decoding purposes are <a href="struct.Decoder.html"><code>Decoder</code></a> and
+<a href="struct.Reader.html"><code>Reader</code></a>. They both wrap a <code>std::io::Read</code>.
+<code>Decoder</code> serves as a builder for <code>Reader</code>. Calling <code>Decoder::read_info</code> reads from the <code>Read</code> until the
+image data is reached.</p>
+
+<h3 id='using-the-decoder' class='section-header'><a href='#using-the-decoder'>Using the decoder</a></h3>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
+
+<span class='comment'>// The decoder is a build for reader and can be used to set various decoding options</span>
+<span class='comment'>// via `Transformations`. The default output transformation is `TRANSFORM_EXPAND</span>
+<span class='comment'>// | TRANSFORM_STRIP_ALPHA`.</span>
+<span class='kw'>let</span> <span class='ident'>decoder</span> <span class='op'>=</span> <span class='ident'>png</span>::<span class='ident'>Decoder</span>::<span class='ident'>new</span>(<span class='ident'>File</span>::<span class='ident'>open</span>(<span class='string'>&quot;tests/pngsuite/basi0g01.png&quot;</span>).<span class='ident'>unwrap</span>());
+<span class='kw'>let</span> (<span class='ident'>info</span>, <span class='kw-2'>mut</span> <span class='ident'>reader</span>) <span class='op'>=</span> <span class='ident'>decoder</span>.<span class='ident'>read_info</span>().<span class='ident'>unwrap</span>();
+<span class='comment'>// Allocate the output buffer.</span>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buf</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>0</span>; <span class='ident'>info</span>.<span class='ident'>buffer_size</span>()];
+<span class='comment'>// Read the next frame. Currently this function should only called once.</span>
+<span class='comment'>// The default options</span>
+<span class='ident'>reader</span>.<span class='ident'>next_frame</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>();</pre>
+
+<h2 id='encoder' class='section-header'><a href='#encoder'>Encoder</a></h2>
+<p>Not available yet</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='chunk/index.html'
+                                  title='png::chunk'>chunk</a></td>
+                           <td class='docblock-short'>
+                                <p>Chunk types and functions</p>
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.AnimationControl.html'
+                                  title='png::AnimationControl'>AnimationControl</a></td>
+                           <td class='docblock-short'>
+                                <p>Animation control information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Decoder.html'
+                                  title='png::Decoder'>Decoder</a></td>
+                           <td class='docblock-short'>
+                                <p>PNG Decoder</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Encoder.html'
+                                  title='png::Encoder'>Encoder</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.FrameControl.html'
+                                  title='png::FrameControl'>FrameControl</a></td>
+                           <td class='docblock-short'>
+                                <p>Frame control information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Info.html'
+                                  title='png::Info'>Info</a></td>
+                           <td class='docblock-short'>
+                                <p>PNG info struct</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.OutputInfo.html'
+                                  title='png::OutputInfo'>OutputInfo</a></td>
+                           <td class='docblock-short'>
+                                <p>Output info</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.PixelDimensions.html'
+                                  title='png::PixelDimensions'>PixelDimensions</a></td>
+                           <td class='docblock-short'>
+                                <p>Pixel dimensions information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Reader.html'
+                                  title='png::Reader'>Reader</a></td>
+                           <td class='docblock-short'>
+                                <p>PNG reader (mostly high-level interface)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.StreamingDecoder.html'
+                                  title='png::StreamingDecoder'>StreamingDecoder</a></td>
+                           <td class='docblock-short'>
+                                <p>PNG StreamingDecoder (low-level interface)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Transformations.html'
+                                  title='png::Transformations'>Transformations</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Writer.html'
+                                  title='png::Writer'>Writer</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.BitDepth.html'
+                                  title='png::BitDepth'>BitDepth</a></td>
+                           <td class='docblock-short'>
+                                <p>Bit depth of the png file</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.ColorType.html'
+                                  title='png::ColorType'>ColorType</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.Decoded.html'
+                                  title='png::Decoded'>Decoded</a></td>
+                           <td class='docblock-short'>
+                                <p>Result of the decoding process</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.DecodingError.html'
+                                  title='png::DecodingError'>DecodingError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.EncodingError.html'
+                                  title='png::EncodingError'>EncodingError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.Unit.html'
+                                  title='png::Unit'>Unit</a></td>
+                           <td class='docblock-short'>
+                                <p>Physical unit of the pixel dimensions</p>
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_BGR.html'
+                                  title='png::TRANSFORM_BGR'>TRANSFORM_BGR</a></td>
+                           <td class='docblock-short'>
+                                <p>Flip RGB to BGR, RGBA to BGRA</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_EXPAND.html'
+                                  title='png::TRANSFORM_EXPAND'>TRANSFORM_EXPAND</a></td>
+                           <td class='docblock-short'>
+                                <p>Expand paletted images to RGB, expand grayscale images of
+less than 8-bit depth to 8-bit depth, and expand tRNS chunks
+to alpha channels.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_EXPAND_16.html'
+                                  title='png::TRANSFORM_EXPAND_16'>TRANSFORM_EXPAND_16</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_GRAY_TO_RGB.html'
+                                  title='png::TRANSFORM_GRAY_TO_RGB'>TRANSFORM_GRAY_TO_RGB</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_IDENTITY.html'
+                                  title='png::TRANSFORM_IDENTITY'>TRANSFORM_IDENTITY</a></td>
+                           <td class='docblock-short'>
+                                <p>No transformation</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_INVERT_ALPHA.html'
+                                  title='png::TRANSFORM_INVERT_ALPHA'>TRANSFORM_INVERT_ALPHA</a></td>
+                           <td class='docblock-short'>
+                                <p>Change alpha from opacity to transparency</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_INVERT_MONO.html'
+                                  title='png::TRANSFORM_INVERT_MONO'>TRANSFORM_INVERT_MONO</a></td>
+                           <td class='docblock-short'>
+                                <p>Invert monochrome images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_PACKING.html'
+                                  title='png::TRANSFORM_PACKING'>TRANSFORM_PACKING</a></td>
+                           <td class='docblock-short'>
+                                <p>Expand 1, 2 and 4-bit samples to bytes</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_PACKSWAP.html'
+                                  title='png::TRANSFORM_PACKSWAP'>TRANSFORM_PACKSWAP</a></td>
+                           <td class='docblock-short'>
+                                <p>Change order of packed pixels to LSB first</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_SCALE_16.html'
+                                  title='png::TRANSFORM_SCALE_16'>TRANSFORM_SCALE_16</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_SHIFT.html'
+                                  title='png::TRANSFORM_SHIFT'>TRANSFORM_SHIFT</a></td>
+                           <td class='docblock-short'>
+                                <p>Normalize pixels to the sBIT depth</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_STRIP_16.html'
+                                  title='png::TRANSFORM_STRIP_16'>TRANSFORM_STRIP_16</a></td>
+                           <td class='docblock-short'>
+                                <p>Strip 16-bit samples to 8 bits</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_STRIP_ALPHA.html'
+                                  title='png::TRANSFORM_STRIP_ALPHA'>TRANSFORM_STRIP_ALPHA</a></td>
+                           <td class='docblock-short'>
+                                <p>Discard the alpha channel</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_STRIP_FILLER.html'
+                                  title='png::TRANSFORM_STRIP_FILLER'>TRANSFORM_STRIP_FILLER</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_STRIP_FILLER_AFTER.html'
+                                  title='png::TRANSFORM_STRIP_FILLER_AFTER'>TRANSFORM_STRIP_FILLER_AFTER</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_STRIP_FILLER_BEFORE.html'
+                                  title='png::TRANSFORM_STRIP_FILLER_BEFORE'>TRANSFORM_STRIP_FILLER_BEFORE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_SWAP_ALPHA.html'
+                                  title='png::TRANSFORM_SWAP_ALPHA'>TRANSFORM_SWAP_ALPHA</a></td>
+                           <td class='docblock-short'>
+                                <p>Flip RGBA to ARGB or GA to AG</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='constant' href='constant.TRANSFORM_SWAP_ENDIAN.html'
+                                  title='png::TRANSFORM_SWAP_ENDIAN'>TRANSFORM_SWAP_ENDIAN</a></td>
+                           <td class='docblock-short'>
+                                <p>Byte-swap 16-bit samples</p>
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.HasParameters.html'
+                                  title='png::HasParameters'>HasParameters</a></td>
+                           <td class='docblock-short'>
+                                <p>Object has parameters</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Parameter.html'
+                                  title='png::Parameter'>Parameter</a></td>
+                           <td class='docblock-short'>
+                                <p>Configuration parameter trait</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "png";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

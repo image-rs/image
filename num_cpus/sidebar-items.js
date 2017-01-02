@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["get","Returns the number of CPUs of the current machine."],["get_physical","Returns the number of physical cores of the current machine. If not possible on the particular architecture returns same as get() which is the logical CPUs."]]});

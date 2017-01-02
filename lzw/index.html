@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `lzw` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, lzw">
+
+    <title>lzw - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'lzw', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>lzw</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/lzw/lib.rs.html#1-43' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='lzw-decoder-and-encoder' class='section-header'><a href='#lzw-decoder-and-encoder'>LZW decoder and encoder</a></h1>
+<p>This crates provides a <code>LzwEncoder</code> and <code>LzwDecoder</code>. The code words are written from
+and to bit streams where it is possible to write either the most or least significant 
+bit first. The maximum possible code size is 16 bits. Both types rely on RAII to
+produced correct results.</p>
+
+<p>The de- and encoder expect the LZW stream to start with a clear code and end with an
+end code which are defined as follows:</p>
+
+<ul>
+<li><code>CLEAR_CODE == 1 &lt;&lt; min_code_size</code></li>
+<li><code>END_CODE == CLEAR_CODE + 1</code></li>
+</ul>
+
+<p>Examplary use of the encoder:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>lzw</span>::{<span class='ident'>LsbWriter</span>, <span class='ident'>Encoder</span>};
+<span class='kw'>let</span> <span class='ident'>size</span> <span class='op'>=</span> <span class='number'>8</span>;
+<span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='string'>b&quot;TOBEORNOTTOBEORTOBEORNOT&quot;</span>;
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+{
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>enc</span> <span class='op'>=</span> <span class='ident'>Encoder</span>::<span class='ident'>new</span>(<span class='ident'>LsbWriter</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>compressed</span>), <span class='ident'>size</span>).<span class='ident'>unwrap</span>();
+    <span class='ident'>enc</span>.<span class='ident'>encode_bytes</span>(<span class='ident'>data</span>).<span class='ident'>unwrap</span>();
+}</pre>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Decoder.html'
+                                  title='lzw::Decoder'>Decoder</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoder for a LZW compressed stream (this algorithm is used for GIF files).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.DecoderEarlyChange.html'
+                                  title='lzw::DecoderEarlyChange'>DecoderEarlyChange</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoder for a LZW compressed stream using an “early change” algorithm (used in TIFF files).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Encoder.html'
+                                  title='lzw::Encoder'>Encoder</a></td>
+                           <td class='docblock-short'>
+                                <p>LZW encoder using the algorithm of GIF files.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.LsbReader.html'
+                                  title='lzw::LsbReader'>LsbReader</a></td>
+                           <td class='docblock-short'>
+                                <p>Reads bits from a byte stream, LSB first.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.LsbWriter.html'
+                                  title='lzw::LsbWriter'>LsbWriter</a></td>
+                           <td class='docblock-short'>
+                                <p>Writes bits to a byte stream, LSB first.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MsbReader.html'
+                                  title='lzw::MsbReader'>MsbReader</a></td>
+                           <td class='docblock-short'>
+                                <p>Reads bits from a byte stream, MSB first.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MsbWriter.html'
+                                  title='lzw::MsbWriter'>MsbWriter</a></td>
+                           <td class='docblock-short'>
+                                <p>Writes bits to a byte stream, MSB first.</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.Bits.html'
+                                  title='lzw::Bits'>Bits</a></td>
+                           <td class='docblock-short'>
+                                <p>Containes either the consumed bytes and reconstructed bits or
+only the consumed bytes if the supplied buffer was not bit enough</p>
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.BitReader.html'
+                                  title='lzw::BitReader'>BitReader</a></td>
+                           <td class='docblock-short'>
+                                <p>A bit reader.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.BitWriter.html'
+                                  title='lzw::BitWriter'>BitWriter</a></td>
+                           <td class='docblock-short'>
+                                <p>A bit writer.</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.encode.html'
+                                  title='lzw::encode'>encode</a></td>
+                           <td class='docblock-short'>
+                                <p>Convenience function that reads and compresses all bytes from <code>R</code>.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "lzw";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

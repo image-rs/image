@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `glob` fn in crate `glob`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, glob">
+
+    <title>glob::glob - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <a href='../glob/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'><a href='index.html'>glob</a></p><script>window.sidebarCurrent = {name: 'glob', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>glob</a>::<wbr><a class='fn' href=''>glob</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/glob/lib.rs.html#116-118' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn glob(pattern: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../glob/struct.Paths.html' title='glob::Paths'>Paths</a>, <a class='struct' href='../glob/struct.PatternError.html' title='glob::PatternError'>PatternError</a>&gt;</pre><div class='docblock'><p>Return an iterator that produces all the Paths that match the given pattern,
+which may be absolute or relative to the current working directory.</p>
+
+<p>This may return an error if the pattern is invalid.</p>
+
+<p>This method uses the default match options and is equivalent to calling
+<code>glob_with(pattern, MatchOptions::new())</code>. Use <code>glob_with</code> directly if you
+want to use non-default match options.</p>
+
+<p>When iterating, each result is a <code>GlobResult</code> which expresses the
+possibility that there was an <code>IoError</code> when attempting to read the contents
+of the matched path.  In other words, each item returned by the iterator
+will either be an <code>Ok(Path)</code> if the path matched, or an <code>Err(GlobError)</code> if
+the path (partially) matched <em>but</em> its contents could not be read in order
+to determine if its contents matched.</p>
+
+<p>See the <code>Paths</code> documentation for more information.</p>
+
+<h1 id='example' class='section-header'><a href='#example'>Example</a></h1>
+<p>Consider a directory <code>/media/pictures</code> containing only the files
+<code>kittens.jpg</code>, <code>puppies.jpg</code> and <code>hamsters.gif</code>:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>glob</span>::<span class='ident'>glob</span>;
+
+<span class='kw'>for</span> <span class='ident'>entry</span> <span class='kw'>in</span> <span class='ident'>glob</span>(<span class='string'>&quot;/media/pictures/*.jpg&quot;</span>).<span class='ident'>unwrap</span>() {
+    <span class='kw'>match</span> <span class='ident'>entry</span> {
+        <span class='prelude-val'>Ok</span>(<span class='ident'>path</span>) <span class='op'>=&gt;</span> <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>path</span>.<span class='ident'>display</span>()),
+
+        <span class='comment'>// if the path matched but was unreadable,</span>
+        <span class='comment'>// thereby preventing its contents from matching</span>
+        <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>e</span>),
+    }
+}</pre>
+
+<p>The above code will print:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='op'>/</span><span class='ident'>media</span><span class='op'>/</span><span class='ident'>pictures</span><span class='op'>/</span><span class='ident'>kittens</span>.<span class='ident'>jpg</span>
+<span class='op'>/</span><span class='ident'>media</span><span class='op'>/</span><span class='ident'>pictures</span><span class='op'>/</span><span class='ident'>puppies</span>.<span class='ident'>jpg</span></pre>
+
+<p>If you want to ignore unreadable paths, you can use something like
+<code>filter_map</code>:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>glob</span>::<span class='ident'>glob</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>result</span>::<span class='prelude-ty'>Result</span>;
+
+<span class='kw'>for</span> <span class='ident'>path</span> <span class='kw'>in</span> <span class='ident'>glob</span>(<span class='string'>&quot;/media/pictures/*.jpg&quot;</span>).<span class='ident'>unwrap</span>().<span class='ident'>filter_map</span>(<span class='prelude-ty'>Result</span>::<span class='ident'>ok</span>) {
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>path</span>.<span class='ident'>display</span>());
+}</pre>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "glob";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

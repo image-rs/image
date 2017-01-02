@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FromPrimitive` trait in crate `enum_primitive`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FromPrimitive">
+
+    <title>enum_primitive::FromPrimitive - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>enum_primitive</a></p><script>window.sidebarCurrent = {name: 'FromPrimitive', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>enum_primitive</a>::<wbr><a class='trait' href=''>FromPrimitive</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/num_traits/cast.rs.html#275-353' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait FromPrimitive {
+    fn <a href='#tymethod.from_i64' class='fnname'>from_i64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;;
+    fn <a href='#tymethod.from_u64' class='fnname'>from_u64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;;
+
+    fn <a href='#method.from_isize' class='fnname'>from_isize</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.isize.html'>isize</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_i8' class='fnname'>from_i8</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i8.html'>i8</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_i16' class='fnname'>from_i16</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i16.html'>i16</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_i32' class='fnname'>from_i32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_usize' class='fnname'>from_usize</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_u8' class='fnname'>from_u8</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_u16' class='fnname'>from_u16</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_u32' class='fnname'>from_u32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_f32' class='fnname'>from_f32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+    fn <a href='#method.from_f64' class='fnname'>from_f64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt; { ... }
+}</pre><div class='docblock'><p>A generic trait for converting a number to a value.</p>
+</div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.from_i64' class='method stab '><span id='from_i64.v' class='invisible'><code>fn <a href='#tymethod.from_i64' class='fnname'>from_i64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>i64</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='tymethod.from_u64' class='method stab '><span id='from_u64.v' class='invisible'><code>fn <a href='#tymethod.from_u64' class='fnname'>from_u64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>u64</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div></div>
+            <h2 id='provided-methods'>Provided Methods</h2>
+            <div class='methods'>
+        <h3 id='method.from_isize' class='method stab '><span id='from_isize.v' class='invisible'><code>fn <a href='#method.from_isize' class='fnname'>from_isize</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.isize.html'>isize</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>isize</code> to return an optional value of this type. If the
+value cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_i8' class='method stab '><span id='from_i8.v' class='invisible'><code>fn <a href='#method.from_i8' class='fnname'>from_i8</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i8.html'>i8</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>i8</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_i16' class='method stab '><span id='from_i16.v' class='invisible'><code>fn <a href='#method.from_i16' class='fnname'>from_i16</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i16.html'>i16</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>i16</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_i32' class='method stab '><span id='from_i32.v' class='invisible'><code>fn <a href='#method.from_i32' class='fnname'>from_i32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>i32</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_usize' class='method stab '><span id='from_usize.v' class='invisible'><code>fn <a href='#method.from_usize' class='fnname'>from_usize</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert a <code>usize</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_u8' class='method stab '><span id='from_u8.v' class='invisible'><code>fn <a href='#method.from_u8' class='fnname'>from_u8</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>u8</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_u16' class='method stab '><span id='from_u16.v' class='invisible'><code>fn <a href='#method.from_u16' class='fnname'>from_u16</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>u16</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_u32' class='method stab '><span id='from_u32.v' class='invisible'><code>fn <a href='#method.from_u32' class='fnname'>from_u32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert an <code>u32</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_f32' class='method stab '><span id='from_f32.v' class='invisible'><code>fn <a href='#method.from_f32' class='fnname'>from_f32</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert a <code>f32</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div><h3 id='method.from_f64' class='method stab '><span id='from_f64.v' class='invisible'><code>fn <a href='#method.from_f64' class='fnname'>from_f64</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../enum_primitive/enum.Option.html' title='enum_primitive::Option'>Option</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Convert a <code>f64</code> to return an optional value of this type. If the
+type cannot be represented by this value, the <code>None</code> is returned.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.isize.html'>isize</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i8.html'>i8</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i16.html'>i16</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i64.html'>i64</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u16.html'>u16</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f32.html'>f32</a></code></li>
+<li><code>impl FromPrimitive for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/num_traits/cast/trait.FromPrimitive.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "enum_primitive";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

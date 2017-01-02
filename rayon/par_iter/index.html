@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `par_iter` mod in crate `rayon`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, par_iter">
+
+    <title>rayon::par_iter - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rayon</a></p><script>window.sidebarCurrent = {name: 'par_iter', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rayon</a>::<wbr><a class='mod' href=''>par_iter</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/rayon/par_iter/mod.rs.html#1-834' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The <code>ParallelIterator</code> module makes it easy to write parallel
+programs using an iterator-style interface. To get access to all
+the methods you want, the easiest is to write <code>use rayon::prelude::*;</code> at the top of your module, which will import
+the various traits and methods you need.</p>
+
+<p>The submodules of this module mostly just contain implementaton
+details of little interest to an end-user. If you&#39;d like to read
+the code itself, the <code>internal</code> module and <code>README.md</code> file are a
+good place to start.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='chain/index.html'
+                                  title='rayon::par_iter::chain'>chain</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='collect/index.html'
+                                  title='rayon::par_iter::collect'>collect</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='collections/index.html'
+                                  title='rayon::par_iter::collections'>collections</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='enumerate/index.html'
+                                  title='rayon::par_iter::enumerate'>enumerate</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='filter/index.html'
+                                  title='rayon::par_iter::filter'>filter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='filter_map/index.html'
+                                  title='rayon::par_iter::filter_map'>filter_map</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='find/index.html'
+                                  title='rayon::par_iter::find'>find</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='flat_map/index.html'
+                                  title='rayon::par_iter::flat_map'>flat_map</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='fold/index.html'
+                                  title='rayon::par_iter::fold'>fold</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='for_each/index.html'
+                                  title='rayon::par_iter::for_each'>for_each</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='from_par_iter/index.html'
+                                  title='rayon::par_iter::from_par_iter'>from_par_iter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='internal/index.html'
+                                  title='rayon::par_iter::internal'>internal</a></td>
+                           <td class='docblock-short'>
+                                <p>Internal traits and functions used to implement parallel
+iteration. These should be considered highly unstable: users of
+parallel iterators should not need to interact with them directly.
+See <code>README.md</code> for a high-level overview.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='len/index.html'
+                                  title='rayon::par_iter::len'>len</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='map/index.html'
+                                  title='rayon::par_iter::map'>map</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='noop/index.html'
+                                  title='rayon::par_iter::noop'>noop</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='option/index.html'
+                                  title='rayon::par_iter::option'>option</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='range/index.html'
+                                  title='rayon::par_iter::range'>range</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='reduce/index.html'
+                                  title='rayon::par_iter::reduce'>reduce</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='skip/index.html'
+                                  title='rayon::par_iter::skip'>skip</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='slice/index.html'
+                                  title='rayon::par_iter::slice'>slice</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='slice_mut/index.html'
+                                  title='rayon::par_iter::slice_mut'>slice_mut</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='string/index.html'
+                                  title='rayon::par_iter::string'>string</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='take/index.html'
+                                  title='rayon::par_iter::take'>take</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='vec/index.html'
+                                  title='rayon::par_iter::vec'>vec</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='weight/index.html'
+                                  title='rayon::par_iter::weight'>weight</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='zip/index.html'
+                                  title='rayon::par_iter::zip'>zip</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.BoundedParallelIterator.html'
+                                  title='rayon::par_iter::BoundedParallelIterator'>BoundedParallelIterator</a></td>
+                           <td class='docblock-short'>
+                                <p>A trait for parallel iterators items where the precise number of
+items is not known, but we can at least give an upper-bound. These
+sorts of iterators result from filtering.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ExactParallelIterator.html'
+                                  title='rayon::par_iter::ExactParallelIterator'>ExactParallelIterator</a></td>
+                           <td class='docblock-short'>
+                                <p>A trait for parallel iterators items where the precise number of
+items is known. This occurs when e.g. iterating over a
+vector. Knowing precisely how many items will be produced is very
+useful.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.IndexedParallelIterator.html'
+                                  title='rayon::par_iter::IndexedParallelIterator'>IndexedParallelIterator</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator that supports &quot;random access&quot; to its data, meaning
+that you can split it at arbitrary indices and draw data from
+those points.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.IntoParallelIterator.html'
+                                  title='rayon::par_iter::IntoParallelIterator'>IntoParallelIterator</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.IntoParallelRefIterator.html'
+                                  title='rayon::par_iter::IntoParallelRefIterator'>IntoParallelRefIterator</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.IntoParallelRefMutIterator.html'
+                                  title='rayon::par_iter::IntoParallelRefMutIterator'>IntoParallelRefMutIterator</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ParallelIterator.html'
+                                  title='rayon::par_iter::ParallelIterator'>ParallelIterator</a></td>
+                           <td class='docblock-short'>
+                                <p>The <code>ParallelIterator</code> interface.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ParallelString.html'
+                                  title='rayon::par_iter::ParallelString'>ParallelString</a></td>
+                           <td class='docblock-short'>
+                                <p>Parallel extensions for strings.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ToParallelChunks.html'
+                                  title='rayon::par_iter::ToParallelChunks'>ToParallelChunks</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ToParallelChunksMut.html'
+                                  title='rayon::par_iter::ToParallelChunksMut'>ToParallelChunksMut</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rayon";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

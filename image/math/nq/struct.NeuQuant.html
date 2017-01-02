@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `NeuQuant` struct in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, NeuQuant">
+
+    <title>image::math::nq::NeuQuant - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>image</a>::<wbr><a href='../index.html'>math</a>::<wbr><a href='index.html'>nq</a></p><script>window.sidebarCurrent = {name: 'NeuQuant', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>image</a>::<wbr><a href='../index.html'>math</a>::<wbr><a href='index.html'>nq</a>::<wbr><a class='struct' href=''>NeuQuant</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/image/math/nq.rs.html#66-74' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct NeuQuant { /* fields omitted */ }</pre><div class='docblock'><p>Neural network color quantizer</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../image/math/nq/struct.NeuQuant.html' title='image::math::nq::NeuQuant'>NeuQuant</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/image/math/nq.rs.html#76-371' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>(samplefac: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, colors: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, pixels: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; Self</code></span></h4>
+<div class='docblock'><p>Creates a new neuronal network and trains it with the supplied data</p>
+</div><h4 id='method.init' class='method'><span id='init.v' class='invisible'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;mut self, pixels: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>)</code></span></h4>
+<div class='docblock'><p>Initializes the neuronal network and trains it with the supplied data</p>
+</div><h4 id='method.map_pixel' class='method'><span id='map_pixel.v' class='invisible'><code>fn <a href='#method.map_pixel' class='fnname'>map_pixel</a>(&amp;self, pixel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>)</code></span></h4>
+<div class='docblock'><p>Maps the pixel in-place to the best-matching color in the color map</p>
+</div><h4 id='method.index_of' class='method'><span id='index_of.v' class='invisible'><code>fn <a href='#method.index_of' class='fnname'>index_of</a>(&amp;self, pixel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Finds the best-matching index in the color map for <code>pixel</code></p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='../../../image/imageops/colorops/trait.ColorMap.html' title='image::imageops::colorops::ColorMap'>ColorMap</a> for <a class='struct' href='../../../image/math/nq/struct.NeuQuant.html' title='image::math::nq::NeuQuant'>NeuQuant</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/image/imageops/colorops.rs.html#208-220' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Color' class='type'><span id='Color.t' class='invisible'><code>type <a href='../../../image/imageops/colorops/trait.ColorMap.html#associatedtype.Color' class='type'>Color</a> = <a class='struct' href='../../../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></span></h4>
+<div class='docblock'><p>The color type on which the map operates on</p>
+</div><h4 id='method.index_of-1' class='method'><span id='index_of.v-1' class='invisible'><code>fn <a href='../../../image/imageops/colorops/trait.ColorMap.html#tymethod.index_of' class='fnname'>index_of</a>(&amp;self, color: &amp;<a class='struct' href='../../../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></span></h4>
+<div class='docblock'><p>Returns the index of the closed match of <code>color</code> in the color map. <a href="../../../image/imageops/colorops/trait.ColorMap.html#tymethod.index_of">Read more</a></p>
+</div><h4 id='method.map_color' class='method'><span id='map_color.v' class='invisible'><code>fn <a href='../../../image/imageops/colorops/trait.ColorMap.html#tymethod.map_color' class='fnname'>map_color</a>(&amp;self, color: &amp;mut <a class='struct' href='../../../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;)</code></span></h4>
+<div class='docblock'><p>Maps <code>color</code> to the closest color in the color map.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `rand` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, rand">
+
+    <title>rand - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <a href='../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a>
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'rand', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>rand</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/rand/lib.rs.html#11-1242' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Utilities for random number generation</p>
+
+<p>The key functions are <code>random()</code> and <code>Rng::gen()</code>. These are polymorphic and
+so can be used to generate any type that implements <code>Rand</code>. Type inference
+means that often a simple call to <code>rand::random()</code> or <code>rng.gen()</code> will
+suffice, but sometimes an annotation is required, e.g.
+<code>rand::random::&lt;f64&gt;()</code>.</p>
+
+<p>See the <code>distributions</code> submodule for sampling random numbers from
+distributions like normal and exponential.</p>
+
+<h1 id='usage' class='section-header'><a href='#usage'>Usage</a></h1>
+<p>This crate is <a href="https://crates.io/crates/rand">on crates.io</a> and can be
+used by adding <code>rand</code> to the dependencies in your project&#39;s <code>Cargo.toml</code>.</p>
+
+<pre><code class="language-toml">[dependencies]
+rand = &quot;0.3&quot;
+</code></pre>
+
+<p>and this to your crate root:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rand</span>;</pre>
+
+<h1 id='thread-local-rng' class='section-header'><a href='#thread-local-rng'>Thread-local RNG</a></h1>
+<p>There is built-in support for a RNG associated with each thread stored
+in thread-local storage. This RNG can be accessed via <code>thread_rng</code>, or
+used implicitly via <code>random</code>. This RNG is normally randomly seeded
+from an operating-system source of randomness, e.g. <code>/dev/urandom</code> on
+Unix systems, and will automatically reseed itself from this source
+after generating 32 KiB of random data.</p>
+
+<h1 id='cryptographic-security' class='section-header'><a href='#cryptographic-security'>Cryptographic security</a></h1>
+<p>An application that requires an entropy source for cryptographic purposes
+must use <code>OsRng</code>, which reads randomness from the source that the operating
+system provides (e.g. <code>/dev/urandom</code> on Unixes or <code>CryptGenRandom()</code> on
+Windows).
+The other random number generators provided by this module are not suitable
+for such purposes.</p>
+
+<p><em>Note</em>: many Unix systems provide <code>/dev/random</code> as well as <code>/dev/urandom</code>.
+This module uses <code>/dev/urandom</code> for the following reasons:</p>
+
+<ul>
+<li>  On Linux, <code>/dev/random</code> may block if entropy pool is empty;
+<code>/dev/urandom</code> will not block.  This does not mean that <code>/dev/random</code>
+provides better output than <code>/dev/urandom</code>; the kernel internally runs a
+cryptographically secure pseudorandom number generator (CSPRNG) based on
+entropy pool for random number generation, so the &quot;quality&quot; of
+<code>/dev/random</code> is not better than <code>/dev/urandom</code> in most cases.  However,
+this means that <code>/dev/urandom</code> can yield somewhat predictable randomness
+if the entropy pool is very small, such as immediately after first
+booting.  Linux 3.17 added the <code>getrandom(2)</code> system call which solves
+the issue: it blocks if entropy pool is not initialized yet, but it does
+not block once initialized.  <code>OsRng</code> tries to use <code>getrandom(2)</code> if
+available, and use <code>/dev/urandom</code> fallback if not.  If an application
+does not have <code>getrandom</code> and likely to be run soon after first booting,
+or on a system with very few entropy sources, one should consider using
+<code>/dev/random</code> via <code>ReadRng</code>.</li>
+<li>  On some systems (e.g. FreeBSD, OpenBSD and Mac OS X) there is no
+difference between the two sources. (Also note that, on some systems
+e.g.  FreeBSD, both <code>/dev/random</code> and <code>/dev/urandom</code> may block once if
+the CSPRNG has not seeded yet.)</li>
+</ul>
+
+<h1 id='examples' class='section-header'><a href='#examples'>Examples</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>Rng</span>;
+
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rng</span> <span class='op'>=</span> <span class='ident'>rand</span>::<span class='ident'>thread_rng</span>();
+<span class='kw'>if</span> <span class='ident'>rng</span>.<span class='ident'>gen</span>() { <span class='comment'>// random bool</span>
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;i32: {}, u32: {}&quot;</span>, <span class='ident'>rng</span>.<span class='ident'>gen</span>::<span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>(), <span class='ident'>rng</span>.<span class='ident'>gen</span>::<span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>())
+}</pre>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>tuple</span> <span class='op'>=</span> <span class='ident'>rand</span>::<span class='ident'>random</span>::<span class='op'>&lt;</span>(<span class='ident'>f64</span>, <span class='ident'>char</span>)<span class='op'>&gt;</span>();
+<span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>tuple</span>)</pre>
+
+<h2 id='monte-carlo-estimation-of-π' class='section-header'><a href='#monte-carlo-estimation-of-π'>Monte Carlo estimation of π</a></h2>
+<p>For this example, imagine we have a square with sides of length 2 and a unit
+circle, both centered at the origin. Since the area of a unit circle is π,
+we have:</p>
+
+<pre><code class="language-text">    (area of unit circle) / (area of square) = π / 4
+</code></pre>
+
+<p>So if we sample many points randomly from the square, roughly π / 4 of them
+should be inside the circle.</p>
+
+<p>We can use the above fact to estimate the value of π: pick many points in
+the square at random, calculate the fraction that fall within the circle,
+and multiply this fraction by 4.</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>distributions</span>::{<span class='ident'>IndependentSample</span>, <span class='ident'>Range</span>};
+
+<span class='kw'>fn</span> <span class='ident'>main</span>() {
+   <span class='kw'>let</span> <span class='ident'>between</span> <span class='op'>=</span> <span class='ident'>Range</span>::<span class='ident'>new</span>(<span class='op'>-</span><span class='number'>1f64</span>, <span class='number'>1.</span>);
+   <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rng</span> <span class='op'>=</span> <span class='ident'>rand</span>::<span class='ident'>thread_rng</span>();
+
+   <span class='kw'>let</span> <span class='ident'>total</span> <span class='op'>=</span> <span class='number'>1_000_000</span>;
+   <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>in_circle</span> <span class='op'>=</span> <span class='number'>0</span>;
+
+   <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>total</span> {
+       <span class='kw'>let</span> <span class='ident'>a</span> <span class='op'>=</span> <span class='ident'>between</span>.<span class='ident'>ind_sample</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>rng</span>);
+       <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>between</span>.<span class='ident'>ind_sample</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>rng</span>);
+       <span class='kw'>if</span> <span class='ident'>a</span><span class='op'>*</span><span class='ident'>a</span> <span class='op'>+</span> <span class='ident'>b</span><span class='op'>*</span><span class='ident'>b</span> <span class='op'>&lt;=</span> <span class='number'>1.</span> {
+           <span class='ident'>in_circle</span> <span class='op'>+=</span> <span class='number'>1</span>;
+       }
+   }
+
+   <span class='comment'>// prints something close to 3.14159...</span>
+   <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='number'>4.</span> <span class='op'>*</span> (<span class='ident'>in_circle</span> <span class='kw'>as</span> <span class='ident'>f64</span>) <span class='op'>/</span> (<span class='ident'>total</span> <span class='kw'>as</span> <span class='ident'>f64</span>));
+}</pre>
+
+<h2 id='monty-hall-problem' class='section-header'><a href='#monty-hall-problem'>Monty Hall Problem</a></h2>
+<p>This is a simulation of the <a href="http://en.wikipedia.org/wiki/Monty_Hall_problem">Monty Hall Problem</a>:</p>
+
+<blockquote>
+<p>Suppose you&#39;re on a game show, and you&#39;re given the choice of three doors:
+Behind one door is a car; behind the others, goats. You pick a door, say
+No. 1, and the host, who knows what&#39;s behind the doors, opens another
+door, say No. 3, which has a goat. He then says to you, &quot;Do you want to
+pick door No. 2?&quot; Is it to your advantage to switch your choice?</p>
+</blockquote>
+
+<p>The rather unintuitive answer is that you will have a 2/3 chance of winning
+if you switch and a 1/3 chance of winning if you don&#39;t, so it&#39;s better to
+switch.</p>
+
+<p>This program will simulate the game show and with large enough simulation
+steps it will indeed confirm that it is better to switch.</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>Rng</span>;
+<span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>distributions</span>::{<span class='ident'>IndependentSample</span>, <span class='ident'>Range</span>};
+
+<span class='kw'>struct</span> <span class='ident'>SimulationResult</span> {
+    <span class='ident'>win</span>: <span class='ident'>bool</span>,
+    <span class='ident'>switch</span>: <span class='ident'>bool</span>,
+}
+
+<span class='comment'>// Run a single simulation of the Monty Hall problem.</span>
+<span class='kw'>fn</span> <span class='ident'>simulate</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='ident'>Rng</span><span class='op'>&gt;</span>(<span class='ident'>random_door</span>: <span class='kw-2'>&amp;</span><span class='ident'>Range</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>, <span class='ident'>rng</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>)
+                    <span class='op'>-&gt;</span> <span class='ident'>SimulationResult</span> {
+    <span class='kw'>let</span> <span class='ident'>car</span> <span class='op'>=</span> <span class='ident'>random_door</span>.<span class='ident'>ind_sample</span>(<span class='ident'>rng</span>);
+
+    <span class='comment'>// This is our initial choice</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>choice</span> <span class='op'>=</span> <span class='ident'>random_door</span>.<span class='ident'>ind_sample</span>(<span class='ident'>rng</span>);
+
+    <span class='comment'>// The game host opens a door</span>
+    <span class='kw'>let</span> <span class='ident'>open</span> <span class='op'>=</span> <span class='ident'>game_host_open</span>(<span class='ident'>car</span>, <span class='ident'>choice</span>, <span class='ident'>rng</span>);
+
+    <span class='comment'>// Shall we switch?</span>
+    <span class='kw'>let</span> <span class='ident'>switch</span> <span class='op'>=</span> <span class='ident'>rng</span>.<span class='ident'>gen</span>();
+    <span class='kw'>if</span> <span class='ident'>switch</span> {
+        <span class='ident'>choice</span> <span class='op'>=</span> <span class='ident'>switch_door</span>(<span class='ident'>choice</span>, <span class='ident'>open</span>);
+    }
+
+    <span class='ident'>SimulationResult</span> { <span class='ident'>win</span>: <span class='ident'>choice</span> <span class='op'>==</span> <span class='ident'>car</span>, <span class='ident'>switch</span>: <span class='ident'>switch</span> }
+}
+
+<span class='comment'>// Returns the door the game host opens given our choice and knowledge of</span>
+<span class='comment'>// where the car is. The game host will never open the door with the car.</span>
+<span class='kw'>fn</span> <span class='ident'>game_host_open</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='ident'>Rng</span><span class='op'>&gt;</span>(<span class='ident'>car</span>: <span class='ident'>u32</span>, <span class='ident'>choice</span>: <span class='ident'>u32</span>, <span class='ident'>rng</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
+    <span class='kw'>let</span> <span class='ident'>choices</span> <span class='op'>=</span> <span class='ident'>free_doors</span>(<span class='kw-2'>&amp;</span>[<span class='ident'>car</span>, <span class='ident'>choice</span>]);
+    <span class='ident'>rand</span>::<span class='ident'>sample</span>(<span class='ident'>rng</span>, <span class='ident'>choices</span>.<span class='ident'>into_iter</span>(), <span class='number'>1</span>)[<span class='number'>0</span>]
+}
+
+<span class='comment'>// Returns the door we switch to, given our current choice and</span>
+<span class='comment'>// the open door. There will only be one valid door.</span>
+<span class='kw'>fn</span> <span class='ident'>switch_door</span>(<span class='ident'>choice</span>: <span class='ident'>u32</span>, <span class='ident'>open</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
+    <span class='ident'>free_doors</span>(<span class='kw-2'>&amp;</span>[<span class='ident'>choice</span>, <span class='ident'>open</span>])[<span class='number'>0</span>]
+}
+
+<span class='kw'>fn</span> <span class='ident'>free_doors</span>(<span class='ident'>blocked</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u32</span>]) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span> {
+    (<span class='number'>0</span>..<span class='number'>3</span>).<span class='ident'>filter</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='op'>!</span><span class='ident'>blocked</span>.<span class='ident'>contains</span>(<span class='ident'>x</span>)).<span class='ident'>collect</span>()
+}
+
+<span class='kw'>fn</span> <span class='ident'>main</span>() {
+    <span class='comment'>// The estimation will be more accurate with more simulations</span>
+    <span class='kw'>let</span> <span class='ident'>num_simulations</span> <span class='op'>=</span> <span class='number'>10000</span>;
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rng</span> <span class='op'>=</span> <span class='ident'>rand</span>::<span class='ident'>thread_rng</span>();
+    <span class='kw'>let</span> <span class='ident'>random_door</span> <span class='op'>=</span> <span class='ident'>Range</span>::<span class='ident'>new</span>(<span class='number'>0</span>, <span class='number'>3</span>);
+
+    <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>switch_wins</span>, <span class='kw-2'>mut</span> <span class='ident'>switch_losses</span>) <span class='op'>=</span> (<span class='number'>0</span>, <span class='number'>0</span>);
+    <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>keep_wins</span>, <span class='kw-2'>mut</span> <span class='ident'>keep_losses</span>) <span class='op'>=</span> (<span class='number'>0</span>, <span class='number'>0</span>);
+
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Running {} simulations...&quot;</span>, <span class='ident'>num_simulations</span>);
+    <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>num_simulations</span> {
+        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>simulate</span>(<span class='kw-2'>&amp;</span><span class='ident'>random_door</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>rng</span>);
+
+        <span class='kw'>match</span> (<span class='ident'>result</span>.<span class='ident'>win</span>, <span class='ident'>result</span>.<span class='ident'>switch</span>) {
+            (<span class='bool-val'>true</span>, <span class='bool-val'>true</span>) <span class='op'>=&gt;</span> <span class='ident'>switch_wins</span> <span class='op'>+=</span> <span class='number'>1</span>,
+            (<span class='bool-val'>true</span>, <span class='bool-val'>false</span>) <span class='op'>=&gt;</span> <span class='ident'>keep_wins</span> <span class='op'>+=</span> <span class='number'>1</span>,
+            (<span class='bool-val'>false</span>, <span class='bool-val'>true</span>) <span class='op'>=&gt;</span> <span class='ident'>switch_losses</span> <span class='op'>+=</span> <span class='number'>1</span>,
+            (<span class='bool-val'>false</span>, <span class='bool-val'>false</span>) <span class='op'>=&gt;</span> <span class='ident'>keep_losses</span> <span class='op'>+=</span> <span class='number'>1</span>,
+        }
+    }
+
+    <span class='kw'>let</span> <span class='ident'>total_switches</span> <span class='op'>=</span> <span class='ident'>switch_wins</span> <span class='op'>+</span> <span class='ident'>switch_losses</span>;
+    <span class='kw'>let</span> <span class='ident'>total_keeps</span> <span class='op'>=</span> <span class='ident'>keep_wins</span> <span class='op'>+</span> <span class='ident'>keep_losses</span>;
+
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Switched door {} times with {} wins and {} losses&quot;</span>,
+             <span class='ident'>total_switches</span>, <span class='ident'>switch_wins</span>, <span class='ident'>switch_losses</span>);
+
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Kept our choice {} times with {} wins and {} losses&quot;</span>,
+             <span class='ident'>total_keeps</span>, <span class='ident'>keep_wins</span>, <span class='ident'>keep_losses</span>);
+
+    <span class='comment'>// With a large number of simulations, the values should converge to</span>
+    <span class='comment'>// 0.667 and 0.333 respectively.</span>
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Estimated chance to win if we switch: {}&quot;</span>,
+             <span class='ident'>switch_wins</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>total_switches</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Estimated chance to win if we don&#39;t: {}&quot;</span>,
+             <span class='ident'>keep_wins</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>total_keeps</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
+}</pre>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use os::<a class='struct' href='../rand/os/struct.OsRng.html' title='rand::os::OsRng'>OsRng</a>;</code></td></tr><tr><td><code>pub use isaac::<a class='struct' href='../rand/isaac/struct.IsaacRng.html' title='rand::isaac::IsaacRng'>IsaacRng</a>;</code></td></tr><tr><td><code>pub use isaac::<a class='struct' href='../rand/isaac/struct.Isaac64Rng.html' title='rand::isaac::Isaac64Rng'>Isaac64Rng</a>;</code></td></tr><tr><td><code>pub use chacha::<a class='struct' href='../rand/chacha/struct.ChaChaRng.html' title='rand::chacha::ChaChaRng'>ChaChaRng</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='chacha/index.html'
+                                  title='rand::chacha'>chacha</a></td>
+                           <td class='docblock-short'>
+                                <p>The ChaCha random number generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='distributions/index.html'
+                                  title='rand::distributions'>distributions</a></td>
+                           <td class='docblock-short'>
+                                <p>Sampling from random distributions.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='isaac/index.html'
+                                  title='rand::isaac'>isaac</a></td>
+                           <td class='docblock-short'>
+                                <p>The ISAAC random number generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='os/index.html'
+                                  title='rand::os'>os</a></td>
+                           <td class='docblock-short'>
+                                <p>Interfaces to the operating system provided random number
+generators.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='read/index.html'
+                                  title='rand::read'>read</a></td>
+                           <td class='docblock-short'>
+                                <p>A wrapper around any Read to treat it as an RNG.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='reseeding/index.html'
+                                  title='rand::reseeding'>reseeding</a></td>
+                           <td class='docblock-short'>
+                                <p>A wrapper around another RNG that reseeds it after it
+generates a certain number of random bytes.</p>
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.AsciiGenerator.html'
+                                  title='rand::AsciiGenerator'>AsciiGenerator</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterator which will continuously generate random ascii characters.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Closed01.html'
+                                  title='rand::Closed01'>Closed01</a></td>
+                           <td class='docblock-short'>
+                                <p>A wrapper for generating floating point numbers uniformly in the
+closed interval <code>[0,1]</code> (including both endpoints).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Generator.html'
+                                  title='rand::Generator'>Generator</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterator which will generate a stream of random items.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Open01.html'
+                                  title='rand::Open01'>Open01</a></td>
+                           <td class='docblock-short'>
+                                <p>A wrapper for generating floating point numbers uniformly in the
+open interval <code>(0,1)</code> (not including either endpoint).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.StdRng.html'
+                                  title='rand::StdRng'>StdRng</a></td>
+                           <td class='docblock-short'>
+                                <p>The standard RNG. This is designed to be efficient on the current
+platform.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ThreadRng.html'
+                                  title='rand::ThreadRng'>ThreadRng</a></td>
+                           <td class='docblock-short'>
+                                <p>The thread-local RNG.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.XorShiftRng.html'
+                                  title='rand::XorShiftRng'>XorShiftRng</a></td>
+                           <td class='docblock-short'>
+                                <p>An Xorshift[1] random number
+generator.</p>
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Rand.html'
+                                  title='rand::Rand'>Rand</a></td>
+                           <td class='docblock-short'>
+                                <p>A type that can be randomly generated using an <code>Rng</code>.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Rng.html'
+                                  title='rand::Rng'>Rng</a></td>
+                           <td class='docblock-short'>
+                                <p>A random number generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.SeedableRng.html'
+                                  title='rand::SeedableRng'>SeedableRng</a></td>
+                           <td class='docblock-short'>
+                                <p>A random number generator that can be explicitly seeded to produce
+the same stream of randomness multiple times.</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.random.html'
+                                  title='rand::random'>random</a></td>
+                           <td class='docblock-short'>
+                                <p>Generates a random value using the thread-local random number generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sample.html'
+                                  title='rand::sample'>sample</a></td>
+                           <td class='docblock-short'>
+                                <p>Randomly sample up to <code>amount</code> elements from an iterator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.thread_rng.html'
+                                  title='rand::thread_rng'>thread_rng</a></td>
+                           <td class='docblock-short'>
+                                <p>Retrieve the lazily-initialized thread-local random number
+generator, seeded by the system. Intended to be used in method
+chaining style, e.g. <code>thread_rng().gen::&lt;i32&gt;()</code>.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.weak_rng.html'
+                                  title='rand::weak_rng'>weak_rng</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a weak random number generator with a default algorithm and seed.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "rand";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

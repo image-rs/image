@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `GenericImage` trait in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, GenericImage">
+
+    <title>image::GenericImage - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>image</a></p><script>window.sidebarCurrent = {name: 'GenericImage', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>image</a>::<wbr><a class='trait' href=''>GenericImage</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/image/image.rs.html#290-436' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait GenericImage: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a> {
+    type <a href='#associatedtype.Pixel' class='type'>Pixel</a>: <a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Pixel</a>;
+    fn <a href='#tymethod.dimensions' class='fnname'>dimensions</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>;
+    fn <a href='#tymethod.bounds' class='fnname'>bounds</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>;
+    fn <a href='#tymethod.get_pixel' class='fnname'>get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>;
+    fn <a href='#tymethod.get_pixel_mut' class='fnname'>get_pixel_mut</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; &amp;mut Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>;
+    fn <a href='#tymethod.put_pixel' class='fnname'>put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>);
+    fn <a href='#tymethod.blend_pixel' class='fnname'>blend_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>);
+
+    fn <a href='#method.width' class='fnname'>width</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a> { ... }
+    fn <a href='#method.height' class='fnname'>height</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a> { ... }
+    fn <a href='#method.in_bounds' class='fnname'>in_bounds</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> { ... }
+    unsafe fn <a href='#method.unsafe_get_pixel' class='fnname'>unsafe_get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a> { ... }
+    unsafe fn <a href='#method.unsafe_put_pixel' class='fnname'>unsafe_put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>) { ... }
+    fn <a href='#method.pixels' class='fnname'>pixels</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Pixels.html' title='image::Pixels'>Pixels</a>&lt;Self&gt; { ... }
+    fn <a href='#method.pixels_mut' class='fnname'>pixels_mut</a>(&amp;mut self) -&gt; <a class='struct' href='../image/struct.MutPixels.html' title='image::MutPixels'>MutPixels</a>&lt;Self&gt; { ... }
+    fn <a href='#method.copy_from' class='fnname'>copy_from</a>&lt;O&gt;(&amp;mut self, other: &amp;O, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> <span class='where'>where O: <a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>GenericImage</a>&lt;Pixel=Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>&gt;</span> { ... }
+    fn <a href='#method.sub_image' class='fnname'>sub_image</a>&lt;'a&gt;(&amp;'a mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='struct' href='../image/struct.SubImage.html' title='image::SubImage'>SubImage</a>&lt;'a, Self&gt; <span class='where'>where Self: 'static,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>: 'static,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>: 'static</span> { ... }
+}</pre><div class='docblock'><p>A trait for manipulating images.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Pixel' class='method stab '><span id='Pixel.t' class='invisible'><code>type <a href='#associatedtype.Pixel' class='type'>Pixel</a>: <a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Pixel</a></code></span></h3><div class='docblock'><p>The type of pixel.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.dimensions' class='method stab '><span id='dimensions.v' class='invisible'><code>fn <a href='#tymethod.dimensions' class='fnname'>dimensions</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h3><div class='docblock'><p>The width and height of this image.</p>
+</div><h3 id='tymethod.bounds' class='method stab '><span id='bounds.v' class='invisible'><code>fn <a href='#tymethod.bounds' class='fnname'>bounds</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h3><div class='docblock'><p>The bounding rectangle of this image.</p>
+</div><h3 id='tymethod.get_pixel' class='method stab '><span id='get_pixel.v' class='invisible'><code>fn <a href='#tymethod.get_pixel' class='fnname'>get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a></code></span></h3><div class='docblock'><p>Returns the pixel located at (x, y)</p>
+
+<h1 id='panics' class='section-header'><a href='#panics'>Panics</a></h1>
+<p>Panics if <code>(x, y)</code> is out of bounds.</p>
+
+<p>TODO: change this signature to &amp;P</p>
+</div><h3 id='tymethod.get_pixel_mut' class='method stab '><span id='get_pixel_mut.v' class='invisible'><code>fn <a href='#tymethod.get_pixel_mut' class='fnname'>get_pixel_mut</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; &amp;mut Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a></code></span></h3><div class='docblock'><p>Puts a pixel at location (x, y)</p>
+
+<h1 id='panics-1' class='section-header'><a href='#panics-1'>Panics</a></h1>
+<p>Panics if <code>(x, y)</code> is out of bounds.</p>
+</div><h3 id='tymethod.put_pixel' class='method stab '><span id='put_pixel.v' class='invisible'><code>fn <a href='#tymethod.put_pixel' class='fnname'>put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>)</code></span></h3><div class='docblock'><p>Put a pixel at location (x, y)</p>
+
+<h1 id='panics-2' class='section-header'><a href='#panics-2'>Panics</a></h1>
+<p>Panics if <code>(x, y)</code> is out of bounds.</p>
+</div><h3 id='tymethod.blend_pixel' class='method stab '><span id='blend_pixel.v' class='invisible'><code>fn <a href='#tymethod.blend_pixel' class='fnname'>blend_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>)</code></span></h3><div class='docblock'><p>Put a pixel at location (x, y), taking into account alpha channels</p>
+
+<p>DEPRECATED: This method will be removed. Blend the pixel directly instead.</p>
+</div></div>
+            <h2 id='provided-methods'>Provided Methods</h2>
+            <div class='methods'>
+        <h3 id='method.width' class='method stab '><span id='width.v' class='invisible'><code>fn <a href='#method.width' class='fnname'>width</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></span></h3><div class='docblock'><p>The width of this image.</p>
+</div><h3 id='method.height' class='method stab '><span id='height.v' class='invisible'><code>fn <a href='#method.height' class='fnname'>height</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></span></h3><div class='docblock'><p>The height of this image.</p>
+</div><h3 id='method.in_bounds' class='method stab '><span id='in_bounds.v' class='invisible'><code>fn <a href='#method.in_bounds' class='fnname'>in_bounds</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h3><div class='docblock'><p>Returns true if this x, y coordinate is contained inside the image.</p>
+</div><h3 id='method.unsafe_get_pixel' class='method stab '><span id='unsafe_get_pixel.v' class='invisible'><code>unsafe fn <a href='#method.unsafe_get_pixel' class='fnname'>unsafe_get_pixel</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a></code></span></h3><div class='docblock'><p>Returns the pixel located at (x, y)</p>
+
+<p>This function can be implemented in a way that ignores bounds checking.</p>
+</div><h3 id='method.unsafe_put_pixel' class='method stab '><span id='unsafe_put_pixel.v' class='invisible'><code>unsafe fn <a href='#method.unsafe_put_pixel' class='fnname'>unsafe_put_pixel</a>(&amp;mut self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, pixel: Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>)</code></span></h3><div class='docblock'><p>Puts a pixel at location (x, y)</p>
+
+<p>This function can be implemented in a way that ignores bounds checking.</p>
+</div><h3 id='method.pixels' class='method stab '><span id='pixels.v' class='invisible'><code>fn <a href='#method.pixels' class='fnname'>pixels</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Pixels.html' title='image::Pixels'>Pixels</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Returns an Iterator over the pixels of this image.
+The iterator yields the coordinates of each pixel
+along with their value</p>
+</div><h3 id='method.pixels_mut' class='method stab '><span id='pixels_mut.v' class='invisible'><code>fn <a href='#method.pixels_mut' class='fnname'>pixels_mut</a>(&amp;mut self) -&gt; <a class='struct' href='../image/struct.MutPixels.html' title='image::MutPixels'>MutPixels</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Returns an Iterator over mutable pixels of this image.
+The iterator yields the coordinates of each pixel
+along with a mutable reference to them.</p>
+
+<p>DEPRECATED: This cannot be implemented safely in Rust. Please use the image buffer directly.</p>
+</div><h3 id='method.copy_from' class='method stab '><span id='copy_from.v' class='invisible'><code>fn <a href='#method.copy_from' class='fnname'>copy_from</a>&lt;O&gt;(&amp;mut self, other: &amp;O, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a> <span class='where'>where O: <a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>GenericImage</a>&lt;Pixel=Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>&gt;</span></code></span></h3><div class='docblock'><p>Copies all of the pixels from another image into this image.</p>
+
+<p>The other image is copied with the top-left corner of the
+other image placed at (x, y).</p>
+
+<p>In order to copy only a pice of the other image, use <code>sub_image</code>.</p>
+
+<h1 id='returns' class='section-header'><a href='#returns'>Returns</a></h1>
+<p><code>true</code> if the copy was successful, <code>false</code> if the image could not
+be copied due to size constraints.</p>
+</div><h3 id='method.sub_image' class='method stab '><span id='sub_image.v' class='invisible'><code>fn <a href='#method.sub_image' class='fnname'>sub_image</a>&lt;'a&gt;(&amp;'a mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; width: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; height: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='struct' href='../image/struct.SubImage.html' title='image::SubImage'>SubImage</a>&lt;'a, Self&gt; <span class='where'>where Self: 'static, Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>: 'static, Self::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>: 'static</span></code></span></h3><div class='docblock'><p>Returns a subimage that is a view into this image.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;'a, I:&nbsp;<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>GenericImage</a> + 'static&gt; GenericImage for <a class='struct' href='../image/struct.SubImage.html' title='image::SubImage'>SubImage</a>&lt;'a, I&gt; <span class='where fmt-newline'>where I::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>: 'static,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I::<a class='trait' href='../image/trait.GenericImage.html' title='image::GenericImage'>Pixel</a>::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>: 'static</span></code></li>
+<li><code>impl GenericImage for <a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>DynamicImage</a></code></li>
+<li><code>impl&lt;P, Container&gt; GenericImage for <a class='struct' href='../image/struct.ImageBuffer.html' title='image::ImageBuffer'>ImageBuffer</a>&lt;P, Container&gt; <span class='where fmt-newline'>where P: <a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Pixel</a> + 'static,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Container: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Deref.html' title='core::ops::Deref'>Deref</a>&lt;Target=<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>[</a>P::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>&gt; + <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.DerefMut.html' title='core::ops::DerefMut'>DerefMut</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;P::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>: 'static</span></code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/image/trait.GenericImage.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

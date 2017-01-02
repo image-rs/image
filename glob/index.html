@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `glob` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, glob">
+
+    <title>glob - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <a href='../glob/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'glob', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>glob</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/glob/lib.rs.html#11-1312' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Support for matching file paths against Unix shell style patterns.</p>
+
+<p>The <code>glob</code> and <code>glob_with</code> functions, in concert with the <code>Paths</code>
+type, allow querying the filesystem for all files that match a particular
+pattern - just like the libc <code>glob</code> function (for an example see the <code>glob</code>
+documentation). The methods on the <code>Pattern</code> type provide functionality
+for checking if individual paths match a particular pattern - in a similar
+manner to the libc <code>fnmatch</code> function
+For consistency across platforms, and for Windows support, this module
+is implemented entirely in Rust rather than deferring to the libc
+<code>glob</code>/<code>fnmatch</code> functions.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.GlobError.html'
+                                  title='glob::GlobError'>GlobError</a></td>
+                           <td class='docblock-short'>
+                                <p>A glob iteration error.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MatchOptions.html'
+                                  title='glob::MatchOptions'>MatchOptions</a></td>
+                           <td class='docblock-short'>
+                                <p>Configuration options to modify the behaviour of <code>Pattern::matches_with(..)</code></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Paths.html'
+                                  title='glob::Paths'>Paths</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator that yields <code>Path</code>s from the filesystem that match a particular
+pattern.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Pattern.html'
+                                  title='glob::Pattern'>Pattern</a></td>
+                           <td class='docblock-short'>
+                                <p>A compiled Unix shell style pattern.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.PatternError.html'
+                                  title='glob::PatternError'>PatternError</a></td>
+                           <td class='docblock-short'>
+                                <p>A pattern parsing error.</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.glob.html'
+                                  title='glob::glob'>glob</a></td>
+                           <td class='docblock-short'>
+                                <p>Return an iterator that produces all the Paths that match the given pattern,
+which may be absolute or relative to the current working directory.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.glob_with.html'
+                                  title='glob::glob_with'>glob_with</a></td>
+                           <td class='docblock-short'>
+                                <p>Return an iterator that produces all the Paths that match the given pattern,
+which may be absolute or relative to the current working directory.</p>
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.GlobResult.html'
+                                  title='glob::GlobResult'>GlobResult</a></td>
+                           <td class='docblock-short'>
+                                <p>An alias for a glob iteration result.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "glob";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

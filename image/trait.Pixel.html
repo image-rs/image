@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Pixel` trait in crate `image`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Pixel">
+
+    <title>image::Pixel - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>image</a></p><script>window.sidebarCurrent = {name: 'Pixel', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>image</a>::<wbr><a class='trait' href=''>Pixel</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/image/buffer.rs.html#17-104' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Pixel: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> {
+    type <a href='#associatedtype.Subpixel' class='type'>Subpixel</a>: <a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a>;
+    fn <a href='#tymethod.channel_count' class='fnname'>channel_count</a>() -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>;
+    fn <a href='#tymethod.channels' class='fnname'>channels</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>;
+    fn <a href='#tymethod.channels_mut' class='fnname'>channels_mut</a>(&amp;mut self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>;
+    fn <a href='#tymethod.color_model' class='fnname'>color_model</a>() -&gt; &amp;'static <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>;
+    fn <a href='#tymethod.color_type' class='fnname'>color_type</a>() -&gt; <a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>ColorType</a>;
+    fn <a href='#tymethod.channels4' class='fnname'>channels4</a>(&amp;self)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>;
+    fn <a href='#tymethod.from_channels' class='fnname'>from_channels</a>(a: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; c: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; d: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; Self;
+    fn <a href='#tymethod.from_slice' class='fnname'>from_slice</a>&lt;'a&gt;(slice: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; &amp;'a Self;
+    fn <a href='#tymethod.from_slice_mut' class='fnname'>from_slice_mut</a>&lt;'a&gt;(slice: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a mut [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; &amp;'a mut Self;
+    fn <a href='#tymethod.to_rgb' class='fnname'>to_rgb</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Rgb.html' title='image::Rgb'>Rgb</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;;
+    fn <a href='#tymethod.to_rgba' class='fnname'>to_rgba</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;;
+    fn <a href='#tymethod.to_luma' class='fnname'>to_luma</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Luma.html' title='image::Luma'>Luma</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;;
+    fn <a href='#tymethod.to_luma_alpha' class='fnname'>to_luma_alpha</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.LumaA.html' title='image::LumaA'>LumaA</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;;
+    fn <a href='#tymethod.map' class='fnname'>map</a>&lt;F&gt;(&amp;self, f: F) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.apply' class='fnname'>apply</a>&lt;F&gt;(&amp;mut self, f: F) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.map_with_alpha' class='fnname'>map_with_alpha</a>&lt;F, G&gt;(&amp;self, f: F, g: G) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;G: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.apply_with_alpha' class='fnname'>apply_with_alpha</a>&lt;F, G&gt;(&amp;mut self, f: F, g: G) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;G: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.map2' class='fnname'>map2</a>&lt;F&gt;(&amp;self, other: &amp;Self, f: F) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.apply2' class='fnname'>apply2</a>&lt;F&gt;(&amp;mut self, other: &amp;Self, f: F) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span>;
+    fn <a href='#tymethod.invert' class='fnname'>invert</a>(&amp;mut self);
+    fn <a href='#tymethod.blend' class='fnname'>blend</a>(&amp;mut self, other: &amp;Self);
+}</pre><div class='docblock'><p>A generalized pixel.</p>
+
+<p>A pixel object is usually not used standalone but as a view into an image buffer.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Subpixel' class='method stab '><span id='Subpixel.t' class='invisible'><code>type <a href='#associatedtype.Subpixel' class='type'>Subpixel</a>: <a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a></code></span></h3><div class='docblock'><p>The underlying subpixel type.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.channel_count' class='method stab '><span id='channel_count.v' class='invisible'><code>fn <a href='#tymethod.channel_count' class='fnname'>channel_count</a>() -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a></code></span></h3><div class='docblock'><p>Returns the number of channels of this pixel type.</p>
+</div><h3 id='tymethod.channels' class='method stab '><span id='channels.v' class='invisible'><code>fn <a href='#tymethod.channels' class='fnname'>channels</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a></code></span></h3><div class='docblock'><p>Returns the components as a slice.</p>
+</div><h3 id='tymethod.channels_mut' class='method stab '><span id='channels_mut.v' class='invisible'><code>fn <a href='#tymethod.channels_mut' class='fnname'>channels_mut</a>(&amp;mut self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a></code></span></h3><div class='docblock'><p>Returns the components as a mutable slice</p>
+</div><h3 id='tymethod.color_model' class='method stab '><span id='color_model.v' class='invisible'><code>fn <a href='#tymethod.color_model' class='fnname'>color_model</a>() -&gt; &amp;'static <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a></code></span></h3><div class='docblock'><p>Returns a string that can help to interprete the meaning each channel
+See <a href="http://gegl.org/babl/">gimp babl</a>.</p>
+</div><h3 id='tymethod.color_type' class='method stab '><span id='color_type.v' class='invisible'><code>fn <a href='#tymethod.color_type' class='fnname'>color_type</a>() -&gt; <a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>ColorType</a></code></span></h3><div class='docblock'><p>Returns the ColorType for this pixel format</p>
+</div><h3 id='tymethod.channels4' class='method stab '><span id='channels4.v' class='invisible'><code>fn <a href='#tymethod.channels4' class='fnname'>channels4</a>(&amp;self)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></span></h3><div class='docblock'><p>Returns the channels of this pixel as a 4 tuple. If the pixel
+has less than 4 channels the remainder is filled with the maximum value</p>
+
+<p>TODO deprecate</p>
+</div><h3 id='tymethod.from_channels' class='method stab '><span id='from_channels.v' class='invisible'><code>fn <a href='#tymethod.from_channels' class='fnname'>from_channels</a>(a: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; c: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; d: Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; Self</code></span></h3><div class='docblock'><p>Construct a pixel from the 4 channels a, b, c and d.
+If the pixel does not contain 4 channels the extra are ignored.</p>
+
+<p>TODO deprecate</p>
+</div><h3 id='tymethod.from_slice' class='method stab '><span id='from_slice.v' class='invisible'><code>fn <a href='#tymethod.from_slice' class='fnname'>from_slice</a>&lt;'a&gt;(slice: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; &amp;'a Self</code></span></h3><div class='docblock'><p>Returns a view into a slice.</p>
+
+<p>Note: The slice length is not checked on creation. Thus the caller has to ensure
+that the slice is long enough to precent panics if the pixel is used later on.</p>
+</div><h3 id='tymethod.from_slice_mut' class='method stab '><span id='from_slice_mut.v' class='invisible'><code>fn <a href='#tymethod.from_slice_mut' class='fnname'>from_slice_mut</a>&lt;'a&gt;(slice: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a mut [</a>Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; &amp;'a mut Self</code></span></h3><div class='docblock'><p>Returns mutable view into a mutable slice.</p>
+
+<p>Note: The slice length is not checked on creation. Thus the caller has to ensure
+that the slice is long enough to precent panics if the pixel is used later on.</p>
+</div><h3 id='tymethod.to_rgb' class='method stab '><span id='to_rgb.v' class='invisible'><code>fn <a href='#tymethod.to_rgb' class='fnname'>to_rgb</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Rgb.html' title='image::Rgb'>Rgb</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;</code></span></h3><div class='docblock'><p>Convert this pixel to RGB</p>
+</div><h3 id='tymethod.to_rgba' class='method stab '><span id='to_rgba.v' class='invisible'><code>fn <a href='#tymethod.to_rgba' class='fnname'>to_rgba</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;</code></span></h3><div class='docblock'><p>Convert this pixel to RGB with an alpha channel</p>
+</div><h3 id='tymethod.to_luma' class='method stab '><span id='to_luma.v' class='invisible'><code>fn <a href='#tymethod.to_luma' class='fnname'>to_luma</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.Luma.html' title='image::Luma'>Luma</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;</code></span></h3><div class='docblock'><p>Convert this pixel to luma</p>
+</div><h3 id='tymethod.to_luma_alpha' class='method stab '><span id='to_luma_alpha.v' class='invisible'><code>fn <a href='#tymethod.to_luma_alpha' class='fnname'>to_luma_alpha</a>(&amp;self) -&gt; <a class='struct' href='../image/struct.LumaA.html' title='image::LumaA'>LumaA</a>&lt;Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>&gt;</code></span></h3><div class='docblock'><p>Convert this pixel to luma with an alpha channel</p>
+</div><h3 id='tymethod.map' class='method stab '><span id='map.v' class='invisible'><code>fn <a href='#tymethod.map' class='fnname'>map</a>&lt;F&gt;(&amp;self, f: F) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel of this pixel.</p>
+</div><h3 id='tymethod.apply' class='method stab '><span id='apply.v' class='invisible'><code>fn <a href='#tymethod.apply' class='fnname'>apply</a>&lt;F&gt;(&amp;mut self, f: F) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel of this pixel.</p>
+</div><h3 id='tymethod.map_with_alpha' class='method stab '><span id='map_with_alpha.v' class='invisible'><code>fn <a href='#tymethod.map_with_alpha' class='fnname'>map_with_alpha</a>&lt;F, G&gt;(&amp;self, f: F, g: G) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;G: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel except the alpha channel.
+Apply the function <code>g</code> to the alpha channel.</p>
+</div><h3 id='tymethod.apply_with_alpha' class='method stab '><span id='apply_with_alpha.v' class='invisible'><code>fn <a href='#tymethod.apply_with_alpha' class='fnname'>apply_with_alpha</a>&lt;F, G&gt;(&amp;mut self, f: F, g: G) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;G: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel except the alpha channel.
+Apply the function <code>g</code> to the alpha channel. Works in-place.</p>
+</div><h3 id='tymethod.map2' class='method stab '><span id='map2.v' class='invisible'><code>fn <a href='#tymethod.map2' class='fnname'>map2</a>&lt;F&gt;(&amp;self, other: &amp;Self, f: F) -&gt; Self <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel of this pixel and
+<code>other</code> pairwise.</p>
+</div><h3 id='tymethod.apply2' class='method stab '><span id='apply2.v' class='invisible'><code>fn <a href='#tymethod.apply2' class='fnname'>apply2</a>&lt;F&gt;(&amp;mut self, other: &amp;Self, f: F) <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>, Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a>) -&gt; Self::<a class='trait' href='../image/trait.Pixel.html' title='image::Pixel'>Subpixel</a></span></code></span></h3><div class='docblock'><p>Apply the function <code>f</code> to each channel of this pixel and
+<code>other</code> pairwise. Works in-place.</p>
+</div><h3 id='tymethod.invert' class='method stab '><span id='invert.v' class='invisible'><code>fn <a href='#tymethod.invert' class='fnname'>invert</a>(&amp;mut self)</code></span></h3><div class='docblock'><p>Invert this pixel</p>
+</div><h3 id='tymethod.blend' class='method stab '><span id='blend.v' class='invisible'><code>fn <a href='#tymethod.blend' class='fnname'>blend</a>(&amp;mut self, other: &amp;Self)</code></span></h3><div class='docblock'><p>Blend the color of a given pixel into ourself, taking into account alpha channels</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;T:&nbsp;<a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a> + 'static&gt; Pixel for <a class='struct' href='../image/struct.Rgb.html' title='image::Rgb'>Rgb</a>&lt;T&gt;</code></li>
+<li><code>impl&lt;T:&nbsp;<a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a> + 'static&gt; Pixel for <a class='struct' href='../image/struct.Luma.html' title='image::Luma'>Luma</a>&lt;T&gt;</code></li>
+<li><code>impl&lt;T:&nbsp;<a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a> + 'static&gt; Pixel for <a class='struct' href='../image/struct.Rgba.html' title='image::Rgba'>Rgba</a>&lt;T&gt;</code></li>
+<li><code>impl&lt;T:&nbsp;<a class='trait' href='../image/trait.Primitive.html' title='image::Primitive'>Primitive</a> + 'static&gt; Pixel for <a class='struct' href='../image/struct.LumaA.html' title='image::LumaA'>LumaA</a>&lt;T&gt;</code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/image/trait.Pixel.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

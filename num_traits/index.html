@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `num_traits` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, num_traits">
+
+    <title>num_traits - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'num_traits', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>num_traits</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/num_traits/lib.rs.html#11-236' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Numeric traits for generic mathematics</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use bounds::<a class='trait' href='../num_traits/bounds/trait.Bounded.html' title='num_traits::bounds::Bounded'>Bounded</a>;</code></td></tr><tr><td><code>pub use float::<a class='trait' href='../num_traits/float/trait.Float.html' title='num_traits::float::Float'>Float</a>;</code></td></tr><tr><td><code>pub use float::<a class='trait' href='../num_traits/float/trait.FloatConst.html' title='num_traits::float::FloatConst'>FloatConst</a>;</code></td></tr><tr><td><code>pub use identities::<a class='trait' href='../num_traits/identities/trait.Zero.html' title='num_traits::identities::Zero'>Zero</a>;</code></td></tr><tr><td><code>pub use identities::<a class='trait' href='../num_traits/identities/trait.One.html' title='num_traits::identities::One'>One</a>;</code></td></tr><tr><td><code>pub use identities::<a class='fn' href='../num_traits/identities/fn.zero.html' title='num_traits::identities::zero'>zero</a>;</code></td></tr><tr><td><code>pub use identities::<a class='fn' href='../num_traits/identities/fn.one.html' title='num_traits::identities::one'>one</a>;</code></td></tr><tr><td><code>pub use ops::<a class='mod' href='../num_traits/ops/checked/index.html' title='num_traits::ops::checked'>checked</a>::*;</code></td></tr><tr><td><code>pub use ops::saturating::<a class='trait' href='../num_traits/ops/saturating/trait.Saturating.html' title='num_traits::ops::saturating::Saturating'>Saturating</a>;</code></td></tr><tr><td><code>pub use sign::<a class='trait' href='../num_traits/sign/trait.Signed.html' title='num_traits::sign::Signed'>Signed</a>;</code></td></tr><tr><td><code>pub use sign::<a class='trait' href='../num_traits/sign/trait.Unsigned.html' title='num_traits::sign::Unsigned'>Unsigned</a>;</code></td></tr><tr><td><code>pub use sign::<a class='fn' href='../num_traits/sign/fn.abs.html' title='num_traits::sign::abs'>abs</a>;</code></td></tr><tr><td><code>pub use sign::<a class='fn' href='../num_traits/sign/fn.abs_sub.html' title='num_traits::sign::abs_sub'>abs_sub</a>;</code></td></tr><tr><td><code>pub use sign::<a class='fn' href='../num_traits/sign/fn.signum.html' title='num_traits::sign::signum'>signum</a>;</code></td></tr><tr><td><code>pub use <a class='mod' href='../num_traits/cast/index.html' title='num_traits::cast'>cast</a>::*;</code></td></tr><tr><td><code>pub use int::<a class='trait' href='../num_traits/int/trait.PrimInt.html' title='num_traits::int::PrimInt'>PrimInt</a>;</code></td></tr><tr><td><code>pub use pow::<a class='fn' href='../num_traits/pow/fn.pow.html' title='num_traits::pow::pow'>pow</a>;</code></td></tr><tr><td><code>pub use pow::<a class='fn' href='../num_traits/pow/fn.checked_pow.html' title='num_traits::pow::checked_pow'>checked_pow</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bounds/index.html'
+                                  title='num_traits::bounds'>bounds</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='cast/index.html'
+                                  title='num_traits::cast'>cast</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='float/index.html'
+                                  title='num_traits::float'>float</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='identities/index.html'
+                                  title='num_traits::identities'>identities</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='int/index.html'
+                                  title='num_traits::int'>int</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ops/index.html'
+                                  title='num_traits::ops'>ops</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='pow/index.html'
+                                  title='num_traits::pow'>pow</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='sign/index.html'
+                                  title='num_traits::sign'>sign</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ParseFloatError.html'
+                                  title='num_traits::ParseFloatError'>ParseFloatError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.FloatErrorKind.html'
+                                  title='num_traits::FloatErrorKind'>FloatErrorKind</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Num.html'
+                                  title='num_traits::Num'>Num</a></td>
+                           <td class='docblock-short'>
+                                <p>The base trait for numeric types</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "num_traits";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

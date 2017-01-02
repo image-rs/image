@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["cast","Cast from one machine scalar to another."]],"trait":[["FromPrimitive","A generic trait for converting a number to a value."],["NumCast","An interface for casting between machine scalars."],["ToPrimitive","A generic trait for converting a value to a number."]]});

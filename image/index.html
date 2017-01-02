@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `image` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, image">
+
+    <title>image - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'image', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>image</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/image/lib.rs.html#1-150' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>This crate provides native rust implementations of
+image encoders and decoders and basic image manipulation
+functions.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use color::ColorType::<a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>Gray</a>;</code></td></tr><tr><td><code>pub use color::ColorType::<a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>RGB</a>;</code></td></tr><tr><td><code>pub use color::ColorType::<a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>Palette</a>;</code></td></tr><tr><td><code>pub use color::ColorType::<a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>GrayA</a>;</code></td></tr><tr><td><code>pub use color::ColorType::<a class='enum' href='../image/enum.ColorType.html' title='image::ColorType'>RGBA</a>;</code></td></tr><tr><td><code>pub use imageops::FilterType::<a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>Triangle</a>;</code></td></tr><tr><td><code>pub use imageops::FilterType::<a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>Nearest</a>;</code></td></tr><tr><td><code>pub use imageops::FilterType::<a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>CatmullRom</a>;</code></td></tr><tr><td><code>pub use imageops::FilterType::<a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>Gaussian</a>;</code></td></tr><tr><td><code>pub use imageops::FilterType::<a class='enum' href='../image/enum.FilterType.html' title='image::FilterType'>Lanczos3</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>PNG</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>JPEG</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>GIF</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>WEBP</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>PPM</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>BMP</a>;</code></td></tr><tr><td><code>pub use image::ImageFormat::<a class='enum' href='../image/enum.ImageFormat.html' title='image::ImageFormat'>ICO</a>;</code></td></tr><tr><td><code>pub use dynimage::DynamicImage::<a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>ImageRgb8</a>;</code></td></tr><tr><td><code>pub use dynimage::DynamicImage::<a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>ImageRgba8</a>;</code></td></tr><tr><td><code>pub use dynimage::DynamicImage::<a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>ImageLuma8</a>;</code></td></tr><tr><td><code>pub use dynimage::DynamicImage::<a class='enum' href='../image/enum.DynamicImage.html' title='image::DynamicImage'>ImageLumaA8</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bmp/index.html'
+                                  title='image::bmp'>bmp</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding of BMP Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gif/index.html'
+                                  title='image::gif'>gif</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding of GIF Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='hdr/index.html'
+                                  title='image::hdr'>hdr</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding of Radiance HDR Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ico/index.html'
+                                  title='image::ico'>ico</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding and Encoding of ICO files</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='imageops/index.html'
+                                  title='image::imageops'>imageops</a></td>
+                           <td class='docblock-short'>
+                                <p>Image Processing Functions</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='jpeg/index.html'
+                                  title='image::jpeg'>jpeg</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding and Encoding of JPEG Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='math/index.html'
+                                  title='image::math'>math</a></td>
+                           <td class='docblock-short'>
+                                <p>Mathematical helper functions and types.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='png/index.html'
+                                  title='image::png'>png</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding and Encoding of PNG Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ppm/index.html'
+                                  title='image::ppm'>ppm</a></td>
+                           <td class='docblock-short'>
+                                <p>Encoding of portable pixmap Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='tga/index.html'
+                                  title='image::tga'>tga</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding of TGA Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='tiff/index.html'
+                                  title='image::tiff'>tiff</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding and Encoding of TIFF Images</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='webp/index.html'
+                                  title='image::webp'>webp</a></td>
+                           <td class='docblock-short'>
+                                <p>Decoding of Webp Images</p>
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Frame.html'
+                                  title='image::Frame'>Frame</a></td>
+                           <td class='docblock-short'>
+                                <p>A single animation frame</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Frames.html'
+                                  title='image::Frames'>Frames</a></td>
+                           <td class='docblock-short'>
+                                <p>Holds the frames of the animated image</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ImageBuffer.html'
+                                  title='image::ImageBuffer'>ImageBuffer</a></td>
+                           <td class='docblock-short'>
+                                <p>Generic image buffer</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Luma.html'
+                                  title='image::Luma'>Luma</a></td>
+                           <td class='docblock-short'>
+                                <p>Grayscale colors</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.LumaA.html'
+                                  title='image::LumaA'>LumaA</a></td>
+                           <td class='docblock-short'>
+                                <p>Grayscale colors + alpha channel</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MutPixels.html'
+                                  title='image::MutPixels'>MutPixels</a></td>
+                           <td class='docblock-short'>
+                                <p>Mutable pixel iterator</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Pixels.html'
+                                  title='image::Pixels'>Pixels</a></td>
+                           <td class='docblock-short'>
+                                <p>Immutable pixel iterator</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Rgb.html'
+                                  title='image::Rgb'>Rgb</a></td>
+                           <td class='docblock-short'>
+                                <p>RGB colors</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Rgba.html'
+                                  title='image::Rgba'>Rgba</a></td>
+                           <td class='docblock-short'>
+                                <p>RGB colors + alpha channel</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.SubImage.html'
+                                  title='image::SubImage'>SubImage</a></td>
+                           <td class='docblock-short'>
+                                <p>A View into another image</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.ColorType.html'
+                                  title='image::ColorType'>ColorType</a></td>
+                           <td class='docblock-short'>
+                                <p>An enumeration over supported color types and their bit depths</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.DecodingResult.html'
+                                  title='image::DecodingResult'>DecodingResult</a></td>
+                           <td class='docblock-short'>
+                                <p>Result of a decoding process</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.DynamicImage.html'
+                                  title='image::DynamicImage'>DynamicImage</a></td>
+                           <td class='docblock-short'>
+                                <p>A Dynamic Image</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.FilterType.html'
+                                  title='image::FilterType'>FilterType</a></td>
+                           <td class='docblock-short'>
+                                <p>Available Sampling Filters</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.ImageError.html'
+                                  title='image::ImageError'>ImageError</a></td>
+                           <td class='docblock-short'>
+                                <p>An enumeration of Image errors</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.ImageFormat.html'
+                                  title='image::ImageFormat'>ImageFormat</a></td>
+                           <td class='docblock-short'>
+                                <p>An enumeration of supported image formats.
+Not all formats support both encoding and decoding.</p>
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ConvertBuffer.html'
+                                  title='image::ConvertBuffer'>ConvertBuffer</a></td>
+                           <td class='docblock-short'>
+                                <p>Provides color conversions for whole image buffers.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.GenericImage.html'
+                                  title='image::GenericImage'>GenericImage</a></td>
+                           <td class='docblock-short'>
+                                <p>A trait for manipulating images.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.ImageDecoder.html'
+                                  title='image::ImageDecoder'>ImageDecoder</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait that all decoders implement</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Pixel.html'
+                                  title='image::Pixel'>Pixel</a></td>
+                           <td class='docblock-short'>
+                                <p>A generalized pixel.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='trait' href='trait.Primitive.html'
+                                  title='image::Primitive'>Primitive</a></td>
+                           <td class='docblock-short'>
+                                <p>Primitive trait from old stdlib</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.guess_format.html'
+                                  title='image::guess_format'>guess_format</a></td>
+                           <td class='docblock-short'>
+                                <p>Guess image format from memory block</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.load.html'
+                                  title='image::load'>load</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a new image from a Reader</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.load_from_memory.html'
+                                  title='image::load_from_memory'>load_from_memory</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a new image from a byte slice</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.load_from_memory_with_format.html'
+                                  title='image::load_from_memory_with_format'>load_from_memory_with_format</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a new image from a byte slice</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.open.html'
+                                  title='image::open'>open</a></td>
+                           <td class='docblock-short'>
+                                <p>Open the image located at the path specified.
+The image&#39;s format is determined from the path&#39;s file extension.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.save_buffer.html'
+                                  title='image::save_buffer'>save_buffer</a></td>
+                           <td class='docblock-short'>
+                                <p>Saves the supplied buffer to a file at the path specified.</p>
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.GrayAlphaImage.html'
+                                  title='image::GrayAlphaImage'>GrayAlphaImage</a></td>
+                           <td class='docblock-short'>
+                                <p>Sendable grayscale + alpha channel image buffer</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.GrayImage.html'
+                                  title='image::GrayImage'>GrayImage</a></td>
+                           <td class='docblock-short'>
+                                <p>Sendable grayscale image buffer</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.ImageResult.html'
+                                  title='image::ImageResult'>ImageResult</a></td>
+                           <td class='docblock-short'>
+                                <p>Result of an image decoding/encoding process</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.RgbImage.html'
+                                  title='image::RgbImage'>RgbImage</a></td>
+                           <td class='docblock-short'>
+                                <p>Sendable Rgb image buffer</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.RgbaImage.html'
+                                  title='image::RgbaImage'>RgbaImage</a></td>
+                           <td class='docblock-short'>
+                                <p>Sendable Rgb + alpha channel image buffer</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "image";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

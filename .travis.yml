@@ -32,11 +32,3 @@ script:
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi;
         cargo doc -v;
       fi
-after_success: |
-    [ $TRAVIS_BRANCH = master ] &&
-    [ $TRAVIS_PULL_REQUEST = false ] &&
-    cargo doc &&
-    echo '<meta http-equiv=refresh content=0;url=image/index.html>' > target/doc/index.html &&
-    pip install --user ghp-import &&
-    ghp-import -n target/doc &&
-    git push -fq https://${GH_TOKEN}:x-oauth-basic@github.com/${TRAVIS_REPO_SLUG}.git gh-pages > /dev/null 2>&1

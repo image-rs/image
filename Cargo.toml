@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.11.0"
+version = "0.11.1"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -9,7 +9,7 @@ authors = [
     "nwin",
     "TyOverby <ty@pre-alpha.com>"]
 readme = "README.md"
-documentation = "http://www.piston.rs/image/image/index.html"
+documentation = "https://docs.rs/image"
 repository = "https://github.com/PistonDevelopers/image.git"
 homepage = "https://github.com/PistonDevelopers/image"
 exclude = [

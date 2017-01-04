@@ -50,6 +50,7 @@ impl From<EncodingError> for io::Error {
     }
 }
 
+/// PNG Encoder
 pub struct Encoder<W: Write> {
     w: W,
     info: Info,
@@ -88,6 +89,7 @@ impl<W: Write> Parameter<Encoder<W>> for BitDepth {
     }
 }
 
+/// PNG writer
 pub struct Writer<W: Write> {
     w: W,
     info: Info,

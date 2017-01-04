@@ -29,7 +29,7 @@ extern crate image;
 
 ## 1. Documentation
 
-http://www.piston.rs/image/image/index.html
+https://docs.rs/image
 
 ## 2. Supported Image Formats
 ```image``` provides implementations of common image format encoders and decoders.

@@ -11,7 +11,7 @@ exclude = [
 
 [dependencies]
 inflate = "0.1.0"
-flate2 = { version = "0.2.11", optional = true }
+deflate = { version = "0.7.1", optional = true }
 num-iter = "0.1.32"
 bitflags = "0.7"
 
@@ -26,6 +26,6 @@ features = ["glutin"]
 default-features = false
 
 [features]
-png-encoding = ["flate2"]
+png-encoding = ["deflate"]
 default = ["png-encoding"]
 unstable = []

@@ -1,4 +1,4 @@
-extern crate flate2;
+extern crate deflate;
 
 use std::borrow::Cow;
 use std::io::{self, Write};
@@ -43,10 +43,7 @@ impl From<io::Error> for EncodingError {
 }
 impl From<EncodingError> for io::Error {
     fn from(err: EncodingError) -> io::Error {
-        io::Error::new(
-            io::ErrorKind::Other,
-            (&err as &error::Error).description()
-        )
+        io::Error::new(io::ErrorKind::Other, (&err as &error::Error).description())
     }
 }
 
@@ -61,17 +58,11 @@ impl<W: Write> Encoder<W> {
         let mut info = Info::default();
         info.width = width;
         info.height = height;
-        Encoder {
-            w: w,
-            info: info
-        }
+        Encoder { w: w, info: info }
     }
-    
+
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(
-            self.w,
-            self.info
-        ).init()
+        Writer::new(self.w, self.info).init()
     }
 }
 
@@ -97,13 +88,10 @@ pub struct Writer<W: Write> {
 
 impl<W: Write> Writer<W> {
     fn new(w: W, info: Info) -> Writer<W> {
-        let w = Writer {
-            w: w,
-            info: info,
-        };
+        let w = Writer { w: w, info: info };
         w
     }
-    
+
     fn init(mut self) -> Result<Self> {
         try!(self.w.write(&[137, 80, 78, 71, 13, 10, 26, 10]));
         let mut data = [0; 13];
@@ -115,7 +103,7 @@ impl<W: Write> Writer<W> {
         try!(self.write_chunk(chunk::IHDR, &data));
         Ok(self)
     }
-    
+
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
         try!(self.w.write_be(data.len() as u32));
         try!(self.w.write(&name));
@@ -126,7 +114,7 @@ impl<W: Write> Writer<W> {
         try!(self.w.write_be(crc.checksum()));
         Ok(())
     }
-    
+
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
         let bpp = self.info.bytes_per_pixel();
@@ -135,14 +123,9 @@ impl<W: Write> Writer<W> {
         let mut current = vec![0; in_len];
         let data_size = in_len * self.info.height as usize;
         if data.len() < data_size || data_size == 0 {
-            return Err(EncodingError::Format(
-                "not enough image data provided".into()
-            ))
+            return Err(EncodingError::Format("not enough image data provided".into()));
         }
-        let mut zlib = flate2::write::ZlibEncoder::new(
-            Vec::new(),
-            flate2::Compression::Fast
-        );
+        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), deflate::Compression::Fast);
         let filter_method = FilterType::Sub;
         for line in data.chunks(in_len) {
             ::utils::copy_memory(&line, &mut current);

@@ -235,7 +235,7 @@ pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
 
 #[test]
 fn to_rgbe8_test() {
-    use hdr::{RGBE8Pixel, rgbe8};
+    use hdr::rgbe8;
     let test_cases = vec![rgbe8(0, 0, 0, 0), rgbe8(1, 1, 128, 128)];
     for &pix in &test_cases {
        assert_eq!(pix, to_rgbe8(pix.to_hdr())); 

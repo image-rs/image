@@ -131,7 +131,6 @@ pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
 #[cfg(test)]
 mod tests {
 
-    use image::GenericImage;
     use buffer::ImageBuffer;
     use color::{Rgb};
     use super::overlay;

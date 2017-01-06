@@ -472,7 +472,6 @@ mod tests {
     use test;
     use buffer::{ImageBuffer, RgbImage};
     use super::{resize, FilterType};
-    use std::path::Path;
 
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "png_codec"))]

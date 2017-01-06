@@ -22,7 +22,7 @@ name = "image"
 path = "./src/lib.rs"
 
 [dependencies]
-byteorder = "0.5.1"
+byteorder = "1.0.0"
 num-iter = "0.1.32"
 num-rational = "0.1.32"
 num-traits = "0.1.32"

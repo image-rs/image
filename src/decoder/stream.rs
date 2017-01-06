@@ -3,9 +3,9 @@ use std::default::Default;
 use std::error;
 use std::fmt;
 use std::mem;
-use std::io::{self, Read, Write};
+use std::io;
 use std::cmp::min;
-use std::convert::{From, AsRef};
+use std::convert::From;
 
 extern crate inflate;
 

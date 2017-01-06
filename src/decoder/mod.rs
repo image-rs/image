@@ -5,7 +5,6 @@ use self::stream::{CHUNCK_BUFFER_SIZE, get_info};
 
 use std::mem;
 use std::io::{Read, Write, BufReader, BufRead};
-use std::convert::AsRef;
 
 use traits::{HasParameters, Parameter};
 use common::{ColorType, BitDepth, Info, Transformations};

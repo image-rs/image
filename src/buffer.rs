@@ -612,7 +612,7 @@ pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 #[cfg(test)]
 mod test {
 
-    use super::{ImageBuffer, RgbImage, GrayImage, ConvertBuffer, Pixel};
+    use super::{ImageBuffer, RgbImage};
     use color;
     #[cfg(feature = "benchmarks")]
     use test;

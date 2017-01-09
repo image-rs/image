@@ -1,6 +1,6 @@
-# PNG Decoder [![Build Status](https://travis-ci.org/PistonDevelopers/image-png.svg?branch=master)](https://travis-ci.org/PistonDevelopers/image-png)
+# PNG Decoder/Encoder [![Build Status](https://travis-ci.org/PistonDevelopers/image-png.svg?branch=master)](https://travis-ci.org/PistonDevelopers/image-png)
 
-(WIP) PNG decoder. Currently `pngcheck` is the most usable part. Build with `cargo build --release --example pngcheck`.
+PNG decoder/encoder in pure Rust. Currently `pngcheck` is the most usable part. Build with `cargo build --release --example pngcheck`.
 
 ## License
 

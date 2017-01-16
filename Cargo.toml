@@ -24,7 +24,7 @@ path = "./src/lib.rs"
 [dependencies]
 byteorder = "1.0.0"
 num-iter = "0.1.32"
-num-rational = "0.1.32"
+num-rational = { version = "0.1.32", default-features = false }
 num-traits = "0.1.32"
 enum_primitive = "0.1.0"
 glob = "0.2.10"

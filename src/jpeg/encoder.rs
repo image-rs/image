@@ -375,6 +375,10 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             try!(self.writer.write_segment(DQT, Some(&buf)));
         }
 
+        build_huffman_segment(&mut buf, DCCLASS, LUMADESTINATION,
+                              &STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
+        try!(self.writer.write_segment(DHT, Some(&buf)));
+
         build_huffman_segment(&mut buf, ACCLASS, LUMADESTINATION,
                               &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
         try!(self.writer.write_segment(DHT, Some(&buf)));

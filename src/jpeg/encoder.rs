@@ -375,6 +375,10 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             try!(self.writer.write_segment(DQT, Some(&buf)));
         }
 
+        build_huffman_segment(&mut buf, DCCLASS, LUMADESTINATION,
+                              &STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
+        try!(self.writer.write_segment(DHT, Some(&buf)));
+
         build_huffman_segment(&mut buf, ACCLASS, LUMADESTINATION,
                               &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
         try!(self.writer.write_segment(DHT, Some(&buf)));
@@ -660,6 +664,48 @@ fn copy_blocks_gray(source: &[u8],
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
             gb[y * 8 + x] = value_at(source, ystride + xstride + 1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use super::JPEGEncoder;
+    use super::super::JPEGDecoder;
+    use color::ColorType;
+    use image::{ImageDecoder, DecodingResult};
+
+    #[test]
+    fn roundtrip_sanity_check() {
+        // create a 1x1 8-bit image buffer containing a single red pixel
+        let img = [255u8, 0, 0];
+
+        // encode it into a memory buffer
+        let mut encoded_img = Vec::new();
+        {
+            let mut encoder =
+                JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            encoder.encode(&img, 1, 1, ColorType::RGB(8))
+                .expect("Could not encode image");
+        }
+
+        // decode it from the memory buffer
+        {
+            let mut decoder =
+                JPEGDecoder::new(Cursor::new(&encoded_img));
+            match decoder.read_image().expect("Could not decode image") {
+                DecodingResult::U8(decoded) => {
+                    // note that, even with the encode quality set to 100, we
+                    // do not get the same image back. Therefore, we're going
+                    // to assert that it's at least red-ish:
+                    assert_eq!(3, decoded.len());
+                    assert!(decoded[0] > 0x80);
+                    assert!(decoded[1] < 0x80);
+                    assert!(decoded[2] < 0x80);
+                },
+                _ => panic!("Image did not decode as 8-bit"),
+            }
         }
     }
 }

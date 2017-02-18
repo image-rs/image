@@ -9,6 +9,7 @@ pub struct PPMDecoder<R> {
     reader: BufReader<R>,
     width: u32,
     height: u32,
+    maxwhite: u32,
 }
 
 impl<R: Read> PPMDecoder<R> {
@@ -18,11 +19,12 @@ impl<R: Read> PPMDecoder<R> {
         try!(PPMDecoder::read_next_string(&mut buf)); // Skip P6
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
-        try!(PPMDecoder::read_next_u32(&mut buf)); // Skip maxwhite
+        let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));
         Ok(PPMDecoder {
             reader: buf,
             width: width,
             height: height,
+            maxwhite: maxwhite,
         })
     }
 
@@ -64,7 +66,13 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        Ok(ColorType::RGB(8))
+        if self.maxwhite < 256 {
+          Ok(ColorType::RGB(8))
+        } else if self.maxwhite < 65536 {
+          Ok(ColorType::RGB(16))
+        } else {
+          Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string()))
+        }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -76,12 +84,21 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let mut data = vec![0 as u8; (self.width*self.height*3) as usize];
+        let bytewidth = if self.maxwhite < 256 { 1 } else { 2 };
+        let mut data = vec![0 as u8; (self.width*self.height*3*bytewidth) as usize];
         match self.reader.read_exact(&mut data) {
             Ok(_) => {},
             Err(e) => return Err(ImageError::IoError(e)),
         };
 
-        Ok(DecodingResult::U8(data))
+        if bytewidth == 1 {
+            Ok(DecodingResult::U8(data))
+        } else {
+            let mut out = vec![0 as u16; (self.width*self.height*3) as usize];
+            for (o, i) in out.chunks_mut(1).zip(data.chunks(2)) {
+                o[0] = (i[0] as u16) << 8 | i[1] as u16;
+            }
+            Ok(DecodingResult::U16(out))
+        }
     }
 }

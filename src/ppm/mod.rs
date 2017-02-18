@@ -43,8 +43,8 @@ mod test {
             Ok(DecodingResult::U8(vec)) => {
                 assert_eq!(&buf[..], &vec[..]);
             },
-            _ => {
-                panic!("PPM: Got a strange image result");
+            r => {
+                panic!("PPM: Got a strange image result {:?}", r);
             }
         }
     }

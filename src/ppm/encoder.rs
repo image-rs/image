@@ -59,20 +59,15 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
                     let _ = try!(self.w.write_all(&[buf[i]]));
                 }
             }
-
             RGB(8)  => try!(self.w.write_all(buf)),
             RGB(16) => try!(self.w.write_all(buf)),
             RGBA(8) => {
                 for x in buf.chunks(4) {
-
                     let _ = try!(self.w.write_all(&[x[0]]));
-
                     let _ = try!(self.w.write_all(&[x[1]]));
-
                     let _ = try!(self.w.write_all(&[x[2]]));
                 }
             }
-
             a => panic!(format!("not implemented: {:?}", a))
         }
 

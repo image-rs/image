@@ -33,18 +33,17 @@ impl<R: Read> PPMDecoder<R> {
 
   fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
       let mut bytes = Vec::new();
-      loop {
-          let mut buffer: [u8;1] = [0];
-          try!(reader.read_exact(&mut buffer));
-          match buffer[0] {
-              b'\n' | b' ' | b'\r' | b'\t' => {
+      for byte in reader.bytes() {
+          match byte {
+              Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
                   if bytes.len() > 0 {
                     break // We're done as we already have some content
                   }
               },
-              _ => {
-                  bytes.push(buffer[0]);
+              Ok(byte) => {
+                  bytes.push(byte);
               },
+              Err(_) => break,
           }
       }
 

@@ -37,7 +37,7 @@ impl<R: Read> PPMDecoder<R> {
           let mut buffer: [u8;1] = [0];
           try!(reader.read_exact(&mut buffer));
           match buffer[0] {
-              b'\n' | b' ' | b'\r' => {
+              b'\n' | b' ' | b'\r' | b'\t' => {
                   if bytes.len() > 0 {
                     break // We're done as we already have some content
                   }

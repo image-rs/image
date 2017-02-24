@@ -51,7 +51,8 @@ mod test {
 
     #[test]
     fn test_roundtrip_ppm_16bit() {
-        // 3x3 image that tries all the 0/65535 RGB combinations
+        // 3x3 image that tries all the 0/65535 RGB combinations plus a few more values
+        // that check for big-endian conversion correctness
         let buf: [u16; 27] = [
                 0,     0,     0,
                 0,     0, 65535,
@@ -61,7 +62,7 @@ mod test {
             65535,     0, 65535,
             65535, 65535,     0,
             65535, 65535, 65535,
-            65535, 65535, 65535,
+             1000,  2000,  3000,
         ];
         let mut bytebuf = [0 as u8; 54];
         for (o, i) in bytebuf.chunks_mut(2).zip(buf.iter()) {

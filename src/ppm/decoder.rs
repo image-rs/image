@@ -66,17 +66,15 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        if self.maxwhite < 256 {
-          Ok(ColorType::RGB(8))
-        } else if self.maxwhite < 65536 {
-          Ok(ColorType::RGB(16))
-        } else {
-          Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string()))
+        match self.bytewidth() {
+            1 => Ok(ColorType::RGB(8)),
+            2 => Ok(ColorType::RGB(16)),
+            _ => Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string())),
         }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
-        Ok((self.width*3) as usize)
+        Ok((self.width*3*self.bytewidth()) as usize)
     }
 
     fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
@@ -84,14 +82,13 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let bytewidth = if self.maxwhite < 256 { 1 } else { 2 };
-        let mut data = vec![0 as u8; (self.width*self.height*3*bytewidth) as usize];
+        let mut data = vec![0 as u8; (self.width*self.height*3*self.bytewidth()) as usize];
         match self.reader.read_exact(&mut data) {
             Ok(_) => {},
             Err(e) => return Err(ImageError::IoError(e)),
         };
 
-        if bytewidth == 1 {
+        if self.bytewidth() == 1 {
             Ok(DecodingResult::U8(data))
         } else {
             let mut out = vec![0 as u16; (self.width*self.height*3) as usize];
@@ -100,5 +97,11 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
             }
             Ok(DecodingResult::U16(out))
         }
+    }
+}
+
+impl<R: Read> PPMDecoder<R> {
+    fn bytewidth(&self) -> u32 {
+        if self.maxwhite < 256 { 1 } else { 2 }
     }
 }

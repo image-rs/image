@@ -3,6 +3,9 @@ use std::io::BufReader;
 
 use color::{ColorType};
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
+extern crate byteorder;
+use self::byteorder::{BigEndian, ByteOrder};
+
 
 /// PPM decoder
 pub struct PPMDecoder<R> {
@@ -93,7 +96,7 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
         } else {
             let mut out = vec![0 as u16; (self.width*self.height*3) as usize];
             for (o, i) in out.chunks_mut(1).zip(data.chunks(2)) {
-                o[0] = (i[0] as u16) << 8 | i[1] as u16;
+                o[0] = BigEndian::read_u16(i);
             }
             Ok(DecodingResult::U16(out))
         }

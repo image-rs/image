@@ -27,7 +27,6 @@ num-iter = "0.1.32"
 num-rational = { version = "0.1.32", default-features = false }
 num-traits = "0.1.32"
 enum_primitive = "0.1.0"
-glob = "0.2.10"
 
 [dependencies.gif]
 version = "0.9.1"
@@ -47,6 +46,7 @@ optional = true
 
 [dev-dependencies]
 num-complex = "0.1.32"
+glob = "0.2.10"
 
 [features]
 default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp", "hdr"]

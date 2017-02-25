@@ -86,6 +86,7 @@ impl From<io::Error> for ImageError {
 pub type ImageResult<T> = Result<T, ImageError>;
 
 /// Result of a decoding process
+#[derive(Debug)]
 pub enum DecodingResult {
     /// A vector of unsigned bytes
     U8(Vec<u8>),

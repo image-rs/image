@@ -59,20 +59,15 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
                     let _ = try!(self.w.write_all(&[buf[i]]));
                 }
             }
-
             RGB(8)  => try!(self.w.write_all(buf)),
             RGB(16) => try!(self.w.write_all(buf)),
             RGBA(8) => {
                 for x in buf.chunks(4) {
-
                     let _ = try!(self.w.write_all(&[x[0]]));
-
                     let _ = try!(self.w.write_all(&[x[1]]));
-
                     let _ = try!(self.w.write_all(&[x[2]]));
                 }
             }
-
             a => panic!(format!("not implemented: {:?}", a))
         }
 
@@ -81,11 +76,17 @@ impl<'a, W: Write> PPMEncoder<'a, W> {
 }
 
 fn max_pixel_value(pixel_type: color::ColorType) -> u16 {
-    match pixel_type {
-        Gray(n)    => 2u16.pow(n as u32) - 1,
-        RGB(n)     => 2u16.pow(n as u32) - 1,
-        Palette(n) => 2u16.pow(n as u32) - 1,
-        GrayA(n)   => 2u16.pow(n as u32) - 1,
-        RGBA(n)    => 2u16.pow(n as u32) - 1,
+    let max = match pixel_type {
+        Gray(n)    => 2u32.pow(n as u32) - 1,
+        RGB(n)     => 2u32.pow(n as u32) - 1,
+        Palette(n) => 2u32.pow(n as u32) - 1,
+        GrayA(n)   => 2u32.pow(n as u32) - 1,
+        RGBA(n)    => 2u32.pow(n as u32) - 1,
+    };
+
+    if max > 65535 {
+      panic!("PPM: Trying to encode image with more than 16bit per pixel");
+    } else {
+      max as u16
     }
 }

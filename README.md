@@ -44,7 +44,7 @@ https://docs.rs/image
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax and packbits support) + LZW | No |
 | Webp   | Lossy(Luma channel only) | No |
-| PPM    | No | Yes |
+| PPM    | Yes | Yes |
 
 ### 2.2 The ```ImageDecoder``` Trait
 All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:

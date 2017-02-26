@@ -13,6 +13,7 @@ pub struct PPMDecoder<R> {
     width: u32,
     height: u32,
     maxwhite: u32,
+    row: u32,
 }
 
 impl<R: Read> PPMDecoder<R> {
@@ -28,6 +29,7 @@ impl<R: Read> PPMDecoder<R> {
             width: width,
             height: height,
             maxwhite: maxwhite,
+            row: 0,
         })
     }
 
@@ -79,16 +81,19 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
         Ok((self.width*3*self.bytewidth()) as usize)
     }
 
-    fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
-        unimplemented!();
+    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+        let row_len = try!(self.row_len());
+        match self.reader.read_exact(&mut buf[0..row_len]) {
+            Ok(_) => {self.row += 1; Ok(self.row-1)},
+            Err(e) => Err(ImageError::IoError(e)),
+        }
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let mut data = vec![0 as u8; (self.width*self.height*3*self.bytewidth()) as usize];
-        match self.reader.read_exact(&mut data) {
-            Ok(_) => {},
-            Err(e) => return Err(ImageError::IoError(e)),
-        };
+        for line in data.chunks_mut(try!(self.row_len())) {
+          try!(self.read_scanline(line));
+        }
 
         if self.bytewidth() == 1 {
             Ok(DecodingResult::U8(data))

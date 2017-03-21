@@ -84,7 +84,17 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let mut data = vec![0 as u8; (self.width*self.height*3*self.bytewidth()) as usize];
+        let opt_size = self.width.checked_mul(self.height)
+            .map_or(None, |v| v.checked_mul(3))
+            .map_or(None, |v| v.checked_mul(self.bytewidth()));
+
+        let size = match opt_size {
+            Some(v) => v,
+            None => return Err(ImageError::DimensionError),
+        };
+
+        let mut data = vec![0 as u8; size as usize];
+
         match self.reader.read_exact(&mut data) {
             Ok(_) => {},
             Err(e) => return Err(ImageError::IoError(e)),

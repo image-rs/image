@@ -293,7 +293,7 @@ where P: Pixel + 'static,
         <P as Pixel>::from_slice(
             &self.data[index .. index + no_channels]
         )
-    }    
+    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -440,14 +440,14 @@ where P: Pixel + 'static,
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.get_pixel_mut(x, y)
     }
-    
+
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels as isize * (y * self.width + x) as isize;
         *<P as Pixel>::from_slice(
-            ::std::slice::from_raw_parts(self.data.as_ptr().offset(index), 
+            ::std::slice::from_raw_parts(self.data.as_ptr().offset(index),
                                          no_channels)
         )
     }
@@ -455,14 +455,14 @@ where P: Pixel + 'static,
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }
-    
+
     /// Puts a pixel at location (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index  = no_channels as isize * (y * self.width + x) as isize;
         let p = <P as Pixel>::from_slice_mut(
-            ::std::slice::from_raw_parts_mut(self.data.as_mut_ptr().offset(index), 
+            ::std::slice::from_raw_parts_mut(self.data.as_mut_ptr().offset(index),
                                              no_channels)
         );
         *p = pixel
@@ -488,7 +488,7 @@ where P::Subpixel: 'static {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         ImageBuffer {
-            data: vec![Zero::zero(); 
+            data: vec![Zero::zero();
                       (width as u64
                       * height as u64
                       * (<P as Pixel>::channel_count() as u64)
@@ -649,6 +649,7 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
+        use buffer::{GrayImage, Pixel, ConvertBuffer};
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for mut p in a.pixels_mut() {
             let rgb = p.channels_mut();

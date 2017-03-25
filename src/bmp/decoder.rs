@@ -1,6 +1,9 @@
+use std::cmp;
 use std::io::{Read, Seek, SeekFrom};
+use std::io;
 use std::iter::{Iterator, repeat, Rev};
 use std::slice::ChunksMut;
+
 use byteorder::{ReadBytesExt, LittleEndian};
 
 use image::{
@@ -40,6 +43,9 @@ const RLE_ESCAPE: u8 = 0;
 const RLE_ESCAPE_EOL: u8 = 0;
 const RLE_ESCAPE_EOF: u8 = 1;
 const RLE_ESCAPE_DELTA: u8 = 2;
+
+/// The maximum widht/height the decoder will process.
+const MAX_WIDTH_HEIGHT: i32 = 65535;
 
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
@@ -92,6 +98,120 @@ impl<'a> Iterator for RowIterator<'a> {
         }
     }
 }
+
+fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
+    num_bytes(width, length, channels).map(|_| ()).ok_or_else(|| ImageError::FormatError("Image would require a buffer that is too large to be represented!".to_owned()))
+}
+
+fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
+    if width <= 0 || length <= 0 {
+        None
+    } else {
+        match channels.checked_mul(width as usize) {
+            Some(n) => n.checked_mul(length as usize),
+            None => None
+        }
+    }
+}
+
+/// The maximum starting number of pixels in the pixel buffer, might want to tweak this.
+///
+/// For images that specify large sizes, we don't allocate the full buffer right away
+/// to somewhat mitigate trying to make the decoder run out of memory by sending a bogus image.
+/// This is somewhat of a workaroud as ideally we would check against the expected file size
+/// but that's not possible through the Read and Seek traits alone and would require the encoder
+/// to provided with it from the caller.
+///
+/// NOTE: This is multiplied by 3 or 4 depending on the number of channels to get the maximum
+/// starting buffer size. This amounts to about 134 mb for a buffer with 4 channels.
+const MAX_INITIAL_PIXELS: usize = 8192 * 4096;
+
+/// Extend the buffer to `full_size`, copying existing data to the end of the buffer. Returns a
+/// pointing to the part of the buffer that is not yet filled in.
+///
+/// As BMP images are usually stored with the rows upside-down we have to write the image data
+/// starting at the end of the buffer and thus we have to make sure the existing data is put at the
+/// end of the buffer.
+#[inline(never)]
+#[cold]
+fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize) -> &mut [u8] {
+    let old_size = buffer.len();
+    let extend = full_size - buffer.len();
+
+    buffer.extend(repeat(0xFF).take(extend));
+
+    let buffer_len = buffer.len();
+
+    if extend >= old_size {
+        // If the full buffer length is more or equal to twice the initial one, we can simply
+        // copy the data in the lower part of the buffer to the end of it and input from there.
+        {
+            let (lower, upper) = buffer.split_at_mut(old_size);
+            let upper_len = upper.len();
+            let lower_len = lower.len();
+
+            upper[upper_len - lower_len..].copy_from_slice(&lower);
+        }
+
+        &mut buffer[..buffer_len - old_size]
+    } else {
+        // If the full size is less than twice the initial buffer, we have to
+        // copy in two steps
+
+        // First we copy the data that fits into the bit we extended.
+        let (lower, upper) = buffer.split_at_mut(old_size);
+        let upper_len = upper.len();
+        let lower_len = lower.len();
+        upper.copy_from_slice(&lower[lower_len - upper_len..]);
+
+        // Then we slide the data that hasn't been copied yet to the top of the buffer
+        let (new, old) = lower.split_at_mut(extend);
+        let new_len = new.len();
+        let old_len = old.len();
+        old.copy_from_slice(&new[new_len - old_len..]);
+        new
+    }
+}
+
+/// Call the provided function on each row of the provided buffer, returning Err if the provided
+/// function returns an error, extends the buffer if it's not large enough.
+fn with_rows<F>(buffer: &mut Vec<u8>, width: i32, height: i32, channels: usize, top_down: bool, mut func: F)
+                -> io::Result<()> where F: FnMut(&mut [u8]) -> io::Result<()>  {
+    // An overflow should already have been checked for when this is called,
+    // though we check anyhow, as it somehow seems to increase performance slightly.
+    let row_width = channels.checked_mul(width as usize).unwrap();
+    let full_image_size = row_width.checked_mul(height as usize).unwrap();
+
+    if !top_down {
+        for row in buffer.chunks_mut(row_width).rev() {
+            try!(func(row));
+        }
+
+        // If we need more space, extend the buffer.
+        if buffer.len() < full_image_size {
+            let new_space = extend_buffer(buffer, full_image_size);
+            for row in new_space.chunks_mut(row_width).rev() {
+                try!(func(row));
+            }
+        }
+    } else {
+        for row in buffer.chunks_mut(row_width) {
+            try!(func(row));
+        }
+        if buffer.len() < full_image_size {
+            // If the image is stored in top-down order, we can simply use the extend function
+            // from vec to extend the buffer..
+            let extend = full_image_size - buffer.len();
+            buffer.extend(repeat(0xFF).take(extend));
+            let len = buffer.len();
+            for row in buffer[len - row_width..].chunks_mut(row_width) {
+                try!(func(row));
+            }
+        };
+    }
+    Ok(())
+}
+
 
 fn set_8bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
                                                     palette: &Vec<(u8, u8, u8)>,
@@ -364,12 +484,21 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(())
     }
 
+    /// Read BITMAPCOREHEADER https://msdn.microsoft.com/en-us/library/vs/alm/dd183372(v=vs.85).aspx
+    ///
+    /// returns Err if any of the values are invalid.
     fn read_bitmap_core_header(&mut self) ->ImageResult<()> {
+        // As height/width values in BMP files with core headers are only 16 bits long,
+        // they won't be larger than `MAX_WIDTH_HEIGHT`.
         self.width  = try!(self.r.read_u16::<LittleEndian>()) as i32;
         self.height = try!(self.r.read_u16::<LittleEndian>()) as i32;
 
-        // Don't care about number of planes
-        try!(self.r.read_u16::<LittleEndian>());
+        try!(check_for_overflow(self.width, self.height, self.num_channels()));
+
+        // Number of planes (format specifies that this should be 1).
+        if try!(self.r.read_u16::<LittleEndian>()) != 1 {
+            return Err(ImageError::FormatError("Invalid number of planes.".to_string()));
+        }
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
         self.image_type = match self.bit_count {
@@ -381,28 +510,47 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok(())
     }
 
+    /// Read BITMAPINFOHEADER https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx
+    ///
+    /// returns Err if any of the values are invalid.
     fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
         self.width  = try!(self.r.read_i32::<LittleEndian>());
         self.height = try!(self.r.read_i32::<LittleEndian>());
 
+        // Width can not be negative
         if self.width < 0 {
             return Err(ImageError::FormatError("Negative width".to_string()));
+        } else if self.width > MAX_WIDTH_HEIGHT || self.height > MAX_WIDTH_HEIGHT {
+            // Limit very large image sizes to avoid OOM issues. Images with these sizes are
+            // unlikely to be valid anyhow.
+            return Err(ImageError::FormatError("Image too large".to_string()));
         }
 
         if self.height == i32::min_value() {
             return Err(ImageError::FormatError("Invalid height".to_string()));
         }
 
+        // A negative height indicates a top-down DIB.
         if self.height < 0 {
             self.height *= -1;
             self.top_down = true;
         }
 
-        // Don't care about number of planes
-        try!(self.r.read_u16::<LittleEndian>());
+        try!(check_for_overflow(self.width, self.height, self.num_channels()));
+
+        // Number of planes (format specifies that this should be 1).
+        if try!(self.r.read_u16::<LittleEndian>()) != 1 {
+            return Err(ImageError::FormatError("Invalid number of planes.".to_string()));
+        }
 
         self.bit_count = try!(self.r.read_u16::<LittleEndian>());
         let image_type_u32 = try!(self.r.read_u32::<LittleEndian>());
+
+        // Top-down dibs can not be compressed.
+        if self.top_down && image_type_u32 != 0 && image_type_u32 != 3 {
+            return Err(ImageError::FormatError("Invalid image type for top-down image."
+                                               .to_string()));
+        }
         self.image_type = match image_type_u32 {
             0 => match self.bit_count {
                 1 | 4 | 8 => ImageType::Palette,
@@ -424,6 +572,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 32 => ImageType::Bitfields32,
                 _ => return Err(ImageError::FormatError("Invalid bitfields bit count".to_string())),
             },
+            // PNG and JPEG not implemented yet.
             _  => return Err(ImageError::UnsupportedError("Unsupported image type".to_string())),
         };
 
@@ -558,18 +707,25 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         let bytes_per_color = self.bytes_per_color();
         let palette_size = try!(self.get_palette_size());
-        let length = palette_size * bytes_per_color;
         let max_length = MAX_PALETTE_SIZE * bytes_per_color;
+
+        let length = palette_size * bytes_per_color;
         let mut buf = Vec::with_capacity(max_length);
 
-        buf.resize(length, 0);
+        // Resize and read the palette entries to the buffer.
+        // We limit the buffer to at most 256 colours to avoid any oom issues as
+        // 8-bit images can't reference more than 256 indexes anyhow.
+        buf.resize(cmp::min(length, max_length), 0);
         try!(self.r.by_ref().read_exact(&mut buf));
 
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
         if length < max_length {
             buf.resize(max_length, 0);
-        }
+        } else if length > max_length {
+            // Ignore any excess palette colors.
+            try!(self.r.seek(SeekFrom::Current((length - max_length) as i64)));
+        };
 
         let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE).map(|i| {
             let b = buf[bytes_per_color * i];
@@ -587,11 +743,22 @@ impl<R: Read + Seek> BMPDecoder<R> {
         if self.add_alpha_channel { 4 } else { 3 }
     }
 
+    /// Create a buffer to hold the decoded pixel data.
+    ///
+    /// The buffer will be large enough to hold the whole image if it requires less than
+    /// `MAX_INITIAL_PIXELS` times the number of channels bytes (adjusted to line up with the
+    /// width of a row).
     fn create_pixel_data(&self) -> Vec<u8> {
-        vec![0xFF; self.num_channels() * self.width as usize * self.height as usize]
+        let row_width = self.num_channels() * self.width as usize;
+        let max_pixels = self.num_channels() * MAX_INITIAL_PIXELS;
+        // Make sure the maximum size is whole number of rows.
+        let max_starting_size = max_pixels - (max_pixels % row_width);
+        vec![0xFF; cmp::min(
+            row_width * self.height as usize,
+            max_starting_size)]
     }
 
-    fn rows<'a>(&self, pixel_data: &'a mut Vec<u8>) -> RowIterator<'a> {
+    fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
         let stride = self.width as usize * self.num_channels();
         if self.top_down {
             RowIterator{ chunks: Chunker::FromTop(pixel_data.chunks_mut(stride)) }
@@ -606,18 +773,24 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let row_byte_length = ((self.bit_count as u32 * self.width as u32 + 31) / 32 * 4) as usize;
         let mut indices = vec![0; row_byte_length];
         let palette = self.palette.as_ref().unwrap();
+        let bit_count = self.bit_count;
+        let reader = &mut self.r;
+        let width = self.width as usize;
 
-        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for row in self.rows(&mut pixel_data) {
-            try!(self.r.by_ref().read_exact(&mut indices));
+        try!(reader.seek(SeekFrom::Start(self.data_offset)));
+
+        try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
+            //try!(reader.read_exact(&mut indices));
+            reader.read_exact(&mut indices).unwrap();
             let mut pixel_iter = row.chunks_mut(num_channels);
-            match self.bit_count {
+            match bit_count {
                 1 => { set_1bit_pixel_run(&mut pixel_iter, &palette, indices.iter()); },
-                4 => { set_4bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
-                8 => { set_8bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
+                4 => { set_4bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), width); },
+                8 => { set_8bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), width); },
                 _ => panic!(),
-            }
-        }
+            };
+            Ok(())
+        }));
 
         Ok(pixel_data)
     }
@@ -631,11 +804,13 @@ impl<R: Read + Seek> BMPDecoder<R> {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap()
         };
+        let reader = &mut self.r;
 
-        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for row in self.rows(&mut pixel_data) {
+        try!(reader.seek(SeekFrom::Start(self.data_offset)));
+        //for row in self.rows(&mut pixel_data) {
+        try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             for pixel in row.chunks_mut(num_channels) {
-                let data = try!(self.r.read_u16::<LittleEndian>()) as u32;
+                let data = try!(reader.read_u16::<LittleEndian>()) as u32;
 
                 pixel[0] = bitfields.r.read(data);
                 pixel[1] = bitfields.g.read(data);
@@ -644,21 +819,27 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     pixel[3] = bitfields.a.read(data);
                 }
             }
-            try!(self.r.read_exact(row_padding));
-        }
+            reader.read_exact(row_padding)
+        }));
 
         Ok(pixel_data)
     }
 
+    /// Read image data from a reader in 32-bit formats that use bitfields.
     fn read_32_bit_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
+        //pixel_data.clear();
+        //let mut pixel_data = vec![0xFF; self.num_channels() * self.width as usize];
         let num_channels = self.num_channels();
+
         let bitfields = self.bitfields.as_ref().unwrap();
 
-        try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for row in self.rows(&mut pixel_data) {
+        let mut reader = &mut self.r;
+        try!(reader.seek(SeekFrom::Start(self.data_offset)));
+
+        try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             for pixel in row.chunks_mut(num_channels) {
-                let data = try!(self.r.read_u32::<LittleEndian>());
+                let data = try!(reader.read_u32::<LittleEndian>());
 
                 pixel[0] = bitfields.r.read(data);
                 pixel[1] = bitfields.g.read(data);
@@ -667,11 +848,13 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     pixel[3] = bitfields.a.read(data);
                 }
             }
-        }
+            Ok(())
+        }));
 
         Ok(pixel_data)
     }
 
+    /// Read image data from a reader where the colours are stored as 8-bit values (24 or 32-bit).
     fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
@@ -682,39 +865,55 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let row_padding = &mut [0; 4][..row_padding_len];
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
-        for row in self.rows(&mut pixel_data) {
+
+        let reader = &mut self.r;
+
+        try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             for pixel in row.chunks_mut(num_channels) {
 
                 if format == FormatFullBytes::Format888 {
-                    try!(self.r.read_u8());
+                    try!(reader.read_u8());
                 }
 
-                let b = try!(self.r.read_u8());
-                let g = try!(self.r.read_u8());
-                let r = try!(self.r.read_u8());
+                // Read the colour values (b, g, r).
+                // Reading 3 bytes and reversing them is significantly faster than reading one
+                // at a time.
+                try!(reader.read_exact(&mut pixel[0..3]));
+                pixel[0..3].reverse();
 
                 if format == FormatFullBytes::FormatRGB32 {
-                    try!(self.r.read_u8());
+                    try!(reader.read_u8());
                 }
 
-                pixel[0] = r;
-                pixel[1] = g;
-                pixel[2] = b;
-
+                // Read the alpha channel if present
                 if format == FormatFullBytes::FormatRGBA32 {
-                    let a = try!(self.r.read_u8());
-                    pixel[3] = a;
+                    try!(reader.read_exact(&mut pixel[3..4]));
                 }
             }
-            try!(self.r.read_exact(row_padding));
-        }
+            reader.read_exact(row_padding)
+        }));
 
         Ok(pixel_data)
     }
 
     fn read_rle_data(&mut self, image_type: ImageType) -> ImageResult<Vec<u8>> {
+        let full_image_size = try!(
+            num_bytes(self.width, self.height, self.num_channels())
+                .ok_or_else(|| ImageError::FormatError("Image buffer would be too large!".to_owned()))
+        );
         let mut pixel_data = self.create_pixel_data();
+        let skip_rows = try!(self.read_rle_data_step(&mut pixel_data, image_type, 0));
+        if pixel_data.len() < full_image_size {
+            let new = extend_buffer(&mut pixel_data, full_image_size);
+            try!(self.read_rle_data_step(new, image_type, skip_rows));
+        }
+        Ok(pixel_data)
+    }
+
+    fn read_rle_data_step(&mut self, mut pixel_data: &mut [u8], image_type: ImageType, skip_rows: u8) -> ImageResult<u8> {
         let num_channels = self.num_channels();
+
+        let mut delta_rows_left = 0;
 
         try!(self.r.seek(SeekFrom::Start(self.data_offset)));
         // Scope the borrowing of pixel_data by the row iterator.
@@ -723,7 +922,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             // iterate through rows and pixels.  Even if we didn't have to handle
             // deltas, we have to ensure that a single runlength doesn't straddle
             // two rows.
-            let mut row_iter = self.rows(&mut pixel_data);
+            let mut row_iter = self.rows(&mut pixel_data).skip(skip_rows as usize);
             let mut insns_iter = RLEInsnIterator{ r: &mut self.r, image_type: image_type };
             let p = self.palette.as_ref().unwrap();
 
@@ -740,6 +939,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                 break 'rle_loop;
                             },
                             RLEInsn::Delta(x_delta, y_delta) => {
+                                //TODO: x_delta needs to be saved for the next row
                                 for _ in 0..x_delta {
                                     if let None = pixel_iter.next() {
                                         // We can't go any further in this row.
@@ -748,9 +948,10 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                 }
 
                                 if y_delta > 0 {
-                                    for _ in 1..y_delta {
+                                    for n in 1..y_delta {
                                         if let None = row_iter.next() {
                                             // We've reached the end of the image.
+                                            delta_rows_left = y_delta - n;
                                             break 'row_loop;
                                         }
                                     }
@@ -813,7 +1014,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             }
 
         }
-        Ok(pixel_data)
+        Ok(delta_rows_left)
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {

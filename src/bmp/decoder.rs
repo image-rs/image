@@ -44,7 +44,7 @@ const RLE_ESCAPE_EOL: u8 = 0;
 const RLE_ESCAPE_EOF: u8 = 1;
 const RLE_ESCAPE_DELTA: u8 = 2;
 
-/// The maximum widht/height the decoder will process.
+/// The maximum width/height the decoder will process.
 const MAX_WIDTH_HEIGHT: i32 = 65535;
 
 #[derive(PartialEq, Copy, Clone)]
@@ -99,10 +99,14 @@ impl<'a> Iterator for RowIterator<'a> {
     }
 }
 
+/// Convenience function to check if the combination of width, length and number of
+/// channels would result in a buffer that would overflow.
 fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
     num_bytes(width, length, channels).map(|_| ()).ok_or_else(|| ImageError::FormatError("Image would require a buffer that is too large to be represented!".to_owned()))
 }
 
+/// Calculate how many many bytes a buffer holding a decoded image with these properties would
+/// require. Returns `None` if the buffer size would overflow or if one of the sizes are negative.
 fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
     if width <= 0 || length <= 0 {
         None

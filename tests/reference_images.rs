@@ -152,9 +152,9 @@ fn check_hdr_references() {
 fn bad_bmps() {
     let base_path: PathBuf = BASE_PATH.iter().collect::<PathBuf>().join(IMAGE_DIR).join("bmp/images");
 
-    assert!(image::open(base_path.join("Bad_clrsUsed.bad_bmp"), "Image with absurly large number of colors loaded.").is_err());
-    assert!(image::open(base_path.join("Bad_width.bad_bmp"), "Image with absurdly large width loaded.").is_err());
-    assert!(image::open(base_path.join("Bad_height.bad_bmp"), "Image with absurdly large height loaded.").is_err());
+    assert!(image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(), "Image with absurly large number of colors loaded.");
+    assert!(image::open(base_path.join("Bad_width.bad_bmp")).is_err(), "Image with absurdly large width loaded.");
+    assert!(image::open(base_path.join("Bad_height.bad_bmp")).is_err(), "Image with absurdly large height loaded.");
 
 }
 

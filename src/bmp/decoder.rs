@@ -534,6 +534,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     /// Read BITMAPINFOHEADER https://msdn.microsoft.com/en-us/library/vs/alm/dd183376(v=vs.85).aspx
+    /// or BITMAPV{2|3|4|5}HEADER.
     ///
     /// returns Err if any of the values are invalid.
     fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
@@ -804,8 +805,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         try!(reader.seek(SeekFrom::Start(self.data_offset)));
 
         try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
-            //try!(reader.read_exact(&mut indices));
-            reader.read_exact(&mut indices).unwrap();
+            try!(reader.read_exact(&mut indices));
             let mut pixel_iter = row.chunks_mut(num_channels);
             match bit_count {
                 1 => { set_1bit_pixel_run(&mut pixel_iter, &palette, indices.iter()); },
@@ -852,8 +852,6 @@ impl<R: Read + Seek> BMPDecoder<R> {
     /// Read image data from a reader in 32-bit formats that use bitfields.
     fn read_32_bit_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
-        //pixel_data.clear();
-        //let mut pixel_data = vec![0xFF; self.num_channels() * self.width as usize];
         let num_channels = self.num_channels();
 
         let bitfields = self.bitfields.as_ref().unwrap();

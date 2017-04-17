@@ -237,7 +237,7 @@ fn main() {
     // Create a new ImgBuf with width: imgx and height: imgy
     let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
 
-    // Iterate over the coordiantes and pixels of the image
+    // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
         let cy = y as f32 * scaley - 2.0;
         let cx = x as f32 * scalex - 2.0;

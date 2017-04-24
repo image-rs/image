@@ -136,7 +136,8 @@ mod utils;
 mod dynimage;
 mod color;
 mod buffer;
-mod traits;
+#[doc(hidden)]
+pub mod traits;
 mod animation;
 
 // Copies data from `src` to `dst`

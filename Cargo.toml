@@ -1,6 +1,6 @@
 [package]
 name = "png"
-version = "0.6.2"
+version = "0.7.0"
 license = "MIT/Apache-2.0"
 description = "PNG decoding and encoding library in pure Rust"
 authors = ["nwin <nwin@users.noreply.github.com>"]
@@ -10,7 +10,7 @@ exclude = [
 ]
 
 [dependencies]
-inflate = "0.1.0"
+inflate = "0.2.0"
 deflate = { version = "0.7.2", optional = true }
 num-iter = "0.1.32"
 bitflags = "0.7"
@@ -21,7 +21,7 @@ term = "0.4"
 glob = "0.2.11"
 
 [dev-dependencies.glium]
-version = "0.14"
+version = "0.16"
 features = ["glutin"]
 default-features = false
 

@@ -831,7 +831,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let reader = &mut self.r;
 
         try!(reader.seek(SeekFrom::Start(self.data_offset)));
-        //for row in self.rows(&mut pixel_data) {
+
         try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             for pixel in row.chunks_mut(num_channels) {
                 let data = try!(reader.read_u16::<LittleEndian>()) as u32;
@@ -927,19 +927,25 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 .ok_or_else(|| ImageError::FormatError("Image buffer would be too large!".to_owned()))
         );
         let mut pixel_data = self.create_pixel_data();
-        let (skip_pixels, skip_rows) = try!(self.read_rle_data_step(&mut pixel_data, image_type, 0, 0));
-        if pixel_data.len() < full_image_size {
+        let (skip_pixels, skip_rows, eof_hit) = try!(self.read_rle_data_step(&mut pixel_data, image_type, 0, 0));
+        // Extend the buffer if there is still data left.
+        // If eof_hit is true, it means that we hit an end-of-file marker in the last step and
+        // we won't extend the buffer further to avoid small files with a large specified size causing memory issues.
+        // This is only a rudamentary check, a file could still create a large buffer, but the
+        // file would now have to at least have some data in it.
+        if pixel_data.len() < full_image_size && !eof_hit {
             let new = extend_buffer(&mut pixel_data, full_image_size, true);
             try!(self.read_rle_data_step(new, image_type, skip_pixels, skip_rows));
         }
         Ok(pixel_data)
     }
 
-    fn read_rle_data_step(&mut self, mut pixel_data: &mut [u8], image_type: ImageType, skip_pixels: u8, skip_rows: u8) -> ImageResult<(u8, u8)> {
+    fn read_rle_data_step(&mut self, mut pixel_data: &mut [u8], image_type: ImageType, skip_pixels: u8, skip_rows: u8) -> ImageResult<(u8, u8, bool)> {
         let num_channels = self.num_channels();
 
         let mut delta_rows_left = 0;
         let mut delta_pixels_left = skip_pixels;
+        let mut eof_hit = false;
 
         // Scope the borrowing of pixel_data by the row iterator.
         {
@@ -966,6 +972,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                             RLEInsn::EndOfFile => {
                                 blank_bytes(pixel_iter);
                                 blank_bytes(row_iter);
+                                eof_hit = true;
                                 break 'row_loop;
                             },
                             RLEInsn::EndOfRow => {
@@ -1061,7 +1068,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             }
 
         }
-        Ok((delta_pixels_left, delta_rows_left))
+        Ok((delta_pixels_left, delta_rows_left, eof_hit))
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {

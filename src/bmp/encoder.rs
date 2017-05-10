@@ -56,15 +56,21 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         try!(self.writer.write_u32::<LittleEndian>(0)); // all colors are important
 
         // write image data
-        let x_stride = match c {
-            color::ColorType::RGB(8) => 3,
+        match c {
+            color::ColorType::RGB(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, 3)),
+            color::ColorType::RGBA(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, 4)),
             _  => return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                &format!("Unsupported color type {:?}. Use 8 bit per channel RGB instead.", c)[..],
-            )),
-        };
-        let y_stride = height * x_stride;
+                &format!("Unsupported color type {:?}. Use 8 bit per channel RGB(A) instead.", c)[..],
+            ))
+        }
 
+        Ok(())
+    }
+
+    fn encode_rgb(&mut self, image: &[u8], width: u32, height: u32, row_pad_size: u32, bytes_per_pixel: u32) -> io::Result<()> {
+        let x_stride = bytes_per_pixel;
+        let y_stride = width * x_stride;
         for row in 0..height {
             // from the bottom up
             let row_start = ((height - row - 1) * y_stride) as usize;
@@ -77,6 +83,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
                 try!(self.writer.write_u8(b));
                 try!(self.writer.write_u8(g));
                 try!(self.writer.write_u8(r));
+                // alpha is never written as it's not widely supported
             }
 
             for _ in 0..row_pad_size {
@@ -96,26 +103,37 @@ mod tests {
     use color::ColorType;
     use image::{ImageDecoder, DecodingResult};
 
-    #[test]
-    fn round_trip_single_pixel() {
-        // write single red pixel
-        let img = [255u8, 0, 0];
-        let mut encoded = Vec::new();
+    fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
+        let mut encoded_data = Vec::new();
         {
-            let mut encoder = BMPEncoder::new(&mut encoded);
-            encoder.encode(&img, 1, 1, ColorType::RGB(8)).expect("could not encode image");
+            let mut encoder = BMPEncoder::new(&mut encoded_data);
+            encoder.encode(&image, width, height, c).expect("could not encode image");
         }
 
-        // decode from memory
-        let mut decoder = BMPDecoder::new(Cursor::new(&encoded));
+        let mut decoder = BMPDecoder::new(Cursor::new(&encoded_data));
         match decoder.read_image().expect("failed to decode") {
-            DecodingResult::U8(decoded) => {
-                assert_eq!(3, decoded.len());
-                assert_eq!(255, decoded[0]);
-                assert_eq!(0, decoded[1]);
-                assert_eq!(0, decoded[2]);
-            },
-            _ => panic!("image did not decode as 24bpp"),
+            DecodingResult::U8(decoded) => decoded,
+            _ => panic!("failed to decode"),
         }
+    }
+
+    #[test]
+    fn round_trip_single_pixel_rgb() {
+        let image = [255u8, 0, 0]; // single red pixel
+        let decoded = round_trip_image(&image, 1, 1, ColorType::RGB(8));
+        assert_eq!(3, decoded.len());
+        assert_eq!(255, decoded[0]);
+        assert_eq!(0, decoded[1]);
+        assert_eq!(0, decoded[2]);
+    }
+
+    #[test]
+    fn round_trip_single_pixel_rgba() {
+        let image = [255u8, 0, 0, 0]; // single red pixel
+        let decoded = round_trip_image(&image, 1, 1, ColorType::RGBA(8));
+        assert_eq!(3, decoded.len());
+        assert_eq!(255, decoded[0]);
+        assert_eq!(0, decoded[1]);
+        assert_eq!(0, decoded[2]);
     }
 }

@@ -184,7 +184,7 @@ impl<'a> Iterator for NorunCombineIterator<'a> {
 // Appends RLE compressed ```data``` to ```rle```
 fn rle_compress(data: &[u8], rle: &mut Vec<u8>) {
     rle.clear();
-    if data.len() == 0 {
+    if data.is_empty() {
         rle.push(0); // Technically correct. It means read next 0 bytes.
         return;
     }

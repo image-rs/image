@@ -200,38 +200,28 @@ impl<R: Read + Seek> TIFFDecoder<R> {
                 "The image is using an unknown photometric interpretation.".to_string()
             ))
         };
-        match try!(self.find_tag_u32(ifd::Tag::Compression)) {
-            Some(val) => match FromPrimitive::from_u32(val) {
+        if let Some(val) = try!(self.find_tag_u32(ifd::Tag::Compression)) {
+            match FromPrimitive::from_u32(val) {
                 Some(method) =>  {
                     self.compression_method = method
                 },
                 None => return Err(image::ImageError::UnsupportedError(
                     "Unknown compression method.".to_string()
                 ))
-            },
-            None => {}
+            }
         }
-        match try!(self.find_tag_u32(ifd::Tag::SamplesPerPixel)) {
-            Some(val) => {
-                self.samples = val as u8
-            },
-            None => {}
+        if let Some(val) = try!(self.find_tag_u32(ifd::Tag::SamplesPerPixel)) {
+            self.samples = val as u8
         }
         match self.samples {
             1 => {
-                match try!(self.find_tag_u32(ifd::Tag::BitsPerSample)) {
-                    Some(val) => {
-                        self.bits_per_sample = vec![val as u8]
-                    },
-                    None => {}
+                if let Some(val) = try!(self.find_tag_u32(ifd::Tag::BitsPerSample)) {
+                    self.bits_per_sample = vec![val as u8]
                 }
             }
             3 | 4 => {
-                match try!(self.find_tag_u32_vec(ifd::Tag::BitsPerSample)) {
-                    Some(val) => {
-                        self.bits_per_sample = val.iter().map(|&v| v as u8).collect()
-                    },
-                    None => {}
+                if let Some(val) = try!(self.find_tag_u32_vec(ifd::Tag::BitsPerSample)) {
+                    self.bits_per_sample = val.iter().map(|&v| v as u8).collect()
                 }
 
             }
@@ -423,7 +413,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
                 bytes/2
             }
             (ColorType::Gray(n), DecodingBuffer::U8(ref mut buffer)) if n <= 8 => {
-                try!(reader.read(&mut buffer[..bytes]));
+                try!(reader.read_exact(&mut buffer[..bytes]));
                 if self.photometric_interpretation == PhotometricInterpretation::WhiteIsZero {
                     for byte in buffer[..bytes].iter_mut() {
                         *byte = 0xff - *byte
@@ -454,7 +444,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
             PhotometricInterpretation::BlackIsZero | PhotometricInterpretation::WhiteIsZero
                                            if self.bits_per_sample.len() == 1 => Ok(ColorType::Gray(self.bits_per_sample[0])),
 
-            _ => return Err(::image::ImageError::UnsupportedError(format!(
+            _ => Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported", self.bits_per_sample, self.photometric_interpretation
             ))) // TODO: this is bad we should not fail at this point}
         }
@@ -474,7 +464,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
             * self.height as usize
             * self.bits_per_sample.iter().count();
         let mut result = match (self.bits_per_sample.iter()
-                                               .map(|&x| x)
+                                               .cloned()
                                                .max()
                                                .unwrap_or(8) as f32/8.0).ceil() as u8 {
             n if n <= 8 => DecodingResult::U8(Vec::with_capacity(buffer_size)),

@@ -38,18 +38,18 @@ pub enum ImageError {
 
 impl fmt::Display for ImageError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            &ImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
-            &ImageError::DimensionError => write!(fmt, "The Image's dimensions are either too \
+        match *self {
+            ImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
+            ImageError::DimensionError => write!(fmt, "The Image's dimensions are either too \
                                                         small or too large"),
-            &ImageError::UnsupportedError(ref f) => write!(fmt, "The Decoder does not support the \
+            ImageError::UnsupportedError(ref f) => write!(fmt, "The Decoder does not support the \
                                                                  image format `{}`", f),
-            &ImageError::UnsupportedColor(ref c) => write!(fmt, "The decoder does not support \
+            ImageError::UnsupportedColor(ref c) => write!(fmt, "The decoder does not support \
                                                                  the color type `{:?}`", c),
-            &ImageError::NotEnoughData => write!(fmt, "Not enough data was provided to the \
+            ImageError::NotEnoughData => write!(fmt, "Not enough data was provided to the \
                                                        Decoder to decode the image"),
-            &ImageError::IoError(ref e) => e.fmt(fmt),
-            &ImageError::ImageEnd => write!(fmt, "The end of the image has been reached")
+            ImageError::IoError(ref e) => e.fmt(fmt),
+            ImageError::ImageEnd => write!(fmt, "The end of the image has been reached")
         }
     }
 }
@@ -57,13 +57,13 @@ impl fmt::Display for ImageError {
 impl Error for ImageError {
     fn description (&self) -> &str {
         match *self {
-            ImageError::FormatError(..) => &"Format error",
-            ImageError::DimensionError => &"Dimension error",
-            ImageError::UnsupportedError(..) => &"Unsupported error",
-            ImageError::UnsupportedColor(..) => &"Unsupported color",
-            ImageError::NotEnoughData => &"Not enough data",
-            ImageError::IoError(..) => &"IO error",
-            ImageError::ImageEnd => &"Image end"
+            ImageError::FormatError(..) => "Format error",
+            ImageError::DimensionError => "Dimension error",
+            ImageError::UnsupportedError(..) => "Unsupported error",
+            ImageError::UnsupportedColor(..) => "Unsupported color",
+            ImageError::NotEnoughData => "Not enough data",
+            ImageError::IoError(..) => "IO error",
+            ImageError::ImageEnd => "Image end"
         }
     }
 
@@ -158,7 +158,7 @@ pub trait ImageDecoder: Sized {
     fn is_animated(&mut self) -> ImageResult<bool> {
         // since most image formats do not support animation
         // just return false by default
-        return Ok(false)
+        Ok(false)
     }
 
     /// Returns the frames of the image
@@ -428,8 +428,8 @@ pub trait GenericImage: Sized {
     }
 
     /// Returns a subimage that is a view into this image.
-    fn sub_image<'a>(&'a mut self, x: u32, y: u32, width: u32, height: u32)
-    -> SubImage<'a, Self>
+    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
+    -> SubImage<Self>
     where Self: 'static, <Self::Pixel as Pixel>::Subpixel: 'static,
     Self::Pixel: 'static {
         SubImage::new(self, x, y, width, height)

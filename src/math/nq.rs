@@ -114,7 +114,7 @@ impl NeuQuant {
     /// Maps the pixel in-place to the best-matching color in the color map
     #[inline(always)]
     pub fn map_pixel(&self, pixel: &mut [u8]) {
-        assert!(pixel.len() == 4);
+        assert_eq!(pixel.len(), 4);
         match (pixel[0], pixel[1], pixel[2], pixel[3]) {
             (r, g, b, a) => {
                 let i = self.inxsearch(b, g, r, a);
@@ -129,7 +129,7 @@ impl NeuQuant {
     /// Finds the best-matching index in the color map for `pixel`
     #[inline(always)]
     pub fn index_of(&self, pixel: &[u8]) -> usize {
-        assert!(pixel.len() == 4);
+        assert_eq!(pixel.len(), 4);
         match (pixel[0], pixel[1], pixel[2], pixel[3]) {
             (r, g, b, a) => {
                 self.inxsearch(b, g, r, a)
@@ -208,7 +208,7 @@ impl NeuQuant {
         }
         self.freq[bestpos as usize] += BETA;
         self.bias[bestpos as usize] -= BETAGAMMA;
-        return bestbiaspos;
+        bestbiaspos
     }
 
     /// Main learning loop
@@ -295,9 +295,7 @@ impl NeuQuant {
             q = self.colormap[smallpos];
             // swap p (i) and q (smallpos) entries
             if i != smallpos {
-                let j = q;
-                q = p;
-                p = j;
+                ::std::mem::swap(&mut p, &mut q);
                 self.colormap[i] = p;
                 self.colormap[smallpos] = q;
             }

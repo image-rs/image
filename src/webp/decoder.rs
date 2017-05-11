@@ -43,11 +43,11 @@ impl<R: Read> WebpDecoder<R> {
         let mut webp = Vec::with_capacity(4);
         try!(self.r.by_ref().take(4).read_to_end(&mut webp));
 
-        if &*riff != "RIFF".as_bytes() {
+        if &*riff != b"RIFF" {
             return Err(image::ImageError::FormatError("Invalid RIFF signature.".to_string()))
         }
 
-        if &*webp != "WEBP".as_bytes() {
+        if &*webp != b"WEBP" {
             return Err(image::ImageError::FormatError("Invalid WEBP signature.".to_string()))
         }
 
@@ -58,7 +58,7 @@ impl<R: Read> WebpDecoder<R> {
         let mut vp8 = Vec::with_capacity(4);
         try!(self.r.by_ref().take(4).read_to_end(&mut vp8));
 
-        if &*vp8 != "VP8 ".as_bytes() {
+        if &*vp8 != b"VP8 " {
             return Err(image::ImageError::FormatError("Invalid VP8 signature.".to_string()))
         }
 
@@ -82,9 +82,9 @@ impl<R: Read> WebpDecoder<R> {
 
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.have_frame {
-            let _ = try!(self.read_riff_header());
-            let _ = try!(self.read_vp8_header());
-            let _ = try!(self.read_frame());
+            try!(self.read_riff_header());
+            try!(self.read_vp8_header());
+            try!(self.read_frame());
 
             self.have_frame = true;
         }
@@ -95,7 +95,7 @@ impl<R: Read> WebpDecoder<R> {
 
 impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        let _ = try!(self.read_metadata());
+        try!(self.read_metadata());
 
         Ok((self.frame.width as u32, self.frame.height as u32))
     }
@@ -105,13 +105,13 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
-        let _ = try!(self.read_metadata());
+        try!(self.read_metadata());
 
         Ok(self.frame.width as usize)
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        let _ = try!(self.read_metadata());
+        try!(self.read_metadata());
 
         if self.decoded_rows > self.frame.height as u32 {
             return Err(image::ImageError::ImageEnd)
@@ -130,7 +130,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
-        let _ = try!(self.read_metadata());
+        try!(self.read_metadata());
 
         Ok(image::DecodingResult::U8(self.frame.ybuf.clone()))
     }

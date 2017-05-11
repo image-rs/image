@@ -94,7 +94,7 @@ impl<'a> Iterator for RowIterator<'a> {
 }
 
 fn set_8bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
-                                                    palette: &Vec<(u8, u8, u8)>,
+                                                    palette: &[(u8, u8, u8)],
                                                     indices: T, n_pixels: usize) -> bool {
     for idx in indices.take(n_pixels) {
         if let Some(pixel) = pixel_iter.next() {
@@ -110,7 +110,7 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u
 }
 
 fn set_4bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
-                                                    palette: &Vec<(u8, u8, u8)>,
+                                                    palette: &[(u8, u8, u8)],
                                                     indices: T, mut n_pixels: usize) -> bool {
     for idx in indices {
         macro_rules! set_pixel {
@@ -136,7 +136,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u
 }
 
 fn set_1bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u8>,
-                                                    palette: &Vec<(u8, u8, u8)>,
+                                                    palette: &[(u8, u8, u8)],
                                                     indices: T) {
     for idx in indices {
         let mut bit = 0x80;
@@ -150,7 +150,7 @@ fn set_1bit_pixel_run<'a, T: Iterator<Item=&'a u8>>(pixel_iter: &mut ChunksMut<u
                 return
             }
 
-            bit = bit >> 1;
+            bit >>= 1;
             if bit == 0 {
                 break;
             }
@@ -527,7 +527,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         // The height field in an ICO file is doubled to account for the AND mask
         // (whether or not an AND mask is actually present).
-        self.height = self.height / 2;
+        self.height /= 2;
         Ok(())
     }
 
@@ -612,9 +612,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
             try!(self.r.by_ref().read_exact(&mut indices));
             let mut pixel_iter = row.chunks_mut(num_channels);
             match self.bit_count {
-                1 => { set_1bit_pixel_run(&mut pixel_iter, &palette, indices.iter()); },
-                4 => { set_4bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
-                8 => { set_8bit_pixel_run(&mut pixel_iter, &palette, indices.iter(), self.width as usize); },
+                1 => { set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter()); },
+                4 => { set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), self.width as usize); },
+                8 => { set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), self.width as usize); },
                 _ => panic!(),
             }
         }
@@ -741,7 +741,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                             },
                             RLEInsn::Delta(x_delta, y_delta) => {
                                 for _ in 0..x_delta {
-                                    if let None = pixel_iter.next() {
+                                    if pixel_iter.next().is_none() {
                                         // We can't go any further in this row.
                                         break;
                                     }
@@ -749,7 +749,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
                                 if y_delta > 0 {
                                     for _ in 1..y_delta {
-                                        if let None = row_iter.next() {
+                                        if row_iter.next().is_none() {
                                             // We've reached the end of the image.
                                             break 'row_loop;
                                         }
@@ -763,7 +763,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                 match image_type {
                                     ImageType::RLE8 => {
                                         if !set_8bit_pixel_run(&mut pixel_iter,
-                                                               &p,
+                                                               p,
                                                                indices.iter(),
                                                                length as usize) {
                                             break 'row_loop;
@@ -771,7 +771,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                     },
                                     ImageType::RLE4 => {
                                         if !set_4bit_pixel_run(&mut pixel_iter,
-                                                               &p,
+                                                               p,
                                                                indices.iter(),
                                                                length as usize) {
                                             break 'row_loop;
@@ -787,7 +787,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                 match image_type {
                                     ImageType::RLE8 => {
                                         if !set_8bit_pixel_run(&mut pixel_iter,
-                                                               &p,
+                                                               p,
                                                                repeat(&palette_index),
                                                                n_pixels as usize) {
                                             break 'rle_loop;
@@ -795,7 +795,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                                     },
                                     ImageType::RLE4 => {
                                         if !set_4bit_pixel_run(&mut pixel_iter,
-                                                               &p,
+                                                               p,
                                                                repeat(&palette_index),
                                                                n_pixels as usize) {
                                             break 'rle_loop;
@@ -817,7 +817,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        return match self.image_type {
+        match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
             ImageType::RGB24 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
@@ -870,7 +870,7 @@ impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         try!(self.read_metadata());
-        self.read_image_data().map(|v| DecodingResult::U8(v) )
+        self.read_image_data().map(DecodingResult::U8)
     }
 }
 

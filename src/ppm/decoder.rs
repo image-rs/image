@@ -36,7 +36,7 @@ impl<R: Read> PPMDecoder<R> {
       for byte in reader.bytes() {
           match byte {
               Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
-                  if bytes.len() > 0 {
+                  if !bytes.is_empty() {
                     break // We're done as we already have some content
                   }
               },

@@ -268,7 +268,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
         if let Some(b) = data {
             try!(self.w.write_u16::<BigEndian>(b.len() as u16 + 2));
-            try!(self.w.write_all(&b));
+            try!(self.w.write_all(b));
         }
         Ok(())
     }
@@ -290,7 +290,7 @@ pub struct JPEGEncoder<'a, W: 'a> {
 impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> JPEGEncoder<W> {
-        return JPEGEncoder::new_with_quality(w, 75);
+        JPEGEncoder::new_with_quality(w, 75)
     }
 
     /// Create a new encoder that writes its output to ```w```, and has
@@ -321,9 +321,9 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         let scale_value = |&v: &u8| {
             let value = (v as u32 * scale + 50) / 100;
 
-            return clamp(value,
+            clamp(value,
                          1,
-                         u8::max_value() as u32) as u8;
+                         u8::max_value() as u32) as u8
         };
         tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
         tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
@@ -366,7 +366,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_frame_header(&mut buf, 8, width as u16, height as u16, &self.components[..num_components]);
         try!(self.writer.write_segment(SOF0, Some(&buf)));
 
-        assert!(self.tables.len() / 64 == 2);
+        assert_eq!(self.tables.len() / 64, 2);
         let numtables = if num_components == 1 {1}
                         else {2};
 
@@ -548,16 +548,16 @@ fn build_huffman_segment(m: &mut Vec<u8>,
     let tcth = (class << 4) | destination;
     let _    = m.write_all(&[tcth]);
 
-    assert!(numcodes.len() == 16);
+    assert_eq!(numcodes.len(), 16);
 
     let mut sum = 0usize;
 
-    for & i in numcodes.iter() {
+    for &i in numcodes.iter() {
         let _ = m.write_all(&[i]);
         sum += i as usize;
     }
 
-    assert!(sum == values.len());
+    assert_eq!(sum, values.len());
 
     for & i in values.iter() {
         let _ = m.write_all(&[i]);
@@ -569,7 +569,7 @@ fn build_quantization_segment(m: &mut Vec<u8>,
                               identifier: u8,
                               qtable: &[u8]) {
 
-    assert!(qtable.len() % 64 == 0);
+    assert_eq!(qtable.len() % 64, 0);
     m.clear();
 
     let p = if precision == 8 {0}

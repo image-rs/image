@@ -63,7 +63,8 @@ pub use image::ImageFormat::{
     WEBP,
     PPM,
     BMP,
-    ICO
+    ICO,
+    DDS
 };
 
 pub use buffer::{
@@ -130,6 +131,8 @@ pub mod tga;
 pub mod bmp;
 #[cfg(feature = "hdr")]
 pub mod hdr;
+#[cfg(feature = "dds")]
+pub mod dds;
 
 mod image;
 mod utils;

@@ -49,7 +49,7 @@ num-complex = "0.1.32"
 glob = "0.2.10"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp", "hdr"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "ppm", "tga", "tiff", "webp", "bmp", "hdr", "dds"]
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]
@@ -61,5 +61,6 @@ tiff = []
 webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
+dds = []
 
 benchmarks = []

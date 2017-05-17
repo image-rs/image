@@ -40,7 +40,7 @@ https://docs.rs/image
 | PNG    | All supported color types | Same as decoding|
 | JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
-| BMP    | Yes | No |
+| BMP    | Yes | RGB(8) |
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax and packbits support) + LZW | No |
 | Webp   | Lossy(Luma channel only) | No |

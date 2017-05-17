@@ -407,6 +407,13 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "bmp")]
+            image::ImageFormat::BMP => {
+                let mut b = bmp::BMPEncoder::new(w);
+                try!(b.encode(&bytes, width, height, color));
+                Ok(())
+            }
+
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),
@@ -599,6 +606,8 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "bmp")]
+        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],

@@ -60,7 +60,8 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         match c {
             color::ColorType::RGB(8) |
             color::ColorType::RGBA(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, raw_pixel_size)),
-            color::ColorType::Gray(8) => try!(self.encode_gray(&image, width, height, row_pad_size)),
+            color::ColorType::Gray(8) |
+            color::ColorType::GrayA(8) => try!(self.encode_gray(&image, width, height, row_pad_size, raw_pixel_size)),
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
         }
 
@@ -72,9 +73,9 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let y_stride = width * x_stride;
         for row in 0..height {
             // from the bottom up
-            let row_start = ((height - row - 1) * y_stride) as usize;
+            let row_start = (height - row - 1) * y_stride;
             for col in 0..width {
-                let pixel_start = row_start + (col * x_stride) as usize;
+                let pixel_start = (row_start + (col * x_stride)) as usize;
                 let r = image[pixel_start];
                 let g = image[pixel_start + 1];
                 let b = image[pixel_start + 2];
@@ -91,7 +92,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         Ok(())
     }
 
-    fn encode_gray(&mut self, image: &[u8], width: u32, height: u32, row_pad_size: u32) -> io::Result<()> {
+    fn encode_gray(&mut self, image: &[u8], width: u32, height: u32, row_pad_size: u32, bytes_per_pixel: u32) -> io::Result<()> {
         // write grayscale palette
         for val in 0..256 {
             // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
@@ -103,13 +104,16 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         }
 
         // write image data
+        let x_stride = bytes_per_pixel;
+        let y_stride = width * x_stride;
         for row in 0..height {
             // from the bottom up
-            let row_start = (height - row - 1) * width;
+            let row_start = (height - row - 1) * y_stride;
             for col in 0..width {
-                let pixel_start = (row_start + col) as usize;
+                let pixel_start = (row_start + (col * x_stride)) as usize;
                 // color value is equal to the palette index
                 try!(self.writer.write_u8(image[pixel_start]));
+                // alpha is never written as it's not widely supported
             }
 
             try!(self.write_row_pad(row_pad_size));
@@ -128,7 +132,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 }
 
 fn get_unsupported_error_message(c: &color::ColorType) -> String {
-    format!("Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8).", c)
+    format!("Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).", c)
 }
 
 /// Returns a tuple representing: (raw pixel size, written pixel size, palette color count).
@@ -137,6 +141,7 @@ fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32, u32)> {
         &color::ColorType::RGB(8) => (3, 3, 0),
         &color::ColorType::RGBA(8) => (4, 3, 0),
         &color::ColorType::Gray(8) => (1, 1, 256),
+        &color::ColorType::GrayA(8) => (2, 1, 256),
         _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
     };
 
@@ -195,6 +200,23 @@ mod tests {
     fn round_trip_gray() {
         let image = [0u8, 1, 2]; // 3 pixels
         let decoded = round_trip_image(&image, 3, 1, ColorType::Gray(8));
+        // should be read back as 3 RGB pixels
+        assert_eq!(9, decoded.len());
+        assert_eq!(0, decoded[0]);
+        assert_eq!(0, decoded[1]);
+        assert_eq!(0, decoded[2]);
+        assert_eq!(1, decoded[3]);
+        assert_eq!(1, decoded[4]);
+        assert_eq!(1, decoded[5]);
+        assert_eq!(2, decoded[6]);
+        assert_eq!(2, decoded[7]);
+        assert_eq!(2, decoded[8]);
+    }
+
+    #[test]
+    fn round_trip_graya() {
+        let image = [0u8, 0, 1, 0, 2, 0]; // 3 pixels, each with an alpha channel
+        let decoded = round_trip_image(&image, 1, 3, ColorType::GrayA(8));
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);

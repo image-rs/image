@@ -28,10 +28,10 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let bmp_header_size = 14;
         let dib_header_size = 40;
 
-        let row_pad_size = width % 4; // each row must be padded to a multiple of 4 bytes
+        let (raw_pixel_size, written_pixel_size) = try!(get_pixel_info(&c));
+        let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
 
-        // always encoded as 24bpp RGB
-        let image_size = width * height * 3 + (height * row_pad_size);
+        let image_size = width * height * written_pixel_size + (height * row_pad_size);
         let file_size = bmp_header_size + dib_header_size + image_size;
 
         // write BMP header
@@ -57,12 +57,9 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::RGB(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, 3)),
-            color::ColorType::RGBA(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, 4)),
-            _  => return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &format!("Unsupported color type {:?}. Use 8 bit per channel RGB(A) instead.", c)[..],
-            ))
+            color::ColorType::RGB(8) |
+            color::ColorType::RGBA(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, raw_pixel_size)),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
         }
 
         Ok(())
@@ -93,6 +90,21 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         Ok(())
     }
+}
+
+fn get_unsupported_error_message(c: &color::ColorType) -> String {
+    format!("Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8).", c)
+}
+
+/// Returns a tuple representing the size in bytes of: (raw pixel data, written pixel data).
+fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32)> {
+    let sizes = match c {
+        &color::ColorType::RGB(8) => (3, 3),
+        &color::ColorType::RGBA(8) => (4, 3),
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
+    };
+
+    Ok(sizes)
 }
 
 #[cfg(test)]
@@ -135,5 +147,11 @@ mod tests {
         assert_eq!(255, decoded[0]);
         assert_eq!(0, decoded[1]);
         assert_eq!(0, decoded[2]);
+    }
+
+    #[test]
+    fn round_trip_3px_rgb() {
+        let image = [0u8; 3 * 3 * 3]; // 3x3 pixels, 3 bytes per pixel
+        let _decoded = round_trip_image(&image, 3, 3, ColorType::RGB(8));
     }
 }

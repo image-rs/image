@@ -308,7 +308,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32])
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
-        0.0 => 1.0,
+        sum if sum == 0.0 => 1.0,
         sum => sum
     };
     let sum = (sum, sum, sum, sum);

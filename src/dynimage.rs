@@ -26,6 +26,8 @@ use bmp;
 use ico;
 #[cfg(feature = "hdr")]
 use hdr;
+#[cfg(feature = "dds")]
+use dds;
 
 use color;
 use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
@@ -568,6 +570,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
         "ppm" => image::ImageFormat::PPM,
+        "dds" => image::ImageFormat::DDS,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -638,11 +641,13 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "ppm")]
         image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
+        #[cfg(feature = "dds")]
+        image::ImageFormat::DDS => decoder_to_image(dds::DDSDecoder::new(BufReader::new(r))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 11] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 12] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
     (b"GIF89a", ImageFormat::GIF),
@@ -654,6 +659,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 11] = [
     (&[0, 0, 1, 0], ImageFormat::ICO),
     (b"#?RADIANCE", ImageFormat::HDR),
     (b"P6", ImageFormat::PPM),
+    (b"DDS ", ImageFormat::DDS),
 ];
 
 /// Create a new image from a byte slice

@@ -135,6 +135,9 @@ pub enum ImageFormat {
 
     /// An Image in Radiance HDR Format
     HDR,
+
+    /// An Image in DDS Format
+    DDS,
 }
 
 /// The trait that all decoders implement

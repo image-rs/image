@@ -13,7 +13,7 @@ exclude = [
 inflate = "0.2.0"
 deflate = { version = "0.7.2", optional = true }
 num-iter = "0.1.32"
-bitflags = "0.7"
+bitflags = "0.9"
 
 [dev-dependencies]
 getopts = "0.2.14"

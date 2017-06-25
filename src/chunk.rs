@@ -54,6 +54,6 @@ pub fn reserved_set(type_: ChunkType) -> bool {
 }
 
 /// Returns true if the chunk is safe to copy if unknown.
-pub fn save_to_copy(type_: ChunkType) -> bool {
+pub fn safe_to_copy(type_: ChunkType) -> bool {
     type_[3] & 32 != 0
 }

@@ -203,14 +203,13 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             };
             let right = clamp(right, 0, width as i64 - 1) as u32;
 
-            let mut sum = (0., 0., 0., 0.);
+            let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
                 let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
-                let w = (w, w, w, w);
-                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
+                sum += w;
 
                 let x0  = clamp(i, 0, width - 1);
                 let p = image.get_pixel(x0, y);
@@ -223,11 +222,11 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
                     NumCast::from(k4).unwrap()
                 );
 
-                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
-                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
+                t.0 += vec.0 * w; t.1 += vec.1 * w;
+                t.2 += vec.2 * w; t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -294,14 +293,13 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
             };
             let right = clamp(right, 0, height as i64 - 1) as u32;
 
-            let mut sum = (0., 0., 0., 0.);
+            let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
                 let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
-                let w = (w, w, w, w);
-                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
+                sum += w;
 
                 let y0  = clamp(i, 0, height - 1);
                 let p = image.get_pixel(x, y0);
@@ -314,11 +312,11 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
                     NumCast::from(k4).unwrap()
                 );
 
-                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
-                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
+                t.0 += vec.0 * w; t.1 += vec.1 * w;
+                t.2 += vec.2 * w; t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),

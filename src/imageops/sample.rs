@@ -109,7 +109,7 @@ pub fn catmullrom_kernel(x: f32) -> f32 {
 /// Also known as BiLinear sampling in two dimensions.
 pub fn triangle_kernel(x: f32) -> f32 {
     if x.abs() < 1.0 {
-        1.0 - x
+        1.0 - x.abs()
     } else {
         0.0
     }

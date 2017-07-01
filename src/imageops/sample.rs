@@ -147,15 +147,6 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
         let ratio = width as f32 / new_width as f32;
 
-        // Scale the filter when downsampling.
-        let filter_scale = if ratio > 1.0 {
-            ratio
-        } else {
-            1.0
-        };
-
-        let filter_radius = filter.support * filter_scale;
-
         for outx in 0..new_width {
 
             // Find the point in the input image corresponding to the centre
@@ -168,7 +159,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             // right limits below, we're interested in the range of input
             // pixels whose colour can influence the colour of the current
             // output pixel. This is equivalent to the range of input
-            // pixels for which inputx lies within the filter_radius-sized
+            // pixels for which inputx lies within the filter.support-sized
             // region centered at the centre of that pixel. Subtracting
             // 0.5 here simplifies the rounding operations below.
             //
@@ -177,7 +168,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             // Find the index of the left-most input pixel which can influence
             // the colour of the current output pixel. A point on the right
             // side of a pixel is considered to be part of that pixel.
-            let left  = (inputx - filter_radius).ceil() as i64;
+            let left  = (inputx - filter.support).ceil() as i64;
             let left  = clamp(left, 0, width as i64 - 1) as u32;
 
             // Find the index of the right-most input pixel which can influence
@@ -194,7 +185,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             //
             // The choice of right vs left is arbitrary.
             let right = {
-                let real_right = inputx + filter_radius;
+                let real_right = inputx + filter.support;
                 if real_right.fract() == 0.0 {
                     (real_right - 1.0) as i64
                 } else {
@@ -208,7 +199,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
-                let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
+                let w = (filter.kernel)(i as f32 - inputx);
                 sum += w;
 
                 let x0  = clamp(i, 0, width - 1);
@@ -263,15 +254,6 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
         let ratio = height as f32 / new_height as f32;
 
-        // Scale the filter when downsampling.
-        let filter_scale = if ratio > 1.0 {
-            ratio
-        } else {
-            1.0
-        };
-
-        let filter_radius = filter.support * filter_scale;
-
         for outy in 0..new_height {
 
             // For an explanation of this algorithm, see the comments
@@ -279,12 +261,12 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
             let inputy = (outy as f32 + 0.5) * ratio - 0.5;
 
-            let left  = (inputy - filter_radius).ceil() as i64;
+            let left  = (inputy - filter.support).ceil() as i64;
             let left  = clamp(left, 0, height as i64 - 1) as u32;
 
             let right = {
                 // A point above a pixel is NOT part of that pixel.
-                let real_right = inputy + filter_radius;
+                let real_right = inputy + filter.support;
                 if real_right.fract() == 0.0 {
                     (real_right - 1.0) as i64
                 } else {
@@ -298,7 +280,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
-                let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
+                let w = (filter.kernel)(i as f32 - inputy);
                 sum += w;
 
                 let y0  = clamp(i, 0, height - 1);

@@ -236,10 +236,8 @@ impl<R: Read + Seek> TGADecoder<R> {
         let color = self.image_type.is_color();
 
         match (num_alpha_bits, other_channel_bits, color) {
-            // really, the encoding is BGR and BGRA, this is fixed
-            // up with `TGADecoder::reverse_encoding`.
-            (8, 24, true) => self.color_type = ColorType::RGBA(8),
-            (0, 24, true) => self.color_type = ColorType::RGB(8),
+            (8, 24, true) => self.color_type = ColorType::BGRA(8),
+            (0, 24, true) => self.color_type = ColorType::BGR(8),
             (8, 8, false) => self.color_type = ColorType::GrayA(8),
             (0, 8, false) => self.color_type = ColorType::Gray(8),
             _ => return Err(ImageError::UnsupportedError(format!("\
@@ -313,7 +311,6 @@ impl<R: Read + Seek> TGADecoder<R> {
             pixel_data = self.expand_color_map(pixel_data)
         }
 
-        self.reverse_encoding(&mut pixel_data);
         Ok(pixel_data)
     }
 
@@ -344,31 +341,6 @@ impl<R: Read + Seek> TGADecoder<R> {
         }
 
         Ok(pixel_data)
-    }
-
-    /// Reverse from BGR encoding to RGB encoding
-    ///
-    /// TGA files are stored in the BGRA encoding. This function swaps
-    /// the blue and red bytes in the `pixels` array.
-    fn reverse_encoding(&mut self, pixels: &mut [u8]) {
-        // We only need to reverse the encoding of color images
-        match self.color_type {
-            ColorType::RGB(8) => {
-                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
-                    let r = chunk[0];
-                    chunk[0] = chunk[2];
-                    chunk[2] = r;
-                }
-            }
-            ColorType::RGBA(8) => {
-                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
-                    let r = chunk[0];
-                    chunk[0] = chunk[2];
-                    chunk[2] = r;
-                }
-            }
-            _ => { }
-        }
     }
 }
 

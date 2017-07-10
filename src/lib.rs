@@ -24,14 +24,18 @@ pub use color::ColorType::{
     RGB,
     Palette,
     GrayA,
-    RGBA
+    RGBA,
+    BGR,
+    BGRA
 };
 
 pub use color::{
     Luma,
     LumaA,
     Rgb,
-    Rgba
+    Rgba,
+    Bgr,
+    Bgra
 };
 
 pub use image::{
@@ -73,6 +77,8 @@ pub use buffer::{
     ImageBuffer,
     RgbImage,
     RgbaImage,
+    BgrImage,
+    BgraImage,
     GrayImage,
     GrayAlphaImage
 };
@@ -94,6 +100,8 @@ pub use dynimage::DynamicImage::{
     self,
     ImageRgb8,
     ImageRgba8,
+    ImageBgr8,
+    ImageBgra8,
     ImageLuma8,
     ImageLumaA8
 };

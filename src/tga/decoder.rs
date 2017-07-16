@@ -314,6 +314,9 @@ impl<R: Read + Seek> TGADecoder<R> {
         }
 
         self.reverse_encoding(&mut pixel_data);
+
+        self.flip_vertically(&mut pixel_data);
+        
         Ok(pixel_data)
     }
 

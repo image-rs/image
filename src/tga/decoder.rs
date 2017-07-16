@@ -370,6 +370,41 @@ impl<R: Read + Seek> TGADecoder<R> {
             _ => { }
         }
     }
+
+    /// Flip the image vertically depending on the screen origin bit
+    ///
+    /// The bit in position 5 of the image descriptor byte is the screen origin bit.
+    /// If it's 1, the origin is in the top left corner.
+    /// If it's 0, the origin is in the bottom left corner.
+    /// This function checks the bit, and if it's 0, flips the image vertically.
+    fn flip_vertically(&mut self, pixels: &mut [u8]) {
+        let screen_origin_bit = 0b100000 & self.header.image_desc != 0;
+
+
+        if !screen_origin_bit {
+            let num_bytes = pixels.len();
+
+            // Make a copy of the current pixels that we can take values from when flipping.
+            let mut pixels_copy = Vec::with_capacity(num_bytes);
+            for i in 0..pixels.len() {
+                pixels_copy.push(pixels[i]);
+            }
+
+            let width_bytes = num_bytes / self.height;
+
+            // Flip the image vertically.
+            for vertical_index in 0..self.height {
+                let vertical_target = (self.height - vertical_index) * width_bytes - width_bytes;
+
+                for horizontal_index in 0..width_bytes {
+                    let source = vertical_index * width_bytes + horizontal_index;
+                    let target = vertical_target + horizontal_index;
+
+                    pixels[target] = pixels_copy[source];
+                }
+            }
+        }
+    }
 }
 
 impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {

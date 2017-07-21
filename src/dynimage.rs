@@ -638,7 +638,6 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "ppm")]
         image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
-        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 

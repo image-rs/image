@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 use num_traits::{Num, NumCast};
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<'a, I: GenericImage>(image: &I)
+pub fn grayscale<I: GenericImage>(image: &I)
     -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
     where <I::Pixel as Pixel>::Subpixel: 'static,
           <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static {

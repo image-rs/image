@@ -24,8 +24,8 @@ fn main() {
     // The color method returns the image's ColorType
     println!("{:?}", im.color());
 
-    let ref mut fout = File::create(&Path::new(&format!("{}.png", file))).unwrap();
+    let fout = &mut File::create(&Path::new(&format!("{}.png", file))).unwrap();
 
     // Write the contents of this image to the Writer in PNG format.
-    let _ = im.save(fout, image::PNG).unwrap();
+    im.save(fout, image::PNG).unwrap();
 }

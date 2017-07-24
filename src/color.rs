@@ -29,9 +29,8 @@ pub enum ColorType {
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
         ColorType::Gray(n)    => n as usize,
-        ColorType::RGB(n)     => 3 * n as usize,
-        ColorType::Palette(n) => 3 * n as usize,
         ColorType::GrayA(n)   => 2 * n as usize,
+        ColorType::RGB(n) | ColorType::Palette(n) => 3 * n as usize,
         ColorType::RGBA(n)    => 4 * n as usize,
     }
 }
@@ -40,9 +39,8 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::Gray(_)    => 1,
-        ColorType::RGB(_)     => 3,
-        ColorType::Palette(_) => 3,
         ColorType::GrayA(_)   => 2,
+        ColorType::RGB(_) | ColorType::Palette(_) => 3,
         ColorType::RGBA(_)    => 4,
     }
 }
@@ -104,13 +102,13 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..$channels])
     }
 
-    fn from_slice<'a>(slice: &'a [T]) -> &'a $ident<T> {
+    fn from_slice(slice: &[T]) -> &$ident<T> {
         assert_eq!(slice.len(), $channels);
-        unsafe { mem::transmute(slice.as_ptr()) }
+        unsafe { &*(slice.as_ptr() as *const $ident<T>) }
     }
-    fn from_slice_mut<'a>(slice: &'a mut [T]) -> &'a mut $ident<T> {
+    fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
         assert_eq!(slice.len(), $channels);
-        unsafe { mem::transmute(slice.as_ptr()) }
+        unsafe { &mut *(slice.as_ptr() as *mut $ident<T>) }
     }
 
     fn to_rgb(&self) -> Rgb<T> {
@@ -144,7 +142,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     }
 
     fn apply<F>(&mut self, f: F) where F: Fn(T) -> T {
-        for v in self.data.iter_mut() {
+        for v in &mut self.data {
             *v = f(*v)
         }
     }
@@ -191,14 +189,14 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 impl<T: Primitive> Index<usize> for $ident<T> {
     type Output = T;
     #[inline(always)]
-    fn index<'a>(&'a self, _index: usize) -> &'a T {
+    fn index(&self, _index: usize) -> &T {
         &self.data[_index]
     }
 }
 
 impl<T: Primitive> IndexMut<usize> for $ident<T> {
     #[inline(always)]
-    fn index_mut<'a>(&'a mut self, _index: usize) -> &'a mut T {
+    fn index_mut(&mut self, _index: usize) -> &mut T {
         &mut self.data[_index]
     }
 }

@@ -82,6 +82,6 @@ impl<'a> Iterator for Frames {
     fn next(&mut self) -> Option<Frame> {
         let frame = self.current_frame;
         self.current_frame += 1;
-        self.frames.get(frame).map(|v| v.clone())
+        self.frames.get(frame).cloned()
     }
 }

@@ -146,5 +146,5 @@ mod animation;
 fn copy_memory(src: &[u8], mut dst: &mut [u8]) {
     let len_src = src.len();
     assert!(dst.len() >= len_src);
-    dst.write(src).unwrap();
+    dst.write_all(src).unwrap();
 }

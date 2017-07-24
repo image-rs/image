@@ -45,7 +45,7 @@ fn main() {
 
 
     // Save the image as “fractal.png”
-    let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
+    let fout = &mut File::create(&Path::new("fractal.png")).unwrap();
 
     // We must indicate the image’s color type and what format to save as
     let _    = image::ImageLuma8(imgbuf).save(fout, image::PNG);

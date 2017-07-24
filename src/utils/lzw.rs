@@ -142,7 +142,7 @@ where R: BitReader, W: Write {
                         &format!("Invalid code: expected {} <= {}", code, next_code)[..],
                     ))
                 };
-                try!(w.write(data));
+                try!(w.write_all(data));
             }
             if next_code == (1 << code_size as usize) - 1 - $offset
                && code_size < MAX_CODESIZE {

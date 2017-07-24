@@ -107,7 +107,7 @@ impl Value {
         match self {
             List(vec) => {
                 let mut new_vec = Vec::with_capacity(vec.len());
-                for v in vec.into_iter() {
+                for v in vec {
                     new_vec.push(try!(v.as_u32()))
                 }
                 Ok(new_vec)

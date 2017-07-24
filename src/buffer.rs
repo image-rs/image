@@ -50,13 +50,13 @@ pub trait Pixel: Copy + Clone {
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
-    fn from_slice<'a>(slice: &'a [Self::Subpixel]) -> &'a Self;
+    fn from_slice(slice: &[Self::Subpixel]) -> &Self;
 
     /// Returns mutable view into a mutable slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
     /// that the slice is long enough to precent panics if the pixel is used later on.
-    fn from_slice_mut<'a>(slice: &'a mut [Self::Subpixel]) -> &'a mut Self;
+    fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
     /// Convert this pixel to RGB
     fn to_rgb(&self) -> Rgb<Self::Subpixel>;
@@ -263,7 +263,7 @@ where P: Pixel + 'static,
     }
 
     /// Returns an iterator over the pixels of this image.
-    pub fn pixels<'a>(&'a self) -> Pixels<'a, P> {
+    pub fn pixels(&self) -> Pixels<P> {
         Pixels {
             chunks: self.data.chunks(
                 <P as Pixel>::channel_count() as usize
@@ -274,7 +274,7 @@ where P: Pixel + 'static,
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
-    pub fn enumerate_pixels<'a>(&'a self) -> EnumeratePixels<'a, P> {
+    pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
         EnumeratePixels {
             pixels: self.pixels(),
             x: 0,
@@ -314,7 +314,7 @@ where P: Pixel + 'static,
     }
 
     /// Enumerates over the pixels of the image.
-    pub fn enumerate_pixels_mut<'a>(&'a mut self) -> EnumeratePixelsMut<'a, P> {
+    pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<P> {
         let width = self.width;
         EnumeratePixelsMut {
             pixels: self.pixels_mut(),
@@ -370,7 +370,7 @@ where P: Pixel + 'static,
       Container: Deref<Target=[P::Subpixel]> {
     type Target = [P::Subpixel];
 
-    fn deref<'a>(&'a self) -> &'a <Self as Deref>::Target {
+    fn deref(&self) -> &<Self as Deref>::Target {
         &*self.data
     }
 }
@@ -379,7 +379,7 @@ impl<P, Container> DerefMut for ImageBuffer<P, Container>
 where P: Pixel + 'static,
       P::Subpixel: 'static,
       Container: Deref<Target=[P::Subpixel]> + DerefMut {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut <Self as Deref>::Target {
+    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
         &mut *self.data
     }
 }

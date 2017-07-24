@@ -500,6 +500,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test;
     use buffer::{ImageBuffer, RgbImage};
+    use std::path::Path;
     use super::{resize, FilterType};
 
     #[bench]

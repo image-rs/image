@@ -59,6 +59,8 @@ All image format decoders implement the ```ImageDecoder``` trait which provides 
 ```image``` provides the following pixel types:
 + **Rgb**: RGB pixel
 + **Rgba**: RGBA pixel
++ **Bgr**: BGR pixel
++ **Bgra**: BGRA pixel
 + **Luma**: Grayscale pixel
 + **LumaA**: Grayscale with alpha
 

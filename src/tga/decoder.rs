@@ -231,6 +231,11 @@ impl<R: Read + Seek> TGADecoder<R> {
         let other_channel_bits = if self.header.map_type != 0 {
             self.header.map_entry_size
         } else {
+            if num_alpha_bits > self.header.pixel_depth {
+                return Err(ImageError::UnsupportedError(format!("\
+                    Color format not supported. Alpha bits: {}", num_alpha_bits).to_string()))
+            }
+
             self.header.pixel_depth - num_alpha_bits
         };
         let color = self.image_type.is_color();

@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.14.0"
+version = "0.15.0"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -37,7 +37,7 @@ version = "0.1"
 optional = true
 
 [dependencies.png]
-version = "0.8"
+version = "0.9"
 optional = true
 
 [dependencies.scoped_threadpool]

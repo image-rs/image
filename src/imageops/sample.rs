@@ -109,7 +109,7 @@ pub fn catmullrom_kernel(x: f32) -> f32 {
 /// Also known as BiLinear sampling in two dimensions.
 pub fn triangle_kernel(x: f32) -> f32 {
     if x.abs() < 1.0 {
-        1.0 - x
+        1.0 - x.abs()
     } else {
         0.0
     }
@@ -147,33 +147,60 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
 
         let ratio = width as f32 / new_width as f32;
 
-        // Scale the filter when downsampling.
-        let filter_scale = if ratio > 1.0 {
-            ratio
-        } else {
-            1.0
-        };
-
-        let filter_radius = (filter.support * filter_scale).ceil();
-
         for outx in 0..new_width {
 
-            let inputx = (outx as f32 + 0.5) * ratio;
+            // Find the point in the input image corresponding to the centre
+            // of the current pixel in the output image.
+            //
+            // Then go half a pixel to the left (hence the `- 0.5`).
+            //
+            // The reason for subtracting 0.5 is because the filter kernel
+            // treats the centre of a pixel as 0. When finding the left and
+            // right limits below, we're interested in the range of input
+            // pixels whose colour can influence the colour of the current
+            // output pixel. This is equivalent to the range of input
+            // pixels for which inputx lies within the filter.support-sized
+            // region centered at the centre of that pixel. Subtracting
+            // 0.5 here simplifies the rounding operations below.
+            //
+            let inputx = (outx as f32 + 0.5) * ratio - 0.5;
 
-            let left  = (inputx - filter_radius).ceil() as i64;
+            // Find the index of the left-most input pixel which can influence
+            // the colour of the current output pixel. A point on the right
+            // side of a pixel is considered to be part of that pixel.
+            let left  = (inputx - filter.support).ceil() as i64;
             let left  = clamp(left, 0, width as i64 - 1) as u32;
 
-            let right = (inputx + filter_radius).floor() as i64;
+            // Find the index of the right-most input pixel which can influence
+            // the colour of the current output pixel. A point on the left side
+            // of a pixel is NOT considered to be part of that pixel. This is
+            // important because:
+            //  - If we included the point in both neighbouring pixels it would
+            //    force the output pixel to be influenced be both input pixels,
+            //    and force filters which don't desire this (e.g. Nearest),
+            //    to make sure they only sample from one side in such cases.
+            //  - If we included the point in neither neighbouring pixel it
+            //    would cause output pixels corresponding to input pixel
+            //    boundaries to be black regardless of the input pixel colours.
+            //
+            // The choice of right vs left is arbitrary.
+            let right = {
+                let real_right = inputx + filter.support;
+                if real_right.fract() == 0.0 {
+                    (real_right - 1.0) as i64
+                } else {
+                    real_right.floor() as i64
+                }
+            };
             let right = clamp(right, 0, width as i64 - 1) as u32;
 
-            let mut sum = (0., 0., 0., 0.);
+            let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
-                let w = (filter.kernel)((i as f32 - inputx) / filter_scale);
-                let w = (w, w, w, w);
-                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
+                let w = (filter.kernel)(i as f32 - inputx);
+                sum += w;
 
                 let x0  = clamp(i, 0, width - 1);
                 let p = image.get_pixel(x0, y);
@@ -186,11 +213,11 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
                     NumCast::from(k4).unwrap()
                 );
 
-                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
-                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
+                t.0 += vec.0 * w; t.1 += vec.1 * w;
+                t.2 += vec.2 * w; t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -227,32 +254,34 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
         let ratio = height as f32 / new_height as f32;
 
-        // Scale the filter when downsampling.
-        let filter_scale = if ratio > 1.0 {
-            ratio
-        } else {
-            1.0
-        };
-
-        let filter_radius = (filter.support * filter_scale).ceil();
-
         for outy in 0..new_height {
-            let inputy = (outy as f32 + 0.5) * ratio;
 
-            let left  = (inputy - filter_radius).ceil() as i64;
+            // For an explanation of this algorithm, see the comments
+            // in horizontal_sample.
+
+            let inputy = (outy as f32 + 0.5) * ratio - 0.5;
+
+            let left  = (inputy - filter.support).ceil() as i64;
             let left  = clamp(left, 0, height as i64 - 1) as u32;
 
-            let right = (inputy + filter_radius).floor() as i64;
+            let right = {
+                // A point above a pixel is NOT part of that pixel.
+                let real_right = inputy + filter.support;
+                if real_right.fract() == 0.0 {
+                    (real_right - 1.0) as i64
+                } else {
+                    real_right.floor() as i64
+                }
+            };
             let right = clamp(right, 0, height as i64 - 1) as u32;
 
-            let mut sum = (0., 0., 0., 0.);
+            let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right + 1 {
-                let w = (filter.kernel)((i as f32 - inputy) / filter_scale);
-                let w = (w, w, w, w);
-                sum.0 += w.0; sum.1 += w.1; sum.2 += w.2; sum.3 += w.3;
+                let w = (filter.kernel)(i as f32 - inputy);
+                sum += w;
 
                 let y0  = clamp(i, 0, height - 1);
                 let p = image.get_pixel(x, y0);
@@ -265,11 +294,11 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
                     NumCast::from(k4).unwrap()
                 );
 
-                t.0 += vec.0 * w.0; t.1 += vec.1 * w.1;
-                t.2 += vec.2 * w.2; t.3 += vec.3 * w.3;
+                t.0 += vec.0 * w; t.1 += vec.1 * w;
+                t.2 += vec.2 * w; t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),

@@ -77,7 +77,7 @@ impl<R: Read> ImageDecoder for Decoder<R> {
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let reader = try!(self.get_reader());
-        if let Some(_) = try!(reader.next_frame_info()) {
+        if try!(reader.next_frame_info()).is_some() {
             let mut buf = vec![0; reader.buffer_size()];
             try!(reader.read_into_buffer(&mut buf));
             Ok(DecodingResult::U8(buf))

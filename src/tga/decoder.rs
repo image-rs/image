@@ -231,6 +231,11 @@ impl<R: Read + Seek> TGADecoder<R> {
         let other_channel_bits = if self.header.map_type != 0 {
             self.header.map_entry_size
         } else {
+            if num_alpha_bits > self.header.pixel_depth {
+                return Err(ImageError::UnsupportedError(format!("\
+                    Color format not supported. Alpha bits: {}", num_alpha_bits).to_string()))
+            }
+
             self.header.pixel_depth - num_alpha_bits
         };
         let color = self.image_type.is_color();
@@ -291,7 +296,7 @@ impl<R: Read + Seek> TGADecoder<R> {
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
-            result.extend(color_map.get(index).iter().map(|&c| c));
+            result.extend(color_map.get(index).iter().cloned());
         }
 
         result
@@ -334,7 +339,7 @@ impl<R: Read + Seek> TGADecoder<R> {
                 let mut data = Vec::with_capacity(self.bytes_per_pixel);
                 try!(self.r.by_ref().take(self.bytes_per_pixel as u64).read_to_end(&mut data));
                 for _ in 0usize..repeat_count {
-                    pixel_data.extend(data.iter().map(|&c| c));
+                    pixel_data.extend(data.iter().cloned());
                 }
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
@@ -353,18 +358,9 @@ impl<R: Read + Seek> TGADecoder<R> {
     fn reverse_encoding(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
-            ColorType::RGB(8) => {
+            ColorType::RGB(8) | ColorType::RGBA(8) => {
                 for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
-                    let r = chunk[0];
-                    chunk[0] = chunk[2];
-                    chunk[2] = r;
-                }
-            }
-            ColorType::RGBA(8) => {
-                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
-                    let r = chunk[0];
-                    chunk[0] = chunk[2];
-                    chunk[2] = r;
+                    chunk.swap(0, 2);
                 }
             }
             _ => { }
@@ -397,6 +393,6 @@ impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         try!(self.read_metadata());
-        self.read_image_data().map(|v| DecodingResult::U8(v) )
+        self.read_image_data().map(DecodingResult::U8)
     }
 }

@@ -89,13 +89,13 @@ fn check_references() {
 		img_path.push(filename
 			.as_os_str()
 			.to_str().unwrap()
-			.split(".").take(2)
+			.split('.').take(2)
 			.collect::<Vec<_>>().join(".")
 		);
         let ref_crc = u32::from_str_radix(filename
             .as_os_str()
             .to_str().unwrap()
-            .split(".").nth(2).unwrap(), 16
+            .split('.').nth(2).unwrap(), 16
 
         ).unwrap();
         let test_img = match image::open(&img_path) {
@@ -108,7 +108,7 @@ fn check_references() {
         };
         let mut test_crc = Crc32::new();
         test_crc.update(&*test_img);
-		if &*ref_img != &*test_img || test_crc.checksum() != ref_crc {
+		if *ref_img != *test_img || test_crc.checksum() != ref_crc {
 			panic!("Reference rendering does not match for image at {:?}.", img_path)
 		}
 	})
@@ -130,8 +130,8 @@ fn check_hdr_references() {
         let mut ref_path = ref_path.clone();
         // append 2 last components of image path to reference path
         for c in path.components().rev().take(2).collect::<Vec<_>>().iter().rev() {
-            match c {
-                &Normal(name) => ref_path.push(name),
+            match *c {
+                Normal(name) => ref_path.push(name),
                 _ => panic!(),
             }
         }

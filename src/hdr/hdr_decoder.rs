@@ -208,7 +208,7 @@ impl<R: BufRead> HDRDecoder<R> {
                         return Err(ImageError::FormatError("EOF in header".into()));
                     },
                     Some(line) => {
-                        if line.len() == 0 {
+                        if line.is_empty() {
                             // end of header
                             break; 
                         } else if line[0] == b'#' { // line[0] will not panic, line.len() == 0 is false here  
@@ -387,7 +387,7 @@ impl<R: BufRead> Iterator for HDRImageDecoderIterator<R> {
             Some(Ok(ret))
         } else { 
             // some condition is pending
-            if self.buf.len() == 0 || self.scanline == self.scanline_cnt {
+            if self.buf.is_empty() || self.scanline == self.scanline_cnt {
                 // No more pixels
                 return None;
             } // no else
@@ -430,7 +430,7 @@ impl<R: BufRead> ExactSizeIterator for HDRImageDecoderIterator<R> {}
 
 // Precondition: buf.len() > 0
 fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
-    assert!(buf.len()>0);
+    assert!(!buf.is_empty());
     let width = buf.len();
     // first 4 bytes in scanline allow to determine compression method
     let fb = try!(read_rgbe(r)); 
@@ -502,7 +502,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(r: &mut R, width: usize, mu
 // Precondition: buf.len() > 0
 // fb - first 4 bytes of scanline
 fn decode_old_rle<R: BufRead>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel]) -> ImageResult<()> {
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
     let width = buf.len();
     // convenience function. 
     // returns run length if pixel is a run length marker
@@ -516,7 +516,7 @@ fn decode_old_rle<R: BufRead>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel])
     }
     // first pixel in scanline should not be run length marker
     // it is error if it is
-    if let Some(_) = rl_marker(fb) {
+    if rl_marker(fb).is_some() {
         return Err(ImageError::FormatError("First pixel of a scanline shouldn't be run length marker".into()));
     } 
     buf[0] = fb; // set first pixel of scanline
@@ -606,7 +606,7 @@ impl HDRMetadata {
     fn update_header_info<'a>(&mut self, line: &Cow<'a, str>, strict: bool) -> ImageResult<()> {
         // split line at first '=' 
         // old Radiance HDR files (*.pic) feature tabs in key, so                vvv trim
-        let maybe_key_value = split_at_first(&line, "=").map(|(key, value)| (key.trim(), value));
+        let maybe_key_value = split_at_first(line, "=").map(|(key, value)| (key.trim(), value));
         // save all header lines in custom_attributes
         match maybe_key_value {
             Some((key, val)) => self.custom_attributes.push((key.to_owned(), val.to_owned())),
@@ -701,7 +701,7 @@ fn parse_dimensions_line<'a>(line: &Cow<'a, str>, strict: bool) -> ImageResult<(
     let c2_tag = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
     let c2_str = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
     if strict {
-        if let Some(_) = dim_parts.next() {
+        if dim_parts.next().is_some() {
             // extra data in dimensions line
             return Err(ImageError::FormatError(err.into()));
         } // no else
@@ -756,8 +756,7 @@ fn limit_string_len(s: &str, len: usize) -> String {
 // or None if separator isn't found 
 fn split_at_first<'a>(s: &'a Cow<'a, str>, separator: &str) -> Option<(&'a str, &'a str)> {
     match s.find(separator) {
-        None => None,
-        Some(0) => None,
+        None | Some(0) => None,
         Some(p) if p >= s.len()-separator.len() => None,
         Some(p) => Some((&s[..p], &s[(p+separator.len())..])),
     } 

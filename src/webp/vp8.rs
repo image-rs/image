@@ -1037,7 +1037,7 @@ impl<R: Read> VP8Decoder<R> {
 
         if self.frame.keyframe {
             try!(self.r.read_exact(&mut tag));
-            assert!(tag == [0x9d, 0x01, 0x2a]);
+            assert_eq!(tag, [0x9d, 0x01, 0x2a]);
 
             let w = try!(self.r.read_u16::<LittleEndian>());
             let h = try!(self.r.read_u16::<LittleEndian>());
@@ -1066,7 +1066,7 @@ impl<R: Read> VP8Decoder<R> {
         if self.frame.keyframe {
             let color_space = self.b.read_literal(1);
             self.frame.pixel_type = self.b.read_literal(1);
-            assert!(color_space == 0);
+            assert_eq!(color_space, 0);
         }
 
         self.segments_enabled = self.b.read_flag();
@@ -1085,7 +1085,7 @@ impl<R: Read> VP8Decoder<R> {
 
         self.num_partitions = (1usize << self.b.read_literal(2) as usize) as u8;
                 let num_partitions = self.num_partitions as usize;
-        let _ = try!(self.init_partitions(num_partitions));
+        try!(self.init_partitions(num_partitions));
 
         self.read_quantization_indices();
 
@@ -1362,7 +1362,7 @@ impl<R: Read> VP8Decoder<R> {
 
         plane = 2;
 
-        for &j in [5usize, 7usize].iter() {
+        for &j in &[5usize, 7usize] {
             for y in 0usize..2 {
                 let mut left = self.left.complexity[y + j];
 
@@ -1392,7 +1392,7 @@ impl<R: Read> VP8Decoder<R> {
 
     /// Decodes the current frame and returns a reference to it
     pub fn decode_frame(&mut self) -> io::Result<&Frame> {
-        let _ = try!(self.read_frame_header());
+        try!(self.read_frame_header());
 
         for mby in 0..self.mbheight as usize {
             let p = mby % self.num_partitions as usize;

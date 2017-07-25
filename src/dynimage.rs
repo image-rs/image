@@ -407,6 +407,13 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "bmp")]
+            image::ImageFormat::BMP => {
+                let mut b = bmp::BMPEncoder::new(w);
+                try!(b.encode(&bytes, width, height, color));
+                Ok(())
+            }
+
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),
@@ -465,19 +472,19 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
 
     let image = match (color, buf) {
         (color::ColorType::RGB(8), U8(buf)) => {
-            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgb8(v))
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         (color::ColorType::RGBA(8), U8(buf)) => {
-            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageRgba8(v))
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         (color::ColorType::Gray(8), U8(buf)) => {
-            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLuma8(v))
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         (color::ColorType::GrayA(8), U8(buf)) => {
-            ImageBuffer::from_raw(w, h, buf).map(|v| DynamicImage::ImageLumaA8(v))
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
         (color::ColorType::Gray(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries
@@ -499,7 +506,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
                        )
                        .map(|pixel| pixel * scaling_factor)
                        .collect();
-            ImageBuffer::from_raw(w, h, p).map(|buf| DynamicImage::ImageLuma8(buf))
+            ImageBuffer::from_raw(w, h, p).map(DynamicImage::ImageLuma8)
         },
         _ => return Err(image::ImageError::UnsupportedColor(color))
     };
@@ -514,19 +521,19 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     match *image {
         // TODO: consider transmuting
         DynamicImage::ImageLuma8(ref a) => {
-            a.iter().map(|v| *v).collect()
+            a.iter().cloned().collect()
         }
 
         DynamicImage::ImageLumaA8(ref a) => {
-            a.iter().map(|v| *v).collect()
+            a.iter().cloned().collect()
         }
 
         DynamicImage::ImageRgb8(ref a)  => {
-            a.iter().map(|v| *v).collect()
+            a.iter().cloned().collect()
         }
 
         DynamicImage::ImageRgba8(ref a) => {
-            a.iter().map(|v| *v).collect()
+            a.iter().cloned().collect()
         }
     }
 }
@@ -585,7 +592,7 @@ pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color
 
 fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType)
                       -> io::Result<()> {
-    let ref mut fout = BufWriter::new(try!(File::create(path)));
+    let fout = &mut BufWriter::new(try!(File::create(path)));
     let ext = path.extension().and_then(|s| s.to_str())
                   .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
@@ -599,6 +606,8 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "bmp")]
+        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],
@@ -629,7 +638,7 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "ppm")]
         image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
-//        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
+        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 
@@ -669,7 +678,7 @@ pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageRes
 /// TGA is not supported by this function.
 /// This is not to be trusted on the validity of the whole memory block
 pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
-    for &(signature, format) in MAGIC_BYTES.iter() {
+    for &(signature, format) in &MAGIC_BYTES {
         if buffer.starts_with(signature) {
             return Ok(format);
         }

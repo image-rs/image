@@ -97,7 +97,7 @@ fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
     let mut best = try!(entries.pop().ok_or(ImageError::ImageEnd));
     let mut best_score = (best.bits_per_pixel, best.real_width() as u32 * best.real_height() as u32);
 
-    for entry in entries.into_iter() {
+    for entry in entries {
         let score = (entry.bits_per_pixel, entry.real_width() as u32 * entry.real_height() as u32);
         if score > best_score {
             best = entry;

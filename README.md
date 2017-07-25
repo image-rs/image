@@ -40,7 +40,7 @@ https://docs.rs/image
 | PNG    | All supported color types | Same as decoding|
 | JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
-| BMP    | Yes | No |
+| BMP    | Yes | RGB(8), RGBA(8), Gray(8), GrayA(8) |
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax and packbits support) + LZW | No |
 | Webp   | Lossy(Luma channel only) | No |
@@ -237,7 +237,7 @@ fn main() {
     // Create a new ImgBuf with width: imgx and height: imgy
     let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
 
-    // Iterate over the coordiantes and pixels of the image
+    // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
         let cy = y as f32 * scaley - 2.0;
         let cx = x as f32 * scalex - 2.0;
@@ -247,7 +247,7 @@ fn main() {
 
         let mut i = 0;
 
-        for t in (0..max_iterations) {
+        for t in 0..max_iterations {
             if z.norm() > 2.0 {
                 break
             }

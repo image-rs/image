@@ -167,7 +167,7 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
             let upper_len = upper.len();
             let lower_len = lower.len();
 
-            upper[upper_len - lower_len..].copy_from_slice(&lower);
+            upper[upper_len - lower_len..].copy_from_slice(lower);
         }
 
         &mut buffer[..buffer_len - old_size]
@@ -734,7 +734,6 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let max_length = MAX_PALETTE_SIZE * bytes_per_color;
 
         let length = palette_size * bytes_per_color;
-        let max_length = MAX_PALETTE_SIZE * bytes_per_color;
         let mut buf = Vec::with_capacity(max_length);
 
         // Resize and read the palette entries to the buffer.
@@ -808,13 +807,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
         try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             try!(reader.read_exact(&mut indices));
             let mut pixel_iter = row.chunks_mut(num_channels);
-            match self.bit_count {
+            match bit_count {
                 1 => { set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter()); },
-                4 => { set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), self.width as usize); },
-                8 => { set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), self.width as usize); },
+                4 => { set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width); },
+                8 => { set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width); },
                 _ => panic!(),
-            }
-        }
+            };
+            Ok(())
+        }));
 
         Ok(pixel_data)
     }

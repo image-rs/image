@@ -147,7 +147,7 @@ fn check_hdr_references() {
 
 /// Check that BMP files with large values could cause OOM issues are rejected.
 ///
-/// The images are postfixed with bad_bmp to not be loaded by the other test.
+/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
 #[test]
 fn bad_bmps() {
     let base_path: PathBuf = BASE_PATH.iter().collect::<PathBuf>().join(IMAGE_DIR).join("bmp/images");

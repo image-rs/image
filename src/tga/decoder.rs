@@ -387,23 +387,19 @@ impl<R: Read + Seek> TGADecoder<R> {
         if !screen_origin_bit {
             let num_bytes = pixels.len();
 
-            // Make a copy of the current pixels that we can take values from when flipping.
-            let mut pixels_copy = Vec::with_capacity(num_bytes);
-            for i in 0..pixels.len() {
-                pixels_copy.push(pixels[i]);
-            }
-
             let width_bytes = num_bytes / self.height;
 
             // Flip the image vertically.
-            for vertical_index in 0..self.height {
+            for vertical_index in 0..(self.height / 2) {
                 let vertical_target = (self.height - vertical_index) * width_bytes - width_bytes;
 
                 for horizontal_index in 0..width_bytes {
                     let source = vertical_index * width_bytes + horizontal_index;
                     let target = vertical_target + horizontal_index;
 
-                    pixels[target] = pixels_copy[source];
+                    let stash = pixels[target];
+                    pixels[target] = pixels[source];
+                    pixels[source] = stash;
                 }
             }
         }

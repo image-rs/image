@@ -463,10 +463,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
             self.width  as usize
             * self.height as usize
             * self.bits_per_sample.iter().count();
-        let mut result = match (self.bits_per_sample.iter()
-                                               .cloned()
-                                               .max()
-                                               .unwrap_or(8) as f32/8.0).ceil() as u8 {
+        let mut result = match self.bits_per_sample.iter().cloned().max().unwrap_or(8) {
             n if n <= 8 => DecodingResult::U8(Vec::with_capacity(buffer_size)),
             n if n <= 16 => DecodingResult::U16(Vec::with_capacity(buffer_size)),
             n => return Err(

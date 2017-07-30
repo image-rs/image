@@ -650,6 +650,7 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
+        use buffer::{GrayImage, Pixel, ConvertBuffer};
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for mut p in a.pixels_mut() {
             let rgb = p.channels_mut();

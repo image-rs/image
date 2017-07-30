@@ -23,6 +23,7 @@ enum InnerDecoder<R: Read> {
     PNG(PNGDecoder<R>)
 }
 
+
 #[derive(Clone, Copy, Default)]
 struct DirEntry {
     width: u8,
@@ -64,10 +65,26 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     entry.width = try!(r.read_u8());
     entry.height = try!(r.read_u8());
     entry.color_count = try!(r.read_u8());
+    // Reserved value (not used)
     entry.reserved = try!(r.read_u8());
 
+    // This may be either the number of color planes (0 or 1), or the horizontal coordinate
+    // of the hotspot for CUR files.
     entry.num_color_planes = try!(r.read_u16::<LittleEndian>());
+    if entry.num_color_planes > 256 {
+        return Err(ImageError::FormatError(
+            "ICO image entry has a too large color planes/hotspot value".to_string()
+        ));
+    }
+
+    // This may be either the bit depth (may be 0 meaning unspecified),
+    // or the vertical coordinate of the hotspot for CUR files.
     entry.bits_per_pixel = try!(r.read_u16::<LittleEndian>());
+    if entry.bits_per_pixel > 256 {
+        return Err(ImageError::FormatError(
+            "ICO image entry has a too large bits per pixel/hotspot value".to_string()
+        ));
+    }
 
     entry.image_length = try!(r.read_u32::<LittleEndian>());
     entry.image_offset = try!(r.read_u32::<LittleEndian>());
@@ -104,6 +121,11 @@ impl DirEntry {
             0 => 256,
             h => h as u16
         }
+    }
+
+    fn matches_dimensions(&self, width: u32, height: u32) -> bool {
+        u32::from(self.real_width()) == width &&
+            u32::from(self.real_height()) == height
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
@@ -167,15 +189,45 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         match self.inner_decoder {
             PNG(ref mut decoder) => {
+                if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
+                    return Err(ImageError::FormatError(
+                        "Entry specified a length that is shorter than PNG header!".to_string()
+                    ));
+                }
+
+                // Check if the image dimensions match the ones in the image data.
+                let (width, height) = try!(decoder.dimensions());
+                if !self.selected_entry.matches_dimensions(width, height) {
+                    return Err(ImageError::FormatError(
+                        "Entry and PNG dimensions do not match!".to_string())
+                    );
+
+                }
+
+                // Embedded PNG images can only be of the 32BPP RGBA format.
+                // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
+                let color_type = try!(decoder.colortype());
+                if let ColorType::RGBA(8) = color_type {} else {
+                    return Err(ImageError::FormatError(
+                        "The PNG is not in RGBA format!".to_string()
+                    ));
+                }
+
                 decoder.read_image()
             }
             BMP(ref mut decoder) => {
                 let (width, height) = try!(decoder.dimensions());
+                if !self.selected_entry.matches_dimensions(width, height) {
+                    return Err(ImageError::FormatError(
+                        "Entry({:?}) and BMP({:?}) dimensions do not match!".to_string()
+                    ));
+                }
 
                 // The ICO decoder needs an alpha chanel to apply the AND mask.
                 if try!(decoder.colortype()) != ColorType::RGBA(8) {
                     return Err(ImageError::UnsupportedError("Unsupported color type".to_string()))
                 }
+
                 let mut pixel_data = match try!(decoder.read_image()) {
                     DecodingResult::U8(v) => v,
                     _ => unreachable!()

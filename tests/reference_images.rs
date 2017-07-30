@@ -145,6 +145,19 @@ fn check_hdr_references() {
     }
 }
 
+/// Check that BMP files with large values could cause OOM issues are rejected.
+///
+/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
+#[test]
+fn bad_bmps() {
+    let base_path: PathBuf = BASE_PATH.iter().collect::<PathBuf>().join(IMAGE_DIR).join("bmp/images");
+
+    assert!(image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(), "Image with absurly large number of colors loaded.");
+    assert!(image::open(base_path.join("Bad_width.bad_bmp")).is_err(), "Image with absurdly large width loaded.");
+    assert!(image::open(base_path.join("Bad_height.bad_bmp")).is_err(), "Image with absurdly large height loaded.");
+
+}
+
 const CRC_TABLE: [u32; 256] = [
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419,
     0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4,

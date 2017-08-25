@@ -21,7 +21,7 @@ term = "0.4"
 glob = "0.2.11"
 
 [dev-dependencies.glium]
-version = "0.16"
+version = "0.17"
 features = ["glutin"]
 default-features = false
 

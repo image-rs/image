@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate glium;
 extern crate glob;
 extern crate png;
@@ -10,9 +9,10 @@ use std::borrow::Cow;
 use std::path;
 use std::error::Error;
 
-use glium::{DisplayBuild, Surface, Rect, BlitTarget};
+use glium::{Surface, Rect, BlitTarget};
 use glium::texture::{RawImage2d, ClientFormat};
 use glium::glutin::{self, Event, VirtualKeyCode};
+use glium::backend::glutin::Display;
 
 /// Load the image using `png`
 fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
@@ -21,7 +21,7 @@ fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
     let (info, mut reader) = try!(decoder.read_info());
     let mut img_data = vec![0; info.buffer_size()];
     try!(reader.next_frame(&mut img_data));
-    
+
     let (data, format) = match info.color_type {
         RGB => (img_data, ClientFormat::U8U8U8),
         RGBA => (img_data, ClientFormat::U8U8U8U8),
@@ -48,7 +48,7 @@ fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
         ),
         _ => unreachable!("uncovered color type")
     };
-    
+
     Ok(RawImage2d {
         data: Cow::Owned(data),
         width: info.width,
@@ -58,45 +58,84 @@ fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
 }
 
 fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
+    use glium::glutin::{KeyboardInput, WindowEvent};
+
     let mut files = files.iter();
     let image = try!(load_image(files.next().unwrap()));
-    // building the display, ie. the main object
-    let display = try!(glutin::WindowBuilder::new()
-        .with_vsync()
-        .build_glium()
+
+    let mut events_loop = glutin::EventsLoop::new();
+    let window = glutin::WindowBuilder::new();
+    let context = glutin::ContextBuilder::new()
+        .with_vsync(true);
+
+    let display = Display::new(window, context, &events_loop)
         .map_err(|err| io::Error::new(
             io::ErrorKind::Other,
             err.description()
-        ))
-    );
+        ))?;
+    // building the display, ie. the main object
     resize_window(&display, &image);
     let mut opengl_texture = glium::Texture2d::new(&display, image).unwrap();
-    
+
+    let mut stop = false;
+    let mut res = Ok(());
     'main: loop {
-        fill_v_flipped(&opengl_texture.as_surface(), &display.draw(), glium::uniforms::MagnifySamplerFilter::Linear);
+        let frame = display.draw();
+        fill_v_flipped(&opengl_texture.as_surface(), &frame, glium::uniforms::MagnifySamplerFilter::Linear);
+        frame.finish().unwrap();
+
         // polling and handling the events received by the window
-        for event in display.poll_events() {
+        events_loop.poll_events(|event| {
+            if stop {return;}
             match event {
-                Event::Closed => break 'main,
-                Event::KeyboardInput(glutin::ElementState::Pressed, _, code) => match code {
-                    Some(VirtualKeyCode::Escape) => break 'main,
+                Event::WindowEvent {event: WindowEvent::Closed, ..} => {
+                    stop = true;
+                    return;
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::KeyboardInput {
+                        input: KeyboardInput {
+                            state: glutin::ElementState::Pressed,
+                            virtual_keycode: code,
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                } => match code {
+                    Some(VirtualKeyCode::Escape) => {
+                        stop = true;
+                        return;
+                    }
                     Some(VirtualKeyCode::Right) => {
                         match files.next() {
                             Some(path) => {
-                                let image = try!(load_image(path));
+                                let image = match load_image(path) {
+                                    Ok(image) => image,
+                                    Err(err) => {
+                                        stop = true;
+                                        res = Err(err);
+                                        return;
+                                    }
+                                };
                                 resize_window(&display, &image);
                                 opengl_texture = glium::Texture2d::new(&display, image).unwrap();
                             },
-                            None => break 'main
+                            None => {
+                                stop = true;
+                                return;
+                            }
                         }
                     },
                     _ => ()
                 },
                 _ => ()
             }
-        }
+        });
+
+        if stop {break 'main;}
     }
-    Ok(())
+    res
 }
 
 fn fill_v_flipped<S1, S2>(src: &S1, target: &S2, filter: glium::uniforms::MagnifySamplerFilter)
@@ -108,7 +147,7 @@ where S1: Surface, S2: Surface {
     src.blit_color(&src_rect, target, &target_rect, filter);
 }
 
-fn resize_window(display: &glium::backend::glutin_backend::GlutinFacade, image: &RawImage2d<'static, u8>) {
+fn resize_window(display: &Display, image: &RawImage2d<'static, u8>) {
     let mut width = image.width;
     let mut height = image.height;
     if width < 50 && height < 50 {
@@ -118,7 +157,7 @@ fn resize_window(display: &glium::backend::glutin_backend::GlutinFacade, image: 
         width *= 10;
         height *= 10;
     }
-    display.get_window().unwrap().set_inner_size(width, height);
+    display.gl_window().set_inner_size(width, height);
 }
 
 fn main() {
@@ -149,7 +188,7 @@ fn main() {
                     break
                 }
             }
-            
+
         }
         // "tests/pngsuite/pngsuite.png"
         match main_loop(files) {

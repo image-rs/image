@@ -174,7 +174,6 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         for (a, &b) in self.data.iter_mut().zip(other.data.iter()) {
             *a = f(*a, b)
         }
-
     }
 
     fn invert(&mut self) {

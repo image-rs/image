@@ -65,10 +65,10 @@ impl<R: Read> Decoder<R> {
         Decoder {
             r: r,
             transform: ::TRANSFORM_EXPAND | ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16,
-            
+
         }
     }
-    
+
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
         let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform);
@@ -121,7 +121,7 @@ impl<R: Read> ReadDecoder<R> {
         }
         Ok(None)
     }
-    
+
     fn info(&self) -> Option<&Info> {
         get_info(&self.decoder)
     }
@@ -169,7 +169,7 @@ impl<R: Read> Reader<R> {
             processed: Vec::new()
         }
     }
-    
+
     /// Reads all meta data until the first IDAT chunk
     fn init(&mut self) -> Result<(), DecodingError> {
         use Decoded::*;
@@ -203,11 +203,11 @@ impl<R: Read> Reader<R> {
             Ok(())
         }
     }
-    
+
     pub fn info(&self) -> &Info {
         get_info!(self)
-    } 
-    
+    }
+
     /// Decodes the next frame into `buf`
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
         // TODO 16 bit
@@ -232,12 +232,12 @@ impl<R: Read> Reader<R> {
         }
         Ok(())
     }
-    
+
     /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
         self.next_interlaced_row().map(|v| v.map(|v| v.0))
     }
-    
+
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use common::ColorType::*;
@@ -302,7 +302,7 @@ impl<R: Read> Reader<R> {
             }
         }
     }
-    
+
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
     pub fn output_color_type(&mut self) -> (ColorType, BitDepth) {
@@ -317,7 +317,7 @@ impl<R: Read> Reader<R> {
                     ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
                 ) => 8,
                 _ if t.contains(::TRANSFORM_EXPAND) => 8,
-                n => n 
+                n => n
             };
             let color_type = if t.contains(::TRANSFORM_EXPAND) {
                 let has_trns = info.trns.is_some();
@@ -334,7 +334,7 @@ impl<R: Read> Reader<R> {
             (color_type, BitDepth::from_u8(bits).unwrap())
         }
     }
-    
+
     /// Returns the number of bytes required to hold a deinterlaced image frame
     /// that is decoded using the given input transformations.
     pub fn output_buffer_size(&self) -> usize {
@@ -342,7 +342,7 @@ impl<R: Read> Reader<R> {
         let size = self.output_line_size(width);
         size * height as usize
     }
-    
+
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let size = self.line_size(width);
@@ -354,7 +354,7 @@ impl<R: Read> Reader<R> {
             size
         }
     }
-    
+
     /// Returns the number of bytes required to decode a deinterlaced row.
     fn line_size(&self, width: u32) -> usize {
         use common::ColorType::*;
@@ -379,12 +379,12 @@ impl<R: Read> Reader<R> {
         let extra = bits % 8;
         len + match extra { 0 => 0, _ => 1 }
     }
-    
+
     fn allocate_out_buf(&mut self) {
         let width = get_info!(self).width;
         self.processed = vec![0; self.line_size(width)]
     }
-    
+
     /// Returns the next raw row of the image
     fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         let _ = get_info!(self);
@@ -397,7 +397,7 @@ impl<R: Read> Reader<R> {
                     self.prev.clear();
                     for _ in 0..rowlen {
                         self.prev.push(0);
-                    }   
+                    }
                 }
                 (rowlen, Some((pass, line, len)))
             } else {
@@ -448,11 +448,11 @@ impl<R: Read> Reader<R> {
 
 fn expand_paletted(buffer: &mut [u8], info: &Info) {
     let palette = info.palette.as_ref().unwrap();
+    let black = [0, 0, 0];
     if let Some(ref trns) = info.trns {
         utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
             let (rgb, a) = (
-                // TODO prevent panic!
-                &palette[3*i as usize..3*i as usize+3],
+                palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
                 *trns.get(i as usize).unwrap_or(&0xFF)
             );
             chunk[0] = rgb[0];
@@ -462,7 +462,7 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) {
         });
     } else {
         utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-            let rgb = &palette[3*i as usize..3*i as usize+3];
+            let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
             chunk[0] = rgb[0];
             chunk[1] = rgb[1];
             chunk[2] = rgb[2];
@@ -496,13 +496,13 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
 #[cfg(test)]
 mod test {
     extern crate test;
-    
+
     use std::fs::File;
     use std::io::Read;
-    
+
     use super::Decoder;
     use HasParameters;
-    
+
     #[bench]
     fn bench_big(b: &mut test::Bencher) {
         let mut data = Vec::new();

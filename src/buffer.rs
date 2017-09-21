@@ -71,30 +71,30 @@ pub trait Pixel: Copy + Clone {
     fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
 
     /// Apply the function ```f``` to each channel of this pixel.
-    fn map<F>(&self, f: F) -> Self where F: Fn(Self::Subpixel) -> Self::Subpixel;
+    fn map<F>(&self, f: F) -> Self where F: FnMut(Self::Subpixel) -> Self::Subpixel;
 
     /// Apply the function ```f``` to each channel of this pixel.
-    fn apply<F>(&mut self, f: F) where F: Fn(Self::Subpixel) -> Self::Subpixel;
+    fn apply<F>(&mut self, f: F) where F: FnMut(Self::Subpixel) -> Self::Subpixel;
 
     /// Apply the function ```f``` to each channel except the alpha channel.
     /// Apply the function ```g``` to the alpha channel.
     fn map_with_alpha<F, G>(&self, f: F, g: G) -> Self
-        where F: Fn(Self::Subpixel) -> Self::Subpixel, G: Fn(Self::Subpixel) -> Self::Subpixel;
+        where F: FnMut(Self::Subpixel) -> Self::Subpixel, G: FnMut(Self::Subpixel) -> Self::Subpixel;
 
     /// Apply the function ```f``` to each channel except the alpha channel.
     /// Apply the function ```g``` to the alpha channel. Works in-place.
     fn apply_with_alpha<F, G>(&mut self, f: F, g: G)
-        where F: Fn(Self::Subpixel) -> Self::Subpixel, G: Fn(Self::Subpixel) -> Self::Subpixel;
+        where F: FnMut(Self::Subpixel) -> Self::Subpixel, G: FnMut(Self::Subpixel) -> Self::Subpixel;
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise.
     fn map2<F>(&self, other: &Self, f: F) -> Self
-        where F: Fn(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+        where F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise. Works in-place.
     fn apply2<F>(&mut self, other: &Self, f: F)
-        where F: Fn(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
+        where F: FnMut(Self::Subpixel, Self::Subpixel) -> Self::Subpixel;
 
     /// Invert this pixel
     fn invert(&mut self);
@@ -512,9 +512,9 @@ where P::Subpixel: 'static {
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
     /// The arguments to the function are the pixel's x and y coordinates.
-    pub fn from_fn<F>(width: u32, height: u32, f: F)
+    pub fn from_fn<F>(width: u32, height: u32, mut f: F)
                       -> ImageBuffer<P, Vec<P::Subpixel>>
-                      where F: Fn(u32, u32) -> P {
+                      where F: FnMut(u32, u32) -> P {
         let mut buf = ImageBuffer::new(width, height);
         for (x, y,  p) in buf.enumerate_pixels_mut() {
             *p = f(x, y)

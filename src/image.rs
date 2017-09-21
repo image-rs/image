@@ -434,6 +434,55 @@ pub trait GenericImage: Sized {
     Self::Pixel: 'static {
         SubImage::new(self, x, y, width, height)
     }
+
+    /// Samples the image at non-integer positions.
+    ///
+    /// Uses bilinear interpolation.
+    ///
+    /// X and Y coordinates must be in range.
+    fn sample_bilinear(&self, x: f32, y: f32) -> Self::Pixel {
+        use Primitive;
+        fn merge<T: Primitive, P: Pixel<Subpixel=T>>(mut a: P, b: P, amount_a: f32) -> P {
+            use ::num::cast;
+            for i in 0 .. P::channel_count() {
+                let mut pa = a.channels_mut();
+                let pb = b.channels();
+
+                let va = &mut pa[i as usize];
+                let vb = pb[i as usize];
+
+                let mut va_float: f32 = cast(*va).unwrap();
+                let mut vb_float: f32 = cast(vb).unwrap();
+
+                va_float *= amount_a;
+                vb_float *= 1.0 - amount_a;
+
+                let combined = va_float + vb_float;
+
+                *va = cast(combined).unwrap();
+            }
+
+            a
+        }
+
+        let x_down = x.floor();
+        let x_up = x.ceil();
+        let x_diff = x - x_down;
+
+        let y_down = y.floor();
+        let y_up = y.ceil();
+        let y_diff = y - y_down;
+
+        let a = self.get_pixel(x_down as u32, y_down as u32);
+        let b = self.get_pixel(x_up   as u32, y_down as u32);
+        let c = self.get_pixel(x_down as u32, y_up   as u32);
+        let d = self.get_pixel(x_up   as u32, y_up   as u32);
+
+        let bottom =  merge(b, a, x_diff);
+        let top    =  merge(d, c, x_diff);
+
+        merge(top, bottom, y_diff)
+    }
 }
 
 /// A View into another image

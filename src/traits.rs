@@ -15,7 +15,7 @@ pub trait HasParameters: Sized {
 
 
 // Will be replaced by stdlib solution
-fn read_all<R: io::Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> io::Result<()> {
+fn read_all<R: io::Read + ?Sized>(this: &mut R, buf: &mut [u8]) -> io::Result<()> {
     let mut total = 0;
     while total < buf.len() {
         match this.read(&mut buf[total..]) {

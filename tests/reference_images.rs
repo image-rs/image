@@ -38,9 +38,9 @@ fn render_images() {
 	process_images(IMAGE_DIR, None, |base, path, decoder| {
 		let img = match image::open(&path) {
 			Ok(img) => img.to_rgba(),
-			/// Do not fail on unsupported error
-			/// This might happen because the testsuite contains unsupported images
-			/// or because a specific decoder included via a feature.
+			// Do not fail on unsupported error
+			// This might happen because the testsuite contains unsupported images
+			// or because a specific decoder included via a feature.
 			Err(image::ImageError::UnsupportedError(_)) => return,
 			Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
 		};
@@ -71,9 +71,9 @@ fn check_references() {
 	process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
         let ref_img = match image::open(&path) {
             Ok(img) => img.to_rgba(),
-            /// Do not fail on unsupported error
-            /// This might happen because the testsuite contains unsupported images
-            /// or because a specific decoder included via a feature.
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
             Err(image::ImageError::UnsupportedError(_)) => return,
             Err(err) => panic!(format!("{}", err))
         };
@@ -100,9 +100,9 @@ fn check_references() {
         ).unwrap();
         let test_img = match image::open(&img_path) {
             Ok(img) => img.to_rgba(),
-            /// Do not fail on unsupported error
-            /// This might happen because the testsuite contains unsupported images
-            /// or because a specific decoder included via a feature.
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
             Err(image::ImageError::UnsupportedError(_)) => return,
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
         };

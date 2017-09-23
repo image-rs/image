@@ -594,7 +594,7 @@ impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>>
             = ImageBuffer::new(self.width, self.height);
-        for (mut to, from) in buffer.pixels_mut().zip(self.pixels()) {
+        for (to, from) in buffer.pixels_mut().zip(self.pixels()) {
             to.from_color(from)
         }
         buffer

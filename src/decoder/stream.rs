@@ -315,7 +315,7 @@ impl StreamingDecoder {
                             emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
                         )
                     },
-                    // Skip other chunks
+                    // Handle other chunks
                     _ => {
                         if self.current_chunk.1 == 0 { // complete chunk
                             Ok((0, try!(self.parse_chunk(type_str))))
@@ -406,8 +406,7 @@ impl StreamingDecoder {
             chunk::fcTL => {
                 self.parse_fctl()
             }
-            // Skip other and unknown chunks:
-            _ => Ok(Decoded::Nothing)
+            _ => Ok(Decoded::PartialChunk(type_str, &self.current_chunk.2))
         } {
             Err(err) =>{
                 // Borrow of self ends here, because Decoding error does not borrow self.

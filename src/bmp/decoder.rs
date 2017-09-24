@@ -856,7 +856,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         let bitfields = self.bitfields.as_ref().unwrap();
 
-        let mut reader = &mut self.r;
+        let reader = &mut self.r;
         try!(reader.seek(SeekFrom::Start(self.data_offset)));
 
         try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {

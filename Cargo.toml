@@ -1,6 +1,6 @@
 [package]
 name = "png"
-version = "0.10.0"
+version = "0.11.0"
 license = "MIT/Apache-2.0"
 description = "PNG decoding and encoding library in pure Rust"
 authors = ["nwin <nwin@users.noreply.github.com>"]
@@ -13,7 +13,7 @@ exclude = [
 inflate = "0.3.3"
 deflate = { version = "0.7.2", optional = true }
 num-iter = "0.1.32"
-bitflags = "0.9"
+bitflags = "1.0"
 
 [dev-dependencies]
 getopts = "0.2.14"

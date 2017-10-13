@@ -64,7 +64,7 @@ impl<R: Read> Decoder<R> {
     pub fn new(r: R) -> Decoder<R> {
         Decoder {
             r: r,
-            transform: ::TRANSFORM_EXPAND | ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16,
+            transform: ::Transformations::EXPAND | ::Transformations::SCALE_16 | ::Transformations::STRIP_16,
 
         }
     }
@@ -246,7 +246,7 @@ impl<R: Read> Reader<R> {
             let info = get_info!(self);
             (info.color_type, info.bit_depth as u8, info.trns.is_some())
         };
-        if transform == ::TRANSFORM_IDENTITY {
+        if transform == ::Transformations::IDENTITY {
             self.next_raw_interlaced_row()
         } else {
             // swap buffer to circumvent borrow issues
@@ -267,7 +267,7 @@ impl<R: Read> Reader<R> {
                     &mut *self.processed
                 };
                 let mut len = output_buffer.len();
-                if transform.contains(::TRANSFORM_EXPAND) {
+                if transform.contains(::Transformations::EXPAND) {
                     match color_type {
                         Indexed => {
                             expand_paletted(output_buffer, get_info!(self))
@@ -287,7 +287,7 @@ impl<R: Read> Reader<R> {
                         _ => ()
                     }
                 }
-                if bit_depth == 16 && transform.intersects(::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16) {
+                if bit_depth == 16 && transform.intersects(::Transformations::SCALE_16 | ::Transformations::STRIP_16) {
                     len /= 2;
                     for i in 0..len {
                         output_buffer[i] = output_buffer[2 * i];
@@ -309,17 +309,17 @@ impl<R: Read> Reader<R> {
         use common::ColorType::*;
         let t = self.transform;
         let info = get_info!(self);
-        if t == ::TRANSFORM_IDENTITY {
+        if t == ::Transformations::IDENTITY {
             (info.color_type, info.bit_depth)
         } else {
             let bits = match info.bit_depth as u8 {
                 16 if t.intersects(
-                    ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
+                    ::Transformations::SCALE_16 | ::Transformations::STRIP_16
                 ) => 8,
-                _ if t.contains(::TRANSFORM_EXPAND) => 8,
+                _ if t.contains(::Transformations::EXPAND) => 8,
                 n => n
             };
-            let color_type = if t.contains(::TRANSFORM_EXPAND) {
+            let color_type = if t.contains(::Transformations::EXPAND) {
                 let has_trns = info.trns.is_some();
                 match info.color_type {
                     Grayscale if has_trns => GrayscaleAlpha,
@@ -347,7 +347,7 @@ impl<R: Read> Reader<R> {
     pub fn output_line_size(&self, width: u32) -> usize {
         let size = self.line_size(width);
         if get_info!(self).bit_depth as u8 == 16 && self.transform.intersects(
-            ::TRANSFORM_SCALE_16 | ::TRANSFORM_STRIP_16
+            ::Transformations::SCALE_16 | ::Transformations::STRIP_16
         ) {
             size / 2
         } else {
@@ -363,12 +363,12 @@ impl<R: Read> Reader<R> {
         let trns = info.trns.is_some();
         // TODO 16 bit
         let bits = match info.color_type {
-            Indexed if trns && t.contains(::TRANSFORM_EXPAND) => 4 * 8,
-            Indexed if t.contains(::TRANSFORM_EXPAND) => 3 * 8,
-            RGB if trns && t.contains(::TRANSFORM_EXPAND) => 4 * 8,
-            Grayscale if trns && t.contains(::TRANSFORM_EXPAND) => 2 * 8,
-            Grayscale if t.contains(::TRANSFORM_EXPAND) => 1 * 8,
-            GrayscaleAlpha if t.contains(::TRANSFORM_EXPAND) => 2 * 8,
+            Indexed if trns && t.contains(::Transformations::EXPAND) => 4 * 8,
+            Indexed if t.contains(::Transformations::EXPAND) => 3 * 8,
+            RGB if trns && t.contains(::Transformations::EXPAND) => 4 * 8,
+            Grayscale if trns && t.contains(::Transformations::EXPAND) => 2 * 8,
+            Grayscale if t.contains(::Transformations::EXPAND) => 1 * 8,
+            GrayscaleAlpha if t.contains(::Transformations::EXPAND) => 2 * 8,
             // divide by 2 as it will get mutiplied by two later
             _ if info.bit_depth as u8 == 16 => info.bits_per_pixel() / 2,
             _ => info.bits_per_pixel()
@@ -508,12 +508,12 @@ mod test {
         let mut data = Vec::new();
         File::open("tests/pngsuite/PngSuite.png").unwrap().read_to_end(&mut data).unwrap();
         let mut decoder = Decoder::new(&*data);
-        decoder.set(::TRANSFORM_IDENTITY);
+        decoder.set(::Transformations::IDENTITY);
         let (info, _) = decoder.read_info().unwrap();
         let mut image = vec![0; info.buffer_size()];
         b.iter(|| {
             let mut decoder = Decoder::new(&*data);
-            decoder.set(::TRANSFORM_IDENTITY);
+            decoder.set(::Transformations::IDENTITY);
             let (_, mut decoder) = decoder.read_info().unwrap();
             test::black_box(decoder.next_frame(&mut image)).unwrap();
         });

@@ -9,8 +9,8 @@
 //!     use std::fs::File;
 //!
 //!     // The decoder is a build for reader and can be used to set various decoding options
-//!     // via `Transformations`. The default output transformation is `TRANSFORM_EXPAND
-//!     // | TRANSFORM_STRIP_ALPHA`.
+//!     // via `Transformations`. The default output transformation is `Transformations::EXPAND
+//!     // | Transformations::STRIP_ALPHA`.
 //!     let decoder = png::Decoder::new(File::open("tests/pngsuite/basi0g01.png").unwrap());
 //!     let (info, mut reader) = decoder.read_info().unwrap();
 //!     // Allocate the output buffer.

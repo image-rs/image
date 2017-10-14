@@ -31,35 +31,52 @@ impl<R: Read> PPMDecoder<R> {
         })
     }
 
-  fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
-      let mut bytes = Vec::new();
-      for byte in reader.bytes() {
-          match byte {
-              Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
-                  if !bytes.is_empty() {
-                    break // We're done as we already have some content
-                  }
-              },
-              Ok(byte) => {
-                  bytes.push(byte);
-              },
-              Err(_) => break,
-          }
-      }
+    fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
+        let mut bytes = Vec::new();
+        let mut comment = false;
 
-      match String::from_utf8(bytes) {
-          Ok(s) => Ok(s),
-          Err(_) => Err(ImageError::FormatError("Couldn't read preamble".to_string())),
-      }
-  }
+        for byte in reader.bytes() {
+            match byte {
+                Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
+                    if !bytes.is_empty() {
+                        break // We're done as we already have some content
+                    }
+                },
+                Ok(b'#') => {
+                    comment = true;
+                    break
+                },
+                Ok(byte) => {
+                    bytes.push(byte);
+                },
+                Err(_) => break,
+            }
+        }
 
-  fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {
-      let s = try!(PPMDecoder::read_next_string(reader));
-      match s.parse::<u32>() {
-          Ok(v) => Ok(v),
-          Err(_) => Err(ImageError::FormatError("Couldn't read preamble".to_string())),
-      }
-  }
+        if comment {
+            PPMDecoder::read_until_newline(reader);
+
+            if bytes.is_empty() {
+                return PPMDecoder::read_next_string(reader);
+            }
+        }
+
+        String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
+    }
+
+    fn read_until_newline(reader: &mut BufReader<R>) {
+        for byte in reader.bytes() {
+            match byte {
+                Ok(b'\n') | Ok(b'\r') | Err(_) => break,
+                _ => continue
+            }
+        }
+    }
+
+    fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {
+        let s = try!(PPMDecoder::read_next_string(reader));
+        s.parse::<u32>().map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
+    }
 }
 
 impl<R: Read> ImageDecoder for PPMDecoder<R> {

@@ -127,11 +127,11 @@ impl RGBE8Pixel {
 
     /// Converts ```RGBE8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
     ///
- 	/// color_ldr = (color_hdr*scale)^gamma
+    /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
- 	/// # Panic
- 	///
- 	/// Panics when ```T::max_value()``` cannot be represented as f32.
+    /// # Panic
+    ///
+    /// Panics when ```T::max_value()``` cannot be represented as f32.
     #[inline]
     pub fn to_ldr<T: Primitive + Zero>(self) -> Rgb<T> {
         self.to_ldr_scale_gamma(1.0, 2.2)
@@ -139,7 +139,7 @@ impl RGBE8Pixel {
 
     /// Converts RGBE8Pixel into Rgb<T> using provided scale and gamma
     ///
-    /// color_ldr = (color_hdr*scale)^gamma
+    /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
     /// # Panic
     ///
@@ -574,10 +574,14 @@ pub struct HDRMetadata {
     /// First pair tells how resulting pixel coordinates change along a scanline.
     /// Second pair tells how they change from one scanline to the next.
     pub orientation: ((i8, i8), (i8, i8)),
-    /// Divide color values by exposure to get to get physical radiance in watts/steradian/m^2
+    /// Divide color values by exposure to get to get physical radiance in
+    /// watts/steradian/m<sup>2</sup>
+    ///
     /// Image may not contain physical data, even if this field is set.
     pub exposure: Option<f32>,
-    /// Divide color values by corresponing tuple member (r, g, b) to get to get physical radiance in watts/steradian/m^2
+    /// Divide color values by corresponing tuple member (r, g, b) to get to get physical radiance
+    /// in watts/steradian/m<sup>2</sup>
+    ///
     /// Image may not contain physical data, even if this field is set.
     pub color_correction: Option<(f32,f32,f32)>,
     /// Pixel height divided by pixel width

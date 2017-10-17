@@ -296,7 +296,7 @@ impl DynamicImage {
     /// ```sigma``` is the amount to blur the image by.
     /// ```threshold``` is a control of how much to sharpen.
     ///
-    /// See https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+    /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::unsharpen(p, sigma, threshold))
     }

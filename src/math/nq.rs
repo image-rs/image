@@ -2,7 +2,7 @@
 //! See "Kohonen neural networks for optimal colour quantization"
 //! in "Network: Computation in Neural Systems" Vol. 5 (1994) pp 351-367.
 //! for a discussion of the algorithm.
-//! See also  http://www.acm.org/~dekker/NEUQUANT.HTML
+//! See also <http://www.acm.org/~dekker/NEUQUANT.HTML>
 
 /* NeuQuant Neural-Net Quantization Algorithm
  * ------------------------------------------

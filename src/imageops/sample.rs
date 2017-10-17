@@ -454,7 +454,7 @@ pub fn blur<I: GenericImage + 'static>(image: &I, sigma: f32)
 /// ```sigma``` is the amount to blur the image by.
 /// ```threshold``` is the threshold for the difference between
 ///
-/// See https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking
+/// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32)
     -> ImageBuffer<P, Vec<S>>

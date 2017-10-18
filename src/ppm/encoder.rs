@@ -19,7 +19,6 @@ pub struct PPMEncoder<'a, W: 'a> {
 
 impl<'a, W: Write> PPMEncoder<'a, W> {
     /// Create a new PPMEncoder from the Writer ```w```.
-    /// This function takes ownership of the Writer.
     pub fn new(w: &mut W) -> PPMEncoder<W> {
         PPMEncoder { w: w }
     }

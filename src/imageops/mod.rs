@@ -49,8 +49,8 @@ pub use self::colorops:: {
 };
 
 mod affine;
-/// Public only because of Rust bug:
-/// https://github.com/rust-lang/rust/issues/18241
+// Public only because of Rust bug:
+// https://github.com/rust-lang/rust/issues/18241
 pub mod colorops;
 mod sample;
 

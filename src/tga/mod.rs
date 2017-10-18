@@ -1,7 +1,7 @@
 //! Decoding of TGA Images
 //!
 //! # Related Links
-//! http://googlesites.inequation.org/tgautilities
+//! <http://googlesites.inequation.org/tgautilities>
 
 /// A decoder for TGA images
 ///

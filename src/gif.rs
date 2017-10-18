@@ -3,8 +3,9 @@
 //!  GIF (Graphics Interchange Format) is an image format that supports lossless compression.
 //!
 //!  # Related Links
-//!  * http://www.w3.org/Graphics/GIF/spec-gif89a.txt - The GIF Specification
+//!  * <http://www.w3.org/Graphics/GIF/spec-gif89a.txt> - The GIF Specification
 //!
+
 extern crate gif;
 
 use std::io::{Read, Write};

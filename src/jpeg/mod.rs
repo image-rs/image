@@ -3,8 +3,8 @@
 //! JPEG (Joint Photographic Experts Group) is an image format that supports lossy compression.
 //! This module implements the Baseline JPEG standard.
 //!
-//! #Related Links
-//! * http://www.w3.org/Graphics/JPEG/itu-t81.pdf - The JPEG specification
+//! # Related Links
+//! * <http://www.w3.org/Graphics/JPEG/itu-t81.pdf> - The JPEG specification
 //!
 
 pub use self::decoder::JPEGDecoder;

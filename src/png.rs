@@ -4,7 +4,7 @@
 //! PNG (Portable Network Graphics) is an image format that supports lossless compression.
 //!
 //! # Related Links
-//! * http://www.w3.org/TR/PNG/ - The PNG Specification
+//! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 //!
 
 extern crate png;

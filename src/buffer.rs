@@ -303,8 +303,6 @@ where P: Pixel + 'static,
       Container: Deref<Target=[P::Subpixel]> + DerefMut {
 
     /// Returns an iterator over the mutable pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with a mutable reference to them.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
             chunks: self.data.chunks_mut(
@@ -314,6 +312,8 @@ where P: Pixel + 'static,
     }
 
     /// Enumerates over the pixels of the image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with a mutable reference to them.
     pub fn enumerate_pixels_mut(&mut self) -> EnumeratePixelsMut<P> {
         let width = self.width;
         EnumeratePixelsMut {

@@ -42,7 +42,7 @@ https://docs.rs/image
 | GIF    | Yes | Yes |
 | BMP    | Yes | RGB(8), RGBA(8), Gray(8), GrayA(8) |
 | ICO    | Yes | Yes |
-| TIFF   | Baseline(no fax and packbits support) + LZW | No |
+| TIFF   | Baseline(no fax support) + LZW + PackBits | No |
 | Webp   | Lossy(Luma channel only) | No |
 | PPM    | Yes | Yes |
 

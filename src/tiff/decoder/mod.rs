@@ -20,7 +20,8 @@ use self::stream::{
     ByteOrder,
     EndianReader,
     SmartReader,
-    LZWReader
+    LZWReader,
+    PackBitsReader
 };
 
 mod ifd;
@@ -386,7 +387,12 @@ impl<R: Read + Seek> TIFFDecoder<R> {
             CompressionMethod::LZW => {
                 let (bytes, reader) = try!(LZWReader::new(&mut self.reader));
                 (bytes, Box::new(reader))
-            }
+            },
+            CompressionMethod::PackBits => {
+                let order = self.reader.byte_order;
+                let (bytes, reader) = try!(PackBitsReader::new(&mut self.reader, order, length as usize));
+                (bytes, Box::new(reader))
+            },
             method => return Err(::image::ImageError::UnsupportedError(format!(
                 "Compression method {:?} is unsupported", method
             )))

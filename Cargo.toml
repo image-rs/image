@@ -12,11 +12,13 @@ readme = "README.md"
 documentation = "https://docs.rs/image"
 repository = "https://github.com/PistonDevelopers/image.git"
 homepage = "https://github.com/PistonDevelopers/image"
+categories = ["multimedia::images", "multimedia::encoding"]
 exclude = [
     "src/png/testdata/*",
     "examples/*",
     "tests/*",
 ]
+
 [lib]
 name = "image"
 path = "./src/lib.rs"

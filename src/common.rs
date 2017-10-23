@@ -16,9 +16,8 @@ impl ColorType {
     pub fn samples(&self) -> usize {
         use self::ColorType::*;
         match *self {
-            Grayscale => 1,
+            Grayscale | Indexed => 1,
             RGB => 3,
-            Indexed => 1,
             GrayscaleAlpha => 2,
             RGBA => 4
         }

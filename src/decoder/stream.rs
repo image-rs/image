@@ -466,7 +466,7 @@ impl StreamingDecoder {
     fn parse_actl(&mut self)
     -> Result<Decoded, DecodingError> {
         if self.have_idat {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 "acTL chunk appeared after first IDAT chunk".into()
             ))
         } else {
@@ -551,7 +551,7 @@ impl StreamingDecoder {
     fn parse_phys(&mut self)
     -> Result<Decoded, DecodingError> {
         if self.have_idat {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 "pHYs chunk appeared after first IDAT chunk".into()
             ))
         } else {

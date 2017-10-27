@@ -101,7 +101,7 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let (consumed, result) = {
                 let buf = try!(self.reader.fill_buf());
-                if buf.len() == 0 {
+                if buf.is_empty() {
                     return Err(DecodingError::Format(
                         "unexpected EOF".into()
                     ))

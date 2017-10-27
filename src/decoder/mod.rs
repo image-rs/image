@@ -173,7 +173,7 @@ impl<R: Read> Reader<R> {
     /// Reads all meta data until the first IDAT chunk
     fn init(&mut self) -> Result<(), DecodingError> {
         use Decoded::*;
-        if let Some(_) = self.decoder.info() {
+        if self.decoder.info().is_some() {
             Ok(())
         } else {
             loop {

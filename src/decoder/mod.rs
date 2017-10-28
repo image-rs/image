@@ -101,7 +101,7 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let (consumed, result) = {
                 let buf = try!(self.reader.fill_buf());
-                if buf.len() == 0 {
+                if buf.is_empty() {
                     return Err(DecodingError::Format(
                         "unexpected EOF".into()
                     ))
@@ -173,7 +173,7 @@ impl<R: Read> Reader<R> {
     /// Reads all meta data until the first IDAT chunk
     fn init(&mut self) -> Result<(), DecodingError> {
         use Decoded::*;
-        if let Some(_) = self.decoder.info() {
+        if self.decoder.info().is_some() {
             Ok(())
         } else {
             loop {

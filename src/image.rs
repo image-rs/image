@@ -401,7 +401,7 @@ pub trait GenericImage: Sized {
     /// The other image is copied with the top-left corner of the
     /// other image placed at (x, y).
     ///
-    /// In order to copy only a pice of the other image, use `sub_image`.
+    /// In order to copy only a piece of the other image, use `sub_image`.
     ///
     /// # Returns
     /// `true` if the copy was successful, `false` if the image could not

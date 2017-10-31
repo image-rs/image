@@ -27,7 +27,7 @@ pub trait Pixel: Copy + Clone {
     /// Returns the components as a mutable slice
     fn channels_mut(&mut self) -> &mut [Self::Subpixel];
 
-    /// Returns a string that can help to interprete the meaning each channel
+    /// Returns a string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
     fn color_model() -> &'static str;
 
@@ -49,13 +49,13 @@ pub trait Pixel: Copy + Clone {
     /// Returns a view into a slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
-    /// that the slice is long enough to precent panics if the pixel is used later on.
+    /// that the slice is long enough to present panics if the pixel is used later on.
     fn from_slice(slice: &[Self::Subpixel]) -> &Self;
 
     /// Returns mutable view into a mutable slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
-    /// that the slice is long enough to precent panics if the pixel is used later on.
+    /// that the slice is long enough to present panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
     /// Convert this pixel to RGB
@@ -540,7 +540,7 @@ where P::Subpixel: 'static {
 pub trait ConvertBuffer<T> {
     /// Converts `self` to a buffer of type T
     ///
-    /// A generic impementation is provided to convert any image buffer to a image buffer
+    /// A generic implementation is provided to convert any image buffer to a image buffer
     /// based on a `Vec<T>`.
     fn convert(&self) -> T;
 }

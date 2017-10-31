@@ -480,7 +480,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
                 ))
             }
         }
-        // Safe since the uninizialized values are never read.
+        // Safe since the uninitialized values are never read.
         match result {
             DecodingResult::U8(ref mut buffer) =>
                 unsafe { buffer.set_len(buffer_size) },
@@ -528,7 +528,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
                     ))
                 },
                 None => return Err(ImageError::FormatError(
-                    format!("Unkown predictor “{}” encountered", predictor)
+                    format!("Unknown predictor “{}” encountered", predictor)
                 ))
             }
         }

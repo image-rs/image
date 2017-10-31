@@ -777,7 +777,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let max_pixels = self.num_channels() * MAX_INITIAL_PIXELS;
         // Make sure the maximum size is whole number of rows.
         let max_starting_size = max_pixels + row_width - (max_pixels % row_width);
-        // The buffer has its bytes initilally set to 0xFF as the ICO decoder relies on it.
+        // The buffer has its bytes initially set to 0xFF as the ICO decoder relies on it.
         vec![0xFF; cmp::min(
             row_width * self.height as usize,
             max_starting_size)]
@@ -931,7 +931,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // Extend the buffer if there is still data left.
         // If eof_hit is true, it means that we hit an end-of-file marker in the last step and
         // we won't extend the buffer further to avoid small files with a large specified size causing memory issues.
-        // This is only a rudamentary check, a file could still create a large buffer, but the
+        // This is only a rudimentary check, a file could still create a large buffer, but the
         // file would now have to at least have some data in it.
         if pixel_data.len() < full_image_size && !eof_hit {
             let new = extend_buffer(&mut pixel_data, full_image_size, true);

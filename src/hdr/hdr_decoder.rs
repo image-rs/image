@@ -272,7 +272,7 @@ impl<R: BufRead> HDRDecoder<R> {
         Ok(ret)
     }
 
-    /// Consumes decoder and returns a vector of tranformed pixels
+    /// Consumes decoder and returns a vector of transformed pixels
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(RGBE8Pixel)-> T>(mut self, f: F) -> ImageResult<Vec<T>> {
         // Don't read anything if image is empty
         if self.width == 0 || self.height ==0 {
@@ -436,7 +436,7 @@ fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<(
     let fb = try!(read_rgbe(r));
     if fb.c[0] == 2 && fb.c[1] == 2 && fb.c[2] < 128 {
         // denormalized pixel value (2,2,<128,_) indicates new per component RLE method
-        // decode_component guaranties that offset is within 0 .. width
+        // decode_component guarantees that offset is within 0 .. width
         // therefore we can skip bounds checking here, but we will not
         try!(decode_component(r, width, |offset, value| buf[offset].c[0] = value ));
         try!(decode_component(r, width, |offset, value| buf[offset].c[1] = value ));
@@ -456,7 +456,7 @@ fn read_byte<R: BufRead>(r: &mut R) -> io::Result<u8> {
     Ok(buf[0])
 }
 
-// Guaranties that first parameter of set_component will be within pos .. pos+width
+// Guarantees that first parameter of set_component will be within pos .. pos+width
 #[inline]
 fn decode_component<R: BufRead, S: FnMut(usize, u8)>(r: &mut R, width: usize, mut set_component: S) -> ImageResult<()> {
     let mut buf = [0; 128];
@@ -570,7 +570,7 @@ pub struct HDRMetadata {
     pub width: u32,
     /// Height of decoded image. It depends on orientation too.
     pub height: u32,
-    /// Orientation matrix. For standart orientation it is ((1,0),(0,1)) - left to right, top to bottom.
+    /// Orientation matrix. For standard orientation it is ((1,0),(0,1)) - left to right, top to bottom.
     /// First pair tells how resulting pixel coordinates change along a scanline.
     /// Second pair tells how they change from one scanline to the next.
     pub orientation: ((i8, i8), (i8, i8)),
@@ -579,7 +579,7 @@ pub struct HDRMetadata {
     ///
     /// Image may not contain physical data, even if this field is set.
     pub exposure: Option<f32>,
-    /// Divide color values by corresponing tuple member (r, g, b) to get to get physical radiance
+    /// Divide color values by corresponding tuple member (r, g, b) to get to get physical radiance
     /// in watts/steradian/m<sup>2</sup>
     ///
     /// Image may not contain physical data, even if this field is set.
@@ -627,7 +627,7 @@ impl HDRMetadata {
             Some(("EXPOSURE", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.exposure = Some(self.exposure.unwrap_or(1.)*v); // all encountered exposure values should be multplied
+                        self.exposure = Some(self.exposure.unwrap_or(1.)*v); // all encountered exposure values should be multiplied
                     },
                     Err(parse_error) => {
                         if strict {
@@ -639,7 +639,7 @@ impl HDRMetadata {
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.)*v); // all encountered exposure values should be multplied
+                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.)*v); // all encountered exposure values should be multiplied
                     },
                     Err(parse_error) => {
                         if strict {
@@ -778,7 +778,7 @@ fn split_at_first_test() {
     assert_eq!(split_at_first(&Cow::Owned("EXPOSURE".into()), ""), None);
 }
 
-// Reads inpult until b"\n" or EOF
+// Reads input until b"\n" or EOF
 // Returns vector of read bytes NOT including end of line characters
 //   or return None to indicate end of file
 fn read_line_u8<R: BufRead>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {

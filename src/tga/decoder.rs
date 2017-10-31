@@ -88,7 +88,7 @@ struct Header {
 }
 
 impl Header {
-    /// Create a header with all valuse set to zero
+    /// Create a header with all values set to zero
     fn new() -> Header {
         Header {
             id_length: 0,

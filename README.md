@@ -96,7 +96,7 @@ pub trait GenericImage {
 ```image``` provides two main ways of representing image data:
 
 #### 4.2.1 ```ImageBuffer```
-An image parametarised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
+An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
 
 ```rust
 extern crate image;
@@ -265,7 +265,7 @@ fn main() {
     // Save the image as “fractal.png”
     let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
 
-    // We must indicate the image’s color type and what format to save as
+    // We must indicate the image's color type and what format to save as
     let _ = image::ImageLuma8(imgbuf).save(fout, image::PNG);
 }
 ```

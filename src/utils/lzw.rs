@@ -76,7 +76,7 @@ impl DecodingDict {
         while let Some(k) = code {
             //(code, cha) = self.table[k as usize];
             // Node this could possibly replaced by unsafe access because this
-            // struct had been contructed by this algorithm correctly
+            // struct had been constructed by this algorithm correctly
             let entry = self.table[k as usize]; code = entry.0; cha = entry.1;
             self.buffer.push(cha);
         }

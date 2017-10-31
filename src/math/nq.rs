@@ -74,7 +74,7 @@ pub struct NeuQuant {
 }
 
 impl NeuQuant {
-    /// Creates a new neuronal network and trains it with the supplied data
+    /// Creates a new neural network and trains it with the supplied data
     pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> Self {
         let netsize = colors;
         let mut this = NeuQuant {
@@ -90,7 +90,7 @@ impl NeuQuant {
         this
     }
 
-    /// Initializes the neuronal network and trains it with the supplied data
+    /// Initializes the neural network and trains it with the supplied data
     pub fn init(&mut self, pixels: &[u8]) {
         self.network.clear();
         self.colormap.clear();
@@ -108,7 +108,7 @@ impl NeuQuant {
         }
         self.learn(pixels);
         self.build_colormap();
-        self.inxbuild();
+        self.build_netindex();
     }
 
     /// Maps the pixel in-place to the best-matching color in the color map
@@ -117,7 +117,7 @@ impl NeuQuant {
         assert_eq!(pixel.len(), 4);
         match (pixel[0], pixel[1], pixel[2], pixel[3]) {
             (r, g, b, a) => {
-                let i = self.inxsearch(b, g, r, a);
+                let i = self.search_netindex(b, g, r, a);
                 pixel[0] = self.colormap[i].r as u8;
                 pixel[1] = self.colormap[i].g as u8;
                 pixel[2] = self.colormap[i].b as u8;
@@ -132,13 +132,13 @@ impl NeuQuant {
         assert_eq!(pixel.len(), 4);
         match (pixel[0], pixel[1], pixel[2], pixel[3]) {
             (r, g, b, a) => {
-                self.inxsearch(b, g, r, a)
+                self.search_netindex(b, g, r, a)
             }
         }
     }
 
     /// Move neuron i towards biased (a,b,g,r) by factor alpha
-    fn altersingle(&mut self, alpha: f64, i: i32, quad: Quad<f64>) {
+    fn alter_single(&mut self, alpha: f64, i: i32, quad: Quad<f64>) {
         let n = &mut self.network[i as usize];
         n.b -= alpha * (n.b - quad.b);
         n.g -= alpha * (n.g - quad.g);
@@ -147,7 +147,7 @@ impl NeuQuant {
     }
 
     /// Move neuron adjacent neurons towards biased (a,b,g,r) by factor alpha
-    fn alterneigh(&mut self, alpha: f64, rad: i32, i: i32, quad: Quad<f64>) {
+    fn alter_neighbour(&mut self, alpha: f64, rad: i32, i: i32, quad: Quad<f64>) {
         let lo = max(i - rad, 0);
         let hi = min(i + rad, self.netsize as i32);
         let mut j = i + 1;
@@ -246,9 +246,9 @@ impl NeuQuant {
             let j =  self.contest (b, g, r, a);
 
             let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
-            self.altersingle(alpha_, j, Quad { b: b, g: g, r: r, a: a });
+            self.alter_single(alpha_, j, Quad { b: b, g: g, r: r, a: a });
             if rad > 0 {
-                self.alterneigh(alpha_, rad, j, Quad { b: b, g: g, r: r, a: a })
+                self.alter_neighbour(alpha_, rad, j, Quad { b: b, g: g, r: r, a: a })
             };
 
             pos += step;
@@ -275,7 +275,7 @@ impl NeuQuant {
     }
 
     /// Insertion sort of network and building of netindex[0..255]
-    fn inxbuild(&mut self) {
+    fn build_netindex(&mut self) {
         let mut previouscol = 0;
         let mut startpos = 0;
 
@@ -315,7 +315,7 @@ impl NeuQuant {
     }
 
     /// Search for best matching color
-    fn inxsearch(&self, b: u8, g: u8, r: u8, a: u8) -> usize {
+    fn search_netindex(&self, b: u8, g: u8, r: u8, a: u8) -> usize {
         let mut bestd = 1 << 30; // ~ 1_000_000
         let mut best = 0;
         // start at netindex[g] and work outwards
@@ -326,7 +326,7 @@ impl NeuQuant {
             if i < self.netsize {
                 let p = self.colormap[i];
                 let mut e = p.g - g as i32;
-                let mut dist = e*e; // inx key
+                let mut dist = e*e; // index key
                 if dist >= bestd { break }
                 else {
                     e = p.b - b as i32;
@@ -346,7 +346,7 @@ impl NeuQuant {
             if j > 0 {
                 let p = self.colormap[j];
                 let mut e = p.g - g as i32;
-                let mut dist = e*e; // inx key
+                let mut dist = e*e; // index key
                 if dist >= bestd { break }
                 else {
                     e = p.b - b as i32;

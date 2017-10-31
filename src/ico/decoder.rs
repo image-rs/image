@@ -223,7 +223,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                     ));
                 }
 
-                // The ICO decoder needs an alpha chanel to apply the AND mask.
+                // The ICO decoder needs an alpha channel to apply the AND mask.
                 if try!(decoder.colortype()) != ColorType::RGBA(8) {
                     return Err(ImageError::UnsupportedError("Unsupported color type".to_string()))
                 }

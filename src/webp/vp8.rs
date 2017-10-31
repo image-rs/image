@@ -66,7 +66,7 @@ static KEYFRAME_BPRED_MODE_TREE: [i8; 18] = [
     -B_HD_PRED, -B_HU_PRED
 ];
 
-// Probabilites for the BPRED_MODE_TREE
+// Probabilities for the BPRED_MODE_TREE
 static KEYFRAME_BPRED_MODE_PROBS: [[[u8; 9]; 10]; 10] = [
     [
         [ 231, 120,  48,  89, 115, 113, 120, 152, 112],

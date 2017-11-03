@@ -31,12 +31,20 @@ impl<R: Read> PPMDecoder<R> {
         })
     }
 
+    /// Reads a string as well as a single whitespace after it, ignoring comments
     fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
         let mut bytes = Vec::new();
         let mut comment = false;
 
         for byte in reader.bytes() {
             match byte {
+                Ok(b'\n') | Ok(b'\r') if comment => {
+                    // End of comment, this does not end tokens (http://netpbm.sourceforge.net/doc/ppm.html)
+                    comment = false;
+                },
+                Ok(_) if comment => {
+                    // Ignore all other bytes in comments
+                },
                 Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
                     if !bytes.is_empty() {
                         break // We're done as we already have some content
@@ -44,7 +52,6 @@ impl<R: Read> PPMDecoder<R> {
                 },
                 Ok(b'#') => {
                     comment = true;
-                    break
                 },
                 Ok(byte) => {
                     bytes.push(byte);
@@ -53,24 +60,11 @@ impl<R: Read> PPMDecoder<R> {
             }
         }
 
-        if comment {
-            PPMDecoder::read_until_newline(reader);
-
-            if bytes.is_empty() {
-                return PPMDecoder::read_next_string(reader);
-            }
+        if comment && bytes.is_empty() {
+            return Err(ImageError::FormatError("Unexpected eof".to_string()))
         }
 
         String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
-    }
-
-    fn read_until_newline(reader: &mut BufReader<R>) {
-        for byte in reader.bytes() {
-            match byte {
-                Ok(b'\n') | Ok(b'\r') | Err(_) => break,
-                _ => continue
-            }
-        }
     }
 
     fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {

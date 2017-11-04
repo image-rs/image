@@ -49,14 +49,10 @@ impl<R: Read> PPMDecoder<R> {
                     Err(err) => return Some((*partof, Err(err))),
                     Ok(byte) => byte,
                 };
-                if *partof && byte == b'#' {
-                    *partof = false;
-                    return Some((false, Ok(byte)));
-                } else if !*partof && (byte == b'\r' || byte == b'\n') {
-                    *partof = true;
-                    return Some((false, Ok(byte)));
-                }
-                return Some((*partof, Ok(byte)));
+                let cur_enabled = *partof && byte != b'#';
+                let next_enabled = cur_enabled || (byte == b'\r' || byte == b'\n');
+                *partof = next_enabled;
+                return Some((cur_enabled, Ok(byte)));
             });
 
         for (_, byte) in mark_comments.filter(|ref e| e.0) {

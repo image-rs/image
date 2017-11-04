@@ -61,7 +61,7 @@ impl<R: Read> PPMDecoder<R> {
 
         for (_, byte) in mark_comments.filter(|ref e| e.0) {
             match byte {
-                Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
+                Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => {
                     if !bytes.is_empty() {
                         break // We're done as we already have some content
                     }

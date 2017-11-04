@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::io::BufReader;
+use std::io::Error as IoError;
 
 use color::{ColorType};
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
@@ -17,16 +18,18 @@ pub struct PPMDecoder<R> {
 
 impl<R: Read> PPMDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<PPMDecoder<R>> {
-        let mut buf = BufReader::new(r);
+    pub fn new(read: R) -> ImageResult<PPMDecoder<R>> {
+        let mut buf = BufReader::new(read);
         let mut magic: [u8; 2] = [0, 0];
         try!(buf.read_exact(&mut magic[..])); // Skip magic constant
         if magic[0] != b'P' || (magic[1] != b'3' && magic[1] != b'6') {
             return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
         }
+
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
         let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));
+
         Ok(PPMDecoder {
             reader: buf,
             width: width,
@@ -38,24 +41,30 @@ impl<R: Read> PPMDecoder<R> {
     /// Reads a string as well as a single whitespace after it, ignoring comments
     fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
         let mut bytes = Vec::new();
-        let mut comment = false;
 
-        for byte in reader.bytes() {
+        let mark_comments = reader
+            .bytes()
+            .scan(true, |partof, read| {
+                let byte = match read {
+                    Err(err) => return Some((*partof, Err(err))),
+                    Ok(byte) => byte,
+                };
+                if *partof && byte == b'#' {
+                    *partof = false;
+                    return Some((false, Ok(byte)));
+                } else if !*partof && (byte == b'\r' || byte == b'\n') {
+                    *partof = true;
+                    return Some((false, Ok(byte)));
+                }
+                return Some((*partof, Ok(byte)));
+            });
+
+        for (_, byte) in mark_comments.filter(|ref e| e.0) {
             match byte {
-                Ok(b'\n') | Ok(b'\r') if comment => {
-                    // End of comment, this does not end tokens (http://netpbm.sourceforge.net/doc/ppm.html)
-                    comment = false;
-                },
-                Ok(_) if comment => {
-                    // Ignore all other bytes in comments
-                },
                 Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
                     if !bytes.is_empty() {
                         break // We're done as we already have some content
                     }
-                },
-                Ok(b'#') => {
-                    comment = true;
                 },
                 Ok(byte) => {
                     bytes.push(byte);
@@ -64,7 +73,7 @@ impl<R: Read> PPMDecoder<R> {
             }
         }
 
-        if comment && bytes.is_empty() {
+        if bytes.is_empty() {
             return Err(ImageError::FormatError("Unexpected eof".to_string()))
         }
 
@@ -151,7 +160,7 @@ mod tests {
     fn comment_in_token() {
         decode_minimal_image(&b"P6 1 1 2#comment\n55 123"[..]); // Terminating LF
         decode_minimal_image(&b"P6 1 1 2#comment\r55 123"[..]); // Terminating CR
-        decode_minimal_image(&b"P6 1 1 255#comment\n 123"[..]); // Comment after token
+        decode_minimal_image(&b"P6 1 1#comment\n 255 123"[..]); // Comment after token
         decode_minimal_image(&b"P6 1 1 #comment\n255 123"[..]); // Comment before token
         decode_minimal_image(&b"P6#comment\n 1 1 255 123"[..]); // Begin of header
         decode_minimal_image(&b"P6 1 1 255#comment\n 123"[..]); // End of header

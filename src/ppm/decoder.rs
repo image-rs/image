@@ -128,3 +128,56 @@ impl<R: Read> PPMDecoder<R> {
         if self.maxwhite < 256 { 1 } else { 2 }
     }
 }
+
+/// Tests parsing binary buffers were written based on and validated against `identify` from
+/// ImageMagick (https://www.imagemagick.org/script/identify.php).
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn minimal_form() {
+        // Violates current specification (October 2016 ) but accepted by both netpbm and ImageMagick
+        decode_minimal_image(&b"P61 1 255 \x01\x02\x03"[..]);
+        decode_minimal_image(&b"P6 1 1 255 123"[..]);
+        decode_minimal_image(&b"P6 1 1 255 123\xFF"[..]); // Too long should not be an issue
+    }
+
+    #[test]
+    fn comment_in_token() {
+        decode_minimal_image(&b"P6 1 1 2#comment\n55 123"[..]); // Terminating LF
+        decode_minimal_image(&b"P6 1 1 2#comment\r55 123"[..]); // Terminating CR
+        decode_minimal_image(&b"P6 1 1 255#comment\n 123"[..]); // Comment after token
+        decode_minimal_image(&b"P6 1 1 #comment\n255 123"[..]); // Comment before token
+        decode_minimal_image(&b"P6#comment\n 1 1 255 123"[..]); // Begin of header
+        decode_minimal_image(&b"P6 1 1 255#comment\n 123"[..]); // End of header
+    }
+
+    #[test]
+    fn whitespace() {
+        decode_minimal_image(&b"P6\x091\x091\x09255\x09123"[..]); // TAB
+        decode_minimal_image(&b"P6\x0a1\x0a1\x0a255\x0a123"[..]); // LF
+        decode_minimal_image(&b"P6\x0b1\x0b1\x0b255\x0b123"[..]); // VT
+        decode_minimal_image(&b"P6\x0c1\x0c1\x0c255\x0c123"[..]); // FF
+        decode_minimal_image(&b"P6\x0d1\x0d1\x0d255\x0d123"[..]); // CR
+        // Spaces tested before
+        decode_minimal_image(&b"P61\x09\x0a\x0b\x0c\x0d1 255 123"[..]); // All whitespace, combined
+    }
+
+    /// Tests for decoding error, assuming `encoded` is ppm encoding for the very simplistic image
+    /// containing a single pixel with one byte values (1, 2, 3).
+    fn decode_minimal_image(encoded: &[u8]) {
+        let content = vec![49 as u8, 50, 51];
+        let mut decoder = super::PPMDecoder::new(encoded).unwrap();
+
+        assert_eq!(decoder.dimensions().unwrap(), (1, 1));
+        assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
+        assert_eq!(decoder.row_len().unwrap(), 3);
+        assert_eq!(decoder.bytewidth(), 1);
+
+        match decoder.read_image().unwrap() {
+            DecodingResult::U8(image) => assert_eq!(image, content),
+            _ => assert!(false),
+        }
+    }
+}

@@ -19,7 +19,11 @@ impl<R: Read> PPMDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PPMDecoder<R>> {
         let mut buf = BufReader::new(r);
-        try!(PPMDecoder::read_next_string(&mut buf)); // Skip P6
+        let mut magic: [u8; 2] = [0, 0];
+        try!(buf.read_exact(&mut magic[..])); // Skip magic constant
+        if magic[0] != b'P' || (magic[1] != b'3' && magic[1] != b'6') {
+            return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
+        }
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
         let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));
@@ -138,7 +142,7 @@ mod tests {
     #[test]
     fn minimal_form() {
         // Violates current specification (October 2016 ) but accepted by both netpbm and ImageMagick
-        decode_minimal_image(&b"P61 1 255 \x01\x02\x03"[..]);
+        decode_minimal_image(&b"P61 1 255 123"[..]);
         decode_minimal_image(&b"P6 1 1 255 123"[..]);
         decode_minimal_image(&b"P6 1 1 255 123\xFF"[..]); // Too long should not be an issue
     }

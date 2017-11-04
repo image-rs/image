@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::io::BufReader;
 use std::io::Error as IoError;
+use std::ascii::AsciiExt;
 
 use color::{ColorType};
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
@@ -73,12 +74,16 @@ impl<R: Read> PPMDecoder<R> {
             return Err(ImageError::FormatError("Unexpected eof".to_string()))
         }
 
+        if !bytes.as_slice().is_ascii() {
+            return Err(ImageError::FormatError("Non ascii character in preamble"))
+        }
+
         String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
     }
 
     fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {
         let s = try!(PPMDecoder::read_next_string(reader));
-        s.parse::<u32>().map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
+        s.parse::<u32>().map_err(|_| ImageError::FormatError("Invalid number in preamble".to_string()))
     }
 }
 

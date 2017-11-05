@@ -31,6 +31,10 @@ impl<R: Read> PPMDecoder<R> {
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
         let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));
 
+        if !(maxwhite <= u16::max_value() as u32) {
+            return Err(ImageError::FormatError("Image maxval is not less or equal to 65535".to_string()))
+        }
+
         Ok(PPMDecoder {
             reader: buf,
             width: width,

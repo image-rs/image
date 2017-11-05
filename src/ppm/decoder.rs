@@ -43,6 +43,7 @@ impl<R: Read> PPMDecoder<R> {
     fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
         let mut bytes = Vec::new();
 
+        // pair input bytes with a bool mask to remove comments
         let mark_comments = reader
             .bytes()
             .scan(true, |partof, read| {
@@ -75,7 +76,7 @@ impl<R: Read> PPMDecoder<R> {
         }
 
         if !bytes.as_slice().is_ascii() {
-            return Err(ImageError::FormatError("Non ascii character in preamble"))
+            return Err(ImageError::FormatError("Non ascii character in preamble".to_string()))
         }
 
         String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
@@ -143,8 +144,8 @@ impl<R: Read> PPMDecoder<R> {
     }
 }
 
-/// Tests parsing binary buffers were written based on and validated against `identify` from
-/// ImageMagick (https://www.imagemagick.org/script/identify.php).
+/// Tests parsing binary buffers were written based on and validated against `pamfile` from
+/// netpbm (http://netpbm.sourceforge.net/).
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,7 +183,7 @@ mod tests {
     /// containing a single pixel with one byte values (1, 2, 3).
     fn decode_minimal_image(encoded: &[u8]) {
         let content = vec![49 as u8, 50, 51];
-        let mut decoder = super::PPMDecoder::new(encoded).unwrap();
+        let mut decoder = PPMDecoder::new(encoded).unwrap();
 
         assert_eq!(decoder.dimensions().unwrap(), (1, 1));
         assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
@@ -193,5 +194,24 @@ mod tests {
             DecodingResult::U8(image) => assert_eq!(image, content),
             _ => assert!(false),
         }
+    }
+
+    #[test]
+    fn wrong_tag() {
+        assert!(PPMDecoder::new(&b"P5 1 1 255 1"[..]).is_err());
+    }
+
+    #[test]
+    fn invalid_characters() {
+        assert!(PPMDecoder::new(&b"P6 1chars1 255 1"[..]).is_err()); // No text outside of comments
+        assert!(PPMDecoder::new(&b"P6 1\xFF1 255 1"[..]).is_err()); // No invalid ascii chars
+        assert!(PPMDecoder::new(&b"P6 0x01 1 255 1"[..]).is_err()); // Numbers only as decimal
+    }
+
+    /// These violate the narrow specification of ppm but are commonly supported in other programs.
+    /// Fail fast and concise is important here as these might be received as input files.
+    #[test]
+    fn unsupported_extensions() {
+        assert!(PPMDecoder::new(&b"P6 1 1 65536 1"[..]).is_err()); // No bitwidth above 16
     }
 }

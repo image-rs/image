@@ -27,6 +27,11 @@ impl<R: Read> PPMDecoder<R> {
             return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
         }
 
+        // Remove this once the reader can read plain ppm
+        if magic[1] == b'3' {
+            return Err(ImageError::FormatError("Plain format is not yet supported".to_string()))
+        }
+
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
         let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));

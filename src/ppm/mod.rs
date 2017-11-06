@@ -92,16 +92,4 @@ mod test {
             }
         }
     }
-
-    #[test]
-    fn test_ppm_comment() {
-        // the following is a 1x1 white dot:
-        let buf = "P3\n# asdf\n1 1\n255 255 255 255".as_bytes();
-
-        let img = super::PPMDecoder::new(&buf[..]);
-        assert_eq!(img.is_ok(), true);
-
-        let img = img.unwrap().read_image();
-        assert_eq!(img.is_ok(), true);
-    }
 }

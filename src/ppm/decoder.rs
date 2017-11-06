@@ -1,5 +1,7 @@
 use std::io::Read;
 use std::io::BufReader;
+use std::io::Error as IoError;
+use std::ascii::AsciiExt;
 
 use color::{ColorType};
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
@@ -17,12 +19,27 @@ pub struct PPMDecoder<R> {
 
 impl<R: Read> PPMDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<PPMDecoder<R>> {
-        let mut buf = BufReader::new(r);
-        try!(PPMDecoder::read_next_string(&mut buf)); // Skip P6
+    pub fn new(read: R) -> ImageResult<PPMDecoder<R>> {
+        let mut buf = BufReader::new(read);
+        let mut magic: [u8; 2] = [0, 0];
+        try!(buf.read_exact(&mut magic[..])); // Skip magic constant
+        if magic[0] != b'P' || (magic[1] != b'3' && magic[1] != b'6') {
+            return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
+        }
+
+        // Remove this once the reader can read plain ppm
+        if magic[1] == b'3' {
+            return Err(ImageError::FormatError("Plain format is not yet supported".to_string()))
+        }
+
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
         let maxwhite = try!(PPMDecoder::read_next_u32(&mut buf));
+
+        if !(maxwhite <= u16::max_value() as u32) {
+            return Err(ImageError::FormatError("Image maxval is not less or equal to 65535".to_string()))
+        }
+
         Ok(PPMDecoder {
             reader: buf,
             width: width,
@@ -31,20 +48,30 @@ impl<R: Read> PPMDecoder<R> {
         })
     }
 
+    /// Reads a string as well as a single whitespace after it, ignoring comments
     fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
         let mut bytes = Vec::new();
-        let mut comment = false;
 
-        for byte in reader.bytes() {
+        // pair input bytes with a bool mask to remove comments
+        let mark_comments = reader
+            .bytes()
+            .scan(true, |partof, read| {
+                let byte = match read {
+                    Err(err) => return Some((*partof, Err(err))),
+                    Ok(byte) => byte,
+                };
+                let cur_enabled = *partof && byte != b'#';
+                let next_enabled = cur_enabled || (byte == b'\r' || byte == b'\n');
+                *partof = next_enabled;
+                return Some((cur_enabled, Ok(byte)));
+            });
+
+        for (_, byte) in mark_comments.filter(|ref e| e.0) {
             match byte {
-                Ok(b'\n') | Ok(b' ') | Ok(b'\r') | Ok(b'\t') => {
+                Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => {
                     if !bytes.is_empty() {
                         break // We're done as we already have some content
                     }
-                },
-                Ok(b'#') => {
-                    comment = true;
-                    break
                 },
                 Ok(byte) => {
                     bytes.push(byte);
@@ -53,29 +80,20 @@ impl<R: Read> PPMDecoder<R> {
             }
         }
 
-        if comment {
-            PPMDecoder::read_until_newline(reader);
+        if bytes.is_empty() {
+            return Err(ImageError::FormatError("Unexpected eof".to_string()))
+        }
 
-            if bytes.is_empty() {
-                return PPMDecoder::read_next_string(reader);
-            }
+        if !bytes.as_slice().is_ascii() {
+            return Err(ImageError::FormatError("Non ascii character in preamble".to_string()))
         }
 
         String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
     }
 
-    fn read_until_newline(reader: &mut BufReader<R>) {
-        for byte in reader.bytes() {
-            match byte {
-                Ok(b'\n') | Ok(b'\r') | Err(_) => break,
-                _ => continue
-            }
-        }
-    }
-
     fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {
         let s = try!(PPMDecoder::read_next_string(reader));
-        s.parse::<u32>().map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
+        s.parse::<u32>().map_err(|_| ImageError::FormatError("Invalid number in preamble".to_string()))
     }
 }
 
@@ -132,5 +150,77 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
 impl<R: Read> PPMDecoder<R> {
     fn bytewidth(&self) -> u32 {
         if self.maxwhite < 256 { 1 } else { 2 }
+    }
+}
+
+/// Tests parsing binary buffers were written based on and validated against `pamfile` from
+/// netpbm (http://netpbm.sourceforge.net/).
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn minimal_form() {
+        // Violates current specification (October 2016 ) but accepted by both netpbm and ImageMagick
+        decode_minimal_image(&b"P61 1 255 123"[..]);
+        decode_minimal_image(&b"P6 1 1 255 123"[..]);
+        decode_minimal_image(&b"P6 1 1 255 123\xFF"[..]); // Too long should not be an issue
+    }
+
+    #[test]
+    fn comment_in_token() {
+        decode_minimal_image(&b"P6 1 1 2#comment\n55 123"[..]); // Terminating LF
+        decode_minimal_image(&b"P6 1 1 2#comment\r55 123"[..]); // Terminating CR
+        decode_minimal_image(&b"P6 1 1#comment\n 255 123"[..]); // Comment after token
+        decode_minimal_image(&b"P6 1 1 #comment\n255 123"[..]); // Comment before token
+        decode_minimal_image(&b"P6#comment\n 1 1 255 123"[..]); // Begin of header
+        decode_minimal_image(&b"P6 1 1 255#comment\n 123"[..]); // End of header
+    }
+
+    #[test]
+    fn whitespace() {
+        decode_minimal_image(&b"P6\x091\x091\x09255\x09123"[..]); // TAB
+        decode_minimal_image(&b"P6\x0a1\x0a1\x0a255\x0a123"[..]); // LF
+        decode_minimal_image(&b"P6\x0b1\x0b1\x0b255\x0b123"[..]); // VT
+        decode_minimal_image(&b"P6\x0c1\x0c1\x0c255\x0c123"[..]); // FF
+        decode_minimal_image(&b"P6\x0d1\x0d1\x0d255\x0d123"[..]); // CR
+        // Spaces tested before
+        decode_minimal_image(&b"P61\x09\x0a\x0b\x0c\x0d1 255 123"[..]); // All whitespace, combined
+    }
+
+    /// Tests for decoding error, assuming `encoded` is ppm encoding for the very simplistic image
+    /// containing a single pixel with one byte values (1, 2, 3).
+    fn decode_minimal_image(encoded: &[u8]) {
+        let content = vec![49 as u8, 50, 51];
+        let mut decoder = PPMDecoder::new(encoded).unwrap();
+
+        assert_eq!(decoder.dimensions().unwrap(), (1, 1));
+        assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
+        assert_eq!(decoder.row_len().unwrap(), 3);
+        assert_eq!(decoder.bytewidth(), 1);
+
+        match decoder.read_image().unwrap() {
+            DecodingResult::U8(image) => assert_eq!(image, content),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn wrong_tag() {
+        assert!(PPMDecoder::new(&b"P5 1 1 255 1"[..]).is_err());
+    }
+
+    #[test]
+    fn invalid_characters() {
+        assert!(PPMDecoder::new(&b"P6 1chars1 255 1"[..]).is_err()); // No text outside of comments
+        assert!(PPMDecoder::new(&b"P6 1\xFF1 255 1"[..]).is_err()); // No invalid ascii chars
+        assert!(PPMDecoder::new(&b"P6 0x01 1 255 1"[..]).is_err()); // Numbers only as decimal
+    }
+
+    /// These violate the narrow specification of ppm but are commonly supported in other programs.
+    /// Fail fast and concise is important here as these might be received as input files.
+    #[test]
+    fn unsupported_extensions() {
+        assert!(PPMDecoder::new(&b"P6 1 1 65536 1"[..]).is_err()); // No bitwidth above 16
     }
 }

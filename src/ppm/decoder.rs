@@ -8,6 +8,10 @@ use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
 extern crate byteorder;
 use self::byteorder::{BigEndian, ByteOrder};
 
+enum DecodeStrategy {
+    Bytes,
+    Ascii,
+}
 
 /// PPM decoder
 pub struct PPMDecoder<R> {
@@ -15,6 +19,8 @@ pub struct PPMDecoder<R> {
     width: u32,
     height: u32,
     maxwhite: u32,
+    samples: u32,
+    decoder: DecodeStrategy,
 }
 
 impl<R: Read> PPMDecoder<R> {
@@ -45,6 +51,8 @@ impl<R: Read> PPMDecoder<R> {
             width: width,
             height: height,
             maxwhite: maxwhite,
+            samples: 3,
+            decoder: DecodeStrategy::Bytes,
         })
     }
 
@@ -103,15 +111,15 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        match self.bytewidth() {
-            1 => Ok(ColorType::RGB(8)),
-            2 => Ok(ColorType::RGB(16)),
+        match (self.bytewidth(), self.components()) {
+            (1, 3) => Ok(ColorType::RGB(8)),
+            (2, 3) => Ok(ColorType::RGB(16)),
             _ => Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string())),
         }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
-        Ok((self.width*3*self.bytewidth()) as usize)
+        Ok((self.width*self.components()*self.bytewidth()) as usize)
     }
 
     fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
@@ -120,7 +128,7 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
         let opt_size = self.width.checked_mul(self.height)
-            .map_or(None, |v| v.checked_mul(3))
+            .map_or(None, |v| v.checked_mul(self.components()))
             .map_or(None, |v| v.checked_mul(self.bytewidth()));
 
         let size = match opt_size {
@@ -150,6 +158,10 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
 impl<R: Read> PPMDecoder<R> {
     fn bytewidth(&self) -> u32 {
         if self.maxwhite < 256 { 1 } else { 2 }
+    }
+
+    fn components(&self) -> u32 {
+        self.samples
     }
 }
 

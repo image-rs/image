@@ -127,31 +127,16 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let opt_size = self.width.checked_mul(self.height)
-            .map_or(None, |v| v.checked_mul(self.components()))
-            .map_or(None, |v| v.checked_mul(self.bytewidth()));
+        let pixelcount = self.width
+            .checked_mul(self.height)
+            .and_then(|v| v.checked_mul(self.components()));
 
-        let size = match opt_size {
+        let pixelcount = match pixelcount {
             Some(v) => v,
-            None => return Err(ImageError::DimensionError),
+            _ => return Err(ImageError::DimensionError),
         };
 
-        let mut data = vec![0 as u8; size as usize];
-
-        match self.reader.read_exact(&mut data) {
-            Ok(_) => {},
-            Err(e) => return Err(ImageError::IoError(e)),
-        };
-
-        if self.bytewidth() == 1 {
-            Ok(DecodingResult::U8(data))
-        } else {
-            let mut out = vec![0 as u16; (self.width*self.height*3) as usize];
-            for (o, i) in out.chunks_mut(1).zip(data.chunks(2)) {
-                o[0] = BigEndian::read_u16(i);
-            }
-            Ok(DecodingResult::U16(out))
-        }
+        self.read(pixelcount)
     }
 }
 
@@ -162,6 +147,49 @@ impl<R: Read> PPMDecoder<R> {
 
     fn components(&self) -> u32 {
         self.samples
+    }
+
+    fn read(&mut self, count: u32) -> ImageResult<DecodingResult> {
+        if self.bytewidth() == 1 {
+            let mut data = vec![0 as u8; count as usize];
+            self.read_u8(&mut data)?;
+            Ok(DecodingResult::U8(data))
+        } else if self.bytewidth() == 2 {
+            let mut data = vec![0 as u16; count as usize];
+            self.read_u16(&mut data)?;
+            Ok(DecodingResult::U16(data))
+        } else {
+            Err(ImageError::FormatError("Invalid sample bitwidth".to_string()))
+        }
+    }
+
+    fn read_u8(&mut self, mut buffer: &mut [u8]) -> ImageResult<()> {
+        match self.decoder {
+            DecodeStrategy::Bytes => match self.reader.read_exact(&mut buffer) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(ImageError::IoError(e)),
+                },
+            DecodeStrategy::Ascii => {
+                    unimplemented!()
+                }
+        }
+    }
+
+    fn read_u16(&mut self, mut buffer: &mut [u16]) -> ImageResult<()> {
+        match self.decoder {
+            DecodeStrategy::Bytes => {
+                    let mut bytebuffer = vec![0 as u8; buffer.len() * 2];
+                    match self.reader.read_exact(&mut bytebuffer) {
+                        Err(e) => return Err(ImageError::IoError(e)),
+                        Ok(_) => {},
+                    }
+                    BigEndian::read_u16_into(&mut bytebuffer, &mut buffer);
+                    Ok(())
+                },
+            DecodeStrategy::Ascii => {
+                    unimplemented!()
+                }
+        }
     }
 }
 

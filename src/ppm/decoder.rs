@@ -1,6 +1,5 @@
 use std::io::Read;
 use std::io::BufReader;
-use std::io::Error as IoError;
 use std::ascii::AsciiExt;
 
 use color::{ColorType};
@@ -33,10 +32,11 @@ impl<R: Read> PPMDecoder<R> {
             return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
         }
 
-        // Remove this once the reader can read plain ppm
-        if magic[1] == b'3' {
-            return Err(ImageError::FormatError("Plain format is not yet supported".to_string()))
-        }
+        let decoder = match magic[1] {
+            b'3' => DecodeStrategy::Ascii,
+            b'6' => DecodeStrategy::Bytes,
+            _ => unreachable!(),
+        };
 
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
         let height = try!(PPMDecoder::read_next_u32(&mut buf));
@@ -52,7 +52,7 @@ impl<R: Read> PPMDecoder<R> {
             height: height,
             maxwhite: maxwhite,
             samples: 3,
-            decoder: DecodeStrategy::Bytes,
+            decoder: decoder,
         })
     }
 
@@ -112,6 +112,8 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match (self.bytewidth(), self.components()) {
+            (1, 1) => Ok(ColorType::Gray(8)),
+            (2, 1) => Ok(ColorType::Gray(16)),
             (1, 3) => Ok(ColorType::RGB(8)),
             (2, 3) => Ok(ColorType::RGB(16)),
             _ => Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string())),
@@ -170,7 +172,7 @@ impl<R: Read> PPMDecoder<R> {
                     Err(e) => Err(ImageError::IoError(e)),
                 },
             DecodeStrategy::Ascii => {
-                    unimplemented!()
+                    self.read_ascii::<u8>(&mut buffer)
                 }
         }
     }
@@ -187,8 +189,58 @@ impl<R: Read> PPMDecoder<R> {
                     Ok(())
                 },
             DecodeStrategy::Ascii => {
-                    unimplemented!()
+                    self.read_ascii::<u16>(&mut buffer)
                 }
+        }
+    }
+
+    fn read_ascii<Basic: FromSample>(&mut self, buffer: &mut [Basic::T]) -> ImageResult<()> {
+        for pixel in buffer {
+            let value = self.read_sample()?;
+            *pixel = Basic::try_convert(value)?;
+        }
+        Ok(())
+    }
+
+    fn read_sample(&mut self) -> ImageResult<u32> {
+        let token = (&mut self.reader).bytes()
+            .take_while(|v| match v {
+                    &Err(_) => false,
+                    &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
+                    _ => true,
+                })
+            .collect::<Result<Vec<u8>, _>>()?;
+        if !token.is_ascii() {
+            return Err(ImageError::FormatError("Non ascii character where sample value was expected".to_string()))
+        }
+        let string = String::from_utf8(token).map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
+        string.parse::<u32>().map_err(|_| ImageError::FormatError("Error parsing sample value".to_string()))
+    }
+}
+
+trait FromSample {
+    type T;
+    fn try_convert(u32) -> ImageResult<Self::T>;
+}
+
+impl FromSample for u8 {
+    type T = u8;
+    fn try_convert(val: u32) -> ImageResult<Self::T> {
+        if val > u8::max_value() as u32 {
+            Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
+        } else {
+            Ok(val as u8)
+        }
+    }
+}
+
+impl FromSample for u16 {
+    type T = u16;
+    fn try_convert(val: u32) -> ImageResult<Self::T> {
+        if val > u16::max_value() as u32 {
+            Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
+        } else {
+            Ok(val as u16)
         }
     }
 }
@@ -226,6 +278,13 @@ mod tests {
         decode_minimal_image(&b"P6\x0d1\x0d1\x0d255\x0d123"[..]); // CR
         // Spaces tested before
         decode_minimal_image(&b"P61\x09\x0a\x0b\x0c\x0d1 255 123"[..]); // All whitespace, combined
+    }
+
+    #[test]
+    fn ascii_encoded() {
+        decode_minimal_image(&b"P31 1 255 49 50 51"[..]);
+        assert!(PPMDecoder::new(&b"P31 1 65535 65535 65535 65535"[..]).unwrap()
+            .read_image().is_ok());
     }
 
     /// Tests for decoding error, assuming `encoded` is ppm encoding for the very simplistic image

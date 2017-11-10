@@ -17,6 +17,19 @@ enum TupleType {
     Bit,
 }
 
+/// Denotes the category of the magic number
+#[derive(Clone, Copy)]
+pub enum PNMSubtype {
+    /// Magic numbers P1 and P4
+    Bitmap,
+    /// Magic numbers P2 and P5
+    Graymap,
+    /// Magic numbers P3 and P6
+    Pixmap,
+    /// Magic number P7
+    ArbitraryMap,
+}
+
 /// PNM decoder
 pub struct PNMDecoder<R> {
     reader: BufReader<R>,
@@ -25,6 +38,7 @@ pub struct PNMDecoder<R> {
     maxwhite: u32,
     tuple: TupleType,
     decoder: DecodeStrategy,
+    subtype: PNMSubtype,
 }
 
 impl<R: Read> PNMDecoder<R> {
@@ -58,6 +72,7 @@ impl<R: Read> PNMDecoder<R> {
             maxwhite: maxwhite,
             tuple: TupleType::RGB,
             decoder: decoder,
+            subtype: PNMSubtype::Pixmap,
         })
     }
 
@@ -204,6 +219,11 @@ impl<R: Read> PNMDecoder<R> {
         }
         let string = String::from_utf8(token).map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
         string.parse::<u32>().map_err(|_| ImageError::FormatError("Error parsing sample value".to_string()))
+    }
+
+    /// Get the pnm subtype, depending on the magic constant contained in the header
+    pub fn subtype(&self) -> PNMSubtype {
+        self.subtype
     }
 }
 

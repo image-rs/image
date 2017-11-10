@@ -1,8 +1,8 @@
 use std::io::Read;
 
 use color::{ColorType};
-use image::{DecodingResult, ImageDecoder, ImageResult};
-use ::pnm::decoder::PNMDecoder;
+use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
+use pnm::{PNMDecoder, PNMSubtype};
 
 /// PPM decoder, restriction pnm type to ppm
 pub struct PPMDecoder<R>(PNMDecoder<R>);
@@ -11,6 +11,10 @@ impl<R: Read> PPMDecoder<R> {
     /// Create a new pnm decoder and asserts it is ppm
     pub fn new(read: R) -> ImageResult<PPMDecoder<R>> {
         let pnm = PNMDecoder::new(read)?;
+        match pnm.subtype() {
+            PNMSubtype::Pixmap => {},
+            _ => return Err(ImageError::FormatError("Expected pixmap magic constant (P3 or P6)".to_string())),
+        }
         Ok(PPMDecoder(pnm))
     }
 }

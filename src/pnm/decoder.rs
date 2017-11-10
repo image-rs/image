@@ -1,4 +1,4 @@
-use std::io::{Read, BufReader};
+use std::io::{Read, BufRead, BufReader};
 use std::ascii::AsciiExt;
 
 use color::{ColorType};
@@ -45,21 +45,28 @@ impl<R: Read> PNMDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(read: R) -> ImageResult<PNMDecoder<R>> {
         let mut buf = BufReader::new(read);
-        let mut magic: [u8; 2] = [0, 0];
-        try!(buf.read_exact(&mut magic[..])); // Skip magic constant
+        let magic = try!(buf.read_magic_constant());
         if magic[0] != b'P' {
-            return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
+            return Err(ImageError::FormatError("Expected magic constant for pnm, P1 through P7".to_string()));
         }
 
-        let decoder = match magic[1] {
-            b'3' => DecodeStrategy::Ascii,
-            b'6' => DecodeStrategy::Bytes,
-            _ => return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string())),
+        let (subtype, decoder) = match magic[1] {
+            b'1' => (PNMSubtype::Bitmap, DecodeStrategy::Ascii),
+            b'2' => (PNMSubtype::Graymap, DecodeStrategy::Ascii),
+            b'3' => (PNMSubtype::Pixmap, DecodeStrategy::Ascii),
+            b'4' => (PNMSubtype::Bitmap, DecodeStrategy::Bytes),
+            b'5' => (PNMSubtype::Graymap, DecodeStrategy::Bytes),
+            b'6' => (PNMSubtype::Pixmap, DecodeStrategy::Bytes),
+            b'7' => (PNMSubtype::ArbitraryMap, DecodeStrategy::Bytes),
+            _ => return Err(ImageError::FormatError("Expected magic constant for ppm, P1 through P7".to_string())),
         };
 
-        let width = try!(PNMDecoder::read_next_u32(&mut buf));
-        let height = try!(PNMDecoder::read_next_u32(&mut buf));
-        let maxwhite = try!(PNMDecoder::read_next_u32(&mut buf));
+        let (width, height, maxwhite, tuple) = match subtype {
+            PNMSubtype::Bitmap => PNMDecoder::read_bitmap_header(&mut buf)?,
+            PNMSubtype::Graymap => PNMDecoder::read_graymap_header(&mut buf)?,
+            PNMSubtype::Pixmap => PNMDecoder::read_pixmap_header(&mut buf)?,
+            PNMSubtype::ArbitraryMap => PNMDecoder::read_arbitrary_header(&mut buf)?,
+        };
 
         if !(maxwhite <= u16::max_value() as u32) {
             return Err(ImageError::FormatError("Image maxval is not less or equal to 65535".to_string()))
@@ -70,18 +77,55 @@ impl<R: Read> PNMDecoder<R> {
             width: width,
             height: height,
             maxwhite: maxwhite,
-            tuple: TupleType::RGB,
+            tuple: tuple,
             decoder: decoder,
-            subtype: PNMSubtype::Pixmap,
+            subtype: subtype,
         })
     }
 
+    fn read_bitmap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
+        let (w, h) = reader.read_bitmap_header()?;
+        Ok((w, h, 1, TupleType::Bit))
+    }
+
+    fn read_graymap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
+        let (w, h, m) = reader.read_graymap_header()?;
+        Ok((w, h, m, TupleType::Grayscale))
+    }
+
+    fn read_pixmap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
+        let (w, h, m) = reader.read_pixmap_header()?;
+        Ok((w, h, m, TupleType::RGB))
+    }
+
+    fn read_arbitrary_header(_reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
+        Err(ImageError::FormatError("PAM is not (yet) supported".to_string()))
+    }
+}
+
+#[allow(unused)]
+struct ArbitraryHeader {
+    height: u32,
+    width: u32,
+    depth: u32,
+    maxval: u32,
+    tupltype: String,
+}
+
+trait HeaderReader: BufRead {
+    /// Reads the two magic constant bytes
+    fn read_magic_constant(&mut self) -> ImageResult<[u8; 2]> {
+        let mut magic: [u8; 2] = [0, 0];
+        self.read_exact(&mut magic).map_err(|_| ImageError::NotEnoughData)?;
+        Ok(magic)
+    }
+
     /// Reads a string as well as a single whitespace after it, ignoring comments
-    fn read_next_string(reader: &mut BufReader<R>) -> ImageResult<String> {
+    fn read_next_string(&mut self) -> ImageResult<String> {
         let mut bytes = Vec::new();
 
         // pair input bytes with a bool mask to remove comments
-        let mark_comments = reader
+        let mark_comments = self
             .bytes()
             .scan(true, |partof, read| {
                 let byte = match read {
@@ -119,11 +163,41 @@ impl<R: Read> PNMDecoder<R> {
         String::from_utf8(bytes).map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
     }
 
-    fn read_next_u32(reader: &mut BufReader<R>) -> ImageResult<u32> {
-        let s = try!(PNMDecoder::read_next_string(reader));
+    /// Read the next line
+    fn read_next_line(&mut self) -> ImageResult<String> {
+        let mut buffer = String::new();
+        self.read_line(&mut buffer).map_err(|_| ImageError::FormatError("Line not properly formatted".to_string()))?;
+        Ok(buffer)
+    }
+
+    fn read_next_u32(&mut self) -> ImageResult<u32> {
+        let s = try!(self.read_next_string());
         s.parse::<u32>().map_err(|_| ImageError::FormatError("Invalid number in preamble".to_string()))
     }
+
+    fn read_bitmap_header(&mut self) -> ImageResult<(u32, u32)> {
+        let width = try!(self.read_next_u32());
+        let height = try!(self.read_next_u32());
+        Ok((width, height))
+    }
+
+    fn read_graymap_header(&mut self) -> ImageResult<(u32, u32, u32)> {
+        self.read_pixmap_header()
+    }
+
+    fn read_pixmap_header(&mut self) -> ImageResult<(u32, u32, u32)> {
+        let width = try!(self.read_next_u32());
+        let height = try!(self.read_next_u32());
+        let maxwhite = try!(self.read_next_u32());
+        Ok((width, height, maxwhite))
+    }
+
+    fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
+        unimplemented!()
+    }
 }
+
+impl<R: Read> HeaderReader for BufReader<R> { }
 
 impl<R: Read> ImageDecoder for PNMDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
@@ -183,7 +257,7 @@ impl<R: Read> PNMDecoder<R> {
             DecodeStrategy::Bytes => {
                     let bytecount = S::bytelen(self.width, self.height, components)?;
                     let mut bytes = vec![0 as u8; bytecount];
-                    (&mut self.reader).read_exact(&mut bytes)?;
+                    (&mut self.reader).read_exact(&mut bytes).map_err(|_| ImageError::NotEnoughData)?;
                     let samples = S::from_bytes(&bytes, self.width, self.height, components)?;
                     Ok(samples.into())
                 },

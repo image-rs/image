@@ -18,7 +18,7 @@ pub struct PPMDecoder<R> {
     width: u32,
     height: u32,
     maxwhite: u32,
-    samples: u32,
+    depth: u32,
     decoder: DecodeStrategy,
 }
 
@@ -28,14 +28,14 @@ impl<R: Read> PPMDecoder<R> {
         let mut buf = BufReader::new(read);
         let mut magic: [u8; 2] = [0, 0];
         try!(buf.read_exact(&mut magic[..])); // Skip magic constant
-        if magic[0] != b'P' || (magic[1] != b'3' && magic[1] != b'6') {
+        if magic[0] != b'P' {
             return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string()));
         }
 
         let decoder = match magic[1] {
             b'3' => DecodeStrategy::Ascii,
             b'6' => DecodeStrategy::Bytes,
-            _ => unreachable!(),
+            _ => return Err(ImageError::FormatError("Expected magic constant for ppm, P3 or P6".to_string())),
         };
 
         let width = try!(PPMDecoder::read_next_u32(&mut buf));
@@ -51,7 +51,7 @@ impl<R: Read> PPMDecoder<R> {
             width: width,
             height: height,
             maxwhite: maxwhite,
-            samples: 3,
+            depth: 3,
             decoder: decoder,
         })
     }
@@ -148,7 +148,7 @@ impl<R: Read> PPMDecoder<R> {
     }
 
     fn components(&self) -> u32 {
-        self.samples
+        self.depth
     }
 
     fn read(&mut self, count: u32) -> ImageResult<DecodingResult> {
@@ -203,12 +203,14 @@ impl<R: Read> PPMDecoder<R> {
     }
 
     fn read_sample(&mut self) -> ImageResult<u32> {
+        let istoken = |v: &Result<u8, _>| match v {
+                &Err(_) => false,
+                &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
+                _ => true,
+            };
         let token = (&mut self.reader).bytes()
-            .take_while(|v| match v {
-                    &Err(_) => false,
-                    &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
-                    _ => true,
-                })
+            .skip_while(|v| !istoken(v))
+            .take_while(&istoken)
             .collect::<Result<Vec<u8>, _>>()?;
         if !token.is_ascii() {
             return Err(ImageError::FormatError("Non ascii character where sample value was expected".to_string()))
@@ -284,7 +286,9 @@ mod tests {
     fn ascii_encoded() {
         decode_minimal_image(&b"P31 1 255 49 50 51"[..]);
         assert!(PPMDecoder::new(&b"P31 1 65535 65535 65535 65535"[..]).unwrap()
-            .read_image().is_ok());
+            .read_image().is_ok()); // Maximum sample size
+        decode_minimal_image(&b"P31 1 255  49 50 51"[..]); // Whitespace after header
+        decode_minimal_image(&b"P31 1 255 49\n\t 50\r\x0b\x0c51"[..]); // All forms of whitespace
     }
 
     /// Tests for decoding error, assuming `encoded` is ppm encoding for the very simplistic image

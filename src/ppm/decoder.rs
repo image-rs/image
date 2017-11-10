@@ -12,13 +12,19 @@ enum DecodeStrategy {
     Ascii,
 }
 
+enum TupleType {
+    RGB,
+    Grayscale,
+    Bit,
+}
+
 /// PPM decoder
 pub struct PPMDecoder<R> {
     reader: BufReader<R>,
     width: u32,
     height: u32,
     maxwhite: u32,
-    depth: u32,
+    tuple: TupleType,
     decoder: DecodeStrategy,
 }
 
@@ -51,7 +57,7 @@ impl<R: Read> PPMDecoder<R> {
             width: width,
             height: height,
             maxwhite: maxwhite,
-            depth: 3,
+            tuple: TupleType::RGB,
             decoder: decoder,
         })
     }
@@ -111,17 +117,18 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        match (self.bytewidth(), self.components()) {
-            (1, 1) => Ok(ColorType::Gray(8)),
-            (2, 1) => Ok(ColorType::Gray(16)),
-            (1, 3) => Ok(ColorType::RGB(8)),
-            (2, 3) => Ok(ColorType::RGB(16)),
-            _ => Err(ImageError::FormatError("Don't know how to decode PPM with more than 16 bits".to_string())),
+        match self.tuple {
+            TupleType::Grayscale if self.maxwhite < 256 => Ok(ColorType::Gray(8)),
+            TupleType::Grayscale if self.maxwhite < 65536 => Ok(ColorType::Gray(16)),
+            TupleType::RGB if self.maxwhite < 256 => Ok(ColorType::RGB(8)),
+            TupleType::RGB if self.maxwhite < 65536 => Ok(ColorType::RGB(16)),
+            TupleType::Bit => Ok(ColorType::Gray(8)),
+            _ => Err(ImageError::FormatError("Can't determine color type".to_string()))
         }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
-        Ok((self.width*self.components()*self.bytewidth()) as usize)
+        self.rowlen()
     }
 
     fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
@@ -129,80 +136,61 @@ impl<R: Read> ImageDecoder for PPMDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let pixelcount = self.width
-            .checked_mul(self.height)
-            .and_then(|v| v.checked_mul(self.components()));
-
-        let pixelcount = match pixelcount {
-            Some(v) => v,
-            _ => return Err(ImageError::DimensionError),
-        };
-
-        self.read(pixelcount)
+        self.read()
     }
 }
 
 impl<R: Read> PPMDecoder<R> {
-    fn bytewidth(&self) -> u32 {
-        if self.maxwhite < 256 { 1 } else { 2 }
-    }
-
-    fn components(&self) -> u32 {
-        self.depth
-    }
-
-    fn read(&mut self, count: u32) -> ImageResult<DecodingResult> {
-        if self.bytewidth() == 1 {
-            let mut data = vec![0 as u8; count as usize];
-            self.read_u8(&mut data)?;
-            Ok(DecodingResult::U8(data))
-        } else if self.bytewidth() == 2 {
-            let mut data = vec![0 as u16; count as usize];
-            self.read_u16(&mut data)?;
-            Ok(DecodingResult::U16(data))
-        } else {
-            Err(ImageError::FormatError("Invalid sample bitwidth".to_string()))
+    fn rowlen(&self) -> ImageResult<usize> {
+        match self.tuple {
+            TupleType::Bit => Bit::bytelen(self.width, 1, 1),
+            TupleType::RGB if self.maxwhite < 256 => u8::bytelen(self.width, 1, 3),
+            TupleType::RGB if self.maxwhite < 65536 => u16::bytelen(self.width, 1, 3),
+            TupleType::Grayscale if self.maxwhite < 256 => u8::bytelen(self.width, 1, 1),
+            TupleType::Grayscale if self.maxwhite < 65536 => u16::bytelen(self.width, 1, 1),
+            _ => return Err(ImageError::FormatError("Invalid sample types for row length".to_string()))
         }
     }
 
-    fn read_u8(&mut self, mut buffer: &mut [u8]) -> ImageResult<()> {
-        match self.decoder {
-            DecodeStrategy::Bytes => match self.reader.read_exact(&mut buffer) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(ImageError::IoError(e)),
-                },
-            DecodeStrategy::Ascii => {
-                    self.read_ascii::<u8>(&mut buffer)
-                }
+    fn read(&mut self) -> ImageResult<DecodingResult> {
+        match self.tuple {
+            TupleType::Bit => self.read_samples::<Bit>(1),
+            TupleType::RGB if self.maxwhite < 256 => self.read_samples::<u8>(3),
+            TupleType::RGB if self.maxwhite < 65536 => self.read_samples::<u16>(3),
+            TupleType::Grayscale if self.maxwhite < 256 => self.read_samples::<u8>(1),
+            TupleType::Grayscale if self.maxwhite < 65536 => self.read_samples::<u16>(1),
+            _ => return Err(ImageError::FormatError("Invalid sample types for row length".to_string()))
         }
     }
 
-    fn read_u16(&mut self, mut buffer: &mut [u16]) -> ImageResult<()> {
+    fn read_samples<S: SampleType>(&mut self, components: u32) -> ImageResult<DecodingResult> where
+        Vec<S::T>: Into<DecodingResult> {
         match self.decoder {
             DecodeStrategy::Bytes => {
-                    let mut bytebuffer = vec![0 as u8; buffer.len() * 2];
-                    match self.reader.read_exact(&mut bytebuffer) {
-                        Err(e) => return Err(ImageError::IoError(e)),
-                        Ok(_) => {},
-                    }
-                    BigEndian::read_u16_into(&mut bytebuffer, &mut buffer);
-                    Ok(())
+                    let bytecount = S::bytelen(self.width, self.height, components)?;
+                    let mut bytes = vec![0 as u8; bytecount];
+                    (&mut self.reader).read_exact(&mut bytes)?;
+                    let samples = S::from_bytes(&bytes, self.width, self.height, components)?;
+                    Ok(samples.into())
                 },
             DecodeStrategy::Ascii => {
-                    self.read_ascii::<u16>(&mut buffer)
+                    let samples = self.read_ascii::<S>(components)?;
+                    Ok(samples.into())
                 }
         }
     }
 
-    fn read_ascii<Basic: FromSample>(&mut self, buffer: &mut [Basic::T]) -> ImageResult<()> {
-        for pixel in buffer {
-            let value = self.read_sample()?;
-            *pixel = Basic::try_convert(value)?;
+    fn read_ascii<Basic: SampleType>(&mut self, components: u32) -> ImageResult<Vec<Basic::T>> {
+        let mut buffer = Vec::new();
+        for _ in 0 .. (self.width * self.height * components) {
+            let value = self.read_ascii_sample()?;
+            let sample = Basic::from_unsigned(value)?;
+            buffer.push(sample);
         }
-        Ok(())
+        Ok(buffer)
     }
 
-    fn read_sample(&mut self) -> ImageResult<u32> {
+    fn read_ascii_sample(&mut self) -> ImageResult<u32> {
         let istoken = |v: &Result<u8, _>| match v {
                 &Err(_) => false,
                 &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
@@ -220,14 +208,26 @@ impl<R: Read> PPMDecoder<R> {
     }
 }
 
-trait FromSample {
+trait SampleType {
     type T;
-    fn try_convert(u32) -> ImageResult<Self::T>;
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
+    /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>>;
+    fn from_unsigned(u32) -> ImageResult<Self::T>;
 }
 
-impl FromSample for u8 {
+impl SampleType for u8 {
     type T = u8;
-    fn try_convert(val: u32) -> ImageResult<Self::T> {
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
+        Ok((width * height * samples) as usize)
+    }
+    fn from_bytes(bytes: &[u8], _width: u32, _height: u32, _samples: u32) -> ImageResult<Vec<Self::T>> {
+        let mut buffer = Vec::new();
+        buffer.resize(bytes.len(), 0 as u8);
+        buffer.copy_from_slice(bytes);
+        Ok(buffer)
+    }
+    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
         if val > u8::max_value() as u32 {
             Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
         } else {
@@ -236,14 +236,69 @@ impl FromSample for u8 {
     }
 }
 
-impl FromSample for u16 {
+impl SampleType for u16 {
     type T = u16;
-    fn try_convert(val: u32) -> ImageResult<Self::T> {
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
+        Ok((width * height * samples * 2) as usize)
+    }
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
+        let mut buffer = Vec::new();
+        buffer.resize((width * height * samples) as usize, 0 as u16);
+        BigEndian::read_u16_into(bytes, &mut buffer);
+        Ok(buffer)
+    }
+    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
         if val > u16::max_value() as u32 {
             Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
         } else {
             Ok(val as u16)
         }
+    }
+}
+
+struct Bit;
+impl SampleType for Bit {
+    type T = u8;
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
+        let count = width * samples;
+        let linelen = (count/8) + (count % 8 == 0) as u32;
+        Ok((linelen * height) as usize)
+    }
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
+        let mut buffer = Vec::new();
+        let linecount = width * samples;
+        buffer.resize((width * height * samples) as usize, 0 as u8);
+        for line in 0..height {
+            for samplei in 0..linecount {
+                let byteindex = (samplei/8) as usize;
+                let inindex = 7 - samplei % 8;
+                let indicator = (bytes[byteindex] >> inindex) & 0x01;
+                let bufferindex = (linecount*line + samplei) as usize;
+                buffer[bufferindex] = if indicator == 0 { 0 } else { 255 };
+            }
+        }
+        Ok(buffer)
+    }
+    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
+        if val > 1 {
+            Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
+        } else if val == 1 {
+            Ok(255 as u8)
+        } else {
+            Ok(0 as u8)
+        }
+    }
+}
+
+impl Into<DecodingResult> for Vec<u8> {
+    fn into(self) -> DecodingResult {
+        DecodingResult::U8(self)
+    }
+}
+
+impl Into<DecodingResult> for Vec<u16> {
+    fn into(self) -> DecodingResult {
+        DecodingResult::U16(self)
     }
 }
 
@@ -300,7 +355,6 @@ mod tests {
         assert_eq!(decoder.dimensions().unwrap(), (1, 1));
         assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
         assert_eq!(decoder.row_len().unwrap(), 3);
-        assert_eq!(decoder.bytewidth(), 1);
 
         match decoder.read_image().unwrap() {
             DecodingResult::U8(image) => assert_eq!(image, content),

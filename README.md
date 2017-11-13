@@ -24,7 +24,7 @@ and import using ```extern crate```:
 ```rust
 extern crate image;
 
-//Use image::
+// use image::
 ```
 
 ## 1. Documentation
@@ -36,7 +36,7 @@ https://docs.rs/image
 
 ### 2.1 Supported Image Formats
 | Format | Decoding | Encoding |
-|---     |---       | --- |
+| ------ | -------- | -------- |
 | PNG    | All supported color types | Same as decoding|
 | JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
@@ -80,10 +80,10 @@ pub trait GenericImage {
     fn bounds(&self) -> (u32, u32, u32, u32);
 
     /// Return the pixel located at (x, y)
-    fn get_pixel(&self, x: u32, y: u32) -> P;
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
     /// Put a pixel at location (x, y)
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: P);
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Return an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
@@ -101,16 +101,12 @@ An image parameterised by its Pixel types, represented by a width and height and
 ```rust
 extern crate image;
 
-use image::{
-    GenericImage,
-    ImageBuffer
-};
+use image::{GenericImage, ImageBuffer};
 
-
-//Construct a new ImageBuffer with the specified width and height.
+// Construct a new ImageBuffer with the specified width and height.
 let img = ImageBuffer::new(512, 512);
 
-//Construct a new by repeated calls to the supplied closure.
+// Construct a new by repeated calls to the supplied closure.
 let img = ImageBuffer::from_fn(512, 512, |x, y| {
     if x % 2 == 0 {
         image::Luma([0u8])
@@ -119,21 +115,21 @@ let img = ImageBuffer::from_fn(512, 512, |x, y| {
     }
 });
 
-//Obtain the image's width and height
+// Obtain the image's width and height.
 let (width, height) = img.dimensions();
 
-//Access the pixel at coordinate (100, 100)
+// Access the pixel at coordinate (100, 100).
 let pixel = img[(100, 100)];
 
-//or using the ```get_pixel``` method from the ```GenericImage``` trait
+// Or use the ```get_pixel``` method from the ```GenericImage``` trait.
 let pixel = img.get_pixel(100, 100);
 
-//Put a pixel at coordinate (100, 100)
+// Put a pixel at coordinate (100, 100).
 img.put_pixel(100, 100, pixel);
 
-//Iterate over all pixels in the image
+// Iterate over all pixels in the image.
 for pixel in img.pixels() {
-    //Do something with pixel
+    // Do something with pixel.
 }
 ```
 
@@ -151,14 +147,10 @@ This is used to perform image processing functions on a subregion of an image.
 ```rust
 extern crate image;
 
-use image::{
-    GenericImage,
-    ImageBuffer,
-    imageops
-};
+use image::{GenericImage, ImageBuffer, imageops};
 
 let ref mut img = ImageBuffer::new(512, 512);
-let subimg  = imageops::crop(img, 0, 0, 100, 100);
+let subimg = imageops::crop(img, 0, 0, 100, 100);
 
 assert!(subimg.dimensions() == (100, 100));
 ```
@@ -192,38 +184,37 @@ The image format is determined from the path's file extension.
 extern crate image;
 
 use std::fs::File;
-use std::path::Path;
 
 use image::GenericImage;
 
 fn main() {
     // Use the open function to load an image from a Path.
-    // ```open``` returns a dynamic image.
-    let img = image::open(&Path::new("test.jpg")).unwrap();
+    // ```open``` returns a `DynamicImage` on success.
+    let img = image::open("test.jpg").unwrap();
 
-    // The dimensions method returns the images width and height
+    // The dimensions method returns the images width and height.
     println!("dimensions {:?}", img.dimensions());
 
-    // The color method returns the image's ColorType
+    // The color method returns the image's `ColorType`.
     println!("{:?}", img.color());
 
-    let ref mut fout = File::create(&Path::new("test.png")).unwrap();
+    let ref mut fout = File::create("test.png").unwrap();
 
     // Write the contents of this image to the Writer in PNG format.
-    let _ = img.save(fout, image::PNG).unwrap();
+    img.save(fout, image::PNG).unwrap();
 }
 ```
 
 ### 6.2 Generating Fractals
 ```rust
-//!An example of generating julia fractals.
-extern crate num;
+//! An example of generating julia fractals.
+extern crate num_complex;
 extern crate image;
 
 use std::fs::File;
 use std::path::Path;
 
-use num::complex::Complex;
+use num_complex::Complex;
 
 fn main() {
     let max_iterations = 256u16;
@@ -263,10 +254,10 @@ fn main() {
 
 
     // Save the image as “fractal.png”
-    let ref mut fout = File::create(&Path::new("fractal.png")).unwrap();
+    let ref mut fout = File::create("fractal.png").unwrap();
 
     // We must indicate the image's color type and what format to save as
-    let _ = image::ImageLuma8(imgbuf).save(fout, image::PNG);
+    image::ImageLuma8(imgbuf).save(fout, image::PNG).unwrap();
 }
 ```
 
@@ -280,14 +271,12 @@ If the high level interface is not needed because the image was obtained by othe
 ```rust
 extern crate image;
 
-use std::path::Path;
-
 fn main() {
 
     let buffer: &[u8] = ...; // Generate the image data
 
     // Save the buffer as "image.png"
-    image::save_buffer(&Path::new("image.png"), buffer, 800, 600, image::RGB(8)).unwrap()
+    image::save_buffer("image.png", buffer, 800, 600, image::RGB(8)).unwrap()
 }
 
 ```

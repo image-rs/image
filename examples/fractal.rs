@@ -1,9 +1,8 @@
-//!An example of generating julia fractals.
+//! An example of generating julia fractals.
 extern crate num_complex;
 extern crate image;
 
 use std::fs::File;
-use std::path::Path;
 
 use num_complex::Complex;
 
@@ -45,8 +44,8 @@ fn main() {
 
 
     // Save the image as “fractal.png”
-    let fout = &mut File::create(&Path::new("fractal.png")).unwrap();
+    let fout = &mut File::create("fractal.png").unwrap();
 
     // We must indicate the image's color type and what format to save as
-    let _    = image::ImageLuma8(imgbuf).save(fout, image::PNG);
+    image::ImageLuma8(imgbuf).save(fout, image::PNG).unwrap();
 }

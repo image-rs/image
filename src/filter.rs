@@ -1,6 +1,3 @@
-#![allow(dead_code)] // false positive
-use std::mem;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum FilterType {
@@ -15,7 +12,11 @@ pub enum FilterType {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<FilterType> {
         match n {
-            n if n <= 4 => Some(unsafe { mem::transmute(n) }),
+            0 => Some(FilterType::NoFilter),
+            1 => Some(FilterType::Sub),
+            2 => Some(FilterType::Up),
+            3 => Some(FilterType::Avg),
+            4 => Some(FilterType::Paeth),
             _ => None
         }
     }

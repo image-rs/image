@@ -1,5 +1,4 @@
 //! Common types shared between the encoder and decoder
-use std::mem;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -26,7 +25,11 @@ impl ColorType {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<ColorType> {
         match n {
-            0 | 2 | 3 | 4 | 6 => Some(unsafe { mem::transmute(n) }),
+            0 => Some(ColorType::Grayscale),
+            2 => Some(ColorType::RGB),
+            3 => Some(ColorType::Indexed),
+            4 => Some(ColorType::GrayscaleAlpha),
+            6 => Some(ColorType::RGBA),
             _ => None
         }
     }
@@ -47,7 +50,11 @@ impl BitDepth {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<BitDepth> {
         match n {
-            1 | 2 | 4 | 8 | 16 => Some(unsafe { mem::transmute(n) }),
+            1 => Some(BitDepth::One),
+            2 => Some(BitDepth::Two),
+            4 => Some(BitDepth::Four),
+            8 => Some(BitDepth::Eight),
+            16 => Some(BitDepth::Sixteen),
             _ => None
         }
     }
@@ -76,7 +83,8 @@ impl Unit {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<Unit> {
         match n {
-            0 | 1 => Some(unsafe { mem::transmute(n) }),
+            0 => Some(Unit::Unspecified),
+            1 => Some(Unit::Meter),
             _ => None
         }
     }

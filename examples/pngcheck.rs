@@ -165,9 +165,9 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     loop {
         if buf.len() == 0 {
             // circumvent borrow checker
-            let n = try!(reader.read(unsafe{::std::mem::transmute(
+            let n = try!(reader.read(unsafe {
                 ::std::slice::from_raw_parts_mut(data_p, data.len())
-            )}));
+            }));
             buf = &data[..n];
         }
         match decoder.update(buf) {

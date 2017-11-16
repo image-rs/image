@@ -193,7 +193,81 @@ trait HeaderReader: BufRead {
     }
 
     fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
-        unimplemented!()
+        match self.bytes().next() {
+            None => return Err(ImageError::FormatError("Input too short".to_string())),
+            Some(Err(io)) => return Err(ImageError::IoError(io)),
+            Some(Ok(b'\n')) => (),
+            _ => return Err(ImageError::FormatError("Expected newline after P7".to_string())),
+        }
+
+        let mut line = String::new();
+        let mut height: Option<u32> = None;
+        let mut width: Option<u32> = None;
+        let mut depth: Option<u32> = None;
+        let mut maxval: Option<u32> = None;
+        let mut tupltype: Option<String> = None;
+        loop {
+            line.truncate(0);
+            self.read_line(&mut line).map_err(|io| ImageError::IoError(io))?;
+            if line.as_bytes()[0] == b'#' {
+                continue;
+            }
+            if !line.is_ascii() {
+                return Err(ImageError::FormatError("Only ascii characters allowed in pam header".to_string()));
+            }
+            let (identifier, rest) = line.trim_left().split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
+            match identifier {
+                "ENDHDR" => break,
+                "HEIGHT" => if height.is_some() {
+                        return Err(ImageError::FormatError("Duplicate HEIGHT line".to_string()))
+                    } else {
+                        let h = rest.trim().parse::<u32>().map_err(|_| ImageError::FormatError("Invalid height".to_string()))?;
+                        height = Some(h);
+                    },
+                "WIDTH" => if width.is_some() {
+                        return Err(ImageError::FormatError("Duplicate WIDTH line".to_string()))
+                    } else {
+                        let w = rest.trim().parse::<u32>().map_err(|_| ImageError::FormatError("Invalid width".to_string()))?;
+                        width = Some(w);
+                    },
+                "DEPTH" => if depth.is_some() {
+                        return Err(ImageError::FormatError("Duplicate DEPTH line".to_string()))
+                    } else {
+                        let d = rest.trim().parse::<u32>().map_err(|_| ImageError::FormatError("Invalid depth".to_string()))?;
+                        depth = Some(d);
+                    },
+                "MAXVAL" => if maxval.is_some() {
+                        return Err(ImageError::FormatError("Duplicate MAXVAL line".to_string()))
+                    } else {
+                        let m = rest.trim().parse::<u32>().map_err(|_| ImageError::FormatError("Invalid maxval".to_string()))?;
+                        maxval = Some(m);
+                    },
+                "TUPLTYPE" => {
+                        let identifier = rest.trim();
+                        if tupltype.is_some() {
+                            let appended = tupltype.take().map(|mut v| { v.push(' '); v.push_str(identifier); v });
+                            tupltype = appended;
+                        } else {
+                            tupltype = Some(identifier.to_string());
+                        }
+                    },
+                _ => return Err(ImageError::FormatError("Unknown header line".to_string())),
+            }
+        }
+        let (h, w, d, m) = match (height, width, depth, maxval) {
+            (None, _, _, _) => return Err(ImageError::FormatError("Expected one HEIGHT line".to_string())),
+            (_, None, _, _) => return Err(ImageError::FormatError("Expected one WIDTH line".to_string())),
+            (_, _, None, _) => return Err(ImageError::FormatError("Expected one DEPTH line".to_string())),
+            (_, _, _, None) => return Err(ImageError::FormatError("Expected one MAXVAL line".to_string())),
+            (Some(h), Some(w), Some(d), Some(m)) => (h, w, d, m),
+        };
+        Ok(ArbitraryHeader{
+            height: h,
+            width: w,
+            depth: d,
+            maxval: m,
+            tupltype: tupltype.unwrap_or("".to_string()),
+        })
     }
 }
 

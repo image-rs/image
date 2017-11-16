@@ -12,7 +12,7 @@ impl<R: Read> PPMDecoder<R> {
     pub fn new(read: R) -> ImageResult<PPMDecoder<R>> {
         let pnm = PNMDecoder::new(read)?;
         match pnm.subtype() {
-            PNMSubtype::Pixmap => {},
+            PNMSubtype::Pixmap(_) => {},
             _ => return Err(ImageError::FormatError("Expected pixmap magic constant (P3 or P6)".to_string())),
         }
         Ok(PPMDecoder(pnm))

@@ -6,11 +6,6 @@ use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
 extern crate byteorder;
 use self::byteorder::{BigEndian, ByteOrder};
 
-enum DecodeStrategy {
-    Bytes,
-    Ascii,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TupleType {
     RGB,
@@ -30,15 +25,24 @@ struct U8;
 struct U16;
 struct PbmBit;
 
+/// The kind of encoding used to store sample values
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SampleEncoding {
+    /// Samples are unsigned binary integers in big endian
+    Binary,
+    /// Samples are encoded as decimal ascii strings separated by whitespace
+    Ascii,
+}
+
 /// Denotes the category of the magic number
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PNMSubtype {
     /// Magic numbers P1 and P4
-    Bitmap,
+    Bitmap(SampleEncoding),
     /// Magic numbers P2 and P5
-    Graymap,
+    Graymap(SampleEncoding),
     /// Magic numbers P3 and P6
-    Pixmap,
+    Pixmap(SampleEncoding),
     /// Magic number P7
     ArbitraryMap,
 }
@@ -50,7 +54,6 @@ pub struct PNMDecoder<R> {
     height: u32,
     maxwhite: u32,
     tuple: TupleType,
-    decoder: DecodeStrategy,
     subtype: PNMSubtype,
 }
 
@@ -63,21 +66,21 @@ impl<R: Read> PNMDecoder<R> {
             return Err(ImageError::FormatError("Expected magic constant for pnm, P1 through P7".to_string()));
         }
 
-        let (subtype, decoder) = match magic[1] {
-            b'1' => (PNMSubtype::Bitmap, DecodeStrategy::Ascii),
-            b'2' => (PNMSubtype::Graymap, DecodeStrategy::Ascii),
-            b'3' => (PNMSubtype::Pixmap, DecodeStrategy::Ascii),
-            b'4' => (PNMSubtype::Bitmap, DecodeStrategy::Bytes),
-            b'5' => (PNMSubtype::Graymap, DecodeStrategy::Bytes),
-            b'6' => (PNMSubtype::Pixmap, DecodeStrategy::Bytes),
-            b'7' => (PNMSubtype::ArbitraryMap, DecodeStrategy::Bytes),
+        let subtype = match magic[1] {
+            b'1' => PNMSubtype::Bitmap(SampleEncoding::Ascii),
+            b'2' => PNMSubtype::Graymap(SampleEncoding::Ascii),
+            b'3' => PNMSubtype::Pixmap(SampleEncoding::Ascii),
+            b'4' => PNMSubtype::Bitmap(SampleEncoding::Binary),
+            b'5' => PNMSubtype::Graymap(SampleEncoding::Binary),
+            b'6' => PNMSubtype::Pixmap(SampleEncoding::Binary),
+            b'7' => PNMSubtype::ArbitraryMap,
             _ => return Err(ImageError::FormatError("Expected magic constant for ppm, P1 through P7".to_string())),
         };
 
         let (width, height, maxwhite, tuple) = match subtype {
-            PNMSubtype::Bitmap => PNMDecoder::read_bitmap_header(&mut buf)?,
-            PNMSubtype::Graymap => PNMDecoder::read_graymap_header(&mut buf)?,
-            PNMSubtype::Pixmap => PNMDecoder::read_pixmap_header(&mut buf)?,
+            PNMSubtype::Bitmap(_) => PNMDecoder::read_bitmap_header(&mut buf)?,
+            PNMSubtype::Graymap(_) => PNMDecoder::read_graymap_header(&mut buf)?,
+            PNMSubtype::Pixmap(_) => PNMDecoder::read_pixmap_header(&mut buf)?,
             PNMSubtype::ArbitraryMap => PNMDecoder::read_arbitrary_header(&mut buf)?,
         };
 
@@ -91,7 +94,6 @@ impl<R: Read> PNMDecoder<R> {
             height: height,
             maxwhite: maxwhite,
             tuple: tuple,
-            decoder: decoder,
             subtype: subtype,
         })
     }
@@ -365,15 +367,15 @@ impl<R: Read> PNMDecoder<R> {
 
     fn read_samples<S: SampleType>(&mut self, components: u32) -> ImageResult<DecodingResult> where
         Vec<S::T>: Into<DecodingResult> {
-        match self.decoder {
-            DecodeStrategy::Bytes => {
+        match self.encoding() {
+            SampleEncoding::Binary => {
                     let bytecount = S::bytelen(self.width, self.height, components)?;
                     let mut bytes = vec![0 as u8; bytecount];
                     (&mut self.reader).read_exact(&mut bytes).map_err(|_| ImageError::NotEnoughData)?;
                     let samples = S::from_bytes(&bytes, self.width, self.height, components)?;
                     Ok(samples.into())
                 },
-            DecodeStrategy::Ascii => {
+            SampleEncoding::Ascii => {
                     let samples = self.read_ascii::<S>(components)?;
                     Ok(samples.into())
                 }
@@ -410,6 +412,15 @@ impl<R: Read> PNMDecoder<R> {
     /// Get the pnm subtype, depending on the magic constant contained in the header
     pub fn subtype(&self) -> PNMSubtype {
         self.subtype
+    }
+
+    pub fn encoding(&self) -> SampleEncoding {
+        match self.subtype {
+            PNMSubtype::ArbitraryMap => SampleEncoding::Binary,
+            PNMSubtype::Bitmap(enc) => enc,
+            PNMSubtype::Graymap(enc) => enc,
+            PNMSubtype::Pixmap(enc) => enc,
+        }
     }
 }
 

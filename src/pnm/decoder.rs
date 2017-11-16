@@ -111,8 +111,33 @@ impl<R: Read> PNMDecoder<R> {
         Ok((w, h, m, TupleType::RGB))
     }
 
-    fn read_arbitrary_header(_reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
-        Err(ImageError::FormatError("PAM is not (yet) supported".to_string()))
+    fn read_arbitrary_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
+        let ArbitraryHeader{height, width, depth, maxval, tupltype} = reader.read_arbitrary_header()?;
+        match (tupltype.as_ref().map(|s| s.as_str()), depth) {
+            (None, 1) => Ok((width, height, 1, TupleType::Grayscale)),
+            (None, 2) => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
+            (None, 3) => Ok((width, height, 3, TupleType::RGB)),
+            (None, 4) => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
+            (Some("BLACKANDWHITE"), 1) if maxval == 1
+                => Ok((width, height, 1, TupleType::Grayscale)),
+            (Some("BLACKANDWHITE"), _)
+                => Err(ImageError::FormatError("Unexpected parameters for tuple type BLACKANDWHITE".to_string())),
+            (Some("GRAYSCALE"), 1) if maxval >= 1 && maxval <= 65535
+                => Ok((width, height, maxval, TupleType::Grayscale)),
+            (Some("GRAYSCALE"), _)
+                => Err(ImageError::FormatError("Unexpected parameters for tuple type GRAYSCALE".to_string())),
+            (Some("RGB"), 1) if maxval >= 1 && maxval <= 65535
+                => Ok((width, height, maxval, TupleType::RGB)),
+            (Some("RGB"), _)
+                => Err(ImageError::FormatError("Unexpected parameters for tuple type RGB".to_string())),
+            (Some("BLACKANDWHITE_ALPHA"), _)
+                => Err(ImageError::UnsupportedColor(ColorType::GrayA(1))),
+            (Some("GRAYSCALE_ALPHA"), _)
+                => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
+            (Some("RGB_ALPHA"), _)
+                => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
+            _ => Err(ImageError::FormatError("Tuple type not recognized".to_string())),
+        }
     }
 }
 
@@ -122,7 +147,7 @@ struct ArbitraryHeader {
     width: u32,
     depth: u32,
     maxval: u32,
-    tupltype: String,
+    tupltype: Option<String>,
 }
 
 trait HeaderReader: BufRead {
@@ -279,7 +304,7 @@ trait HeaderReader: BufRead {
             width: w,
             depth: d,
             maxval: m,
-            tupltype: tupltype.unwrap_or("".to_string()),
+            tupltype: tupltype,
         })
     }
 }

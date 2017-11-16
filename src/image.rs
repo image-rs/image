@@ -121,6 +121,9 @@ pub enum ImageFormat {
     /// An Image in PPM Format
     PPM,
 
+    /// An Image in general PNM Format
+    PNM,
+
     /// An Image in TIFF Format
     TIFF,
 

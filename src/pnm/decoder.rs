@@ -414,6 +414,7 @@ impl<R: Read> PNMDecoder<R> {
         self.subtype
     }
 
+    /// Whether samples are stored as binary or as decimal ascii
     pub fn encoding(&self) -> SampleEncoding {
         match self.subtype {
             PNMSubtype::ArbitraryMap => SampleEncoding::Binary,

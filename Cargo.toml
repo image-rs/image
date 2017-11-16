@@ -51,13 +51,14 @@ num-complex = "0.1.32"
 glob = "0.2.10"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "ppm", "tga", "tiff", "webp", "bmp", "hdr"]
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]
 jpeg = ["jpeg-decoder"]
 png_codec = ["png"]
 pnm = []
+ppm = ["pnm"]
 tga = []
 tiff = []
 webp = []

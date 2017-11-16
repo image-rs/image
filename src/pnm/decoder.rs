@@ -11,11 +11,24 @@ enum DecodeStrategy {
     Ascii,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum TupleType {
     RGB,
     Grayscale,
     Bit,
 }
+
+trait SampleType {
+    type T;
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
+    /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>>;
+    fn from_unsigned(u32) -> ImageResult<Self::T>;
+}
+
+struct U8;
+struct U16;
+struct PbmBit;
 
 /// Denotes the category of the magic number
 #[derive(Clone, Copy)]
@@ -305,23 +318,23 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
 impl<R: Read> PNMDecoder<R> {
     fn rowlen(&self) -> ImageResult<usize> {
         match self.tuple {
-            TupleType::Bit => Bit::bytelen(self.width, 1, 1),
-            TupleType::RGB if self.maxwhite < 256 => u8::bytelen(self.width, 1, 3),
-            TupleType::RGB if self.maxwhite < 65536 => u16::bytelen(self.width, 1, 3),
-            TupleType::Grayscale if self.maxwhite < 256 => u8::bytelen(self.width, 1, 1),
-            TupleType::Grayscale if self.maxwhite < 65536 => u16::bytelen(self.width, 1, 1),
-            _ => return Err(ImageError::FormatError("Invalid sample types for row length".to_string()))
+            TupleType::Bit => PbmBit::bytelen(self.width, 1, 1),
+            TupleType::RGB if self.maxwhite < 256 => U8::bytelen(self.width, 1, 3),
+            TupleType::RGB if self.maxwhite < 65536 => U16::bytelen(self.width, 1, 3),
+            TupleType::Grayscale if self.maxwhite < 256 => U8::bytelen(self.width, 1, 1),
+            TupleType::Grayscale if self.maxwhite < 65536 => U16::bytelen(self.width, 1, 1),
+            _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }
 
     fn read(&mut self) -> ImageResult<DecodingResult> {
         match self.tuple {
-            TupleType::Bit => self.read_samples::<Bit>(1),
-            TupleType::RGB if self.maxwhite < 256 => self.read_samples::<u8>(3),
-            TupleType::RGB if self.maxwhite < 65536 => self.read_samples::<u16>(3),
-            TupleType::Grayscale if self.maxwhite < 256 => self.read_samples::<u8>(1),
-            TupleType::Grayscale if self.maxwhite < 65536 => self.read_samples::<u16>(1),
-            _ => return Err(ImageError::FormatError("Invalid sample types for row length".to_string()))
+            TupleType::Bit => self.read_samples::<PbmBit>(1),
+            TupleType::RGB if self.maxwhite < 256 => self.read_samples::<U8>(3),
+            TupleType::RGB if self.maxwhite < 65536 => self.read_samples::<U16>(3),
+            TupleType::Grayscale if self.maxwhite < 256 => self.read_samples::<U8>(1),
+            TupleType::Grayscale if self.maxwhite < 65536 => self.read_samples::<U16>(1),
+            _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }
 
@@ -375,25 +388,20 @@ impl<R: Read> PNMDecoder<R> {
     }
 }
 
-trait SampleType {
-    type T;
-    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
-    /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
-    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>>;
-    fn from_unsigned(u32) -> ImageResult<Self::T>;
-}
-
-impl SampleType for u8 {
+impl SampleType for U8 {
     type T = u8;
+
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         Ok((width * height * samples) as usize)
     }
+
     fn from_bytes(bytes: &[u8], _width: u32, _height: u32, _samples: u32) -> ImageResult<Vec<Self::T>> {
         let mut buffer = Vec::new();
         buffer.resize(bytes.len(), 0 as u8);
         buffer.copy_from_slice(bytes);
         Ok(buffer)
     }
+
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
         if val > u8::max_value() as u32 {
             Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
@@ -403,17 +411,20 @@ impl SampleType for u8 {
     }
 }
 
-impl SampleType for u16 {
+impl SampleType for U16 {
     type T = u16;
+
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         Ok((width * height * samples * 2) as usize)
     }
+
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
         let mut buffer = Vec::new();
         buffer.resize((width * height * samples) as usize, 0 as u16);
         BigEndian::read_u16_into(bytes, &mut buffer);
         Ok(buffer)
     }
+
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
         if val > u16::max_value() as u32 {
             Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
@@ -423,14 +434,15 @@ impl SampleType for u16 {
     }
 }
 
-struct Bit;
-impl SampleType for Bit {
+impl SampleType for PbmBit {
     type T = u8;
+
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         let count = width * samples;
         let linelen = (count/8) + (count % 8 == 0) as u32;
         Ok((linelen * height) as usize)
     }
+
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
         let mut buffer = Vec::new();
         let linecount = width * samples;
@@ -441,18 +453,19 @@ impl SampleType for Bit {
                 let inindex = 7 - samplei % 8;
                 let indicator = (bytes[byteindex] >> inindex) & 0x01;
                 let bufferindex = (linecount*line + samplei) as usize;
-                buffer[bufferindex] = if indicator == 0 { 0 } else { 255 };
+                buffer[bufferindex] = if indicator == 0 { 255 } else { 0 };
             }
         }
         Ok(buffer)
     }
+
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
         if val > 1 {
             Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
         } else if val == 1 {
-            Ok(255 as u8)
-        } else {
             Ok(0 as u8)
+        } else {
+            Ok(255 as u8)
         }
     }
 }

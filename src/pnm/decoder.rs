@@ -128,7 +128,7 @@ impl<R: Read> PNMDecoder<R> {
                 => Ok((width, height, maxval, TupleType::Grayscale)),
             (Some("GRAYSCALE"), _)
                 => Err(ImageError::FormatError("Invalid depth for tuple type GRAYSCALE".to_string())),
-            (Some("RGB"), 1) if maxval >= 1 && maxval <= 65535
+            (Some("RGB"), 3) if maxval >= 1 && maxval <= 65535
                 => Ok((width, height, maxval, TupleType::RGB)),
             (Some("RGB"), _)
                 => Err(ImageError::FormatError("Invalid depth for tuple type RGB".to_string())),
@@ -522,8 +522,9 @@ impl Into<DecodingResult> for Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Tests reading of a valid grayscale pam
     #[test]
-    fn pam_decoder() {
+    fn pam_grayscale() {
         let pamdata =
 b"P7
 WIDTH 4
@@ -542,5 +543,30 @@ ENDHDR
                 vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
                      0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]),
         }
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
+    }
+
+    /// Tests reading of a valid rgb pam
+    #[test]
+    fn pam_rgb() {
+        let pamdata =
+b"P7
+# Comment line
+MAXVAL 255
+TUPLTYPE RGB
+DEPTH 3
+WIDTH 2
+HEIGHT 2
+ENDHDR
+\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
+        let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
+                     0xde, 0xad, 0xbe, 0xef]),
+        }
+        assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
     }
 }

@@ -123,15 +123,15 @@ impl<R: Read> PNMDecoder<R> {
             (Some("BLACKANDWHITE"), 1) if maxval == 1
                 => Ok((width, height, 1, TupleType::Grayscale)),
             (Some("BLACKANDWHITE"), _)
-                => Err(ImageError::FormatError("Unexpected parameters for tuple type BLACKANDWHITE".to_string())),
+                => Err(ImageError::FormatError("Unexpected depth value for tuple type BLACKANDWHITE".to_string())),
             (Some("GRAYSCALE"), 1) if maxval >= 1 && maxval <= 65535
                 => Ok((width, height, maxval, TupleType::Grayscale)),
             (Some("GRAYSCALE"), _)
-                => Err(ImageError::FormatError("Unexpected parameters for tuple type GRAYSCALE".to_string())),
+                => Err(ImageError::FormatError("Invalid depth for tuple type GRAYSCALE".to_string())),
             (Some("RGB"), 1) if maxval >= 1 && maxval <= 65535
                 => Ok((width, height, maxval, TupleType::RGB)),
             (Some("RGB"), _)
-                => Err(ImageError::FormatError("Unexpected parameters for tuple type RGB".to_string())),
+                => Err(ImageError::FormatError("Invalid depth for tuple type RGB".to_string())),
             (Some("BLACKANDWHITE_ALPHA"), _)
                 => Err(ImageError::UnsupportedColor(ColorType::GrayA(1))),
             (Some("GRAYSCALE_ALPHA"), _)
@@ -516,5 +516,31 @@ impl Into<DecodingResult> for Vec<u8> {
 impl Into<DecodingResult> for Vec<u16> {
     fn into(self) -> DecodingResult {
         DecodingResult::U16(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn pam_decoder() {
+        let pamdata =
+b"P7
+WIDTH 4
+HEIGHT 4
+DEPTH 1
+MAXVAL 255
+TUPLTYPE GRAYSCALE
+# Comment line
+ENDHDR
+\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
+        let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
+                     0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]),
+        }
     }
 }

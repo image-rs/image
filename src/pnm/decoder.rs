@@ -320,11 +320,12 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match self.tuple {
+            TupleType::Grayscale if self.maxwhite == 1 => Ok(ColorType::Gray(1)),
             TupleType::Grayscale if self.maxwhite < 256 => Ok(ColorType::Gray(8)),
             TupleType::Grayscale if self.maxwhite < 65536 => Ok(ColorType::Gray(16)),
             TupleType::RGB if self.maxwhite < 256 => Ok(ColorType::RGB(8)),
             TupleType::RGB if self.maxwhite < 65536 => Ok(ColorType::RGB(16)),
-            TupleType::Bit => Ok(ColorType::Gray(8)),
+            TupleType::Bit => Ok(ColorType::Gray(1)),
             _ => Err(ImageError::FormatError("Can't determine color type".to_string()))
         }
     }
@@ -490,7 +491,7 @@ impl SampleType for PbmBit {
                 let inindex = 7 - samplei % 8;
                 let indicator = (bytes[byteindex] >> inindex) & 0x01;
                 let bufferindex = (linecount*line + samplei) as usize;
-                buffer[bufferindex] = if indicator == 0 { 255 } else { 0 };
+                buffer[bufferindex] = if indicator == 0 { 1 } else { 0 };
             }
         }
         Ok(buffer)
@@ -502,7 +503,7 @@ impl SampleType for PbmBit {
         } else if val == 1 {
             Ok(0 as u8)
         } else {
-            Ok(255 as u8)
+            Ok(1 as u8)
         }
     }
 }
@@ -522,6 +523,30 @@ impl Into<DecodingResult> for Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Tests reading of a valid blackandwhite pam
+    #[test]
+    fn pam_blackandwhite() {
+        let pamdata =
+b"P7
+WIDTH 4
+HEIGHT 4
+DEPTH 1
+MAXVAL 1
+TUPLTYPE BLACKANDWHITE
+# Comment line
+ENDHDR
+\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
+        let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+                     0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,]),
+        }
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
+    }
+
     /// Tests reading of a valid grayscale pam
     #[test]
     fn pam_grayscale() {

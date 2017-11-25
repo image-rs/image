@@ -472,26 +472,30 @@ impl SampleType for U16 {
     }
 }
 
+// The image is encoded in rows of bits, high order bits first. Any bits beyond the row bits should
+// be ignored. Also, contrary to rgb, black pixels are encoded as a 1 while white is 0. This will
+// need to be reversed for the grayscale output.
 impl SampleType for PbmBit {
     type T = u8;
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
         let count = width * samples;
-        let linelen = (count/8) + (count % 8 == 0) as u32;
+        let linelen = (count/8) + ((count % 8) != 0) as u32;
         Ok((linelen * height) as usize)
     }
 
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
         let mut buffer = Vec::new();
         let linecount = width * samples;
+        let linebytelen = (linecount/8) + ((linecount % 8) != 0) as u32;
         buffer.resize((width * height * samples) as usize, 0 as u8);
-        for line in 0..height {
+        for (line, linebuffer) in bytes.chunks(linebytelen as usize).enumerate() {
+            let outbase = line*linecount as usize;
             for samplei in 0..linecount {
                 let byteindex = (samplei/8) as usize;
                 let inindex = 7 - samplei % 8;
-                let indicator = (bytes[byteindex] >> inindex) & 0x01;
-                let bufferindex = (linecount*line + samplei) as usize;
-                buffer[bufferindex] = if indicator == 0 { 1 } else { 0 };
+                let indicator = (linebuffer[byteindex] >> inindex) & 0x01;
+                buffer[outbase + samplei as usize] = if indicator == 0 { 1 } else { 0 };
             }
         }
         Ok(buffer)
@@ -593,5 +597,37 @@ ENDHDR
                      0xde, 0xad, 0xbe, 0xef]),
         }
         assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
+    }
+
+    #[test]
+    fn pbm_binary() {
+        // The data contains two rows of the image (each line is padded to the full byte). For
+        // comments on its format, see documentation of `impl SampleType for PbmBit`.
+        let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100 as u8, 0b10110111]].concat();
+        let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                vec![1, 0, 0, 1, 0, 0,
+                     0, 1, 0, 0, 1, 0,]),
+        }
+    }
+
+    #[test]
+    fn pbm_ascii() {
+        // The data contains two rows of the image (each line is padded to the full byte). For
+        // comments on its format, see documentation of `impl SampleType for PbmBit`.
+        let pbmbinary = b"P4 6 2\n 0 1 1 0 1 1\n1 0 1 1 0 1";
+        let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                vec![1, 0, 0, 1, 0, 0,
+                     0, 1, 0, 0, 1, 0,]),
+        }
     }
 }

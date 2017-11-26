@@ -119,6 +119,7 @@ pub enum ImageFormat {
     WEBP,
 
     /// An Image in PPM Format
+    #[deprecated(since="0.17.0", note="Use the more general `PNM`")]
     PPM,
 
     /// An Image in general PNM Format

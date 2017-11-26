@@ -1,3 +1,4 @@
+#![deprecated(since="0.17.0", note="Use `pnm::PNMDecoder` instead, check the subtype if necessary")]
 use std::io::Read;
 
 use color::{ColorType};

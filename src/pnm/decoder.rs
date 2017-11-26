@@ -541,14 +541,16 @@ TUPLTYPE BLACKANDWHITE
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        let image = decoder.read_image().unwrap();
-        match image {
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
+        assert_eq!(decoder.dimensions().unwrap(), (4, 4));
+        assert_eq!(decoder.maxwhite, 1);
+        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
                      0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,]),
         }
-        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
     }
 
     /// Tests reading of a valid grayscale pam
@@ -565,14 +567,16 @@ TUPLTYPE GRAYSCALE
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        let image = decoder.read_image().unwrap();
-        match image {
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
+        assert_eq!(decoder.dimensions().unwrap(), (4, 4));
+        assert_eq!(decoder.maxwhite, 255);
+        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
                      0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]),
         }
-        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
     }
 
     /// Tests reading of a valid rgb pam
@@ -589,14 +593,16 @@ HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        let image = decoder.read_image().unwrap();
-        match image {
+        assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
+        assert_eq!(decoder.dimensions().unwrap(), (2, 2));
+        assert_eq!(decoder.maxwhite, 255);
+        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
                      0xde, 0xad, 0xbe, 0xef]),
         }
-        assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
     }
 
     #[test]
@@ -605,9 +611,11 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100 as u8, 0b10110111]].concat();
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        let image = decoder.read_image().unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
-        match image {
+        assert_eq!(decoder.dimensions().unwrap(), (6, 2));
+        assert_eq!(decoder.maxwhite, 1);
+        assert_eq!(decoder.subtype, PNMSubtype::Bitmap(SampleEncoding::Binary));
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![1, 0, 0, 1, 0, 0,
@@ -621,9 +629,11 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0 1";
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        let image = decoder.read_image().unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
-        match image {
+        assert_eq!(decoder.dimensions().unwrap(), (6, 2));
+        assert_eq!(decoder.maxwhite, 1);
+        assert_eq!(decoder.subtype, PNMSubtype::Bitmap(SampleEncoding::Ascii));
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![1, 0, 0, 1, 0, 0,
@@ -638,9 +648,11 @@ ENDHDR
         let elements = (0..16).collect::<Vec<_>>();
         let pbmbinary = [&b"P5 4 4 255\n"[..], &elements].concat();
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        let image = decoder.read_image().unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
-        match image {
+        assert_eq!(decoder.dimensions().unwrap(), (4, 4));
+        assert_eq!(decoder.maxwhite, 255);
+        assert_eq!(decoder.subtype, PNMSubtype::Graymap(SampleEncoding::Binary));
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data, elements),
         }
@@ -652,9 +664,11 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = b"P2 4 4 255\n 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15";
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        let image = decoder.read_image().unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
-        match image {
+        assert_eq!(decoder.dimensions().unwrap(), (4, 4));
+        assert_eq!(decoder.maxwhite, 255);
+        assert_eq!(decoder.subtype, PNMSubtype::Graymap(SampleEncoding::Ascii));
+        match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 (0..16).collect::<Vec<_>>()),

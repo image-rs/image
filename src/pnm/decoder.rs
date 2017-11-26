@@ -619,7 +619,7 @@ ENDHDR
     fn pbm_ascii() {
         // The data contains two rows of the image (each line is padded to the full byte). For
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
-        let pbmbinary = b"P4 6 2\n 0 1 1 0 1 1\n1 0 1 1 0 1";
+        let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0 1";
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         let image = decoder.read_image().unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
@@ -628,6 +628,36 @@ ENDHDR
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![1, 0, 0, 1, 0, 0,
                      0, 1, 0, 0, 1, 0,]),
+        }
+    }
+
+    #[test]
+    fn pgm_binary() {
+        // The data contains two rows of the image (each line is padded to the full byte). For
+        // comments on its format, see documentation of `impl SampleType for PbmBit`.
+        let elements = (0..16).collect::<Vec<_>>();
+        let pbmbinary = [&b"P5 4 4 255\n"[..], &elements].concat();
+        let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data, elements),
+        }
+    }
+
+    #[test]
+    fn pgm_ascii() {
+        // The data contains two rows of the image (each line is padded to the full byte). For
+        // comments on its format, see documentation of `impl SampleType for PbmBit`.
+        let pbmbinary = b"P2 4 4 255\n 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15";
+        let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let image = decoder.read_image().unwrap();
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
+        match image {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data,
+                (0..16).collect::<Vec<_>>()),
         }
     }
 }

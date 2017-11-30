@@ -321,10 +321,10 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match self.tuple {
             TupleType::Grayscale if self.maxwhite == 1 => Ok(ColorType::Gray(1)),
-            TupleType::Grayscale if self.maxwhite < 0xFF => Ok(ColorType::Gray(8)),
-            TupleType::Grayscale if self.maxwhite < 0xFFFF => Ok(ColorType::Gray(16)),
-            TupleType::RGB if self.maxwhite < 0xFF => Ok(ColorType::RGB(8)),
-            TupleType::RGB if self.maxwhite < 0xFFFF => Ok(ColorType::RGB(16)),
+            TupleType::Grayscale if self.maxwhite <= 0xFF => Ok(ColorType::Gray(8)),
+            TupleType::Grayscale if self.maxwhite <= 0xFFFF => Ok(ColorType::Gray(16)),
+            TupleType::RGB if self.maxwhite <= 0xFF => Ok(ColorType::RGB(8)),
+            TupleType::RGB if self.maxwhite <= 0xFFFF => Ok(ColorType::RGB(16)),
             TupleType::Bit => Ok(ColorType::Gray(1)),
             _ => Err(ImageError::FormatError("Can't determine color type".to_string()))
         }
@@ -347,10 +347,10 @@ impl<R: Read> PNMDecoder<R> {
     fn rowlen(&self) -> ImageResult<usize> {
         match self.tuple {
             TupleType::Bit => PbmBit::bytelen(self.width, 1, 1),
-            TupleType::RGB if self.maxwhite < 0xFF => U8::bytelen(self.width, 1, 3),
-            TupleType::RGB if self.maxwhite < 0xFFFF => U16::bytelen(self.width, 1, 3),
-            TupleType::Grayscale if self.maxwhite < 0xFF => U8::bytelen(self.width, 1, 1),
-            TupleType::Grayscale if self.maxwhite < 0xFFFF => U16::bytelen(self.width, 1, 1),
+            TupleType::RGB if self.maxwhite <= 0xFF => U8::bytelen(self.width, 1, 3),
+            TupleType::RGB if self.maxwhite <= 0xFFFF => U16::bytelen(self.width, 1, 3),
+            TupleType::Grayscale if self.maxwhite <= 0xFF => U8::bytelen(self.width, 1, 1),
+            TupleType::Grayscale if self.maxwhite <= 0xFFFF => U16::bytelen(self.width, 1, 1),
             _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }
@@ -358,10 +358,10 @@ impl<R: Read> PNMDecoder<R> {
     fn read(&mut self) -> ImageResult<DecodingResult> {
         match self.tuple {
             TupleType::Bit => self.read_samples::<PbmBit>(1),
-            TupleType::RGB if self.maxwhite < 0xFF => self.read_samples::<U8>(3),
-            TupleType::RGB if self.maxwhite < 0xFFFF => self.read_samples::<U16>(3),
-            TupleType::Grayscale if self.maxwhite < 0xFF => self.read_samples::<U8>(1),
-            TupleType::Grayscale if self.maxwhite < 0xFFFF => self.read_samples::<U16>(1),
+            TupleType::RGB if self.maxwhite <= 0xFF => self.read_samples::<U8>(3),
+            TupleType::RGB if self.maxwhite <= 0xFFFF => self.read_samples::<U16>(3),
+            TupleType::Grayscale if self.maxwhite <= 0xFF => self.read_samples::<U8>(1),
+            TupleType::Grayscale if self.maxwhite <= 0xFFFF => self.read_samples::<U16>(1),
             _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }

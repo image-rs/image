@@ -317,7 +317,7 @@ pub trait GenericImage: Sized {
     /// Returns true if this x, y coordinate is contained inside the image.
     fn in_bounds(&self, x: u32, y: u32) -> bool {
         let (ix, iy, iw, ih) = self.bounds();
-        !(x < ix || x >= ix + iw || y < iy || y >= iy + ih)
+        x >= ix && x < ix + iw && y >= iy && y < iy + ih
     }
 
     /// Returns the pixel located at (x, y)

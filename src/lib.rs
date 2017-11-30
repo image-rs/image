@@ -112,6 +112,8 @@ pub mod imageops;
 // Image codecs
 #[cfg(feature = "webp")]
 pub mod webp;
+#[cfg(feature = "pnm")]
+pub mod pnm;
 #[cfg(feature = "ppm")]
 pub mod ppm;
 #[cfg(feature = "png_codec")]

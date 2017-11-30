@@ -6,6 +6,8 @@ use std::iter;
 use std::ascii::AsciiExt;
 use num_iter;
 
+#[cfg(feature = "pnm")]
+use pnm;
 #[cfg(feature = "ppm")]
 use ppm;
 #[cfg(feature = "gif_codec")]
@@ -567,7 +569,10 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "bmp" => image::ImageFormat::BMP,
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
+        "pbm" => image::ImageFormat::PNM,
+        "pgm" => image::ImageFormat::PNM,
         "ppm" => image::ImageFormat::PPM,
+        "pam" => image::ImageFormat::PNM,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -638,11 +643,13 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "ppm")]
         image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
+        #[cfg(feature = "pnm")]
+        image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 11] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
     (b"GIF89a", ImageFormat::GIF),
@@ -653,7 +660,13 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 11] = [
     (b"BM", ImageFormat::BMP),
     (&[0, 0, 1, 0], ImageFormat::ICO),
     (b"#?RADIANCE", ImageFormat::HDR),
+    (b"P1", ImageFormat::PNM),
+    (b"P2", ImageFormat::PNM),
+    (b"P3", ImageFormat::PNM),
+    (b"P4", ImageFormat::PNM),
+    (b"P5", ImageFormat::PNM),
     (b"P6", ImageFormat::PPM),
+    (b"P7", ImageFormat::PNM),
 ];
 
 /// Create a new image from a byte slice

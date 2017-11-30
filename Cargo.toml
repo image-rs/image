@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.17.0"
+version = "0.18.0"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [

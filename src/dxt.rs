@@ -5,6 +5,7 @@
 //!  # Related Links
 //!  * <https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt> - Description of the DXT compression OpenGL extensions.
 //!
+//!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
 use std::io::{Read, Write};
 
@@ -73,7 +74,7 @@ impl <R: Read> DXTDecoder<R> {
     /// to be passed in ```width``` and ```height```, as well as the
     /// DXT variant in ```variant```.
     /// width and height are required to be powers of 2 and at least 4.
-    /// otherwise an error will be returend
+    /// otherwise an error will be returned
     pub fn new(r: R, width: u32, height: u32, variant: DXTVariant) -> Result<DXTDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             return Err(ImageError::DimensionError);
@@ -109,7 +110,7 @@ impl <R: Read> ImageDecoder for DXTDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        let mut src = vec![0u8; DXTVariant::DXT1.encoded_bytes_per_block() * self.width_blocks as usize];
+        let mut src = vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
         self.inner.read_exact(&mut src)?;
         match self.variant {
             DXTVariant::DXT1 => decode_dxt1_row(&src, buf),

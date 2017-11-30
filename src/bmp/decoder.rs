@@ -45,7 +45,7 @@ const RLE_ESCAPE_EOF: u8 = 1;
 const RLE_ESCAPE_DELTA: u8 = 2;
 
 /// The maximum width/height the decoder will process.
-const MAX_WIDTH_HEIGHT: i32 = 65535;
+const MAX_WIDTH_HEIGHT: i32 = 0xFFFF;
 
 #[derive(PartialEq, Copy, Clone)]
 enum ImageType {
@@ -62,12 +62,12 @@ enum ImageType {
 
 #[derive(PartialEq)]
 enum BMPHeaderType {
-    CoreHeader,
-    InfoHeader,
-    V2Header,
-    V3Header,
-    V4Header,
-    V5Header,
+    Core,
+    Info,
+    V2,
+    V3,
+    V4,
+    V5,
 }
 
 #[derive(PartialEq)]
@@ -332,10 +332,10 @@ impl Bitfield {
         match self.len {
             1 => ((data & 0b1) * 0xff) as u8,
             2 => ((data & 0b11) * 0x55) as u8,
-            3 => LOOKUP_TABLE_3_BIT_TO_8_BIT[(data & 0b111) as usize],
-            4 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b1111) as usize],
-            5 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b11111) as usize],
-            6 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data & 0b111111) as usize],
+            3 => LOOKUP_TABLE_3_BIT_TO_8_BIT[(data & 0b00_0111) as usize],
+            4 => LOOKUP_TABLE_4_BIT_TO_8_BIT[(data & 0b00_1111) as usize],
+            5 => LOOKUP_TABLE_5_BIT_TO_8_BIT[(data & 0b01_1111) as usize],
+            6 => LOOKUP_TABLE_6_BIT_TO_8_BIT[(data & 0b11_1111) as usize],
             7 => ((data & 0x7f) << 1 | (data & 0x7f) >> 6) as u8,
             8 => (data & 0xff) as u8,
             _ => panic!()
@@ -462,7 +462,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         BMPDecoder {
             r: r,
 
-            bmp_header_type: BMPHeaderType::InfoHeader,
+            bmp_header_type: BMPHeaderType::Info,
 
             width: 0,
             height: 0,
@@ -502,7 +502,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         try!(self.r.read_u32::<LittleEndian>());
         try!(self.r.read_u32::<LittleEndian>());
 
-        self.data_offset = try!(self.r.read_u32::<LittleEndian>()) as u64;
+        self.data_offset = u64::from(self.r.read_u32::<LittleEndian>()?);
 
         Ok(())
     }
@@ -513,8 +513,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_bitmap_core_header(&mut self) ->ImageResult<()> {
         // As height/width values in BMP files with core headers are only 16 bits long,
         // they won't be larger than `MAX_WIDTH_HEIGHT`.
-        self.width  = try!(self.r.read_u16::<LittleEndian>()) as i32;
-        self.height = try!(self.r.read_u16::<LittleEndian>()) as i32;
+        self.width  = i32::from(self.r.read_u16::<LittleEndian>()?);
+        self.height = i32::from(self.r.read_u16::<LittleEndian>()?);
 
         try!(check_for_overflow(self.width, self.height, self.num_channels()));
 
@@ -624,7 +624,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let b_mask = try!(self.r.read_u32::<LittleEndian>());
 
         let a_mask = match self.bmp_header_type {
-            BMPHeaderType::V3Header | BMPHeaderType::V4Header | BMPHeaderType::V5Header => {
+            BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => {
                 try!(self.r.read_u32::<LittleEndian>())
             },
             _ => 0
@@ -648,23 +648,23 @@ impl<R: Read + Seek> BMPDecoder<R> {
             try!(self.read_file_header());
             let bmp_header_offset = try!(self.r.seek(SeekFrom::Current(0)));
             let bmp_header_size = try!(self.r.read_u32::<LittleEndian>());
-            let bmp_header_end = bmp_header_offset + bmp_header_size as u64;
+            let bmp_header_end = bmp_header_offset + u64::from(bmp_header_size);
 
             self.bmp_header_type = match bmp_header_size {
-                BITMAPCOREHEADER_SIZE => BMPHeaderType::CoreHeader,
-                BITMAPINFOHEADER_SIZE => BMPHeaderType::InfoHeader,
-                BITMAPV2HEADER_SIZE => BMPHeaderType::V2Header,
-                BITMAPV3HEADER_SIZE => BMPHeaderType::V3Header,
-                BITMAPV4HEADER_SIZE => BMPHeaderType::V4Header,
-                BITMAPV5HEADER_SIZE => BMPHeaderType::V5Header,
+                BITMAPCOREHEADER_SIZE => BMPHeaderType::Core,
+                BITMAPINFOHEADER_SIZE => BMPHeaderType::Info,
+                BITMAPV2HEADER_SIZE => BMPHeaderType::V2,
+                BITMAPV3HEADER_SIZE => BMPHeaderType::V3,
+                BITMAPV4HEADER_SIZE => BMPHeaderType::V4,
+                BITMAPV5HEADER_SIZE => BMPHeaderType::V5,
                 _ => return Err(ImageError::UnsupportedError("Unsupported Bitmap Header".to_string()))
             };
 
             match self.bmp_header_type {
-                BMPHeaderType::CoreHeader => {
+                BMPHeaderType::Core => {
                     try!(self.read_bitmap_core_header());
                 },
-                BMPHeaderType::InfoHeader | BMPHeaderType::V2Header | BMPHeaderType::V3Header | BMPHeaderType::V4Header | BMPHeaderType::V5Header => {
+                BMPHeaderType::Info | BMPHeaderType::V2 | BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => {
                     try!(self.read_bitmap_info_header());
                 }
             };
@@ -721,7 +721,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     fn bytes_per_color(&self) -> usize {
         match self.bmp_header_type {
-            BMPHeaderType::CoreHeader => 3,
+            BMPHeaderType::Core => 3,
             _ => 4
         }
     }
@@ -795,7 +795,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_palettized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
-        let row_byte_length = ((self.bit_count as u32 * self.width as u32 + 31) / 32 * 4) as usize;
+        let row_byte_length = ((i32::from(self.bit_count) * self.width + 31) / 32 * 4) as usize;
         let mut indices = vec![0; row_byte_length];
         let palette = self.palette.as_ref().unwrap();
         let bit_count = self.bit_count;
@@ -834,7 +834,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         try!(with_rows(&mut pixel_data, self.width, self.height, num_channels, self.top_down, |row| {
             for pixel in row.chunks_mut(num_channels) {
-                let data = try!(reader.read_u16::<LittleEndian>()) as u32;
+                let data = u32::from(reader.read_u16::<LittleEndian>()?);
 
                 pixel[0] = bitfields.r.read(data);
                 pixel[1] = bitfields.g.read(data);

@@ -86,7 +86,7 @@ impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
 }
 
 /// Radiance HDR file signature
-pub const SIGNATURE: &'static [u8] = b"#?RADIANCE";
+pub const SIGNATURE: &[u8] = b"#?RADIANCE";
 const SIGNATURE_LENGTH: usize = 10;
 
 /// An Radiance HDR decoder
@@ -120,7 +120,7 @@ impl RGBE8Pixel {
             Rgb([0., 0., 0.])
         } else {
 //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2(self.e as f32 - (128. + 8.));
+            let exp = f32::exp2((self.e as f32) - (128. + 8.));
             Rgb([exp*(self.c[0] as f32), exp*(self.c[1] as f32), exp*(self.c[2] as f32)])
         }
     }
@@ -534,8 +534,8 @@ fn decode_old_rle<R: BufRead>(r: &mut R, fb: RGBE8Pixel, buf: &mut [RGBE8Pixel])
                 rl_mult *= 256;
                 if x_off + rl <= width {
                     // do run
-                    for x in x_off .. x_off + rl {
-                        buf[x] = prev_pixel;
+                    for b in &mut buf[x_off .. x_off + rl] {
+                        *b = prev_pixel;
                     }
                 } else {
                     return Err(ImageError::FormatError("Wrong length of decoded scanline".into()));
@@ -704,11 +704,9 @@ fn parse_dimensions_line<'a>(line: &Cow<'a, str>, strict: bool) -> ImageResult<(
     let c1_str = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
     let c2_tag = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
     let c2_str = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
-    if strict {
-        if dim_parts.next().is_some() {
-            // extra data in dimensions line
-            return Err(ImageError::FormatError(err.into()));
-        } // no else
+    if strict && dim_parts.next().is_some() {
+        // extra data in dimensions line
+        return Err(ImageError::FormatError(err.into()));
     } // no else
     // dimensions line is in the form "-Y 10 +X 20"
     // There are 8 possible orientations: +Y +X, +X -Y and so on

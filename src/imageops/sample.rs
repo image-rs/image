@@ -100,13 +100,13 @@ pub fn gaussian_kernel(x: f32) -> f32 {
 }
 
 /// Calculate the Catmull-Rom cubic spline.
-/// Also known as a form of BiCubic sampling in two dimensions.
+/// Also known as a form of `BiCubic` sampling in two dimensions.
 pub fn catmullrom_kernel(x: f32) -> f32 {
     bc_cubic_spline(x, 0.0, 0.5)
 }
 
 /// Calculate the triangle function.
-/// Also known as BiLinear sampling in two dimensions.
+/// Also known as `BiLinear` sampling in two dimensions.
 pub fn triangle_kernel(x: f32) -> f32 {
     if x.abs() < 1.0 {
         1.0 - x.abs()

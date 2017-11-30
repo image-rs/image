@@ -50,7 +50,7 @@ enum CompressionMethod {
     Fax4 = 4,
     LZW = 5,
     JPEG = 6,
-    PackBits = 32773
+    PackBits = 0x8005
 }
 }
 
@@ -269,7 +269,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
     /// Moves the cursor to the specified offset
     #[inline]
     pub fn goto_offset(&mut self, offset: u32) -> io::Result<()> {
-        self.reader.seek(io::SeekFrom::Start(offset as u64)).map(|_| ())
+        self.reader.seek(io::SeekFrom::Start(u64::from(offset))).map(|_| ())
     }
 
     /// Reads a IFD entry.
@@ -339,16 +339,16 @@ impl<R: Read + Seek> TIFFDecoder<R> {
 
     /// Tries to retrieve a tag and convert it to the desired type.
     fn find_tag_u32(&mut self, tag: ifd::Tag) -> ImageResult<Option<u32>> {
-        match try!(self.find_tag(tag)) {
-            Some(val) => Ok(Some(try!(val.as_u32()))),
+        match self.find_tag(tag)? {
+            Some(val) => val.into_u32().map(Some),
             None => Ok(None)
         }
     }
 
     /// Tries to retrieve a tag and convert it to the desired type.
     fn find_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Option<Vec<u32>>> {
-        match try!(self.find_tag(tag)) {
-            Some(val) => Ok(Some(try!(val.as_u32_vec()))),
+        match self.find_tag(tag)? {
+            Some(val) => val.into_u32_vec().map(Some),
             None => Ok(None)
         }
     }
@@ -366,12 +366,12 @@ impl<R: Read + Seek> TIFFDecoder<R> {
 
     /// Tries to retrieve a tag and convert it to the desired type.
     fn get_tag_u32(&mut self, tag: ifd::Tag) -> ImageResult<u32> {
-        (try!(self.get_tag(tag))).as_u32()
+        self.get_tag(tag)?.into_u32()
     }
 
     /// Tries to retrieve a tag and convert it to the desired type.
     fn get_tag_u32_vec(&mut self, tag: ifd::Tag) -> ImageResult<Vec<u32>> {
-        (try!(self.get_tag(tag))).as_u32_vec()
+        self.get_tag(tag)?.into_u32_vec()
     }
 
     /// Decompresses the strip into the supplied buffer.

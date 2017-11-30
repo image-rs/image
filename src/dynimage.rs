@@ -491,8 +491,8 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         (color::ColorType::Gray(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             // Note: this conversion assumes that the scanlines begin on byte boundaries
             let mask = (1u8 << bit_depth as usize) - 1;
-            let scaling_factor = (255)/((1 << bit_depth as usize) - 1);
-            let skip = (w % 8)/bit_depth as u32;
+            let scaling_factor = 255/((1 << bit_depth as usize) - 1);
+            let skip = (w % 8)/u32::from(bit_depth);
             let row_len = w + skip;
             let p = buf
                        .iter()
@@ -569,10 +569,10 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "bmp" => image::ImageFormat::BMP,
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
-        "pbm" => image::ImageFormat::PNM,
+        "pbm" |
+        "pam" |
         "pgm" => image::ImageFormat::PNM,
         "ppm" => image::ImageFormat::PPM,
-        "pam" => image::ImageFormat::PNM,
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format

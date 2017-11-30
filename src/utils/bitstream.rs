@@ -85,7 +85,7 @@ impl<R> BitReader for LsbReader<R> where R: Read {
             ))
         }
         while self.bits < n {
-            self.acc |= (try!(self.r.read_u8()) as u32) << self.bits;
+            self.acc |= u32::from(self.r.read_u8()?) << self.bits;
             self.bits += 8;
         }
         let res = self.acc & ((1 << n) - 1);
@@ -106,7 +106,7 @@ impl<R> BitReader for MsbReader<R> where R: Read {
             ))
         }
         while self.bits < n {
-            self.acc |= (try!(self.r.read_u8()) as u32) << (24 - self.bits);
+            self.acc |= u32::from(self.r.read_u8()?) << (24 - self.bits);
             self.bits += 8;
         }
         let res = self.acc >> (32 - n);
@@ -150,7 +150,7 @@ impl<'a, W> Write for $name<'a, W> where W: Write + 'a  {
             self.w.write(buf)
         } else {
             for &byte in buf.iter() {
-                try!(self.write_bits(byte as u16, 8))
+                try!(self.write_bits(u16::from(byte), 8))
             }
             Ok(buf.len())
         }
@@ -178,7 +178,7 @@ define_bit_writers!{
 impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Write + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
-        self.acc |= (v as u32) << self.bits;
+        self.acc |= u32::from(v) << self.bits;
         self.bits += n;
         while self.bits >= 8 {
             try!(self.w.write_all(&[self.acc as u8]));
@@ -194,7 +194,7 @@ impl<'a, W> BitWriter for LsbWriter<'a, W> where W: Write + 'a  {
 impl<'a, W> BitWriter for MsbWriter<'a, W> where W: Write + 'a  {
 
     fn write_bits(&mut self, v: u16, n: u8) -> io::Result<()> {
-        self.acc |= (v as u32) << (32 - n - self.bits);
+        self.acc |= u32::from(v) << (32 - n - self.bits);
         self.bits += n;
         while self.bits >= 8 {
             try!(self.w.write_all(&[(self.acc >> 24) as u8]));

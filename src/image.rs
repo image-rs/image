@@ -317,13 +317,7 @@ pub trait GenericImage: Sized {
     /// Returns true if this x, y coordinate is contained inside the image.
     fn in_bounds(&self, x: u32, y: u32) -> bool {
         let (ix, iy, iw, ih) = self.bounds();
-        if x < ix || x >= ix + iw {
-            false
-        } else if y < iy || y >= iy + ih {
-            false
-        } else {
-            true
-        }
+        !(x < ix || x >= ix + iw || y < iy || y >= iy + ih)
     }
 
     /// Returns the pixel located at (x, y)
@@ -414,9 +408,7 @@ pub trait GenericImage: Sized {
     where O: GenericImage<Pixel=Self::Pixel> {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
-        if self.width() < other.width() + x {
-            return false;
-        } else if self.height() < other.height() + y {
+        if self.width() < other.width() + x || self.height() < other.height() + y {
             return false;
         }
 

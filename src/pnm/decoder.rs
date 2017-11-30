@@ -124,11 +124,11 @@ impl<R: Read> PNMDecoder<R> {
                 => Ok((width, height, 1, TupleType::Grayscale)),
             (Some("BLACKANDWHITE"), _)
                 => Err(ImageError::FormatError("Unexpected depth value for tuple type BLACKANDWHITE".to_string())),
-            (Some("GRAYSCALE"), 1) if maxval >= 1 && maxval <= 65535
+            (Some("GRAYSCALE"), 1) if maxval >= 1 && maxval <= 0xFFFF
                 => Ok((width, height, maxval, TupleType::Grayscale)),
             (Some("GRAYSCALE"), _)
                 => Err(ImageError::FormatError("Invalid depth for tuple type GRAYSCALE".to_string())),
-            (Some("RGB"), 3) if maxval >= 1 && maxval <= 65535
+            (Some("RGB"), 3) if maxval >= 1 && maxval <= 0xFFFF
                 => Ok((width, height, maxval, TupleType::RGB)),
             (Some("RGB"), _)
                 => Err(ImageError::FormatError("Invalid depth for tuple type RGB".to_string())),
@@ -175,7 +175,7 @@ trait HeaderReader: BufRead {
                 let cur_enabled = *partof && byte != b'#';
                 let next_enabled = cur_enabled || (byte == b'\r' || byte == b'\n');
                 *partof = next_enabled;
-                return Some((cur_enabled, Ok(byte)));
+                Some((cur_enabled, Ok(byte)))
             });
 
         for (_, byte) in mark_comments.filter(|ref e| e.0) {
@@ -321,10 +321,10 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match self.tuple {
             TupleType::Grayscale if self.maxwhite == 1 => Ok(ColorType::Gray(1)),
-            TupleType::Grayscale if self.maxwhite < 256 => Ok(ColorType::Gray(8)),
-            TupleType::Grayscale if self.maxwhite < 65536 => Ok(ColorType::Gray(16)),
-            TupleType::RGB if self.maxwhite < 256 => Ok(ColorType::RGB(8)),
-            TupleType::RGB if self.maxwhite < 65536 => Ok(ColorType::RGB(16)),
+            TupleType::Grayscale if self.maxwhite < 0xFF => Ok(ColorType::Gray(8)),
+            TupleType::Grayscale if self.maxwhite < 0xFFFF => Ok(ColorType::Gray(16)),
+            TupleType::RGB if self.maxwhite < 0xFF => Ok(ColorType::RGB(8)),
+            TupleType::RGB if self.maxwhite < 0xFFFF => Ok(ColorType::RGB(16)),
             TupleType::Bit => Ok(ColorType::Gray(1)),
             _ => Err(ImageError::FormatError("Can't determine color type".to_string()))
         }
@@ -347,10 +347,10 @@ impl<R: Read> PNMDecoder<R> {
     fn rowlen(&self) -> ImageResult<usize> {
         match self.tuple {
             TupleType::Bit => PbmBit::bytelen(self.width, 1, 1),
-            TupleType::RGB if self.maxwhite < 256 => U8::bytelen(self.width, 1, 3),
-            TupleType::RGB if self.maxwhite < 65536 => U16::bytelen(self.width, 1, 3),
-            TupleType::Grayscale if self.maxwhite < 256 => U8::bytelen(self.width, 1, 1),
-            TupleType::Grayscale if self.maxwhite < 65536 => U16::bytelen(self.width, 1, 1),
+            TupleType::RGB if self.maxwhite < 0xFF => U8::bytelen(self.width, 1, 3),
+            TupleType::RGB if self.maxwhite < 0xFFFF => U16::bytelen(self.width, 1, 3),
+            TupleType::Grayscale if self.maxwhite < 0xFF => U8::bytelen(self.width, 1, 1),
+            TupleType::Grayscale if self.maxwhite < 0xFFFF => U16::bytelen(self.width, 1, 1),
             _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }
@@ -358,10 +358,10 @@ impl<R: Read> PNMDecoder<R> {
     fn read(&mut self) -> ImageResult<DecodingResult> {
         match self.tuple {
             TupleType::Bit => self.read_samples::<PbmBit>(1),
-            TupleType::RGB if self.maxwhite < 256 => self.read_samples::<U8>(3),
-            TupleType::RGB if self.maxwhite < 65536 => self.read_samples::<U16>(3),
-            TupleType::Grayscale if self.maxwhite < 256 => self.read_samples::<U8>(1),
-            TupleType::Grayscale if self.maxwhite < 65536 => self.read_samples::<U16>(1),
+            TupleType::RGB if self.maxwhite < 0xFF => self.read_samples::<U8>(3),
+            TupleType::RGB if self.maxwhite < 0xFFFF => self.read_samples::<U16>(3),
+            TupleType::Grayscale if self.maxwhite < 0xFF => self.read_samples::<U8>(1),
+            TupleType::Grayscale if self.maxwhite < 0xFFFF => self.read_samples::<U16>(1),
             _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
         }
     }

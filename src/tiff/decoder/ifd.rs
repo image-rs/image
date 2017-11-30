@@ -95,7 +95,7 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_u32(self) -> ::image::ImageResult<u32> {
+    pub fn into_u32(self) -> ::image::ImageResult<u32> {
         match self {
             Unsigned(val) => Ok(val),
             val => Err(::image::ImageError::FormatError(format!(
@@ -103,12 +103,12 @@ impl Value {
             )))
         }
     }
-    pub fn as_u32_vec(self) -> ::image::ImageResult<Vec<u32>> {
+    pub fn into_u32_vec(self) -> ::image::ImageResult<Vec<u32>> {
         match self {
             List(vec) => {
                 let mut new_vec = Vec::with_capacity(vec.len());
                 for v in vec {
-                    new_vec.push(try!(v.as_u32()))
+                    new_vec.push(v.into_u32()?)
                 }
                 Ok(new_vec)
             },
@@ -157,20 +157,20 @@ impl Entry {
         match (self.type_, self.count) {
             // TODO check if this could give wrong results
             // at a different endianess of file/computer.
-            (Type::BYTE, 1) => Ok(Unsigned(self.offset[0] as u32)),
-            (Type::SHORT, 1) => Ok(Unsigned(try!(self.r(bo).read_u16()) as u32)),
+            (Type::BYTE, 1) => Ok(Unsigned(u32::from(self.offset[0]))),
+            (Type::SHORT, 1) => Ok(Unsigned(u32::from(self.r(bo).read_u16()?))),
             (Type::SHORT, 2) => {
                 let mut r = self.r(bo);
                 Ok(List(vec![
-                    Unsigned(try!(r.read_u16()) as u32),
-                    Unsigned(try!(r.read_u16()) as u32)
+                    Unsigned(u32::from(r.read_u16()?)),
+                    Unsigned(u32::from(r.read_u16()?))
                 ]))
             },
             (Type::SHORT, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
                 for _ in 0 .. n {
-                    v.push(Unsigned(try!(decoder.read_short()) as u32))
+                    v.push(Unsigned(u32::from(decoder.read_short()?)))
                 }
                 Ok(List(v))
             },

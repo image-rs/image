@@ -471,10 +471,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     // block quantization loop: we basically just try every possible combination, returning
     // the combination with the least squared error
     // stores the best candidate colors
-    let mut chosen_color0 = [0; 3];
-    let mut chosen_color1 = [0; 3];
-    // calculated color table indices for these colors
-    let mut chosen_indices = 0u32;
+    let mut chosen_colors = [[0; 3]; 4];
     // did this index table use the [0,0,0] variant
     let mut chosen_use_0 = false;
     // error calculated for the last entry
@@ -505,33 +502,19 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
                     }
                 }
 
-                // calculate the total error and mapping
-                let mut total_error = 0;
-                let mut indices = 0u32;
-                // for each target RGB value, get the index of the color value with the smallest error
+                // calculate the total error if we were to quantize the block with these color combinations
                 // both these loops have statically known iteration counts and are well vectorizable
                 // note that the inside of this can be run about 15360 times worst case, i.e. 960 times per
                 // pixel.
-                // note that targets is already in reverse pixel order, to make the index computation easy.
-                for t in &targets {
-                    let (idx, err) = colors.iter()
-                                           .enumerate()
-                                           .map(|(i, c)| (i, diff(c, t)) )
-                                           .min_by_key(|&(_, err)| err).unwrap();
-                    total_error += err as u32;
-                    indices = (indices << 2) | idx as u32;
-                }
+                let total_error = targets.iter().map(|t| colors.iter().map(|c| diff(c, t) as u32).min().unwrap()).sum();
 
                 // update the match if we found a better one
                 if total_error < chosen_error {
-                    chosen_color0  = colors[0];
-                    chosen_color1  = colors[1];
-                    chosen_indices = indices;
+                    chosen_colors  = colors;
                     chosen_use_0   = use_0 != 0;
                     chosen_error   = total_error;
 
                     // if we've got a perfect or at most 1 LSB off match, we're done
-                    // it's worth investigating if this actually speeds anything up
                     if total_error < 4 {
                         break 'search;
                     }
@@ -540,9 +523,19 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
         }
     }
 
+    // calculate the final indices
+    // note that targets is already in reverse pixel order, to make the index computation easy.
+    let mut chosen_indices = 0u32;
+    for t in &targets {
+        let (idx, _) = chosen_colors.iter()
+                                    .enumerate()
+                                    .min_by_key(|&(_, c)| diff(c, t)).unwrap();
+        chosen_indices = (chosen_indices << 2) | idx as u32;
+    }
+
     // encode the colors
-    let mut color0 = enc565_encode(chosen_color0);
-    let mut color1 = enc565_encode(chosen_color1);
+    let mut color0 = enc565_encode(chosen_colors[0]);
+    let mut color1 = enc565_encode(chosen_colors[1]);
 
     // determine encoding. Note that color0 == color1 is impossible at this point
     if color0 > color1 {

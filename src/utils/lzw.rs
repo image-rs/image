@@ -22,7 +22,7 @@ type Code = u16;
 ///
 /// It is not generic due to current limitations of Rust
 ///
-/// Inspired by http://www.cplusplus.com/articles/iL18T05o/
+/// Inspired by <http://www.cplusplus.com/articles/iL18T05o/>
 struct DecodingDict {
     min_size: u8,
     table: Vec<(Option<Code>, u8)>,
@@ -253,7 +253,7 @@ impl EncodingDict {
             self.table.push(Node::new(c));
             None
         } else {
-            Some(self.search_initials(c as Code))
+            Some(self.search_initials(Code::from(c)))
         }
     }
 
@@ -262,7 +262,7 @@ impl EncodingDict {
     }
 
     fn search_initials(&self, i: Code) -> Code {
-        self.table[i as usize].c as Code
+        Code::from(self.table[i as usize].c)
     }
 }
 
@@ -283,7 +283,7 @@ where R: Read, W: BitWriter {
             if let Some(code) = prev {
                 try!(w.write_bits(code, code_size));
             }
-            i = Some(dict.search_initials(c as Code))
+            i = Some(dict.search_initials(Code::from(c)))
         }
         // There is a hit: do not write out code but continue
         let next_code = dict.next_code();

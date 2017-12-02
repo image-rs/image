@@ -78,7 +78,7 @@ fn max_pixel_value(pixel_type: color::ColorType) -> u16 {
         Gray(n) | RGB(n) | Palette(n) | GrayA(n) | RGBA(n) => 2u32.pow(n as u32) - 1,
     };
 
-    if max > 65535 {
+    if max > 0xFFFF {
       panic!("PPM: Trying to encode image with more than 16bit per pixel");
     } else {
       max as u16

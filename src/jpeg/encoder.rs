@@ -182,7 +182,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         self.nbits += size;
 
         while self.nbits >= 8 {
-            let byte = (self.accumulator & (0xFFFFFFFFu32 << 24)) >> 24;
+            let byte = (self.accumulator & (0xFFFF_FFFFu32 << 24)) >> 24;
             try!(self.w.write_all(&[byte as u8]));
 
             if byte == 0xFF {

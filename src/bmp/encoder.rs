@@ -36,8 +36,8 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 
         // write BMP header
-        try!(self.writer.write_u8('B' as u8));
-        try!(self.writer.write_u8('M' as u8));
+        try!(self.writer.write_u8(b'B'));
+        try!(self.writer.write_u8(b'M'));
         try!(self.writer.write_u32::<LittleEndian>(file_size)); // file size
         try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 1
         try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 2
@@ -59,9 +59,9 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         // write image data
         match c {
             color::ColorType::RGB(8) |
-            color::ColorType::RGBA(8) => try!(self.encode_rgb(&image, width, height, row_pad_size, raw_pixel_size)),
+            color::ColorType::RGBA(8) => try!(self.encode_rgb(image, width, height, row_pad_size, raw_pixel_size)),
             color::ColorType::Gray(8) |
-            color::ColorType::GrayA(8) => try!(self.encode_gray(&image, width, height, row_pad_size, raw_pixel_size)),
+            color::ColorType::GrayA(8) => try!(self.encode_gray(image, width, height, row_pad_size, raw_pixel_size)),
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
         }
 
@@ -137,12 +137,12 @@ fn get_unsupported_error_message(c: &color::ColorType) -> String {
 
 /// Returns a tuple representing: (raw pixel size, written pixel size, palette color count).
 fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32, u32)> {
-    let sizes = match c {
-        &color::ColorType::RGB(8) => (3, 3, 0),
-        &color::ColorType::RGBA(8) => (4, 3, 0),
-        &color::ColorType::Gray(8) => (1, 1, 256),
-        &color::ColorType::GrayA(8) => (2, 1, 256),
-        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
+    let sizes = match *c {
+        color::ColorType::RGB(8) => (3, 3, 0),
+        color::ColorType::RGBA(8) => (4, 3, 0),
+        color::ColorType::Gray(8) => (1, 1, 256),
+        color::ColorType::GrayA(8) => (2, 1, 256),
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(c)[..])),
     };
 
     Ok(sizes)

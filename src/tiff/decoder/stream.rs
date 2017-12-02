@@ -73,7 +73,7 @@ impl EndianReader for LZWReader {
     }
 }
 
-/// Reader that unpacks Apple's PackBits format
+/// Reader that unpacks Apple's `PackBits` format
 pub struct PackBitsReader {
     buffer: io::Cursor<Vec<u8>>,
     byte_order: ByteOrder

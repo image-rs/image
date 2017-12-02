@@ -25,7 +25,7 @@ pub enum ColorType {
 
 }
 
-/// Returns the number of bits contained in a pixel of ColorType ```c```
+/// Returns the number of bits contained in a pixel of `ColorType` ```c```
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
         ColorType::Gray(n)    => n as usize,
@@ -226,7 +226,7 @@ impl<A: Copy> FromColor<A> for A {
     }
 }
 
-/// FromColor for Luma
+/// `FromColor` for Luma
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for Luma<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
@@ -256,7 +256,7 @@ impl<T: Primitive + 'static> FromColor<LumaA<T>> for Luma<T> {
     }
 }
 
-/// FromColor for LumA
+/// `FromColor` for LumA
 
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for LumaA<T> {
@@ -291,7 +291,7 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for LumaA<T> {
     }
 }
 
-/// FromColor for RGBA
+/// `FromColor` for RGBA
 
 impl<T: Primitive + 'static> FromColor<Rgb<T>> for Rgba<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
@@ -328,7 +328,7 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Rgba<T> {
 }
 
 
-/// FromColor for RGB
+/// `FromColor` for RGB
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for Rgb<T> {
     fn from_color(&mut self, other: &Rgba<T>) {

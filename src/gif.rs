@@ -57,7 +57,7 @@ impl<R: Read> Decoder<R> {
 impl<R: Read> ImageDecoder for Decoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let reader = try!(self.get_reader());
-        Ok((reader.width() as u32, reader.height() as u32))
+        Ok((u32::from(reader.width()), u32::from(reader.height())))
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
@@ -113,7 +113,7 @@ impl From<gif::DecodingError> for ImageError {
     fn from(err: gif::DecodingError) -> ImageError {
         use self::gif::DecodingError::*;
         match err {
-            Format(desc) => ImageError::FormatError(desc.into()),
+            Format(desc) |
             Internal(desc) => ImageError::FormatError(desc.into()),
             Io(io_err) => ImageError::IoError(io_err),
         }

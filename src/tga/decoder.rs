@@ -259,7 +259,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
-        try!(self.r.seek(io::SeekFrom::Current(self.header.id_length as i64)));
+        try!(self.r.seek(io::SeekFrom::Current(i64::from(self.header.id_length))));
         Ok(())
     }
 
@@ -275,7 +275,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 
     /// Expands indices into its mapped color
-    fn expand_color_map(&mut self, pixel_data: Vec<u8>) -> Vec<u8> {
+    fn expand_color_map(&self, pixel_data: &[u8]) -> Vec<u8> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
             let mut result = 0usize;
@@ -315,7 +315,7 @@ impl<R: Read + Seek> TGADecoder<R> {
 
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
-            pixel_data = self.expand_color_map(pixel_data)
+            pixel_data = self.expand_color_map(&pixel_data)
         }
 
         self.reverse_encoding(&mut pixel_data);
@@ -377,7 +377,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// If it's 0, the origin is in the bottom left corner.
     /// This function checks the bit, and if it's 0, flips the image vertically.
     fn flip_vertically(&mut self, pixels: &mut [u8]) {
-        let screen_origin_bit = 0b100000 & self.header.image_desc != 0;
+        let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
 
 
         if !screen_origin_bit {
@@ -393,9 +393,7 @@ impl<R: Read + Seek> TGADecoder<R> {
                     let source = vertical_index * width_bytes + horizontal_index;
                     let target = vertical_target + horizontal_index;
 
-                    let stash = pixels[target];
-                    pixels[target] = pixels[source];
-                    pixels[source] = stash;
+                    pixels.swap(target, source);
                 }
             }
         }

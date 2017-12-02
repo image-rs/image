@@ -60,12 +60,12 @@ static FIX_0_541196100: i32 = 4433;
 static FIX_0_765366865: i32 = 6270;
 static FIX_0_899976223: i32 = 7373;
 static FIX_1_175875602: i32 = 9633;
-static FIX_1_501321110: i32 = 12299;
-static FIX_1_847759065: i32 = 15137;
-static FIX_1_961570560: i32 = 16069;
-static FIX_2_053119869: i32 = 16819;
-static FIX_2_562915447: i32 = 20995;
-static FIX_3_072711026: i32 = 25172;
+static FIX_1_501321110: i32 = 12_299;
+static FIX_1_847759065: i32 = 15_137;
+static FIX_1_961570560: i32 = 16_069;
+static FIX_2_053119869: i32 = 16_819;
+static FIX_2_562915447: i32 = 20_995;
+static FIX_3_072711026: i32 = 25_172;
 
 pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
     // Pass 1: process rows.

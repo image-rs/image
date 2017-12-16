@@ -288,6 +288,41 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
     }
 
+    /// Resize this image using the specified filter algorithm.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the larger (relative to aspect ratio) of the bounds
+    /// specified by ```nwidth``` and ```nheight```, then cropped to
+    /// fit within the other bound.
+    pub fn resize_to_fill(&self,
+                          nwidth: u32,
+                          nheight: u32,
+                          filter: imageops::FilterType) -> DynamicImage {
+
+        let (width, height) = self.dimensions();
+
+        let ratio  = width as f32 / height as f32;
+        let nratio = nwidth as f32 / nheight as f32;
+
+        let scale = if nratio > ratio {
+            nwidth as f32 / width as f32
+        } else {
+            nheight as f32 / height as f32
+        };
+
+        let width2  = (width as f32 * scale) as u32;
+        let height2 = (height as f32 * scale) as u32;
+
+        let mut intermediate = self.resize_exact(width2, height2, filter);
+        let (iwidth, iheight) = intermediate.dimensions();
+
+        if nratio > ratio {
+            intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
+        } else {
+            intermediate.crop((iwidth - nwidth) / 2, 0, nwidth, nheight)
+        }
+    }
+
     /// Performs a Gaussian blur on this image.
     /// ```sigma``` is a measure of how much to blur by.
     pub fn blur(&self, sigma: f32) -> DynamicImage {

@@ -119,6 +119,13 @@ impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P> where P::Subpixel: 'a {
     }
 }
 
+impl<'a, P: Pixel + 'a> ExactSizeIterator for Pixels<'a, P> where P::Subpixel: 'a {
+    fn len(&self) -> usize {
+        self.chunks.len()
+    }
+}
+
+
 impl<'a, P: Pixel + 'a> DoubleEndedIterator for Pixels<'a, P> where P::Subpixel: 'a {
 
     #[inline(always)]
@@ -142,6 +149,12 @@ impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P> where P::Subpixel: 'a {
         self.chunks.next().map(|v|
             <P as Pixel>::from_slice_mut(v)
         )
+    }
+}
+
+impl <'a, P: Pixel + 'a> ExactSizeIterator for PixelsMut<'a, P> where P::Subpixel: 'a {
+    fn len(&self) -> usize{
+        self.chunks.len()
     }
 }
 
@@ -180,6 +193,12 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixels<'a, P> where P::Subpixel: '
     }
 }
 
+impl <'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixels<'a, P> where P::Subpixel: 'a {
+    fn len(&self) -> usize{
+        self.pixels.len()
+    }
+}
+
 /// Enumerate the pixels of an image.
 pub struct EnumeratePixelsMut<'a, P: Pixel + 'a> where <P as Pixel>::Subpixel: 'a {
     pixels: PixelsMut<'a, P>,
@@ -203,6 +222,12 @@ impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsMut<'a, P> where P::Subpixel
             None => None,
             Some(p) => Some((x, y, p))
         }
+    }
+}
+
+impl <'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixelsMut<'a, P> where P::Subpixel: 'a {
+    fn len(&self) -> usize{
+        self.pixels.len()
     }
 }
 

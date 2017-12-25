@@ -3,7 +3,7 @@
 use std::io;
 use std::io::{Read, Seek};
 use byteorder::{ReadBytesExt, BigEndian, LittleEndian};
-use utils::{lzw, bitstream};
+use lzw;
 
 /// Byte order of the TIFF file.
 #[derive(Clone, Copy, Debug)]
@@ -47,13 +47,22 @@ pub struct LZWReader {
 
 impl LZWReader {
     /// Wraps a reader
-    pub fn new<R>(reader: &mut SmartReader<R>) -> io::Result<(usize, LZWReader)> where R: Read + Seek {
-        let mut buffer = Vec::new();
+    pub fn new<R>(reader: &mut SmartReader<R>, compressed_length: usize, max_uncompressed_length: usize) -> io::Result<(usize, LZWReader)> where R: Read + Seek {
         let order = reader.byte_order;
-        try!(lzw::decode_early_change(bitstream::MsbReader::new(reader), &mut buffer, 8));
-        let bytes = buffer.len();
+        let mut compressed = vec![0; compressed_length as usize];
+        try!(reader.read_exact(&mut compressed[..]));
+        let mut uncompressed = Vec::with_capacity(max_uncompressed_length);
+        let mut decoder = lzw::DecoderEarlyChange::new(lzw::MsbReader::new(), 8);
+        let mut bytes_read = 0;
+        while bytes_read < compressed_length && uncompressed.len() < max_uncompressed_length {
+            let (len, bytes) = try!(decoder.decode_bytes(&compressed[bytes_read..]));
+            bytes_read += len;
+            uncompressed.extend_from_slice(bytes);
+        }
+
+        let bytes = uncompressed.len();
         Ok((bytes, LZWReader {
-            buffer: io::Cursor::new(buffer),
+            buffer: io::Cursor::new(uncompressed),
             byte_order: order
         }))
     }

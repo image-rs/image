@@ -29,6 +29,7 @@ num-iter = "0.1.32"
 num-rational = { version = "0.1.32", default-features = false }
 num-traits = "0.1.32"
 enum_primitive = "0.1.0"
+lzw = "0.10.0"
 
 [dependencies.gif]
 version = "0.9.1"

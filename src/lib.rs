@@ -11,6 +11,7 @@ extern crate byteorder;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
+extern crate lzw;
 #[macro_use]
 extern crate enum_primitive;
 #[cfg(all(test, feature = "benchmarks"))]

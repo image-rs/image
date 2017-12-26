@@ -468,8 +468,8 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
         let bits_per_pixel: u8 = self.bits_per_sample.iter().cloned().sum();
         let scanline_size_bits = self.width as usize * bits_per_pixel as usize;
         let scanline_size = (scanline_size_bits + 7) / 8;
-        let max_uncompressed_strip_size = scanline_size
-            * self.get_tag_u32(ifd::Tag::RowsPerStrip).unwrap_or(self.height) as usize;
+        let rows_per_strip = self.get_tag_u32(ifd::Tag::RowsPerStrip)
+            .unwrap_or(self.height) as usize;
         let buffer_size =
             self.width  as usize
             * self.height as usize
@@ -499,19 +499,22 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
                 unsafe { buffer.set_len(buffer_size) },
         }
         let mut units_read = 0;
-        for (&offset, &byte_count) in try!(self.get_tag_u32_vec(ifd::Tag::StripOffsets))
-        .iter().zip(try!(self.get_tag_u32_vec(ifd::Tag::StripByteCounts)).iter()) {
+        for (i, (&offset, &byte_count)) in try!(self.get_tag_u32_vec(ifd::Tag::StripOffsets))
+        .iter().zip(try!(self.get_tag_u32_vec(ifd::Tag::StripByteCounts)).iter()).enumerate() {
+            let uncompressed_strip_size = scanline_size
+                * (self.height as usize - i * rows_per_strip);
+
             units_read += match result {
                 DecodingResult::U8(ref mut buffer) => {
                     try!(self.expand_strip(
                         DecodingBuffer::U8(&mut buffer[units_read..]),
-                        offset, byte_count, max_uncompressed_strip_size
+                        offset, byte_count, uncompressed_strip_size
                     ))
                 },
                 DecodingResult::U16(ref mut buffer) => {
                     try!(self.expand_strip(
                         DecodingBuffer::U16(&mut buffer[units_read..]),
-                        offset, byte_count, max_uncompressed_strip_size
+                        offset, byte_count, uncompressed_strip_size
                     ))
                 },
             };

@@ -24,7 +24,7 @@ name = "image"
 path = "./src/lib.rs"
 
 [dependencies]
-byteorder = "1.0.0"
+byteorder = "1.2.1"
 num-iter = "0.1.32"
 num-rational = { version = "0.1.32", default-features = false }
 num-traits = "0.1.32"

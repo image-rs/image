@@ -1,9 +1,5 @@
 //!  Utilities
 
-#[allow(dead_code)]
-pub mod bitstream;
-pub mod lzw;
-
 use std::iter::repeat;
 use num_iter::range_step;
 

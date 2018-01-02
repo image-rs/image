@@ -376,7 +376,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
 
     /// Decompresses the strip into the supplied buffer.
     /// Returns the number of bytes read.
-    fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32) -> ImageResult<usize> {
+    fn expand_strip<'a>(&mut self, buffer: DecodingBuffer<'a>, offset: u32, length: u32, max_uncompressed_length: usize) -> ImageResult<usize> {
         let color_type = try!(self.colortype());
         try!(self.goto_offset(offset));
         let (bytes, mut reader): (usize, Box<EndianReader>) = match self.compression_method {
@@ -385,7 +385,7 @@ impl<R: Read + Seek> TIFFDecoder<R> {
                 (length as usize, Box::new(SmartReader::wrap(&mut self.reader, order)))
             },
             CompressionMethod::LZW => {
-                let (bytes, reader) = try!(LZWReader::new(&mut self.reader));
+                let (bytes, reader) = try!(LZWReader::new(&mut self.reader, length as usize, max_uncompressed_length));
                 (bytes, Box::new(reader))
             },
             CompressionMethod::PackBits => {
@@ -465,6 +465,11 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
+        let bits_per_pixel: u8 = self.bits_per_sample.iter().cloned().sum();
+        let scanline_size_bits = self.width as usize * bits_per_pixel as usize;
+        let scanline_size = (scanline_size_bits + 7) / 8;
+        let rows_per_strip = self.get_tag_u32(ifd::Tag::RowsPerStrip)
+            .unwrap_or(self.height) as usize;
         let buffer_size =
             self.width  as usize
             * self.height as usize
@@ -494,19 +499,22 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
                 unsafe { buffer.set_len(buffer_size) },
         }
         let mut units_read = 0;
-        for (&offset, &byte_count) in try!(self.get_tag_u32_vec(ifd::Tag::StripOffsets))
-        .iter().zip(try!(self.get_tag_u32_vec(ifd::Tag::StripByteCounts)).iter()) {
+        for (i, (&offset, &byte_count)) in try!(self.get_tag_u32_vec(ifd::Tag::StripOffsets))
+        .iter().zip(try!(self.get_tag_u32_vec(ifd::Tag::StripByteCounts)).iter()).enumerate() {
+            let uncompressed_strip_size = scanline_size
+                * (self.height as usize - i * rows_per_strip);
+
             units_read += match result {
                 DecodingResult::U8(ref mut buffer) => {
                     try!(self.expand_strip(
                         DecodingBuffer::U8(&mut buffer[units_read..]),
-                        offset, byte_count
+                        offset, byte_count, uncompressed_strip_size
                     ))
                 },
                 DecodingResult::U16(ref mut buffer) => {
                     try!(self.expand_strip(
                         DecodingBuffer::U16(&mut buffer[units_read..]),
-                        offset, byte_count
+                        offset, byte_count, uncompressed_strip_size
                     ))
                 },
             };

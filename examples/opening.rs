@@ -14,7 +14,7 @@ fn main() {
         panic!("Please enter a file")
     };
 
-    // Use the open function to load an image from a PAth.
+    // Use the open function to load an image from a Path.
     // ```open``` returns a dynamic image.
     let im = image::open(&Path::new(&file)).unwrap();
 

@@ -1,0 +1,43 @@
+extern crate image;
+
+use std::fs::File;
+use image::{FilterType, ImageFormat};
+use std::time::{Duration, Instant};
+use std::fmt;
+
+struct Elapsed(Duration);
+
+impl Elapsed {
+    fn from(start: &Instant) -> Self {
+        Elapsed(start.elapsed())
+    }
+}
+
+impl fmt::Display for Elapsed {
+    fn fmt(&self, out: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match (self.0.as_secs(), self.0.subsec_nanos()) {
+            (0, n) if n < 1000 => write!(out, "{} ns", n),
+            (0, n) if n < 1000_000 => write!(out, "{} µs", n / 1000),
+            (0, n) => write!(out, "{} ms", n / 1000_000),
+            (s, n) if s < 10 => write!(out, "{}.{:02} s", s, n / 10_000_000),
+            (s, _) => write!(out, "{} s", s),
+        }
+    }
+}
+
+fn main() {
+    let img = image::open("examples/scaledown/test.jpg").unwrap();
+    for &(name, filter) in [
+        ("near", FilterType::Nearest),
+        ("tri", FilterType::Triangle),
+        ("cmr", FilterType::CatmullRom),
+        ("gauss", FilterType::Gaussian),
+        ("lcz2", FilterType::Lanczos3),
+    ].into_iter() {
+        let timer = Instant::now();
+        let scaled = img.resize(400, 400, filter);
+        println!("Scaled by {} in {}", name, Elapsed::from(&timer));
+        let mut output = File::create(&format!("test-{}.jpg", name)).unwrap();
+        scaled.save(&mut output, ImageFormat::JPEG).unwrap();
+    }
+}

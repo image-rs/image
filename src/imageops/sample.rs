@@ -168,7 +168,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             // Find the index of the left-most input pixel which can influence
             // the colour of the current output pixel. A point on the right
             // side of a pixel is considered to be part of that pixel.
-            let left  = (inputx - filter.support).ceil() as i64;
+            let left  = (inputx - filter.support * ratio).round() as i64;
             let left  = clamp(left, 0, width as i64 - 1) as u32;
 
             // Find the index of the right-most input pixel which can influence
@@ -184,22 +184,15 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
             //    boundaries to be black regardless of the input pixel colours.
             //
             // The choice of right vs left is arbitrary.
-            let right = {
-                let real_right = inputx + filter.support;
-                if real_right.fract() == 0.0 {
-                    (real_right - 1.0) as i64
-                } else {
-                    real_right.floor() as i64
-                }
-            };
-            let right = clamp(right, 0, width as i64 - 1) as u32;
+            let right = (inputx + filter.support * ratio).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, width as i64) as u32;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
-            for i in left..right + 1 {
-                let w = (filter.kernel)(i as f32 - inputx);
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputx) / ratio);
                 sum += w;
 
                 let x0  = clamp(i, 0, width - 1);
@@ -261,26 +254,21 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
 
             let inputy = (outy as f32 + 0.5) * ratio - 0.5;
 
-            let left  = (inputy - filter.support).ceil() as i64;
+            let left  = (inputy - filter.support * ratio).floor() as i64;
             let left  = clamp(left, 0, height as i64 - 1) as u32;
 
-            let right = {
-                // A point above a pixel is NOT part of that pixel.
-                let real_right = inputy + filter.support;
-                if real_right.fract() == 0.0 {
-                    (real_right - 1.0) as i64
-                } else {
-                    real_right.floor() as i64
-                }
-            };
-            let right = clamp(right, 0, height as i64 - 1) as u32;
+            let right = (inputy + filter.support * ratio).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, height as i64) as u32;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
-
-            for i in left..right + 1 {
-                let w = (filter.kernel)(i as f32 - inputy);
+            if x == 3 && (outy == 100 || outy == 101) {
+                println!("Output y={} is from input {}..{} ({} px)",
+                         outy, left, right, right - left);
+            }
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputy) / ratio);
                 sum += w;
 
                 let y0  = clamp(i, 0, height - 1);
@@ -399,7 +387,7 @@ pub fn resize<I: GenericImage + 'static>(image: &I, nwidth: u32, nheight: u32,
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
             kernel: Box::new(box_kernel),
-            support: 0.5
+            support: 0.0
         },
         FilterType::Triangle   => Filter {
             kernel: Box::new(triangle_kernel),

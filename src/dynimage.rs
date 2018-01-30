@@ -3,6 +3,7 @@ use std::io::{Write, Seek, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use std::fs::File;
 use std::iter;
+#[allow(unused)] // AsciiExt not needed for rust 1.23 and up.
 use std::ascii::AsciiExt;
 use num_iter;
 

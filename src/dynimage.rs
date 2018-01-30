@@ -401,6 +401,7 @@ impl DynamicImage {
         let (width, height) = self.dimensions();
         let color = self.color();
 
+        #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
             image::ImageFormat::PNG  => {
@@ -608,7 +609,10 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "pbm" |
         "pam" |
         "pgm" => image::ImageFormat::PNM,
-        "ppm" => image::ImageFormat::PPM,
+        "ppm" => {
+            #[allow(deprecated)]
+            image::ImageFormat::PPM
+        }
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -658,6 +662,7 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
 
 /// Create a new image from a Reader
 pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    #[allow(deprecated)]
     match format {
         #[cfg(feature = "png_codec")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
@@ -701,7 +706,9 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"P3", ImageFormat::PNM),
     (b"P4", ImageFormat::PNM),
     (b"P5", ImageFormat::PNM),
-    (b"P6", ImageFormat::PPM),
+    (b"P6",
+     #[allow(deprecated)]
+     ImageFormat::PPM),
     (b"P7", ImageFormat::PNM),
 ];
 

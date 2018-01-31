@@ -66,6 +66,7 @@ pub use image::ImageFormat::{
     BMP,
     ICO
 };
+pub use image::ImageOutputFormat;
 
 pub use buffer::{
     Pixel,

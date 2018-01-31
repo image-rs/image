@@ -662,7 +662,7 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
 
 /// Create a new image from a Reader
 pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    #[allow(deprecated, unreachable_patterns)]
+    #[allow(deprecated, unreachable_patterns)] // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
@@ -686,7 +686,6 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
-        // This should be unreachable, but is kept in case of bogus feature combinations.
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
     }
 }

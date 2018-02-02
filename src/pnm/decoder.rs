@@ -1,4 +1,5 @@
 use std::io::{Read, BufRead, BufReader};
+#[allow(unused)] // AsciiExt not needed for rust 1.23 and up.
 use std::ascii::AsciiExt;
 
 use color::{ColorType};

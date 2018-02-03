@@ -3,6 +3,7 @@ use std::io::{Write, Seek, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use std::fs::File;
 use std::iter;
+#[allow(unused)] // AsciiExt not needed for rust 1.23 and up.
 use std::ascii::AsciiExt;
 use num_iter;
 
@@ -402,6 +403,7 @@ impl DynamicImage {
         let color = self.color();
         let format = format.into();
 
+        #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
             image::ImageOutputFormat::PNG  => {
@@ -607,7 +609,10 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "pbm" |
         "pam" |
         "pgm" => image::ImageFormat::PNM,
-        "ppm" => image::ImageFormat::PPM,
+        "ppm" => {
+            #[allow(deprecated)]
+            image::ImageFormat::PPM
+        }
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -657,6 +662,7 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
 
 /// Create a new image from a Reader
 pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    #[allow(deprecated, unreachable_patterns)] // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
@@ -700,7 +706,9 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"P3", ImageFormat::PNM),
     (b"P4", ImageFormat::PNM),
     (b"P5", ImageFormat::PNM),
-    (b"P6", ImageFormat::PPM),
+    (b"P6",
+     #[allow(deprecated)]
+     ImageFormat::PPM),
     (b"P7", ImageFormat::PNM),
 ];
 

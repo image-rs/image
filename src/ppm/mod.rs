@@ -1,6 +1,7 @@
 //! Encoding of portable pixmap Images
 
 pub use self::encoder::PPMEncoder as PPMEncoder;
+#[allow(deprecated)]
 pub use self::decoder::PPMDecoder as PPMDecoder;
 
 mod encoder;
@@ -13,6 +14,7 @@ mod test {
 
     #[test]
     fn test_roundtrip_ppm() {
+        #![allow(deprecated)]
         // 3x3 image that tries all the 0/255 RGB combinations
         let buf: [u8; 27] = [
               0,   0,   0,
@@ -51,6 +53,7 @@ mod test {
 
     #[test]
     fn test_roundtrip_ppm_16bit() {
+        #![allow(deprecated)]
         // 3x3 image that tries all the 0/65535 RGB combinations plus a few more values
         // that check for big-endian conversion correctness
         let buf: [u16; 27] = [

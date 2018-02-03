@@ -62,10 +62,11 @@ pub use image::ImageFormat::{
     JPEG,
     GIF,
     WEBP,
-    PPM,
     BMP,
     ICO
 };
+#[allow(deprecated)]
+pub use image::ImageFormat::PPM;
 
 pub use buffer::{
     Pixel,

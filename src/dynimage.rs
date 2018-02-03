@@ -289,6 +289,47 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
     }
 
+    /// Scale this image down to fit within a specific size.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the bounds specified by ```nwidth``` and ```nheight```.
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    pub fn thumbnail(&self,
+                     nwidth: u32,
+                     nheight: u32) -> DynamicImage {
+
+        let (width, height) = self.dimensions();
+
+        let ratio  = width as f32 / height as f32;
+        let nratio = nwidth as f32 / nheight as f32;
+
+        let scale = if nratio > ratio {
+            nheight as f32 / height as f32
+        } else {
+            nwidth as f32 / width as f32
+        };
+
+        let width2  = (width as f32 * scale) as u32;
+        let height2 = (height as f32 * scale) as u32;
+
+        self.thumbnail_exact(width2, height2)
+    }
+
+    /// Scale this image down to a specific size.
+    /// Returns a new image. Does not preserve aspect ratio.
+    /// ```nwidth``` and ```nheight``` are the new image's dimensions.
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    pub fn thumbnail_exact(&self,
+                           nwidth: u32,
+                           nheight: u32) -> DynamicImage {
+
+        dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
+    }
+
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits

@@ -5,10 +5,10 @@
 
 use std::f32;
 
-use num_traits::NumCast;
+use num_traits::{NumCast, Zero};
 
 use buffer::{ImageBuffer, Pixel};
-use traits::Primitive;
+use traits::{Primitive, Enlargeable};
 use image::GenericImage;
 use math::utils::clamp;
 
@@ -295,6 +295,62 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
             );
 
             out.put_pixel(x, outy, t);
+        }
+    }
+
+    out
+}
+
+/// Resize the supplied image down to the specific dimensions.
+pub fn thumbnail<I, P, S>(
+    image: &I,
+    new_width: u32,
+    new_height: u32,
+) -> ImageBuffer<P, Vec<S>>
+where
+    I: GenericImage<Pixel=P>,
+    P: Pixel<Subpixel=S> + 'static,
+    S: Primitive + Enlargeable + 'static,
+{
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(new_width, new_height);
+
+    let x_ratio = width as f32 / new_width as f32;
+    let y_ratio = height as f32 / new_height as f32;
+
+    let mut top = 0;
+    for outy in 0..new_height {
+        let bottom = top;
+        top = clamp(((outy + 1) as f32 * y_ratio).round() as u32,
+                    bottom + 1,
+                    height);
+
+        let mut right = 0;
+        for outx in 0..new_width {
+            let left = right;
+            right = clamp(((outx + 1) as f32 * x_ratio).round() as u32,
+                          left + 1,
+                          width);
+
+            let mut sum = (S::Larger::zero(), S::Larger::zero(),
+                           S::Larger::zero(), S::Larger::zero());
+            for y in bottom..top {
+                for x in left..right {
+                    let k = image.get_pixel(x, y).channels4();
+                    sum.0 += NumCast::from(k.0).unwrap();
+                    sum.1 += NumCast::from(k.1).unwrap();
+                    sum.2 += NumCast::from(k.2).unwrap();
+                    sum.3 += NumCast::from(k.3).unwrap();
+                }
+            }
+            let n = NumCast::from((right - left) * (top - bottom)).unwrap();
+            let round = NumCast::from(n / NumCast::from(2).unwrap()).unwrap();
+            out.put_pixel(outx, outy, Pixel::from_channels(
+                S::clamp_from((sum.0 + round) / n),
+                S::clamp_from((sum.1 + round) / n),
+                S::clamp_from((sum.2 + round) / n),
+                S::clamp_from((sum.3 + round) / n),
+            ));
         }
     }
 

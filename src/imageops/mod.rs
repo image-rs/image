@@ -31,6 +31,7 @@ pub use self::affine:: {
 pub use self::sample:: {
     filter3x3,
     resize,
+    thumbnail,
     blur,
     unsharpen,
 };

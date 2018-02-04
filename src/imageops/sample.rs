@@ -94,9 +94,9 @@ pub fn lanczos3_kernel(x: f32) -> f32 {
 }
 
 /// Calculate the gaussian function with a
-/// standard deviation of 1.0
+/// standard deviation of 0.5
 pub fn gaussian_kernel(x: f32) -> f32 {
-    gaussian(x, 1.0)
+    gaussian(x, 0.5)
 }
 
 /// Calculate the Catmull-Rom cubic spline.
@@ -116,14 +116,10 @@ pub fn triangle_kernel(x: f32) -> f32 {
 }
 
 /// Calculate the box kernel.
-/// When applied in two dimensions with a support of 0.5
-/// it is equivalent to nearest neighbor sampling.
-pub fn box_kernel(x: f32) -> f32 {
-    if x.abs() <= 0.5 {
-        1.0
-    } else {
-        0.0
-    }
+/// Only pixels inside the box should be considered, and those
+/// contribute equally.  So this method simply returns 1.
+pub fn box_kernel(_x: f32) -> f32 {
+    1.0
 }
 
 // Sample the rows of the supplied image using the provided filter.
@@ -141,62 +137,46 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
-    for y in 0..height {
-        let max = S::max_value();
-        let max: f32 = NumCast::from(max).unwrap();
+    let max = S::max_value();
+    let max: f32 = NumCast::from(max).unwrap();
 
-        let ratio = width as f32 / new_width as f32;
+    let ratio = width as f32 / new_width as f32;
+    let sratio = if ratio < 1.0 { 1.0 } else { ratio };
+    let src_support = filter.support * sratio;
+
+    for y in 0..height {
 
         for outx in 0..new_width {
 
             // Find the point in the input image corresponding to the centre
             // of the current pixel in the output image.
-            //
-            // Then go half a pixel to the left (hence the `- 0.5`).
-            //
-            // The reason for subtracting 0.5 is because the filter kernel
-            // treats the centre of a pixel as 0. When finding the left and
-            // right limits below, we're interested in the range of input
-            // pixels whose colour can influence the colour of the current
-            // output pixel. This is equivalent to the range of input
-            // pixels for which inputx lies within the filter.support-sized
-            // region centered at the centre of that pixel. Subtracting
-            // 0.5 here simplifies the rounding operations below.
-            //
-            let inputx = (outx as f32 + 0.5) * ratio - 0.5;
+            let inputx = (outx as f32 + 0.5) * ratio;
 
-            // Find the index of the left-most input pixel which can influence
-            // the colour of the current output pixel. A point on the right
-            // side of a pixel is considered to be part of that pixel.
-            let left  = (inputx - filter.support * ratio).round() as i64;
+            // Left and right are slice bounds for the input pixels relevant
+            // to the output pixel we are calculating.  Pixel x is relevant
+            // if and only if (x >= left) && (x < right).
+
+            // Invariant: 0 <= left < right <= width
+
+            let left  = (inputx - src_support).floor() as i64;
             let left  = clamp(left, 0, width as i64 - 1) as u32;
 
-            // Find the index of the right-most input pixel which can influence
-            // the colour of the current output pixel. A point on the left side
-            // of a pixel is NOT considered to be part of that pixel. This is
-            // important because:
-            //  - If we included the point in both neighbouring pixels it would
-            //    force the output pixel to be influenced be both input pixels,
-            //    and force filters which don't desire this (e.g. Nearest),
-            //    to make sure they only sample from one side in such cases.
-            //  - If we included the point in neither neighbouring pixel it
-            //    would cause output pixels corresponding to input pixel
-            //    boundaries to be black regardless of the input pixel colours.
-            //
-            // The choice of right vs left is arbitrary.
-            let right = (inputx + filter.support * ratio).ceil() as i64;
+            let right = (inputx + src_support).ceil() as i64;
             let right = clamp(right, left as i64 + 1, width as i64) as u32;
+
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputx = inputx - 0.5;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
             for i in left..right {
-                let w = (filter.kernel)((i as f32 - inputx) / ratio);
+                let w = (filter.kernel)((i as f32 - inputx) / sratio);
                 sum += w;
 
-                let x0  = clamp(i, 0, width - 1);
-                let p = image.get_pixel(x0, y);
+                let p = image.get_pixel(i, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -240,39 +220,38 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
 
+    let max = S::max_value();
+    let max: f32 = NumCast::from(max).unwrap();
+
+    let ratio = height as f32 / new_height as f32;
+    let sratio = if ratio < 1.0 { 1.0 } else { ratio };
+    let src_support = filter.support * sratio;
 
     for x in 0..width {
-        let max = S::max_value();
-        let max: f32 = NumCast::from(max).unwrap();
-
-        let ratio = height as f32 / new_height as f32;
 
         for outy in 0..new_height {
 
             // For an explanation of this algorithm, see the comments
             // in horizontal_sample.
+            let inputy = (outy as f32 + 0.5) * ratio;
 
-            let inputy = (outy as f32 + 0.5) * ratio - 0.5;
-
-            let left  = (inputy - filter.support * ratio).floor() as i64;
+            let left  = (inputy - src_support).floor() as i64;
             let left  = clamp(left, 0, height as i64 - 1) as u32;
 
-            let right = (inputy + filter.support * ratio).ceil() as i64;
+            let right = (inputy + src_support).ceil() as i64;
             let right = clamp(right, left as i64 + 1, height as i64) as u32;
+
+            let inputy = inputy - 0.5;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
-            if x == 3 && (outy == 100 || outy == 101) {
-                println!("Output y={} is from input {}..{} ({} px)",
-                         outy, left, right, right - left);
-            }
+
             for i in left..right {
-                let w = (filter.kernel)((i as f32 - inputy) / ratio);
+                let w = (filter.kernel)((i as f32 - inputy) / sratio);
                 sum += w;
 
-                let y0  = clamp(i, 0, height - 1);
-                let p = image.get_pixel(x, y0);
+                let p = image.get_pixel(x, i);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (

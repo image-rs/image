@@ -137,9 +137,7 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
-    let max = S::max_value();
-    let max: f32 = NumCast::from(max).unwrap();
-
+    let max: f32 = NumCast::from(KTHS::max_value()).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -220,9 +218,7 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
 
-    let max = S::max_value();
-    let max: f32 = NumCast::from(max).unwrap();
-
+    let max: f32 = NumCast::from(S::max_value()).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;

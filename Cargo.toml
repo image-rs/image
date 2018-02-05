@@ -50,6 +50,7 @@ optional = true
 [dev-dependencies]
 num-complex = "0.1.32"
 glob = "0.2.10"
+quickcheck = "0.6.2"
 
 [features]
 default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt"]

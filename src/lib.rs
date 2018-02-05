@@ -17,6 +17,10 @@ extern crate enum_primitive;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 use std::io::Write;
 
 pub use color::ColorType::{

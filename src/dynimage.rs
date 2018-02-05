@@ -260,19 +260,7 @@ impl DynamicImage {
                   nheight: u32,
                   filter: imageops::FilterType) -> DynamicImage {
 
-        let (width, height) = self.dimensions();
-
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nheight as f32 / height as f32
-        } else {
-            nwidth as f32 / width as f32
-        };
-
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
+        let (width2, height2) = resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
         self.resize_exact(width2, height2, filter)
     }
@@ -299,22 +287,12 @@ impl DynamicImage {
                           nheight: u32,
                           filter: imageops::FilterType) -> DynamicImage {
 
-        let (width, height) = self.dimensions();
-
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nwidth as f32 / width as f32
-        } else {
-            nheight as f32 / height as f32
-        };
-
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
+        let (width2, height2) = resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
 
         let mut intermediate = self.resize_exact(width2, height2, filter);
         let (iwidth, iheight) = intermediate.dimensions();
+        let ratio  = iwidth as u64 * nheight as u64;
+        let nratio = nwidth as u64 * iheight as u64;
 
         if nratio > ratio {
             intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
@@ -747,6 +725,31 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
     )
 }
 
+fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
+    let ratio  = width as u64 * nheight as u64;
+    let nratio = nwidth as u64 * height as u64;
+
+    let use_width = if fill { nratio > ratio } else { nratio <= ratio };
+    let intermediate = if use_width {
+        height as u64 * nwidth as u64 / width as u64
+    } else {
+        width as u64 * nheight as u64 / height as u64
+    };
+    if use_width {
+        if intermediate <= ::std::u32::MAX as u64 {
+            (nwidth, intermediate as u32)
+        } else {
+            ((nwidth as u64 * ::std::u32::MAX as u64 / intermediate) as u32, ::std::u32::MAX)
+        }
+    } else {
+        if intermediate <= ::std::u32::MAX as u64 {
+            (intermediate as u32, nheight)
+        } else {
+            (::std::u32::MAX, (nheight as u64 * ::std::u32::MAX as u64 / intermediate) as u32)
+        }
+    }
+}
+
 #[cfg(test)]
 mod bench {
     #[cfg(feature = "benchmarks")]
@@ -768,5 +771,43 @@ mod test {
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
+    }
+
+    quickcheck! {
+        fn resize_bounds_correctly_width(old_w: u32, new_w: u32) -> bool {
+            if old_w == 0 || new_w == 0 { return true; }
+            let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
+            result.0 == new_w && result.1 == (400 as f64 * new_w as f64 / old_w as f64) as u32
+        }
+    }
+
+    quickcheck! {
+        fn resize_bounds_correctly_height(old_h: u32, new_h: u32) -> bool {
+            if old_h == 0 || new_h == 0 { return true; }
+            let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
+            result.1 == new_h && result.0 == (400 as f64 * new_h as f64 / old_h as f64) as u32
+        }
+    }
+
+    #[test]
+    fn resize_handles_fill() {
+        let result = super::resize_dimensions(100, 200, 200, 500, true);
+        assert!(result.0 == 250);
+        assert!(result.1 == 500);
+
+        let result = super::resize_dimensions(200, 100, 500, 200, true);
+        assert!(result.0 == 500);
+        assert!(result.1 == 250);
+    }
+
+    #[test]
+    fn resize_handles_overflow() {
+        let result = super::resize_dimensions(100, ::std::u32::MAX, 200, ::std::u32::MAX, true);
+        assert!(result.0 == 100);
+        assert!(result.1 == ::std::u32::MAX);
+
+        let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
+        assert!(result.0 == ::std::u32::MAX);
+        assert!(result.1 == 100);
     }
 }

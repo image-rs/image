@@ -223,7 +223,8 @@ pub trait ImageDecoder: Sized {
     /// Returns the frames of the image
     ///
     /// If the image is not animated it returns a single frame
-    fn into_frames(self) -> ImageResult<Frames> {
+    #[allow(unused)]
+    fn into_frames(mut self) -> ImageResult<Frames> {
         Ok(Frames::new(vec![
             Frame::new(try!(decoder_to_image(self)).to_rgba())
         ]))

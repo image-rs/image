@@ -1,10 +1,11 @@
 extern crate deflate;
 
 use std::borrow::Cow;
-use std::io::{self, Write};
-use std::result;
-use std::fmt;
 use std::error;
+use std::fmt;
+use std::io::{self, Write};
+use std::mem;
+use std::result;
 
 use chunk;
 use crc::Crc32;
@@ -132,7 +133,7 @@ impl<W: Write> Writer<W> {
             try!(zlib.write_all(&[filter_method as u8]));
             filter(filter_method, bpp, &prev, &mut current);
             try!(zlib.write_all(&current));
-            prev.copy_from_slice(&current);
+            mem::swap(&mut prev, &mut current);
         }
         self.write_chunk(chunk::IDAT, &try!(zlib.finish()))
     }

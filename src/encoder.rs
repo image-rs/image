@@ -128,11 +128,11 @@ impl<W: Write> Writer<W> {
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), deflate::Compression::Fast);
         let filter_method = FilterType::Sub;
         for line in data.chunks(in_len) {
-            ::utils::copy_memory(&line, &mut current);
+            current.copy_from_slice(&line);
             try!(zlib.write_all(&[filter_method as u8]));
             filter(filter_method, bpp, &prev, &mut current);
             try!(zlib.write_all(&current));
-            ::utils::copy_memory(&current, &mut prev);
+            prev.copy_from_slice(&current);
         }
         self.write_chunk(chunk::IDAT, &try!(zlib.finish()))
     }

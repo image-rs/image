@@ -13,7 +13,7 @@ extern crate num_rational;
 extern crate num_traits;
 extern crate lzw;
 #[macro_use]
-extern crate enum_primitive;
+extern crate num_derive;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 

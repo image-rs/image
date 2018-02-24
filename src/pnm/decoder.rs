@@ -4,6 +4,8 @@ use std::ascii::AsciiExt;
 
 use color::{ColorType};
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
+use super::{PNMHeader, PNMSubtype, SampleEncoding};
+
 extern crate byteorder;
 use self::byteorder::{BigEndian, ByteOrder};
 
@@ -25,28 +27,6 @@ trait SampleType {
 struct U8;
 struct U16;
 struct PbmBit;
-
-/// The kind of encoding used to store sample values
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum SampleEncoding {
-    /// Samples are unsigned binary integers in big endian
-    Binary,
-    /// Samples are encoded as decimal ascii strings separated by whitespace
-    Ascii,
-}
-
-/// Denotes the category of the magic number
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PNMSubtype {
-    /// Magic numbers P1 and P4
-    Bitmap(SampleEncoding),
-    /// Magic numbers P2 and P5
-    Graymap(SampleEncoding),
-    /// Magic numbers P3 and P6
-    Pixmap(SampleEncoding),
-    /// Magic number P7
-    ArbitraryMap,
-}
 
 /// PNM decoder
 pub struct PNMDecoder<R> {

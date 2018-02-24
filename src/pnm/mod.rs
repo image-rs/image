@@ -41,30 +41,38 @@ pub struct PNMHeader {
 }
 
 enum HeaderRecord {
-    BitmapHeader {
-        encoding: SampleEncoding,
-        height: u32,
-        width: u32,
-    },
-    GraymapHeader {
-        encoding: SampleEncoding,
-        height: u32,
-        width: u32,
-        depth: u32,
-    },
-    PixmapHeader{
-        encoding: SampleEncoding,
-        height: u32,
-        width: u32,
-        depth: u32,
-    },
-    ArbitraryHeader {
-        height: u32,
-        width: u32,
-        depth: u32,
-        maxval: u32,
-        tupltype: ArbitraryTuplType,
-    },
+    Bitmap(BitmapHeader),
+    Graymap(GraymapHeader),
+    Pixmap(PixmapHeader),
+    Arbitrary(ArbitraryHeader),
+}
+
+struct BitmapHeader {
+    encoding: SampleEncoding,
+    height: u32,
+    width: u32,
+}
+
+struct GraymapHeader {
+    encoding: SampleEncoding,
+    height: u32,
+    width: u32,
+    maxwhite: u32,
+}
+
+struct PixmapHeader{
+    encoding: SampleEncoding,
+    height: u32,
+    width: u32,
+    maxval: u32,
+}
+
+struct ArbitraryHeader {
+    height: u32,
+    width: u32,
+    depth: u32,
+    maxval: u32,
+    tupltype: Option<ArbitraryTuplType>,
 }
 
 enum ArbitraryTuplType {
@@ -90,36 +98,60 @@ impl PNMSubtype {
             PNMSubtype::ArbitraryMap => b"P7",
         }
     }
+
+    /// Whether samples are stored as binary or as decimal ascii
+    pub fn sample_encoding(self) -> SampleEncoding {
+        match self {
+            PNMSubtype::ArbitraryMap => SampleEncoding::Binary,
+            PNMSubtype::Bitmap(enc) => enc,
+            PNMSubtype::Graymap(enc) => enc,
+            PNMSubtype::Pixmap(enc) => enc,
+        }
+    }
 }
 
 impl PNMHeader {
     /// Retrieve the format subtype from which the header was created.
     pub fn subtype(&self) -> PNMSubtype {
         match &self.decoded {
-            &HeaderRecord::BitmapHeader { encoding, .. } => PNMSubtype::Bitmap(encoding),
-            &HeaderRecord::GraymapHeader { encoding, .. } => PNMSubtype::Graymap(encoding),
-            &HeaderRecord::PixmapHeader { encoding, .. } => PNMSubtype::Pixmap(encoding),
-            &HeaderRecord::ArbitraryHeader { .. } => PNMSubtype::ArbitraryMap,
+            &HeaderRecord::Bitmap(
+                BitmapHeader { encoding, .. }) => PNMSubtype::Bitmap(encoding),
+            &HeaderRecord::Graymap(
+                GraymapHeader { encoding, .. }) => PNMSubtype::Graymap(encoding),
+            &HeaderRecord::Pixmap(
+                PixmapHeader { encoding, .. }) => PNMSubtype::Pixmap(encoding),
+            &HeaderRecord::Arbitrary(
+                ArbitraryHeader { .. }) => PNMSubtype::ArbitraryMap,
         }
     }
 
     /// The width of the image this header is for.
     pub fn width(&self) -> u32 {
         match &self.decoded {
-            &HeaderRecord::BitmapHeader { width, .. } => width,
-            &HeaderRecord::GraymapHeader { width, .. } => width,
-            &HeaderRecord::PixmapHeader { width, .. } => width,
-            &HeaderRecord::ArbitraryHeader { width, .. } => width,
+            &HeaderRecord::Bitmap(BitmapHeader { width, .. })       => width,
+            &HeaderRecord::Graymap(GraymapHeader { width, .. })     => width,
+            &HeaderRecord::Pixmap(PixmapHeader { width, .. })       => width,
+            &HeaderRecord::Arbitrary(ArbitraryHeader { width, .. }) => width,
         }
     }
 
     /// The height of the image this header is for.
     pub fn height(&self) -> u32 {
         match &self.decoded {
-            &HeaderRecord::BitmapHeader { height, .. } => height,
-            &HeaderRecord::GraymapHeader { height, .. } => height,
-            &HeaderRecord::PixmapHeader { height, .. } => height,
-            &HeaderRecord::ArbitraryHeader { height, .. } => height,
+            &HeaderRecord::Bitmap(BitmapHeader { height, .. })       => height,
+            &HeaderRecord::Graymap(GraymapHeader { height, .. })     => height,
+            &HeaderRecord::Pixmap(PixmapHeader { height, .. })       => height,
+            &HeaderRecord::Arbitrary(ArbitraryHeader { height, .. }) => height,
+        }
+    }
+
+    /// The biggest value a sample can have. In other words, the colour resolution.
+    pub fn maximal_sample(&self) -> u32 {
+        match &self.decoded {
+            &HeaderRecord::Bitmap(BitmapHeader { .. })               => 1,
+            &HeaderRecord::Graymap(GraymapHeader { maxwhite, .. })   => maxwhite,
+            &HeaderRecord::Pixmap(PixmapHeader { maxval, .. })       => maxval,
+            &HeaderRecord::Arbitrary(ArbitraryHeader { maxval, .. }) => maxval,
         }
     }
 }

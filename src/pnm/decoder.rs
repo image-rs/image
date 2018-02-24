@@ -2,21 +2,26 @@ use std::io::{Read, BufRead, BufReader};
 #[allow(unused)] // AsciiExt not needed for rust 1.23 and up.
 use std::ascii::AsciiExt;
 
-use color::{ColorType};
+use color::ColorType;
 use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
-use super::{PNMHeader, PNMSubtype, SampleEncoding};
+use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
+use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 
 extern crate byteorder;
 use self::byteorder::{BigEndian, ByteOrder};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+/// Dynamic representation, represents all decodable (sample, depth) combinations.
+#[derive(Clone, Copy)]
 enum TupleType {
-    RGB,
-    Grayscale,
-    Bit,
+    PbmBit,
+    BWBit,
+    GrayU8,
+    GrayU16,
+    RGBU8,
+    RGBU16,
 }
 
-trait SampleType {
+trait Sample {
     type T;
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
     /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
@@ -27,19 +32,21 @@ trait SampleType {
 struct U8;
 struct U16;
 struct PbmBit;
+struct BWBit;
+
+trait DecodableImageHeader {
+    fn tuple_type(&self) -> ImageResult<TupleType>;
+}
 
 /// PNM decoder
 pub struct PNMDecoder<R> {
     reader: BufReader<R>,
-    width: u32,
-    height: u32,
-    maxwhite: u32,
+    header: PNMHeader,
     tuple: TupleType,
-    subtype: PNMSubtype,
 }
 
 impl<R: Read> PNMDecoder<R> {
-    /// Create a new decoder that decodes from the stream ```r```
+    /// Create a new decoder that decodes from the stream ```read```
     pub fn new(read: R) -> ImageResult<PNMDecoder<R>> {
         let mut buf = BufReader::new(read);
         let magic = try!(buf.read_magic_constant());
@@ -58,79 +65,69 @@ impl<R: Read> PNMDecoder<R> {
             _ => return Err(ImageError::FormatError("Expected magic constant for ppm, P1 through P7".to_string())),
         };
 
-        let (width, height, maxwhite, tuple) = match subtype {
-            PNMSubtype::Bitmap(_) => PNMDecoder::read_bitmap_header(&mut buf)?,
-            PNMSubtype::Graymap(_) => PNMDecoder::read_graymap_header(&mut buf)?,
-            PNMSubtype::Pixmap(_) => PNMDecoder::read_pixmap_header(&mut buf)?,
-            PNMSubtype::ArbitraryMap => PNMDecoder::read_arbitrary_header(&mut buf)?,
-        };
-
-        if !(maxwhite <= u16::max_value() as u32) {
-            return Err(ImageError::FormatError("Image maxval is not less or equal to 65535".to_string()))
+        match subtype {
+            PNMSubtype::Bitmap(enc) => PNMDecoder::read_bitmap_header(buf, enc),
+            PNMSubtype::Graymap(enc) => PNMDecoder::read_graymap_header(buf, enc),
+            PNMSubtype::Pixmap(enc) => PNMDecoder::read_pixmap_header(buf, enc),
+            PNMSubtype::ArbitraryMap => PNMDecoder::read_arbitrary_header(buf),
         }
+    }
 
+    /// Extract the reader and header after an image has been read.
+    pub fn into_inner(self) -> (R, PNMHeader) {
+        (self.reader.into_inner(), self.header)
+    }
+
+    fn read_bitmap_header(mut reader: BufReader<R>, encoding: SampleEncoding) -> ImageResult<PNMDecoder<R>> {
+        let header = reader.read_bitmap_header(encoding)?;
         Ok(PNMDecoder {
-            reader: buf,
-            width: width,
-            height: height,
-            maxwhite: maxwhite,
-            tuple: tuple,
-            subtype: subtype,
+            reader,
+            tuple: TupleType::PbmBit,
+            header: PNMHeader {
+                decoded: HeaderRecord::Bitmap(header),
+                encoded: None,
+            },
         })
     }
 
-    fn read_bitmap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
-        let (w, h) = reader.read_bitmap_header()?;
-        Ok((w, h, 1, TupleType::Bit))
+    fn read_graymap_header(mut reader: BufReader<R>, encoding: SampleEncoding) -> ImageResult<PNMDecoder<R>> {
+        let header = reader.read_graymap_header(encoding)?;
+        let tuple_type = header.tuple_type()?;
+        Ok(PNMDecoder {
+            reader,
+            tuple: tuple_type,
+            header: PNMHeader {
+                decoded: HeaderRecord::Graymap(header),
+                encoded: None,
+            },
+        })
     }
 
-    fn read_graymap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
-        let (w, h, m) = reader.read_graymap_header()?;
-        Ok((w, h, m, TupleType::Grayscale))
+    fn read_pixmap_header(mut reader: BufReader<R>, encoding: SampleEncoding) -> ImageResult<PNMDecoder<R>> {
+        let header = reader.read_pixmap_header(encoding)?;
+        let tuple_type = header.tuple_type()?;
+        Ok(PNMDecoder {
+            reader,
+            tuple: tuple_type,
+            header: PNMHeader {
+                decoded: HeaderRecord::Pixmap(header),
+                encoded: None,
+            },
+        })
     }
 
-    fn read_pixmap_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
-        let (w, h, m) = reader.read_pixmap_header()?;
-        Ok((w, h, m, TupleType::RGB))
+    fn read_arbitrary_header(mut reader: BufReader<R>) -> ImageResult<PNMDecoder<R>> {
+        let header = reader.read_arbitrary_header()?;
+        let tuple_type = header.tuple_type()?;
+        Ok(PNMDecoder {
+            reader,
+            tuple: tuple_type,
+            header: PNMHeader {
+                decoded: HeaderRecord::Arbitrary(header),
+                encoded: None,
+            }
+        })
     }
-
-    fn read_arbitrary_header(reader: &mut BufReader<R>) -> ImageResult<(u32, u32, u32, TupleType)> {
-        let ArbitraryHeader{height, width, depth, maxval, tupltype} = reader.read_arbitrary_header()?;
-        match (tupltype.as_ref().map(|s| s.as_str()), depth) {
-            (None, 1) => Ok((width, height, 1, TupleType::Grayscale)),
-            (None, 2) => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
-            (None, 3) => Ok((width, height, 3, TupleType::RGB)),
-            (None, 4) => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
-            (Some("BLACKANDWHITE"), 1) if maxval == 1
-                => Ok((width, height, 1, TupleType::Grayscale)),
-            (Some("BLACKANDWHITE"), _)
-                => Err(ImageError::FormatError("Unexpected depth value for tuple type BLACKANDWHITE".to_string())),
-            (Some("GRAYSCALE"), 1) if maxval >= 1 && maxval <= 0xFFFF
-                => Ok((width, height, maxval, TupleType::Grayscale)),
-            (Some("GRAYSCALE"), _)
-                => Err(ImageError::FormatError("Invalid depth for tuple type GRAYSCALE".to_string())),
-            (Some("RGB"), 3) if maxval >= 1 && maxval <= 0xFFFF
-                => Ok((width, height, maxval, TupleType::RGB)),
-            (Some("RGB"), _)
-                => Err(ImageError::FormatError("Invalid depth for tuple type RGB".to_string())),
-            (Some("BLACKANDWHITE_ALPHA"), _)
-                => Err(ImageError::UnsupportedColor(ColorType::GrayA(1))),
-            (Some("GRAYSCALE_ALPHA"), _)
-                => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
-            (Some("RGB_ALPHA"), _)
-                => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
-            _ => Err(ImageError::FormatError("Tuple type not recognized".to_string())),
-        }
-    }
-}
-
-#[allow(unused)]
-struct ArbitraryHeader {
-    height: u32,
-    width: u32,
-    depth: u32,
-    maxval: u32,
-    tupltype: Option<String>,
 }
 
 trait HeaderReader: BufRead {
@@ -196,21 +193,37 @@ trait HeaderReader: BufRead {
         s.parse::<u32>().map_err(|_| ImageError::FormatError("Invalid number in preamble".to_string()))
     }
 
-    fn read_bitmap_header(&mut self) -> ImageResult<(u32, u32)> {
+    fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
         let width = try!(self.read_next_u32());
         let height = try!(self.read_next_u32());
-        Ok((width, height))
+        Ok(BitmapHeader {
+            encoding,
+            width,
+            height
+        })
     }
 
-    fn read_graymap_header(&mut self) -> ImageResult<(u32, u32, u32)> {
-        self.read_pixmap_header()
+    fn read_graymap_header(&mut self, encoding: SampleEncoding) -> ImageResult<GraymapHeader> {
+        self.read_pixmap_header(encoding).map(|PixmapHeader { encoding, width, height, maxval }|
+            GraymapHeader {
+                encoding,
+                width,
+                height,
+                maxwhite: maxval,
+            }
+        )
     }
 
-    fn read_pixmap_header(&mut self) -> ImageResult<(u32, u32, u32)> {
+    fn read_pixmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<PixmapHeader> {
         let width = try!(self.read_next_u32());
         let height = try!(self.read_next_u32());
-        let maxwhite = try!(self.read_next_u32());
-        Ok((width, height, maxwhite))
+        let maxval = try!(self.read_next_u32());
+        Ok(PixmapHeader {
+            encoding,
+            width,
+            height,
+            maxval,
+        })
     }
 
     fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
@@ -275,6 +288,7 @@ trait HeaderReader: BufRead {
                 _ => return Err(ImageError::FormatError("Unknown header line".to_string())),
             }
         }
+
         let (h, w, d, m) = match (height, width, depth, maxval) {
             (None, _, _, _) => return Err(ImageError::FormatError("Expected one HEIGHT line".to_string())),
             (_, None, _, _) => return Err(ImageError::FormatError("Expected one WIDTH line".to_string())),
@@ -282,6 +296,18 @@ trait HeaderReader: BufRead {
             (_, _, _, None) => return Err(ImageError::FormatError("Expected one MAXVAL line".to_string())),
             (Some(h), Some(w), Some(d), Some(m)) => (h, w, d, m),
         };
+
+        let tupltype = match tupltype {
+            None => None,
+            Some(ref t) if t == "BLACKANDWHITE" => Some(ArbitraryTuplType::BlackAndWhite),
+            Some(ref t) if t == "BLACKANDWHITE_ALPHA" => Some(ArbitraryTuplType::BlackAndWhiteAlpha),
+            Some(ref t) if t == "GRAYSCALE" => Some(ArbitraryTuplType::Grayscale),
+            Some(ref t) if t == "GRAYSCALE_ALPHA" => Some(ArbitraryTuplType::GrayscaleAlpha),
+            Some(ref t) if t == "RGB" => Some(ArbitraryTuplType::RBG),
+            Some(ref t) if t == "RGB_ALPHA" => Some(ArbitraryTuplType::RGBAlpha),
+            Some(other) => Some(ArbitraryTuplType::Custom(other)),
+        };
+
         Ok(ArbitraryHeader{
             height: h,
             width: w,
@@ -296,19 +322,11 @@ impl<R: Read> HeaderReader for BufReader<R> { }
 
 impl<R: Read> ImageDecoder for PNMDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        Ok((self.width, self.height))
+        Ok((self.header.width(), self.header.height()))
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
-        match self.tuple {
-            TupleType::Grayscale if self.maxwhite == 1 => Ok(ColorType::Gray(1)),
-            TupleType::Grayscale if self.maxwhite <= 0xFF => Ok(ColorType::Gray(8)),
-            TupleType::Grayscale if self.maxwhite <= 0xFFFF => Ok(ColorType::Gray(16)),
-            TupleType::RGB if self.maxwhite <= 0xFF => Ok(ColorType::RGB(8)),
-            TupleType::RGB if self.maxwhite <= 0xFFFF => Ok(ColorType::RGB(16)),
-            TupleType::Bit => Ok(ColorType::Gray(1)),
-            _ => Err(ImageError::FormatError("Can't determine color type".to_string()))
-        }
+        Ok(self.tuple.color())
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
@@ -327,34 +345,36 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
 impl<R: Read> PNMDecoder<R> {
     fn rowlen(&self) -> ImageResult<usize> {
         match self.tuple {
-            TupleType::Bit => PbmBit::bytelen(self.width, 1, 1),
-            TupleType::RGB if self.maxwhite <= 0xFF => U8::bytelen(self.width, 1, 3),
-            TupleType::RGB if self.maxwhite <= 0xFFFF => U16::bytelen(self.width, 1, 3),
-            TupleType::Grayscale if self.maxwhite <= 0xFF => U8::bytelen(self.width, 1, 1),
-            TupleType::Grayscale if self.maxwhite <= 0xFFFF => U16::bytelen(self.width, 1, 1),
-            _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
+            TupleType::PbmBit => PbmBit::bytelen(self.header.width(), 1, 1),
+            TupleType::BWBit => BWBit::bytelen(self.header.width(), 1, 1),
+            TupleType::RGBU8 => U8::bytelen(self.header.width(), 1, 3),
+            TupleType::RGBU16 => U16::bytelen(self.header.width(), 1, 3),
+            TupleType::GrayU8 => U8::bytelen(self.header.width(), 1, 1),
+            TupleType::GrayU16 => U16::bytelen(self.header.width(), 1, 1),
         }
     }
 
     fn read(&mut self) -> ImageResult<DecodingResult> {
         match self.tuple {
-            TupleType::Bit => self.read_samples::<PbmBit>(1),
-            TupleType::RGB if self.maxwhite <= 0xFF => self.read_samples::<U8>(3),
-            TupleType::RGB if self.maxwhite <= 0xFFFF => self.read_samples::<U16>(3),
-            TupleType::Grayscale if self.maxwhite <= 0xFF => self.read_samples::<U8>(1),
-            TupleType::Grayscale if self.maxwhite <= 0xFFFF => self.read_samples::<U16>(1),
-            _ => return Err(ImageError::FormatError("Unhandled tuple type".to_string()))
+            TupleType::PbmBit => self.read_samples::<PbmBit>(1),
+            TupleType::BWBit => self.read_samples::<BWBit>(1),
+            TupleType::RGBU8 => self.read_samples::<U8>(3),
+            TupleType::RGBU16 => self.read_samples::<U16>(3),
+            TupleType::GrayU8 => self.read_samples::<U8>(1),
+            TupleType::GrayU16 => self.read_samples::<U16>(1),
         }
     }
 
-    fn read_samples<S: SampleType>(&mut self, components: u32) -> ImageResult<DecodingResult> where
+    fn read_samples<S: Sample>(&mut self, components: u32) -> ImageResult<DecodingResult> where
         Vec<S::T>: Into<DecodingResult> {
-        match self.encoding() {
+        match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
-                    let bytecount = S::bytelen(self.width, self.height, components)?;
+                    let width = self.header.width();
+                    let height = self.header.height();
+                    let bytecount = S::bytelen(width, height, components)?;
                     let mut bytes = vec![0 as u8; bytecount];
                     (&mut self.reader).read_exact(&mut bytes).map_err(|_| ImageError::NotEnoughData)?;
-                    let samples = S::from_bytes(&bytes, self.width, self.height, components)?;
+                    let samples = S::from_bytes(&bytes, width, height, components)?;
                     Ok(samples.into())
                 },
             SampleEncoding::Ascii => {
@@ -364,9 +384,9 @@ impl<R: Read> PNMDecoder<R> {
         }
     }
 
-    fn read_ascii<Basic: SampleType>(&mut self, components: u32) -> ImageResult<Vec<Basic::T>> {
+    fn read_ascii<Basic: Sample>(&mut self, components: u32) -> ImageResult<Vec<Basic::T>> {
         let mut buffer = Vec::new();
-        for _ in 0 .. (self.width * self.height * components) {
+        for _ in 0 .. (self.header.width() * self.header.height() * components) {
             let value = self.read_ascii_sample()?;
             let sample = Basic::from_unsigned(value)?;
             buffer.push(sample);
@@ -393,21 +413,25 @@ impl<R: Read> PNMDecoder<R> {
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
     pub fn subtype(&self) -> PNMSubtype {
-        self.subtype
+        self.header.subtype()
     }
+}
 
-    /// Whether samples are stored as binary or as decimal ascii
-    pub fn encoding(&self) -> SampleEncoding {
-        match self.subtype {
-            PNMSubtype::ArbitraryMap => SampleEncoding::Binary,
-            PNMSubtype::Bitmap(enc) => enc,
-            PNMSubtype::Graymap(enc) => enc,
-            PNMSubtype::Pixmap(enc) => enc,
+impl TupleType {
+    fn color(self) -> ColorType {
+        use self::TupleType::*;
+        match self {
+            PbmBit => ColorType::Gray(1),
+            BWBit => ColorType::Gray(1),
+            GrayU8 => ColorType::Gray(8),
+            GrayU16 => ColorType::Gray(16),
+            RGBU8 => ColorType::RGB(8),
+            RGBU16 => ColorType::GrayA(16),
         }
     }
 }
 
-impl SampleType for U8 {
+impl Sample for U8 {
     type T = u8;
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
@@ -430,7 +454,7 @@ impl SampleType for U8 {
     }
 }
 
-impl SampleType for U16 {
+impl Sample for U16 {
     type T = u16;
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
@@ -456,7 +480,7 @@ impl SampleType for U16 {
 // The image is encoded in rows of bits, high order bits first. Any bits beyond the row bits should
 // be ignored. Also, contrary to rgb, black pixels are encoded as a 1 while white is 0. This will
 // need to be reversed for the grayscale output.
-impl SampleType for PbmBit {
+impl Sample for PbmBit {
     type T = u8;
 
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
@@ -483,12 +507,37 @@ impl SampleType for PbmBit {
     }
 
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        if val > 1 {
-            Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
-        } else if val == 1 {
-            Ok(0 as u8)
-        } else {
-            Ok(1 as u8)
+        match val {
+            // 0 is white in pbm
+            0 => Ok(1 as u8),
+            // 1 is black in pbm
+            1 => Ok(0 as u8),
+            _ => Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
+        }
+    }
+}
+
+// Encoded just like a normal U8 but we check the values.
+impl Sample for BWBit {
+    type T = u8;
+
+    fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize> {
+        U8::bytelen(width, height, samples)
+    }
+
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<Self::T>> {
+        let values = U8::from_bytes(bytes, width, height, samples)?;
+        if values.iter().any(|&val| val > 1) {
+            return Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
+        };
+        Ok(values)
+    }
+
+    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
+        match val {
+            0 => Ok(0 as u8),
+            1 => Ok(1 as u8),
+            _ => Err(ImageError::FormatError("Sample value outside of bounds".to_string()))
         }
     }
 }
@@ -505,6 +554,77 @@ impl Into<DecodingResult> for Vec<u16> {
     }
 }
 
+impl DecodableImageHeader for BitmapHeader {
+    fn tuple_type(&self) -> ImageResult<TupleType> {
+        Ok(TupleType::PbmBit)
+    }
+}
+
+impl DecodableImageHeader for GraymapHeader {
+    fn tuple_type(&self) -> ImageResult<TupleType> {
+        match self.maxwhite {
+            v if v <= 0xFF => Ok(TupleType::GrayU8),
+            v if v <= 0xFFFF => Ok(TupleType::GrayU16),
+            _ => Err(ImageError::FormatError(
+                    "Image maxval is not less or equal to 65535".to_string()))
+        }
+    }
+}
+
+impl DecodableImageHeader for PixmapHeader {
+    fn tuple_type(&self) -> ImageResult<TupleType> {
+        match self.maxval {
+            v if v <= 0xFF => Ok(TupleType::RGBU8),
+            v if v <= 0xFFFF => Ok(TupleType::RGBU16),
+            _ => Err(ImageError::FormatError(
+                    "Image maxval is not less or equal to 65535".to_string()))
+        }
+    }
+}
+
+impl DecodableImageHeader for ArbitraryHeader {
+    fn tuple_type(&self) -> ImageResult<TupleType> {
+        match self.tupltype {
+            None if self.depth == 1 => Ok(TupleType::GrayU8),
+            None if self.depth == 2
+                => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
+            None if self.depth == 3 => Ok(TupleType::RGBU8),
+            None if self.depth == 4
+                => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
+
+            Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1
+                => Ok(TupleType::BWBit),
+            Some(ArbitraryTuplType::BlackAndWhite)
+                => Err(ImageError::FormatError(
+                    "Invalid depth or maxval for tuple type BLACKANDWHITE".to_string())),
+
+            Some(ArbitraryTuplType::Grayscale) if self.depth == 1 && self.maxval <= 0xFF
+                => Ok(TupleType::GrayU8),
+            Some(ArbitraryTuplType::Grayscale) if self.depth <= 1 && self.maxval <= 0xFFFF
+                => Ok(TupleType::GrayU16),
+            Some(ArbitraryTuplType::Grayscale)
+                => Err(ImageError::FormatError(
+                    "Invalid depth or maxval for tuple type GRAYSCALE".to_string())),
+
+            Some(ArbitraryTuplType::RBG) if self.depth == 3 && self.maxval <= 0xFF
+                => Ok(TupleType::RGBU8),
+            Some(ArbitraryTuplType::RBG) if self.depth == 3 && self.maxval <= 0xFFFF
+                => Ok(TupleType::RGBU16),
+            Some(ArbitraryTuplType::RBG)
+                => Err(ImageError::FormatError(
+                    "Invalid depth for tuple type RGB".to_string())),
+
+            Some(ArbitraryTuplType::BlackAndWhiteAlpha)
+                => Err(ImageError::UnsupportedColor(ColorType::GrayA(1))),
+            Some(ArbitraryTuplType::GrayscaleAlpha)
+                => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
+            Some(ArbitraryTuplType::RGBAlpha)
+                => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
+            _ => Err(ImageError::FormatError(
+                    "Tuple type not recognized".to_string())),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,13 +644,26 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
         assert_eq!(decoder.dimensions().unwrap(), (4, 4));
-        assert_eq!(decoder.maxwhite, 1);
-        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
                      0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,]),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Arbitrary(
+                    ArbitraryHeader {
+                        width: 4,
+                        height: 4,
+                        maxval: 1,
+                        depth: 1,
+                        tupltype: Some(ArbitraryTuplType::BlackAndWhite),
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -550,13 +683,26 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
         assert_eq!(decoder.dimensions().unwrap(), (4, 4));
-        assert_eq!(decoder.maxwhite, 255);
-        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
                      0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Arbitrary(
+                    ArbitraryHeader {
+                        width: 4,
+                        height: 4,
+                        depth: 1,
+                        maxval: 255,
+                        tupltype: Some(ArbitraryTuplType::Grayscale),
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -576,13 +722,26 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::RGB(8));
         assert_eq!(decoder.dimensions().unwrap(), (2, 2));
-        assert_eq!(decoder.maxwhite, 255);
-        assert_eq!(decoder.subtype, PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
                      0xde, 0xad, 0xbe, 0xef]),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Arbitrary(
+                    ArbitraryHeader {
+                        maxval: 255,
+                        tupltype: Some(ArbitraryTuplType::RBG),
+                        depth: 3,
+                        width: 2,
+                        height: 2,
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -594,13 +753,24 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
         assert_eq!(decoder.dimensions().unwrap(), (6, 2));
-        assert_eq!(decoder.maxwhite, 1);
-        assert_eq!(decoder.subtype, PNMSubtype::Bitmap(SampleEncoding::Binary));
+        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Binary));
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![1, 0, 0, 1, 0, 0,
                      0, 1, 0, 0, 1, 0,]),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Bitmap(
+                    BitmapHeader {
+                        encoding: SampleEncoding::Binary,
+                        width: 6,
+                        height: 2,
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -612,13 +782,24 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
         assert_eq!(decoder.dimensions().unwrap(), (6, 2));
-        assert_eq!(decoder.maxwhite, 1);
-        assert_eq!(decoder.subtype, PNMSubtype::Bitmap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 vec![1, 0, 0, 1, 0, 0,
                      0, 1, 0, 0, 1, 0,]),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Bitmap(
+                    BitmapHeader {
+                        encoding: SampleEncoding::Ascii,
+                        width: 6,
+                        height: 2,
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -631,11 +812,23 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
         assert_eq!(decoder.dimensions().unwrap(), (4, 4));
-        assert_eq!(decoder.maxwhite, 255);
-        assert_eq!(decoder.subtype, PNMSubtype::Graymap(SampleEncoding::Binary));
+        assert_eq!(decoder.subtype(), PNMSubtype::Graymap(SampleEncoding::Binary));
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data, elements),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Graymap(
+                    GraymapHeader {
+                        encoding: SampleEncoding::Binary,
+                        width: 4,
+                        height: 4,
+                        maxwhite: 255,
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 
@@ -647,12 +840,24 @@ ENDHDR
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(8));
         assert_eq!(decoder.dimensions().unwrap(), (4, 4));
-        assert_eq!(decoder.maxwhite, 255);
-        assert_eq!(decoder.subtype, PNMSubtype::Graymap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PNMSubtype::Graymap(SampleEncoding::Ascii));
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
             DecodingResult::U8(data) => assert_eq!(data,
                 (0..16).collect::<Vec<_>>()),
+        }
+        match decoder.into_inner() {
+            (_, PNMHeader {
+                decoded: HeaderRecord::Graymap(
+                    GraymapHeader {
+                        encoding: SampleEncoding::Ascii,
+                        width: 4,
+                        height: 4,
+                        maxwhite: 255,
+                    }),
+                encoded: _,
+            }) => (),
+            _ => panic!("Decoded header is incorrect")
         }
     }
 }

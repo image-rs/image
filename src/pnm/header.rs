@@ -277,7 +277,7 @@ impl PNMHeader {
                     }
                 };
 
-                write!(writer, "P7\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR\n",
+                write!(writer, "\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR\n",
                     width, height, depth, maxval, tupltype)
             }
         }

@@ -141,12 +141,12 @@ impl<'a> PNMEncoder<'a> {
     {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
-            ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
-            ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(n @ 1...8) => (1 << n, ArbitraryTuplType::Grayscale),
+            ColorType::Gray(1) =>          (1, ArbitraryTuplType::BlackAndWhite),
+            ColorType::GrayA(1) =>         (1, ArbitraryTuplType::BlackAndWhiteAlpha),
+            ColorType::Gray(n @ 1...8) =>  (1 << n, ArbitraryTuplType::Grayscale),
             ColorType::GrayA(n @ 1...8) => (1 << n, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1...8) => (1 << n, ArbitraryTuplType::RGB),
-            ColorType::RGBA(n @ 1...8) => (1 << n, ArbitraryTuplType::RGBAlpha),
+            ColorType::RGB(n @ 1...8) =>   (1 << n, ArbitraryTuplType::RGB),
+            ColorType::RGBA(n @ 1...8) =>  (1 << n, ArbitraryTuplType::RGBAlpha),
             _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     &format!("Encoding colour type {:?} is not supported", color)[..]))
@@ -247,9 +247,9 @@ impl <'a> CheckedEncoding<'a> {
             encoding,
             image: CheckedImageBuffer {
                 image,
-                width,
-            ..},
-        .. } = self;
+                width, ..
+            }, ..
+        } = self;
 
         match encoding {
             TupleEncoding::U8 { encoding: SampleEncoding::Binary }
@@ -410,27 +410,32 @@ impl<'a> CheckedDimensions<'a> {
         };
 
         match self.unchecked.header {
-            &PNMHeader { decoded: HeaderRecord::Bitmap(_), .. } => match color {
-                ColorType::Gray(_) => (),
-                _ => return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "PBM format only support ColorType::Gray")),
-            },
-            &PNMHeader { decoded: HeaderRecord::Graymap(_), ..} => match color {
-                ColorType::Gray(_) =>  (),
-                _ => return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "PGM format only support ColorType::Gray")),
-            },
-            &PNMHeader { decoded: HeaderRecord::Pixmap(_), .. } => match color {
-                ColorType::RGB(_) =>  (),
-                _ => return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "PPM format only support ColorType::RGB")),
-            },
-            &PNMHeader { decoded: HeaderRecord::Arbitrary(
-                    ArbitraryHeader { depth, ref tupltype, .. }),
-                ..} => match (tupltype, color) {
+            &PNMHeader { decoded: HeaderRecord::Bitmap(_), .. } =>
+                match color {
+                    ColorType::Gray(_) => (),
+                    _ => return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "PBM format only support ColorType::Gray")),
+                },
+            &PNMHeader { decoded: HeaderRecord::Graymap(_), ..} =>
+                match color {
+                    ColorType::Gray(_) =>  (),
+                    _ => return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "PGM format only support ColorType::Gray")),
+                },
+            &PNMHeader { decoded: HeaderRecord::Pixmap(_), .. } =>
+                match color {
+                    ColorType::RGB(_) =>  (),
+                    _ => return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "PPM format only support ColorType::RGB")),
+                },
+            &PNMHeader {
+                    decoded: HeaderRecord::Arbitrary(
+                        ArbitraryHeader { depth, ref tupltype, .. }),
+                    ..
+                } => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::Gray(_)) => (),
                 (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA(_)) => (),
 
@@ -469,7 +474,8 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
-            ColorType::Gray(n) | ColorType::GrayA(n) | ColorType::Palette(n)
+            ColorType::Gray(n) | ColorType::GrayA(n)
+            | ColorType::Palette(n)
             | ColorType::RGB(n) | ColorType::RGBA(n) if n > 8
                 => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -478,7 +484,8 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::GrayA(n)
             | ColorType::Palette(n)
             | ColorType::RGB(n)
-            | ColorType::RGBA(n) => 1 << n,
+            | ColorType::RGBA(n)
+                => 1 << n,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
@@ -490,11 +497,11 @@ impl<'a> CheckedHeaderColor<'a> {
 
         let encoding = match &self.dimensions.unchecked.header.decoded {
             &HeaderRecord::Bitmap(BitmapHeader {
-                    encoding: SampleEncoding::Binary,
-                .. }) => TupleEncoding::PbmBits,
+                    encoding: SampleEncoding::Binary, ..
+                }) => TupleEncoding::PbmBits,
             &HeaderRecord::Bitmap(BitmapHeader {
-                    encoding: SampleEncoding::Ascii,
-                .. }) => TupleEncoding::U8 { encoding: SampleEncoding::Ascii },
+                    encoding: SampleEncoding::Ascii, ..
+                }) => TupleEncoding::U8 { encoding: SampleEncoding::Ascii },
             &HeaderRecord::Graymap(GraymapHeader { encoding, .. })
             | &HeaderRecord::Pixmap(PixmapHeader { encoding, .. })
                 => TupleEncoding::U8 { encoding },

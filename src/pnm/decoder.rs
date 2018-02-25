@@ -345,22 +345,22 @@ impl<R: Read> ImageDecoder for PNMDecoder<R> {
 impl<R: Read> PNMDecoder<R> {
     fn rowlen(&self) -> ImageResult<usize> {
         match self.tuple {
-            TupleType::PbmBit => PbmBit::bytelen(self.header.width(), 1, 1),
-            TupleType::BWBit => BWBit::bytelen(self.header.width(), 1, 1),
-            TupleType::RGBU8 => U8::bytelen(self.header.width(), 1, 3),
-            TupleType::RGBU16 => U16::bytelen(self.header.width(), 1, 3),
-            TupleType::GrayU8 => U8::bytelen(self.header.width(), 1, 1),
+            TupleType::PbmBit  => PbmBit::bytelen(self.header.width(), 1, 1),
+            TupleType::BWBit   => BWBit::bytelen(self.header.width(), 1, 1),
+            TupleType::RGBU8   => U8::bytelen(self.header.width(), 1, 3),
+            TupleType::RGBU16  => U16::bytelen(self.header.width(), 1, 3),
+            TupleType::GrayU8  => U8::bytelen(self.header.width(), 1, 1),
             TupleType::GrayU16 => U16::bytelen(self.header.width(), 1, 1),
         }
     }
 
     fn read(&mut self) -> ImageResult<DecodingResult> {
         match self.tuple {
-            TupleType::PbmBit => self.read_samples::<PbmBit>(1),
-            TupleType::BWBit => self.read_samples::<BWBit>(1),
-            TupleType::RGBU8 => self.read_samples::<U8>(3),
-            TupleType::RGBU16 => self.read_samples::<U16>(3),
-            TupleType::GrayU8 => self.read_samples::<U8>(1),
+            TupleType::PbmBit  => self.read_samples::<PbmBit>(1),
+            TupleType::BWBit   => self.read_samples::<BWBit>(1),
+            TupleType::RGBU8   => self.read_samples::<U8>(3),
+            TupleType::RGBU16  => self.read_samples::<U16>(3),
+            TupleType::GrayU8  => self.read_samples::<U8>(1),
             TupleType::GrayU16 => self.read_samples::<U16>(1),
         }
     }
@@ -395,9 +395,11 @@ impl<R: Read> PNMDecoder<R> {
     }
 
     fn read_ascii_sample(&mut self) -> ImageResult<u32> {
-        let istoken = |v: &Result<u8, _>| match v {
+        let istoken = |v: &Result<u8, _>|
+            match v {
                 &Err(_) => false,
-                &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
+                &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ')
+                    => false,
                 _ => true,
             };
         let token = (&mut self.reader).bytes()
@@ -405,10 +407,13 @@ impl<R: Read> PNMDecoder<R> {
             .take_while(&istoken)
             .collect::<Result<Vec<u8>, _>>()?;
         if !token.is_ascii() {
-            return Err(ImageError::FormatError("Non ascii character where sample value was expected".to_string()))
+            return Err(ImageError::FormatError(
+                "Non ascii character where sample value was expected".to_string()))
         }
-        let string = String::from_utf8(token).map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
-        string.parse::<u32>().map_err(|_| ImageError::FormatError("Error parsing sample value".to_string()))
+        let string = String::from_utf8(token)
+            .map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
+        string.parse::<u32>()
+            .map_err(|_| ImageError::FormatError("Error parsing sample value".to_string()))
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
@@ -585,10 +590,12 @@ impl DecodableImageHeader for PixmapHeader {
 impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
-            None if self.depth == 1 => Ok(TupleType::GrayU8),
+            None if self.depth == 1
+                => Ok(TupleType::GrayU8),
             None if self.depth == 2
                 => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
-            None if self.depth == 3 => Ok(TupleType::RGBU8),
+            None if self.depth == 3
+                => Ok(TupleType::RGBU8),
             None if self.depth == 4
                 => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
 

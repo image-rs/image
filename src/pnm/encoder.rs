@@ -252,9 +252,9 @@ impl <'a> CheckedEncoding<'a> {
         .. } = self;
 
         match encoding {
-            TupleEncoding::U8 { encoding: SampleEncoding::Binary, .. }
+            TupleEncoding::U8 { encoding: SampleEncoding::Binary }
                 => writer.write_all(image),
-            TupleEncoding::U8 { encoding: SampleEncoding::Ascii, .. } => {
+            TupleEncoding::U8 { encoding: SampleEncoding::Ascii } => {
                 // Standard dictates to insert line breaks after 70 characters. Assumes that no
                 // line breaks are written.
                 struct AutoBreak<'a> {
@@ -429,24 +429,28 @@ impl<'a> CheckedDimensions<'a> {
                     "PPM format only support ColorType::RGB")),
             },
             &PNMHeader { decoded: HeaderRecord::Arbitrary(
-                ArbitraryHeader { depth, ref tupltype, .. }), ..} => match (tupltype, color) {
-                (&None, _) if depth == components => (),
+                    ArbitraryHeader { depth, ref tupltype, .. }),
+                ..} => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::Gray(_)) => (),
                 (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA(_)) => (),
+
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::Gray(_)) => (),
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA(_)) => (),
+
                 (&Some(ArbitraryTuplType::RGB), ColorType::RGB(_)) => (),
                 (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA(_)) => (),
+
+                (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
                 _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Invalid color type for selected PAM color type")),
-            }
+            },
         }
 
         Ok(CheckedHeaderColor {
             dimensions: self,
-            color
+            color,
         })
     }
 }
@@ -506,92 +510,18 @@ impl<'a> CheckedHeaderColor<'a> {
             encoding: CheckedEncoding {
                 encoding,
                 image,
-            }
+            },
         })
     }
 }
 
 impl<'a> CheckedHeader<'a> {
     fn write_header(self, writer: &mut Write) -> io::Result<CheckedEncoding<'a>> {
-
-        let CheckedHeader {
-            color: CheckedHeaderColor {
-                dimensions: CheckedDimensions {
-                    unchecked: UncheckedHeader{ header, .. },
-                .. },
-            .. },
-            encoding,
-        } = self;
-
-        match header {
-            &PNMHeader { encoded: Some(ref content), .. }
-                => writer.write_all(content)?,
-            &PNMHeader { decoded: HeaderRecord::Bitmap(ref header), .. }
-                => Self::write_bitmap_header(writer, header)?,
-            &PNMHeader { decoded: HeaderRecord::Graymap(ref header), .. }
-                => Self::write_graymap_header(writer, header)?,
-            &PNMHeader { decoded: HeaderRecord::Pixmap(ref header), .. }
-                => Self::write_pixmap_header(writer, header)?,
-            &PNMHeader { decoded: HeaderRecord::Arbitrary(ref header), .. }
-                => Self::write_arbitrary_header(writer, header)?,
-        }
-
-        Ok(encoding)
+        self.header().write(writer)?;
+        Ok(self.encoding)
     }
 
-    fn write_bitmap_header(writer: &mut Write, &BitmapHeader{ encoding, width, height }: &BitmapHeader)
-        -> io::Result<()>
-    {
-        writer.write_all(PNMSubtype::Bitmap(encoding).magic_constant())?;
-        write!(writer, "\n{} {}\n", width, height)
-    }
-
-    fn write_graymap_header(
-        writer: &mut Write,
-        &GraymapHeader{ encoding, width, height, maxwhite}: &GraymapHeader)
-        -> io::Result<()>
-    {
-        writer.write_all(PNMSubtype::Graymap(encoding).magic_constant())?;
-        write!(writer, "\n{} {} {}\n", width, height, maxwhite)
-    }
-
-    fn write_pixmap_header(
-        writer: &mut Write,
-        &PixmapHeader{ encoding, width, height, maxval}: &PixmapHeader)
-        -> io::Result<()>
-    {
-        writer.write_all(PNMSubtype::Pixmap(encoding).magic_constant())?;
-        write!(writer, "\n{} {} {}\n", width, height, maxval)
-    }
-
-    fn write_arbitrary_header(
-        writer: &mut Write,
-        &ArbitraryHeader{ width, height, depth, maxval, ref tupltype}: &ArbitraryHeader)
-        -> io::Result<()>
-    {
-        #[allow(unused_assignments)]
-        // Declared here so its lifetime exceeds the matching. This is a trivial
-        // constructor, no allocation takes place and in the custom case we must allocate
-        // regardless due to borrow. Still, the warnings checker does pick this up :/
-        // Could use std::borrow::Cow instead but that really doesn't achieve anything but
-        // increasing type complexity.
-        let mut custom_fallback = String::new();
-
-        let tupltype = match tupltype {
-            &None => "",
-            &Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
-            &Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
-            &Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
-            &Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
-            &Some(ArbitraryTuplType::RGB) => "TUPLTYPE RGB\n",
-            &Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
-            &Some(ArbitraryTuplType::Custom(ref custom)) => {
-                custom_fallback = format!("TUPLTYPE {}", custom);
-                &custom_fallback
-            }
-        };
-
-        write!(writer, "P7\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
-            width, height, depth, maxval, tupltype)
+    fn header(&self) -> &PNMHeader {
+        self.color.dimensions.unchecked.header
     }
 }

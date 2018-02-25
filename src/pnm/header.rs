@@ -1,8 +1,11 @@
+use std::io;
+
 /// The kind of encoding used to store sample values
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SampleEncoding {
     /// Samples are unsigned binary integers in big endian
     Binary,
+
     /// Samples are encoded as decimal ascii strings separated by whitespace
     Ascii,
 }
@@ -12,10 +15,13 @@ pub enum SampleEncoding {
 pub enum PNMSubtype {
     /// Magic numbers P1 and P4
     Bitmap(SampleEncoding),
+
     /// Magic numbers P2 and P5
     Graymap(SampleEncoding),
+
     /// Magic numbers P3 and P6
     Pixmap(SampleEncoding),
+
     /// Magic number P7
     ArbitraryMap,
 }
@@ -194,6 +200,122 @@ impl PNMHeader {
             &HeaderRecord::Graymap(GraymapHeader { maxwhite, .. })   => maxwhite,
             &HeaderRecord::Pixmap(PixmapHeader { maxval, .. })       => maxval,
             &HeaderRecord::Arbitrary(ArbitraryHeader { maxval, .. }) => maxval,
+        }
+    }
+
+    /// Retrieve the underlying bitmap header if any
+    pub fn as_bitmap(&self) -> Option<&BitmapHeader> {
+        match &self.decoded {
+            &HeaderRecord::Bitmap(ref bitmap) => Some(bitmap),
+            _ => None
+        }
+    }
+
+    /// Retrieve the underlying graymap header if any
+    pub fn as_graymap(&self) -> Option<&GraymapHeader> {
+        match &self.decoded {
+            &HeaderRecord::Graymap(ref graymap) => Some(graymap),
+            _ => None
+        }
+    }
+
+    /// Retrieve the underlying pixmap header if any
+    pub fn as_pixmap(&self) -> Option<&PixmapHeader> {
+        match &self.decoded {
+            &HeaderRecord::Pixmap(ref pixmap) => Some(pixmap),
+            _ => None
+        }
+    }
+
+    /// Retrieve the underlying arbitrary header if any
+    pub fn as_arbitrary(&self) -> Option<&ArbitraryHeader> {
+        match &self.decoded {
+            &HeaderRecord::Arbitrary(ref arbitrary) => Some(arbitrary),
+            _ => None
+        }
+    }
+
+    /// Write the header back into a binary stream
+    pub fn write(&self, writer: &mut io::Write) -> io::Result<()> {
+        writer.write_all(self.subtype().magic_constant())?;
+        match self {
+            &PNMHeader { encoded: Some(ref content), .. }
+                => writer.write_all(content),
+            &PNMHeader { decoded: HeaderRecord::Bitmap(
+                    BitmapHeader{ encoding: _encoding, width, height }), .. } => {
+                write!(writer, "\n{} {}\n", width, height)
+            },
+            &PNMHeader { decoded: HeaderRecord::Graymap(
+                    GraymapHeader{ encoding: _encoding, width, height, maxwhite }), .. } => {
+                write!(writer, "\n{} {} {}\n", width, height, maxwhite)
+            },
+            &PNMHeader { decoded: HeaderRecord::Pixmap(
+                    PixmapHeader{ encoding: _encoding, width, height, maxval}), .. } => {
+                write!(writer, "\n{} {} {}\n", width, height, maxval)
+            }
+            &PNMHeader { decoded: HeaderRecord::Arbitrary(
+                    ArbitraryHeader{ width, height, depth, maxval, ref tupltype}), .. } => {
+                #[allow(unused_assignments)]
+                // Declared here so its lifetime exceeds the matching. This is a trivial
+                // constructor, no allocation takes place and in the custom case we must allocate
+                // regardless due to borrow. Still, the warnings checker does pick this up :/
+                // Could use std::borrow::Cow instead but that really doesn't achieve anything but
+                // increasing type complexity.
+                let mut custom_fallback = String::new();
+
+                let tupltype = match tupltype {
+                    &None => "",
+                    &Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
+                    &Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
+                    &Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
+                    &Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
+                    &Some(ArbitraryTuplType::RGB) => "TUPLTYPE RGB\n",
+                    &Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
+                    &Some(ArbitraryTuplType::Custom(ref custom)) => {
+                        custom_fallback = format!("TUPLTYPE {}", custom);
+                        &custom_fallback
+                    }
+                };
+
+                write!(writer, "P7\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR\n",
+                    width, height, depth, maxval, tupltype)
+            }
+        }
+    }
+}
+
+impl From<BitmapHeader> for PNMHeader {
+    fn from(header: BitmapHeader) -> Self {
+        PNMHeader {
+            decoded: HeaderRecord::Bitmap(header),
+            encoded: None,
+        }
+    }
+}
+
+impl From<GraymapHeader> for PNMHeader {
+    fn from(header: GraymapHeader) -> Self {
+        PNMHeader {
+            decoded: HeaderRecord::Graymap(header),
+            encoded: None,
+        }
+    }
+}
+
+impl From<PixmapHeader> for PNMHeader {
+    fn from(header: PixmapHeader) -> Self {
+        PNMHeader {
+            decoded: HeaderRecord::Pixmap(header),
+            encoded: None,
+        }
+    }
+}
+
+impl From<ArbitraryHeader> for PNMHeader {
+    fn from(header: ArbitraryHeader) -> Self {
+        PNMHeader {
+            decoded: HeaderRecord::Arbitrary(header),
+            encoded: None,
         }
     }
 }

@@ -21,7 +21,8 @@ pub struct PNMEncoder<'a> {
 enum TupleEncoding {
     PbmBits {
         width: u32,
-        height: u32,
+        // Height is implicitly given and never explicitely required.
+        // height: u32,
     },
     U8 {
         encoding: SampleEncoding,
@@ -107,98 +108,96 @@ impl<'a> PNMEncoder<'a> {
     {
         match self.header {
             HeaderStrategy::Dynamic
-                => self.write_dynamic_header(width, height, color),
+                => self.write_dynamic_header(image, width, height, color),
             HeaderStrategy::Subtype(subtype)
-                => self.write_subtyped_header(subtype, width, height, color),
+                => self.write_subtyped_header(subtype, image, width, height, color),
             HeaderStrategy::Chosen(ref header)
-                => Self::write_chosen_header(&mut self.writer, header, width, height, color),
+                => Self::write_chosen_header(&mut self.writer, header, image, width, height, color),
         }
     }
 
     /// Choose any valid pnm format that the image can be expressed in and write its header.
     ///
     /// Returns how the body should be written if successful.
-    fn write_dynamic_header(&mut self, width: u32, height: u32, color: ColorType)
+    fn write_dynamic_header(&mut self, image: &[u8], width: u32, height: u32, color: ColorType)
         -> io::Result<TupleEncoding>
     {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(8) => (255, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(8) => (255, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(8) => (255, ArbitraryTuplType::RBG),
-            ColorType::RGBA(8) => (255, ArbitraryTuplType::RGBAlpha),
+            ColorType::Gray(n @ 1...8) => (1 << n, ArbitraryTuplType::Grayscale),
+            ColorType::GrayA(n @ 1...8) => (1 << n, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::RGB(n @ 1...8) => (1 << n, ArbitraryTuplType::RBG),
+            ColorType::RGBA(n @ 1...8) => (1 << n, ArbitraryTuplType::RGBAlpha),
             _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    &format!("Writing colour type {:?} is not supported", color)[..]))
+                    &format!("Encoding colour type {:?} is not supported", color)[..]))
         };
 
-        Self::write_arbitrary_header(&mut self.writer, &ArbitraryHeader {
-            width,
-            height,
-            depth,
-            maxval,
-            tupltype: Some(tupltype),
-        })?;
+        let header = PNMHeader {
+            decoded: HeaderRecord::Arbitrary(ArbitraryHeader {
+                width,
+                height,
+                depth,
+                maxval,
+                tupltype: Some(tupltype),
+            }),
+            encoded: None,
+        };
 
-        Ok(TupleEncoding::U8 {
-            encoding: SampleEncoding::Binary,
-        })
+        Self::write_chosen_header(&mut self.writer, &header, image, width, height, color)
     }
 
     /// Try to encode the image with the chosen format, give its corresponding pixel encoding type.
     fn write_subtyped_header(
         &mut self,
         subtype: PNMSubtype,
+        image: &[u8],
         width: u32,
         height: u32,
         color: ColorType)
         -> io::Result<TupleEncoding>
     {
-        match (subtype, color) {
-            (PNMSubtype::ArbitraryMap, color) => self.write_dynamic_header(width, height, color),
-            (PNMSubtype::Pixmap(encoding), ColorType::RGB(8)) => {
-                Self::write_pixmap_header(&mut self.writer, &PixmapHeader {
-                    encoding,
-                    width,
-                    height,
-                    maxval: 255,
-                }).map(|()| TupleEncoding::U8 {
-                    encoding,
-                })
-            },
-            (PNMSubtype::Graymap(encoding), ColorType::Gray(8)) => {
-                Self::write_graymap_header(&mut self.writer, &GraymapHeader {
-                    encoding,
-                    width,
-                    height,
-                    maxwhite: 255,
-                }).map(|()| TupleEncoding::U8 {
-                    encoding,
-                })
-            },
+        let header = match (subtype, color) {
+            (PNMSubtype::ArbitraryMap, color)
+                => return self.write_dynamic_header(image, width, height, color),
+            (PNMSubtype::Pixmap(encoding), ColorType::RGB(8)) =>
+                PNMHeader {
+                    decoded: HeaderRecord::Pixmap(PixmapHeader {
+                        encoding,
+                        width,
+                        height,
+                        maxval: 255,
+                    }),
+                    encoded: None
+                },
+            (PNMSubtype::Graymap(encoding), ColorType::Gray(8)) =>
+                PNMHeader {
+                    decoded: HeaderRecord::Graymap(GraymapHeader {
+                        encoding,
+                        width,
+                        height,
+                        maxwhite: 255,
+                    }),
+                    encoded: None
+                },
             (PNMSubtype::Bitmap(encoding), ColorType::Gray(8))
-            | (PNMSubtype::Bitmap(encoding), ColorType::Gray(1)) => {
-                Self::write_bitmap_header(&mut self.writer, &BitmapHeader {
-                    encoding: encoding,
-                    width,
-                    height,
-                })?;
-                match encoding {
-                    SampleEncoding::Binary => Ok(TupleEncoding::PbmBits {
+            | (PNMSubtype::Bitmap(encoding), ColorType::Gray(1)) =>
+                PNMHeader {
+                    decoded: HeaderRecord::Bitmap(BitmapHeader {
+                        encoding,
                         width,
                         height,
                     }),
-                    SampleEncoding::Ascii => Ok(TupleEncoding::U8 {
-                        encoding: SampleEncoding::Ascii,
-                    })
-                }
-            },
-            (_, _) => Err(io::Error::new(
+                    encoded: None
+                },
+            (_, _) => return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Color type can not be represented in the chosen format"))
-        }
+        };
+
+        Self::write_chosen_header(&mut self.writer, &header, image, width, height, color)
     }
 
     /// Try to encode the image with the chosen header, checking if values are correct.
@@ -207,12 +206,13 @@ impl<'a> PNMEncoder<'a> {
     fn write_chosen_header(
         writer: &mut Write,
         header: &PNMHeader,
+        image: &[u8],
         width: u32,
         height: u32,
         color: ColorType)
         -> io::Result<TupleEncoding>
     {
-        let tupltype = check_chosen_header(&header, width, height, color)?;
+        let tupltype = check_chosen_header(&header, image, width, height, color)?;
 
         match header {
             &PNMHeader { encoded: Some(ref content), .. }
@@ -401,7 +401,8 @@ fn check_buffer_dimensions(image: &[u8], width: u32, height: u32, color: ColorTy
     }
 }
 
-fn check_chosen_header(header: &PNMHeader, width: u32, height: u32, color: ColorType)
+/// Main check function, all header pass through here before being written.
+fn check_chosen_header(header: &PNMHeader, image: &[u8], width: u32, height: u32, color: ColorType)
     -> io::Result<TupleEncoding>
 {
     if header.width() != width || header.height() != height {
@@ -410,9 +411,53 @@ fn check_chosen_header(header: &PNMHeader, width: u32, height: u32, color: Color
             "Chosen header does not match Image dimensions"));
     }
 
-    // FIXME check component count, maxvalues and sample type …
+    let header_maxval = match &header.decoded {
+        &HeaderRecord::Bitmap(_) => 1,
+        &HeaderRecord::Graymap(GraymapHeader { maxwhite, .. }) => maxwhite,
+        &HeaderRecord::Pixmap(PixmapHeader { maxval, .. }) => maxval,
+        &HeaderRecord::Arbitrary(ArbitraryHeader { maxval, .. }) => maxval,
+    };
 
-    Ok(TupleEncoding::U8 {
-        encoding: SampleEncoding::Binary,
-    })
+    // We trust the image color bit count to be correct at least.
+    let (max_sample, components) = match color {
+        ColorType::Gray(n) => (1 << n, 1),
+        ColorType::GrayA(n) => (1 << n, 2),
+        ColorType::Palette(n)
+        | ColorType::RGB(n) => (1 << n, 3),
+        ColorType::RGBA(n) => (1 << n, 4)
+    };
+
+    // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
+    if header_maxval < max_sample && image.iter().any(|&val| u32::from(val) > header_maxval) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Sample value greater than allowed for chosen header"));
+    }
+
+    let header_components = match &header.decoded {
+        &HeaderRecord::Bitmap(_) => 1,
+        &HeaderRecord::Graymap(_) => 1,
+        &HeaderRecord::Pixmap(_) => 3,
+        &HeaderRecord::Arbitrary(ArbitraryHeader { depth, .. }) => depth,
+    };
+
+    if header_components != components {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Color depth does not fit depth in image header"));
+    }
+
+    let encoding = match &header.decoded {
+        &HeaderRecord::Bitmap(BitmapHeader { encoding: SampleEncoding::Binary, .. })
+            => TupleEncoding::PbmBits { width },
+        &HeaderRecord::Bitmap(BitmapHeader { encoding: SampleEncoding::Ascii, .. })
+            => TupleEncoding::U8 { encoding: SampleEncoding::Ascii },
+        &HeaderRecord::Graymap(GraymapHeader { encoding, .. })
+        | &HeaderRecord::Pixmap(PixmapHeader { encoding, .. })
+            => TupleEncoding::U8 { encoding },
+        &HeaderRecord::Arbitrary(_)
+            => TupleEncoding::U8 { encoding: SampleEncoding::Binary },
+    };
+
+    Ok(encoding)
 }

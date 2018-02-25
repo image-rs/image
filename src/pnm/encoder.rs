@@ -143,10 +143,10 @@ impl<'a> PNMEncoder<'a> {
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) =>          (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::GrayA(1) =>         (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(n @ 1...8) =>  (1 << n, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(n @ 1...8) => (1 << n, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1...8) =>   (1 << n, ArbitraryTuplType::RGB),
-            ColorType::RGBA(n @ 1...8) =>  (1 << n, ArbitraryTuplType::RGBAlpha),
+            ColorType::Gray(n @ 1...8) =>  ((1 << n) - 1, ArbitraryTuplType::Grayscale),
+            ColorType::GrayA(n @ 1...8) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::RGB(n @ 1...8) =>   ((1 << n) - 1, ArbitraryTuplType::RGB),
+            ColorType::RGBA(n @ 1...8) =>  ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
             _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     &format!("Encoding colour type {:?} is not supported", color)[..]))
@@ -485,7 +485,7 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::Palette(n)
             | ColorType::RGB(n)
             | ColorType::RGBA(n)
-                => 1 << n,
+                => (1 << n) - 1,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

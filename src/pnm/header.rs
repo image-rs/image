@@ -38,41 +38,92 @@ pub(crate) enum HeaderRecord {
     Arbitrary(ArbitraryHeader),
 }
 
+/// Header produced by a `pbm` file ("Portable Bit Map")
+#[derive(Clone, Copy, Debug)]
 pub struct BitmapHeader {
+    /// Binary or Ascii encoded file
     pub encoding: SampleEncoding,
+
+    /// Height of the image file
     pub height: u32,
+
+    /// Width of the image file
     pub width: u32,
 }
 
+/// Header produced by a `pgm` file ("Portable Gray Map")
+#[derive(Clone, Copy, Debug)]
 pub struct GraymapHeader {
+    /// Binary or Ascii encoded file
     pub encoding: SampleEncoding,
+
+    /// Height of the image file
     pub height: u32,
+
+    /// Width of the image file
     pub width: u32,
+
+    /// Maximum sample value within the image
     pub maxwhite: u32,
 }
 
+/// Header produced by a `ppm` file ("Portable Pixel Map")
+#[derive(Clone, Copy, Debug)]
 pub struct PixmapHeader{
+    /// Binary or Ascii encoded file
     pub encoding: SampleEncoding,
+
+    /// Height of the image file
     pub height: u32,
+
+    /// Width of the image file
     pub width: u32,
+
+    /// Maximum sample value within the image
     pub maxval: u32,
 }
 
+/// Header produced by a `pam` file ("Portable Arbitrary Map")
+#[derive(Clone, Debug)]
 pub struct ArbitraryHeader {
+    /// Height of the image file
     pub height: u32,
+
+    /// Width of the image file
     pub width: u32,
+
+    /// Number of color channels
     pub depth: u32,
+
+    /// Maximum sample value within the image
     pub maxval: u32,
+
+    /// Color interpretation of image pixels
     pub tupltype: Option<ArbitraryTuplType>,
 }
 
+/// Standardized tuple type specifiers in the header of a `pam`.
+#[derive(Clone, Debug)]
 pub enum ArbitraryTuplType {
+    /// Pixels are either black (0) or white (1)
     BlackAndWhite,
+
+    /// Pixels are either black (0) or white (1) and a second alpha channel
     BlackAndWhiteAlpha,
+
+    /// Pixels represent the amount of white
     Grayscale,
+
+    /// Grayscale with an additional alpha channel
     GrayscaleAlpha,
-    RBG,
+
+    /// Three channels: Red, Green, Blue
+    RGB,
+
+    /// Four channels: Red, Green, Blue, Alpha
     RGBAlpha,
+
+    /// An image format which is not standardized
     Custom(String),
 }
 

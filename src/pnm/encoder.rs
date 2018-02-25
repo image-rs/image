@@ -145,7 +145,7 @@ impl<'a> PNMEncoder<'a> {
             ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
             ColorType::Gray(n @ 1...8) => (1 << n, ArbitraryTuplType::Grayscale),
             ColorType::GrayA(n @ 1...8) => (1 << n, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1...8) => (1 << n, ArbitraryTuplType::RBG),
+            ColorType::RGB(n @ 1...8) => (1 << n, ArbitraryTuplType::RGB),
             ColorType::RGBA(n @ 1...8) => (1 << n, ArbitraryTuplType::RGBAlpha),
             _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -435,7 +435,7 @@ impl<'a> CheckedDimensions<'a> {
                 (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA(_)) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::Gray(_)) => (),
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA(_)) => (),
-                (&Some(ArbitraryTuplType::RBG), ColorType::RGB(_)) => (),
+                (&Some(ArbitraryTuplType::RGB), ColorType::RGB(_)) => (),
                 (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA(_)) => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
                 _ => return Err(io::Error::new(
@@ -583,7 +583,7 @@ impl<'a> CheckedHeader<'a> {
             &Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
             &Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
             &Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
-            &Some(ArbitraryTuplType::RBG) => "TUPLTYPE RGB\n",
+            &Some(ArbitraryTuplType::RGB) => "TUPLTYPE RGB\n",
             &Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
             &Some(ArbitraryTuplType::Custom(ref custom)) => {
                 custom_fallback = format!("TUPLTYPE {}", custom);

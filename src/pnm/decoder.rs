@@ -303,7 +303,7 @@ trait HeaderReader: BufRead {
             Some(ref t) if t == "BLACKANDWHITE_ALPHA" => Some(ArbitraryTuplType::BlackAndWhiteAlpha),
             Some(ref t) if t == "GRAYSCALE" => Some(ArbitraryTuplType::Grayscale),
             Some(ref t) if t == "GRAYSCALE_ALPHA" => Some(ArbitraryTuplType::GrayscaleAlpha),
-            Some(ref t) if t == "RGB" => Some(ArbitraryTuplType::RBG),
+            Some(ref t) if t == "RGB" => Some(ArbitraryTuplType::RGB),
             Some(ref t) if t == "RGB_ALPHA" => Some(ArbitraryTuplType::RGBAlpha),
             Some(other) => Some(ArbitraryTuplType::Custom(other)),
         };
@@ -606,11 +606,11 @@ impl DecodableImageHeader for ArbitraryHeader {
                 => Err(ImageError::FormatError(
                     "Invalid depth or maxval for tuple type GRAYSCALE".to_string())),
 
-            Some(ArbitraryTuplType::RBG) if self.depth == 3 && self.maxval <= 0xFF
+            Some(ArbitraryTuplType::RGB) if self.depth == 3 && self.maxval <= 0xFF
                 => Ok(TupleType::RGBU8),
-            Some(ArbitraryTuplType::RBG) if self.depth == 3 && self.maxval <= 0xFFFF
+            Some(ArbitraryTuplType::RGB) if self.depth == 3 && self.maxval <= 0xFFFF
                 => Ok(TupleType::RGBU16),
-            Some(ArbitraryTuplType::RBG)
+            Some(ArbitraryTuplType::RGB)
                 => Err(ImageError::FormatError(
                     "Invalid depth for tuple type RGB".to_string())),
 
@@ -734,7 +734,7 @@ ENDHDR
                 decoded: HeaderRecord::Arbitrary(
                     ArbitraryHeader {
                         maxval: 255,
-                        tupltype: Some(ArbitraryTuplType::RBG),
+                        tupltype: Some(ArbitraryTuplType::RGB),
                         depth: 3,
                         width: 2,
                         height: 2,

@@ -7,7 +7,7 @@
 pub use self::decoder::PNMDecoder;
 pub use self::encoder::PNMEncoder;
 pub use self::header::{PNMHeader, PNMSubtype, SampleEncoding};
-use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
+pub use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use self::header::HeaderRecord;
 
 mod decoder;

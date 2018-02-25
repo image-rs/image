@@ -12,6 +12,7 @@ enum HeaderStrategy {
     Chosen(PNMHeader),
 }
 
+/// Encodes images to any of the `pnm` image formats.
 pub struct PNMEncoder<'a> {
     writer: &'a mut Write,
     header: HeaderStrategy,
@@ -24,9 +25,10 @@ enum TupleEncoding {
     },
     U8 {
         encoding: SampleEncoding,
-        width: u32,
-        height: u32,
-        components: u32,
+        // We don't need the fields since we just loop over all samples.
+        // width: u32,
+        // height: u32,
+        // components: u32,
     },
 }
 
@@ -87,6 +89,10 @@ impl<'a> PNMEncoder<'a> {
         }
     }
 
+    /// Encode an image whose samples are represented as `u8`.
+    ///
+    /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
+    /// certainly with any deviation from the original decoded image.
     pub fn encode(&mut self, image: &[u8], width: u32, height: u32, color: ColorType)
         -> io::Result<()>
     {
@@ -96,16 +102,16 @@ impl<'a> PNMEncoder<'a> {
     }
 
     /// Write the header and report back how the pixels should be written.
-    fn write_header(&mut self, image: &[u8], width: u32, height: u32, c: ColorType)
+    fn write_header(&mut self, image: &[u8], width: u32, height: u32, color: ColorType)
         -> io::Result<TupleEncoding>
     {
         match self.header {
             HeaderStrategy::Dynamic
-                => self.write_dynamic_header(width, height, c),
+                => self.write_dynamic_header(width, height, color),
             HeaderStrategy::Subtype(subtype)
-                => self.write_subtyped_header(subtype, width, height, c),
+                => self.write_subtyped_header(subtype, width, height, color),
             HeaderStrategy::Chosen(ref header)
-                => self.write_chosen_header(header, width, height, c),
+                => Self::write_chosen_header(&mut self.writer, header, width, height, color),
         }
     }
 
@@ -128,7 +134,7 @@ impl<'a> PNMEncoder<'a> {
                     &format!("Writing colour type {:?} is not supported", color)[..]))
         };
 
-        self.write_arbitrary_header(&ArbitraryHeader {
+        Self::write_arbitrary_header(&mut self.writer, &ArbitraryHeader {
             width,
             height,
             depth,
@@ -138,9 +144,6 @@ impl<'a> PNMEncoder<'a> {
 
         Ok(TupleEncoding::U8 {
             encoding: SampleEncoding::Binary,
-            width,
-            height,
-            components: depth,
         })
     }
 
@@ -156,34 +159,28 @@ impl<'a> PNMEncoder<'a> {
         match (subtype, color) {
             (PNMSubtype::ArbitraryMap, color) => self.write_dynamic_header(width, height, color),
             (PNMSubtype::Pixmap(encoding), ColorType::RGB(8)) => {
-                self.write_pixmap_header(&PixmapHeader {
+                Self::write_pixmap_header(&mut self.writer, &PixmapHeader {
                     encoding,
                     width,
                     height,
                     maxval: 255,
                 }).map(|()| TupleEncoding::U8 {
                     encoding,
-                    width,
-                    height,
-                    components: 3, // num_components(RGB(8)) == 3
                 })
             },
             (PNMSubtype::Graymap(encoding), ColorType::Gray(8)) => {
-                self.write_graymap_header(&GraymapHeader {
+                Self::write_graymap_header(&mut self.writer, &GraymapHeader {
                     encoding,
                     width,
                     height,
                     maxwhite: 255,
                 }).map(|()| TupleEncoding::U8 {
                     encoding,
-                    width,
-                    height,
-                    components: 1, // num_components(Gray(8)) == 1
                 })
             },
             (PNMSubtype::Bitmap(encoding), ColorType::Gray(8))
             | (PNMSubtype::Bitmap(encoding), ColorType::Gray(1)) => {
-                self.write_bitmap_header(&BitmapHeader {
+                Self::write_bitmap_header(&mut self.writer, &BitmapHeader {
                     encoding: encoding,
                     width,
                     height,
@@ -195,9 +192,6 @@ impl<'a> PNMEncoder<'a> {
                     }),
                     SampleEncoding::Ascii => Ok(TupleEncoding::U8 {
                         encoding: SampleEncoding::Ascii,
-                        width,
-                        height,
-                        components: 1,
                     })
                 }
             },
@@ -211,7 +205,7 @@ impl<'a> PNMEncoder<'a> {
     ///
     /// Returns how the body should be written if successful.
     fn write_chosen_header(
-        &mut self,
+        writer: &mut Write,
         header: &PNMHeader,
         width: u32,
         height: u32,
@@ -222,64 +216,68 @@ impl<'a> PNMEncoder<'a> {
 
         match header {
             &PNMHeader { encoded: Some(ref content), .. }
-                => self.writer.write_all(content)?,
+                => writer.write_all(content)?,
             &PNMHeader { decoded: HeaderRecord::Bitmap(ref header), .. }
-                => self.write_bitmap_header(header)?,
+                => Self::write_bitmap_header(writer, header)?,
             &PNMHeader { decoded: HeaderRecord::Graymap(ref header), .. }
-                => self.write_graymap_header(header)?,
+                => Self::write_graymap_header(writer, header)?,
             &PNMHeader { decoded: HeaderRecord::Pixmap(ref header), .. }
-                => self.write_pixmap_header(header)?,
+                => Self::write_pixmap_header(writer, header)?,
             &PNMHeader { decoded: HeaderRecord::Arbitrary(ref header), .. }
-                => self.write_arbitrary_header(header)?,
+                => Self::write_arbitrary_header(writer, header)?,
         };
 
         Ok(tupltype)
     }
 
-    fn write_bitmap_header(&mut self, &BitmapHeader{ encoding, width, height }: &BitmapHeader)
+    fn write_bitmap_header(writer: &mut Write, &BitmapHeader{ encoding, width, height }: &BitmapHeader)
         -> io::Result<()>
     {
-        self.writer.write_all(PNMSubtype::Bitmap(encoding).magic_constant())?;
-        write!(self.writer, "\n{} {}\n", width, height)
+        writer.write_all(PNMSubtype::Bitmap(encoding).magic_constant())?;
+        write!(writer, "\n{} {}\n", width, height)
     }
 
     fn write_graymap_header(
-        &mut self,
+        writer: &mut Write,
         &GraymapHeader{ encoding, width, height, maxwhite}: &GraymapHeader)
         -> io::Result<()>
     {
-        self.writer.write_all(PNMSubtype::Graymap(encoding).magic_constant())?;
-        write!(self.writer, "\n{} {} {}\n", width, height, maxwhite)
+        writer.write_all(PNMSubtype::Graymap(encoding).magic_constant())?;
+        write!(writer, "\n{} {} {}\n", width, height, maxwhite)
     }
 
     fn write_pixmap_header(
-        &mut self,
+        writer: &mut Write,
         &PixmapHeader{ encoding, width, height, maxval}: &PixmapHeader)
         -> io::Result<()>
     {
-        self.writer.write_all(PNMSubtype::Pixmap(encoding).magic_constant())?;
-        write!(self.writer, "\n{} {} {}\n", width, height, maxval)
+        writer.write_all(PNMSubtype::Pixmap(encoding).magic_constant())?;
+        write!(writer, "\n{} {} {}\n", width, height, maxval)
     }
 
-    fn write_arbitrary_header(&mut self, &ArbitraryHeader{ width, height, depth, maxval, tupltype}: &ArbitraryHeader)
+    fn write_arbitrary_header(writer: &mut Write, &ArbitraryHeader{ width, height, depth, maxval, ref tupltype}: &ArbitraryHeader)
         -> io::Result<()>
     {
-        let custom_fallback = String::new();
+        #[allow(unused_assignments)]
+        // Declared here so its lifetime exceeds the matching. This is a trivial constructor, no
+        // allocation takes place and in the custom case we must allocate regardless due to borrow.
+        let mut custom_fallback = String::new();
+
         let tupltype = match tupltype {
-            None => "",
-            Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
-            Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
-            Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
-            Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
-            Some(ArbitraryTuplType::RBG) => "TUPLTYPE RGB\n",
-            Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
-            Some(ArbitraryTuplType::Custom(ref custom)) => {
+            &None => "",
+            &Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
+            &Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
+            &Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
+            &Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
+            &Some(ArbitraryTuplType::RBG) => "TUPLTYPE RGB\n",
+            &Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
+            &Some(ArbitraryTuplType::Custom(ref custom)) => {
                 custom_fallback = format!("TUPLTYPE {}", custom);
                 &custom_fallback
             }
         };
 
-        write!(self.writer, "P7\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
+        write!(writer, "P7\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
             width, height, depth, maxval, tupltype)
     }
 
@@ -336,7 +334,7 @@ impl<'a> PNMEncoder<'a> {
                     }
                 }
 
-                let auto_break_writer = AutoBreak {
+                let mut auto_break_writer = AutoBreak {
                     wrapped: io::LineWriter::new(self.writer),
                     line_capacity: 70,
                     buffer: Vec::with_capacity(71),
@@ -348,19 +346,20 @@ impl<'a> PNMEncoder<'a> {
                 }
                 Ok(())
             },
-            TupleEncoding::PbmBits { width, height } => {
+            TupleEncoding::PbmBits { width, .. /* height implicitely given by buffer */ } => {
                 /// These should have thrown errors previously.
-                assert_eq!(width*height, image.len());
                 assert!(image.len() > 0);
+                assert!(image.len() % (width as usize) == 0);
 
+                // The length of an encoded scanline
                 let line_width = (width - 1)/8 + 1;
 
                 // We'll be writing single bytes, so buffer
-                let line_buffer = Vec::with_capacity(line_width as usize);
+                let mut line_buffer = Vec::with_capacity(line_width as usize);
 
                 for line in image.chunks(width as usize) {
                     for byte_bits in line.chunks(8) {
-                        let byte = 0u8;
+                        let mut byte = 0u8;
                         for i in 0..8 {
                             // Black pixels are encoded as 1s
                             if let Some(&0u8) = byte_bits.get(i) {
@@ -369,13 +368,12 @@ impl<'a> PNMEncoder<'a> {
                         }
                         line_buffer.push(byte)
                     }
-                    self.writer.write_all(line_buffer.as_slice());
+                    self.writer.write_all(line_buffer.as_slice())?;
                     line_buffer.clear();
                 }
 
                 Ok(())
             },
-            // _ => panic!()
         }
 
     }
@@ -392,13 +390,14 @@ fn check_buffer_dimensions(image: &[u8], width: u32, height: u32, color: ColorTy
         .and_then(|v| v.checked_mul(height)) {
         None => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            &format!("Image dimensions invalid: {}x{}x{} (wxhxd)",
+            &format!("Image dimensions invalid: {}×{}×{} (w×h×d)",
                 width, height, components)[..])),
-        Some(v) if v != image.len()
+        Some(v) if v == image.len()
+            => Ok(()),
+        Some(_)
             => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 &format!("Image buffer does not correspond to size and colour")[..])),
-        Some(v) => Ok(())
     }
 }
 
@@ -411,13 +410,9 @@ fn check_chosen_header(header: &PNMHeader, width: u32, height: u32, color: Color
             "Chosen header does not match Image dimensions"));
     }
 
-    // FIXME check other conditions …
-    // if header
+    // FIXME check component count, maxvalues and sample type …
 
     Ok(TupleEncoding::U8 {
         encoding: SampleEncoding::Binary,
-        width,
-        height,
-        components: num_components(color) as u32,
     })
 }

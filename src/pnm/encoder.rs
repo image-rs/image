@@ -5,6 +5,7 @@ use std::io::Write;
 use color::{ColorType, num_components};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
+use super::AutoBreak;
 
 enum HeaderStrategy {
     Dynamic,
@@ -255,64 +256,11 @@ impl <'a> CheckedEncoding<'a> {
             TupleEncoding::U8 { encoding: SampleEncoding::Binary }
                 => writer.write_all(image),
             TupleEncoding::U8 { encoding: SampleEncoding::Ascii } => {
-                // Standard dictates to insert line breaks after 70 characters. Assumes that no
-                // line breaks are written.
-                struct AutoBreak<'a> {
-                    wrapped: io::LineWriter<&'a mut Write>,
-                    line_capacity: usize,
-                    buffer: Vec<u8>,
-                    needs_flush: bool,
-                }
-
-                impl<'a> Write for AutoBreak<'a> {
-                    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-                        if self.needs_flush {
-                            self.flush()?;
-                            assert!(self.buffer.len() == 0);
-                        }
-
-                        // Buffer may be longer than the capacity but there's no way around
-                        if self.buffer.len() == 0 {
-                            self.buffer.extend_from_slice(buffer);
-                            return Ok(buffer.len());
-                        }
-
-                        if buffer.len() + self.buffer.len() > self.line_capacity {
-                            self.needs_flush = true;
-                            self.buffer.push(b'\n');
-                            self.flush()?;
-                            assert!(self.buffer.len() == 0);
-                        }
-
-                        self.buffer.extend_from_slice(buffer);
-                        Ok(buffer.len())
-                    }
-
-                    fn flush(&mut self) -> io::Result<()> {
-                        let written = self.wrapped.write(self.buffer.as_slice())?;
-
-                        self.buffer.drain(0..written);
-                        if self.buffer.len() > 0 {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Interrupted,
-                                "Line was not fully flushed"))
-                        }
-
-                        self.needs_flush = false;
-                        self.wrapped.flush()
-                    }
-                }
-
-                let mut auto_break_writer = AutoBreak {
-                    wrapped: io::LineWriter::new(writer),
-                    line_capacity: 70,
-                    buffer: Vec::with_capacity(71),
-                    needs_flush: false,
-                };
-
+                let mut auto_break_writer = AutoBreak::new(writer, 70);
                 for value in image.iter() {
                     write!(auto_break_writer, "{} ", value)?;
                 }
+                auto_break_writer.flush()?;
                 Ok(())
             },
             TupleEncoding::PbmBits => {

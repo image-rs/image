@@ -663,7 +663,7 @@ fn copy_blocks_gray(source: &[u8],
 
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
-            gb[y * 8 + x] = value_at(source, ystride + xstride + 1);
+            gb[y * 8 + x] = value_at(source, ystride + xstride + 0);
         }
     }
 }

@@ -708,4 +708,38 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn grayscale_roundtrip_sanity_check() {
+        // create a 2x2 8-bit image buffer containing a white diagonal
+        let img = [255u8, 0, 0, 255];
+
+        // encode it into a memory buffer
+        let mut encoded_img = Vec::new();
+        {
+            let mut encoder =
+                JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            encoder.encode(&img, 2, 2, ColorType::Gray(8))
+                .expect("Could not encode image");
+        }
+
+        // decode it from the memory buffer
+        {
+            let mut decoder =
+                JPEGDecoder::new(Cursor::new(&encoded_img));
+            match decoder.read_image().expect("Could not decode image") {
+                DecodingResult::U8(decoded) => {
+                    // note that, even with the encode quality set to 100, we
+                    // do not get the same image back. Therefore, we're going
+                    // to assert that the diagonal is at least white-ish:
+                    assert_eq!(4, decoded.len());
+                    assert!(decoded[0] > 0x80);
+                    assert!(decoded[1] < 0x80);
+                    assert!(decoded[2] < 0x80);
+                    assert!(decoded[3] > 0x80);
+                },
+                _ => panic!("Image did not decode as 8-bit"),
+            }
+        }
+    }
 }

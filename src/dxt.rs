@@ -485,7 +485,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
             colors[1] = c2;
 
             // what's inside here is ran at most 120 times.
-            for use_0 in 0 .. 1 {
+            for use_0 in 0 .. 2 {
                 // and 240 times here.
 
                 if use_0 != 0 {
@@ -543,7 +543,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
             swap(&mut color0, &mut color1);
             // Indexes are packed 2 bits wide, swap index 0/1 but preserve 2/3.
             let filter = (chosen_indices & 0xAAAAAAAA) >> 1;
-            chosen_indices ^= !filter;
+            chosen_indices ^= filter ^ 0x5555555;
         }
     } else {
         if !chosen_use_0 {

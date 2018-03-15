@@ -171,6 +171,10 @@ pub struct TGADecoder<R> {
 
     header: Header,
     color_map: Option<ColorMap>,
+
+    // Used in read_scanline
+    line_read: Option<usize>,
+    line_remain_buff: Vec<u8>,
 }
 
 impl<R: Read + Seek> TGADecoder<R> {
@@ -189,6 +193,9 @@ impl<R: Read + Seek> TGADecoder<R> {
 
             header: Header::new(),
             color_map: None,
+
+            line_read: None,
+            line_remain_buff: Vec::new(),
         }
     }
 
@@ -305,7 +312,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
         // read the pixels from the data region
         let mut pixel_data = if self.image_type.is_encoded() {
-            try!(self.read_encoded_data())
+            try!(self.read_all_encoded_data())
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
             let mut buf = vec![0; num_raw_bytes];
@@ -325,9 +332,8 @@ impl<R: Read + Seek> TGADecoder<R> {
         Ok(pixel_data)
     }
 
-    /// Reads a run length encoded packet
-    fn read_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
-        let num_bytes = self.width * self.height * self.bytes_per_pixel;
+    /// Reads a run length encoded data for given number of bytes
+    fn read_encoded_data(&mut self, num_bytes: usize) -> ImageResult<Vec<u8>> {    
         let mut pixel_data = Vec::with_capacity(num_bytes);
 
         while pixel_data.len() < num_bytes {
@@ -350,6 +356,39 @@ impl<R: Read + Seek> TGADecoder<R> {
                 try!(self.r.by_ref().take(num_raw_bytes as u64).read_to_end(&mut pixel_data));
             }
         }
+
+        Ok(pixel_data)
+    }
+
+    /// Reads a run length encoded packet
+    fn read_all_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
+        let num_bytes = self.width * self.height * self.bytes_per_pixel;
+        
+        self.read_encoded_data(num_bytes)
+    }
+
+    /// Reads a run length encoded line
+    fn read_encoded_line(&mut self) -> ImageResult<Vec<u8>> {
+        let line_num_bytes = self.width * self.bytes_per_pixel;
+        let remain_len = self.line_remain_buff.len();
+
+        if remain_len >= line_num_bytes {
+            let remain_buf = self.line_remain_buff.clone();
+            
+            self.line_remain_buff = remain_buf[line_num_bytes..].to_vec();
+            return Ok(remain_buf[0..line_num_bytes].to_vec());
+        }
+
+        let num_bytes = line_num_bytes - remain_len;
+        
+        let line_data = self.read_encoded_data(num_bytes)?;
+
+        let mut pixel_data = Vec::with_capacity(line_num_bytes);
+        pixel_data.append(&mut self.line_remain_buff);
+        pixel_data.extend_from_slice(&line_data[..num_bytes]);
+
+        // put the remain data to line_remain_buff
+        self.line_remain_buff = line_data[num_bytes..].to_vec();
 
         Ok(pixel_data)
     }
@@ -377,10 +416,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// If it's 0, the origin is in the bottom left corner.
     /// This function checks the bit, and if it's 0, flips the image vertically.
     fn flip_vertically(&mut self, pixels: &mut [u8]) {
-        let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
-
-
-        if !screen_origin_bit {
+        if self.is_flipped_vertically() {
             let num_bytes = pixels.len();
 
             let width_bytes = num_bytes / self.height;
@@ -397,6 +433,17 @@ impl<R: Read + Seek> TGADecoder<R> {
                 }
             }
         }
+    }
+
+    /// Check whether the image is vertically flipped 
+    /// 
+    /// The bit in position 5 of the image descriptor byte is the screen origin bit.
+    /// If it's 1, the origin is in the top left corner.
+    /// If it's 0, the origin is in the bottom left corner.
+    /// This function checks the bit, and if it's 0, flips the image vertically.    
+    fn is_flipped_vertically(&self) -> bool {
+        let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
+        !screen_origin_bit
     }
 }
 
@@ -416,11 +463,45 @@ impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
     fn row_len(&mut self) -> ImageResult<usize> {
         try!(self.read_metadata());
 
-        Ok(self.bytes_per_pixel * 8 * self.width)
+        Ok(self.bytes_per_pixel * self.width)
     }
 
-    fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
-        unimplemented!();
+    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+        try!(self.read_metadata());
+        
+        if let Some(line_read) = self.line_read {
+            if line_read == self.height {
+                return Err(ImageError::ImageEnd);
+            }
+        }
+
+        // read the pixels from the data region
+        let mut pixel_data = if self.image_type.is_encoded() {
+            try!(self.read_encoded_line())
+        } else {
+            let num_raw_bytes = self.width * self.bytes_per_pixel;
+            let mut buf = vec![0; num_raw_bytes];
+            try!(self.r.by_ref().read_exact(&mut buf));
+            buf
+        };
+
+        // expand the indices using the color map if necessary
+        if self.image_type.is_color_mapped() {
+            pixel_data = self.expand_color_map(&pixel_data)
+        }
+        self.reverse_encoding(&mut pixel_data);
+
+        // copy to the output buffer
+        buf[..pixel_data.len()].copy_from_slice(&pixel_data);
+
+        let mut row_index = self.line_read.unwrap_or(0);
+        self.line_read = Some(row_index + 1);
+        
+        if self.is_flipped_vertically() {
+            row_index = self.height - row_index - 1;
+        }
+
+        Ok(row_index as u32)
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {

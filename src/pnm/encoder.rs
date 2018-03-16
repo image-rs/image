@@ -13,6 +13,11 @@ enum HeaderStrategy {
     Chosen(PNMHeader),
 }
 
+pub enum FlatSamples<'a> {
+    U8(&'a [u8]),
+    U16(&'a [u16]),
+}
+
 /// Encodes images to any of the `pnm` image formats.
 pub struct PNMEncoder<'a> {
     writer: &'a mut Write,
@@ -21,7 +26,7 @@ pub struct PNMEncoder<'a> {
 
 // Encapsulate the checking system in the type system.
 struct CheckedImageBuffer<'a> {
-    image: &'a [u8],
+    image: FlatSamples<'a>,
     width: u32,
     #[allow(unused)] // Part of the checked property but not accessed
     height: u32,
@@ -121,7 +126,7 @@ impl<'a> PNMEncoder<'a> {
     ///
     /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
     /// certainly with any deviation from the original decoded image.
-    pub fn encode(&mut self, image: &[u8], width: u32, height: u32, color: ColorType)
+    pub fn encode(&mut self, image: FlatSamples, width: u32, height: u32, color: ColorType)
         -> io::Result<()>
     {
         match self.header {
@@ -137,7 +142,7 @@ impl<'a> PNMEncoder<'a> {
     /// Choose any valid pnm format that the image can be expressed in and write its header.
     ///
     /// Returns how the body should be written if successful.
-    fn write_dynamic_header(&mut self, image: &[u8], width: u32, height: u32, color: ColorType)
+    fn write_dynamic_header(&mut self, image: FlatSamples, width: u32, height: u32, color: ColorType)
         -> io::Result<()>
     {
         let depth = num_components(color) as u32;
@@ -171,7 +176,7 @@ impl<'a> PNMEncoder<'a> {
     fn write_subtyped_header(
         &mut self,
         subtype: PNMSubtype,
-        image: &[u8],
+        image: FlatSamples,
         width: u32,
         height: u32,
         color: ColorType)
@@ -224,7 +229,7 @@ impl<'a> PNMEncoder<'a> {
     fn write_with_header(
         writer: &mut Write,
         header: &PNMHeader,
-        image: &[u8],
+        image: FlatSamples,
         width: u32,
         height: u32,
         color: ColorType)
@@ -296,7 +301,7 @@ impl <'a> CheckedEncoding<'a> {
 }
 
 impl<'a> CheckedImageBuffer<'a> {
-    fn check(image: &'a [u8], width: u32, height: u32, color: ColorType)
+    fn check(image: &'a FlatSamples, width: u32, height: u32, color: ColorType)
         -> io::Result<CheckedImageBuffer<'a>>
     {
         let components = num_components(color);
@@ -409,7 +414,7 @@ impl<'a> CheckedDimensions<'a> {
 }
 
 impl<'a> CheckedHeaderColor<'a> {
-    fn check_sample_values(self, image: &'a [u8])
+    fn check_sample_values(self, image: FlatSamples)
         -> io::Result<CheckedHeader<'a>>
     {
         let header_maxval = match &self.dimensions.unchecked.header.decoded {

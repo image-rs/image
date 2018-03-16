@@ -494,11 +494,11 @@ impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
         // copy to the output buffer
         buf[..pixel_data.len()].copy_from_slice(&pixel_data);
 
-        let mut row_index = self.line_read.unwrap_or(0);
-        self.line_read = Some(row_index + 1);
+        let mut row_index = self.line_read.unwrap_or(0) + 1;
+        self.line_read = Some(row_index);
         
         if self.is_flipped_vertically() {
-            row_index = self.height - row_index - 1;
+            row_index = self.height - (row_index-1);
         }
 
         Ok(row_index as u32)

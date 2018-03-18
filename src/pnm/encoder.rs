@@ -1,5 +1,7 @@
 //! Encoding of PPM Images
 use std::io;
+use std::fmt;
+
 use std::io::Write;
 
 use color::{ColorType, num_components};
@@ -7,12 +9,15 @@ use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::AutoBreak;
 
+use super::byteorder::{BigEndian, WriteBytesExt};
+
 enum HeaderStrategy {
     Dynamic,
     Subtype(PNMSubtype),
     Chosen(PNMHeader),
 }
 
+#[derive(Clone, Copy)]
 pub enum FlatSamples<'a> {
     U8(&'a [u8]),
     U16(&'a [u16]),
@@ -54,15 +59,21 @@ struct CheckedHeader<'a> {
 
 // After writing a CheckedHeader we get a checked encoding.
 struct CheckedEncoding<'a> {
-    encoding: TupleEncoding,
+    encoding: TupleEncoding<'a>,
     image: CheckedImageBuffer<'a>,
 }
 
-enum TupleEncoding {
-    PbmBits,
-    U8 {
-        encoding: SampleEncoding,
+enum TupleEncoding<'a> {
+    PbmBits {
+        samples: FlatSamples<'a>,
+        width: u32,
     },
+    Ascii {
+        samples: FlatSamples<'a>,
+    },
+    Bytes {
+        samples: FlatSamples<'a>,
+    }
 }
 
 impl<'a> PNMEncoder<'a> {
@@ -249,59 +260,12 @@ impl<'a> PNMEncoder<'a> {
 
 impl <'a> CheckedEncoding<'a> {
     fn write_image(self, writer: &mut Write) -> io::Result<()> {
-        let CheckedEncoding {
-            encoding,
-            image: CheckedImageBuffer {
-                image,
-                width, ..
-            }, ..
-        } = self;
-
-        match encoding {
-            TupleEncoding::U8 { encoding: SampleEncoding::Binary }
-                => writer.write_all(image),
-            TupleEncoding::U8 { encoding: SampleEncoding::Ascii } => {
-                let mut auto_break_writer = AutoBreak::new(writer, 70);
-                for value in image.iter() {
-                    write!(auto_break_writer, "{} ", value)?;
-                }
-                auto_break_writer.flush()?;
-                Ok(())
-            },
-            TupleEncoding::PbmBits => {
-                /// These should have thrown errors previously.
-                assert!(image.len() > 0);
-                assert!(image.len() % (width as usize) == 0);
-
-                // The length of an encoded scanline
-                let line_width = (width - 1)/8 + 1;
-
-                // We'll be writing single bytes, so buffer
-                let mut line_buffer = Vec::with_capacity(line_width as usize);
-
-                for line in image.chunks(width as usize) {
-                    for byte_bits in line.chunks(8) {
-                        let mut byte = 0u8;
-                        for i in 0..8 {
-                            // Black pixels are encoded as 1s
-                            if let Some(&0u8) = byte_bits.get(i) {
-                                byte |= 1u8 << (7 - i)
-                            }
-                        }
-                        line_buffer.push(byte)
-                    }
-                    writer.write_all(line_buffer.as_slice())?;
-                    line_buffer.clear();
-                }
-
-                Ok(())
-            },
-        }
+        self.encoding.write(writer)
     }
 }
 
 impl<'a> CheckedImageBuffer<'a> {
-    fn check(image: &'a FlatSamples, width: u32, height: u32, color: ColorType)
+    fn check(image: FlatSamples<'a>, width: u32, height: u32, color: ColorType)
         -> io::Result<CheckedImageBuffer<'a>>
     {
         let components = num_components(color);
@@ -414,7 +378,7 @@ impl<'a> CheckedDimensions<'a> {
 }
 
 impl<'a> CheckedHeaderColor<'a> {
-    fn check_sample_values(self, image: FlatSamples)
+    fn check_sample_values(self, image: FlatSamples<'a>)
         -> io::Result<CheckedHeader<'a>>
     {
         let header_maxval = match &self.dimensions.unchecked.header.decoded {
@@ -442,25 +406,13 @@ impl<'a> CheckedHeaderColor<'a> {
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
-        if header_maxval < max_sample && image.iter().any(|&val| u32::from(val) > header_maxval) {
+        if header_maxval < max_sample && !image.all_smaller(header_maxval) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Sample value greater than allowed for chosen header"));
         }
 
-        let encoding = match &self.dimensions.unchecked.header.decoded {
-            &HeaderRecord::Bitmap(BitmapHeader {
-                    encoding: SampleEncoding::Binary, ..
-                }) => TupleEncoding::PbmBits,
-            &HeaderRecord::Bitmap(BitmapHeader {
-                    encoding: SampleEncoding::Ascii, ..
-                }) => TupleEncoding::U8 { encoding: SampleEncoding::Ascii },
-            &HeaderRecord::Graymap(GraymapHeader { encoding, .. })
-            | &HeaderRecord::Pixmap(PixmapHeader { encoding, .. })
-                => TupleEncoding::U8 { encoding },
-            &HeaderRecord::Arbitrary(_)
-                => TupleEncoding::U8 { encoding: SampleEncoding::Binary },
-        };
+        let encoding = image.encoding_for(&self.dimensions.unchecked.header.decoded);
 
         let image = CheckedImageBuffer::check(image, self.dimensions.width,
             self.dimensions.height, self.color)?;
@@ -483,5 +435,110 @@ impl<'a> CheckedHeader<'a> {
 
     fn header(&self) -> &PNMHeader {
         self.color.dimensions.unchecked.header
+    }
+}
+
+struct SampleWriter<'a>(&'a mut Write);
+
+impl<'a> SampleWriter<'a> {
+    fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
+    where V: Iterator, V::Item: fmt::Display {
+        let mut auto_break_writer = AutoBreak::new(self.0, 70);
+        for value in samples {
+            write!(auto_break_writer, "{} ", value)?;
+        }
+        auto_break_writer.flush()
+    }
+
+    fn write_pbm_bits<V>(self, samples: &[V], width: u32) -> io::Result<()>
+    /* Default gives 0 for all primitives. TODO: replace this with `Zeroable` once it hits stable */
+    where V: Default + Eq + Copy {
+        // The length of an encoded scanline
+        let line_width = (width - 1)/8 + 1;
+
+        // We'll be writing single bytes, so buffer
+        let mut line_buffer = Vec::with_capacity(line_width as usize);
+
+        for line in samples.chunks(width as usize) {
+            for byte_bits in line.chunks(8) {
+                let mut byte = 0u8;
+                for i in 0..8 {
+                    // Black pixels are encoded as 1s
+                    if let Some(&v) = byte_bits.get(i) {
+                        if v == V::default() {
+                            byte |= 1u8 << (7 - i)
+                        }
+                    }
+                }
+                line_buffer.push(byte)
+            }
+            self.0.write_all(line_buffer.as_slice())?;
+            line_buffer.clear();
+        }
+
+        self.0.flush()
+    }
+}
+
+impl<'a> FlatSamples<'a> {
+    fn len(&self) -> usize {
+        match *self {
+            FlatSamples::U8(arr) => arr.len(),
+            FlatSamples::U16(arr) => arr.len(),
+        }
+    }
+
+    fn all_smaller(&self, max_val: u32) -> bool {
+        match *self {
+            FlatSamples::U8(arr) => arr.iter().any(|&val| u32::from(val) > max_val),
+            FlatSamples::U16(arr) => arr.iter().any(|&val| u32::from(val) > max_val),
+        }
+    }
+
+    fn encoding_for(&self, header: &HeaderRecord) -> TupleEncoding<'a> {
+        match *header {
+            HeaderRecord::Bitmap(BitmapHeader {
+                    encoding: SampleEncoding::Binary,
+                    width, ..
+                }) => TupleEncoding::PbmBits { samples: *self, width },
+
+            HeaderRecord::Bitmap(BitmapHeader {
+                    encoding: SampleEncoding::Ascii, ..
+                }) => TupleEncoding::Ascii { samples: *self },
+
+            HeaderRecord::Arbitrary(_)
+                => TupleEncoding::Bytes { samples: *self },
+
+            HeaderRecord::Graymap(GraymapHeader { encoding: SampleEncoding::Ascii, .. })
+            | HeaderRecord::Pixmap(PixmapHeader { encoding: SampleEncoding::Ascii, .. })
+                => TupleEncoding::Ascii { samples: *self },
+
+            HeaderRecord::Graymap(GraymapHeader { encoding: SampleEncoding::Binary, .. })
+            | HeaderRecord::Pixmap(PixmapHeader { encoding: SampleEncoding::Binary, .. })
+                => TupleEncoding::Bytes { samples: *self },
+        }
+    }
+}
+
+impl<'a> TupleEncoding<'a> {
+    fn write(&self, writer: &mut Write) -> io::Result<()> {
+        match *self {
+            TupleEncoding::PbmBits { samples: FlatSamples::U8(samples), width }
+                => SampleWriter(writer).write_pbm_bits(samples, width),
+            TupleEncoding::PbmBits { samples: FlatSamples::U16(samples), width }
+                => SampleWriter(writer).write_pbm_bits(samples, width),
+
+            TupleEncoding::Bytes { samples: FlatSamples::U8(samples) }
+                => writer.write_all(samples),
+            TupleEncoding::Bytes { samples: FlatSamples::U16(samples) }
+                => samples.iter()
+                    .map(|&sample| writer.write_u16::<BigEndian>(sample))
+                    .collect(),
+
+            TupleEncoding::Ascii { samples: FlatSamples::U8(samples) }
+                => SampleWriter(writer).write_samples_ascii(samples.iter()),
+            TupleEncoding::Ascii { samples: FlatSamples::U16(samples) }
+                => SampleWriter(writer).write_samples_ascii(samples.iter()),
+        }
     }
 }

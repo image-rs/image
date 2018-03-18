@@ -134,9 +134,10 @@ impl<'a> PNMEncoder<'a> {
     ///
     /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
     /// certainly with any deviation from the original decoded image.
-    pub fn encode(&mut self, image: FlatSamples, width: u32, height: u32, color: ColorType)
-        -> io::Result<()>
+    pub fn encode<'s, S>(&mut self, image: S, width: u32, height: u32, color: ColorType) -> io::Result<()>
+    where S: Into<FlatSamples<'s>>, 's: 'a
     {
+        let image = image.into();
         match self.header {
             HeaderStrategy::Dynamic
                 => self.write_dynamic_header(image, width, height, color),
@@ -157,10 +158,10 @@ impl<'a> PNMEncoder<'a> {
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) =>          (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::GrayA(1) =>         (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(n @ 1...8) =>  ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(n @ 1...8) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1...8) =>   ((1 << n) - 1, ArbitraryTuplType::RGB),
-            ColorType::RGBA(n @ 1...8) =>  ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
+            ColorType::Gray(n @ 1...16) =>  ((1 << n) - 1, ArbitraryTuplType::Grayscale),
+            ColorType::GrayA(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::RGB(n @ 1...16) =>   ((1 << n) - 1, ArbitraryTuplType::RGB),
+            ColorType::RGBA(n @ 1...16) =>  ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
             _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     &format!("Encoding colour type {:?} is not supported", color)[..]))
@@ -384,10 +385,10 @@ impl<'a> CheckedHeaderColor<'a> {
             // Protects against overflows from shifting and gives a better error.
             ColorType::Gray(n) | ColorType::GrayA(n)
             | ColorType::Palette(n)
-            | ColorType::RGB(n) | ColorType::RGBA(n) if n > 8
+            | ColorType::RGB(n) | ColorType::RGBA(n) if n > 16
                 => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "Encoding colors with a bit depth greater 8 not supported")),
+                    "Encoding colors with a bit depth greater 16 not supported")),
             ColorType::Gray(n)
             | ColorType::GrayA(n)
             | ColorType::Palette(n)
@@ -506,6 +507,18 @@ impl<'a> FlatSamples<'a> {
             | HeaderRecord::Pixmap(PixmapHeader { encoding: SampleEncoding::Binary, .. })
                 => TupleEncoding::Bytes { samples: *self },
         }
+    }
+}
+
+impl<'a> From<&'a[u8]> for FlatSamples<'a> {
+    fn from(samples: &'a[u8]) -> Self {
+        FlatSamples::U8(samples)
+    }
+}
+
+impl<'a> From<&'a[u16]> for FlatSamples<'a> {
+    fn from(samples: &'a[u16]) -> Self {
+        FlatSamples::U16(samples)
     }
 }
 

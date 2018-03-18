@@ -29,38 +29,35 @@ pub struct PNMEncoder<'a> {
     header: HeaderStrategy,
 }
 
-// Encapsulate the checking system in the type system.
+/// Encapsulate the checking system in the type system. Non of the fields are actually accessed
+/// but requiring them forces us to validly construct the struct anyways.
 struct CheckedImageBuffer<'a> {
-    image: FlatSamples<'a>,
-    width: u32,
-    #[allow(unused)] // Part of the checked property but not accessed
-    height: u32,
-    #[allow(unused)] // Part of the checked property but not accessed
-    color: ColorType,
+    _image: FlatSamples<'a>,
+    _width: u32,
+    _height: u32,
+    _color: ColorType,
 }
 
 // Check the header against the buffer. Each struct produces the next after a check.
 struct UncheckedHeader<'a> {
     header: &'a PNMHeader,
 }
+
 struct CheckedDimensions<'a> {
     unchecked: UncheckedHeader<'a>,
     width: u32,
     height: u32,
 }
+
 struct CheckedHeaderColor<'a> {
     dimensions: CheckedDimensions<'a>,
     color: ColorType
 }
+
 struct CheckedHeader<'a> {
     color: CheckedHeaderColor<'a>,
-    encoding: CheckedEncoding<'a>,
-}
-
-// After writing a CheckedHeader we get a checked encoding.
-struct CheckedEncoding<'a> {
     encoding: TupleEncoding<'a>,
-    image: CheckedImageBuffer<'a>,
+    _image: CheckedImageBuffer<'a>,
 }
 
 enum TupleEncoding<'a> {
@@ -258,12 +255,6 @@ impl<'a> PNMEncoder<'a> {
     }
 }
 
-impl <'a> CheckedEncoding<'a> {
-    fn write_image(self, writer: &mut Write) -> io::Result<()> {
-        self.encoding.write(writer)
-    }
-}
-
 impl<'a> CheckedImageBuffer<'a> {
     fn check(image: FlatSamples<'a>, width: u32, height: u32, color: ColorType)
         -> io::Result<CheckedImageBuffer<'a>>
@@ -280,10 +271,10 @@ impl<'a> CheckedImageBuffer<'a> {
                     width, height, components)[..])),
             Some(v) if v == image.len()
                 => Ok(CheckedImageBuffer {
-                    image,
-                    width,
-                    height,
-                    color,
+                    _image: image,
+                    _width: width,
+                    _height: height,
+                    _color: color,
                 }),
             Some(_)
                 => Err(io::Error::new(
@@ -419,16 +410,14 @@ impl<'a> CheckedHeaderColor<'a> {
 
         Ok(CheckedHeader {
             color: self,
-            encoding: CheckedEncoding {
-                encoding,
-                image,
-            },
+            encoding,
+            _image: image,
         })
     }
 }
 
 impl<'a> CheckedHeader<'a> {
-    fn write_header(self, writer: &mut Write) -> io::Result<CheckedEncoding<'a>> {
+    fn write_header(self, writer: &mut Write) -> io::Result<TupleEncoding<'a>> {
         self.header().write(writer)?;
         Ok(self.encoding)
     }
@@ -521,7 +510,7 @@ impl<'a> FlatSamples<'a> {
 }
 
 impl<'a> TupleEncoding<'a> {
-    fn write(&self, writer: &mut Write) -> io::Result<()> {
+    fn write_image(&self, writer: &mut Write) -> io::Result<()> {
         match *self {
             TupleEncoding::PbmBits { samples: FlatSamples::U8(samples), width }
                 => SampleWriter(writer).write_pbm_bits(samples, width),

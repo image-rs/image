@@ -134,6 +134,8 @@ pub mod tga;
 pub mod bmp;
 #[cfg(feature = "hdr")]
 pub mod hdr;
+#[cfg(feature = "dxt")]
+pub mod dxt;
 
 mod image;
 mod utils;

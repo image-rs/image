@@ -9,8 +9,6 @@ use num_iter;
 
 #[cfg(feature = "pnm")]
 use pnm;
-#[cfg(feature = "ppm")]
-use ppm;
 #[cfg(feature = "gif_codec")]
 use gif;
 #[cfg(feature = "webp")]
@@ -410,11 +408,11 @@ impl DynamicImage {
                 try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
-            #[cfg(feature = "ppm")]
-            image::ImageFormat::PPM  => {
-                let mut p = ppm::PPMEncoder::new(w);
+            #[cfg(feature = "pnm")]
+            image::ImageFormat::PNM  => {
+                let mut p = pnm::PNMEncoder::new(w);
 
-                try!(p.encode(&bytes, width, height, color));
+                try!(p.encode(&bytes[..], width, height, color));
                 Ok(())
             }
 
@@ -608,11 +606,8 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "hdr" => image::ImageFormat::HDR,
         "pbm" |
         "pam" |
+        "ppm" |
         "pgm" => image::ImageFormat::PNM,
-        "ppm" => {
-            #[allow(deprecated)]
-            image::ImageFormat::PPM
-        }
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -650,7 +645,20 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
         #[cfg(feature = "png_codec")]
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
-        "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
+        "pbm"  => pnm::PNMEncoder::new(fout)
+            .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
+            .encode(buf, width, height, color),
+        #[cfg(feature = "ppm")]
+        "pgm"  => pnm::PNMEncoder::new(fout)
+            .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
+            .encode(buf, width, height, color),
+        #[cfg(feature = "ppm")]
+        "ppm"  => pnm::PNMEncoder::new(fout)
+            .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
+            .encode(buf, width, height, color),
+        #[cfg(feature = "ppm")]
+        "pam"  => pnm::PNMEncoder::new(fout)
+            .encode(buf, width, height, color),
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::Error::new(
@@ -682,8 +690,6 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
         #[cfg(feature = "hdr")]
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
-        #[cfg(feature = "ppm")]
-        image::ImageFormat::PPM => decoder_to_image(try!(ppm::PPMDecoder::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
         _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
@@ -706,9 +712,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"P3", ImageFormat::PNM),
     (b"P4", ImageFormat::PNM),
     (b"P5", ImageFormat::PNM),
-    (b"P6",
-     #[allow(deprecated)]
-     ImageFormat::PPM),
+    (b"P6", ImageFormat::PNM),
     (b"P7", ImageFormat::PNM),
 ];
 

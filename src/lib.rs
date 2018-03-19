@@ -63,10 +63,9 @@ pub use image::ImageFormat::{
     GIF,
     WEBP,
     BMP,
-    ICO
+    ICO,
+    PNM,
 };
-#[allow(deprecated)]
-pub use image::ImageFormat::PPM;
 
 pub use buffer::{
     Pixel,
@@ -116,8 +115,6 @@ pub mod imageops;
 pub mod webp;
 #[cfg(feature = "pnm")]
 pub mod pnm;
-#[cfg(feature = "ppm")]
-pub mod ppm;
 #[cfg(feature = "png_codec")]
 pub mod png;
 #[cfg(feature = "ico")]

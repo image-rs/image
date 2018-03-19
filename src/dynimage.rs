@@ -411,8 +411,8 @@ impl DynamicImage {
                 Ok(())
             }
             #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::PNM  => {
-                let mut p = pnm::PNMEncoder::new(w);
+            image::ImageOutputFormat::PNM(subtype)  => {
+                let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
 
                 try!(p.encode(&bytes[..], width, height, color));
                 Ok(())

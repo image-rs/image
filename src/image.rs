@@ -10,6 +10,8 @@ use buffer::{ImageBuffer, Pixel};
 use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
+use pnm::PNMSubtype;
+
 /// An enumeration of Image errors
 #[derive(Debug)]
 pub enum ImageError {
@@ -150,7 +152,7 @@ pub enum ImageOutputFormat {
 
     #[cfg(feature = "pnm")]
     /// An Image in one of the PNM Formats
-    PNM,
+    PNM(PNMSubtype),
 
     #[cfg(feature = "gif_codec")]
     /// An Image in GIF Format
@@ -178,7 +180,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "jpeg")]
             ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
             #[cfg(feature = "ppm")]
-            ImageFormat::PNM => ImageOutputFormat::PNM,
+            ImageFormat::PNM => ImageOutputFormat::PNM(PNMSubtype::ArbitraryMap),
             #[cfg(feature = "gif_codec")]
             ImageFormat::GIF => ImageOutputFormat::GIF,
             #[cfg(feature = "ico")]

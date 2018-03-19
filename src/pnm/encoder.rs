@@ -9,7 +9,7 @@ use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::AutoBreak;
 
-use super::byteorder::{BigEndian, WriteBytesExt};
+use byteorder::{BigEndian, WriteBytesExt};
 
 enum HeaderStrategy {
     Dynamic,

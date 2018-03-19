@@ -7,7 +7,7 @@ use image::{DecodingResult, ImageDecoder, ImageResult, ImageError};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 
-use super::byteorder::{BigEndian, ByteOrder};
+use byteorder::{BigEndian, ByteOrder};
 
 /// Dynamic representation, represents all decodable (sample, depth) combinations.
 #[derive(Clone, Copy)]

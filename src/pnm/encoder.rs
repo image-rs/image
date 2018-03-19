@@ -24,8 +24,8 @@ pub enum FlatSamples<'a> {
 }
 
 /// Encodes images to any of the `pnm` image formats.
-pub struct PNMEncoder<'a> {
-    writer: &'a mut Write,
+pub struct PNMEncoder<W: Write> {
+    writer: W,
     header: HeaderStrategy,
 }
 
@@ -73,13 +73,13 @@ enum TupleEncoding<'a> {
     }
 }
 
-impl<'a> PNMEncoder<'a> {
+impl<W: Write> PNMEncoder<W> {
     /// Create new PNMEncoder from the `writer`.
     ///
     /// The encoded images will have some `pnm` format. If more control over the image type is
     /// required, use either one of `with_subtype` or `with_header`. For more information on the
     /// behaviour, see `with_dynamic_header`.
-    pub fn new(writer: &'a mut Write) -> Self {
+    pub fn new(writer: W) -> Self {
         PNMEncoder {
             writer,
             header: HeaderStrategy::Dynamic,
@@ -135,7 +135,7 @@ impl<'a> PNMEncoder<'a> {
     /// Some `pnm` subtypes are incompatible with some color options, a chosen header most
     /// certainly with any deviation from the original decoded image.
     pub fn encode<'s, S>(&mut self, image: S, width: u32, height: u32, color: ColorType) -> io::Result<()>
-    where S: Into<FlatSamples<'s>>, 's: 'a
+    where S: Into<FlatSamples<'s>>
     {
         let image = image.into();
         match self.header {

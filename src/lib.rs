@@ -68,6 +68,8 @@ pub use image::ImageFormat::{
 #[allow(deprecated)]
 pub use image::ImageFormat::PPM;
 
+pub use image::ImageOutputFormat;
+
 pub use buffer::{
     Pixel,
     ConvertBuffer,

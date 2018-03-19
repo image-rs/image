@@ -35,6 +35,7 @@ use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbIm
 use imageops;
 use image;
 use image:: {
+    CompressedImageFormat,
     GenericImage,
     ImageDecoder,
     ImageResult,
@@ -456,6 +457,23 @@ impl DynamicImage {
             _ => Err(image::ImageError::UnsupportedError(
                      format!("An encoder for {:?} is not available.", format))
                  ),
+        }
+    }
+
+    /// Encode/compress this image and write it to ```w```
+    pub fn save_compressed<W: Write>(&self, w: &mut W, format: CompressedImageFormat) -> ImageResult<()> {
+        let bytes = self.raw_pixels();
+        let (width, height) = self.dimensions();
+        let color = self.color();
+
+        match format {
+            #[cfg(feature = "jpeg")]
+            CompressedImageFormat::JPEG(quality) => {
+                let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+
+                try!(j.encode(&bytes, width, height, color));
+                Ok(())
+            }
         }
     }
 }

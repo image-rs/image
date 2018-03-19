@@ -36,6 +36,7 @@ pub use color::{
 };
 
 pub use image::{
+    CompressedImageFormat,
     ImageDecoder,
     ImageError,
     ImageResult,

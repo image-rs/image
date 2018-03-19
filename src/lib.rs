@@ -67,6 +67,8 @@ pub use image::ImageFormat::{
     PNM,
 };
 
+pub use image::ImageOutputFormat;
+
 pub use buffer::{
     Pixel,
     ConvertBuffer,
@@ -131,6 +133,8 @@ pub mod tga;
 pub mod bmp;
 #[cfg(feature = "hdr")]
 pub mod hdr;
+#[cfg(feature = "dxt")]
+pub mod dxt;
 
 mod image;
 mod utils;

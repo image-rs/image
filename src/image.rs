@@ -137,6 +137,60 @@ pub enum ImageFormat {
     HDR,
 }
 
+/// An enumeration of supported image formats for encoding.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ImageOutputFormat {
+    #[cfg(feature = "png_codec")]
+    /// An Image in PNG Format
+    PNG,
+
+    #[cfg(feature = "jpeg")]
+    /// An Image in JPEG Format with specified quality
+    JPEG(u8),
+
+    #[cfg(feature = "pnm")]
+    /// An Image in one of the PNM Formats
+    PNM,
+
+    #[cfg(feature = "gif_codec")]
+    /// An Image in GIF Format
+    GIF,
+
+    #[cfg(feature = "ico")]
+    /// An Image in ICO Format
+    ICO,
+
+    #[cfg(feature = "bmp")]
+    /// An Image in BMP Format
+    BMP,
+
+    /// A value for signalling an error: An unsupported format was requested
+    // Note: When TryFrom is stabilized, this value should not be needed, and
+    // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
+    Unsupported(String),
+}
+
+impl From<ImageFormat> for ImageOutputFormat {
+    fn from(fmt: ImageFormat) -> Self {
+        match fmt {
+            #[cfg(feature = "png_codec")]
+            ImageFormat::PNG => ImageOutputFormat::PNG,
+            #[cfg(feature = "jpeg")]
+            ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
+            #[cfg(feature = "ppm")]
+            ImageFormat::PNM => ImageOutputFormat::PNM,
+            #[cfg(feature = "gif_codec")]
+            ImageFormat::GIF => ImageOutputFormat::GIF,
+            #[cfg(feature = "ico")]
+            ImageFormat::ICO => ImageOutputFormat::ICO,
+            #[cfg(feature = "bmp")]
+            ImageFormat::BMP => ImageOutputFormat::BMP,
+
+            f => ImageOutputFormat::Unsupported(format!("Image format {:?} not supported for encoding.", f)),
+        }
+    }
+}
+
 /// The trait that all decoders implement
 pub trait ImageDecoder: Sized {
     /// Returns a tuple containing the width and height of the image

@@ -37,6 +37,7 @@ use image:: {
     ImageDecoder,
     ImageResult,
     ImageFormat,
+    ImageOutputFormat,
 };
 
 use image::DecodingResult::{U8};
@@ -394,38 +395,38 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Write>(&self, w: &mut W, format: ImageFormat) -> ImageResult<()> {
+    pub fn save<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
+        let format = format.into();
 
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
-            image::ImageFormat::PNG  => {
+            image::ImageOutputFormat::PNG  => {
                 let p = png::PNGEncoder::new(w);
 
                 try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
             #[cfg(feature = "pnm")]
-            image::ImageFormat::PNM  => {
+            image::ImageOutputFormat::PNM  => {
                 let mut p = pnm::PNMEncoder::new(w);
 
                 try!(p.encode(&bytes[..], width, height, color));
                 Ok(())
             }
-
             #[cfg(feature = "jpeg")]
-            image::ImageFormat::JPEG => {
-                let mut j = jpeg::JPEGEncoder::new(w);
+            image::ImageOutputFormat::JPEG(quality) => {
+                let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
 
                 try!(j.encode(&bytes, width, height, color));
                 Ok(())
             }
 
             #[cfg(feature = "gif_codec")]
-            image::ImageFormat::GIF => {
+            image::ImageOutputFormat::GIF => {
                 let g = gif::Encoder::new(w);
 
                 try!(g.encode(gif::Frame::from_rgba(
@@ -437,7 +438,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "ico")]
-            image::ImageFormat::ICO => {
+            image::ImageOutputFormat::ICO => {
                 let i = ico::ICOEncoder::new(w);
 
                 try!(i.encode(&bytes, width, height, color));
@@ -445,15 +446,13 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "bmp")]
-            image::ImageFormat::BMP => {
+            image::ImageOutputFormat::BMP => {
                 let mut b = bmp::BMPEncoder::new(w);
                 try!(b.encode(&bytes, width, height, color));
                 Ok(())
             }
 
-            _ => Err(image::ImageError::UnsupportedError(
-                     format!("An encoder for {:?} is not available.", format))
-                 ),
+            image::ImageOutputFormat::Unsupported(msg) => Err(image::ImageError::UnsupportedError(msg)),
         }
     }
 }

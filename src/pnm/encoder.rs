@@ -1,4 +1,4 @@
-//! Encoding of PPM Images
+//! Encoding of PNM Images
 use std::io;
 use std::fmt;
 

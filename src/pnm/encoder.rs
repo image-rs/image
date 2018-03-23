@@ -356,6 +356,9 @@ impl<'a> CheckedDimensions<'a> {
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
+                _ if depth != components => return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Depth mismatch: header {} vs. color {}", depth, components))),
                 _ => return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Invalid color type for selected PAM color type")),
@@ -542,5 +545,33 @@ impl<'a> TupleEncoding<'a> {
             TupleEncoding::Ascii { samples: FlatSamples::U16(samples) }
                 => SampleWriter(writer).write_samples_ascii(samples.iter()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_header_and_color() {
+        let data: [u8; 12] = [
+            0, 0, 0, 1, 1, 1,
+            255, 255, 255, 0, 0, 0,
+        ];
+
+        let header = ArbitraryHeader {
+            width: 2,
+            height: 2,
+            depth: 3,
+            maxval: 255,
+            tupltype: Some(ArbitraryTuplType::Custom("Palette".to_string()))
+        };
+
+        let mut output = Vec::new();
+
+        PNMEncoder::new(&mut output)
+            .with_header(header.into())
+            .encode(&data[..], 2, 2, ColorType::Palette(8))
+            .expect("Failed encoding custom color value");
     }
 }

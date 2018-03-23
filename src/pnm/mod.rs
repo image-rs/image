@@ -122,7 +122,8 @@ mod tests {
             255, 255, 255,
         ];
         execute_roundtrip_default(&buf, 3, 3, ColorType::RGB(8));
-        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8), PNMSubtype::ArbitraryMap);
+        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8),
+            PNMSubtype::ArbitraryMap);
         execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8),
             PNMSubtype::Pixmap(SampleEncoding::Binary));
         execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8),

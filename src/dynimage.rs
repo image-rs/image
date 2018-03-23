@@ -643,19 +643,19 @@ fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: col
         "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "png_codec")]
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "ppm")]
+        #[cfg(feature = "pnm")]
         "pbm"  => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
-        #[cfg(feature = "ppm")]
+        #[cfg(feature = "pnm")]
         "pgm"  => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
-        #[cfg(feature = "ppm")]
+        #[cfg(feature = "pnm")]
         "ppm"  => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
-        #[cfg(feature = "ppm")]
+        #[cfg(feature = "pnm")]
         "pam"  => pnm::PNMEncoder::new(fout)
             .encode(buf, width, height, color),
         #[cfg(feature = "bmp")]

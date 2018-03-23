@@ -179,7 +179,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::PNG => ImageOutputFormat::PNG,
             #[cfg(feature = "jpeg")]
             ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
-            #[cfg(feature = "ppm")]
+            #[cfg(feature = "pnm")]
             ImageFormat::PNM => ImageOutputFormat::PNM(PNMSubtype::ArbitraryMap),
             #[cfg(feature = "gif_codec")]
             ImageFormat::GIF => ImageOutputFormat::GIF,

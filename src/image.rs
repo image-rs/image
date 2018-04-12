@@ -10,6 +10,7 @@ use buffer::{ImageBuffer, Pixel};
 use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
+#[cfg(feature = "pnm")]
 use pnm::PNMSubtype;
 
 /// An enumeration of Image errors

@@ -8,6 +8,7 @@ authors = [
     "bvssvni <bvssvni@gmail.com>",
     "nwin",
     "TyOverby <ty@pre-alpha.com>",
+    "HeroicKatora",
     "Calum"]
 readme = "README.md"
 documentation = "https://docs.rs/image"

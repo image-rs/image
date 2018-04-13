@@ -7,7 +7,8 @@ authors = [
     "ccgn",
     "bvssvni <bvssvni@gmail.com>",
     "nwin",
-    "TyOverby <ty@pre-alpha.com>"]
+    "TyOverby <ty@pre-alpha.com>",
+    "HeroicKatora"]
 readme = "README.md"
 documentation = "https://docs.rs/image"
 repository = "https://github.com/PistonDevelopers/image.git"

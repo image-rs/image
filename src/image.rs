@@ -433,8 +433,7 @@ pub trait GenericImage: Sized {
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    ///
-    /// DEPRECATED: This cannot be implemented safely in Rust. Please use the image buffer directly.
+    #[deprecated(note="This cannot be implemented safely in Rust. Please use the image buffer directly.")]
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 

@@ -27,8 +27,7 @@ use self::stream::{
 mod ifd;
 mod stream;
 
-enum_from_primitive! {
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, FromPrimitive)]
 enum PhotometricInterpretation {
     WhiteIsZero = 0,
     BlackIsZero = 1,
@@ -39,10 +38,8 @@ enum PhotometricInterpretation {
     YCbCr = 6,
     CIELab = 8,
 }
-}
 
-enum_from_primitive! {
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum CompressionMethod {
     None = 1,
     Huffman = 2,
@@ -52,22 +49,17 @@ enum CompressionMethod {
     JPEG = 6,
     PackBits = 0x8005
 }
-}
 
-enum_from_primitive! {
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum PlanarConfiguration {
     Chunky = 1,
     Planar = 2
 }
-}
 
-enum_from_primitive! {
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromPrimitive)]
 enum Predictor {
     None = 1,
     Horizontal = 2
-}
 }
 
 /// The representation of a TIFF decoder

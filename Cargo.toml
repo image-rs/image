@@ -7,7 +7,9 @@ authors = [
     "ccgn",
     "bvssvni <bvssvni@gmail.com>",
     "nwin",
-    "TyOverby <ty@pre-alpha.com>"]
+    "TyOverby <ty@pre-alpha.com>",
+    "HeroicKatora",
+    "Calum"]
 readme = "README.md"
 documentation = "https://docs.rs/image"
 repository = "https://github.com/PistonDevelopers/image.git"
@@ -25,10 +27,10 @@ path = "./src/lib.rs"
 
 [dependencies]
 byteorder = "1.2.1"
+num-derive = "0.2.0"
 num-iter = "0.1.32"
 num-rational = { version = "0.1.32", default-features = false }
-num-traits = "0.1.32"
-enum_primitive = "0.1.0"
+num-traits = "0.2.0"
 lzw = "0.10.0"
 
 [dependencies.gif]
@@ -53,14 +55,13 @@ num-complex = "0.1.32"
 glob = "0.2.10"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "ppm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]
 jpeg = ["jpeg-decoder"]
 png_codec = ["png"]
 pnm = []
-ppm = ["pnm"]
 tga = []
 tiff = []
 webp = []

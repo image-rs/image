@@ -13,7 +13,7 @@ extern crate num_rational;
 extern crate num_traits;
 extern crate lzw;
 #[macro_use]
-extern crate enum_primitive;
+extern crate num_derive;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 
@@ -63,10 +63,9 @@ pub use image::ImageFormat::{
     GIF,
     WEBP,
     BMP,
-    ICO
+    ICO,
+    PNM,
 };
-#[allow(deprecated)]
-pub use image::ImageFormat::PPM;
 
 pub use image::ImageOutputFormat;
 
@@ -118,8 +117,6 @@ pub mod imageops;
 pub mod webp;
 #[cfg(feature = "pnm")]
 pub mod pnm;
-#[cfg(feature = "ppm")]
-pub mod ppm;
 #[cfg(feature = "png_codec")]
 pub mod png;
 #[cfg(feature = "ico")]

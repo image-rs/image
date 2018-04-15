@@ -10,6 +10,8 @@ use buffer::{ImageBuffer, Pixel};
 use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
 
+use pnm::PNMSubtype;
+
 /// An enumeration of Image errors
 #[derive(Debug)]
 pub enum ImageError {
@@ -118,10 +120,6 @@ pub enum ImageFormat {
     /// An Image in WEBP Format
     WEBP,
 
-    /// An Image in PPM Format
-    #[deprecated(since="0.17.0", note="Use the more general `PNM`")]
-    PPM,
-
     /// An Image in general PNM Format
     PNM,
 
@@ -152,10 +150,9 @@ pub enum ImageOutputFormat {
     /// An Image in JPEG Format with specified quality
     JPEG(u8),
 
-    #[cfg(feature = "ppm")]
-    /// An Image in PPM Format
-    #[deprecated(since="0.17.0", note="Use the more general `PNM`")]
-    PPM,
+    #[cfg(feature = "pnm")]
+    /// An Image in one of the PNM Formats
+    PNM(PNMSubtype),
 
     #[cfg(feature = "gif_codec")]
     /// An Image in GIF Format
@@ -182,8 +179,8 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::PNG => ImageOutputFormat::PNG,
             #[cfg(feature = "jpeg")]
             ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
-            #[cfg(feature = "ppm")]
-            ImageFormat::PPM => ImageOutputFormat::PPM,
+            #[cfg(feature = "pnm")]
+            ImageFormat::PNM => ImageOutputFormat::PNM(PNMSubtype::ArbitraryMap),
             #[cfg(feature = "gif_codec")]
             ImageFormat::GIF => ImageOutputFormat::GIF,
             #[cfg(feature = "ico")]
@@ -223,7 +220,8 @@ pub trait ImageDecoder: Sized {
     /// Returns the frames of the image
     ///
     /// If the image is not animated it returns a single frame
-    fn into_frames(self) -> ImageResult<Frames> {
+    #[allow(unused)]
+    fn into_frames(mut self) -> ImageResult<Frames> {
         Ok(Frames::new(vec![
             Frame::new(try!(decoder_to_image(self)).to_rgba())
         ]))
@@ -435,8 +433,7 @@ pub trait GenericImage: Sized {
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    ///
-    /// DEPRECATED: This cannot be implemented safely in Rust. Please use the image buffer directly.
+    #[deprecated(note="This cannot be implemented safely in Rust. Please use the image buffer directly.")]
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 

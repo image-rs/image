@@ -38,8 +38,8 @@ name = "fuzzer_script_webp"
 path = "fuzzers/fuzzer_script_webp.rs"
 
 [[bin]]
-name = "fuzzer_script_ppm"
-path = "fuzzers/fuzzer_script_ppm.rs"
+name = "fuzzer_script_pnm"
+path = "fuzzers/fuzzer_script_pnm.rs"
 
 [[bin]]
 name = "fuzzer_script_tiff"

@@ -159,7 +159,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
             *v = f(*v)
         }
         if $alphas as usize != 0 {
-            let v = &mut self.data[$channels as usize-$alphas as usize-1];
+            let v = &mut self.data[$channels as usize-$alphas as usize];
             *v = g(*v)
         }
     }
@@ -486,5 +486,47 @@ impl<T: Primitive> Invert for Rgb<T> {
         let b1 = max - rgb[2];
 
         *self = Rgb([r1, g1, b1])
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{Pixel, Rgb, Rgba};
+
+    #[test]
+    fn test_apply_with_apha_rgba() {
+        let mut rgba = Rgba { data: [0, 0, 0, 0] };
+        rgba.apply_with_alpha(|s| s, |_| 0xFF);
+        assert_eq!(
+            rgba,
+            Rgba {
+                data: [0, 0, 0, 0xFF]
+            }
+        );
+    }
+
+    #[test]
+    fn test_apply_with_apha_rgb() {
+        let mut rgb = Rgb { data: [0, 0, 0] };
+        rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(rgb, Rgb { data: [0, 0, 0] });
+    }
+
+    #[test]
+    fn test_map_with_apha_rgba() {
+        let rgba = Rgba { data: [0, 0, 0, 0] }.map_with_alpha(|s| s, |_| 0xFF);
+        assert_eq!(
+            rgba,
+            Rgba {
+                data: [0, 0, 0, 0xFF]
+            }
+        );
+    }
+
+    #[test]
+    fn test_map_with_apha_rgb() {
+        let rgb = Rgb { data: [0, 0, 0] }.map_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(rgb, Rgb { data: [0, 0, 0] });
     }
 }

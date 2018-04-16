@@ -725,6 +725,13 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
     )
 }
 
+/// Calculates the width and height an image should be resized to.
+/// This preserves aspect ratio, and based on the `fill` parameter
+/// will either fill the dimensions to fit inside the smaller constraint
+/// (will overflow the specified bounds on one axis to preserve
+/// aspect ratio), or will shrink so that both dimensions are
+/// completely contained with in the given `width` and `height`,
+/// with empty space on one axis.
 fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
     let ratio  = width as u64 * nheight as u64;
     let nratio = nwidth as u64 * height as u64;

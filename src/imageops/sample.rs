@@ -5,10 +5,10 @@
 
 use std::f32;
 
-use num_traits::NumCast;
+use num_traits::{NumCast, Zero};
 
 use buffer::{ImageBuffer, Pixel};
-use traits::Primitive;
+use traits::{Primitive, Enlargeable};
 use image::GenericImage;
 use math::utils::clamp;
 
@@ -94,9 +94,9 @@ pub fn lanczos3_kernel(x: f32) -> f32 {
 }
 
 /// Calculate the gaussian function with a
-/// standard deviation of 1.0
+/// standard deviation of 0.5
 pub fn gaussian_kernel(x: f32) -> f32 {
-    gaussian(x, 1.0)
+    gaussian(x, 0.5)
 }
 
 /// Calculate the Catmull-Rom cubic spline.
@@ -116,14 +116,10 @@ pub fn triangle_kernel(x: f32) -> f32 {
 }
 
 /// Calculate the box kernel.
-/// When applied in two dimensions with a support of 0.5
-/// it is equivalent to nearest neighbor sampling.
-pub fn box_kernel(x: f32) -> f32 {
-    if x.abs() <= 0.5 {
-        1.0
-    } else {
-        0.0
-    }
+/// Only pixels inside the box should be considered, and those
+/// contribute equally.  So this method simply returns 1.
+pub fn box_kernel(_x: f32) -> f32 {
+    1.0
 }
 
 // Sample the rows of the supplied image using the provided filter.
@@ -141,69 +137,44 @@ fn horizontal_sample<I, P, S>(image: &I, new_width: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
 
-    for y in 0..height {
-        let max = S::max_value();
-        let max: f32 = NumCast::from(max).unwrap();
+    let max: f32 = NumCast::from(KTHS::max_value()).unwrap();
+    let ratio = width as f32 / new_width as f32;
+    let sratio = if ratio < 1.0 { 1.0 } else { ratio };
+    let src_support = filter.support * sratio;
 
-        let ratio = width as f32 / new_width as f32;
+    for y in 0..height {
 
         for outx in 0..new_width {
 
             // Find the point in the input image corresponding to the centre
             // of the current pixel in the output image.
-            //
-            // Then go half a pixel to the left (hence the `- 0.5`).
-            //
-            // The reason for subtracting 0.5 is because the filter kernel
-            // treats the centre of a pixel as 0. When finding the left and
-            // right limits below, we're interested in the range of input
-            // pixels whose colour can influence the colour of the current
-            // output pixel. This is equivalent to the range of input
-            // pixels for which inputx lies within the filter.support-sized
-            // region centered at the centre of that pixel. Subtracting
-            // 0.5 here simplifies the rounding operations below.
-            //
-            let inputx = (outx as f32 + 0.5) * ratio - 0.5;
+            let inputx = (outx as f32 + 0.5) * ratio;
 
-            // Find the index of the left-most input pixel which can influence
-            // the colour of the current output pixel. A point on the right
-            // side of a pixel is considered to be part of that pixel.
-            let left  = (inputx - filter.support).ceil() as i64;
+            // Left and right are slice bounds for the input pixels relevant
+            // to the output pixel we are calculating.  Pixel x is relevant
+            // if and only if (x >= left) && (x < right).
+
+            // Invariant: 0 <= left < right <= width
+
+            let left  = (inputx - src_support).floor() as i64;
             let left  = clamp(left, 0, width as i64 - 1) as u32;
 
-            // Find the index of the right-most input pixel which can influence
-            // the colour of the current output pixel. A point on the left side
-            // of a pixel is NOT considered to be part of that pixel. This is
-            // important because:
-            //  - If we included the point in both neighbouring pixels it would
-            //    force the output pixel to be influenced be both input pixels,
-            //    and force filters which don't desire this (e.g. Nearest),
-            //    to make sure they only sample from one side in such cases.
-            //  - If we included the point in neither neighbouring pixel it
-            //    would cause output pixels corresponding to input pixel
-            //    boundaries to be black regardless of the input pixel colours.
-            //
-            // The choice of right vs left is arbitrary.
-            let right = {
-                let real_right = inputx + filter.support;
-                if real_right.fract() == 0.0 {
-                    (real_right - 1.0) as i64
-                } else {
-                    real_right.floor() as i64
-                }
-            };
-            let right = clamp(right, 0, width as i64 - 1) as u32;
+            let right = (inputx + src_support).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, width as i64) as u32;
+
+            // Go back to left boundary of pixel, to properly compare with i
+            // below, as the kernel treats the centre of a pixel as 0.
+            let inputx = inputx - 0.5;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
-            for i in left..right + 1 {
-                let w = (filter.kernel)(i as f32 - inputx);
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputx) / sratio);
                 sum += w;
 
-                let x0  = clamp(i, 0, width - 1);
-                let p = image.get_pixel(x0, y);
+                let p = image.get_pixel(i, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -247,44 +218,36 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
 
+    let max: f32 = NumCast::from(S::max_value()).unwrap();
+    let ratio = height as f32 / new_height as f32;
+    let sratio = if ratio < 1.0 { 1.0 } else { ratio };
+    let src_support = filter.support * sratio;
 
     for x in 0..width {
-        let max = S::max_value();
-        let max: f32 = NumCast::from(max).unwrap();
-
-        let ratio = height as f32 / new_height as f32;
 
         for outy in 0..new_height {
 
             // For an explanation of this algorithm, see the comments
             // in horizontal_sample.
+            let inputy = (outy as f32 + 0.5) * ratio;
 
-            let inputy = (outy as f32 + 0.5) * ratio - 0.5;
-
-            let left  = (inputy - filter.support).ceil() as i64;
+            let left  = (inputy - src_support).floor() as i64;
             let left  = clamp(left, 0, height as i64 - 1) as u32;
 
-            let right = {
-                // A point above a pixel is NOT part of that pixel.
-                let real_right = inputy + filter.support;
-                if real_right.fract() == 0.0 {
-                    (real_right - 1.0) as i64
-                } else {
-                    real_right.floor() as i64
-                }
-            };
-            let right = clamp(right, 0, height as i64 - 1) as u32;
+            let right = (inputy + src_support).ceil() as i64;
+            let right = clamp(right, left as i64 + 1, height as i64) as u32;
+
+            let inputy = inputy - 0.5;
 
             let mut sum = 0.;
 
             let mut t = (0., 0., 0., 0.);
 
-            for i in left..right + 1 {
-                let w = (filter.kernel)(i as f32 - inputy);
+            for i in left..right {
+                let w = (filter.kernel)((i as f32 - inputy) / sratio);
                 sum += w;
 
-                let y0  = clamp(i, 0, height - 1);
-                let p = image.get_pixel(x, y0);
+                let p = image.get_pixel(x, i);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -307,6 +270,62 @@ fn vertical_sample<I, P, S>(image: &I, new_height: u32,
             );
 
             out.put_pixel(x, outy, t);
+        }
+    }
+
+    out
+}
+
+/// Resize the supplied image down to the specific dimensions.
+pub fn thumbnail<I, P, S>(
+    image: &I,
+    new_width: u32,
+    new_height: u32,
+) -> ImageBuffer<P, Vec<S>>
+where
+    I: GenericImage<Pixel=P>,
+    P: Pixel<Subpixel=S> + 'static,
+    S: Primitive + Enlargeable + 'static,
+{
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(new_width, new_height);
+
+    let x_ratio = width as f32 / new_width as f32;
+    let y_ratio = height as f32 / new_height as f32;
+
+    let mut top = 0;
+    for outy in 0..new_height {
+        let bottom = top;
+        top = clamp(((outy + 1) as f32 * y_ratio).round() as u32,
+                    bottom + 1,
+                    height);
+
+        let mut right = 0;
+        for outx in 0..new_width {
+            let left = right;
+            right = clamp(((outx + 1) as f32 * x_ratio).round() as u32,
+                          left + 1,
+                          width);
+
+            let mut sum = (S::Larger::zero(), S::Larger::zero(),
+                           S::Larger::zero(), S::Larger::zero());
+            for y in bottom..top {
+                for x in left..right {
+                    let k = image.get_pixel(x, y).channels4();
+                    sum.0 += NumCast::from(k.0).unwrap();
+                    sum.1 += NumCast::from(k.1).unwrap();
+                    sum.2 += NumCast::from(k.2).unwrap();
+                    sum.3 += NumCast::from(k.3).unwrap();
+                }
+            }
+            let n = NumCast::from((right - left) * (top - bottom)).unwrap();
+            let round = NumCast::from(n / NumCast::from(2).unwrap()).unwrap();
+            out.put_pixel(outx, outy, Pixel::from_channels(
+                S::clamp_from((sum.0 + round) / n),
+                S::clamp_from((sum.1 + round) / n),
+                S::clamp_from((sum.2 + round) / n),
+                S::clamp_from((sum.3 + round) / n),
+            ));
         }
     }
 
@@ -399,7 +418,7 @@ pub fn resize<I: GenericImage + 'static>(image: &I, nwidth: u32, nheight: u32,
     let mut method = match filter {
         FilterType::Nearest    =>   Filter {
             kernel: Box::new(box_kernel),
-            support: 0.5
+            support: 0.0
         },
         FilterType::Triangle   => Filter {
             kernel: Box::new(triangle_kernel),

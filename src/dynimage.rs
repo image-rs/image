@@ -288,20 +288,7 @@ impl DynamicImage {
                      nwidth: u32,
                      nheight: u32) -> DynamicImage {
 
-        let (width, height) = self.dimensions();
-
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nheight as f32 / height as f32
-        } else {
-            nwidth as f32 / width as f32
-        };
-
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
-
+        let (width2, height2) = resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
         self.thumbnail_exact(width2, height2)
     }
 

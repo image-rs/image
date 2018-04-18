@@ -415,7 +415,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn write<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
+    pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();

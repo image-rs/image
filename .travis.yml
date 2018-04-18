@@ -24,11 +24,11 @@ env:
       - FEATURES='hdr'
 script:
     - if [ -z "$FEATURES" ]; then
-        cargo build -v;
-        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi;
+        cargo build -v &&
+        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi &&
         cargo doc -v;
       else
-        cargo build -v --no-default-features --features "$FEATURES";
-        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi;
+        cargo build -v --no-default-features --features "$FEATURES" &&
+        if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi &&
         cargo doc -v;
       fi

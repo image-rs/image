@@ -114,6 +114,7 @@ fn check_references() {
 	})
 }
 
+#[cfg(feature = "hdr")]
 #[test]
 fn check_hdr_references() {
     let mut ref_path: PathBuf = BASE_PATH.iter().collect();

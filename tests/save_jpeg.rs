@@ -1,4 +1,5 @@
 //! Test saving "default" and specific quality jpeg.
+#![cfg(feature = "jpeg")]
 extern crate image;
 
 use image::{ImageOutputFormat, JPEG};

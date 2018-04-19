@@ -360,6 +360,13 @@ impl DynamicImage {
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }
+    
+    /// The sepia filter effect is a brownish-grey to dark yellowish-brown tone
+    /// imparted to an image and is expressed in percentages from 0.0 to 1.0
+    /// `value` is the amount/percentage e.g. sepia(1.0) just like the css filter sepia(100%)
+    pub fn sepia(&self, value: f64) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::sepia(p, value))
+    }
 
     /// Brighten the pixels of this image.
     /// ```value``` is the amount to brighten each pixel by.

@@ -41,6 +41,7 @@ pub use self::colorops:: {
     grayscale,
     invert,
     contrast,
+    sepia,
     brighten,
     huerotate,
     ColorMap,

@@ -77,6 +77,49 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
     out
 }
 
+/// The sepia filter effect is a brownish-grey to dark yellowish-brown tone
+/// imparted to an image and is expressed in percentages from 0.0 to 1.0
+/// `value` is the amount/percentage e.g. sepia(1.0) just like the css filter sepia(100%)
+pub fn sepia<I, P, S>(image: &I, value: f64)
+    -> ImageBuffer<P, Vec<S>>
+    where I: GenericImage<Pixel=P>,
+          P: Pixel<Subpixel=S> + 'static,
+          S: Primitive + 'static {
+
+    let (width, height) = image.dimensions();
+    let mut out = ImageBuffer::new(width, height);
+
+    let amount: f64 = 1.0f64 - clamp(value, 0.0f64, 1.0f64);
+
+    for (x, y, pixel) in out.enumerate_pixels_mut() {
+        let p = image.get_pixel(x, y);
+        let (k1, k2, k3, k4) = p.channels4();
+        let vec: (f64, f64, f64, f64) = (
+            NumCast::from(k1).unwrap(),
+            NumCast::from(k2).unwrap(),
+            NumCast::from(k3).unwrap(),
+            NumCast::from(k4).unwrap()
+        );
+
+        let r = vec.0;
+        let g = vec.1;
+        let b = vec.2;
+
+        let new_r = (0.393 + 0.607 * amount) * r + (0.769 - 0.769 * amount) * g + (0.189 - 0.189 * amount) * b;
+        let new_g = (0.349 - 0.349 * amount) * r + (0.686 + 0.314 * amount) * g + (0.168 - 0.168 * amount) * b;
+        let new_b = (0.272 - 0.272 * amount) * r + (0.534 - 0.534 * amount) * g + (0.131 + 0.869 * amount) * b;
+        let max = 255f64;
+        let outpixel = Pixel::from_channels(
+            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+            NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
+        );
+        *pixel = outpixel;
+    }
+    out
+}
+
 /// Brighten the supplied image.
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.

@@ -30,5 +30,5 @@ script:
       else
         cargo build -v --no-default-features --features "$FEATURES" &&
         if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi &&
-        cargo doc -v;
+        cargo doc -v --no-default-features --features "$FEATURES";
       fi

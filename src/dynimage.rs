@@ -402,7 +402,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
+    pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -461,6 +461,15 @@ impl DynamicImage {
 
             image::ImageOutputFormat::Unsupported(msg) => Err(image::ImageError::UnsupportedError(msg)),
         }
+    }
+
+    /// Saves the buffer to a file at the path specified.
+    ///
+    /// The image format is derived from the file extension.
+    pub fn save<Q>(&self, path: Q) -> io::Result<()> where Q: AsRef<Path> {
+        dynamic_map!(*self, ref p -> {
+            p.save(path)
+        })
     }
 }
 

@@ -33,6 +33,7 @@ where F: Fn(&PathBuf, PathBuf, &str) {
 	}
 }
 
+#[cfg(feature = "png")]
 #[test]
 fn render_images() {
 	process_images(IMAGE_DIR, None, |base, path, decoder| {

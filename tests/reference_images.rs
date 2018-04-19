@@ -33,6 +33,7 @@ where F: Fn(&PathBuf, PathBuf, &str) {
 	}
 }
 
+#[cfg(feature = "png")]
 #[test]
 fn render_images() {
 	process_images(IMAGE_DIR, None, |base, path, decoder| {
@@ -114,6 +115,7 @@ fn check_references() {
 	})
 }
 
+#[cfg(feature = "hdr")]
 #[test]
 fn check_hdr_references() {
     let mut ref_path: PathBuf = BASE_PATH.iter().collect();

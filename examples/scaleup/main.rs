@@ -38,12 +38,12 @@ fn main() {
         let scaled = tiny.resize(32, 32, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(&format!("up2-{}.png", name)).unwrap();
-        scaled.save(&mut output, PNG).unwrap();
+        scaled.write_to(&mut output, PNG).unwrap();
 
         let timer = Instant::now();
         let scaled = tiny.resize(48, 48, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(&format!("up3-{}.png", name)).unwrap();
-        scaled.save(&mut output, PNG).unwrap();
+        scaled.write_to(&mut output, PNG).unwrap();
     }
 }

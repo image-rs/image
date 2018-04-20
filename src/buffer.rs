@@ -515,10 +515,10 @@ where P::Subpixel: 'static {
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         ImageBuffer {
             data: vec![Zero::zero();
-                      (width as usize
+                      width as usize
                       * height as usize
                       * (<P as Pixel>::channel_count() as usize)
-                      )],
+                      ],
             width: width,
             height: height,
             _phantom: PhantomData,

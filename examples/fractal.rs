@@ -47,5 +47,5 @@ fn main() {
     let fout = &mut File::create("fractal.png").unwrap();
 
     // We must indicate the image's color type and what format to save as
-    image::ImageLuma8(imgbuf).save(fout, image::PNG).unwrap();
+    image::ImageLuma8(imgbuf).write_to(fout, image::PNG).unwrap();
 }

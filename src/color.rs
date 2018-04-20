@@ -377,7 +377,11 @@ impl<T: Primitive> Blend for LumaA<T> {
         let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
-        let alpha_final = bg_a + fg_a - bg_a * fg_a;
+        let mut alpha_final = bg_a + fg_a - bg_a * fg_a;
+        if 0.0 == alpha_final {
+            alpha_final = 1.0;
+        }
+
         let bg_luma_a = bg_luma * bg_a;
         let fg_luma_a = fg_luma * fg_a;
 
@@ -410,7 +414,10 @@ impl<T: Primitive> Blend for Rgba<T> {
         let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
         // Work out what the final alpha level will be
-        let alpha_final = bg_a + fg_a - bg_a * fg_a;
+        let mut alpha_final = bg_a + fg_a - bg_a * fg_a;
+        if 0.0 == alpha_final {
+            alpha_final = 1.0;
+        }
 
         // We premultiply our channels bu their alpha, as this makes it easier to calculate
         let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);

@@ -410,7 +410,7 @@ impl<R: Read> Reader<R> {
             if self.current.len() >= rowlen {
                 if let Some(filter) = FilterType::from_u8(self.current[0]) {
                     unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
-                    utils::copy_memory(&self.current[..rowlen], &mut self.prev[..rowlen]);
+                    self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
                     // TODO optimize
                     self.current = self.current[rowlen..].into();
                     return Ok(

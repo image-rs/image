@@ -378,6 +378,7 @@ impl<T: Primitive> Blend for LumaA<T> {
         let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
 
         let alpha_final = bg_a + fg_a - bg_a * fg_a;
+        if alpha_final == 0.0 {return};
         let bg_luma_a = bg_luma * bg_a;
         let fg_luma_a = fg_luma * fg_a;
 
@@ -411,8 +412,9 @@ impl<T: Primitive> Blend for Rgba<T> {
 
         // Work out what the final alpha level will be
         let alpha_final = bg_a + fg_a - bg_a * fg_a;
+        if alpha_final == 0.0 {return};
 
-        // We premultiply our channels bu their alpha, as this makes it easier to calculate
+        // We premultiply our channels by their alpha, as this makes it easier to calculate
         let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);
         let (fg_r_a, fg_g_a, fg_b_a) = (fg_r * fg_a, fg_g * fg_a, fg_b * fg_a);
 
@@ -492,10 +494,10 @@ impl<T: Primitive> Invert for Rgb<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Pixel, Rgb, Rgba};
+    use super::{LumaA, Pixel, Rgb, Rgba};
 
     #[test]
-    fn test_apply_with_apha_rgba() {
+    fn test_apply_with_alpha_rgba() {
         let mut rgba = Rgba { data: [0, 0, 0, 0] };
         rgba.apply_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(
@@ -507,14 +509,14 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_with_apha_rgb() {
+    fn test_apply_with_alpha_rgb() {
         let mut rgb = Rgb { data: [0, 0, 0] };
         rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(rgb, Rgb { data: [0, 0, 0] });
     }
 
     #[test]
-    fn test_map_with_apha_rgba() {
+    fn test_map_with_alpha_rgba() {
         let rgba = Rgba { data: [0, 0, 0, 0] }.map_with_alpha(|s| s, |_| 0xFF);
         assert_eq!(
             rgba,
@@ -525,8 +527,58 @@ mod tests {
     }
 
     #[test]
-    fn test_map_with_apha_rgb() {
+    fn test_map_with_alpha_rgb() {
         let rgb = Rgb { data: [0, 0, 0] }.map_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(rgb, Rgb { data: [0, 0, 0] });
+    }
+
+    #[test]
+    fn test_blend_luma_alpha() {
+        let ref mut a = LumaA { data: [255 as u8, 255] };
+        let b = LumaA { data: [255 as u8, 255] };
+        a.blend(&b);
+        assert_eq!(a.data[0], 255);
+        assert_eq!(a.data[1], 255);
+
+        let ref mut a = LumaA { data: [255 as u8, 0] };
+        let b = LumaA { data: [255 as u8, 255] };
+        a.blend(&b);
+        assert_eq!(a.data[0], 255);
+        assert_eq!(a.data[1], 255);
+
+        let ref mut a = LumaA { data: [255 as u8, 255] };
+        let b = LumaA { data: [255 as u8, 0] };
+        a.blend(&b);
+        assert_eq!(a.data[0], 255);
+        assert_eq!(a.data[1], 255);
+
+        let ref mut a = LumaA { data: [255 as u8, 0] };
+        let b = LumaA { data: [255 as u8, 0] };
+        a.blend(&b);
+        assert_eq!(a.data[0], 255);
+        assert_eq!(a.data[1], 0);
+    }
+
+    #[test]
+    fn test_blend_rgba() {
+        let ref mut a = Rgba { data: [255 as u8, 255, 255, 255] };
+        let b = Rgba { data: [255 as u8, 255, 255, 255] };
+        a.blend(&b);
+        assert_eq!(a.data, [255, 255, 255, 255]);
+
+        let ref mut a = Rgba { data: [255 as u8, 255, 255, 0] };
+        let b = Rgba { data: [255 as u8, 255, 255, 255] };
+        a.blend(&b);
+        assert_eq!(a.data, [255, 255, 255, 255]);
+
+        let ref mut a = Rgba { data: [255 as u8, 255, 255, 255] };
+        let b = Rgba { data: [255 as u8, 255, 255, 0] };
+        a.blend(&b);
+        assert_eq!(a.data, [255, 255, 255, 255]);
+
+        let ref mut a = Rgba { data: [255 as u8, 255, 255, 0] };
+        let b = Rgba { data: [255 as u8, 255, 255, 0] };
+        a.blend(&b);
+        assert_eq!(a.data, [255, 255, 255, 0]);
     }
 }

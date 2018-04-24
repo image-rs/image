@@ -10,7 +10,7 @@ pub struct HDREncoder<W: Write> {
 impl<W: Write> HDREncoder<W> {
     /// Creates encoder
     pub fn new(w: W) -> HDREncoder<W> {
-        HDREncoder { w: w }
+        HDREncoder { w }
     }
 
     /// Encodes the image ```data```
@@ -91,7 +91,7 @@ struct RunIterator<'a> {
 impl<'a> RunIterator<'a> {
     fn new(data: &'a [u8]) -> RunIterator<'a> {
         RunIterator {
-            data: data,
+            data,
             curidx: 0,
         }
     }

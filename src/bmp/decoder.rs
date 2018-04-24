@@ -77,9 +77,9 @@ enum BMPHeaderType {
 
 #[derive(PartialEq)]
 enum FormatFullBytes {
-    FormatRGB24,
-    FormatRGB32,
-    FormatRGBA32,
+    RGB24,
+    RGB32,
+    RGBA32,
     Format888,
 }
 
@@ -354,8 +354,8 @@ impl Bitfield {
             len = 8;
         }
         Ok(Bitfield {
-            shift: shift,
-            len: len,
+            shift,
+            len,
         })
     }
 
@@ -494,7 +494,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> BMPDecoder<R> {
         BMPDecoder {
-            r: r,
+            r,
 
             bmp_header_type: BMPHeaderType::Info,
 
@@ -996,7 +996,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
         let row_padding_len = match format {
-            FormatFullBytes::FormatRGB24 => (4 - (self.width as usize * 3) % 4) % 4,
+            FormatFullBytes::RGB24 => (4 - (self.width as usize * 3) % 4) % 4,
             _ => 0,
         };
         let row_padding = &mut [0; 4][..row_padding_len];
@@ -1023,12 +1023,12 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     try!(reader.read_exact(&mut pixel[0..3]));
                     pixel[0..3].reverse();
 
-                    if format == FormatFullBytes::FormatRGB32 {
+                    if format == FormatFullBytes::RGB32 {
                         try!(reader.read_u8());
                     }
 
                     // Read the alpha channel if present
-                    if format == FormatFullBytes::FormatRGBA32 {
+                    if format == FormatFullBytes::RGBA32 {
                         try!(reader.read_exact(&mut pixel[3..4]));
                     }
                 }
@@ -1088,7 +1088,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             blank_bytes((&mut row_iter).take(skip_rows.into()));
             let mut insns_iter = RLEInsnIterator {
                 r: &mut self.r,
-                image_type: image_type,
+                image_type,
             };
             let p = self.palette.as_ref().unwrap();
 
@@ -1214,9 +1214,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
         match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
-            ImageType::RGB24 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB24),
-            ImageType::RGB32 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGB32),
-            ImageType::RGBA32 => self.read_full_byte_pixel_data(FormatFullBytes::FormatRGBA32),
+            ImageType::RGB24 => self.read_full_byte_pixel_data(FormatFullBytes::RGB24),
+            ImageType::RGB32 => self.read_full_byte_pixel_data(FormatFullBytes::RGB32),
+            ImageType::RGBA32 => self.read_full_byte_pixel_data(FormatFullBytes::RGBA32),
             ImageType::RLE8 => self.read_rle_data(ImageType::RLE8),
             ImageType::RLE4 => self.read_rle_data(ImageType::RLE4),
             ImageType::Bitfields16 => match self.bitfields {

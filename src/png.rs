@@ -93,7 +93,7 @@ pub struct PNGEncoder<W: Write> {
 impl<W: Write> PNGEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PNGEncoder<W> {
-        PNGEncoder { w: w }
+        PNGEncoder { w }
     }
 
     /// Encodes the image ```image```

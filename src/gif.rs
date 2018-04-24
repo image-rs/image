@@ -98,8 +98,8 @@ impl<R: Read> ImageDecoder for Decoder<R> {
 
     fn into_frames(mut self) -> ImageResult<Image_Frames> {
         let reader = try!(self.get_reader());
-        let width = reader.width() as u32;
-        let height = reader.height() as u32;
+        let width = u32::from(reader.width());
+        let height = u32::from(reader.height());
 
         // variable to hold all the image frames
         let mut frames = Vec::new();
@@ -145,8 +145,8 @@ impl<R: Read> ImageDecoder for Decoder<R> {
         // begin looping over each frame
         loop {
             if let Some(frame) = try!(reader.next_frame_info()) {
-                left = frame.left as u32;
-                top = frame.top as u32;
+                left = u32::from(frame.left);
+                top = u32::from(frame.top);
 
                 // frame.delay is in units of 10ms so frame.delay*10 is in ms
                 delay = Ratio::new(frame.delay * 10, 1);
@@ -214,7 +214,7 @@ pub struct Encoder<W: Write> {
 impl<W: Write> Encoder<W> {
     /// Creates a new GIF encoder.
     pub fn new(w: W) -> Encoder<W> {
-        Encoder { w: w }
+        Encoder { w }
     }
     /// Encodes a frame.
     pub fn encode(self, frame: Frame) -> ImageResult<()> {

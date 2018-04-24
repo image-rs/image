@@ -27,7 +27,7 @@ impl<R: Read> WebpDecoder<R> {
         let f: Frame = Default::default();
 
         WebpDecoder {
-            r: r,
+            r,
             have_frame: false,
             frame: f,
             decoded_rows: 0,
@@ -101,7 +101,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 
-        Ok((self.frame.width as u32, self.frame.height as u32))
+        Ok((u32::from(self.frame.width), u32::from(self.frame.height)))
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
@@ -117,7 +117,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
         try!(self.read_metadata());
 
-        if self.decoded_rows > self.frame.height as u32 {
+        if self.decoded_rows > u32::from(self.frame.height) {
             return Err(image::ImageError::ImageEnd);
         }
 

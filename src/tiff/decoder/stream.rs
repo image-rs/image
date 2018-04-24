@@ -113,7 +113,7 @@ impl PackBitsReader {
             buffer.len(),
             PackBitsReader {
                 buffer: io::Cursor::new(buffer),
-                byte_order: byte_order,
+                byte_order,
             },
         ))
     }
@@ -176,8 +176,8 @@ where
     /// Wraps a reader
     pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
         SmartReader {
-            reader: reader,
-            byte_order: byte_order,
+            reader,
+            byte_order,
         }
     }
 }

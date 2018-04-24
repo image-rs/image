@@ -96,13 +96,13 @@ fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
     let mut best = try!(entries.pop().ok_or(ImageError::ImageEnd));
     let mut best_score = (
         best.bits_per_pixel,
-        best.real_width() as u32 * best.real_height() as u32,
+        u32::from(best.real_width()) * u32::from(best.real_height()),
     );
 
     for entry in entries {
         let score = (
             entry.bits_per_pixel,
-            entry.real_width() as u32 * entry.real_height() as u32,
+            u32::from(entry.real_width()) * u32::from(entry.real_height()),
         );
         if score > best_score {
             best = entry;
@@ -116,14 +116,14 @@ impl DirEntry {
     fn real_width(&self) -> u16 {
         match self.width {
             0 => 256,
-            w => w as u16,
+            w => u16::from(w),
         }
     }
 
     fn real_height(&self) -> u16 {
         match self.height {
             0 => 256,
-            h => h as u16,
+            h => u16::from(h),
         }
     }
 
@@ -132,7 +132,7 @@ impl DirEntry {
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
-        try!(r.seek(SeekFrom::Start(self.image_offset as u64)));
+        try!(r.seek(SeekFrom::Start(u64::from(self.image_offset))));
         Ok(())
     }
 
@@ -242,13 +242,13 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                 let r = decoder.reader();
                 let mask_start = try!(r.seek(SeekFrom::Current(0)));
                 let mask_end =
-                    (self.selected_entry.image_offset + self.selected_entry.image_length) as u64;
+                    u64::from(self.selected_entry.image_offset + self.selected_entry.image_length);
                 let mask_length = mask_end - mask_start;
 
                 if mask_length > 0 {
                     // A mask row contains 1 bit per pixel, padded to 4 bytes.
                     let mask_row_bytes = ((width + 31) / 32) * 4;
-                    let expected_length = (mask_row_bytes * height) as u64;
+                    let expected_length = u64::from(mask_row_bytes * height);
                     if mask_length < expected_length {
                         return Err(ImageError::ImageEnd);
                     }

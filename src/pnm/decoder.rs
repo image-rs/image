@@ -271,7 +271,7 @@ trait HeaderReader: BufRead {
         loop {
             line.truncate(0);
             self.read_line(&mut line)
-                .map_err(|io| ImageError::IoError(io))?;
+                .map_err(ImageError::IoError)?;
             if line.as_bytes()[0] == b'#' {
                 continue;
             }
@@ -281,7 +281,7 @@ trait HeaderReader: BufRead {
                 ));
             }
             let (identifier, rest) = line.trim_left()
-                .split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
+                .split_at(line.find(char::is_whitespace).unwrap_or_else(|| line.len()));
             match identifier {
                 "ENDHDR" => break,
                 "HEIGHT" => if height.is_some() {
@@ -375,7 +375,7 @@ trait HeaderReader: BufRead {
             width: w,
             depth: d,
             maxval: m,
-            tupltype: tupltype,
+            tupltype,
         })
     }
 }
@@ -461,9 +461,9 @@ impl<R: Read> PNMDecoder<R> {
     }
 
     fn read_ascii_sample(&mut self) -> ImageResult<u32> {
-        let istoken = |v: &Result<u8, _>| match v {
-            &Err(_) => false,
-            &Ok(b'\t') | &Ok(b'\n') | &Ok(b'\x0b') | &Ok(b'\x0c') | &Ok(b'\r') | &Ok(b' ') => false,
+        let istoken = |v: &Result<u8, _>| match *v {
+            Err(_) => false,
+            Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => false,
             _ => true,
         };
         let token = (&mut self.reader)
@@ -523,7 +523,7 @@ impl Sample for U8 {
     }
 
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        if val > u8::max_value() as u32 {
+        if val > u32::from(u8::max_value()) {
             Err(ImageError::FormatError(
                 "Sample value outside of bounds".to_string(),
             ))
@@ -553,7 +553,7 @@ impl Sample for U16 {
     }
 
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        if val > u16::max_value() as u32 {
+        if val > u32::from(u16::max_value()) {
             Err(ImageError::FormatError(
                 "Sample value outside of bounds".to_string(),
             ))

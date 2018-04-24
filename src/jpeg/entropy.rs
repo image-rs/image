@@ -11,11 +11,11 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     // Annex C.2
     // Figure C.1
     // Generate table of individual code lengths
-    for i in 0usize..16 {
+    for i in 0u8..16 {
         j = 0;
 
-        while j < bits[i] {
-            huffsize[k] = i as u8 + 1;
+        while j < bits[usize::from(i)] {
+            huffsize[k] = i + 1;
             k += 1;
             j += 1;
         }

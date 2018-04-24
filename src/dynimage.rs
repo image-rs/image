@@ -304,8 +304,8 @@ impl DynamicImage {
 
         let mut intermediate = self.resize_exact(width2, height2, filter);
         let (iwidth, iheight) = intermediate.dimensions();
-        let ratio = iwidth as u64 * nheight as u64;
-        let nratio = nwidth as u64 * iheight as u64;
+        let ratio = u64::from(iwidth) * u64::from(nheight);
+        let nratio = u64::from(nwidth) * u64::from(iheight);
 
         if nratio > ratio {
             intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
@@ -773,8 +773,8 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
 /// completely contained with in the given `width` and `height`,
 /// with empty space on one axis.
 fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
-    let ratio = width as u64 * nheight as u64;
-    let nratio = nwidth as u64 * height as u64;
+    let ratio = u64::from(width) * u64::from(nheight);
+    let nratio = u64::from(nwidth) * u64::from(height);
 
     let use_width = if fill {
         nratio > ratio
@@ -782,28 +782,26 @@ fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: b
         nratio <= ratio
     };
     let intermediate = if use_width {
-        height as u64 * nwidth as u64 / width as u64
+        u64::from(height) * u64::from(nwidth) / u64::from(width)
     } else {
-        width as u64 * nheight as u64 / height as u64
+        u64::from(width) * u64::from(nheight) / u64::from(height)
     };
     if use_width {
-        if intermediate <= ::std::u32::MAX as u64 {
+        if intermediate <= u64::from(::std::u32::MAX) {
             (nwidth, intermediate as u32)
         } else {
             (
-                (nwidth as u64 * ::std::u32::MAX as u64 / intermediate) as u32,
+                (u64::from(nwidth) * u64::from(::std::u32::MAX) / intermediate) as u32,
                 ::std::u32::MAX,
             )
         }
+    } else if intermediate <= u64::from(::std::u32::MAX) {
+        (intermediate as u32, nheight)
     } else {
-        if intermediate <= ::std::u32::MAX as u64 {
-            (intermediate as u32, nheight)
-        } else {
-            (
-                ::std::u32::MAX,
-                (nheight as u64 * ::std::u32::MAX as u64 / intermediate) as u32,
-            )
-        }
+        (
+            ::std::u32::MAX,
+            (u64::from(nheight) * u64::from(::std::u32::MAX) / intermediate) as u32,
+        )
     }
 }
 

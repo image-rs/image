@@ -146,7 +146,7 @@ pub struct BitWriter<'a, W: 'a> {
 impl<'a, W: Write + 'a> BitWriter<'a, W> {
     fn new(w: &'a mut W) -> Self {
         BitWriter {
-            w: w,
+            w,
             accumulator: 0,
             nbits: 0,
         }
@@ -157,7 +157,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
             return Ok(());
         }
 
-        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as usize;
+        self.accumulator |= u32::from(bits) << (32 - (self.nbits + size)) as usize;
         self.nbits += size;
 
         while self.nbits >= 8 {
@@ -313,7 +313,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         ];
 
         // Derive our quantization table scaling value using the libjpeg algorithm
-        let scale: u32 = clamp(quality, 1, 100) as u32;
+        let scale = u32::from(clamp(quality, 1, 100));
         let scale = if scale < 50 {
             5000 / scale
         } else {
@@ -322,9 +322,9 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 
         let mut tables = Vec::new();
         let scale_value = |&v: &u8| {
-            let value = (v as u32 * scale + 50) / 100;
+            let value = (u32::from(v) * scale + 50) / 100;
 
-            clamp(value, 1, u8::max_value() as u32) as u8
+            clamp(value, 1, u32::from(u8::max_value())) as u8
         };
         tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
         tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
@@ -332,8 +332,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         JPEGEncoder {
             writer: BitWriter::new(w),
 
-            components: components,
-            tables: tables,
+            components,
+            tables,
 
             luma_dctable: ld,
             luma_actable: la,
@@ -435,13 +435,15 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             color::ColorType::GrayA(8) => {
                 try!(self.encode_gray(image, width as usize, height as usize, 2))
             }
-            _ => return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &format!(
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    &format!(
                     "Unsupported color type {:?}. Use 8 bit per channel RGB(A) or Gray(A) instead.",
                     c
                 )[..],
-            )),
+                ))
+            }
         };
 
         try!(self.writer.pad_byte());
@@ -472,7 +474,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 // Quantization
                 for i in 0usize..64 {
                     dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / self.tables[i] as f32).round() as i32;
+                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -527,11 +529,11 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 // Quantization
                 for i in 0usize..64 {
                     dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / self.tables[i] as f32).round() as i32;
+                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
                     dct_cb_block[i] =
-                        ((dct_cb_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
+                        ((dct_cb_block[i] / 8) as f32 / f32::from(self.tables[64..][i])).round() as i32;
                     dct_cr_block[i] =
-                        ((dct_cr_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
+                        ((dct_cr_block[i] / 8) as f32 / f32::from(self.tables[64..][i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -665,9 +667,9 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 }
 
 fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let r = r as f32;
-    let g = g as f32;
-    let b = b as f32;
+    let r = f32::from(r);
+    let g = f32::from(g);
+    let b = f32::from(b);
 
     let y = 0.299f32 * r + 0.587f32 * g + 0.114f32 * b;
     let cb = -0.1687f32 * r - 0.3313f32 * g + 0.5f32 * b + 128f32;
@@ -700,7 +702,7 @@ fn copy_blocks_ycbcr(
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
 
-            let r = value_at(source, ystride + xstride + 0);
+            let r = value_at(source, ystride + xstride);
             let g = value_at(source, ystride + xstride + 1);
             let b = value_at(source, ystride + xstride + 2);
 
@@ -726,7 +728,7 @@ fn copy_blocks_gray(
 
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
-            gb[y * 8 + x] = value_at(source, ystride + xstride + 0);
+            gb[y * 8 + x] = value_at(source, ystride + xstride);
         }
     }
 }

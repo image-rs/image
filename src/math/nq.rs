@@ -80,8 +80,8 @@ impl NeuQuant {
             netindex: vec![0; 256],
             bias: Vec::with_capacity(netsize),
             freq: Vec::with_capacity(netsize),
-            samplefac: samplefac,
-            netsize: colors,
+            samplefac,
+            netsize,
         };
         this.init(pixels);
         this
@@ -102,7 +102,7 @@ impl NeuQuant {
                 r: tmp,
                 g: tmp,
                 b: tmp,
-                a: a,
+                a,
             });
             self.colormap.push(Color {
                 r: 0,
@@ -160,8 +160,8 @@ impl NeuQuant {
         let mut q = 0;
 
         while (j < hi) || (k > lo) {
-            let rad_sq = rad as f64 * rad as f64;
-            let alpha = (alpha * (rad_sq - q as f64 * q as f64)) / rad_sq;
+            let rad_sq = f64::from(rad) * f64::from(rad);
+            let alpha = (alpha * (rad_sq - f64::from(q) * f64::from(q))) / rad_sq;
             q += 1;
             if j < hi {
                 let p = &mut self.network[j as usize];
@@ -260,20 +260,20 @@ impl NeuQuant {
         while i < samplepixels {
             let (r, g, b, a) = {
                 let p = &pixels[CHANNELS * pos..][..CHANNELS];
-                (p[0] as f64, p[1] as f64, p[2] as f64, p[3] as f64)
+                (f64::from(p[0]), f64::from(p[1]), f64::from(p[2]), f64::from(p[3]))
             };
 
             let j = self.contest(b, g, r, a);
 
-            let alpha_ = (1.0 * alpha as f64) / INIT_ALPHA as f64;
+            let alpha_ = (1.0 * f64::from(alpha)) / f64::from(INIT_ALPHA);
             self.alter_single(
                 alpha_,
                 j,
                 Quad {
-                    b: b,
-                    g: g,
-                    r: r,
-                    a: a,
+                    b,
+                    g,
+                    r,
+                    a,
                 },
             );
             if rad > 0 {
@@ -282,10 +282,10 @@ impl NeuQuant {
                     rad,
                     j,
                     Quad {
-                        b: b,
-                        g: g,
-                        r: r,
-                        a: a,
+                        b,
+                        g,
+                        r,
+                        a,
                     },
                 )
             };
@@ -371,18 +371,18 @@ impl NeuQuant {
         while (i < self.netsize) || (j > 0) {
             if i < self.netsize {
                 let p = self.colormap[i];
-                let mut e = p.g - g as i32;
+                let mut e = p.g - i32::from(g);
                 let mut dist = e * e; // index key
                 if dist >= bestd {
                     break;
                 } else {
-                    e = p.b - b as i32;
+                    e = p.b - i32::from(b);
                     dist += e * e;
                     if dist < bestd {
-                        e = p.r - r as i32;
+                        e = p.r - i32::from(r);
                         dist += e * e;
                         if dist < bestd {
-                            e = p.a - a as i32;
+                            e = p.a - i32::from(a);
                             dist += e * e;
                             if dist < bestd {
                                 bestd = dist;
@@ -395,18 +395,18 @@ impl NeuQuant {
             }
             if j > 0 {
                 let p = self.colormap[j];
-                let mut e = p.g - g as i32;
+                let mut e = p.g - i32::from(g);
                 let mut dist = e * e; // index key
                 if dist >= bestd {
                     break;
                 } else {
-                    e = p.b - b as i32;
+                    e = p.b - i32::from(b);
                     dist += e * e;
                     if dist < bestd {
-                        e = p.r - r as i32;
+                        e = p.r - i32::from(r);
                         dist += e * e;
                         if dist < bestd {
-                            e = p.a - a as i32;
+                            e = p.a - i32::from(a);
                             dist += e * e;
                             if dist < bestd {
                                 bestd = dist;

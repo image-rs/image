@@ -20,7 +20,7 @@ pub struct ICOEncoder<W: Write> {
 impl<W: Write> ICOEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> ICOEncoder<W> {
-        ICOEncoder { w: w }
+        ICOEncoder { w }
     }
 
     /// Encodes the image ```image``` that has dimensions ```width``` and

@@ -25,7 +25,7 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
-            meta: meta,
+            meta,
         })
     }
 
@@ -35,7 +35,7 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
-            meta: meta,
+            meta,
         })
     }
 }
@@ -102,7 +102,7 @@ pub struct RGBE8Pixel {
 
 /// Creates ```RGBE8Pixel``` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> RGBE8Pixel {
-    RGBE8Pixel { c: [r, g, b], e: e }
+    RGBE8Pixel { c: [r, g, b], e }
 }
 
 impl RGBE8Pixel {
@@ -113,11 +113,11 @@ impl RGBE8Pixel {
             Rgb([0., 0., 0.])
         } else {
             //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2((self.e as f32) - (128. + 8.));
+            let exp = f32::exp2(<f32 as From<u8>>::from(self.e) - (128. + 8.));
             Rgb([
-                exp * (self.c[0] as f32),
-                exp * (self.c[1] as f32),
-                exp * (self.c[2] as f32),
+                exp * <f32 as From<u8>>::from(self.c[0]),
+                exp * <f32 as From<u8>>::from(self.c[1]),
+                exp * <f32 as From<u8>>::from(self.c[2]),
             ])
         }
     }
@@ -243,11 +243,11 @@ impl<R: BufRead> HDRDecoder<R> {
         Ok(HDRDecoder {
             r: reader,
 
-            width: width,
-            height: height,
+            width,
+            height,
             meta: HDRMetadata {
-                width: width,
-                height: height,
+                width,
+                height,
                 ..attributes
             },
         })
@@ -350,7 +350,7 @@ impl<R: BufRead> IntoIterator for HDRDecoder<R> {
         HDRImageDecoderIterator {
             r: self.r,
             scanline_cnt: self.height as usize,
-            buf: buf,
+            buf,
             col: 0,
             scanline: 0,
             trouble: true, // make first call to `next()` read scanline
@@ -744,10 +744,10 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
 fn parse_dimensions_line<'a>(line: &Cow<'a, str>, strict: bool) -> ImageResult<(u32, u32)> {
     let mut dim_parts = line.split_whitespace();
     let err = "Malformed dimensions line";
-    let c1_tag = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
-    let c1_str = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
-    let c2_tag = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
-    let c2_str = try!(dim_parts.next().ok_or(ImageError::FormatError(err.into())));
+    let c1_tag = try!(dim_parts.next().ok_or_else(|| ImageError::FormatError(err.into())));
+    let c1_str = try!(dim_parts.next().ok_or_else(|| ImageError::FormatError(err.into())));
+    let c2_tag = try!(dim_parts.next().ok_or_else(|| ImageError::FormatError(err.into())));
+    let c2_str = try!(dim_parts.next().ok_or_else(|| ImageError::FormatError(err.into())));
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
         return Err(ImageError::FormatError(err.into()));

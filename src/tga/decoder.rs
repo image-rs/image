@@ -144,7 +144,7 @@ impl ColorMap {
         Ok(ColorMap {
             entry_size: bytes_per_entry,
             start_offset: start_offset as usize,
-            bytes: bytes,
+            bytes,
         })
     }
 
@@ -179,7 +179,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
     pub fn new(r: R) -> TGADecoder<R> {
         TGADecoder {
-            r: r,
+            r,
 
             width: 0,
             height: 0,
@@ -468,7 +468,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// The bit in position 5 of the image descriptor byte is the screen origin bit.
     /// If it's 1, the origin is in the top left corner.
     /// If it's 0, the origin is in the bottom left corner.
-    /// This function checks the bit, and if it's 0, flips the image vertically.    
+    /// This function checks the bit, and if it's 0, flips the image vertically.
     fn is_flipped_vertically(&self) -> bool {
         let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
         !screen_origin_bit

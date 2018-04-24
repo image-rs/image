@@ -127,10 +127,10 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let angle: i32 = NumCast::from(value).unwrap();
+    let angle: f64 = NumCast::from(value).unwrap();
 
-    let cosv = (angle as f64 * PI / 180.0).cos();
-    let sinv = (angle as f64 * PI / 180.0).sin();
+    let cosv = (angle * PI / 180.0).cos();
+    let sinv = (angle * PI / 180.0).sin();
     let matrix: [f64; 9] = [
         // Reds
         0.213 + cosv * 0.787 - sinv * 0.213,
@@ -227,7 +227,7 @@ impl ColorMap for nq::NeuQuant {
 /// Floyd-Steinberg error diffusion
 fn diffuse_err<P: Pixel<Subpixel = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
     for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
-        *c = match *c as i16 + e * factor / 16 {
+        *c = match <i16 as From<P::Subpixel>>::from(*c) + e * factor / 16 {
             val if val < 0 => 0,
             val if val > 0xFF => 0xFF,
             val => val as u8,
@@ -263,28 +263,28 @@ where
     for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y + 0), err, 7);
-        diffuse_err(image.get_pixel_mut(x + 0, y + 1), err, 5);
+        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
         diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
         for x in 1..width - 1 {
             do_dithering!(color_map, image, err, x, y);
-            diffuse_err(image.get_pixel_mut(x + 1, y + 0), err, 7);
+            diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
             diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-            diffuse_err(image.get_pixel_mut(x + 0, y + 1), err, 5);
+            diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
             diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
         }
         let x = width - 1;
         do_dithering!(color_map, image, err, x, y);
         diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-        diffuse_err(image.get_pixel_mut(x + 0, y + 1), err, 5);
+        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
     }
     let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
-    diffuse_err(image.get_pixel_mut(x + 1, y + 0), err, 7);
+    diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
     for x in 1..width - 1 {
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y + 0), err, 7);
+        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
     }
     let x = width - 1;
     do_dithering!(color_map, image, err, x, y);

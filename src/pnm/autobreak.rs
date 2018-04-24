@@ -62,7 +62,7 @@ impl<W: io::Write> io::Write for AutoBreak<W> {
             self.has_newline = false;
         }
 
-        if self.line.len() > 0 && self.line.len() + buffer.len() > self.line_capacity {
+        if !self.line.is_empty() && self.line.len() + buffer.len() > self.line_capacity {
             self.line.push(b'\n');
             self.has_newline = true;
             self.flush()?;

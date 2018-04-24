@@ -440,8 +440,8 @@ pub trait GenericImage: Sized {
             image: self,
             x: 0,
             y: 0,
-            width: width,
-            height: height,
+            width,
+            height,
         }
     }
 
@@ -458,8 +458,8 @@ pub trait GenericImage: Sized {
             image: self,
             x: 0,
             y: 0,
-            width: width,
-            height: height,
+            width,
+            height,
         }
     }
 
@@ -523,7 +523,7 @@ where
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
-            image: image,
+            image,
             xoffset: x,
             yoffset: y,
             xstride: width,

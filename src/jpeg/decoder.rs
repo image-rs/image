@@ -42,7 +42,7 @@ impl<R: Read> JPEGDecoder<R> {
 impl<R: Read> ImageDecoder for JPEGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let metadata = try!(self.metadata());
-        Ok((metadata.width as u32, metadata.height as u32))
+        Ok((u32::from(metadata.width), u32::from(metadata.height)))
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
@@ -75,10 +75,10 @@ fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     let mut output = Vec::with_capacity(size);
 
     for pixel in input.chunks(4) {
-        let c = pixel[0] as f32 / 255.0;
-        let m = pixel[1] as f32 / 255.0;
-        let y = pixel[2] as f32 / 255.0;
-        let k = pixel[3] as f32 / 255.0;
+        let c = f32::from(pixel[0]) / 255.0;
+        let m = f32::from(pixel[1]) / 255.0;
+        let y = f32::from(pixel[2]) / 255.0;
+        let k = f32::from(pixel[3]) / 255.0;
 
         // CMYK -> CMY
         let c = c * (1.0 - k) + k;

@@ -12,7 +12,7 @@ impl Frames {
     /// Contructs a new frame iterator
     pub fn new(frames: Vec<Frame>) -> Frames {
         Frames {
-            frames: frames,
+            frames,
             current_frame: 0,
         }
     }
@@ -37,17 +37,17 @@ impl Frame {
             delay: Ratio::from_integer(0),
             left: 0,
             top: 0,
-            buffer: buffer,
+            buffer,
         }
     }
 
     /// Contructs a new frame
     pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Ratio<u16>) -> Frame {
         Frame {
-            delay: delay,
-            left: left,
-            top: top,
-            buffer: buffer,
+            delay,
+            left,
+            top,
+            buffer,
         }
     }
 

@@ -134,9 +134,9 @@ impl ::std::fmt::Debug for Entry {
 impl Entry {
     pub fn new(type_: Type, count: u32, offset: [u8; 4]) -> Entry {
         Entry {
-            type_: type_,
-            count: count,
-            offset: offset,
+            type_,
+            count,
+            offset,
         }
     }
 

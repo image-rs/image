@@ -613,7 +613,7 @@ impl BoolReader {
         self.value = 0;
 
         for _ in 0usize..2 {
-            self.value = (self.value << 8) | self.buf[self.index] as u32;
+            self.value = (self.value << 8) | u32::from(self.buf[self.index]);
             self.index += 1;
         }
 
@@ -622,7 +622,7 @@ impl BoolReader {
     }
 
     pub fn read_bool(&mut self, probability: u8) -> u8 {
-        let split = 1 + (((self.range - 1) * probability as u32) >> 8);
+        let split = 1 + (((self.range - 1) * u32::from(probability)) >> 8);
         let bigsplit = split << 8;
 
         let retval = if self.value >= bigsplit {
@@ -641,7 +641,7 @@ impl BoolReader {
 
             if self.bit_count == 8 {
                 self.bit_count = 0;
-                self.value |= self.buf[self.index] as u32;
+                self.value |= u32::from(self.buf[self.index]);
                 self.index += 1;
             }
         }
@@ -666,9 +666,9 @@ impl BoolReader {
         let sign = self.read_literal(1);
 
         if sign == 1 {
-            -1 * magnitude as i32
+            -i32::from(magnitude)
         } else {
-            magnitude as i32
+            i32::from(magnitude)
         }
     }
 
@@ -806,7 +806,7 @@ impl<R: Read> VP8Decoder<R> {
         let m = MacroBlock::new();
 
         VP8Decoder {
-            r: r,
+            r,
             b: BoolReader::new(),
 
             mbwidth: 0,
@@ -874,9 +874,9 @@ impl<R: Read> VP8Decoder<R> {
             );
 
             for (i, s) in sizes.chunks(3).enumerate() {
-                let size = s[0] as u32 + ((s[1] as u32) << 8) + ((s[2] as u32) << 8);
+                let size = u32::from(s[0]) + ((u32::from(s[1])) << 8) + ((u32::from(s[2])) << 8);
                 let mut buf = Vec::with_capacity(size as usize);
-                try!(self.r.by_ref().take(size as u64).read_to_end(&mut buf));
+                try!(self.r.by_ref().take(u64::from(size)).read_to_end(&mut buf));
 
                 self.partitions[i].init(buf);
             }
@@ -927,11 +927,11 @@ impl<R: Read> VP8Decoder<R> {
             1
         };
         for i in 0usize..n {
-            let base = if !self.segment[i].delta_values {
-                self.segment[i].quantizer_level as i16
+            let base = i32::from(if !self.segment[i].delta_values {
+                i16::from(self.segment[i].quantizer_level)
             } else {
-                self.segment[i].quantizer_level as i16 + yac_abs as i16
-            } as i32;
+                i16::from(self.segment[i].quantizer_level) + i16::from(yac_abs)
+            });
 
             self.segment[i].ydc = DC_QUANT[clamp(base + ydc_delta, 0, 127) as usize];
             self.segment[i].yac = AC_QUANT[clamp(base, 0, 127) as usize];
@@ -1027,7 +1027,7 @@ impl<R: Read> VP8Decoder<R> {
         self.frame.for_display = (tag[0] >> 4) & 1 != 0;
 
         let first_partition_size =
-            (((tag[2] as u32) << 16) | ((tag[1] as u32) << 8) | tag[0] as u32) >> 5;
+            ((u32::from(tag[2]) << 16) | (u32::from(tag[1]) << 8) | u32::from(tag[0])) >> 5;
 
         if self.frame.keyframe {
             try!(self.r.read_exact(&mut tag));
@@ -1055,7 +1055,7 @@ impl<R: Read> VP8Decoder<R> {
         try!(
             self.r
                 .by_ref()
-                .take(first_partition_size as u64)
+                .take(u64::from(first_partition_size))
                 .read_to_end(&mut buf)
         );
         // initialise binary decoder
@@ -1225,17 +1225,13 @@ impl<R: Read> VP8Decoder<R> {
             self.left_border[i + 1] = ws[(i + 1) * stride + 16];
         }
 
-        let ylength = if mby < self.mbheight as usize - 1 {
-            16usize
-        } else if self.frame.height % 16 == 0 {
+        let ylength = if mby < self.mbheight as usize - 1 || self.frame.height % 16 == 0 {
             16usize
         } else {
             (16 - (self.frame.height as usize & 15)) % 16
         };
 
-        let xlength = if mbx < self.mbwidth as usize - 1 {
-            16usize
-        } else if self.frame.width % 16 == 0 {
+        let xlength = if mbx < self.mbwidth as usize - 1 || self.frame.width % 16 == 0{
             16usize
         } else {
             (16 - (self.frame.width as usize & 15)) % 16
@@ -1274,7 +1270,7 @@ impl<R: Read> VP8Decoder<R> {
                 self.partitions[p].read_with_tree(tree, table, 2)
             };
 
-            let mut abs_value = match token {
+            let mut abs_value = i32::from(match token {
                 DCT_EOB => break,
 
                 DCT_0 => {
@@ -1284,7 +1280,7 @@ impl<R: Read> VP8Decoder<R> {
                     continue;
                 }
 
-                literal @ DCT_1...DCT_4 => literal as i16,
+                literal @ DCT_1...DCT_4 => i16::from(literal),
 
                 category @ DCT_CAT1...DCT_CAT6 => {
                     let t = PROB_DCT_CAT[(category - DCT_CAT1) as usize];
@@ -1293,15 +1289,15 @@ impl<R: Read> VP8Decoder<R> {
                     let mut j = 0;
 
                     while t[j] > 0 {
-                        extra += extra + self.partitions[p].read_bool(t[j]) as i16;
+                        extra = extra + extra + i16::from(self.partitions[p].read_bool(t[j]));
                         j += 1;
                     }
 
-                    DCT_CAT_BASE[(category - DCT_CAT1) as usize] as i16 + extra
+                    i16::from(DCT_CAT_BASE[(category - DCT_CAT1) as usize]) + extra
                 }
 
                 c => panic!(format!("unknown token: {}", c)),
-            } as i32;
+            });
 
             skip = false;
 
@@ -1317,7 +1313,7 @@ impl<R: Read> VP8Decoder<R> {
                 abs_value = -abs_value;
             }
 
-            block[ZIGZAG[i] as usize] = abs_value * if ZIGZAG[i] > 0 { acq } else { dcq } as i32;
+            block[ZIGZAG[i] as usize] = abs_value * i32::from(if ZIGZAG[i] > 0 { acq } else { dcq });
 
             has_coefficients = true;
         }
@@ -1459,8 +1455,8 @@ fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) ->
     {
         let above = &mut ws[1..stride];
         if mby == 0 {
-            for i in 0usize..above.len() {
-                above[i] = 127;
+            for above in above.iter_mut() {
+                *above = 127;
             }
         } else {
             for i in 0usize..16 {
@@ -1468,8 +1464,8 @@ fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) ->
             }
 
             if mbx == mbw - 1 {
-                for i in 16usize..above.len() {
-                    above[i] = top[mbx * 16 + 15];
+                for above in above.iter_mut().skip(16) {
+                    *above = top[mbx * 16 + 15];
                 }
             } else {
                 for i in 16usize..above.len() {
@@ -1497,11 +1493,9 @@ fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) ->
     }
 
     // P
-    ws[0] = if mby == 0 && mbx == 0 {
+    ws[0] = if mby == 0 {
         127
-    } else if mby == 0 && mbx != 0 {
-        127
-    } else if mbx == 0 && mby != 0 {
+    } else if mbx == 0 {
         129
     } else {
         left[0]
@@ -1511,12 +1505,12 @@ fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) ->
 }
 
 fn avg3(left: u8, this: u8, right: u8) -> u8 {
-    let avg = (left as u16 + 2 * this as u16 + right as u16 + 2) >> 2;
+    let avg = (u16::from(left) + 2 * u16::from(this) + u16::from(right) + 2) >> 2;
     avg as u8
 }
 
 fn avg2(this: u8, right: u8) -> u8 {
-    let avg = (this as u16 + right as u16 + 1) >> 1;
+    let avg = (u16::from(this) + u16::from(right) + 1) >> 1;
     avg as u8
 }
 
@@ -1525,7 +1519,7 @@ fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: 
         for x in 0usize..4 {
             let a = rblock[x + y * 4];
             let b = pblock[(y0 + y) * stride + x0 + x];
-            let c = clamp(a + b as i32, 0, 255) as u8;
+            let c = clamp(a + i32::from(b), 0, 255) as u8;
             pblock[(y0 + y) * stride + x0 + x] = c;
         }
     }
@@ -1580,7 +1574,7 @@ fn predict_dcpred(a: &mut [u8], size: usize, stride: usize, above: bool, left: b
 
     if left {
         for y in 0usize..size {
-            sum += a[(y + 1) * stride] as u32;
+            sum += u32::from(a[(y + 1) * stride]);
         }
 
         shf += 1;
@@ -1588,7 +1582,7 @@ fn predict_dcpred(a: &mut [u8], size: usize, stride: usize, above: bool, left: b
 
     if above {
         for x in 0usize..size {
-            sum += a[x + 1] as u32;
+            sum += u32::from(a[x + 1]);
         }
 
         shf += 1;
@@ -1610,8 +1604,9 @@ fn predict_dcpred(a: &mut [u8], size: usize, stride: usize, above: bool, left: b
 fn predict_tmpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize) {
     for y in 0usize..size {
         for x in 0usize..size {
-            let pred = a[(y0 + y) * stride + x0 - 1] as i32 + a[(y0 - 1) * stride + x0 + x] as i32
-                - a[(y0 - 1) * stride + x0 - 1] as i32;
+            let pred = i32::from(a[(y0 + y) * stride + x0 - 1])
+                + i32::from(a[(y0 - 1) * stride + x0 + x])
+                - i32::from(a[(y0 - 1) * stride + x0 - 1]);
 
             a[(x + x0) + stride * (y + y0)] = clamp(pred, 0, 255) as u8;
         }
@@ -1621,7 +1616,7 @@ fn predict_tmpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize
 fn predict_bdcpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let mut v = 4;
     for i in 0usize..4 {
-        v += a[(y0 + i) * stride + x0 - 1] as u32 + a[(y0 - 1) * stride + x0 + i] as u32;
+        v += u32::from(a[(y0 + i) * stride + x0 - 1]) + u32::from(a[(y0 - 1) * stride + x0 + i]);
     }
 
     v >>= 3;
@@ -1637,7 +1632,7 @@ fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
 }
 
 fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
-    let a0 = a[(y0 - 1) * stride + x0 + 0];
+    let a0 = a[(y0 - 1) * stride + x0];
     let a1 = a[(y0 - 1) * stride + x0 + 1];
     let a2 = a[(y0 - 1) * stride + x0 + 2];
     let a3 = a[(y0 - 1) * stride + x0 + 3];
@@ -1650,7 +1645,7 @@ fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8,
 }
 
 fn left_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8) {
-    let l0 = a[(y0 + 0) * stride + x0 - 1];
+    let l0 = a[(y0) * stride + x0 - 1];
     let l1 = a[(y0 + 1) * stride + x0 - 1];
     let l2 = a[(y0 + 2) * stride + x0 - 1];
     let l3 = a[(y0 + 3) * stride + x0 - 1];
@@ -1667,9 +1662,9 @@ fn edge_pixels(
     let e8 = a[(y0 - 1) * stride + x0 + 3];
     let e7 = a[(y0 - 1) * stride + x0 + 2];
     let e6 = a[(y0 - 1) * stride + x0 + 1];
-    let e5 = a[(y0 - 1) * stride + x0 + 0];
+    let e5 = a[(y0 - 1) * stride + x0];
     let e4 = a[(y0 - 1) * stride + x0 - 1];
-    let e3 = a[(y0 + 0) * stride + x0 - 1];
+    let e3 = a[(y0) * stride + x0 - 1];
     let e2 = a[(y0 + 1) * stride + x0 - 1];
     let e1 = a[(y0 + 2) * stride + x0 - 1];
     let e0 = a[(y0 + 3) * stride + x0 - 1];
@@ -1681,22 +1676,22 @@ fn predict_bvepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (a0, a1, a2, a3, a4, _, _, _) = top_pixels(a, x0, y0, stride);
 
-    a[(y0 + 0) * stride + x0 + 0] = avg3(p, a0, a1);
-    a[(y0 + 1) * stride + x0 + 0] = avg3(p, a0, a1);
-    a[(y0 + 2) * stride + x0 + 0] = avg3(p, a0, a1);
-    a[(y0 + 3) * stride + x0 + 0] = avg3(p, a0, a1);
+    a[(y0) * stride + x0] = avg3(p, a0, a1);
+    a[(y0 + 1) * stride + x0] = avg3(p, a0, a1);
+    a[(y0 + 2) * stride + x0] = avg3(p, a0, a1);
+    a[(y0 + 3) * stride + x0] = avg3(p, a0, a1);
 
-    a[(y0 + 0) * stride + x0 + 1] = avg3(a0, a1, a2);
+    a[(y0) * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 2) * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 3) * stride + x0 + 1] = avg3(a0, a1, a2);
 
-    a[(y0 + 0) * stride + x0 + 2] = avg3(a1, a2, a3);
+    a[(y0) * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 2) * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 3) * stride + x0 + 2] = avg3(a1, a2, a3);
 
-    a[(y0 + 0) * stride + x0 + 3] = avg3(a2, a3, a4);
+    a[(y0) * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 2) * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 3) * stride + x0 + 3] = avg3(a2, a3, a4);
@@ -1706,22 +1701,22 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    a[(y0 + 0) * stride + x0 + 0] = avg3(p, l0, l1);
-    a[(y0 + 0) * stride + x0 + 1] = avg3(p, l0, l1);
-    a[(y0 + 0) * stride + x0 + 2] = avg3(p, l0, l1);
-    a[(y0 + 0) * stride + x0 + 3] = avg3(p, l0, l1);
+    a[(y0) * stride + x0] = avg3(p, l0, l1);
+    a[(y0) * stride + x0 + 1] = avg3(p, l0, l1);
+    a[(y0) * stride + x0 + 2] = avg3(p, l0, l1);
+    a[(y0) * stride + x0 + 3] = avg3(p, l0, l1);
 
-    a[(y0 + 1) * stride + x0 + 0] = avg3(l0, l1, l2);
+    a[(y0 + 1) * stride + x0] = avg3(l0, l1, l2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(l0, l1, l2);
     a[(y0 + 1) * stride + x0 + 2] = avg3(l0, l1, l2);
     a[(y0 + 1) * stride + x0 + 3] = avg3(l0, l1, l2);
 
-    a[(y0 + 2) * stride + x0 + 0] = avg3(l1, l2, l3);
+    a[(y0 + 2) * stride + x0] = avg3(l1, l2, l3);
     a[(y0 + 2) * stride + x0 + 1] = avg3(l1, l2, l3);
     a[(y0 + 2) * stride + x0 + 2] = avg3(l1, l2, l3);
     a[(y0 + 2) * stride + x0 + 3] = avg3(l1, l2, l3);
 
-    a[(y0 + 3) * stride + x0 + 0] = avg3(l2, l3, l3);
+    a[(y0 + 3) * stride + x0] = avg3(l2, l3, l3);
     a[(y0 + 3) * stride + x0 + 1] = avg3(l2, l3, l3);
     a[(y0 + 3) * stride + x0 + 2] = avg3(l2, l3, l3);
     a[(y0 + 3) * stride + x0 + 3] = avg3(l2, l3, l3);
@@ -1730,16 +1725,16 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[(y0 + 0) * stride + x0 + 0] = avg3(a0, a1, a2);
-    a[(y0 + 0) * stride + x0 + 1] = avg3(a1, a2, a3);
-    a[(y0 + 1) * stride + x0 + 0] = avg3(a1, a2, a3);
-    a[(y0 + 0) * stride + x0 + 2] = avg3(a2, a3, a4);
+    a[(y0) * stride + x0] = avg3(a0, a1, a2);
+    a[(y0) * stride + x0 + 1] = avg3(a1, a2, a3);
+    a[(y0 + 1) * stride + x0] = avg3(a1, a2, a3);
+    a[(y0) * stride + x0 + 2] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a2, a3, a4);
-    a[(y0 + 2) * stride + x0 + 0] = avg3(a2, a3, a4);
-    a[(y0 + 0) * stride + x0 + 3] = avg3(a3, a4, a5);
+    a[(y0 + 2) * stride + x0] = avg3(a2, a3, a4);
+    a[(y0) * stride + x0 + 3] = avg3(a3, a4, a5);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a3, a4, a5);
     a[(y0 + 2) * stride + x0 + 1] = avg3(a3, a4, a5);
-    a[(y0 + 3) * stride + x0 + 0] = avg3(a3, a4, a5);
+    a[(y0 + 3) * stride + x0] = avg3(a3, a4, a5);
     a[(y0 + 1) * stride + x0 + 3] = avg3(a4, a5, a6);
     a[(y0 + 2) * stride + x0 + 2] = avg3(a4, a5, a6);
     a[(y0 + 3) * stride + x0 + 1] = avg3(a4, a5, a6);
@@ -1751,60 +1746,60 @@ fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    a[(y0 + 3) * stride + x0 + 0] = avg3(e0, e1, e2);
+    a[(y0 + 3) * stride + x0] = avg3(e0, e1, e2);
     a[(y0 + 3) * stride + x0 + 1] = avg3(e1, e2, e3);
-    a[(y0 + 2) * stride + x0 + 0] = avg3(e1, e2, e3);
+    a[(y0 + 2) * stride + x0] = avg3(e1, e2, e3);
     a[(y0 + 3) * stride + x0 + 2] = avg3(e2, e3, e4);
     a[(y0 + 2) * stride + x0 + 1] = avg3(e2, e3, e4);
-    a[(y0 + 1) * stride + x0 + 0] = avg3(e2, e3, e4);
+    a[(y0 + 1) * stride + x0] = avg3(e2, e3, e4);
     a[(y0 + 3) * stride + x0 + 3] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 2] = avg3(e3, e4, e5);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[(y0 + 0) * stride + x0 + 0] = avg3(e3, e4, e5);
+    a[(y0) * stride + x0] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 3] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[(y0 + 0) * stride + x0 + 1] = avg3(e4, e5, e6);
+    a[(y0) * stride + x0 + 1] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e5, e6, e7);
-    a[(y0 + 0) * stride + x0 + 2] = avg3(e5, e6, e7);
-    a[(y0 + 0) * stride + x0 + 3] = avg3(e6, e7, e8);
+    a[(y0) * stride + x0 + 2] = avg3(e5, e6, e7);
+    a[(y0) * stride + x0 + 3] = avg3(e6, e7, e8);
 }
 
 fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (_, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    a[(y0 + 3) * stride + x0 + 0] = avg3(e1, e2, e3);
-    a[(y0 + 2) * stride + x0 + 0] = avg3(e2, e3, e4);
+    a[(y0 + 3) * stride + x0] = avg3(e1, e2, e3);
+    a[(y0 + 2) * stride + x0] = avg3(e2, e3, e4);
     a[(y0 + 3) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[(y0 + 1) * stride + x0 + 0] = avg3(e3, e4, e5);
+    a[(y0 + 1) * stride + x0] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 1] = avg2(e4, e5);
-    a[(y0 + 0) * stride + x0 + 0] = avg2(e4, e5);
+    a[(y0) * stride + x0] = avg2(e4, e5);
     a[(y0 + 3) * stride + x0 + 2] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e4, e5, e6);
     a[(y0 + 2) * stride + x0 + 2] = avg2(e5, e6);
-    a[(y0 + 0) * stride + x0 + 1] = avg2(e5, e6);
+    a[(y0) * stride + x0 + 1] = avg2(e5, e6);
     a[(y0 + 3) * stride + x0 + 3] = avg3(e5, e6, e7);
     a[(y0 + 1) * stride + x0 + 2] = avg3(e5, e6, e7);
     a[(y0 + 2) * stride + x0 + 3] = avg2(e6, e7);
-    a[(y0 + 0) * stride + x0 + 2] = avg2(e6, e7);
+    a[(y0) * stride + x0 + 2] = avg2(e6, e7);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e6, e7, e8);
-    a[(y0 + 0) * stride + x0 + 3] = avg2(e7, e8);
+    a[(y0) * stride + x0 + 3] = avg2(e7, e8);
 }
 
 fn predict_bvlpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[(y0 + 0) * stride + x0 + 0] = avg2(a0, a1);
-    a[(y0 + 1) * stride + x0 + 0] = avg3(a0, a1, a2);
-    a[(y0 + 2) * stride + x0 + 0] = avg2(a1, a2);
-    a[(y0 + 0) * stride + x0 + 1] = avg2(a1, a2);
+    a[(y0) * stride + x0] = avg2(a0, a1);
+    a[(y0 + 1) * stride + x0] = avg3(a0, a1, a2);
+    a[(y0 + 2) * stride + x0] = avg2(a1, a2);
+    a[(y0) * stride + x0 + 1] = avg2(a1, a2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a1, a2, a3);
-    a[(y0 + 3) * stride + x0 + 0] = avg3(a1, a2, a3);
+    a[(y0 + 3) * stride + x0] = avg3(a1, a2, a3);
     a[(y0 + 2) * stride + x0 + 1] = avg2(a2, a3);
-    a[(y0 + 0) * stride + x0 + 2] = avg2(a2, a3);
+    a[(y0) * stride + x0 + 2] = avg2(a2, a3);
     a[(y0 + 3) * stride + x0 + 1] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a2, a3, a4);
     a[(y0 + 2) * stride + x0 + 2] = avg2(a3, a4);
-    a[(y0 + 0) * stride + x0 + 3] = avg2(a3, a4);
+    a[(y0) * stride + x0 + 3] = avg2(a3, a4);
     a[(y0 + 3) * stride + x0 + 2] = avg3(a3, a4, a5);
     a[(y0 + 1) * stride + x0 + 3] = avg3(a3, a4, a5);
     a[(y0 + 2) * stride + x0 + 3] = avg3(a4, a5, a6);
@@ -1814,40 +1809,40 @@ fn predict_bvlpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bhdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, _) = edge_pixels(a, x0, y0, stride);
 
-    a[(y0 + 3) * stride + x0 + 0] = avg2(e0, e1);
+    a[(y0 + 3) * stride + x0] = avg2(e0, e1);
     a[(y0 + 3) * stride + x0 + 1] = avg3(e0, e1, e2);
-    a[(y0 + 2) * stride + x0 + 0] = avg2(e1, e2);
+    a[(y0 + 2) * stride + x0] = avg2(e1, e2);
     a[(y0 + 3) * stride + x0 + 2] = avg2(e1, e2);
     a[(y0 + 2) * stride + x0 + 1] = avg3(e1, e2, e3);
     a[(y0 + 3) * stride + x0 + 3] = avg3(e1, e2, e3);
     a[(y0 + 2) * stride + x0 + 2] = avg2(e2, e3);
-    a[(y0 + 1) * stride + x0 + 0] = avg2(e2, e3);
+    a[(y0 + 1) * stride + x0] = avg2(e2, e3);
     a[(y0 + 2) * stride + x0 + 3] = avg3(e2, e3, e4);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e2, e3, e4);
     a[(y0 + 1) * stride + x0 + 2] = avg2(e3, e4);
-    a[(y0 + 0) * stride + x0 + 0] = avg2(e3, e4);
+    a[(y0) * stride + x0] = avg2(e3, e4);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e3, e4, e5);
-    a[(y0 + 0) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[(y0 + 0) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[(y0 + 0) * stride + x0 + 3] = avg3(e5, e6, e7);
+    a[(y0) * stride + x0 + 1] = avg3(e3, e4, e5);
+    a[(y0) * stride + x0 + 2] = avg3(e4, e5, e6);
+    a[(y0) * stride + x0 + 3] = avg3(e5, e6, e7);
 }
 
 fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    a[(y0 + 0) * stride + x0 + 0] = avg2(l0, l1);
-    a[(y0 + 0) * stride + x0 + 1] = avg3(l0, l1, l2);
-    a[(y0 + 0) * stride + x0 + 2] = avg2(l1, l2);
-    a[(y0 + 1) * stride + x0 + 0] = avg2(l1, l2);
-    a[(y0 + 0) * stride + x0 + 3] = avg3(l1, l2, l3);
+    a[(y0) * stride + x0] = avg2(l0, l1);
+    a[(y0) * stride + x0 + 1] = avg3(l0, l1, l2);
+    a[(y0) * stride + x0 + 2] = avg2(l1, l2);
+    a[(y0 + 1) * stride + x0] = avg2(l1, l2);
+    a[(y0) * stride + x0 + 3] = avg3(l1, l2, l3);
     a[(y0 + 1) * stride + x0 + 1] = avg3(l1, l2, l3);
     a[(y0 + 1) * stride + x0 + 2] = avg2(l2, l3);
-    a[(y0 + 2) * stride + x0 + 0] = avg2(l2, l3);
+    a[(y0 + 2) * stride + x0] = avg2(l2, l3);
     a[(y0 + 1) * stride + x0 + 3] = avg3(l2, l3, l3);
     a[(y0 + 2) * stride + x0 + 1] = avg3(l2, l3, l3);
     a[(y0 + 2) * stride + x0 + 2] = l3;
     a[(y0 + 2) * stride + x0 + 3] = l3;
-    a[(y0 + 3) * stride + x0 + 0] = l3;
+    a[(y0 + 3) * stride + x0] = l3;
     a[(y0 + 3) * stride + x0 + 1] = l3;
     a[(y0 + 3) * stride + x0 + 2] = l3;
     a[(y0 + 3) * stride + x0 + 3] = l3;

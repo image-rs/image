@@ -298,7 +298,7 @@ impl<'a> CheckedImageBuffer<'a> {
             }),
             Some(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                &format!("Image buffer does not correspond to size and colour")[..],
+                &"Image buffer does not correspond to size and colour".to_string()[..],
             )),
         }
     }
@@ -333,8 +333,8 @@ impl<'a> CheckedDimensions<'a> {
             ColorType::RGBA(_) => 4,
         };
 
-        match self.unchecked.header {
-            &PNMHeader {
+        match *self.unchecked.header {
+            PNMHeader {
                 decoded: HeaderRecord::Bitmap(_),
                 ..
             } => match color {
@@ -346,7 +346,7 @@ impl<'a> CheckedDimensions<'a> {
                     ))
                 }
             },
-            &PNMHeader {
+            PNMHeader {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
@@ -358,7 +358,7 @@ impl<'a> CheckedDimensions<'a> {
                     ))
                 }
             },
-            &PNMHeader {
+            PNMHeader {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
@@ -370,7 +370,7 @@ impl<'a> CheckedDimensions<'a> {
                     ))
                 }
             },
-            &PNMHeader {
+            PNMHeader {
                 decoded:
                     HeaderRecord::Arbitrary(ArbitraryHeader {
                         depth,
@@ -414,11 +414,11 @@ impl<'a> CheckedDimensions<'a> {
 
 impl<'a> CheckedHeaderColor<'a> {
     fn check_sample_values(self, image: FlatSamples<'a>) -> io::Result<CheckedHeader<'a>> {
-        let header_maxval = match &self.dimensions.unchecked.header.decoded {
-            &HeaderRecord::Bitmap(_) => 1,
-            &HeaderRecord::Graymap(GraymapHeader { maxwhite, .. }) => maxwhite,
-            &HeaderRecord::Pixmap(PixmapHeader { maxval, .. }) => maxval,
-            &HeaderRecord::Arbitrary(ArbitraryHeader { maxval, .. }) => maxval,
+        let header_maxval = match self.dimensions.unchecked.header.decoded {
+            HeaderRecord::Bitmap(_) => 1,
+            HeaderRecord::Graymap(GraymapHeader { maxwhite, .. }) => maxwhite,
+            HeaderRecord::Pixmap(PixmapHeader { maxval, .. }) => maxval,
+            HeaderRecord::Arbitrary(ArbitraryHeader { maxval, .. }) => maxval,
         };
 
         // We trust the image color bit count to be correct at least.

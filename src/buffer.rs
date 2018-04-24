@@ -311,8 +311,8 @@ where
         if width as usize * height as usize * <P as Pixel>::channel_count() as usize <= buf.len() {
             Some(ImageBuffer {
                 data: buf,
-                width: width,
-                height: height,
+                width,
+                height,
                 _phantom: PhantomData,
             })
         } else {
@@ -393,7 +393,7 @@ where
             pixels: self.pixels_mut(),
             x: 0,
             y: 0,
-            width: width,
+            width,
         }
     }
 
@@ -581,8 +581,8 @@ where
                 Zero::zero();
                 width as usize * height as usize * (<P as Pixel>::channel_count() as usize)
             ],
-            width: width,
-            height: height,
+            width,
+            height,
             _phantom: PhantomData,
         }
     }

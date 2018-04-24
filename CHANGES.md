@@ -8,11 +8,36 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.19
+
+- Fixed panic when blending with alpha zero.
+- Made `save` consistent.
+- Consistent size calculation.
+- Fixed bug in `apply_with_alpha`.
+- Implemented `TGADecoder::read_scanline`.
+- Use deprecated attribute for `pixels_mut`.
+- Fixed bug in JPEG grayscale encoding.
+- Fixed multi image TIFF.
+- PNM encoder.
+- Added `#[derive(Hash)]` for `ColorType`.
+- Use `num-derive` for `#[derive(FromPrimitive)]`.
+- Added `into_frames` implementation for GIF.
+- Made rayon an optional dependency.
+- Fixed issue where resizing image did not give exact width/height.
+- Improved downscale.
+- Added a way to expose options when saving files.
+- Fixed some compiler warnings.
+- Switched to lzw crate instead of using built-in version.
+- Added `ExactSizeIterator` implementations to buffer structs.
+- Added `resize_to_fill` method.
+- DXT encoding support.
+- Applied clippy suggestions.
+
 ### Version 0.4
  - Various improvements.
  - Additional supported image formats (BMP and ICO).
  - GIF and PNG codec moved into separate crates.
- 
+
 ### Version 0.3
  - Replace `std::old_io` with `std::io`.
 

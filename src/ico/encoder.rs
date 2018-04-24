@@ -1,7 +1,7 @@
-use byteorder::{WriteBytesExt, LittleEndian};
+use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use color::{ColorType, bits_per_pixel};
+use color::{bits_per_pixel, ColorType};
 
 use png::PNGEncoder;
 
@@ -14,30 +14,37 @@ const ICO_DIRENTRY_SIZE: u32 = 16;
 
 /// ICO encoder
 pub struct ICOEncoder<W: Write> {
-    w: W
+    w: W,
 }
 
 impl<W: Write> ICOEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> ICOEncoder<W> {
-        ICOEncoder {
-            w: w
-        }
+        ICOEncoder { w: w }
     }
 
     /// Encodes the image ```image``` that has dimensions ```width``` and
     /// ```height``` and ```ColorType``` ```c```.  The dimensions of the image
     /// must be between 1 and 256 (inclusive) or an error will be returned.
-    pub fn encode(mut self, data: &[u8], width: u32, height: u32,
-                  color: ColorType) -> io::Result<()> {
+    pub fn encode(
+        mut self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> io::Result<()> {
         let mut image_data: Vec<u8> = Vec::new();
-        try!(PNGEncoder::new(&mut image_data).encode(
-            data, width, height, color));
+        try!(PNGEncoder::new(&mut image_data).encode(data, width, height, color));
 
         try!(write_icondir(&mut self.w, 1));
-        try!(write_direntry(&mut self.w, width, height, color,
-                            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
-                            image_data.len() as u32));
+        try!(write_direntry(
+            &mut self.w,
+            width,
+            height,
+            color,
+            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
+            image_data.len() as u32
+        ));
         try!(self.w.write_all(&image_data));
         Ok(())
     }
@@ -53,9 +60,14 @@ fn write_icondir<W: Write>(w: &mut W, num_images: u16) -> io::Result<()> {
     Ok(())
 }
 
-fn write_direntry<W: Write>(w: &mut W, width: u32, height: u32,
-                            color: ColorType, data_start: u32,
-                            data_size: u32) -> io::Result<()> {
+fn write_direntry<W: Write>(
+    w: &mut W,
+    width: u32,
+    height: u32,
+    color: ColorType,
+    data_start: u32,
+    data_size: u32,
+) -> io::Result<()> {
     // Image dimensions:
     try!(write_width_or_height(w, width));
     try!(write_width_or_height(w, height));
@@ -77,9 +89,11 @@ fn write_direntry<W: Write>(w: &mut W, width: u32, height: u32,
 /// Encode a width/height value as a single byte, where 0 means 256.
 fn write_width_or_height<W: Write>(w: &mut W, value: u32) -> io::Result<()> {
     if value < 1 || value > 256 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData,
-                                  "Invalid ICO dimensions (width and \
-                                   height must be between 1 and 256)"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid ICO dimensions (width and \
+             height must be between 1 and 256)",
+        ));
     }
     w.write_u8(if value < 256 { value as u8 } else { 0 })
 }

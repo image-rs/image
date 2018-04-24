@@ -36,13 +36,13 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
         k += 1;
 
         if huffsize[k] == size {
-            continue
+            continue;
         }
 
         // FIXME there is something wrong with this code
         let diff = huffsize[k].wrapping_sub(size);
-        code = if diff < 16  { code << diff as usize } else { 0 };
-        
+        code = if diff < 16 { code << diff as usize } else { 0 };
+
         size = size.wrapping_add(diff);
     }
 

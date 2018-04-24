@@ -15,4 +15,3 @@ mod hdr_encoder;
 
 pub use self::hdr_decoder::*;
 pub use self::hdr_encoder::*;
-

@@ -9,8 +9,8 @@
 
 use std::io::{Read, Write};
 
-use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use color::ColorType;
+use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -25,7 +25,7 @@ pub enum DXTVariant {
     DXT3,
     /// The DXT5 format. 64 bytes of RGBA data in a 4x4 pixel square is
     /// compressed into a 16 byte block of DXT5 data
-    DXT5
+    DXT5,
 }
 
 impl DXTVariant {
@@ -34,8 +34,7 @@ impl DXTVariant {
     fn decoded_bytes_per_block(&self) -> usize {
         match *self {
             DXTVariant::DXT1 => 48,
-            DXTVariant::DXT3
-            | DXTVariant::DXT5 => 64
+            DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
         }
     }
 
@@ -43,8 +42,7 @@ impl DXTVariant {
     fn encoded_bytes_per_block(&self) -> usize {
         match *self {
             DXTVariant::DXT1 => 8,
-            DXTVariant::DXT3
-            | DXTVariant::DXT5 => 16
+            DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
         }
     }
 
@@ -52,8 +50,7 @@ impl DXTVariant {
     pub fn colortype(&self) -> ColorType {
         match *self {
             DXTVariant::DXT1 => ColorType::RGB(8),
-            DXTVariant::DXT3
-            | DXTVariant::DXT5 => ColorType::RGBA(8)
+            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::RGBA(8),
         }
     }
 }
@@ -67,7 +64,7 @@ pub struct DXTDecoder<R: Read> {
     row: u32,
 }
 
-impl <R: Read> DXTDecoder<R> {
+impl<R: Read> DXTDecoder<R> {
     /// Create a new DXT decoder that decodes from the stream ```r```.
     /// As DXT is often stored as raw buffers with the width/height
     /// somewhere else the width and height of the image need
@@ -75,7 +72,12 @@ impl <R: Read> DXTDecoder<R> {
     /// DXT variant in ```variant```.
     /// width and height are required to be powers of 2 and at least 4.
     /// otherwise an error will be returned
-    pub fn new(r: R, width: u32, height: u32, variant: DXTVariant) -> Result<DXTDecoder<R>, ImageError> {
+    pub fn new(
+        r: R,
+        width: u32,
+        height: u32,
+        variant: DXTVariant,
+    ) -> Result<DXTDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             return Err(ImageError::DimensionError);
         }
@@ -89,14 +91,14 @@ impl <R: Read> DXTDecoder<R> {
             width_blocks: width_blocks,
             height_blocks: height_blocks,
             variant: variant,
-            row: 0
+            row: 0,
         })
     }
 }
 
 /// Note that, due to the way that DXT compression works, a scanline is considered
 /// to consist out of 4 lines of pixels.
-impl <R: Read> ImageDecoder for DXTDecoder<R> {
+impl<R: Read> ImageDecoder for DXTDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width_blocks * 4, self.height_blocks * 4))
     }
@@ -110,7 +112,8 @@ impl <R: Read> ImageDecoder for DXTDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        let mut src = vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
+        let mut src =
+            vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
         self.inner.read_exact(&mut src)?;
         match self.variant {
             DXTVariant::DXT1 => decode_dxt1_row(&src, buf),
@@ -131,25 +134,28 @@ impl <R: Read> ImageDecoder for DXTDecoder<R> {
     }
 }
 
-
 /// DXT encoder
 pub struct DXTEncoder<W: Write> {
-    w: W
+    w: W,
 }
 
-impl <W: Write> DXTEncoder<W> {
+impl<W: Write> DXTEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> DXTEncoder<W> {
-        DXTEncoder {
-            w: w
-        }
+        DXTEncoder { w: w }
     }
 
     /// Encodes the image data ```data```
     /// that has dimensions ```width``` and ```height```
     /// in ```DXTVariant``` ```variant```
     /// data is assumed to be in variant.colortype()
-    pub fn encode(mut self, data: &[u8], width: u32, height: u32, variant: DXTVariant) -> ImageResult<()> {
+    pub fn encode(
+        mut self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        variant: DXTVariant,
+    ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
             return Err(ImageError::DimensionError);
         }
@@ -178,27 +184,30 @@ impl <W: Write> DXTEncoder<W> {
 /**
  * Actual encoding/decoding logic below.
  */
-
 use std::mem::swap;
 
-type Rgb  = [u8; 3];
+type Rgb = [u8; 3];
 
 /// decodes a 5-bit R, 6-bit G, 5-bit B 16-bit packed color value into 8-bit RGB
 /// mapping is done so min/max range values are preserved. So for 5-bit
 /// values 0x00 -> 0x00 and 0x1F -> 0xFF
 fn enc565_decode(value: u16) -> Rgb {
-    let red   = (value >> 11) & 0x1F;
-    let green = (value >> 5 ) & 0x3F;
-    let blue  = (value      ) & 0x1F;
-    [(red * 0xFF / 0x1F) as u8, (green * 0xFF / 0x3F) as u8, (blue * 0xFF / 0x1F) as u8]
+    let red = (value >> 11) & 0x1F;
+    let green = (value >> 5) & 0x3F;
+    let blue = (value) & 0x1F;
+    [
+        (red * 0xFF / 0x1F) as u8,
+        (green * 0xFF / 0x3F) as u8,
+        (blue * 0xFF / 0x1F) as u8,
+    ]
 }
 
 /// encodes an 8-bit RGB value into a 5-bit R, 6-bit G, 5-bit B 16-bit packed color value
 /// mapping preserves min/max values. It is guaranteed that i == encode(decode(i)) for all i
 fn enc565_encode(rgb: Rgb) -> u16 {
-    let red   = (rgb[0] as u16 * 0x1F + 0x7E) / 0xFF;
+    let red = (rgb[0] as u16 * 0x1F + 0x7E) / 0xFF;
     let green = (rgb[1] as u16 * 0x3F + 0x7E) / 0xFF;
-    let blue  = (rgb[2] as u16 * 0x1F + 0x7E) / 0xFF;
+    let blue = (rgb[2] as u16 * 0x1F + 0x7E) / 0xFF;
     (red << 11) | (green << 5) | blue
 }
 
@@ -209,9 +218,8 @@ fn square(a: i32) -> i32 {
 
 /// returns the squared error between two RGB values
 fn diff(a: &Rgb, b: &Rgb) -> i32 {
-    square(a[0] as i32 - b[0] as i32) +
-    square(a[1] as i32 - b[1] as i32) +
-    square(a[2] as i32 - b[2] as i32)
+    square(a[0] as i32 - b[0] as i32) + square(a[1] as i32 - b[1] as i32)
+        + square(a[2] as i32 - b[2] as i32)
 }
 
 /*
@@ -224,11 +232,11 @@ fn diff(a: &Rgb, b: &Rgb) -> i32 {
 fn alpha_table_dxt5(alpha0: u8, alpha1: u8) -> [u8; 8] {
     let mut table = [alpha0, alpha1, 0, 0, 0, 0, 0, 0xFF];
     if alpha0 > alpha1 {
-        for i in 2 .. 8u16 {
+        for i in 2..8u16 {
             table[i as usize] = (((8 - i) * alpha0 as u16 + (i - 1) * alpha1 as u16) / 7) as u8;
         }
     } else {
-        for i in 2 .. 6u16 {
+        for i in 2..6u16 {
             table[i as usize] = (((6 - i) * alpha0 as u16 + (i - 1) * alpha1 as u16) / 5) as u8;
         }
     }
@@ -238,7 +246,6 @@ fn alpha_table_dxt5(alpha0: u8, alpha1: u8) -> [u8; 8] {
 /// decodes an 8-byte dxt color block into the RGB channels of a 16xRGB or 16xRGBA block.
 /// source should have a length of 8, dest a length of 48 (RGB) or 64 (RGBA)
 fn decode_dxt_colors(source: &[u8], dest: &mut [u8]) {
-
     // sanity checks, also enable the compiler to elide all following bound checks
     assert!(source.len() == 8 && (dest.len() == 48 || dest.len() == 64));
     // calculate pitch to store RGB values in dest (3 for RGB, 4 for RGBA)
@@ -247,10 +254,8 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     // extract color data
     let color0 = source[0] as u16 | ((source[1] as u16) << 8);
     let color1 = source[2] as u16 | ((source[3] as u16) << 8);
-    let color_table =   source[4] as u32         |
-                      ((source[5] as u32) <<  8) |
-                      ((source[6] as u32) << 16) |
-                      ((source[7] as u32) << 24) ;
+    let color_table = source[4] as u32 | ((source[5] as u32) << 8) | ((source[6] as u32) << 16)
+        | ((source[7] as u32) << 24);
     // let color_table = source[4..8].iter().rev().fold(0, |t, &b| (t << 8) | b as u32);
 
     // decode the colors to rgb format
@@ -261,21 +266,22 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     // determine color interpolation method
     if color0 > color1 {
         // linearly interpolate the other two color table entries
-        for i in 0 .. 3 {
+        for i in 0..3 {
             colors[2][i] = ((colors[0][i] as u16 * 2 + colors[1][i] as u16 + 1) / 3) as u8;
             colors[3][i] = ((colors[0][i] as u16 + colors[1][i] as u16 * 2 + 1) / 3) as u8;
         }
     } else {
         // linearly interpolate one other entry, keep the other at 0
-        for i in 0 .. 3 {
+        for i in 0..3 {
             colors[2][i] = ((colors[0][i] as u16 + colors[1][i] as u16 + 1) / 2) as u8;
         }
     }
 
     // serialize the result. Every color is determined by looking up
     // two bits in color_table which identify which color to actually pick from the 4 possible colors
-    for i in 0 .. 16 {
-        dest[i * pitch .. i * pitch + 3].copy_from_slice(&colors[ (color_table >> (i * 2)) as usize & 3 ]);
+    for i in 0..16 {
+        dest[i * pitch..i * pitch + 3]
+            .copy_from_slice(&colors[(color_table >> (i * 2)) as usize & 3]);
     }
 }
 
@@ -284,18 +290,21 @@ fn decode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 16 && dest.len() == 64);
 
     // extract alpha index table (stored as little endian 64-bit value)
-    let alpha_table = source[2..8].iter().rev().fold(0, |t, &b| (t << 8) | b as u64);
+    let alpha_table = source[2..8]
+        .iter()
+        .rev()
+        .fold(0, |t, &b| (t << 8) | b as u64);
 
     // alhpa level decode
     let alphas = alpha_table_dxt5(source[0], source[1]);
 
     // serialize alpha
-    for i in 0 .. 16 {
+    for i in 0..16 {
         dest[i * 4 + 3] = alphas[(alpha_table >> (i * 3)) as usize & 7];
     }
 
     // handle colors
-    decode_dxt_colors(&source[8 .. 16], dest);
+    decode_dxt_colors(&source[8..16], dest);
 }
 
 /// Decodes a 16-byte bock of dxt3 data to a 16xRGBA block
@@ -303,15 +312,18 @@ fn decode_dxt3_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 16 && dest.len() == 64);
 
     // extract alpha index table (stored as little endian 64-bit value)
-    let alpha_table = source[0..8].iter().rev().fold(0, |t, &b| (t << 8) | b as u64);
+    let alpha_table = source[0..8]
+        .iter()
+        .rev()
+        .fold(0, |t, &b| (t << 8) | b as u64);
 
     // serialize alpha (stored as 4-bit values)
-    for i in 0 .. 16 {
+    for i in 0..16 {
         dest[i * 4 + 3] = ((alpha_table >> (i * 4)) as u8 & 0xF) * 0x11;
     }
 
     // handle colors
-    decode_dxt_colors(&source[8 .. 16], dest);
+    decode_dxt_colors(&source[8..16], dest);
 }
 
 /// Decodes a 8-byte bock of dxt5 data to a 16xRGB block
@@ -334,9 +346,9 @@ fn decode_dxt1_row(source: &[u8], dest: &mut [u8]) {
         decode_dxt1_block(encoded_block, &mut decoded_block);
 
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 12;
-            dest[offset .. offset + 12].copy_from_slice(&decoded_block[line * 12 .. (line + 1) * 12]);
+            dest[offset..offset + 12].copy_from_slice(&decoded_block[line * 12..(line + 1) * 12]);
         }
     }
 }
@@ -355,9 +367,9 @@ fn decode_dxt3_row(source: &[u8], dest: &mut [u8]) {
         decode_dxt3_block(encoded_block, &mut decoded_block);
 
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 16;
-            dest[offset .. offset + 16].copy_from_slice(&decoded_block[line * 16 .. (line + 1) * 16]);
+            dest[offset..offset + 16].copy_from_slice(&decoded_block[line * 16..(line + 1) * 16]);
         }
     }
 }
@@ -376,9 +388,9 @@ fn decode_dxt5_row(source: &[u8], dest: &mut [u8]) {
         decode_dxt5_block(encoded_block, &mut decoded_block);
 
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 16;
-            dest[offset .. offset + 16].copy_from_slice(&decoded_block[line * 16 .. (line + 1) * 16]);
+            dest[offset..offset + 16].copy_from_slice(&decoded_block[line * 16..(line + 1) * 16]);
         }
     }
 }
@@ -439,10 +451,14 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
         // the base color we got from colorspace reduction
         let ref_rgb = colorspace[0];
         // the unreduced color in this block that's the furthest away from the actual block
-        let mut rgb = targets.iter().cloned().max_by_key(|rgb| diff(rgb, &ref_rgb)).unwrap();
+        let mut rgb = targets
+            .iter()
+            .cloned()
+            .max_by_key(|rgb| diff(rgb, &ref_rgb))
+            .unwrap();
         // amplify differences by 2.5, which should push them to the next quantized value
         // if possible without overshoot
-        for i in 0 .. 3 {
+        for i in 0..3 {
             rgb[i] = ((rgb[i] as i16 - ref_rgb[i] as i16) * 5 / 2 + ref_rgb[i] as i16) as u8;
         }
 
@@ -456,7 +472,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
             dest[0] = encoded as u8;
             dest[1] = (encoded >> 8) as u8;
 
-            for i in 2 .. 8 {
+            for i in 2..8 {
                 dest[i] = 0;
             }
             return;
@@ -466,7 +482,6 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
         // we're done
         colorspace.push(rgb);
     }
-
 
     // block quantization loop: we basically just try every possible combination, returning
     // the combination with the least squared error
@@ -481,24 +496,26 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     'search: for (i, &c1) in colorspace.iter().enumerate() {
         colors[0] = c1;
 
-        for &c2 in &colorspace[0 .. i] {
+        for &c2 in &colorspace[0..i] {
             colors[1] = c2;
 
             // what's inside here is ran at most 120 times.
-            for use_0 in 0 .. 2 {
+            for use_0 in 0..2 {
                 // and 240 times here.
 
                 if use_0 != 0 {
                     // interpolate one color, set the other to 0
-                    for i in 0 .. 3 {
+                    for i in 0..3 {
                         colors[2][i] = ((colors[0][i] as u16 + colors[1][i] as u16 + 1) / 2) as u8;
                     }
                     colors[3] = [0, 0, 0];
                 } else {
                     // interpolate to get 2 more colors
-                    for i in 0 .. 3 {
-                        colors[2][i] = ((colors[0][i] as u16 * 2 + colors[1][i] as u16 + 1) / 3) as u8;
-                        colors[3][i] = ((colors[0][i] as u16 + colors[1][i] as u16 * 2 + 1) / 3) as u8;
+                    for i in 0..3 {
+                        colors[2][i] =
+                            ((colors[0][i] as u16 * 2 + colors[1][i] as u16 + 1) / 3) as u8;
+                        colors[3][i] =
+                            ((colors[0][i] as u16 + colors[1][i] as u16 * 2 + 1) / 3) as u8;
                     }
                 }
 
@@ -506,13 +523,16 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
                 // both these loops have statically known iteration counts and are well vectorizable
                 // note that the inside of this can be run about 15360 times worst case, i.e. 960 times per
                 // pixel.
-                let total_error = targets.iter().map(|t| colors.iter().map(|c| diff(c, t) as u32).min().unwrap()).sum();
+                let total_error = targets
+                    .iter()
+                    .map(|t| colors.iter().map(|c| diff(c, t) as u32).min().unwrap())
+                    .sum();
 
                 // update the match if we found a better one
                 if total_error < chosen_error {
-                    chosen_colors  = colors;
-                    chosen_use_0   = use_0 != 0;
-                    chosen_error   = total_error;
+                    chosen_colors = colors;
+                    chosen_use_0 = use_0 != 0;
+                    chosen_error = total_error;
 
                     // if we've got a perfect or at most 1 LSB off match, we're done
                     if total_error < 4 {
@@ -527,9 +547,11 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     // note that targets is already in reverse pixel order, to make the index computation easy.
     let mut chosen_indices = 0u32;
     for t in &targets {
-        let (idx, _) = chosen_colors.iter()
-                                    .enumerate()
-                                    .min_by_key(|&(_, c)| diff(c, t)).unwrap();
+        let (idx, _) = chosen_colors
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, c)| diff(c, t))
+            .unwrap();
         chosen_indices = (chosen_indices << 2) | idx as u32;
     }
 
@@ -558,7 +580,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     dest[1] = (color0 >> 8) as u8;
     dest[2] = color1 as u8;
     dest[3] = (color1 >> 8) as u8;
-    for i in 0 .. 4 {
+    for i in 0..4 {
         dest[i + 4] = (chosen_indices >> (i * 8)) as u8;
     }
 }
@@ -575,11 +597,12 @@ fn encode_dxt5_alpha(alpha0: u8, alpha1: u8, alphas: &[u8; 16]) -> (i32, u64) {
 
     // least error brute force search
     for (i, &a) in alphas.iter().enumerate() {
-        let (index, error) = table.iter()
-                                  .enumerate()
-                                  .map(|(i, &e)| (i, square(e as i32 - a as i32)))
-                                  .min_by_key(|&(_, e)| e)
-                                  .unwrap();
+        let (index, error) = table
+            .iter()
+            .enumerate()
+            .map(|(i, &e)| (i, square(e as i32 - a as i32)))
+            .min_by_key(|&(_, e)| e)
+            .unwrap();
         total_error += error;
         indices |= (index as u64) << (i * 3);
     }
@@ -592,11 +615,11 @@ fn encode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 64 && dest.len() == 16);
 
     // perform dxt color encoding
-    encode_dxt_colors(source, &mut dest[8 .. 16]);
+    encode_dxt_colors(source, &mut dest[8..16]);
 
     // copy out the alpha bytes
     let mut alphas = [0; 16];
-    for i in 0 .. 16 {
+    for i in 0..16 {
         alphas[i] = source[i * 4 + 3];
     }
 
@@ -606,8 +629,18 @@ fn encode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     let (error7, indices7) = encode_dxt5_alpha(alpha07, alpha17, &alphas);
 
     // if all alphas are 0 or 255 it doesn't particularly matter what we do here.
-    let alpha05 = alphas.iter().cloned().filter(|&i| i != 255).max().unwrap_or(255);
-    let alpha15 = alphas.iter().cloned().filter(|&i| i != 0).min().unwrap_or(0);
+    let alpha05 = alphas
+        .iter()
+        .cloned()
+        .filter(|&i| i != 255)
+        .max()
+        .unwrap_or(255);
+    let alpha15 = alphas
+        .iter()
+        .cloned()
+        .filter(|&i| i != 0)
+        .min()
+        .unwrap_or(0);
     let (error5, indices5) = encode_dxt5_alpha(alpha05, alpha15, &alphas);
 
     // pick the best one, encode the min/max values
@@ -622,7 +655,7 @@ fn encode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     };
 
     // encode the alphas
-    for byte in dest[2 .. 8].iter_mut() {
+    for byte in dest[2..8].iter_mut() {
         *byte = alpha_table as u8;
         alpha_table >>= 8;
     }
@@ -633,20 +666,20 @@ fn encode_dxt3_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 64 && dest.len() == 16);
 
     // perform dxt color encoding
-    encode_dxt_colors(source, &mut dest[8 .. 16]);
+    encode_dxt_colors(source, &mut dest[8..16]);
 
     // DXT3 alpha compression is very simple, just round towards the nearest value
 
     // index the alpha values into the 64bit alpha table
     let mut alpha_table = 0u64;
-    for i in 0 .. 16 {
+    for i in 0..16 {
         let alpha = source[i * 4 + 3] as u64;
         let alpha = (alpha + 0x8) / 0x11;
         alpha_table |= alpha << (i * 4);
     }
 
     // encode the alpha values
-    for byte in &mut dest[0 .. 8] {
+    for byte in &mut dest[0..8] {
         *byte = alpha_table as u8;
         alpha_table >>= 8;
     }
@@ -672,9 +705,9 @@ fn encode_dxt1_row(source: &[u8]) -> Vec<u8> {
 
     for (x, encoded_block) in dest.chunks_mut(8).enumerate() {
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 12;
-            decoded_block[line * 12 .. (line + 1) * 12].copy_from_slice(&source[offset .. offset + 12]);
+            decoded_block[line * 12..(line + 1) * 12].copy_from_slice(&source[offset..offset + 12]);
         }
 
         encode_dxt1_block(&decoded_block, encoded_block);
@@ -694,9 +727,9 @@ fn encode_dxt3_row(source: &[u8]) -> Vec<u8> {
 
     for (x, encoded_block) in dest.chunks_mut(16).enumerate() {
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 16;
-            decoded_block[line * 16 .. (line + 1) * 16].copy_from_slice(&source[offset .. offset + 16]);
+            decoded_block[line * 16..(line + 1) * 16].copy_from_slice(&source[offset..offset + 16]);
         }
 
         encode_dxt3_block(&decoded_block, encoded_block);
@@ -716,9 +749,9 @@ fn encode_dxt5_row(source: &[u8]) -> Vec<u8> {
 
     for (x, encoded_block) in dest.chunks_mut(16).enumerate() {
         // copy the values from the decoded block to linewise RGB layout
-        for line in 0 .. 4 {
+        for line in 0..4 {
             let offset = (block_count * line + x) * 16;
-            decoded_block[line * 16 .. (line + 1) * 16].copy_from_slice(&source[offset .. offset + 16]);
+            decoded_block[line * 16..(line + 1) * 16].copy_from_slice(&source[offset..offset + 16]);
         }
 
         encode_dxt5_block(&decoded_block, encoded_block);

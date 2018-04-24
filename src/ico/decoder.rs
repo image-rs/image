@@ -1,12 +1,12 @@
-use byteorder::{ReadBytesExt, LittleEndian};
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Read, Seek, SeekFrom};
 
 use color::ColorType;
-use image::{DecodingResult, ImageResult, ImageDecoder, ImageError};
+use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
 
+use self::InnerDecoder::*;
 use bmp::BMPDecoder;
 use png::PNGDecoder;
-use self::InnerDecoder::*;
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
@@ -20,9 +20,8 @@ pub struct ICODecoder<R: Read> {
 
 enum InnerDecoder<R: Read> {
     BMP(BMPDecoder<R>),
-    PNG(PNGDecoder<R>)
+    PNG(PNGDecoder<R>),
 }
-
 
 #[derive(Clone, Copy, Default)]
 struct DirEntry {
@@ -73,7 +72,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     entry.num_color_planes = try!(r.read_u16::<LittleEndian>());
     if entry.num_color_planes > 256 {
         return Err(ImageError::FormatError(
-            "ICO image entry has a too large color planes/hotspot value".to_string()
+            "ICO image entry has a too large color planes/hotspot value".to_string(),
         ));
     }
 
@@ -82,7 +81,7 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     entry.bits_per_pixel = try!(r.read_u16::<LittleEndian>());
     if entry.bits_per_pixel > 256 {
         return Err(ImageError::FormatError(
-            "ICO image entry has a too large bits per pixel/hotspot value".to_string()
+            "ICO image entry has a too large bits per pixel/hotspot value".to_string(),
         ));
     }
 
@@ -95,10 +94,16 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 /// Find the entry with the highest (color depth, size).
 fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
     let mut best = try!(entries.pop().ok_or(ImageError::ImageEnd));
-    let mut best_score = (best.bits_per_pixel, best.real_width() as u32 * best.real_height() as u32);
+    let mut best_score = (
+        best.bits_per_pixel,
+        best.real_width() as u32 * best.real_height() as u32,
+    );
 
     for entry in entries {
-        let score = (entry.bits_per_pixel, entry.real_width() as u32 * entry.real_height() as u32);
+        let score = (
+            entry.bits_per_pixel,
+            entry.real_width() as u32 * entry.real_height() as u32,
+        );
         if score > best_score {
             best = entry;
             best_score = score;
@@ -107,25 +112,23 @@ fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
     Ok(best)
 }
 
-
 impl DirEntry {
     fn real_width(&self) -> u16 {
         match self.width {
             0 => 256,
-            w => w as u16
+            w => w as u16,
         }
     }
 
     fn real_height(&self) -> u16 {
         match self.height {
             0 => 256,
-            h => h as u16
+            h => h as u16,
         }
     }
 
     fn matches_dimensions(&self, width: u32, height: u32) -> bool {
-        u32::from(self.real_width()) == width &&
-            u32::from(self.real_height()) == height
+        u32::from(self.real_width()) == width && u32::from(self.real_height()) == height
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
@@ -161,28 +164,28 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         match self.inner_decoder {
             BMP(ref mut decoder) => decoder.dimensions(),
-            PNG(ref mut decoder) => decoder.dimensions()
+            PNG(ref mut decoder) => decoder.dimensions(),
         }
     }
 
     fn colortype(&mut self) -> ImageResult<ColorType> {
         match self.inner_decoder {
             BMP(ref mut decoder) => decoder.colortype(),
-            PNG(ref mut decoder) => decoder.colortype()
+            PNG(ref mut decoder) => decoder.colortype(),
         }
     }
 
     fn row_len(&mut self) -> ImageResult<usize> {
         match self.inner_decoder {
             BMP(ref mut decoder) => decoder.row_len(),
-            PNG(ref mut decoder) => decoder.row_len()
+            PNG(ref mut decoder) => decoder.row_len(),
         }
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
         match self.inner_decoder {
             BMP(ref mut decoder) => decoder.read_scanline(buf),
-            PNG(ref mut decoder) => decoder.read_scanline(buf)
+            PNG(ref mut decoder) => decoder.read_scanline(buf),
         }
     }
 
@@ -191,7 +194,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
             PNG(ref mut decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(ImageError::FormatError(
-                        "Entry specified a length that is shorter than PNG header!".to_string()
+                        "Entry specified a length that is shorter than PNG header!".to_string(),
                     ));
                 }
 
@@ -199,17 +202,17 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                 let (width, height) = try!(decoder.dimensions());
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(ImageError::FormatError(
-                        "Entry and PNG dimensions do not match!".to_string())
-                    );
-
+                        "Entry and PNG dimensions do not match!".to_string(),
+                    ));
                 }
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
                 let color_type = try!(decoder.colortype());
-                if let ColorType::RGBA(8) = color_type {} else {
+                if let ColorType::RGBA(8) = color_type {
+                } else {
                     return Err(ImageError::FormatError(
-                        "The PNG is not in RGBA format!".to_string()
+                        "The PNG is not in RGBA format!".to_string(),
                     ));
                 }
 
@@ -219,24 +222,27 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                 let (width, height) = try!(decoder.dimensions());
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(ImageError::FormatError(
-                        "Entry({:?}) and BMP({:?}) dimensions do not match!".to_string()
+                        "Entry({:?}) and BMP({:?}) dimensions do not match!".to_string(),
                     ));
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
                 if try!(decoder.colortype()) != ColorType::RGBA(8) {
-                    return Err(ImageError::UnsupportedError("Unsupported color type".to_string()))
+                    return Err(ImageError::UnsupportedError(
+                        "Unsupported color type".to_string(),
+                    ));
                 }
 
                 let mut pixel_data = match try!(decoder.read_image()) {
                     DecodingResult::U8(v) => v,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 // If there's an AND mask following the image, read and apply it.
                 let r = decoder.reader();
                 let mask_start = try!(r.seek(SeekFrom::Current(0)));
-                let mask_end = (self.selected_entry.image_offset + self.selected_entry.image_length) as u64;
+                let mask_end =
+                    (self.selected_entry.image_offset + self.selected_entry.image_length) as u64;
                 let mask_length = mask_end - mask_start;
 
                 if mask_length > 0 {
@@ -244,7 +250,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                     let mask_row_bytes = ((width + 31) / 32) * 4;
                     let expected_length = (mask_row_bytes * height) as u64;
                     if mask_length < expected_length {
-                        return Err(ImageError::ImageEnd)
+                        return Err(ImageError::ImageEnd);
                     }
 
                     for y in 0..height {
@@ -253,7 +259,9 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                             // Apply the bits of each byte until we reach the end of the row.
                             let mask_byte = try!(r.read_u8());
                             for bit in (0..8).rev() {
-                                if x >= width { break }
+                                if x >= width {
+                                    break;
+                                }
                                 if mask_byte & (1 << bit) != 0 {
                                     // Set alpha channel to transparent.
                                     pixel_data[((height - y - 1) * width + x) as usize * 4 + 3] = 0;

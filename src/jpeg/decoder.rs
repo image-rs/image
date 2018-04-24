@@ -34,7 +34,7 @@ impl<R: Read> JPEGDecoder<R> {
 
                 self.metadata = Some(metadata);
                 Ok(metadata)
-            },
+            }
         }
     }
 }
@@ -102,8 +102,8 @@ impl From<jpeg_decoder::PixelFormat> for ColorType {
     fn from(pixel_format: jpeg_decoder::PixelFormat) -> ColorType {
         use self::jpeg_decoder::PixelFormat::*;
         match pixel_format {
-            L8     => ColorType::Gray(8),
-            RGB24  => ColorType::RGB(8),
+            L8 => ColorType::Gray(8),
+            RGB24 => ColorType::RGB(8),
             CMYK32 => panic!(),
         }
     }
@@ -113,10 +113,10 @@ impl From<jpeg_decoder::Error> for ImageError {
     fn from(err: jpeg_decoder::Error) -> ImageError {
         use self::jpeg_decoder::Error::*;
         match err {
-            Format(desc)      => ImageError::FormatError(desc),
+            Format(desc) => ImageError::FormatError(desc),
             Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),
-            Io(err)           => ImageError::IoError(err),
-            Internal(err)     => ImageError::FormatError(err.description().to_owned()),
+            Io(err) => ImageError::IoError(err),
+            Internal(err) => ImageError::FormatError(err.description().to_owned()),
         }
     }
 }

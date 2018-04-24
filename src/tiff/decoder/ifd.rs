@@ -1,11 +1,11 @@
 //! Function for reading TIFF tags
 
+use std::collections::HashMap;
 use std::io::{self, Read, Seek};
-use std::collections::{HashMap};
 
-use super::stream::{ByteOrder, SmartReader, EndianReader};
+use super::stream::{ByteOrder, EndianReader, SmartReader};
 
-use self::Value::{Unsigned, List};
+use self::Value::{List, Unsigned};
 
 macro_rules! tags {
     {$(
@@ -83,13 +83,12 @@ pub enum Type {
     RATIONAL = 5,
 }
 
-
 #[allow(unused_qualifications)]
 #[derive(Debug)]
 pub enum Value {
     //Signed(i32),
     Unsigned(u32),
-    List(Vec<Value>)
+    List(Vec<Value>),
 }
 
 impl Value {
@@ -97,8 +96,9 @@ impl Value {
         match self {
             Unsigned(val) => Ok(val),
             val => Err(::image::ImageError::FormatError(format!(
-                "Expected unsigned integer, {:?} found.", val
-            )))
+                "Expected unsigned integer, {:?} found.",
+                val
+            ))),
         }
     }
     pub fn into_u32_vec(self) -> ::image::ImageResult<Vec<u32>> {
@@ -109,7 +109,7 @@ impl Value {
                     new_vec.push(v.into_u32()?)
                 }
                 Ok(new_vec)
-            },
+            }
             Unsigned(val) => Ok(vec![val]),
             //_ => Err(::image::FormatError("Tag data malformed.".to_string()))
         }
@@ -124,10 +124,9 @@ pub struct Entry {
 
 impl ::std::fmt::Debug for Entry {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        fmt.write_str(&format!("Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
-            self.type_,
-            self.count,
-            &self.offset
+        fmt.write_str(&format!(
+            "Entry {{ type_: {:?}, count: {:?}, offset: {:?} }}",
+            self.type_, self.count, &self.offset
         ))
     }
 }
@@ -137,20 +136,19 @@ impl Entry {
         Entry {
             type_: type_,
             count: count,
-            offset: offset
+            offset: offset,
         }
     }
 
     /// Returns a mem_reader for the offset/value field
     fn r(&self, byte_order: ByteOrder) -> SmartReader<io::Cursor<Vec<u8>>> {
-        SmartReader::wrap(
-            io::Cursor::new(self.offset.to_vec()),
-            byte_order
-        )
+        SmartReader::wrap(io::Cursor::new(self.offset.to_vec()), byte_order)
     }
 
-    pub fn val<R: Read + Seek>(&self, decoder: &mut super::TIFFDecoder<R>)
-    -> ::image::ImageResult<Value> {
+    pub fn val<R: Read + Seek>(
+        &self,
+        decoder: &mut super::TIFFDecoder<R>,
+    ) -> ::image::ImageResult<Value> {
         let bo = decoder.byte_order();
         match (self.type_, self.count) {
             // TODO check if this could give wrong results
@@ -161,27 +159,29 @@ impl Entry {
                 let mut r = self.r(bo);
                 Ok(List(vec![
                     Unsigned(u32::from(r.read_u16()?)),
-                    Unsigned(u32::from(r.read_u16()?))
+                    Unsigned(u32::from(r.read_u16()?)),
                 ]))
-            },
+            }
             (Type::SHORT, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in 0 .. n {
+                for _ in 0..n {
                     v.push(Unsigned(u32::from(decoder.read_short()?)))
                 }
                 Ok(List(v))
-            },
+            }
             (Type::LONG, 1) => Ok(Unsigned(try!(self.r(bo).read_u32()))),
             (Type::LONG, n) => {
                 let mut v = Vec::with_capacity(n as usize);
                 try!(decoder.goto_offset(try!(self.r(bo).read_u32())));
-                for _ in 0 .. n {
+                for _ in 0..n {
                     v.push(Unsigned(try!(decoder.read_long())))
                 }
                 Ok(List(v))
             }
-            _ => Err(::image::ImageError::UnsupportedError("Unsupported data type.".to_string()))
+            _ => Err(::image::ImageError::UnsupportedError(
+                "Unsupported data type.".to_string(),
+            )),
         }
     }
 }

@@ -13,7 +13,7 @@ impl Frames {
     pub fn new(frames: Vec<Frame>) -> Frames {
         Frames {
             frames: frames,
-            current_frame: 0
+            current_frame: 0,
         }
     }
 }
@@ -37,7 +37,7 @@ impl Frame {
             delay: Ratio::from_integer(0),
             left: 0,
             top: 0,
-            buffer: buffer
+            buffer: buffer,
         }
     }
 
@@ -47,7 +47,7 @@ impl Frame {
             delay: delay,
             left: left,
             top: top,
-            buffer: buffer
+            buffer: buffer,
         }
     }
 

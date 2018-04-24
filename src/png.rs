@@ -1,4 +1,3 @@
-
 //! Decoding and Encoding of PNG Images
 //!
 //! PNG (Portable Network Graphics) is an image format that supports lossless compression.
@@ -13,24 +12,24 @@ use self::png::HasParameters;
 
 use std::io::{self, Read, Write};
 
-use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
 use color::ColorType;
+use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
 
 enum Either<T, U> {
     Left(T),
-    Right(U)
+    Right(U),
 }
 
 /// PNG decoder
 pub struct PNGDecoder<R: Read> {
-    inner: Option<Either<png::Decoder<R>, png::Reader<R>>>
+    inner: Option<Either<png::Decoder<R>, png::Reader<R>>>,
 }
 
 impl<R: Read> PNGDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> PNGDecoder<R> {
         PNGDecoder {
-            inner: Some(Either::Left(png::Decoder::new(r)))
+            inner: Some(Either::Left(png::Decoder::new(r))),
         }
     }
 
@@ -41,12 +40,12 @@ impl<R: Read> PNGDecoder<R> {
             Either::Left(decoder) => {
                 let (_, reader) = try!(decoder.read_info());
                 Either::Right(reader)
-            },
-            Either::Right(reader) => Either::Right(reader)
+            }
+            Either::Right(reader) => Either::Right(reader),
         });
         match self.inner {
             Some(Either::Right(ref mut reader)) => Ok(reader),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -73,8 +72,8 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
             Some(line) => {
                 ::copy_memory(line, &mut buf[..line.len()]);
                 Ok(line.len() as u32)
-            },
-            None => Err(ImageError::ImageEnd)
+            }
+            None => Err(ImageError::ImageEnd),
         }
     }
 
@@ -88,15 +87,13 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
 
 /// PNG encoder
 pub struct PNGEncoder<W: Write> {
-    w: W
+    w: W,
 }
 
 impl<W: Write> PNGEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PNGEncoder<W> {
-        PNGEncoder {
-            w: w
-        }
+        PNGEncoder { w: w }
     }
 
     /// Encodes the image ```image```
@@ -120,7 +117,7 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
             RGB => ColorType::RGB(bits),
             Indexed => ColorType::Palette(bits),
             GrayscaleAlpha => ColorType::GrayA(bits),
-            RGBA => ColorType::RGBA(bits)
+            RGBA => ColorType::RGBA(bits),
         }
     }
 }
@@ -148,7 +145,9 @@ impl From<png::DecodingError> for ImageError {
             InvalidSignature => ImageError::FormatError("invalid signature".into()),
             CrcMismatch { .. } => ImageError::FormatError("CRC error".into()),
             Other(desc) => ImageError::FormatError(desc.into_owned()),
-            CorruptFlateStream => ImageError::FormatError("compressed data stream corrupted".into())
+            CorruptFlateStream => {
+                ImageError::FormatError("compressed data stream corrupted".into())
+            }
         }
     }
 }

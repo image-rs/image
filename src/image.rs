@@ -1,11 +1,11 @@
-use std::fmt;
-use std::mem;
-use std::io;
 use std::error::Error;
+use std::fmt;
+use std::io;
+use std::mem;
 
+use buffer::{ImageBuffer, Pixel};
 use color;
 use color::ColorType;
-use buffer::{ImageBuffer, Pixel};
 
 use animation::{Frame, Frames};
 use dynimage::decoder_to_image;
@@ -36,29 +36,43 @@ pub enum ImageError {
     IoError(io::Error),
 
     /// The end of the image has been reached
-    ImageEnd
+    ImageEnd,
 }
 
 impl fmt::Display for ImageError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             ImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
-            ImageError::DimensionError => write!(fmt, "The Image's dimensions are either too \
-                                                        small or too large"),
-            ImageError::UnsupportedError(ref f) => write!(fmt, "The Decoder does not support the \
-                                                                 image format `{}`", f),
-            ImageError::UnsupportedColor(ref c) => write!(fmt, "The decoder does not support \
-                                                                 the color type `{:?}`", c),
-            ImageError::NotEnoughData => write!(fmt, "Not enough data was provided to the \
-                                                       Decoder to decode the image"),
+            ImageError::DimensionError => write!(
+                fmt,
+                "The Image's dimensions are either too \
+                 small or too large"
+            ),
+            ImageError::UnsupportedError(ref f) => write!(
+                fmt,
+                "The Decoder does not support the \
+                 image format `{}`",
+                f
+            ),
+            ImageError::UnsupportedColor(ref c) => write!(
+                fmt,
+                "The decoder does not support \
+                 the color type `{:?}`",
+                c
+            ),
+            ImageError::NotEnoughData => write!(
+                fmt,
+                "Not enough data was provided to the \
+                 Decoder to decode the image"
+            ),
             ImageError::IoError(ref e) => e.fmt(fmt),
-            ImageError::ImageEnd => write!(fmt, "The end of the image has been reached")
+            ImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
         }
     }
 }
 
 impl Error for ImageError {
-    fn description (&self) -> &str {
+    fn description(&self) -> &str {
         match *self {
             ImageError::FormatError(..) => "Format error",
             ImageError::DimensionError => "Dimension error",
@@ -66,14 +80,14 @@ impl Error for ImageError {
             ImageError::UnsupportedColor(..) => "Unsupported color",
             ImageError::NotEnoughData => "Not enough data",
             ImageError::IoError(..) => "IO error",
-            ImageError::ImageEnd => "Image end"
+            ImageError::ImageEnd => "Image end",
         }
     }
 
-    fn cause (&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&Error> {
         match *self {
             ImageError::IoError(ref e) => Some(e),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -84,7 +98,6 @@ impl From<io::Error> for ImageError {
     }
 }
 
-
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 
@@ -94,7 +107,7 @@ pub enum DecodingResult {
     /// A vector of unsigned bytes
     U8(Vec<u8>),
     /// A vector of unsigned words
-    U16(Vec<u16>)
+    U16(Vec<u16>),
 }
 
 // A buffer for image decoding
@@ -102,7 +115,7 @@ pub enum DecodingBuffer<'a> {
     /// A slice of unsigned bytes
     U8(&'a mut [u8]),
     /// A slice of unsigned words
-    U16(&'a mut [u16])
+    U16(&'a mut [u16]),
 }
 
 /// An enumeration of supported image formats.
@@ -189,7 +202,10 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "bmp")]
             ImageFormat::BMP => ImageOutputFormat::BMP,
 
-            f => ImageOutputFormat::Unsupported(format!("Image format {:?} not supported for encoding.", f)),
+            f => ImageOutputFormat::Unsupported(format!(
+                "Image format {:?} not supported for encoding.",
+                f
+            )),
         }
     }
 }
@@ -223,9 +239,9 @@ pub trait ImageDecoder: Sized {
     /// If the image is not animated it returns a single frame
     #[allow(unused)]
     fn into_frames(mut self) -> ImageResult<Frames> {
-        Ok(Frames::new(vec![
-            Frame::new(try!(decoder_to_image(self)).to_rgba())
-        ]))
+        Ok(Frames::new(vec![Frame::new(
+            try!(decoder_to_image(self)).to_rgba(),
+        )]))
     }
 
     /// Decodes a specific region of the image, represented by the rectangle
@@ -234,14 +250,14 @@ pub trait ImageDecoder: Sized {
         let (w, h) = try!(self.dimensions());
 
         if length > h || width > w || x > w || y > h {
-            return Err(ImageError::DimensionError)
+            return Err(ImageError::DimensionError);
         }
 
         let c = try!(self.colortype());
 
         let bpp = color::bits_per_pixel(c) / 8;
 
-        let rowlen  = try!(self.row_len());
+        let rowlen = try!(self.row_len());
 
         let mut buf = vec![0u8; length as usize * width as usize * bpp];
         let mut tmp = vec![0u8; rowlen];
@@ -250,7 +266,7 @@ pub trait ImageDecoder: Sized {
             let row = try!(self.read_scanline(&mut tmp));
 
             if row - 1 == y {
-                break
+                break;
             }
         }
 
@@ -258,7 +274,7 @@ pub trait ImageDecoder: Sized {
             {
                 let from = &tmp[x as usize * bpp..width as usize * bpp];
 
-                let to   = &mut buf[i * width as usize * bpp..width as usize * bpp];
+                let to = &mut buf[i * width as usize * bpp..width as usize * bpp];
 
                 ::copy_memory(from, to);
             }
@@ -270,14 +286,13 @@ pub trait ImageDecoder: Sized {
     }
 }
 
-
 /// Immutable pixel iterator
 pub struct Pixels<'a, I: 'a> {
-    image:  &'a I,
-    x:      u32,
-    y:      u32,
-    width:  u32,
-    height: u32
+    image: &'a I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
 }
 
 impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
@@ -285,7 +300,7 @@ impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
         if self.x >= self.width {
-            self.x =  0;
+            self.x = 0;
             self.y += 1;
         }
 
@@ -306,22 +321,23 @@ impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
 ///
 /// DEPRECATED: It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead.
 pub struct MutPixels<'a, I: 'a> {
-    image:  &'a mut I,
-    x:      u32,
-    y:      u32,
-    width:  u32,
-    height: u32
+    image: &'a mut I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
 }
 
 impl<'a, I: GenericImage + 'a> Iterator for MutPixels<'a, I>
-    where I::Pixel: 'a,
-          <I::Pixel as Pixel>::Subpixel: 'a {
-
+where
+    I::Pixel: 'a,
+    <I::Pixel as Pixel>::Subpixel: 'a,
+{
     type Item = (u32, u32, &'a mut I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, &'a mut I::Pixel)> {
         if self.x >= self.width {
-            self.x =  0;
+            self.x = 0;
             self.y += 1;
         }
 
@@ -332,9 +348,7 @@ impl<'a, I: GenericImage + 'a> Iterator for MutPixels<'a, I>
 
             // NOTE: This is potentially dangerous. It would require the signature fn next(&'a mut self) to be safe.
             // error: lifetime of `self` is too short to guarantee its contents can be safely reborrowed...
-            let ptr = unsafe {
-                mem::transmute(tmp)
-            };
+            let ptr = unsafe { mem::transmute(tmp) };
 
             let p = (self.x, self.y, ptr);
 
@@ -423,10 +437,10 @@ pub trait GenericImage: Sized {
         let (width, height) = self.dimensions();
 
         Pixels {
-            image:  self,
-            x:      0,
-            y:      0,
-            width:  width,
+            image: self,
+            x: 0,
+            y: 0,
+            width: width,
             height: height,
         }
     }
@@ -434,15 +448,17 @@ pub trait GenericImage: Sized {
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
-    #[deprecated(note="This cannot be implemented safely in Rust. Please use the image buffer directly.")]
+    #[deprecated(
+        note = "This cannot be implemented safely in Rust. Please use the image buffer directly."
+    )]
     fn pixels_mut(&mut self) -> MutPixels<Self> {
         let (width, height) = self.dimensions();
 
         MutPixels {
-            image:  self,
-            x:      0,
-            y:      0,
-            width:  width,
+            image: self,
+            x: 0,
+            y: 0,
+            width: width,
             height: height,
         }
     }
@@ -457,16 +473,18 @@ pub trait GenericImage: Sized {
     /// # Returns
     /// `true` if the copy was successful, `false` if the image could not
     /// be copied due to size constraints.
-    fn copy_from<O>(&mut self, other: &O, x: u32, y:u32) -> bool
-    where O: GenericImage<Pixel=Self::Pixel> {
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> bool
+    where
+        O: GenericImage<Pixel = Self::Pixel>,
+    {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
             return false;
         }
 
-        for i in 0 .. other.width() {
-            for k in 0 .. other.height() {
+        for i in 0..other.width() {
+            for k in 0..other.height() {
                 unsafe {
                     let p = other.unsafe_get_pixel(i, k);
                     self.unsafe_put_pixel(i + x, k + y, p);
@@ -477,17 +495,19 @@ pub trait GenericImage: Sized {
     }
 
     /// Returns a subimage that is a view into this image.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
-    -> SubImage<Self>
-    where Self: 'static, <Self::Pixel as Pixel>::Subpixel: 'static,
-    Self::Pixel: 'static {
+    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<Self>
+    where
+        Self: 'static,
+        <Self::Pixel as Pixel>::Subpixel: 'static,
+        Self::Pixel: 'static,
+    {
         SubImage::new(self, x, y, width, height)
     }
 }
 
 /// A View into another image
-pub struct SubImage <'a, I: 'a> {
-    image:   &'a mut I,
+pub struct SubImage<'a, I: 'a> {
+    image: &'a mut I,
     xoffset: u32,
     yoffset: u32,
     xstride: u32,
@@ -496,13 +516,14 @@ pub struct SubImage <'a, I: 'a> {
 
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 impl<'a, I: GenericImage + 'static> SubImage<'a, I>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: 'static {
-
+where
+    I::Pixel: 'static,
+    <I::Pixel as Pixel>::Subpixel: 'static,
+{
     /// Construct a new subimage
     pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
-            image:   image,
+            image: image,
             xoffset: x,
             yoffset: y,
             xstride: width,
@@ -541,9 +562,10 @@ impl<'a, I: GenericImage + 'static> SubImage<'a, I>
 #[allow(deprecated)]
 // TODO: Is the 'static bound on `I` really required? Can we avoid it?
 impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: 'static {
-
+where
+    I::Pixel: 'static,
+    <I::Pixel as Pixel>::Subpixel: 'static,
+{
     type Pixel = I::Pixel;
 
     fn dimensions(&self) -> (u32, u32) {
@@ -559,12 +581,14 @@ impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
-        self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
+        self.image
+            .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
-        self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
+        self.image
+            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut I::Pixel {
@@ -577,7 +601,7 @@ mod tests {
 
     use super::GenericImage;
     use buffer::ImageBuffer;
-    use color::{Rgba};
+    use color::Rgba;
 
     #[test]
     /// Test that alpha blending works as expected
@@ -603,13 +627,13 @@ mod tests {
         let mut target = ImageBuffer::new(2, 2);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
 
-        assert!(target.in_bounds(0,0));
-        assert!(target.in_bounds(1,0));
-        assert!(target.in_bounds(0,1));
-        assert!(target.in_bounds(1,1));
+        assert!(target.in_bounds(0, 0));
+        assert!(target.in_bounds(1, 0));
+        assert!(target.in_bounds(0, 1));
+        assert!(target.in_bounds(1, 1));
 
-        assert!(!target.in_bounds(2,0));
-        assert!(!target.in_bounds(0,2));
-        assert!(!target.in_bounds(2,2));
+        assert!(!target.in_bounds(2, 0));
+        assert!(!target.in_bounds(0, 2));
+        assert!(!target.in_bounds(2, 2));
     }
 }

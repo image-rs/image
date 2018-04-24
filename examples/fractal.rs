@@ -1,6 +1,6 @@
 //! An example of generating julia fractals.
-extern crate num_complex;
 extern crate image;
+extern crate num_complex;
 
 use std::fs::File;
 
@@ -30,7 +30,7 @@ fn main() {
 
         for t in 0..max_iterations {
             if z.norm() > 2.0 {
-                break
+                break;
             }
             z = z * z + c;
             i = t;
@@ -39,13 +39,13 @@ fn main() {
         // Create an 8bit pixel of type Luma and value i
         // and assign in to the pixel at position (x, y)
         *pixel = image::Luma([i as u8]);
-
     }
-
 
     // Save the image as “fractal.png”
     let fout = &mut File::create("fractal.png").unwrap();
 
     // We must indicate the image's color type and what format to save as
-    image::ImageLuma8(imgbuf).write_to(fout, image::PNG).unwrap();
+    image::ImageLuma8(imgbuf)
+        .write_to(fout, image::PNG)
+        .unwrap();
 }

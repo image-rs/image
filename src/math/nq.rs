@@ -260,34 +260,20 @@ impl NeuQuant {
         while i < samplepixels {
             let (r, g, b, a) = {
                 let p = &pixels[CHANNELS * pos..][..CHANNELS];
-                (f64::from(p[0]), f64::from(p[1]), f64::from(p[2]), f64::from(p[3]))
+                (
+                    f64::from(p[0]),
+                    f64::from(p[1]),
+                    f64::from(p[2]),
+                    f64::from(p[3]),
+                )
             };
 
             let j = self.contest(b, g, r, a);
 
             let alpha_ = (1.0 * f64::from(alpha)) / f64::from(INIT_ALPHA);
-            self.alter_single(
-                alpha_,
-                j,
-                Quad {
-                    b,
-                    g,
-                    r,
-                    a,
-                },
-            );
+            self.alter_single(alpha_, j, Quad { b, g, r, a });
             if rad > 0 {
-                self.alter_neighbour(
-                    alpha_,
-                    rad,
-                    j,
-                    Quad {
-                        b,
-                        g,
-                        r,
-                        a,
-                    },
-                )
+                self.alter_neighbour(alpha_, rad, j, Quad { b, g, r, a })
             };
 
             pos += step;

@@ -353,10 +353,7 @@ impl Bitfield {
             shift += len - 8;
             len = 8;
         }
-        Ok(Bitfield {
-            shift,
-            len,
-        })
+        Ok(Bitfield { shift, len })
     }
 
     fn read(&self, data: u32) -> u8 {

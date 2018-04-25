@@ -90,10 +90,7 @@ struct RunIterator<'a> {
 
 impl<'a> RunIterator<'a> {
     fn new(data: &'a [u8]) -> RunIterator<'a> {
-        RunIterator {
-            data,
-            curidx: 0,
-        }
+        RunIterator { data, curidx: 0 }
     }
 }
 

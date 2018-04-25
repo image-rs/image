@@ -1231,7 +1231,7 @@ impl<R: Read> VP8Decoder<R> {
             (16 - (self.frame.height as usize & 15)) % 16
         };
 
-        let xlength = if mbx < self.mbwidth as usize - 1 || self.frame.width % 16 == 0{
+        let xlength = if mbx < self.mbwidth as usize - 1 || self.frame.width % 16 == 0 {
             16usize
         } else {
             (16 - (self.frame.width as usize & 15)) % 16
@@ -1313,7 +1313,8 @@ impl<R: Read> VP8Decoder<R> {
                 abs_value = -abs_value;
             }
 
-            block[ZIGZAG[i] as usize] = abs_value * i32::from(if ZIGZAG[i] > 0 { acq } else { dcq });
+            block[ZIGZAG[i] as usize] =
+                abs_value * i32::from(if ZIGZAG[i] > 0 { acq } else { dcq });
 
             has_coefficients = true;
         }

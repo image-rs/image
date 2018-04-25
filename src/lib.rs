@@ -6,7 +6,6 @@
 #![warn(unused_qualifications)]
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
-
 // it's a bit of a pain otherwise
 #![cfg_attr(feature = "cargo-clippy", allow(many_single_char_names))]
 

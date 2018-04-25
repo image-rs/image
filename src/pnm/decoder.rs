@@ -270,8 +270,7 @@ trait HeaderReader: BufRead {
         let mut tupltype: Option<String> = None;
         loop {
             line.truncate(0);
-            self.read_line(&mut line)
-                .map_err(ImageError::IoError)?;
+            self.read_line(&mut line).map_err(ImageError::IoError)?;
             if line.as_bytes()[0] == b'#' {
                 continue;
             }

@@ -290,9 +290,7 @@ impl PNMHeader {
                 let tupltype = match *tupltype {
                     None => "",
                     Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
-                    Some(ArbitraryTuplType::BlackAndWhiteAlpha) => {
-                        "TUPLTYPE BLACKANDWHITE_ALPHA\n"
-                    }
+                    Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
                     Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
                     Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
                     Some(ArbitraryTuplType::RGB) => "TUPLTYPE RGB\n",

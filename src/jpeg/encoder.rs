@@ -530,10 +530,12 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 for i in 0usize..64 {
                     dct_yblock[i] =
                         ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
-                    dct_cb_block[i] =
-                        ((dct_cb_block[i] / 8) as f32 / f32::from(self.tables[64..][i])).round() as i32;
-                    dct_cr_block[i] =
-                        ((dct_cr_block[i] / 8) as f32 / f32::from(self.tables[64..][i])).round() as i32;
+                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32
+                        / f32::from(self.tables[64..][i]))
+                        .round() as i32;
+                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32
+                        / f32::from(self.tables[64..][i]))
+                        .round() as i32;
                 }
 
                 let la = &*self.luma_actable;

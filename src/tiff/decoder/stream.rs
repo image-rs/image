@@ -175,10 +175,7 @@ where
 {
     /// Wraps a reader
     pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
-        SmartReader {
-            reader,
-            byte_order,
-        }
+        SmartReader { reader, byte_order }
     }
 }
 

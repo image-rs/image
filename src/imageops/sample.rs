@@ -157,7 +157,11 @@ where
             let left = clamp(left, 0, <i64 as From<u32>>::from(width) - 1) as u32;
 
             let right = (inputx + src_support).ceil() as i64;
-            let right = clamp(right, <i64 as From<u32>>::from(left) + 1, <i64 as From<u32>>::from(width)) as u32;
+            let right = clamp(
+                right,
+                <i64 as From<u32>>::from(left) + 1,
+                <i64 as From<u32>>::from(width),
+            ) as u32;
 
             // Go back to left boundary of pixel, to properly compare with i
             // below, as the kernel treats the centre of a pixel as 0.
@@ -235,7 +239,11 @@ where
             let left = clamp(left, 0, <i64 as From<u32>>::from(height) - 1) as u32;
 
             let right = (inputy + src_support).ceil() as i64;
-            let right = clamp(right, <i64 as From<u32>>::from(left) + 1, <i64 as From<u32>>::from(height)) as u32;
+            let right = clamp(
+                right,
+                <i64 as From<u32>>::from(left) + 1,
+                <i64 as From<u32>>::from(height),
+            ) as u32;
 
             let inputy = inputy - 0.5;
 

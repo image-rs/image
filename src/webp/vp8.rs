@@ -1646,7 +1646,7 @@ fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8,
 }
 
 fn left_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8) {
-    let l0 = a[(y0) * stride + x0 - 1];
+    let l0 = a[y0 * stride + x0 - 1];
     let l1 = a[(y0 + 1) * stride + x0 - 1];
     let l2 = a[(y0 + 2) * stride + x0 - 1];
     let l3 = a[(y0 + 3) * stride + x0 - 1];
@@ -1665,7 +1665,7 @@ fn edge_pixels(
     let e6 = a[(y0 - 1) * stride + x0 + 1];
     let e5 = a[(y0 - 1) * stride + x0];
     let e4 = a[(y0 - 1) * stride + x0 - 1];
-    let e3 = a[(y0) * stride + x0 - 1];
+    let e3 = a[y0 * stride + x0 - 1];
     let e2 = a[(y0 + 1) * stride + x0 - 1];
     let e1 = a[(y0 + 2) * stride + x0 - 1];
     let e0 = a[(y0 + 3) * stride + x0 - 1];
@@ -1677,22 +1677,22 @@ fn predict_bvepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (a0, a1, a2, a3, a4, _, _, _) = top_pixels(a, x0, y0, stride);
 
-    a[(y0) * stride + x0] = avg3(p, a0, a1);
+    a[y0 * stride + x0] = avg3(p, a0, a1);
     a[(y0 + 1) * stride + x0] = avg3(p, a0, a1);
     a[(y0 + 2) * stride + x0] = avg3(p, a0, a1);
     a[(y0 + 3) * stride + x0] = avg3(p, a0, a1);
 
-    a[(y0) * stride + x0 + 1] = avg3(a0, a1, a2);
+    a[y0 * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 2) * stride + x0 + 1] = avg3(a0, a1, a2);
     a[(y0 + 3) * stride + x0 + 1] = avg3(a0, a1, a2);
 
-    a[(y0) * stride + x0 + 2] = avg3(a1, a2, a3);
+    a[y0 * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 2) * stride + x0 + 2] = avg3(a1, a2, a3);
     a[(y0 + 3) * stride + x0 + 2] = avg3(a1, a2, a3);
 
-    a[(y0) * stride + x0 + 3] = avg3(a2, a3, a4);
+    a[y0 * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 2) * stride + x0 + 3] = avg3(a2, a3, a4);
     a[(y0 + 3) * stride + x0 + 3] = avg3(a2, a3, a4);
@@ -1702,10 +1702,10 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    a[(y0) * stride + x0] = avg3(p, l0, l1);
-    a[(y0) * stride + x0 + 1] = avg3(p, l0, l1);
-    a[(y0) * stride + x0 + 2] = avg3(p, l0, l1);
-    a[(y0) * stride + x0 + 3] = avg3(p, l0, l1);
+    a[y0 * stride + x0] = avg3(p, l0, l1);
+    a[y0 * stride + x0 + 1] = avg3(p, l0, l1);
+    a[y0 * stride + x0 + 2] = avg3(p, l0, l1);
+    a[y0 * stride + x0 + 3] = avg3(p, l0, l1);
 
     a[(y0 + 1) * stride + x0] = avg3(l0, l1, l2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(l0, l1, l2);
@@ -1726,13 +1726,13 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[(y0) * stride + x0] = avg3(a0, a1, a2);
-    a[(y0) * stride + x0 + 1] = avg3(a1, a2, a3);
+    a[y0 * stride + x0] = avg3(a0, a1, a2);
+    a[y0 * stride + x0 + 1] = avg3(a1, a2, a3);
     a[(y0 + 1) * stride + x0] = avg3(a1, a2, a3);
-    a[(y0) * stride + x0 + 2] = avg3(a2, a3, a4);
+    a[y0 * stride + x0 + 2] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a2, a3, a4);
     a[(y0 + 2) * stride + x0] = avg3(a2, a3, a4);
-    a[(y0) * stride + x0 + 3] = avg3(a3, a4, a5);
+    a[y0 * stride + x0 + 3] = avg3(a3, a4, a5);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a3, a4, a5);
     a[(y0 + 2) * stride + x0 + 1] = avg3(a3, a4, a5);
     a[(y0 + 3) * stride + x0] = avg3(a3, a4, a5);
@@ -1756,13 +1756,13 @@ fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     a[(y0 + 3) * stride + x0 + 3] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 2] = avg3(e3, e4, e5);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[(y0) * stride + x0] = avg3(e3, e4, e5);
+    a[y0 * stride + x0] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 3] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[(y0) * stride + x0 + 1] = avg3(e4, e5, e6);
+    a[y0 * stride + x0 + 1] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e5, e6, e7);
-    a[(y0) * stride + x0 + 2] = avg3(e5, e6, e7);
-    a[(y0) * stride + x0 + 3] = avg3(e6, e7, e8);
+    a[y0 * stride + x0 + 2] = avg3(e5, e6, e7);
+    a[y0 * stride + x0 + 3] = avg3(e6, e7, e8);
 }
 
 fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
@@ -1773,34 +1773,34 @@ fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     a[(y0 + 3) * stride + x0 + 1] = avg3(e3, e4, e5);
     a[(y0 + 1) * stride + x0] = avg3(e3, e4, e5);
     a[(y0 + 2) * stride + x0 + 1] = avg2(e4, e5);
-    a[(y0) * stride + x0] = avg2(e4, e5);
+    a[y0 * stride + x0] = avg2(e4, e5);
     a[(y0 + 3) * stride + x0 + 2] = avg3(e4, e5, e6);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e4, e5, e6);
     a[(y0 + 2) * stride + x0 + 2] = avg2(e5, e6);
-    a[(y0) * stride + x0 + 1] = avg2(e5, e6);
+    a[y0 * stride + x0 + 1] = avg2(e5, e6);
     a[(y0 + 3) * stride + x0 + 3] = avg3(e5, e6, e7);
     a[(y0 + 1) * stride + x0 + 2] = avg3(e5, e6, e7);
     a[(y0 + 2) * stride + x0 + 3] = avg2(e6, e7);
-    a[(y0) * stride + x0 + 2] = avg2(e6, e7);
+    a[y0 * stride + x0 + 2] = avg2(e6, e7);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e6, e7, e8);
-    a[(y0) * stride + x0 + 3] = avg2(e7, e8);
+    a[y0 * stride + x0 + 3] = avg2(e7, e8);
 }
 
 fn predict_bvlpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[(y0) * stride + x0] = avg2(a0, a1);
+    a[y0 * stride + x0] = avg2(a0, a1);
     a[(y0 + 1) * stride + x0] = avg3(a0, a1, a2);
     a[(y0 + 2) * stride + x0] = avg2(a1, a2);
-    a[(y0) * stride + x0 + 1] = avg2(a1, a2);
+    a[y0 * stride + x0 + 1] = avg2(a1, a2);
     a[(y0 + 1) * stride + x0 + 1] = avg3(a1, a2, a3);
     a[(y0 + 3) * stride + x0] = avg3(a1, a2, a3);
     a[(y0 + 2) * stride + x0 + 1] = avg2(a2, a3);
-    a[(y0) * stride + x0 + 2] = avg2(a2, a3);
+    a[y0 * stride + x0 + 2] = avg2(a2, a3);
     a[(y0 + 3) * stride + x0 + 1] = avg3(a2, a3, a4);
     a[(y0 + 1) * stride + x0 + 2] = avg3(a2, a3, a4);
     a[(y0 + 2) * stride + x0 + 2] = avg2(a3, a4);
-    a[(y0) * stride + x0 + 3] = avg2(a3, a4);
+    a[y0 * stride + x0 + 3] = avg2(a3, a4);
     a[(y0 + 3) * stride + x0 + 2] = avg3(a3, a4, a5);
     a[(y0 + 1) * stride + x0 + 3] = avg3(a3, a4, a5);
     a[(y0 + 2) * stride + x0 + 3] = avg3(a4, a5, a6);
@@ -1821,21 +1821,21 @@ fn predict_bhdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     a[(y0 + 2) * stride + x0 + 3] = avg3(e2, e3, e4);
     a[(y0 + 1) * stride + x0 + 1] = avg3(e2, e3, e4);
     a[(y0 + 1) * stride + x0 + 2] = avg2(e3, e4);
-    a[(y0) * stride + x0] = avg2(e3, e4);
+    a[y0 * stride + x0] = avg2(e3, e4);
     a[(y0 + 1) * stride + x0 + 3] = avg3(e3, e4, e5);
-    a[(y0) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[(y0) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[(y0) * stride + x0 + 3] = avg3(e5, e6, e7);
+    a[y0 * stride + x0 + 1] = avg3(e3, e4, e5);
+    a[y0 * stride + x0 + 2] = avg3(e4, e5, e6);
+    a[y0 * stride + x0 + 3] = avg3(e5, e6, e7);
 }
 
 fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    a[(y0) * stride + x0] = avg2(l0, l1);
-    a[(y0) * stride + x0 + 1] = avg3(l0, l1, l2);
-    a[(y0) * stride + x0 + 2] = avg2(l1, l2);
+    a[y0 * stride + x0] = avg2(l0, l1);
+    a[y0 * stride + x0 + 1] = avg3(l0, l1, l2);
+    a[y0 * stride + x0 + 2] = avg2(l1, l2);
     a[(y0 + 1) * stride + x0] = avg2(l1, l2);
-    a[(y0) * stride + x0 + 3] = avg3(l1, l2, l3);
+    a[y0 * stride + x0 + 3] = avg3(l1, l2, l3);
     a[(y0 + 1) * stride + x0 + 1] = avg3(l1, l2, l3);
     a[(y0 + 1) * stride + x0 + 2] = avg2(l2, l3);
     a[(y0 + 2) * stride + x0] = avg2(l2, l3);

@@ -642,8 +642,7 @@ impl HDRMetadata {
         match maybe_key_value {
             Some((key, val)) => self.custom_attributes
                 .push((key.to_owned(), val.to_owned())),
-            None => self.custom_attributes
-                .push(("".into(), line.to_owned())),
+            None => self.custom_attributes.push(("".into(), line.to_owned())),
         }
         // parse known attributes
         match maybe_key_value {

@@ -989,7 +989,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     /// Read image data from a reader where the colours are stored as 8-bit values (24 or 32-bit).
-    fn read_full_byte_pixel_data(&mut self, format: FormatFullBytes) -> ImageResult<Vec<u8>> {
+    fn read_full_byte_pixel_data(&mut self, format: &FormatFullBytes) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
         let row_padding_len = match format {
@@ -1010,7 +1010,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             self.top_down,
             |row| {
                 for pixel in row.chunks_mut(num_channels) {
-                    if format == FormatFullBytes::Format888 {
+                    if *format == FormatFullBytes::Format888 {
                         try!(reader.read_u8());
                     }
 
@@ -1020,12 +1020,12 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     try!(reader.read_exact(&mut pixel[0..3]));
                     pixel[0..3].reverse();
 
-                    if format == FormatFullBytes::RGB32 {
+                    if *format == FormatFullBytes::RGB32 {
                         try!(reader.read_u8());
                     }
 
                     // Read the alpha channel if present
-                    if format == FormatFullBytes::RGBA32 {
+                    if *format == FormatFullBytes::RGBA32 {
                         try!(reader.read_exact(&mut pixel[3..4]));
                     }
                 }
@@ -1211,9 +1211,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
         match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
-            ImageType::RGB24 => self.read_full_byte_pixel_data(FormatFullBytes::RGB24),
-            ImageType::RGB32 => self.read_full_byte_pixel_data(FormatFullBytes::RGB32),
-            ImageType::RGBA32 => self.read_full_byte_pixel_data(FormatFullBytes::RGBA32),
+            ImageType::RGB24 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB24),
+            ImageType::RGB32 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB32),
+            ImageType::RGBA32 => self.read_full_byte_pixel_data(&FormatFullBytes::RGBA32),
             ImageType::RLE8 => self.read_rle_data(ImageType::RLE8),
             ImageType::RLE4 => self.read_rle_data(ImageType::RLE4),
             ImageType::Bitfields16 => match self.bitfields {
@@ -1224,7 +1224,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             },
             ImageType::Bitfields32 => match self.bitfields {
                 Some(R8_G8_B8_COLOR_MASK) => {
-                    self.read_full_byte_pixel_data(FormatFullBytes::Format888)
+                    self.read_full_byte_pixel_data(&FormatFullBytes::Format888)
                 }
                 Some(_) => self.read_32_bit_pixel_data(),
                 None => Err(ImageError::FormatError(

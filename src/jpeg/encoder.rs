@@ -472,9 +472,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
-                for i in 0usize..64 {
-                    dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                for (i, dct) in dct_yblock.iter_mut().enumerate().take(64) {
+                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;

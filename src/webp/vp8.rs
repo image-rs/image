@@ -1409,10 +1409,8 @@ impl<R: Read> VP8Decoder<R> {
 
             for mbx in 0..self.mbwidth as usize {
                 let (skip, mb) = self.read_macroblock_header(mbx);
-                let mut blocks = [0i32; 384];
-
-                if !skip {
-                    blocks = self.read_residual_data(&mb, mbx, p);
+                let blocks = if !skip {
+                    self.read_residual_data(&mb, mbx, p)
                 } else {
                     if mb.luma_mode != B_PRED {
                         self.left.complexity[0] = 0;
@@ -1423,7 +1421,9 @@ impl<R: Read> VP8Decoder<R> {
                         self.left.complexity[i] = 0;
                         self.top[mbx].complexity[i] = 0;
                     }
-                }
+
+                    [0i32; 384]
+                };
 
                 self.intra_predict(mbx, mby, &mb, &blocks);
             }

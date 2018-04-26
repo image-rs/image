@@ -1,6 +1,7 @@
 use super::scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
+#[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
 use std::io::{self, BufRead};
@@ -113,11 +114,11 @@ impl RGBE8Pixel {
             Rgb([0., 0., 0.])
         } else {
             //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2(<f32 as From<u8>>::from(self.e) - (128. + 8.));
+            let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128. + 8.));
             Rgb([
-                exp * <f32 as From<u8>>::from(self.c[0]),
-                exp * <f32 as From<u8>>::from(self.c[1]),
-                exp * <f32 as From<u8>>::from(self.c[2]),
+                exp * <f32 as From<_>>::from(self.c[0]),
+                exp * <f32 as From<_>>::from(self.c[1]),
+                exp * <f32 as From<_>>::from(self.c[2]),
             ])
         }
     }
@@ -633,7 +634,7 @@ impl HDRMetadata {
 
     // Updates header info, in strict mode returns error for malformed lines (no '=' separator)
     // unknown attributes are skipped
-    fn update_header_info<'a>(&mut self, line: &Cow<'a, str>, strict: bool) -> ImageResult<()> {
+    fn update_header_info(&mut self, line: &str, strict: bool) -> ImageResult<()> {
         // split line at first '='
         // old Radiance HDR files (*.pic) feature tabs in key, so                vvv trim
         let maybe_key_value = split_at_first(line, "=").map(|(key, value)| (key.trim(), value));
@@ -642,7 +643,7 @@ impl HDRMetadata {
             Some((key, val)) => self.custom_attributes
                 .push((key.to_owned(), val.to_owned())),
             None => self.custom_attributes
-                .push(("".into(), line.clone().into_owned())),
+                .push(("".into(), line.to_owned())),
         }
         // parse known attributes
         match maybe_key_value {
@@ -741,7 +742,7 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
 
 // Parses dimension line "-Y height +X width"
 // returns (width, height) or error
-fn parse_dimensions_line<'a>(line: &Cow<'a, str>, strict: bool) -> ImageResult<(u32, u32)> {
+fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
     let mut dim_parts = line.split_whitespace();
     let err = "Malformed dimensions line";
     let c1_tag = try!(
@@ -818,7 +819,7 @@ fn limit_string_len(s: &str, len: usize) -> String {
 
 // Splits string into (before separator, after separator) tuple
 // or None if separator isn't found
-fn split_at_first<'a>(s: &'a Cow<'a, str>, separator: &str) -> Option<(&'a str, &'a str)> {
+fn split_at_first<'a>(s: &'a str, separator: &str) -> Option<(&'a str, &'a str)> {
     match s.find(separator) {
         None | Some(0) => None,
         Some(p) if p >= s.len() - separator.len() => None,

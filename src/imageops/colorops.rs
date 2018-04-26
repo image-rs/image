@@ -227,7 +227,7 @@ impl ColorMap for nq::NeuQuant {
 /// Floyd-Steinberg error diffusion
 fn diffuse_err<P: Pixel<Subpixel = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
     for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
-        *c = match <i16 as From<P::Subpixel>>::from(*c) + e * factor / 16 {
+        *c = match <i16 as From<_>>::from(*c) + e * factor / 16 {
             val if val < 0 => 0,
             val if val > 0xFF => 0xFF,
             val => val as u8,
@@ -245,7 +245,7 @@ macro_rules! do_dithering(
                                         .zip(old_pixel.channels().iter())
                                         .zip(new_pixel.channels().iter())
             {
-                *e = old as i16 - new as i16
+                *e = <i16 as From<_>>::from(old) - <i16 as From<_>>::from(new)
             }
         }
     )

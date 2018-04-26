@@ -247,7 +247,7 @@ impl PNMHeader {
                         height,
                     }),
                 ..
-            } => write!(writer, "\n{} {}\n", width, height),
+            } => writeln!(writer, "\n{} {}", width, height),
             PNMHeader {
                 decoded:
                     HeaderRecord::Graymap(GraymapHeader {
@@ -257,7 +257,7 @@ impl PNMHeader {
                         maxwhite,
                     }),
                 ..
-            } => write!(writer, "\n{} {} {}\n", width, height, maxwhite),
+            } => writeln!(writer, "\n{} {} {}", width, height, maxwhite),
             PNMHeader {
                 decoded:
                     HeaderRecord::Pixmap(PixmapHeader {
@@ -267,7 +267,7 @@ impl PNMHeader {
                         maxval,
                     }),
                 ..
-            } => write!(writer, "\n{} {} {}\n", width, height, maxval),
+            } => writeln!(writer, "\n{} {} {}", width, height, maxval),
             PNMHeader {
                 decoded:
                     HeaderRecord::Arbitrary(ArbitraryHeader {
@@ -301,9 +301,9 @@ impl PNMHeader {
                     }
                 };
 
-                write!(
+                writeln!(
                     writer,
-                    "\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR\n",
+                    "\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
                     width, height, depth, maxval, tupltype
                 )
             }

@@ -1,6 +1,4 @@
 use num_iter;
-#[allow(unused)]
-use std::ascii::AsciiExt;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};

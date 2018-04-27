@@ -992,7 +992,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_full_byte_pixel_data(&mut self, format: &FormatFullBytes) -> ImageResult<Vec<u8>> {
         let mut pixel_data = self.create_pixel_data();
         let num_channels = self.num_channels();
-        let row_padding_len = match format {
+        let row_padding_len = match *format {
             FormatFullBytes::RGB24 => (4 - (self.width as usize * 3) % 4) % 4,
             _ => 0,
         };

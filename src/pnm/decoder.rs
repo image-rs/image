@@ -1,5 +1,3 @@
-#[allow(unused)]
-use std::ascii::AsciiExt;
 use std::io::{BufRead, BufReader, Read};
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};

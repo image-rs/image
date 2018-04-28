@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::io;
+use std::mem;
 
 use buffer::{ImageBuffer, Pixel};
 use color;
@@ -347,9 +348,7 @@ where
 
             // NOTE: This is potentially dangerous. It would require the signature fn next(&'a mut self) to be safe.
             // error: lifetime of `self` is too short to guarantee its contents can be safely reborrowed...
-            let ptr = unsafe {
-                &mut *(tmp as *mut <I as GenericImage>::Pixel as *mut <I as GenericImage>::Pixel)
-            };
+            let ptr = unsafe { mem::transmute(tmp) };
 
             let p = (self.x, self.y, ptr);
 

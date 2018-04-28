@@ -121,9 +121,17 @@ mod tests {
 
     #[test]
     fn roundtrip_rgb() {
+        #[cfg_attr(rustfmt, rustfmt_skip)]
         let buf: [u8; 27] = [
-            0, 0, 0, 0, 0, 255, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255, 0, 255, 255, 255, 0, 255,
-            255, 255, 255, 255, 255,
+              0,   0,   0,
+              0,   0, 255,
+              0, 255,   0,
+              0, 255, 255,
+            255,   0,   0,
+            255,   0, 255,
+            255, 255,   0,
+            255, 255, 255,
+            255, 255, 255,
         ];
         execute_roundtrip_default(&buf, 3, 3, ColorType::RGB(8));
         execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8), PNMSubtype::ArbitraryMap);

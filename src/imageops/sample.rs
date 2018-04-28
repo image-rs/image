@@ -167,9 +167,9 @@ where
             // below, as the kernel treats the centre of a pixel as 0.
             let inputx = inputx - 0.5;
 
-            let mut sum = 0.;
+            let mut sum = 0.0;
 
-            let mut t = (0., 0., 0., 0.);
+            let mut t = (0.0, 0.0, 0.0, 0.0);
 
             for i in left..right {
                 let w = (filter.kernel)((i as f32 - inputx) / sratio);
@@ -247,9 +247,9 @@ where
 
             let inputy = inputy - 0.5;
 
-            let mut sum = 0.;
+            let mut sum = 0.0;
 
-            let mut t = (0., 0., 0., 0.);
+            let mut t = (0.0, 0.0, 0.0, 0.0);
 
             for i in left..right {
                 let w = (filter.kernel)((i as f32 - inputy) / sratio);
@@ -387,7 +387,7 @@ where
 
     for y in 1..height - 1 {
         for x in 1..width - 1 {
-            let mut t = (0., 0., 0., 0.);
+            let mut t = (0.0, 0.0, 0.0, 0.0);
 
             // TODO: There is no need to recalculate the kernel for each pixel.
             // Only a subtract and addition is needed for pixels after the first

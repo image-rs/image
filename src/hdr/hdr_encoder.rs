@@ -232,15 +232,15 @@ fn write_rgbe8<W: Write>(w: &mut W, v: RGBE8Pixel) -> Result<()> {
 pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
     let pix = pix.data;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
-    if mx <= 0. {
+    if mx <= 0.0 {
         RGBE8Pixel { c: [0, 0, 0], e: 0 }
     } else {
         // let (frac, exp) = mx.frexp(); // unstable yet
         let exp = mx.log2().floor() as i32 + 1;
-        let mul = f32::powi(2., exp);
+        let mul = f32::powi(2.0, exp);
         let mut conv = [0u8; 3];
         for (cv, &sv) in conv.iter_mut().zip(pix.iter()) {
-            *cv = f32::trunc(sv / mul * 256.) as u8;
+            *cv = f32::trunc(sv / mul * 256.0) as u8;
         }
         RGBE8Pixel {
             c: conv,
@@ -281,19 +281,20 @@ fn to_rgbe8_test() {
         let max_diff = a.data
             .iter()
             .zip(b.data.iter())
-            .fold(0., |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
+            .fold(0.0, |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
         let max_val = a.data
             .iter()
             .chain(b.data.iter())
-            .fold(0., |maxv, &a| f32::max(maxv, a));
-        if max_val == 0. {
-            0.
+            .fold(0.0, |maxv, &a| f32::max(maxv, a));
+        if max_val == 0.0 {
+            0.0
         } else {
             max_diff / max_val
         }
     }
     let test_values = vec![
-        0.000_001, 0.000_02, 0.000_3, 0.004, 0.05, 0.6, 7., 80., 900., 1_000., 20_000., 300_000.,
+        0.000_001, 0.000_02, 0.000_3, 0.004, 0.05, 0.6, 7.0, 80.0, 900.0, 1_000.0, 20_000.0,
+        300_000.0,
     ];
     for &r in &test_values {
         for &g in &test_values {
@@ -303,7 +304,7 @@ fn to_rgbe8_test() {
                 let rel_dist = relative_dist(c1, c2);
                 // Maximal value is normalized to the range 128..256, thus we have 1/128 precision
                 assert!(
-                    rel_dist <= 1. / 128.,
+                    rel_dist <= 1.0 / 128.0,
                     "Relative distance ({}) exceeds 1/128 for {:?} and {:?}",
                     rel_dist,
                     c1,

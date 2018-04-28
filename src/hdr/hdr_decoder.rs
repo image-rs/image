@@ -111,10 +111,10 @@ impl RGBE8Pixel {
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
-            Rgb([0., 0., 0.])
+            Rgb([0.0, 0.0, 0.0])
         } else {
             //            let exp = f32::ldexp(1., self.e as isize - (128 + 8)); // unstable
-            let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128. + 8.));
+            let exp = f32::exp2(<f32 as From<_>>::from(self.e) - (128.0 + 8.0));
             Rgb([
                 exp * <f32 as From<_>>::from(self.c[0]),
                 exp * <f32 as From<_>>::from(self.c[1]),
@@ -154,7 +154,7 @@ impl RGBE8Pixel {
             let t_max_f32: f32 = NumCast::from(t_max)
                 .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
             let fv = f32::powf(v * scale, gamma) * t_max_f32 + 0.5;
-            if fv < 0. {
+            if fv < 0.0 {
                 T::zero()
             } else if fv > t_max_f32 {
                 t_max
@@ -655,7 +655,7 @@ impl HDRMetadata {
             Some(("EXPOSURE", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.exposure = Some(self.exposure.unwrap_or(1.) * v); // all encountered exposure values should be multiplied
+                        self.exposure = Some(self.exposure.unwrap_or(1.0) * v); // all encountered exposure values should be multiplied
                     }
                     Err(parse_error) => {
                         if strict {
@@ -670,7 +670,7 @@ impl HDRMetadata {
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.) * v); // all encountered exposure values should be multiplied
+                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.0) * v); // all encountered exposure values should be multiplied
                     }
                     Err(parse_error) => {
                         if strict {
@@ -683,7 +683,7 @@ impl HDRMetadata {
                 };
             }
             Some(("COLORCORR", val)) => {
-                let mut rgbcorr = [1., 1., 1.];
+                let mut rgbcorr = [1.0, 1.0, 1.0];
                 match parse_space_separated_f32(val, &mut rgbcorr, "COLORCORR") {
                     Ok(extra_numbers) => {
                         if strict && extra_numbers {
@@ -691,7 +691,7 @@ impl HDRMetadata {
                                 "Extra numbers in COLORCORR".into(),
                             ));
                         } // no else, just ignore extra numbers
-                        let (rc, gc, bc) = self.color_correction.unwrap_or((1., 1., 1.));
+                        let (rc, gc, bc) = self.color_correction.unwrap_or((1.0, 1.0, 1.0));
                         self.color_correction =
                             Some((rc * rgbcorr[0], gc * rgbcorr[1], bc * rgbcorr[2]));
                     }

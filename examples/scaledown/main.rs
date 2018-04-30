@@ -1,9 +1,9 @@
 extern crate image;
 
-use std::fs::File;
 use image::{FilterType, PNG};
-use std::time::{Duration, Instant};
 use std::fmt;
+use std::fs::File;
+use std::time::{Duration, Instant};
 
 struct Elapsed(Duration);
 
@@ -33,7 +33,8 @@ fn main() {
         ("cmr", FilterType::CatmullRom),
         ("gauss", FilterType::Gaussian),
         ("lcz2", FilterType::Lanczos3),
-    ].into_iter() {
+    ].into_iter()
+    {
         let timer = Instant::now();
         let scaled = img.resize(400, 400, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
@@ -45,8 +46,7 @@ fn main() {
         let timer = Instant::now();
         let scaled = img.thumbnail(*size, *size);
         println!("Thumbnailed to {} in {}", size, Elapsed::from(&timer));
-        let mut output =
-            File::create(format!("test-thumb{}.png", size)).unwrap();
+        let mut output = File::create(format!("test-thumb{}.png", size)).unwrap();
         scaled.write_to(&mut output, PNG).unwrap();
     }
 }

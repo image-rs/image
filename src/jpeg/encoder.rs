@@ -1,12 +1,12 @@
-use std::io::{self, Write};
-use byteorder::{WriteBytesExt, BigEndian};
-use num_iter::range_step;
+use byteorder::{BigEndian, WriteBytesExt};
 use math::utils::clamp;
+use num_iter::range_step;
+use std::io::{self, Write};
 
 use color;
 
-use super::transform;
 use super::entropy::build_huff_lut;
+use super::transform;
 
 // Markers
 // Baseline DCT
@@ -26,6 +26,7 @@ static APP0: u8 = 0xE0;
 
 // section K.1
 // table K.1
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static STD_LUMA_QTABLE: [u8; 64] = [
     16, 11, 10, 16,  24,  40,  51,  61,
     12, 12, 14, 19,  26,  58,  60,  55,
@@ -38,6 +39,7 @@ static STD_LUMA_QTABLE: [u8; 64] = [
 ];
 
 // table K.2
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static STD_CHROMA_QTABLE: [u8; 64] = [
     17, 18, 24, 47, 99, 99, 99, 99,
     18, 21, 26, 66, 99, 99, 99, 99,
@@ -46,36 +48,31 @@ static STD_CHROMA_QTABLE: [u8; 64] = [
     99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99
- ];
+    99, 99, 99, 99, 99, 99, 99, 99,
+];
 
 // section K.3
 // Code lengths and values for table K.3
 static STD_LUMA_DC_CODE_LENGTHS: [u8; 16] = [
-    0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
 static STD_LUMA_DC_VALUES: [u8; 12] = [
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0A, 0x0B
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
 ];
 
 // Code lengths and values for table K.4
 static STD_CHROMA_DC_CODE_LENGTHS: [u8; 16] = [
-    0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+    0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
 static STD_CHROMA_DC_VALUES: [u8; 12] = [
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0A, 0x0B
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
 ];
 
 // Code lengths and values for table k.5
 static STD_LUMA_AC_CODE_LENGTHS: [u8; 16] = [
-    0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03,
-    0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D
+    0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D,
 ];
 
 static STD_LUMA_AC_VALUES: [u8; 162] = [
@@ -94,8 +91,7 @@ static STD_LUMA_AC_VALUES: [u8; 162] = [
 
 // Code lengths and values for table k.6
 static STD_CHROMA_AC_CODE_LENGTHS: [u8; 16] = [
-    0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04,
-    0x07, 0x05, 0x04, 0x04, 0x00, 0x01, 0x02, 0x77,
+    0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04, 0x07, 0x05, 0x04, 0x04, 0x00, 0x01, 0x02, 0x77,
 ];
 static STD_CHROMA_AC_VALUES: [u8; 162] = [
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
@@ -122,8 +118,9 @@ static CHROMABLUEID: u8 = 2;
 static CHROMAREDID: u8 = 3;
 
 /// The permutation of dct coefficients.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static UNZIGZAG: [u8; 64] = [
-    0,  1,  8, 16,  9,  2,  3, 10,
+     0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
     12, 19, 26, 33, 40, 48, 41, 34,
     27, 20, 13,  6,  7, 14, 21, 28,
@@ -155,7 +152,7 @@ struct Component {
     ac_table: u8,
 
     /// The dc prediction of the component
-    _dc_pred: i32
+    _dc_pred: i32,
 }
 
 pub struct BitWriter<'a, W: 'a> {
@@ -167,7 +164,7 @@ pub struct BitWriter<'a, W: 'a> {
 impl<'a, W: Write + 'a> BitWriter<'a, W> {
     fn new(w: &'a mut W) -> Self {
         BitWriter {
-            w: w,
+            w,
             accumulator: 0,
             nbits: 0,
         }
@@ -175,10 +172,10 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
     fn write_bits(&mut self, bits: u16, size: u8) -> io::Result<()> {
         if size == 0 {
-          return Ok(())
+            return Ok(());
         }
 
-        self.accumulator |= (bits as u32) << (32 - (self.nbits + size)) as usize;
+        self.accumulator |= u32::from(bits) << (32 - (self.nbits + size)) as usize;
         self.nbits += size;
 
         while self.nbits >= 8 {
@@ -215,11 +212,11 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         block: &[i32],
         prevdc: i32,
         dctable: &[(u8, u16)],
-        actable: &[(u8, u16)]) -> io::Result<i32> {
-
+        actable: &[(u8, u16)],
+    ) -> io::Result<i32> {
         // Differential DC encoding
         let dcval = block[0];
-        let diff  = dcval - prevdc;
+        let diff = dcval - prevdc;
         let (size, value) = encode_coefficient(diff);
 
         try!(self.huffman_encode(size, dctable));
@@ -235,7 +232,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
             if block[UNZIGZAG[k] as usize] == 0 {
                 if k == 63 {
                     try!(self.huffman_encode(0x00, actable));
-                    break
+                    break;
                 }
 
                 zero_run += 1;
@@ -254,7 +251,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
                 zero_run = 0;
 
                 if k == 63 {
-                    break
+                    break;
                 }
             }
         }
@@ -304,13 +301,37 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         let ca = build_huff_lut(&STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
 
         let components = vec![
-            Component {id: LUMAID, h: 1, v: 1, tq: LUMADESTINATION, dc_table: LUMADESTINATION, ac_table: LUMADESTINATION, _dc_pred: 0},
-            Component {id: CHROMABLUEID, h: 1, v: 1, tq: CHROMADESTINATION, dc_table: CHROMADESTINATION, ac_table: CHROMADESTINATION, _dc_pred: 0},
-            Component {id: CHROMAREDID, h: 1, v: 1, tq: CHROMADESTINATION, dc_table: CHROMADESTINATION, ac_table: CHROMADESTINATION, _dc_pred: 0}
+            Component {
+                id: LUMAID,
+                h: 1,
+                v: 1,
+                tq: LUMADESTINATION,
+                dc_table: LUMADESTINATION,
+                ac_table: LUMADESTINATION,
+                _dc_pred: 0,
+            },
+            Component {
+                id: CHROMABLUEID,
+                h: 1,
+                v: 1,
+                tq: CHROMADESTINATION,
+                dc_table: CHROMADESTINATION,
+                ac_table: CHROMADESTINATION,
+                _dc_pred: 0,
+            },
+            Component {
+                id: CHROMAREDID,
+                h: 1,
+                v: 1,
+                tq: CHROMADESTINATION,
+                dc_table: CHROMADESTINATION,
+                ac_table: CHROMADESTINATION,
+                _dc_pred: 0,
+            },
         ];
 
         // Derive our quantization table scaling value using the libjpeg algorithm
-        let scale: u32 = clamp(quality, 1, 100) as u32;
+        let scale = u32::from(clamp(quality, 1, 100));
         let scale = if scale < 50 {
             5000 / scale
         } else {
@@ -319,11 +340,9 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 
         let mut tables = Vec::new();
         let scale_value = |&v: &u8| {
-            let value = (v as u32 * scale + 50) / 100;
+            let value = (u32::from(v) * scale + 50) / 100;
 
-            clamp(value,
-                         1,
-                         u8::max_value() as u32) as u8
+            clamp(value, 1, u32::from(u8::max_value())) as u8
         };
         tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
         tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
@@ -331,8 +350,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         JPEGEncoder {
             writer: BitWriter::new(w),
 
-            components: components,
-            tables: tables,
+            components,
+            tables,
 
             luma_dctable: ld,
             luma_actable: la,
@@ -346,15 +365,15 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// and ```ColorType``` ```c```
     ///
     /// The Image in encoded with subsampling ratio 4:2:2
-    pub fn encode(&mut self,
-                  image: &[u8],
-                  width: u32,
-                  height: u32,
-                  c: color::ColorType) -> io::Result<()> {
-
+    pub fn encode(
+        &mut self,
+        image: &[u8],
+        width: u32,
+        height: u32,
+        c: color::ColorType,
+    ) -> io::Result<()> {
         let n = color::num_components(c);
-        let num_components = if n == 1 || n == 2 {1}
-                             else {3};
+        let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         try!(self.writer.write_segment(SOI, None));
 
@@ -363,33 +382,58 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_jfif_header(&mut buf);
         try!(self.writer.write_segment(APP0, Some(&buf)));
 
-        build_frame_header(&mut buf, 8, width as u16, height as u16, &self.components[..num_components]);
+        build_frame_header(
+            &mut buf,
+            8,
+            width as u16,
+            height as u16,
+            &self.components[..num_components],
+        );
         try!(self.writer.write_segment(SOF0, Some(&buf)));
 
         assert_eq!(self.tables.len() / 64, 2);
-        let numtables = if num_components == 1 {1}
-                        else {2};
+        let numtables = if num_components == 1 { 1 } else { 2 };
 
         for (i, table) in self.tables.chunks(64).enumerate().take(numtables) {
             build_quantization_segment(&mut buf, 8, i as u8, table);
             try!(self.writer.write_segment(DQT, Some(&buf)));
         }
 
-        build_huffman_segment(&mut buf, DCCLASS, LUMADESTINATION,
-                              &STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
+        build_huffman_segment(
+            &mut buf,
+            DCCLASS,
+            LUMADESTINATION,
+            &STD_LUMA_DC_CODE_LENGTHS,
+            &STD_LUMA_DC_VALUES,
+        );
         try!(self.writer.write_segment(DHT, Some(&buf)));
 
-        build_huffman_segment(&mut buf, ACCLASS, LUMADESTINATION,
-                              &STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
+        build_huffman_segment(
+            &mut buf,
+            ACCLASS,
+            LUMADESTINATION,
+            &STD_LUMA_AC_CODE_LENGTHS,
+            &STD_LUMA_AC_VALUES,
+        );
         try!(self.writer.write_segment(DHT, Some(&buf)));
 
         if num_components == 3 {
-            build_huffman_segment(&mut buf, DCCLASS, CHROMADESTINATION,
-                                  &STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
+            build_huffman_segment(
+                &mut buf,
+                DCCLASS,
+                CHROMADESTINATION,
+                &STD_CHROMA_DC_CODE_LENGTHS,
+                &STD_CHROMA_DC_VALUES,
+            );
             try!(self.writer.write_segment(DHT, Some(&buf)));
 
-            build_huffman_segment(&mut buf, ACCLASS, CHROMADESTINATION,
-                                  &STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
+            build_huffman_segment(
+                &mut buf,
+                ACCLASS,
+                CHROMADESTINATION,
+                &STD_CHROMA_AC_CODE_LENGTHS,
+                &STD_CHROMA_AC_VALUES,
+            );
             try!(self.writer.write_segment(DHT, Some(&buf)));
         }
 
@@ -397,14 +441,27 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         try!(self.writer.write_segment(SOS, Some(&buf)));
 
         match c {
-            color::ColorType::RGB(8)   => try!(self.encode_rgb(image, width as usize, height as usize, 3)),
-            color::ColorType::RGBA(8)  => try!(self.encode_rgb(image, width as usize, height as usize, 4)),
-            color::ColorType::Gray(8)  => try!(self.encode_gray(image, width as usize, height as usize, 1)),
-            color::ColorType::GrayA(8) => try!(self.encode_gray(image, width as usize, height as usize, 2)),
-            _  => return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &format!("Unsupported color type {:?}. Use 8 bit per channel RGB(A) or Gray(A) instead.", c)[..],
-            ))
+            color::ColorType::RGB(8) => {
+                try!(self.encode_rgb(image, width as usize, height as usize, 3))
+            }
+            color::ColorType::RGBA(8) => {
+                try!(self.encode_rgb(image, width as usize, height as usize, 4))
+            }
+            color::ColorType::Gray(8) => {
+                try!(self.encode_gray(image, width as usize, height as usize, 1))
+            }
+            color::ColorType::GrayA(8) => {
+                try!(self.encode_gray(image, width as usize, height as usize, 2))
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    &format!(
+                    "Unsupported color type {:?}. Use 8 bit per channel RGB(A) or Gray(A) instead.",
+                    c
+                )[..],
+                ))
+            }
         };
 
         try!(self.writer.pad_byte());
@@ -412,9 +469,15 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         Ok(())
     }
 
-    fn encode_gray(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> io::Result<()> {
-        let mut yblock     = [0u8; 64];
-        let mut y_dcprev   = 0;
+    fn encode_gray(
+        &mut self,
+        image: &[u8],
+        width: usize,
+        height: usize,
+        bpp: usize,
+    ) -> io::Result<()> {
+        let mut yblock = [0u8; 64];
+        let mut y_dcprev = 0;
         let mut dct_yblock = [0i32; 64];
 
         for y in range_step(0, height, 8) {
@@ -427,37 +490,52 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
-                for i in 0usize..64 {
-                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
+                for (i, dct) in dct_yblock.iter_mut().enumerate().take(64) {
+                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;
                 let ld = &*self.luma_dctable;
 
-                y_dcprev  = try!(self.writer.write_block(&dct_yblock, y_dcprev, ld, la));
+                y_dcprev = try!(self.writer.write_block(&dct_yblock, y_dcprev, ld, la));
             }
         }
 
         Ok(())
     }
 
-    fn encode_rgb(&mut self, image: &[u8], width: usize, height: usize, bpp: usize) -> io::Result<()> {
+    fn encode_rgb(
+        &mut self,
+        image: &[u8],
+        width: usize,
+        height: usize,
+        bpp: usize,
+    ) -> io::Result<()> {
         let mut y_dcprev = 0;
         let mut cb_dcprev = 0;
         let mut cr_dcprev = 0;
 
-        let mut dct_yblock   = [0i32; 64];
+        let mut dct_yblock = [0i32; 64];
         let mut dct_cb_block = [0i32; 64];
         let mut dct_cr_block = [0i32; 64];
 
-        let mut yblock   = [0u8; 64];
+        let mut yblock = [0u8; 64];
         let mut cb_block = [0u8; 64];
         let mut cr_block = [0u8; 64];
 
         for y in range_step(0, height, 8) {
             for x in range_step(0, width, 8) {
                 // RGB -> YCbCr
-                copy_blocks_ycbcr(image, x, y, width, bpp, &mut yblock, &mut cb_block, &mut cr_block);
+                copy_blocks_ycbcr(
+                    image,
+                    x,
+                    y,
+                    width,
+                    bpp,
+                    &mut yblock,
+                    &mut cb_block,
+                    &mut cr_block,
+                );
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
@@ -467,9 +545,14 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
 
                 // Quantization
                 for i in 0usize..64 {
-                    dct_yblock[i]   = ((dct_yblock[i] / 8)   as f32 / self.tables[i] as f32).round() as i32;
-                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
-                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32 / self.tables[64..][i] as f32).round() as i32;
+                    dct_yblock[i] =
+                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                    dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32
+                        / f32::from(self.tables[64..][i]))
+                        .round() as i32;
+                    dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32
+                        / f32::from(self.tables[64..][i]))
+                        .round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -477,7 +560,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 let cd = &*self.chroma_dctable;
                 let ca = &*self.chroma_actable;
 
-                y_dcprev  = try!(self.writer.write_block(&dct_yblock, y_dcprev, ld, la));
+                y_dcprev = try!(self.writer.write_block(&dct_yblock, y_dcprev, ld, la));
                 cb_dcprev = try!(self.writer.write_block(&dct_cb_block, cb_dcprev, cd, ca));
                 cr_dcprev = try!(self.writer.write_block(&dct_cr_block, cr_dcprev, cd, ca));
             }
@@ -501,11 +584,13 @@ fn build_jfif_header(m: &mut Vec<u8>) {
     let _ = m.write_all(&[0]);
 }
 
-fn build_frame_header(m: &mut Vec<u8>,
-                      precision: u8,
-                      width: u16,
-                      height: u16,
-                      components: &[Component]) {
+fn build_frame_header(
+    m: &mut Vec<u8>,
+    precision: u8,
+    width: u16,
+    height: u16,
+    components: &[Component],
+) {
     m.clear();
 
     let _ = m.write_all(&[precision]);
@@ -513,11 +598,11 @@ fn build_frame_header(m: &mut Vec<u8>,
     let _ = m.write_u16::<BigEndian>(width);
     let _ = m.write_all(&[components.len() as u8]);
 
-    for & comp in components.iter() {
-        let _  = m.write_all(&[comp.id]);
+    for &comp in components.iter() {
+        let _ = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _  = m.write_all(&[hv]);
-        let _  = m.write_all(&[comp.tq]);
+        let _ = m.write_all(&[hv]);
+        let _ = m.write_all(&[comp.tq]);
     }
 }
 
@@ -526,10 +611,10 @@ fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
 
     let _ = m.write_all(&[components.len() as u8]);
 
-    for & comp in components.iter() {
-        let _ 	   = m.write_all(&[comp.id]);
+    for &comp in components.iter() {
+        let _ = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ 	   = m.write_all(&[tables]);
+        let _ = m.write_all(&[tables]);
     }
 
     // spectral start and end, approx. high and low
@@ -538,15 +623,17 @@ fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     let _ = m.write_all(&[0]);
 }
 
-fn build_huffman_segment(m: &mut Vec<u8>,
-                         class: u8,
-                         destination: u8,
-                         numcodes: &[u8],
-                         values: &[u8]) {
+fn build_huffman_segment(
+    m: &mut Vec<u8>,
+    class: u8,
+    destination: u8,
+    numcodes: &[u8],
+    values: &[u8],
+) {
     m.clear();
 
     let tcth = (class << 4) | destination;
-    let _    = m.write_all(&[tcth]);
+    let _ = m.write_all(&[tcth]);
 
     assert_eq!(numcodes.len(), 16);
 
@@ -559,24 +646,19 @@ fn build_huffman_segment(m: &mut Vec<u8>,
 
     assert_eq!(sum, values.len());
 
-    for & i in values.iter() {
+    for &i in values.iter() {
         let _ = m.write_all(&[i]);
     }
 }
 
-fn build_quantization_segment(m: &mut Vec<u8>,
-                              precision: u8,
-                              identifier: u8,
-                              qtable: &[u8]) {
-
+fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8]) {
     assert_eq!(qtable.len() % 64, 0);
     m.clear();
 
-    let p = if precision == 8 {0}
-            else {1};
+    let p = if precision == 8 { 0 } else { 1 };
 
     let pqtq = (p << 4) | identifier;
-    let _    = m.write_all(&[pqtq]);
+    let _ = m.write_all(&[pqtq]);
 
     for i in 0usize..64 {
         let _ = m.write_all(&[qtable[UNZIGZAG[i] as usize]]);
@@ -585,7 +667,7 @@ fn build_quantization_segment(m: &mut Vec<u8>,
 
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {
     let mut magnitude = coefficient.abs() as u16;
-    let mut num_bits  = 0u8;
+    let mut num_bits = 0u8;
 
     while magnitude > 0 {
         magnitude >>= 1;
@@ -594,7 +676,7 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 
     let mask = (1 << num_bits as usize) - 1;
 
-    let val  = if coefficient < 0 {
+    let val = if coefficient < 0 {
         (coefficient - 1) as u16 & mask
     } else {
         coefficient as u16 & mask
@@ -604,13 +686,13 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 }
 
 fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let r = r as f32;
-    let g = g as f32;
-    let b = b as f32;
+    let r = f32::from(r);
+    let g = f32::from(g);
+    let b = f32::from(b);
 
-    let y  =  0.299f32  * r + 0.587f32  * g + 0.114f32  * b;
-    let cb = -0.1687f32 * r - 0.3313f32 * g + 0.5f32    * b + 128f32;
-    let cr =  0.5f32    * r - 0.4187f32 * g - 0.0813f32 * b + 128f32;
+    let y = 0.299f32 * r + 0.587f32 * g + 0.114f32 * b;
+    let cb = -0.1687f32 * r - 0.3313f32 * g + 0.5f32 * b + 128f32;
+    let cr = 0.5f32 * r - 0.4187f32 * g - 0.0813f32 * b + 128f32;
 
     (y as u8, cb as u8, cr as u8)
 }
@@ -623,58 +705,60 @@ fn value_at(s: &[u8], index: usize) -> u8 {
     }
 }
 
-fn copy_blocks_ycbcr(source: &[u8],
-                     x0: usize,
-                     y0: usize,
-                     width: usize,
-                     bpp: usize,
-                     yb: &mut [u8; 64],
-                     cbb: &mut [u8; 64],
-                     crb: &mut [u8; 64]) {
-
+fn copy_blocks_ycbcr(
+    source: &[u8],
+    x0: usize,
+    y0: usize,
+    width: usize,
+    bpp: usize,
+    yb: &mut [u8; 64],
+    cbb: &mut [u8; 64],
+    crb: &mut [u8; 64],
+) {
     for y in 0usize..8 {
         let ystride = (y0 + y) * bpp * width;
 
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
 
-            let r = value_at(source, ystride + xstride + 0);
+            let r = value_at(source, ystride + xstride);
             let g = value_at(source, ystride + xstride + 1);
             let b = value_at(source, ystride + xstride + 2);
 
             let (yc, cb, cr) = rgb_to_ycbcr(r, g, b);
 
-            yb[y * 8 + x]  = yc;
+            yb[y * 8 + x] = yc;
             cbb[y * 8 + x] = cb;
             crb[y * 8 + x] = cr;
         }
     }
 }
 
-fn copy_blocks_gray(source: &[u8],
-                    x0: usize,
-                    y0: usize,
-                    width: usize,
-                    bpp: usize,
-                    gb: &mut [u8; 64]) {
-
+fn copy_blocks_gray(
+    source: &[u8],
+    x0: usize,
+    y0: usize,
+    width: usize,
+    bpp: usize,
+    gb: &mut [u8; 64],
+) {
     for y in 0usize..8 {
         let ystride = (y0 + y) * bpp * width;
 
         for x in 0usize..8 {
             let xstride = x0 * bpp + x * bpp;
-            gb[y * 8 + x] = value_at(source, ystride + xstride + 0);
+            gb[y * 8 + x] = value_at(source, ystride + xstride);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use super::JPEGEncoder;
     use super::super::JPEGDecoder;
+    use super::JPEGEncoder;
     use color::ColorType;
-    use image::{ImageDecoder, DecodingResult};
+    use image::{DecodingResult, ImageDecoder};
+    use std::io::Cursor;
 
     #[test]
     fn roundtrip_sanity_check() {
@@ -684,16 +768,15 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let mut encoder =
-                JPEGEncoder::new_with_quality(&mut encoded_img, 100);
-            encoder.encode(&img, 1, 1, ColorType::RGB(8))
+            let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            encoder
+                .encode(&img, 1, 1, ColorType::RGB(8))
                 .expect("Could not encode image");
         }
 
         // decode it from the memory buffer
         {
-            let mut decoder =
-                JPEGDecoder::new(Cursor::new(&encoded_img));
+            let mut decoder = JPEGDecoder::new(Cursor::new(&encoded_img));
             match decoder.read_image().expect("Could not decode image") {
                 DecodingResult::U8(decoded) => {
                     // note that, even with the encode quality set to 100, we
@@ -703,7 +786,7 @@ mod tests {
                     assert!(decoded[0] > 0x80);
                     assert!(decoded[1] < 0x80);
                     assert!(decoded[2] < 0x80);
-                },
+                }
                 _ => panic!("Image did not decode as 8-bit"),
             }
         }
@@ -717,16 +800,15 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let mut encoder =
-                JPEGEncoder::new_with_quality(&mut encoded_img, 100);
-            encoder.encode(&img, 2, 2, ColorType::Gray(8))
+            let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            encoder
+                .encode(&img, 2, 2, ColorType::Gray(8))
                 .expect("Could not encode image");
         }
 
         // decode it from the memory buffer
         {
-            let mut decoder =
-                JPEGDecoder::new(Cursor::new(&encoded_img));
+            let mut decoder = JPEGDecoder::new(Cursor::new(&encoded_img));
             match decoder.read_image().expect("Could not decode image") {
                 DecodingResult::U8(decoded) => {
                     // note that, even with the encode quality set to 100, we
@@ -737,7 +819,7 @@ mod tests {
                     assert!(decoded[1] < 0x80);
                     assert!(decoded[2] < 0x80);
                     assert!(decoded[3] > 0x80);
-                },
+                }
                 _ => panic!("Image did not decode as 8-bit"),
             }
         }

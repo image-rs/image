@@ -1,6 +1,6 @@
-use std::ops::{ Index, IndexMut };
-use num_traits::{ NumCast, Zero };
+use num_traits::{NumCast, Zero};
 use std::mem;
+use std::ops::{Index, IndexMut};
 
 use buffer::Pixel;
 use traits::Primitive;
@@ -22,26 +22,25 @@ pub enum ColorType {
 
     /// Pixel is RGB with an alpha channel
     RGBA(u8),
-
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
-        ColorType::Gray(n)    => n as usize,
-        ColorType::GrayA(n)   => 2 * n as usize,
+        ColorType::Gray(n) => n as usize,
+        ColorType::GrayA(n) => 2 * n as usize,
         ColorType::RGB(n) | ColorType::Palette(n) => 3 * n as usize,
-        ColorType::RGBA(n)    => 4 * n as usize,
+        ColorType::RGBA(n) => 4 * n as usize,
     }
 }
 
 /// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> usize {
     match c {
-        ColorType::Gray(_)    => 1,
-        ColorType::GrayA(_)   => 2,
+        ColorType::Gray(_) => 1,
+        ColorType::GrayA(_) => 2,
         ColorType::RGB(_) | ColorType::Palette(_) => 3,
-        ColorType::RGBA(_)    => 4,
+        ColorType::RGBA(_) => 4,
     }
 }
 
@@ -212,7 +211,6 @@ define_colors! {
     LumaA, 2, 1, "YA", GrayA, #[doc = "Grayscale colors + alpha channel"];
 }
 
-
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
@@ -230,42 +228,38 @@ impl<A: Copy> FromColor<A> for A {
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for Luma<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
-            let gray = self.channels_mut();
-            let rgb = other.channels();
-            let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
-                    0.7152f32 * rgb[1].to_f32().unwrap() +
-                    0.0722f32 * rgb[2].to_f32().unwrap();
-            gray[0] = NumCast::from(l).unwrap()
+        let gray = self.channels_mut();
+        let rgb = other.channels();
+        let l = 0.2126f32 * rgb[0].to_f32().unwrap() + 0.7152f32 * rgb[1].to_f32().unwrap()
+            + 0.0722f32 * rgb[2].to_f32().unwrap();
+        gray[0] = NumCast::from(l).unwrap()
     }
 }
 
 impl<T: Primitive + 'static> FromColor<Rgb<T>> for Luma<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
-            let gray = self.channels_mut();
-            let rgb = other.channels();
-            let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
-                    0.7152f32 * rgb[1].to_f32().unwrap() +
-                    0.0722f32 * rgb[2].to_f32().unwrap();
-            gray[0] = NumCast::from(l).unwrap()
+        let gray = self.channels_mut();
+        let rgb = other.channels();
+        let l = 0.2126f32 * rgb[0].to_f32().unwrap() + 0.7152f32 * rgb[1].to_f32().unwrap()
+            + 0.0722f32 * rgb[2].to_f32().unwrap();
+        gray[0] = NumCast::from(l).unwrap()
     }
 }
 
 impl<T: Primitive + 'static> FromColor<LumaA<T>> for Luma<T> {
     fn from_color(&mut self, other: &LumaA<T>) {
-            self.channels_mut()[0] = other.channels()[0]
+        self.channels_mut()[0] = other.channels()[0]
     }
 }
 
 /// `FromColor` for LumA
 
-
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Rgba<T>) {
         let gray_a = self.channels_mut();
         let rgba = other.channels();
-        let l = 0.2126f32 * rgba[0].to_f32().unwrap() +
-                0.7152f32 * rgba[1].to_f32().unwrap() +
-                0.0722f32 * rgba[2].to_f32().unwrap();
+        let l = 0.2126f32 * rgba[0].to_f32().unwrap() + 0.7152f32 * rgba[1].to_f32().unwrap()
+            + 0.0722f32 * rgba[2].to_f32().unwrap();
         gray_a[0] = NumCast::from(l).unwrap();
         gray_a[1] = rgba[3];
     }
@@ -275,9 +269,8 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for LumaA<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
         let gray_a = self.channels_mut();
         let rgb = other.channels();
-        let l = 0.2126f32 * rgb[0].to_f32().unwrap() +
-                0.7152f32 * rgb[1].to_f32().unwrap() +
-                0.0722f32 * rgb[2].to_f32().unwrap();
+        let l = 0.2126f32 * rgb[0].to_f32().unwrap() + 0.7152f32 * rgb[1].to_f32().unwrap()
+            + 0.0722f32 * rgb[2].to_f32().unwrap();
         gray_a[0] = NumCast::from(l).unwrap();
         gray_a[1] = T::max_value();
     }
@@ -301,7 +294,6 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for Rgba<T> {
         rgba[1] = rgb[1];
         rgba[2] = rgb[2];
         rgba[3] = T::max_value();
-
     }
 }
 
@@ -327,7 +319,6 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Rgba<T> {
     }
 }
 
-
 /// `FromColor` for RGB
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for Rgb<T> {
@@ -337,7 +328,6 @@ impl<T: Primitive + 'static> FromColor<Rgba<T>> for Rgb<T> {
         rgb[0] = rgba[0];
         rgb[1] = rgba[1];
         rgb[2] = rgba[2];
-
     }
 }
 
@@ -374,11 +364,19 @@ impl<T: Primitive> Blend for LumaA<T> {
         let (bg_luma, bg_a) = (self.data[0], self.data[1]);
         let (fg_luma, fg_a) = (other.data[0], other.data[1]);
 
-        let (bg_luma, bg_a) = (bg_luma.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
-        let (fg_luma, fg_a) = (fg_luma.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
+        let (bg_luma, bg_a) = (
+            bg_luma.to_f32().unwrap() / max_t,
+            bg_a.to_f32().unwrap() / max_t,
+        );
+        let (fg_luma, fg_a) = (
+            fg_luma.to_f32().unwrap() / max_t,
+            fg_a.to_f32().unwrap() / max_t,
+        );
 
         let alpha_final = bg_a + fg_a - bg_a * fg_a;
-        if alpha_final == 0.0 {return};
+        if alpha_final == 0.0 {
+            return;
+        };
         let bg_luma_a = bg_luma * bg_a;
         let fg_luma_a = fg_luma * fg_a;
 
@@ -387,7 +385,7 @@ impl<T: Primitive> Blend for LumaA<T> {
 
         *self = LumaA([
             NumCast::from(max_t * out_luma).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap()
+            NumCast::from(max_t * alpha_final).unwrap(),
         ])
     }
 }
@@ -407,29 +405,49 @@ impl<T: Primitive> Blend for Rgba<T> {
         let max_t = max_t.to_f32().unwrap();
         let (bg_r, bg_g, bg_b, bg_a) = (self.data[0], self.data[1], self.data[2], self.data[3]);
         let (fg_r, fg_g, fg_b, fg_a) = (other.data[0], other.data[1], other.data[2], other.data[3]);
-        let (bg_r, bg_g, bg_b, bg_a) = (bg_r.to_f32().unwrap() / max_t, bg_g.to_f32().unwrap() / max_t, bg_b.to_f32().unwrap() / max_t, bg_a.to_f32().unwrap() / max_t);
-        let (fg_r, fg_g, fg_b, fg_a) = (fg_r.to_f32().unwrap() / max_t, fg_g.to_f32().unwrap() / max_t, fg_b.to_f32().unwrap() / max_t, fg_a.to_f32().unwrap() / max_t);
+        let (bg_r, bg_g, bg_b, bg_a) = (
+            bg_r.to_f32().unwrap() / max_t,
+            bg_g.to_f32().unwrap() / max_t,
+            bg_b.to_f32().unwrap() / max_t,
+            bg_a.to_f32().unwrap() / max_t,
+        );
+        let (fg_r, fg_g, fg_b, fg_a) = (
+            fg_r.to_f32().unwrap() / max_t,
+            fg_g.to_f32().unwrap() / max_t,
+            fg_b.to_f32().unwrap() / max_t,
+            fg_a.to_f32().unwrap() / max_t,
+        );
 
         // Work out what the final alpha level will be
         let alpha_final = bg_a + fg_a - bg_a * fg_a;
-        if alpha_final == 0.0 {return};
+        if alpha_final == 0.0 {
+            return;
+        };
 
         // We premultiply our channels by their alpha, as this makes it easier to calculate
         let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);
         let (fg_r_a, fg_g_a, fg_b_a) = (fg_r * fg_a, fg_g * fg_a, fg_b * fg_a);
 
         // Standard formula for src-over alpha compositing
-        let (out_r_a, out_g_a, out_b_a) = (fg_r_a + bg_r_a * (1.0 - fg_a), fg_g_a + bg_g_a * (1.0 - fg_a), fg_b_a + bg_b_a * (1.0 - fg_a));
+        let (out_r_a, out_g_a, out_b_a) = (
+            fg_r_a + bg_r_a * (1.0 - fg_a),
+            fg_g_a + bg_g_a * (1.0 - fg_a),
+            fg_b_a + bg_b_a * (1.0 - fg_a),
+        );
 
         // Unmultiply the channels by our resultant alpha channel
-        let (out_r, out_g, out_b) = (out_r_a / alpha_final, out_g_a / alpha_final, out_b_a / alpha_final);
+        let (out_r, out_g, out_b) = (
+            out_r_a / alpha_final,
+            out_g_a / alpha_final,
+            out_b_a / alpha_final,
+        );
 
         // Cast back to our initial type on return
         *self = Rgba([
             NumCast::from(max_t * out_r).unwrap(),
             NumCast::from(max_t * out_g).unwrap(),
             NumCast::from(max_t * out_b).unwrap(),
-            NumCast::from(max_t * alpha_final).unwrap()
+            NumCast::from(max_t * alpha_final).unwrap(),
         ])
     }
 }
@@ -452,7 +470,6 @@ impl<T: Primitive> Invert for LumaA<T> {
         let max = T::max_value();
 
         *self = LumaA([max - l[0], l[1]])
-
     }
 }
 
@@ -463,7 +480,7 @@ impl<T: Primitive> Invert for Luma<T> {
         let max = T::max_value();
         let l1 = max - l[0];
 
-        *self = Luma {data: [l1]}
+        *self = Luma { data: [l1] }
     }
 }
 
@@ -490,7 +507,6 @@ impl<T: Primitive> Invert for Rgb<T> {
         *self = Rgb([r1, g1, b1])
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -534,26 +550,42 @@ mod tests {
 
     #[test]
     fn test_blend_luma_alpha() {
-        let ref mut a = LumaA { data: [255 as u8, 255] };
-        let b = LumaA { data: [255 as u8, 255] };
+        let ref mut a = LumaA {
+            data: [255 as u8, 255],
+        };
+        let b = LumaA {
+            data: [255 as u8, 255],
+        };
         a.blend(&b);
         assert_eq!(a.data[0], 255);
         assert_eq!(a.data[1], 255);
 
-        let ref mut a = LumaA { data: [255 as u8, 0] };
-        let b = LumaA { data: [255 as u8, 255] };
+        let ref mut a = LumaA {
+            data: [255 as u8, 0],
+        };
+        let b = LumaA {
+            data: [255 as u8, 255],
+        };
         a.blend(&b);
         assert_eq!(a.data[0], 255);
         assert_eq!(a.data[1], 255);
 
-        let ref mut a = LumaA { data: [255 as u8, 255] };
-        let b = LumaA { data: [255 as u8, 0] };
+        let ref mut a = LumaA {
+            data: [255 as u8, 255],
+        };
+        let b = LumaA {
+            data: [255 as u8, 0],
+        };
         a.blend(&b);
         assert_eq!(a.data[0], 255);
         assert_eq!(a.data[1], 255);
 
-        let ref mut a = LumaA { data: [255 as u8, 0] };
-        let b = LumaA { data: [255 as u8, 0] };
+        let ref mut a = LumaA {
+            data: [255 as u8, 0],
+        };
+        let b = LumaA {
+            data: [255 as u8, 0],
+        };
         a.blend(&b);
         assert_eq!(a.data[0], 255);
         assert_eq!(a.data[1], 0);
@@ -561,23 +593,39 @@ mod tests {
 
     #[test]
     fn test_blend_rgba() {
-        let ref mut a = Rgba { data: [255 as u8, 255, 255, 255] };
-        let b = Rgba { data: [255 as u8, 255, 255, 255] };
+        let ref mut a = Rgba {
+            data: [255 as u8, 255, 255, 255],
+        };
+        let b = Rgba {
+            data: [255 as u8, 255, 255, 255],
+        };
         a.blend(&b);
         assert_eq!(a.data, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba { data: [255 as u8, 255, 255, 0] };
-        let b = Rgba { data: [255 as u8, 255, 255, 255] };
+        let ref mut a = Rgba {
+            data: [255 as u8, 255, 255, 0],
+        };
+        let b = Rgba {
+            data: [255 as u8, 255, 255, 255],
+        };
         a.blend(&b);
         assert_eq!(a.data, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba { data: [255 as u8, 255, 255, 255] };
-        let b = Rgba { data: [255 as u8, 255, 255, 0] };
+        let ref mut a = Rgba {
+            data: [255 as u8, 255, 255, 255],
+        };
+        let b = Rgba {
+            data: [255 as u8, 255, 255, 0],
+        };
         a.blend(&b);
         assert_eq!(a.data, [255, 255, 255, 255]);
 
-        let ref mut a = Rgba { data: [255 as u8, 255, 255, 0] };
-        let b = Rgba { data: [255 as u8, 255, 255, 0] };
+        let ref mut a = Rgba {
+            data: [255 as u8, 255, 255, 0],
+        };
+        let b = Rgba {
+            data: [255 as u8, 255, 255, 0],
+        };
         a.blend(&b);
         assert_eq!(a.data, [255, 255, 255, 0]);
     }

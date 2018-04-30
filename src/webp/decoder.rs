@@ -1,18 +1,16 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::default::Default;
 use std::io;
 use std::io::Read;
-use std::default::Default;
-use byteorder::{ReadBytesExt, LittleEndian};
 
 use image;
-use image::ImageResult;
 use image::ImageDecoder;
+use image::ImageResult;
 
 use color;
 
 use super::vp8::Frame;
 use super::vp8::VP8Decoder;
-
-
 
 /// A Representation of a Webp Image format decoder.
 pub struct WebpDecoder<R> {
@@ -29,10 +27,10 @@ impl<R: Read> WebpDecoder<R> {
         let f: Frame = Default::default();
 
         WebpDecoder {
-            r: r,
+            r,
             have_frame: false,
             frame: f,
-            decoded_rows: 0
+            decoded_rows: 0,
         }
     }
 
@@ -44,11 +42,15 @@ impl<R: Read> WebpDecoder<R> {
         try!(self.r.by_ref().take(4).read_to_end(&mut webp));
 
         if &*riff != b"RIFF" {
-            return Err(image::ImageError::FormatError("Invalid RIFF signature.".to_string()))
+            return Err(image::ImageError::FormatError(
+                "Invalid RIFF signature.".to_string(),
+            ));
         }
 
         if &*webp != b"WEBP" {
-            return Err(image::ImageError::FormatError("Invalid WEBP signature.".to_string()))
+            return Err(image::ImageError::FormatError(
+                "Invalid WEBP signature.".to_string(),
+            ));
         }
 
         Ok(size)
@@ -59,7 +61,9 @@ impl<R: Read> WebpDecoder<R> {
         try!(self.r.by_ref().take(4).read_to_end(&mut vp8));
 
         if &*vp8 != b"VP8 " {
-            return Err(image::ImageError::FormatError("Invalid VP8 signature.".to_string()))
+            return Err(image::ImageError::FormatError(
+                "Invalid VP8 signature.".to_string(),
+            ));
         }
 
         let _len = try!(self.r.read_u32::<LittleEndian>());
@@ -97,7 +101,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 
-        Ok((self.frame.width as u32, self.frame.height as u32))
+        Ok((u32::from(self.frame.width), u32::from(self.frame.height)))
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
@@ -113,15 +117,13 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
         try!(self.read_metadata());
 
-        if self.decoded_rows > self.frame.height as u32 {
-            return Err(image::ImageError::ImageEnd)
+        if self.decoded_rows > u32::from(self.frame.height) {
+            return Err(image::ImageError::ImageEnd);
         }
 
-        let rlen  = buf.len();
-        let slice = &self.frame.ybuf[
-            self.decoded_rows as usize * rlen..
-            self.decoded_rows as usize * rlen + rlen
-        ];
+        let rlen = buf.len();
+        let slice = &self.frame.ybuf
+            [self.decoded_rows as usize * rlen..self.decoded_rows as usize * rlen + rlen];
 
         ::copy_memory(slice, buf);
         self.decoded_rows += 1;

@@ -1,19 +1,22 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use color::{Luma, Rgba};
 use buffer::{ImageBuffer, Pixel};
-use traits::Primitive;
+use color::{Luma, Rgba};
 use image::GenericImage;
-use math::utils::clamp;
 use math::nq;
-use std::f64::consts::PI;
+use math::utils::clamp;
 use num_traits::{Num, NumCast};
+use std::f64::consts::PI;
+use traits::Primitive;
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<I: GenericImage>(image: &I)
-    -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where <I::Pixel as Pixel>::Subpixel: 'static,
-          <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static {
+pub fn grayscale<I: GenericImage>(
+    image: &I,
+) -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
+where
+    <I::Pixel as Pixel>::Subpixel: 'static,
+    <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static,
+{
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -45,12 +48,12 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 /// Adjust the contrast of the supplied image.
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
-pub fn contrast<I, P, S>(image: &I, contrast: f32)
-    -> ImageBuffer<P, Vec<S>>
-    where I: GenericImage<Pixel=P>,
-          P: Pixel<Subpixel=S> + 'static,
-          S: Primitive + 'static {
-
+pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
+where
+    I: GenericImage<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
+    S: Primitive + 'static,
+{
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -64,7 +67,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
             let f = image.get_pixel(x, y).map(|b| {
                 let c: f32 = NumCast::from(b).unwrap();
 
-                let d = ((c / max - 0.5) * percent  + 0.5) * max;
+                let d = ((c / max - 0.5) * percent + 0.5) * max;
                 let e = clamp(d, 0.0, max);
 
                 NumCast::from(e).unwrap()
@@ -80,12 +83,12 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32)
 /// Brighten the supplied image.
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
-pub fn brighten<I, P, S>(image: &I, value: i32)
-    -> ImageBuffer<P, Vec<S>>
-    where I: GenericImage<Pixel=P>,
-          P: Pixel<Subpixel=S> + 'static,
-          S: Primitive + 'static {
-
+pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
+where
+    I: GenericImage<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
+    S: Primitive + 'static,
+{
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
@@ -94,12 +97,15 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
 
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(|b| {
-                let c: i32 = NumCast::from(b).unwrap();
-                let d = clamp(c + value, 0, max);
+            let e = image.get_pixel(x, y).map_with_alpha(
+                |b| {
+                    let c: i32 = NumCast::from(b).unwrap();
+                    let d = clamp(c + value, 0, max);
 
-                NumCast::from(d).unwrap()
-            }, |alpha| alpha);
+                    NumCast::from(d).unwrap()
+                },
+                |alpha| alpha,
+            );
 
             out.put_pixel(x, y, e);
         }
@@ -112,19 +118,19 @@ pub fn brighten<I, P, S>(image: &I, value: i32)
 /// `value` is the degrees to rotate each pixel by.
 /// 0 and 360 do nothing, the rest rotates by the given degree value.
 /// just like the css webkit filter hue-rotate(180)
-pub fn huerotate<I, P, S>(image: &I, value: i32)
-    -> ImageBuffer<P, Vec<S>>
-    where I: GenericImage<Pixel=P>,
-          P: Pixel<Subpixel=S> + 'static,
-          S: Primitive + 'static {
-
+pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
+where
+    I: GenericImage<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
+    S: Primitive + 'static,
+{
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let angle: i32 = NumCast::from(value).unwrap();
+    let angle: f64 = NumCast::from(value).unwrap();
 
-    let cosv = (angle as f64 * PI / 180.0).cos();
-    let sinv = (angle as f64 * PI / 180.0).sin();
+    let cosv = (angle * PI / 180.0).cos();
+    let sinv = (angle * PI / 180.0).sin();
     let matrix: [f64; 9] = [
         // Reds
         0.213 + cosv * 0.787 - sinv * 0.213,
@@ -137,8 +143,7 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
         // Blues
         0.213 - cosv * 0.213 - sinv * 0.787,
         0.715 - cosv * 0.715 + sinv * 0.715,
-        0.072 + cosv * 0.928 + sinv * 0.072
-
+        0.072 + cosv * 0.928 + sinv * 0.072,
     ];
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
@@ -147,7 +152,7 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
             NumCast::from(k1).unwrap(),
             NumCast::from(k2).unwrap(),
             NumCast::from(k3).unwrap(),
-            NumCast::from(k4).unwrap()
+            NumCast::from(k4).unwrap(),
         );
 
         let r = vec.0;
@@ -162,7 +167,7 @@ pub fn huerotate<I, P, S>(image: &I, value: i32)
             NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-            NumCast::from(clamp(vec.3, 0.0, max)).unwrap()
+            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
         );
         *pixel = outpixel;
     }
@@ -220,19 +225,14 @@ impl ColorMap for nq::NeuQuant {
 }
 
 /// Floyd-Steinberg error diffusion
-fn diffuse_err<P: Pixel<Subpixel=u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
+fn diffuse_err<P: Pixel<Subpixel = u8>>(pixel: &mut P, error: [i16; 3], factor: i16) {
     for (e, c) in error.iter().zip(pixel.channels_mut().iter_mut()) {
-        *c = match *c as i16 + e * factor / 16 {
-            val if val < 0 => {
-                0
-            },
-            val if val > 0xFF => {
-                0xFF
-            },
-            val => val as u8
+        *c = match <i16 as From<_>>::from(*c) + e * factor / 16 {
+            val if val < 0 => 0,
+            val if val > 0xFF => 0xFF,
+            val => val as u8,
         }
     }
-
 }
 
 macro_rules! do_dithering(
@@ -245,7 +245,7 @@ macro_rules! do_dithering(
                                         .zip(old_pixel.channels().iter())
                                         .zip(new_pixel.channels().iter())
             {
-                *e = old as i16 - new as i16
+                *e = <i16 as From<_>>::from(old) - <i16 as From<_>>::from(new)
             }
         }
     )
@@ -254,46 +254,50 @@ macro_rules! do_dithering(
 /// Reduces the colors of the image using the supplied `color_map` while applying
 /// Floyd-Steinberg dithering to improve the visual conception
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
-where Map: ColorMap<Color=Pix>,
-      Pix: Pixel<Subpixel=u8> + 'static,
+where
+    Map: ColorMap<Color = Pix>,
+    Pix: Pixel<Subpixel = u8> + 'static,
 {
     let (width, height) = image.dimensions();
     let mut err: [i16; 3] = [0; 3];
-    for y in 0..height-1 {
+    for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
-        diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
-        diffuse_err(image.get_pixel_mut(x+1, y+1), err, 1);
-        for x in 1..width-1 {
+        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
+        diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
+        for x in 1..width - 1 {
             do_dithering!(color_map, image, err, x, y);
-            diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
-            diffuse_err(image.get_pixel_mut(x-1, y+1), err, 3);
-            diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
-            diffuse_err(image.get_pixel_mut(x+1, y+1), err, 1);
+            diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+            diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
+            diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
+            diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
         }
-        let x = width-1;
+        let x = width - 1;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x-1, y+1), err, 3);
-        diffuse_err(image.get_pixel_mut(x+0, y+1), err, 5);
+        diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
+        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
     }
-    let y = height-1;
+    let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
-    diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
-    for x in 1..width-1 {
+    diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+    for x in 1..width - 1 {
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x+1, y+0), err, 7);
+        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
     }
-    let x = width-1;
+    let x = width - 1;
     do_dithering!(color_map, image, err, x, y);
 }
 
 /// Reduces the colors using the supplied `color_map` and returns an image of the indices
-pub fn index_colors<Pix, Map>(image: &ImageBuffer<Pix, Vec<u8>>, color_map: &Map) ->
-ImageBuffer<Luma<u8>, Vec<u8>>
-where Map: ColorMap<Color=Pix>,
-      Pix: Pixel<Subpixel=u8> + 'static,
+pub fn index_colors<Pix, Map>(
+    image: &ImageBuffer<Pix, Vec<u8>>,
+    color_map: &Map,
+) -> ImageBuffer<Luma<u8>, Vec<u8>>
+where
+    Map: ColorMap<Color = Pix>,
+    Pix: Pixel<Subpixel = u8> + 'static,
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());
     for (pixel, idx) in image.pixels().zip(indices.pixels_mut()) {
@@ -305,8 +309,8 @@ where Map: ColorMap<Color=Pix>,
 #[cfg(test)]
 mod test {
 
-    use ImageBuffer;
     use super::*;
+    use ImageBuffer;
 
     #[test]
     fn test_dither() {

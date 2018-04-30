@@ -11,11 +11,11 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     // Annex C.2
     // Figure C.1
     // Generate table of individual code lengths
-    for i in 0usize..16 {
+    for i in 0u8..16 {
         j = 0;
 
-        while j < bits[i] {
-            huffsize[k] = i as u8 + 1;
+        while j < bits[usize::from(i)] {
+            huffsize[k] = i + 1;
             k += 1;
             j += 1;
         }
@@ -36,13 +36,13 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
         k += 1;
 
         if huffsize[k] == size {
-            continue
+            continue;
         }
 
         // FIXME there is something wrong with this code
         let diff = huffsize[k].wrapping_sub(size);
-        code = if diff < 16  { code << diff as usize } else { 0 };
-        
+        code = if diff < 16 { code << diff as usize } else { 0 };
+
         size = size.wrapping_add(diff);
     }
 

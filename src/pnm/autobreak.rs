@@ -34,13 +34,18 @@ impl<W: io::Write> AutoBreak<W> {
             self.panicked = false;
             match r {
                 Ok(0) => {
-                    ret = Err(io::Error::new(io::ErrorKind::WriteZero,
-                                         "failed to write the buffered data"));
+                    ret = Err(io::Error::new(
+                        io::ErrorKind::WriteZero,
+                        "failed to write the buffered data",
+                    ));
                     break;
                 }
                 Ok(n) => written += n,
                 Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(e) => { ret = Err(e); break }
+                Err(e) => {
+                    ret = Err(e);
+                    break;
+                }
             }
         }
         if written > 0 {
@@ -57,7 +62,7 @@ impl<W: io::Write> io::Write for AutoBreak<W> {
             self.has_newline = false;
         }
 
-        if self.line.len() > 0 && self.line.len() + buffer.len() > self.line_capacity {
+        if !self.line.is_empty() && self.line.len() + buffer.len() > self.line_capacity {
             self.line.push(b'\n');
             self.has_newline = true;
             self.flush()?;

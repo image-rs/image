@@ -1,21 +1,21 @@
 //!  Utilities
 
-use std::iter::repeat;
 use num_iter::range_step;
-
+use std::iter::repeat;
 
 #[inline(always)]
 pub fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, mut func: F)
-where F: FnMut(u8, &mut[u8]) {
-    let pixels = buf.len()/channels*bit_depth as usize;
+where
+    F: FnMut(u8, &mut [u8]),
+{
+    let pixels = buf.len() / channels * bit_depth as usize;
     let extra = pixels % 8;
     let entries = pixels / 8 + match extra {
-    	0 => 0,
-    	_ => 1
+        0 => 0,
+        _ => 1,
     };
     let mask = ((1u16 << bit_depth) - 1) as u8;
-    let i =
-        (0..entries)
+    let i = (0..entries)
         .rev() // Reverse iterator
         .flat_map(|idx|
             // This has to be reversed to

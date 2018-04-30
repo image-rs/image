@@ -11,8 +11,14 @@
 /// ```
 #[inline]
 pub fn clamp<N>(a: N, min: N, max: N) -> N
-where N: PartialOrd {
-    if a < min { return min }
-    if a > max { return max }
+where
+    N: PartialOrd,
+{
+    if a < min {
+        return min;
+    }
+    if a > max {
+        return max;
+    }
     a
 }

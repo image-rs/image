@@ -1,9 +1,9 @@
 extern crate image;
 
-use std::fs::File;
 use image::{FilterType, PNG};
-use std::time::{Duration, Instant};
 use std::fmt;
+use std::fs::File;
+use std::time::{Duration, Instant};
 
 struct Elapsed(Duration);
 
@@ -33,7 +33,8 @@ fn main() {
         ("xcmr", FilterType::CatmullRom),
         ("ygauss", FilterType::Gaussian),
         ("zlcz2", FilterType::Lanczos3),
-    ].into_iter() {
+    ].into_iter()
+    {
         let timer = Instant::now();
         let scaled = tiny.resize(32, 32, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));

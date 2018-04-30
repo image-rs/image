@@ -4,9 +4,9 @@
 extern crate image;
 extern crate test;
 
-use std::{fs, path};
-use std::io::Read;
 use image::ImageFormat;
+use std::io::Read;
+use std::{fs, path};
 
 struct BenchDef<'a> {
     dir: &'a [&'a str],
@@ -14,9 +14,12 @@ struct BenchDef<'a> {
 }
 
 const IMAGE_DIR: [&'static str; 3] = [".", "tests", "images"];
-const BMP: BenchDef<'static> = BenchDef {dir: &["bmp", "images"], format: ImageFormat::BMP};
+const BMP: BenchDef<'static> = BenchDef {
+    dir: &["bmp", "images"],
+    format: ImageFormat::BMP,
+};
 
-fn bench_load(b: &mut test::Bencher, def: &BenchDef, filename: &str, ) {
+fn bench_load(b: &mut test::Bencher, def: &BenchDef, filename: &str) {
     let mut path: path::PathBuf = IMAGE_DIR.iter().collect();
     for d in def.dir {
         path.push(d);

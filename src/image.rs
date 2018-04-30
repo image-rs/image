@@ -539,7 +539,7 @@ impl<I> SubImage<I> {
 
         for y in 0..self.ystride {
             for x in 0..self.xstride {
-                let p = borrowed.get_pixel(x, y);
+                let p = borrowed.get_pixel(x + self.xoffset, y + self.yoffset);
                 out.put_pixel(x, y, p);
             }
         }
@@ -627,10 +627,13 @@ mod tests {
     fn test_can_subimage_clone_nonmut() {
         let mut source = ImageBuffer::new(3, 3);
         source.put_pixel(1, 1, Rgba([255u8, 0, 0, 255]));
+
+        // A non-mutable copy of the source image
         let source = source.clone();
 
+        // Clone a view into non-mutable to a separate buffer
         let cloned = source.view(1, 1, 1, 1).to_image();
 
-        assert!(cloned.get_pixel(0, 0) == source.pixel(1, 1));
+        assert!(cloned.get_pixel(0, 0) == source.get_pixel(1, 1));
     }
 }

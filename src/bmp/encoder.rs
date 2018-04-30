@@ -1,5 +1,5 @@
+use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
-use byteorder::{WriteBytesExt, LittleEndian};
 
 use color;
 
@@ -11,20 +11,19 @@ pub struct BMPEncoder<'a, W: 'a> {
 impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: &'a mut W) -> Self {
-        BMPEncoder {
-            writer: w,
-        }
+        BMPEncoder { writer: w }
     }
 
     /// Encodes the image ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```.
-    pub fn encode(&mut self,
-                  image: &[u8],
-                  width: u32,
-                  height: u32,
-                  c: color::ColorType) -> io::Result<()> {
-
+    pub fn encode(
+        &mut self,
+        image: &[u8],
+        width: u32,
+        height: u32,
+        c: color::ColorType,
+    ) -> io::Result<()> {
         let bmp_header_size = 14;
         let dib_header_size = 40; // using BITMAPINFOHEADER
 
@@ -41,14 +40,20 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         try!(self.writer.write_u32::<LittleEndian>(file_size)); // file size
         try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 1
         try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 2
-        try!(self.writer.write_u32::<LittleEndian>(bmp_header_size + dib_header_size + palette_size)); // image data offset
+        try!(
+            self.writer
+                .write_u32::<LittleEndian>(bmp_header_size + dib_header_size + palette_size)
+        ); // image data offset
 
         // write DIB header
         try!(self.writer.write_u32::<LittleEndian>(dib_header_size));
         try!(self.writer.write_i32::<LittleEndian>(width as i32));
         try!(self.writer.write_i32::<LittleEndian>(height as i32));
         try!(self.writer.write_u16::<LittleEndian>(1)); // color planes
-        try!(self.writer.write_u16::<LittleEndian>((written_pixel_size * 8) as u16)); // bits per pixel
+        try!(
+            self.writer
+                .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)
+        ); // bits per pixel
         try!(self.writer.write_u32::<LittleEndian>(0)); // compression method - no compression
         try!(self.writer.write_u32::<LittleEndian>(image_size));
         try!(self.writer.write_i32::<LittleEndian>(0)); // horizontal ppm
@@ -58,17 +63,31 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::RGB(8) |
-            color::ColorType::RGBA(8) => try!(self.encode_rgb(image, width, height, row_pad_size, raw_pixel_size)),
-            color::ColorType::Gray(8) |
-            color::ColorType::GrayA(8) => try!(self.encode_gray(image, width, height, row_pad_size, raw_pixel_size)),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(&c)[..])),
+            color::ColorType::RGB(8) | color::ColorType::RGBA(8) => {
+                try!(self.encode_rgb(image, width, height, row_pad_size, raw_pixel_size))
+            }
+            color::ColorType::Gray(8) | color::ColorType::GrayA(8) => {
+                try!(self.encode_gray(image, width, height, row_pad_size, raw_pixel_size))
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    &get_unsupported_error_message(&c)[..],
+                ))
+            }
         }
 
         Ok(())
     }
 
-    fn encode_rgb(&mut self, image: &[u8], width: u32, height: u32, row_pad_size: u32, bytes_per_pixel: u32) -> io::Result<()> {
+    fn encode_rgb(
+        &mut self,
+        image: &[u8],
+        width: u32,
+        height: u32,
+        row_pad_size: u32,
+        bytes_per_pixel: u32,
+    ) -> io::Result<()> {
         let x_stride = bytes_per_pixel;
         let y_stride = width * x_stride;
         for row in 0..height {
@@ -92,7 +111,14 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         Ok(())
     }
 
-    fn encode_gray(&mut self, image: &[u8], width: u32, height: u32, row_pad_size: u32, bytes_per_pixel: u32) -> io::Result<()> {
+    fn encode_gray(
+        &mut self,
+        image: &[u8],
+        width: u32,
+        height: u32,
+        row_pad_size: u32,
+        bytes_per_pixel: u32,
+    ) -> io::Result<()> {
         // write grayscale palette
         for val in 0..256 {
             // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
@@ -132,7 +158,10 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 }
 
 fn get_unsupported_error_message(c: &color::ColorType) -> String {
-    format!("Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).", c)
+    format!(
+        "Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).",
+        c
+    )
 }
 
 /// Returns a tuple representing: (raw pixel size, written pixel size, palette color count).
@@ -142,7 +171,12 @@ fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32, u32)> {
         color::ColorType::RGBA(8) => (4, 3, 0),
         color::ColorType::Gray(8) => (1, 1, 256),
         color::ColorType::GrayA(8) => (2, 1, 256),
-        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, &get_unsupported_error_message(c)[..])),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                &get_unsupported_error_message(c)[..],
+            ))
+        }
     };
 
     Ok(sizes)
@@ -150,17 +184,19 @@ fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32, u32)> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use super::BMPEncoder;
     use super::super::BMPDecoder;
+    use super::BMPEncoder;
     use color::ColorType;
-    use image::{ImageDecoder, DecodingResult};
+    use image::{DecodingResult, ImageDecoder};
+    use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
             let mut encoder = BMPEncoder::new(&mut encoded_data);
-            encoder.encode(&image, width, height, c).expect("could not encode image");
+            encoder
+                .encode(&image, width, height, c)
+                .expect("could not encode image");
         }
 
         let mut decoder = BMPDecoder::new(Cursor::new(&encoded_data));

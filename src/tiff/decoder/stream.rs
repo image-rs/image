@@ -1,9 +1,9 @@
 //! All IO functionality needed for TIFF decoding
 
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use lzw;
 use std::io;
 use std::io::{Read, Seek};
-use byteorder::{ReadBytesExt, BigEndian, LittleEndian};
-use lzw;
 
 /// Byte order of the TIFF file.
 #[derive(Clone, Copy, Debug)]
@@ -11,9 +11,8 @@ pub enum ByteOrder {
     /// little endian byte order
     LittleEndian,
     /// big endian byte order
-    BigEndian
+    BigEndian,
 }
-
 
 /// Reader that is aware of the byte order.
 pub trait EndianReader: Read {
@@ -25,7 +24,7 @@ pub trait EndianReader: Read {
     fn read_u16(&mut self) -> Result<u16, io::Error> {
         match self.byte_order() {
             ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
-            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u16::<BigEndian>(self)
+            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u16::<BigEndian>(self),
         }
     }
 
@@ -34,7 +33,7 @@ pub trait EndianReader: Read {
     fn read_u32(&mut self) -> Result<u32, io::Error> {
         match self.byte_order() {
             ByteOrder::LittleEndian => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
-            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u32::<BigEndian>(self)
+            ByteOrder::BigEndian => <Self as ReadBytesExt>::read_u32::<BigEndian>(self),
         }
     }
 }
@@ -42,12 +41,19 @@ pub trait EndianReader: Read {
 /// Reader that decompresses LZW streams
 pub struct LZWReader {
     buffer: io::Cursor<Vec<u8>>,
-    byte_order: ByteOrder
+    byte_order: ByteOrder,
 }
 
 impl LZWReader {
     /// Wraps a reader
-    pub fn new<R>(reader: &mut SmartReader<R>, compressed_length: usize, max_uncompressed_length: usize) -> io::Result<(usize, LZWReader)> where R: Read + Seek {
+    pub fn new<R>(
+        reader: &mut SmartReader<R>,
+        compressed_length: usize,
+        max_uncompressed_length: usize,
+    ) -> io::Result<(usize, LZWReader)>
+    where
+        R: Read + Seek,
+    {
         let order = reader.byte_order;
         let mut compressed = vec![0; compressed_length as usize];
         try!(reader.read_exact(&mut compressed[..]));
@@ -61,10 +67,13 @@ impl LZWReader {
         }
 
         let bytes = uncompressed.len();
-        Ok((bytes, LZWReader {
-            buffer: io::Cursor::new(uncompressed),
-            byte_order: order
-        }))
+        Ok((
+            bytes,
+            LZWReader {
+                buffer: io::Cursor::new(uncompressed),
+                byte_order: order,
+            },
+        ))
     }
 }
 
@@ -85,21 +94,28 @@ impl EndianReader for LZWReader {
 /// Reader that unpacks Apple's `PackBits` format
 pub struct PackBitsReader {
     buffer: io::Cursor<Vec<u8>>,
-    byte_order: ByteOrder
+    byte_order: ByteOrder,
 }
 
 impl PackBitsReader {
     /// Wraps a reader
-    pub fn new<R: Read + Seek>(mut reader: R, byte_order: ByteOrder, length: usize) -> io::Result<(usize, PackBitsReader)> {
+    pub fn new<R: Read + Seek>(
+        mut reader: R,
+        byte_order: ByteOrder,
+        length: usize,
+    ) -> io::Result<(usize, PackBitsReader)> {
         let mut buffer = Vec::new();
         let mut read: usize = 0;
         while read < length {
             read += try!(read_packbits_run(&mut reader, &mut buffer));
         }
-        Ok((buffer.len(), PackBitsReader {
-            buffer: io::Cursor::new(buffer),
-            byte_order: byte_order
-        }))
+        Ok((
+            buffer.len(),
+            PackBitsReader {
+                buffer: io::Cursor::new(buffer),
+                byte_order,
+            },
+        ))
     }
 }
 
@@ -117,7 +133,7 @@ fn read_packbits_run<R: Read + Seek>(reader: &mut R, buffer: &mut Vec<u8>) -> io
                 try!(reader.read_exact(&mut header));
                 buffer.resize(new_len, header[0]);
                 Ok(2)
-            },
+            }
             h => {
                 let num_vals = h as usize + 1;
                 let start = buffer.len();
@@ -125,7 +141,7 @@ fn read_packbits_run<R: Read + Seek>(reader: &mut R, buffer: &mut Vec<u8>) -> io
                 try!(reader.read_exact(&mut buffer[start..]));
                 Ok(num_vals + 1)
             }
-        }
+        },
     }
 }
 
@@ -145,22 +161,28 @@ impl EndianReader for PackBitsReader {
 
 /// Reader that is aware of the byte order.
 #[derive(Debug)]
-pub struct SmartReader<R> where R: Read + Seek {
+pub struct SmartReader<R>
+where
+    R: Read + Seek,
+{
     reader: R,
-    pub byte_order: ByteOrder
+    pub byte_order: ByteOrder,
 }
 
-impl<R> SmartReader<R> where R: Read + Seek {
+impl<R> SmartReader<R>
+where
+    R: Read + Seek,
+{
     /// Wraps a reader
     pub fn wrap(reader: R, byte_order: ByteOrder) -> SmartReader<R> {
-        SmartReader {
-            reader: reader,
-            byte_order: byte_order
-        }
+        SmartReader { reader, byte_order }
     }
 }
 
-impl<R> EndianReader for SmartReader<R> where R: Read + Seek {
+impl<R> EndianReader for SmartReader<R>
+where
+    R: Read + Seek,
+{
     #[inline(always)]
     fn byte_order(&self) -> ByteOrder {
         self.byte_order
@@ -187,19 +209,23 @@ mod test {
 
     #[test]
     fn test_packbits() {
-        let encoded = vec![0xFE, 0xAA, 0x02, 0x80, 0x00, 0x2A, 0xFD, 0xAA,
-                           0x03, 0x80, 0x00, 0x2A, 0x22, 0xF7, 0xAA];
+        let encoded = vec![
+            0xFE, 0xAA, 0x02, 0x80, 0x00, 0x2A, 0xFD, 0xAA, 0x03, 0x80, 0x00, 0x2A, 0x22, 0xF7,
+            0xAA,
+        ];
         let encoded_len = encoded.len();
 
         let buff = io::Cursor::new(encoded);
-        let (_, mut decoder) = PackBitsReader::new(buff, ByteOrder::LittleEndian, encoded_len).unwrap();
+        let (_, mut decoder) =
+            PackBitsReader::new(buff, ByteOrder::LittleEndian, encoded_len).unwrap();
 
         let mut decoded = Vec::new();
         decoder.read_to_end(&mut decoded).unwrap();
 
-        let expected = vec![0xAA, 0xAA, 0xAA, 0x80, 0x00, 0x2A, 0xAA, 0xAA,
-                            0xAA, 0xAA, 0x80, 0x00, 0x2A, 0x22, 0xAA, 0xAA,
-                            0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA];
+        let expected = vec![
+            0xAA, 0xAA, 0xAA, 0x80, 0x00, 0x2A, 0xAA, 0xAA, 0xAA, 0xAA, 0x80, 0x00, 0x2A, 0x22,
+            0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+        ];
         assert_eq!(decoded, expected);
     }
 }

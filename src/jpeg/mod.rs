@@ -10,7 +10,7 @@
 pub use self::decoder::JPEGDecoder;
 pub use self::encoder::JPEGEncoder;
 
-mod encoder;
 mod decoder;
+mod encoder;
 mod entropy;
 mod transform;

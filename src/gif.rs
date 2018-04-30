@@ -9,27 +9,27 @@
 extern crate gif;
 extern crate num_rational;
 
-use std::io::{Read, Write};
 use std::clone::Clone;
+use std::io::{Read, Write};
 
-pub use self::gif::{Frame, DisposalMethod};
-use self::gif::{SetParameter, ColorOutput};
+use self::gif::{ColorOutput, SetParameter};
+pub use self::gif::{DisposalMethod, Frame};
 
-use image::{ImageError, ImageResult, DecodingResult, ImageDecoder};
-use color::Rgba;
-use color;
 use animation::{Frame as Image_Frame, Frames as Image_Frames};
 use buffer::{ImageBuffer, Pixel};
+use color;
+use color::Rgba;
+use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
 use num_rational::Ratio;
 
 enum Either<T, U> {
     Left(T),
-    Right(U)
+    Right(U),
 }
 
 /// GIF decoder
 pub struct Decoder<R: Read> {
-    inner: Option<Either<gif::Decoder<R>, gif::Reader<R>>>
+    inner: Option<Either<gif::Decoder<R>, gif::Reader<R>>>,
 }
 
 impl<R: Read> Decoder<R> {
@@ -38,7 +38,7 @@ impl<R: Read> Decoder<R> {
         let mut decoder = gif::Decoder::new(r);
         decoder.set(ColorOutput::RGBA);
         Decoder {
-            inner: Some(Either::Left(decoder))
+            inner: Some(Either::Left(decoder)),
         }
     }
 
@@ -49,16 +49,15 @@ impl<R: Read> Decoder<R> {
             Either::Left(decoder) => {
                 let reader = try!(decoder.read_info());
                 Either::Right(reader)
-            },
-            Either::Right(reader) => Either::Right(reader)
+            }
+            Either::Right(reader) => Either::Right(reader),
         });
         match self.inner {
             Some(Either::Right(ref mut reader)) => Ok(reader),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
-
 
 impl<R: Read> ImageDecoder for Decoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
@@ -99,8 +98,8 @@ impl<R: Read> ImageDecoder for Decoder<R> {
 
     fn into_frames(mut self) -> ImageResult<Image_Frames> {
         let reader = try!(self.get_reader());
-        let width = reader.width() as u32;
-        let height = reader.height() as u32;
+        let width = u32::from(reader.width());
+        let height = u32::from(reader.height());
 
         // variable to hold all the image frames
         let mut frames = Vec::new();
@@ -118,14 +117,14 @@ impl<R: Read> ImageDecoder for Decoder<R> {
                         // take the color from the palette that is at the index defined
                         // by background_color_option
                         Some(slice) => {
-                            background_color.clone_from_slice(&slice[index .. (index+4)]);
+                            background_color.clone_from_slice(&slice[index..(index + 4)]);
                             Rgba::from_slice(&background_color)
-                        },
+                        }
                         // if there is no global palette, assign the background color to be
                         // transparent
                         None => Rgba::from_slice(&[0, 0, 0, 0]),
                     }
-                },
+                }
                 // return a transparent background color
                 None => Rgba::from_slice(&[0, 0, 0, 0]),
             }
@@ -146,11 +145,11 @@ impl<R: Read> ImageDecoder for Decoder<R> {
         // begin looping over each frame
         loop {
             if let Some(frame) = try!(reader.next_frame_info()) {
-                left = frame.left as u32;
-                top = frame.top as u32;
+                left = u32::from(frame.left);
+                top = u32::from(frame.top);
 
                 // frame.delay is in units of 10ms so frame.delay*10 is in ms
-                delay = Ratio::new(frame.delay*10, 1);
+                delay = Ratio::new(frame.delay * 10, 1);
                 dispose = frame.dispose;
             } else {
                 // no more frames, so end the loop here
@@ -185,21 +184,21 @@ impl<R: Read> ImageDecoder for Decoder<R> {
                     DisposalMethod::Any => {
                         // do nothing
                         // (completely replace this frame with the next)
-                    },
+                    }
                     DisposalMethod::Keep => {
                         // do not dispose
                         // (keep pixels from this frame)
                         non_disposed_frame = image_buffer;
-                    },
+                    }
                     DisposalMethod::Background => {
                         // restore to background color
                         // (background shows through transparent pixels in the next frame)
                         non_disposed_frame = background_img.clone();
-                    },
+                    }
                     DisposalMethod::Previous => {
                         // restore to previous
                         // (dispose frames leaving the last none disposal frame)
-                    },
+                    }
                 };
             };
         }
@@ -215,15 +214,11 @@ pub struct Encoder<W: Write> {
 impl<W: Write> Encoder<W> {
     /// Creates a new GIF encoder.
     pub fn new(w: W) -> Encoder<W> {
-        Encoder {
-            w: w
-        }
+        Encoder { w }
     }
     /// Encodes a frame.
     pub fn encode(self, frame: Frame) -> ImageResult<()> {
-        let mut encoder = try!(
-            gif::Encoder::new(self.w, frame.width, frame.height, &[])
-        );
+        let mut encoder = try!(gif::Encoder::new(self.w, frame.width, frame.height, &[]));
         encoder.write_frame(&frame).map_err(|err| err.into())
     }
 }
@@ -232,8 +227,7 @@ impl From<gif::DecodingError> for ImageError {
     fn from(err: gif::DecodingError) -> ImageError {
         use self::gif::DecodingError::*;
         match err {
-            Format(desc) |
-            Internal(desc) => ImageError::FormatError(desc.into()),
+            Format(desc) | Internal(desc) => ImageError::FormatError(desc.into()),
             Io(io_err) => ImageError::IoError(io_err),
         }
     }

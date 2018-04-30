@@ -75,23 +75,23 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         let y0 = y * 8;
 
         // Even part
-        let t0 = samples[y0 + 0] as i32 + samples[y0 + 7] as i32;
-        let t1 = samples[y0 + 1] as i32 + samples[y0 + 6] as i32;
-        let t2 = samples[y0 + 2] as i32 + samples[y0 + 5] as i32;
-        let t3 = samples[y0 + 3] as i32 + samples[y0 + 4] as i32;
+        let t0 = i32::from(samples[y0]) + i32::from(samples[y0 + 7]);
+        let t1 = i32::from(samples[y0 + 1]) + i32::from(samples[y0 + 6]);
+        let t2 = i32::from(samples[y0 + 2]) + i32::from(samples[y0 + 5]);
+        let t3 = i32::from(samples[y0 + 3]) + i32::from(samples[y0 + 4]);
 
         let t10 = t0 + t3;
         let t12 = t0 - t3;
         let t11 = t1 + t2;
         let t13 = t1 - t2;
 
-        let t0 = samples[y0 + 0] as i32 - samples[y0 + 7] as i32;
-        let t1 = samples[y0 + 1] as i32 - samples[y0 + 6] as i32;
-        let t2 = samples[y0 + 2] as i32 - samples[y0 + 5] as i32;
-        let t3 = samples[y0 + 3] as i32 - samples[y0 + 4] as i32;
+        let t0 = i32::from(samples[y0]) - i32::from(samples[y0 + 7]);
+        let t1 = i32::from(samples[y0 + 1]) - i32::from(samples[y0 + 6]);
+        let t2 = i32::from(samples[y0 + 2]) - i32::from(samples[y0 + 5]);
+        let t3 = i32::from(samples[y0 + 3]) - i32::from(samples[y0 + 4]);
 
         // Apply unsigned -> signed conversion
-        coeffs[y0 + 0] = (t10 + t11 - 8 * 128) << PASS1_BITS as usize;
+        coeffs[y0] = (t10 + t11 - 8 * 128) << PASS1_BITS as usize;
         coeffs[y0 + 4] = (t10 - t11) << PASS1_BITS as usize;
 
         let mut z1 = (t12 + t13) * FIX_0_541196100;
@@ -137,8 +137,8 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
     // overall factor of 8
     for x in (0usize..8).rev() {
         // Even part
-        let t0 = coeffs[x + 8 * 0] + coeffs[x + 8 * 7];
-        let t1 = coeffs[x + 8 * 1] + coeffs[x + 8 * 6];
+        let t0 = coeffs[x] + coeffs[x + 8 * 7];
+        let t1 = coeffs[x + 8] + coeffs[x + 8 * 6];
         let t2 = coeffs[x + 8 * 2] + coeffs[x + 8 * 5];
         let t3 = coeffs[x + 8 * 3] + coeffs[x + 8 * 4];
 
@@ -148,12 +148,12 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         let t11 = t1 + t2;
         let t13 = t1 - t2;
 
-        let t0 = coeffs[x + 8 * 0] - coeffs[x + 8 * 7];
-        let t1 = coeffs[x + 8 * 1] - coeffs[x + 8 * 6];
+        let t0 = coeffs[x] - coeffs[x + 8 * 7];
+        let t1 = coeffs[x + 8] - coeffs[x + 8 * 6];
         let t2 = coeffs[x + 8 * 2] - coeffs[x + 8 * 5];
         let t3 = coeffs[x + 8 * 3] - coeffs[x + 8 * 4];
 
-        coeffs[x + 8 * 0] = (t10 + t11) >> PASS1_BITS as usize;
+        coeffs[x] = (t10 + t11) >> PASS1_BITS as usize;
         coeffs[x + 8 * 4] = (t10 - t11) >> PASS1_BITS as usize;
 
         let mut z1 = (t12 + t13) * FIX_0_541196100;
@@ -188,7 +188,7 @@ pub fn fdct(samples: &[u8], coeffs: &mut [i32]) {
         t1 += z1 + t13;
         t2 += z1 + t12;
 
-        coeffs[x + 8 * 1] = t0 >> (CONST_BITS + PASS1_BITS) as usize;
+        coeffs[x + 8] = t0 >> (CONST_BITS + PASS1_BITS) as usize;
         coeffs[x + 8 * 3] = t1 >> (CONST_BITS + PASS1_BITS) as usize;
         coeffs[x + 8 * 5] = t2 >> (CONST_BITS + PASS1_BITS) as usize;
         coeffs[x + 8 * 7] = t3 >> (CONST_BITS + PASS1_BITS) as usize;

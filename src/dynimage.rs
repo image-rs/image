@@ -1,46 +1,38 @@
-use std::io;
-use std::io::{Write, Seek, BufRead, BufReader, BufWriter};
-use std::path::Path;
-use std::fs::File;
-use std::iter;
-#[allow(unused)] // AsciiExt not needed for rust 1.23 and up.
-use std::ascii::AsciiExt;
 use num_iter;
+use std::fs::File;
+use std::io;
+use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
+use std::iter;
+use std::path::Path;
 
-#[cfg(feature = "pnm")]
-use pnm;
+#[cfg(feature = "bmp")]
+use bmp;
 #[cfg(feature = "gif_codec")]
 use gif;
-#[cfg(feature = "webp")]
-use webp;
+#[cfg(feature = "hdr")]
+use hdr;
+#[cfg(feature = "ico")]
+use ico;
 #[cfg(feature = "jpeg")]
 use jpeg;
 #[cfg(feature = "png_codec")]
 use png;
-#[cfg(feature = "tiff")]
-use tiff;
+#[cfg(feature = "pnm")]
+use pnm;
 #[cfg(feature = "tga")]
 use tga;
-#[cfg(feature = "bmp")]
-use bmp;
-#[cfg(feature = "ico")]
-use ico;
-#[cfg(feature = "hdr")]
-use hdr;
+#[cfg(feature = "tiff")]
+use tiff;
+#[cfg(feature = "webp")]
+use webp;
 
+use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage};
 use color;
-use buffer::{ImageBuffer, ConvertBuffer, Pixel, GrayImage, GrayAlphaImage, RgbImage, RgbaImage};
-use imageops;
 use image;
-use image:: {
-    GenericImage,
-    ImageDecoder,
-    ImageResult,
-    ImageFormat,
-    ImageOutputFormat,
-};
+use image::{GenericImage, ImageDecoder, ImageFormat, ImageOutputFormat, ImageResult};
+use imageops;
 
-use image::DecodingResult::{U8};
+use image::DecodingResult::U8;
 
 /// A Dynamic Image
 #[derive(Clone)]
@@ -147,12 +139,7 @@ impl DynamicImage {
     }
 
     /// Return a cut out of this image delimited by the bounding rectangle.
-    pub fn crop(&mut self,
-                x: u32,
-                y: u32,
-                width: u32,
-                height: u32) -> DynamicImage {
-
+    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
     }
 
@@ -160,7 +147,7 @@ impl DynamicImage {
     pub fn as_rgb8(&self) -> Option<&RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref p) => Some(p),
-            _                              => None
+            _ => None,
         }
     }
 
@@ -168,15 +155,15 @@ impl DynamicImage {
     pub fn as_mut_rgb8(&mut self) -> Option<&mut RgbImage> {
         match *self {
             DynamicImage::ImageRgb8(ref mut p) => Some(p),
-            _                                  => None
+            _ => None,
         }
     }
 
     /// Return a reference to an 8bit RGBA image
-    pub fn as_rgba8(&self) -> Option<& RgbaImage> {
+    pub fn as_rgba8(&self) -> Option<&RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref p) => Some(p),
-            _                               => None
+            _ => None,
         }
     }
 
@@ -184,15 +171,15 @@ impl DynamicImage {
     pub fn as_mut_rgba8(&mut self) -> Option<&mut RgbaImage> {
         match *self {
             DynamicImage::ImageRgba8(ref mut p) => Some(p),
-            _                                   => None
+            _ => None,
         }
     }
 
     /// Return a reference to an 8bit Grayscale image
-    pub fn as_luma8(& self) -> Option<& GrayImage> {
+    pub fn as_luma8(&self) -> Option<&GrayImage> {
         match *self {
             DynamicImage::ImageLuma8(ref p) => Some(p),
-            _                               => None
+            _ => None,
         }
     }
 
@@ -200,15 +187,15 @@ impl DynamicImage {
     pub fn as_mut_luma8(&mut self) -> Option<&mut GrayImage> {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => Some(p),
-            _                                   => None
+            _ => None,
         }
     }
 
     /// Return a reference to an 8bit Grayscale image with an alpha channel
-    pub fn as_luma_alpha8(&self) -> Option<& GrayAlphaImage> {
+    pub fn as_luma_alpha8(&self) -> Option<&GrayAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref p) => Some(p),
-            _                                => None
+            _ => None,
         }
     }
 
@@ -216,7 +203,7 @@ impl DynamicImage {
     pub fn as_mut_luma_alpha8(&mut self) -> Option<&mut GrayAlphaImage> {
         match *self {
             DynamicImage::ImageLumaA8(ref mut p) => Some(p),
-            _                                    => None
+            _ => None,
         }
     }
 
@@ -255,24 +242,9 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by ```nwidth``` and ```nheight```.
-    pub fn resize(&self,
-                  nwidth: u32,
-                  nheight: u32,
-                  filter: imageops::FilterType) -> DynamicImage {
-
-        let (width, height) = self.dimensions();
-
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nheight as f32 / height as f32
-        } else {
-            nwidth as f32 / width as f32
-        };
-
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
+    pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
         self.resize_exact(width2, height2, filter)
     }
@@ -280,12 +252,37 @@ impl DynamicImage {
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
     /// ```nwidth``` and ```nheight``` are the new image's dimensions
-    pub fn resize_exact(&self,
-                        nwidth: u32,
-                        nheight: u32,
-                        filter: imageops::FilterType) -> DynamicImage {
-
+    pub fn resize_exact(
+        &self,
+        nwidth: u32,
+        nheight: u32,
+        filter: imageops::FilterType,
+    ) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::resize(p, nwidth, nheight, filter))
+    }
+
+    /// Scale this image down to fit within a specific size.
+    /// Returns a new image. The image's aspect ratio is preserved.
+    /// The image is scaled to the maximum possible size that fits
+    /// within the bounds specified by ```nwidth``` and ```nheight```.
+    ///
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+        self.thumbnail_exact(width2, height2)
+    }
+
+    /// Scale this image down to a specific size.
+    /// Returns a new image. Does not preserve aspect ratio.
+    /// ```nwidth``` and ```nheight``` are the new image's dimensions.
+    /// This method uses a fast integer algorithm where each source
+    /// pixel contributes to exactly one target pixel.
+    /// May give aliasing artifacts if new size is close to old size.
+    pub fn thumbnail_exact(&self, nwidth: u32, nheight: u32) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::thumbnail(p, nwidth, nheight))
     }
 
     /// Resize this image using the specified filter algorithm.
@@ -294,27 +291,19 @@ impl DynamicImage {
     /// within the larger (relative to aspect ratio) of the bounds
     /// specified by ```nwidth``` and ```nheight```, then cropped to
     /// fit within the other bound.
-    pub fn resize_to_fill(&self,
-                          nwidth: u32,
-                          nheight: u32,
-                          filter: imageops::FilterType) -> DynamicImage {
-
-        let (width, height) = self.dimensions();
-
-        let ratio  = width as f32 / height as f32;
-        let nratio = nwidth as f32 / nheight as f32;
-
-        let scale = if nratio > ratio {
-            nwidth as f32 / width as f32
-        } else {
-            nheight as f32 / height as f32
-        };
-
-        let width2  = (width as f32 * scale) as u32;
-        let height2 = (height as f32 * scale) as u32;
+    pub fn resize_to_fill(
+        &self,
+        nwidth: u32,
+        nheight: u32,
+        filter: imageops::FilterType,
+    ) -> DynamicImage {
+        let (width2, height2) =
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
 
         let mut intermediate = self.resize_exact(width2, height2, filter);
         let (iwidth, iheight) = intermediate.dimensions();
+        let ratio = u64::from(iwidth) * u64::from(nheight);
+        let nratio = u64::from(nwidth) * u64::from(iheight);
 
         if nratio > ratio {
             intermediate.crop(0, (iheight - nheight) / 2, nwidth, nheight)
@@ -395,7 +384,11 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Write, F: Into<ImageOutputFormat>>(&self, w: &mut W, format: F) -> ImageResult<()> {
+    pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(
+        &self,
+        w: &mut W,
+        format: F,
+    ) -> ImageResult<()> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -404,14 +397,14 @@ impl DynamicImage {
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
-            image::ImageOutputFormat::PNG  => {
+            image::ImageOutputFormat::PNG => {
                 let p = png::PNGEncoder::new(w);
 
                 try!(p.encode(&bytes, width, height, color));
                 Ok(())
             }
             #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::PNM(subtype)  => {
+            image::ImageOutputFormat::PNM(subtype) => {
                 let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
 
                 try!(p.encode(&bytes[..], width, height, color));
@@ -452,8 +445,22 @@ impl DynamicImage {
                 Ok(())
             }
 
-            image::ImageOutputFormat::Unsupported(msg) => Err(image::ImageError::UnsupportedError(msg)),
+            image::ImageOutputFormat::Unsupported(msg) => {
+                Err(image::ImageError::UnsupportedError(msg))
+            }
         }
+    }
+
+    /// Saves the buffer to a file at the path specified.
+    ///
+    /// The image format is derived from the file extension.
+    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    where
+        Q: AsRef<Path>,
+    {
+        dynamic_map!(*self, ref p -> {
+            p.save(path)
+        })
     }
 }
 
@@ -497,13 +504,12 @@ impl GenericImage for DynamicImage {
     }
 }
 
-
 /// Decodes an image and stores it into a dynamic image
 pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
 
-    let color  = try!(codec.colortype());
-    let buf    = try!(codec.read_image());
+    let color = try!(codec.colortype());
+    let buf = try!(codec.read_image());
     let (w, h) = try!(codec.dimensions());
 
     let image = match (color, buf) {
@@ -522,11 +528,13 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         (color::ColorType::GrayA(8), U8(buf)) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        (color::ColorType::Gray(bit_depth), U8(ref buf)) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
+        (color::ColorType::Gray(bit_depth), U8(ref buf))
+            if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
+        {
             // Note: this conversion assumes that the scanlines begin on byte boundaries
             let mask = (1u8 << bit_depth as usize) - 1;
-            let scaling_factor = 255/((1 << bit_depth as usize) - 1);
-            let skip = (w % 8)/u32::from(bit_depth);
+            let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
+            let skip = (w % 8) / u32::from(bit_depth);
             let row_len = w + skip;
             let p = buf
                        .iter()
@@ -543,12 +551,12 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
                        .map(|pixel| pixel * scaling_factor)
                        .collect();
             ImageBuffer::from_raw(w, h, p).map(DynamicImage::ImageLuma8)
-        },
-        _ => return Err(image::ImageError::UnsupportedColor(color))
+        }
+        _ => return Err(image::ImageError::UnsupportedColor(color)),
     };
     match image {
         Some(image) => Ok(image),
-        None => Err(image::ImageError::DimensionError)
+        None => Err(image::ImageError::DimensionError),
     }
 }
 
@@ -556,61 +564,54 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     match *image {
         // TODO: consider transmuting
-        DynamicImage::ImageLuma8(ref a) => {
-            a.iter().cloned().collect()
-        }
+        DynamicImage::ImageLuma8(ref a) => a.iter().cloned().collect(),
 
-        DynamicImage::ImageLumaA8(ref a) => {
-            a.iter().cloned().collect()
-        }
+        DynamicImage::ImageLumaA8(ref a) => a.iter().cloned().collect(),
 
-        DynamicImage::ImageRgb8(ref a)  => {
-            a.iter().cloned().collect()
-        }
+        DynamicImage::ImageRgb8(ref a) => a.iter().cloned().collect(),
 
-        DynamicImage::ImageRgba8(ref a) => {
-            a.iter().cloned().collect()
-        }
+        DynamicImage::ImageRgba8(ref a) => a.iter().cloned().collect(),
     }
 }
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
-pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
+pub fn open<P>(path: P) -> ImageResult<DynamicImage>
+where
+    P: AsRef<Path>,
+{
     // thin wrapper function to strip generics before calling open_impl
     open_impl(path.as_ref())
 }
 
 fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
-        Ok(f)  => f,
-        Err(err) => return Err(image::ImageError::IoError(err))
+        Ok(f) => f,
+        Err(err) => return Err(image::ImageError::IoError(err)),
     };
     let fin = BufReader::new(fin);
 
-    let ext = path.extension().and_then(|s| s.to_str())
-                  .map_or("".to_string(), |s| s.to_ascii_lowercase());
+    let ext = path.extension()
+        .and_then(|s| s.to_str())
+        .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     let format = match &ext[..] {
-        "jpg" |
-        "jpeg" => image::ImageFormat::JPEG,
-        "png"  => image::ImageFormat::PNG,
-        "gif"  => image::ImageFormat::GIF,
+        "jpg" | "jpeg" => image::ImageFormat::JPEG,
+        "png" => image::ImageFormat::PNG,
+        "gif" => image::ImageFormat::GIF,
         "webp" => image::ImageFormat::WEBP,
-        "tif" |
-        "tiff" => image::ImageFormat::TIFF,
+        "tif" | "tiff" => image::ImageFormat::TIFF,
         "tga" => image::ImageFormat::TGA,
         "bmp" => image::ImageFormat::BMP,
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
-        "pbm" |
-        "pam" |
-        "ppm" |
-        "pgm" => image::ImageFormat::PNM,
-        format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        )))
+        "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
+        format => {
+            return Err(image::ImageError::UnsupportedError(format!(
+                "Image format image/{:?} is not supported.",
+                format
+            )))
+        }
     };
 
     load(fin, format)
@@ -623,58 +624,71 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
-pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color::ColorType)
-                      -> io::Result<()> where P: AsRef<Path> {
+pub fn save_buffer<P>(
+    path: P,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+{
     // thin wrapper function to strip generics before calling save_buffer_impl
     save_buffer_impl(path.as_ref(), buf, width, height, color)
 }
 
-fn save_buffer_impl(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType)
-                      -> io::Result<()> {
+fn save_buffer_impl(
+    path: &Path,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+) -> io::Result<()> {
     let fout = &mut BufWriter::new(try!(File::create(path)));
-    let ext = path.extension().and_then(|s| s.to_str())
-                  .map_or("".to_string(), |s| s.to_ascii_lowercase());
+    let ext = path.extension()
+        .and_then(|s| s.to_str())
+        .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
         #[cfg(feature = "ico")]
         "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        "jpg" |
-        "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "png_codec")]
-        "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pbm"  => pnm::PNMEncoder::new(fout)
+        "pbm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pgm"  => pnm::PNMEncoder::new(fout)
+        "pgm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "ppm"  => pnm::PNMEncoder::new(fout)
+        "ppm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
             .encode(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pam"  => pnm::PNMEncoder::new(fout)
-            .encode(buf, width, height, color),
+        "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],
-        ))
+        )),
     }
 }
 
 /// Create a new image from a Reader
-pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    #[allow(deprecated, unreachable_patterns)] // Default is unreachable if all features are supported.
+pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    #[allow(deprecated, unreachable_patterns)]
+    // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(r)),
+        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::new(r)),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::Decoder::new(r)),
+        image::ImageFormat::GIF => decoder_to_image(gif::Decoder::new(r)),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
         #[cfg(feature = "webp")]
@@ -691,7 +705,10 @@ pub fn load<R: BufRead+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIm
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
-        _ => Err(image::ImageError::UnsupportedError(format!("A decoder for {:?} is not available.", format))),
+        _ => Err(image::ImageError::UnsupportedError(format!(
+            "A decoder for {:?} is not available.",
+            format
+        ))),
     }
 }
 
@@ -723,7 +740,6 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     load_from_memory_with_format(buffer, try!(guess_format(buffer)))
 }
 
-
 /// Create a new image from a byte slice
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
@@ -743,8 +759,48 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
         }
     }
     Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string())
-    )
+        "Unsupported image format".to_string(),
+    ))
+}
+
+/// Calculates the width and height an image should be resized to.
+/// This preserves aspect ratio, and based on the `fill` parameter
+/// will either fill the dimensions to fit inside the smaller constraint
+/// (will overflow the specified bounds on one axis to preserve
+/// aspect ratio), or will shrink so that both dimensions are
+/// completely contained with in the given `width` and `height`,
+/// with empty space on one axis.
+fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
+    let ratio = u64::from(width) * u64::from(nheight);
+    let nratio = u64::from(nwidth) * u64::from(height);
+
+    let use_width = if fill {
+        nratio > ratio
+    } else {
+        nratio <= ratio
+    };
+    let intermediate = if use_width {
+        u64::from(height) * u64::from(nwidth) / u64::from(width)
+    } else {
+        u64::from(width) * u64::from(nheight) / u64::from(height)
+    };
+    if use_width {
+        if intermediate <= u64::from(::std::u32::MAX) {
+            (nwidth, intermediate as u32)
+        } else {
+            (
+                (u64::from(nwidth) * u64::from(::std::u32::MAX) / intermediate) as u32,
+                ::std::u32::MAX,
+            )
+        }
+    } else if intermediate <= u64::from(::std::u32::MAX) {
+        (intermediate as u32, nheight)
+    } else {
+        (
+            ::std::u32::MAX,
+            (u64::from(nheight) * u64::from(::std::u32::MAX) / intermediate) as u32,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -756,10 +812,8 @@ mod bench {
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
         let a = super::DynamicImage::ImageRgb8(::ImageBuffer::new(1000, 1000));
-        b.iter(|| {
-            a.to_luma()
-        });
-        b.bytes = 1000*1000*3
+        b.iter(|| a.to_luma());
+        b.bytes = 1000 * 1000 * 3
     }
 }
 
@@ -768,5 +822,43 @@ mod test {
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
+    }
+
+    quickcheck! {
+        fn resize_bounds_correctly_width(old_w: u32, new_w: u32) -> bool {
+            if old_w == 0 || new_w == 0 { return true; }
+            let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
+            result.0 == new_w && result.1 == (400 as f64 * new_w as f64 / old_w as f64) as u32
+        }
+    }
+
+    quickcheck! {
+        fn resize_bounds_correctly_height(old_h: u32, new_h: u32) -> bool {
+            if old_h == 0 || new_h == 0 { return true; }
+            let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
+            result.1 == new_h && result.0 == (400 as f64 * new_h as f64 / old_h as f64) as u32
+        }
+    }
+
+    #[test]
+    fn resize_handles_fill() {
+        let result = super::resize_dimensions(100, 200, 200, 500, true);
+        assert!(result.0 == 250);
+        assert!(result.1 == 500);
+
+        let result = super::resize_dimensions(200, 100, 500, 200, true);
+        assert!(result.0 == 500);
+        assert!(result.1 == 250);
+    }
+
+    #[test]
+    fn resize_handles_overflow() {
+        let result = super::resize_dimensions(100, ::std::u32::MAX, 200, ::std::u32::MAX, true);
+        assert!(result.0 == 100);
+        assert!(result.1 == ::std::u32::MAX);
+
+        let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
+        assert!(result.0 == ::std::u32::MAX);
+        assert!(result.1 == 100);
     }
 }

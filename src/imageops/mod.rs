@@ -1,52 +1,23 @@
 //! Image Processing Functions
 use std::cmp;
 
-use image:: {
-    SubImage,
-    GenericImage,
-};
+use image::{GenericImage, SubImage};
 
 use buffer::Pixel;
 
 pub use self::sample::FilterType;
 
-pub use self::sample::FilterType:: {
-    Triangle,
-    Nearest,
-    CatmullRom,
-    Gaussian,
-    Lanczos3
-};
+pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
 
 /// Affine transformations
-pub use self::affine:: {
-    rotate90,
-    rotate180,
-    rotate270,
-    flip_horizontal,
-    flip_vertical,
-};
+pub use self::affine::{flip_horizontal, flip_vertical, rotate180, rotate270, rotate90};
 
 /// Image sampling
-pub use self::sample:: {
-    filter3x3,
-    resize,
-    blur,
-    unsharpen,
-};
+pub use self::sample::{blur, filter3x3, resize, thumbnail, unsharpen};
 
 /// Color operations
-pub use self::colorops:: {
-    grayscale,
-    invert,
-    contrast,
-    brighten,
-    huerotate,
-    ColorMap,
-    BiLevel,
-    dither,
-    index_colors,
-};
+pub use self::colorops::{brighten, contrast, dither, grayscale, huerotate, index_colors, invert,
+                         BiLevel, ColorMap};
 
 mod affine;
 // Public only because of Rust bug:
@@ -56,25 +27,30 @@ mod sample;
 
 /// Return a mutable view into an image
 // TODO: Is a 'static bound on `I` really required? Acn we avoid it?
-pub fn crop<I: GenericImage + 'static>(image: &mut I, x: u32, y: u32,
-                                       width: u32, height: u32)
-                                       -> SubImage<&mut I>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: 'static {
-
+pub fn crop<I: GenericImage + 'static>(
+    image: &mut I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> SubImage<&mut I>
+where
+    I::Pixel: 'static,
+    <I::Pixel as Pixel>::Subpixel: 'static,
+{
     let (iwidth, iheight) = image.dimensions();
 
     let x = cmp::min(x, iwidth);
     let y = cmp::min(y, iheight);
 
     let height = cmp::min(height, iheight - y);
-    let width  = cmp::min(width, iwidth - x);
+    let width = cmp::min(width, iwidth - x);
 
     SubImage::new(image, x, y, width, height)
 }
 
 /// Overlay an image at a given coordinate (x, y)
-pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
+pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
     let (top_width, top_height) = top.dimensions();
     let (bottom_width, bottom_height) = bottom.dimensions();
 
@@ -103,7 +79,7 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
 }
 
 /// Replace the contents of an image at a given coordinate (x, y)
-pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
+pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
     let (top_width, top_height) = top.dimensions();
     let (bottom_width, bottom_height) = bottom.dimensions();
 
@@ -131,9 +107,9 @@ pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y:u32) {
 #[cfg(test)]
 mod tests {
 
-    use buffer::ImageBuffer;
-    use color::{Rgb};
     use super::overlay;
+    use buffer::ImageBuffer;
+    use color::Rgb;
 
     #[test]
     /// Test that images written into other images works

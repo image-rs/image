@@ -2,11 +2,11 @@
 
 use std::fs;
 use std::io;
-use std::u32;
 use std::path::PathBuf;
+use std::u32;
 
-extern crate image;
 extern crate glob;
+extern crate image;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -14,89 +14,103 @@ const OUTPUT_DIR: &str = "output";
 const REFERENCE_DIR: &str = "reference";
 
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
-where F: Fn(&PathBuf, PathBuf, &str) {
-	let base: PathBuf = BASE_PATH.iter().collect();
-	let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr"];
-	for decoder in decoders {
-		let mut path = base.clone();
-		path.push(dir);
-		path.push(decoder);
-		path.push("*");
-		path.push("*.".to_string() + match input_decoder {
-			Some(val) => val,
-			None => decoder
-		});
-		let pattern = &*format!("{}", path.display());
-		for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-			func(&base, path, decoder)
-		}
-	}
+where
+    F: Fn(&PathBuf, PathBuf, &str),
+{
+    let base: PathBuf = BASE_PATH.iter().collect();
+    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr"];
+    for decoder in decoders {
+        let mut path = base.clone();
+        path.push(dir);
+        path.push(decoder);
+        path.push("*");
+        path.push(
+            "*.".to_string() + match input_decoder {
+                Some(val) => val,
+                None => decoder,
+            },
+        );
+        let pattern = &*format!("{}", path.display());
+        for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+            func(&base, path, decoder)
+        }
+    }
 }
 
+#[cfg(feature = "png")]
 #[test]
 fn render_images() {
-	process_images(IMAGE_DIR, None, |base, path, decoder| {
-		let img = match image::open(&path) {
-			Ok(img) => img.to_rgba(),
-			// Do not fail on unsupported error
-			// This might happen because the testsuite contains unsupported images
-			// or because a specific decoder included via a feature.
-			Err(image::ImageError::UnsupportedError(_)) => return,
-			Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
-		};
-		let mut crc = Crc32::new();
-		crc.update(&*img);
+    process_images(IMAGE_DIR, None, |base, path, decoder| {
+        let img = match image::open(&path) {
+            Ok(img) => img.to_rgba(),
+            // Do not fail on unsupported error
+            // This might happen because the testsuite contains unsupported images
+            // or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
+        };
+        let mut crc = Crc32::new();
+        crc.update(&*img);
 
-		let (filename, testsuite) = {
-			let mut path: Vec<_> = path.components().collect();
-			(path.pop().unwrap(), path.pop().unwrap())
-		};
-		let mut out_path = base.clone();
+        let (filename, testsuite) = {
+            let mut path: Vec<_> = path.components().collect();
+            (path.pop().unwrap(), path.pop().unwrap())
+        };
+        let mut out_path = base.clone();
 
-		out_path.push(OUTPUT_DIR);
-		out_path.push(decoder);
-		out_path.push(testsuite.as_os_str());
-		fs::create_dir_all(&out_path).unwrap();
-		out_path.push(format!("{}.{}.{}",
-			filename.as_os_str().to_str().unwrap(),
-			format!("{:x}", crc.checksum()),
-			"png"
-		));
-		img.save(out_path).unwrap();
-	})
+        out_path.push(OUTPUT_DIR);
+        out_path.push(decoder);
+        out_path.push(testsuite.as_os_str());
+        fs::create_dir_all(&out_path).unwrap();
+        out_path.push(format!(
+            "{}.{}.{}",
+            filename.as_os_str().to_str().unwrap(),
+            format!("{:x}", crc.checksum()),
+            "png"
+        ));
+        img.save(out_path).unwrap();
+    })
 }
 
 #[test]
 fn check_references() {
-	process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
+    process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
         let ref_img = match image::open(&path) {
             Ok(img) => img.to_rgba(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
             Err(image::ImageError::UnsupportedError(_)) => return,
-            Err(err) => panic!(format!("{}", err))
+            Err(err) => panic!(format!("{}", err)),
         };
 
-		let (filename, testsuite) = {
-			let mut path: Vec<_> = path.components().collect();
-			(path.pop().unwrap(), path.pop().unwrap())
-		};
-		let mut img_path = base.clone();
-		img_path.push(IMAGE_DIR);
-		img_path.push(decoder);
-		img_path.push(testsuite.as_os_str());
-		img_path.push(filename
-			.as_os_str()
-			.to_str().unwrap()
-			.split('.').take(2)
-			.collect::<Vec<_>>().join(".")
-		);
-        let ref_crc = u32::from_str_radix(filename
-            .as_os_str()
-            .to_str().unwrap()
-            .split('.').nth(2).unwrap(), 16
-
+        let (filename, testsuite) = {
+            let mut path: Vec<_> = path.components().collect();
+            (path.pop().unwrap(), path.pop().unwrap())
+        };
+        let mut img_path = base.clone();
+        img_path.push(IMAGE_DIR);
+        img_path.push(decoder);
+        img_path.push(testsuite.as_os_str());
+        img_path.push(
+            filename
+                .as_os_str()
+                .to_str()
+                .unwrap()
+                .split('.')
+                .take(2)
+                .collect::<Vec<_>>()
+                .join("."),
+        );
+        let ref_crc = u32::from_str_radix(
+            filename
+                .as_os_str()
+                .to_str()
+                .unwrap()
+                .split('.')
+                .nth(2)
+                .unwrap(),
+            16,
         ).unwrap();
         let test_img = match image::open(&img_path) {
             Ok(img) => img.to_rgba(),
@@ -104,22 +118,26 @@ fn check_references() {
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
             Err(image::ImageError::UnsupportedError(_)) => return,
-            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err))
+            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
         };
         let mut test_crc = Crc32::new();
         test_crc.update(&*test_img);
-		if *ref_img != *test_img || test_crc.checksum() != ref_crc {
-			panic!("Reference rendering does not match for image at {:?}.", img_path)
-		}
-	})
+        if *ref_img != *test_img || test_crc.checksum() != ref_crc {
+            panic!(
+                "Reference rendering does not match for image at {:?}.",
+                img_path
+            )
+        }
+    })
 }
 
+#[cfg(feature = "hdr")]
 #[test]
 fn check_hdr_references() {
     let mut ref_path: PathBuf = BASE_PATH.iter().collect();
     ref_path.push(REFERENCE_DIR);
     ref_path.push("hdr");
-	let mut path: PathBuf = BASE_PATH.iter().collect();
+    let mut path: PathBuf = BASE_PATH.iter().collect();
     path.push(IMAGE_DIR);
     path.push("hdr");
     path.push("*");
@@ -129,7 +147,13 @@ fn check_hdr_references() {
         use std::path::Component::Normal;
         let mut ref_path = ref_path.clone();
         // append 2 last components of image path to reference path
-        for c in path.components().rev().take(2).collect::<Vec<_>>().iter().rev() {
+        for c in path.components()
+            .rev()
+            .take(2)
+            .collect::<Vec<_>>()
+            .iter()
+            .rev()
+        {
             match *c {
                 Normal(name) => ref_path.push(name),
                 _ => panic!(),
@@ -138,7 +162,9 @@ fn check_hdr_references() {
         ref_path.set_extension("raw");
         println!("{}", ref_path.display());
         println!("{}", path.display());
-        let decoder = image::hdr::HDRDecoder::new(io::BufReader::new(fs::File::open(&path).unwrap())).unwrap();
+        let decoder = image::hdr::HDRDecoder::new(io::BufReader::new(
+            fs::File::open(&path).unwrap(),
+        )).unwrap();
         let decoded = decoder.read_image_hdr().unwrap();
         let reference = image::hdr::read_raw_file(&ref_path).unwrap();
         assert_eq!(decoded, reference);
@@ -150,14 +176,27 @@ fn check_hdr_references() {
 /// The images are postfixed with `bad_bmp` to not be loaded by the other test.
 #[test]
 fn bad_bmps() {
-    let base_path: PathBuf = BASE_PATH.iter().collect::<PathBuf>().join(IMAGE_DIR).join("bmp/images");
+    let base_path: PathBuf = BASE_PATH
+        .iter()
+        .collect::<PathBuf>()
+        .join(IMAGE_DIR)
+        .join("bmp/images");
 
-    assert!(image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(), "Image with absurdly large number of colors loaded.");
-    assert!(image::open(base_path.join("Bad_width.bad_bmp")).is_err(), "Image with absurdly large width loaded.");
-    assert!(image::open(base_path.join("Bad_height.bad_bmp")).is_err(), "Image with absurdly large height loaded.");
-
+    assert!(
+        image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(),
+        "Image with absurdly large number of colors loaded."
+    );
+    assert!(
+        image::open(base_path.join("Bad_width.bad_bmp")).is_err(),
+        "Image with absurdly large width loaded."
+    );
+    assert!(
+        image::open(base_path.join("Bad_height.bad_bmp")).is_err(),
+        "Image with absurdly large height loaded."
+    );
 }
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
 const CRC_TABLE: [u32; 256] = [
     0x0000_0000, 0x7707_3096, 0xee0e_612c, 0x9909_51ba, 0x076d_c419,
     0x706a_f48f, 0xe963_a535, 0x9e64_95a3, 0x0edb_8832, 0x79dc_b8a4,
@@ -210,7 +249,7 @@ const CRC_TABLE: [u32; 256] = [
     0xbdbd_f21c, 0xcaba_c28a, 0x53b3_9330, 0x24b4_a3a6, 0xbad0_3605,
     0xcdd7_0693, 0x54de_5729, 0x23d9_67bf, 0xb366_7a2e, 0xc461_4ab8,
     0x5d68_1b02, 0x2a6f_2b94, 0xb40b_be37, 0xc30c_8ea1, 0x5a05_df1b,
-    0x2d02_ef8d
+    0x2d02_ef8d,
 ];
 
 /// An Implementation of the Crc-32 checksum
@@ -228,7 +267,7 @@ impl Default for Crc32 {
 impl Crc32 {
     /// Create a new hasher.
     pub fn new() -> Crc32 {
-        Crc32 {crc: 0xFFFF_FFFF}
+        Crc32 { crc: 0xFFFF_FFFF }
     }
 
     /// Update the internal hasher with the bytes from ```buf```

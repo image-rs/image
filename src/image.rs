@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::fmt;
 use std::mem;
 use std::io;
@@ -550,11 +550,13 @@ impl<I> SubImage<I> {
 
 #[allow(deprecated)]
 // TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?
-impl<I: GenericImage> GenericImage for SubImage<I>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: 'static {
+impl<I> GenericImage for SubImage<I>
+    where
+        I: DerefMut,
+        I::Target: GenericImage + 'static
+{
 
-    type Pixel = I::Pixel;
+    type Pixel = <I::Target as GenericImage>::Pixel;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -564,20 +566,20 @@ impl<I: GenericImage> GenericImage for SubImage<I>
         (self.xoffset, self.yoffset, self.xstride, self.ystride)
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> I::Pixel {
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
 
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut I::Pixel {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 }

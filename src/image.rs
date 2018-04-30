@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::fmt;
 use std::mem;
 use std::io;
@@ -478,7 +479,15 @@ pub trait GenericImage: Sized {
 
     /// Returns a subimage that is a view into this image.
     fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
-    -> SubImage<Self>
+    -> SubImage<&mut Self>
+    where Self: 'static, <Self::Pixel as Pixel>::Subpixel: 'static,
+    Self::Pixel: 'static {
+        SubImage::new(self, x, y, width, height)
+    }
+
+    /// Returns an subimage that is an immutable view into this image.
+    fn view(&self, x: u32, y: u32, width: u32, height: u32)
+    -> SubImage<&Self>
     where Self: 'static, <Self::Pixel as Pixel>::Subpixel: 'static,
     Self::Pixel: 'static {
         SubImage::new(self, x, y, width, height)
@@ -486,21 +495,17 @@ pub trait GenericImage: Sized {
 }
 
 /// A View into another image
-pub struct SubImage <'a, I: 'a> {
-    image:   &'a mut I,
+pub struct SubImage <I> {
+    image:   I,
     xoffset: u32,
     yoffset: u32,
     xstride: u32,
     ystride: u32,
 }
 
-// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
-impl<'a, I: GenericImage + 'static> SubImage<'a, I>
-    where I::Pixel: 'static,
-          <I::Pixel as Pixel>::Subpixel: 'static {
-
+impl<I> SubImage<I> {
     /// Construct a new subimage
-    pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
+    pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
             image:   image,
             xoffset: x,
@@ -512,7 +517,7 @@ impl<'a, I: GenericImage + 'static> SubImage<'a, I>
 
     /// Returns a mutable reference to the wrapped image.
     pub fn inner_mut(&mut self) -> &mut I {
-        &mut (*self.image)
+        &mut self.image
     }
 
     /// Change the coordinates of this subimage.
@@ -524,12 +529,17 @@ impl<'a, I: GenericImage + 'static> SubImage<'a, I>
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
+    pub fn to_image(&self)
+    -> ImageBuffer<
+        <I::Target as GenericImage>::Pixel,
+        Vec<<<I::Target as GenericImage>::Pixel as Pixel>::Subpixel>>
+    where I: Deref, I::Target: GenericImage + 'static {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
+        let borrowed = self.image.deref();
 
         for y in 0..self.ystride {
             for x in 0..self.xstride {
-                let p = self.get_pixel(x, y);
+                let p = borrowed.get_pixel(x, y);
                 out.put_pixel(x, y, p);
             }
         }
@@ -539,8 +549,8 @@ impl<'a, I: GenericImage + 'static> SubImage<'a, I>
 }
 
 #[allow(deprecated)]
-// TODO: Is the 'static bound on `I` really required? Can we avoid it?
-impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
+// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?
+impl<I: GenericImage> GenericImage for SubImage<I>
     where I::Pixel: 'static,
           <I::Pixel as Pixel>::Subpixel: 'static {
 
@@ -611,5 +621,16 @@ mod tests {
         assert!(!target.in_bounds(2,0));
         assert!(!target.in_bounds(0,2));
         assert!(!target.in_bounds(2,2));
+    }
+
+    #[test]
+    fn test_can_subimage_clone_nonmut() {
+        let mut source = ImageBuffer::new(3, 3);
+        source.put_pixel(1, 1, Rgba([255u8, 0, 0, 255]));
+        let source = source.clone();
+
+        let cloned = source.view(1, 1, 1, 1).to_image();
+
+        assert!(cloned.get_pixel(0, 0) == source.pixel(1, 1));
     }
 }

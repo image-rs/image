@@ -499,28 +499,27 @@ pub trait GenericImage: Sized {
     fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
     -> SubImage<&mut Self>
     where 
-		Self: 'static, 
-		<Self::Pixel as Pixel>::Subpixel: 'static,
-    	Self::Pixel: 'static 
-	{
-        SubImage::new(self, x, y, width, height)
+        Self: 'static, 
+        <Self::Pixel as Pixel>::Subpixel: 'static,
+        Self::Pixel: 'static 
+    {
+            SubImage::new(self, x, y, width, height)
     }
 
     /// Returns an subimage that is an immutable view into this image.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32)
-    -> SubImage<&Self>
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
     where 
-		Self: 'static,
-		<Self::Pixel as Pixel>::Subpixel: 'static,
-    	Self::Pixel: 'static 
-	{
+        Self: 'static,
+        <Self::Pixel as Pixel>::Subpixel: 'static,
+        Self::Pixel: 'static 
+    {
         SubImage::new(self, x, y, width, height)
     }
 }
 
 /// A View into another image
-pub struct SubImage <I> {
-    image:   I,
+pub struct SubImage<I> {
+    image: I,
     xoffset: u32,
     yoffset: u32,
     xstride: u32,
@@ -576,8 +575,8 @@ impl<I> SubImage<I> {
 // TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?
 impl<I> GenericImage for SubImage<I>
 where
-	I: DerefMut,
-	I::Target: GenericImage + 'static
+    I: DerefMut,
+    I::Target: GenericImage + 'static
 {
     type Pixel = <I::Target as GenericImage>::Pixel;
 
@@ -595,13 +594,13 @@ where
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
-			.put_pixel(x + self.xoffset, y + self.yoffset, pixel)
+            .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
-			.blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
+            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {

@@ -1,8 +1,8 @@
 use std::error::Error;
-use std::ops::{Deref, DerefMut};
 use std::fmt;
 use std::io;
 use std::mem;
+use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};
 use color;
@@ -496,23 +496,12 @@ pub trait GenericImage: Sized {
     }
 
     /// Returns a subimage that is a view into this image.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
-    -> SubImage<&mut Self>
-    where 
-        Self: 'static, 
-        <Self::Pixel as Pixel>::Subpixel: 'static,
-        Self::Pixel: 'static 
-    {
-            SubImage::new(self, x, y, width, height)
+    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self> {
+        SubImage::new(self, x, y, width, height)
     }
 
     /// Returns an subimage that is an immutable view into this image.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
-    where 
-        Self: 'static,
-        <Self::Pixel as Pixel>::Subpixel: 'static,
-        Self::Pixel: 'static 
-    {
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self> {
         SubImage::new(self, x, y, width, height)
     }
 }
@@ -552,11 +541,16 @@ impl<I> SubImage<I> {
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self)
-    -> ImageBuffer<
+    pub fn to_image(
+        &self,
+    ) -> ImageBuffer<
         <I::Target as GenericImage>::Pixel,
-        Vec<<<I::Target as GenericImage>::Pixel as Pixel>::Subpixel>>
-    where I: Deref, I::Target: GenericImage + 'static {
+        Vec<<<I::Target as GenericImage>::Pixel as Pixel>::Subpixel>,
+    >
+    where
+        I: Deref,
+        I::Target: GenericImage + 'static,
+    {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
         let borrowed = self.image.deref();
 
@@ -572,11 +566,10 @@ impl<I> SubImage<I> {
 }
 
 #[allow(deprecated)]
-// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?
 impl<I> GenericImage for SubImage<I>
 where
     I: DerefMut,
-    I::Target: GenericImage + 'static
+    I::Target: GenericImage,
 {
     type Pixel = <I::Target as GenericImage>::Pixel;
 
@@ -661,5 +654,18 @@ mod tests {
         let cloned = source.view(1, 1, 1, 1).to_image();
 
         assert!(cloned.get_pixel(0, 0) == source.get_pixel(1, 1));
+    }
+
+    #[test]
+    fn test_can_nest_subimage() {
+        let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+
+        {
+            let mut sub1 = source.sub_image(0, 0, 2, 2);
+            let mut sub2 = sub1.sub_image(1, 1, 1, 1);
+            sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
+        }
+
+        assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
     }
 }

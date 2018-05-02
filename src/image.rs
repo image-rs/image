@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::ops::{Deref, DerefMut};
 use std::fmt;
 use std::io;
 use std::mem;
@@ -495,33 +496,39 @@ pub trait GenericImage: Sized {
     }
 
     /// Returns a subimage that is a view into this image.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<Self>
-    where
+    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
+    -> SubImage<&mut Self>
+    where 
+        Self: 'static, 
+        <Self::Pixel as Pixel>::Subpixel: 'static,
+        Self::Pixel: 'static 
+    {
+            SubImage::new(self, x, y, width, height)
+    }
+
+    /// Returns an subimage that is an immutable view into this image.
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
+    where 
         Self: 'static,
         <Self::Pixel as Pixel>::Subpixel: 'static,
-        Self::Pixel: 'static,
+        Self::Pixel: 'static 
     {
         SubImage::new(self, x, y, width, height)
     }
 }
 
 /// A View into another image
-pub struct SubImage<'a, I: 'a> {
-    image: &'a mut I,
+pub struct SubImage<I> {
+    image: I,
     xoffset: u32,
     yoffset: u32,
     xstride: u32,
     ystride: u32,
 }
 
-// TODO: Do we really need the 'static bound on `I`? Can we avoid it?
-impl<'a, I: GenericImage + 'static> SubImage<'a, I>
-where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
+impl<I> SubImage<I> {
     /// Construct a new subimage
-    pub fn new(image: &mut I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
+    pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
             image,
             xoffset: x,
@@ -533,7 +540,7 @@ where
 
     /// Returns a mutable reference to the wrapped image.
     pub fn inner_mut(&mut self) -> &mut I {
-        &mut (*self.image)
+        &mut self.image
     }
 
     /// Change the coordinates of this subimage.
@@ -545,12 +552,17 @@ where
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(&self) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>> {
+    pub fn to_image(&self)
+    -> ImageBuffer<
+        <I::Target as GenericImage>::Pixel,
+        Vec<<<I::Target as GenericImage>::Pixel as Pixel>::Subpixel>>
+    where I: Deref, I::Target: GenericImage + 'static {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
+        let borrowed = self.image.deref();
 
         for y in 0..self.ystride {
             for x in 0..self.xstride {
-                let p = self.get_pixel(x, y);
+                let p = borrowed.get_pixel(x + self.xoffset, y + self.yoffset);
                 out.put_pixel(x, y, p);
             }
         }
@@ -560,13 +572,13 @@ where
 }
 
 #[allow(deprecated)]
-// TODO: Is the 'static bound on `I` really required? Can we avoid it?
-impl<'a, I: GenericImage + 'static> GenericImage for SubImage<'a, I>
+// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?
+impl<I> GenericImage for SubImage<I>
 where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
+    I: DerefMut,
+    I::Target: GenericImage + 'static
 {
-    type Pixel = I::Pixel;
+    type Pixel = <I::Target as GenericImage>::Pixel;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -576,22 +588,22 @@ where
         (self.xoffset, self.yoffset, self.xstride, self.ystride)
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> I::Pixel {
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
 
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: I::Pixel) {
+    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut I::Pixel {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 }
@@ -635,5 +647,19 @@ mod tests {
         assert!(!target.in_bounds(2, 0));
         assert!(!target.in_bounds(0, 2));
         assert!(!target.in_bounds(2, 2));
+    }
+
+    #[test]
+    fn test_can_subimage_clone_nonmut() {
+        let mut source = ImageBuffer::new(3, 3);
+        source.put_pixel(1, 1, Rgba([255u8, 0, 0, 255]));
+
+        // A non-mutable copy of the source image
+        let source = source.clone();
+
+        // Clone a view into non-mutable to a separate buffer
+        let cloned = source.view(1, 1, 1, 1).to_image();
+
+        assert!(cloned.get_pixel(0, 0) == source.get_pixel(1, 1));
     }
 }

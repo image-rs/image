@@ -33,7 +33,7 @@ pub fn crop<I: GenericImage + 'static>(
     y: u32,
     width: u32,
     height: u32,
-) -> SubImage<I>
+) -> SubImage<&mut I>
 where
     I::Pixel: 'static,
     <I::Pixel as Pixel>::Subpixel: 'static,

@@ -365,6 +365,11 @@ pub trait GenericImage: Sized {
     /// The type of pixel.
     type Pixel: Pixel;
 
+    /// Underlying image type. This is mainly used by SubImages in order to
+    /// always have a reference to the original image. This allows for less
+    /// indirections and it eases the use of nested SubImages.
+    type InnerImage: GenericImage<Pixel = Self::Pixel>;
+
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
@@ -495,14 +500,26 @@ pub trait GenericImage: Sized {
         true
     }
 
+    /// Returns a reference to the underlying image.
+    fn inner(&self) -> &Self::InnerImage;
+
+    /// Returns a mutable reference to the underlying image.
+    fn inner_mut(&mut self) -> &mut Self::InnerImage;
+
     /// Returns a subimage that is a view into this image.
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self> {
-        SubImage::new(self, x, y, width, height)
+    fn sub_image(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> SubImage<&mut Self::InnerImage> {
+        SubImage::new(self.inner_mut(), x, y, width, height)
     }
 
     /// Returns an subimage that is an immutable view into this image.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self> {
-        SubImage::new(self, x, y, width, height)
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage> {
+        SubImage::new(self.inner(), x, y, width, height)
     }
 }
 
@@ -525,11 +542,6 @@ impl<I> SubImage<I> {
             xstride: width,
             ystride: height,
         }
-    }
-
-    /// Returns a mutable reference to the wrapped image.
-    pub fn inner_mut(&mut self) -> &mut I {
-        &mut self.image
     }
 
     /// Change the coordinates of this subimage.
@@ -572,6 +584,7 @@ where
     I::Target: GenericImage,
 {
     type Pixel = <I::Target as GenericImage>::Pixel;
+    type InnerImage = I::Target;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -598,6 +611,32 @@ where
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
+    }
+
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage> {
+        let x = self.xoffset + x;
+        let y = self.yoffset + y;
+        SubImage::new(self.inner(), x, y, width, height)
+    }
+
+    fn sub_image(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> SubImage<&mut Self::InnerImage> {
+        let x = self.xoffset + x;
+        let y = self.yoffset + y;
+        SubImage::new(self.inner_mut(), x, y, width, height)
+    }
+
+    fn inner(&self) -> &Self::InnerImage {
+        &self.image
+    }
+
+    fn inner_mut(&mut self) -> &mut Self::InnerImage {
+        &mut self.image
     }
 }
 

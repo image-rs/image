@@ -512,6 +512,7 @@ where
     P::Subpixel: 'static,
 {
     type Pixel = P;
+    type InnerImage = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -561,6 +562,14 @@ where
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
         self.get_pixel_mut(x, y).blend(&p)
+    }
+
+    fn inner(&self) -> &Self::InnerImage {
+        self
+    }
+
+    fn inner_mut(&mut self) -> &mut Self::InnerImage {
+        self
     }
 }
 

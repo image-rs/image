@@ -29,7 +29,8 @@ use webp;
 use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage};
 use color;
 use image;
-use image::{GenericImage, ImageDecoder, ImageFormat, ImageOutputFormat, ImageResult};
+use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
+            ImageResult};
 use imageops;
 
 use image::DecodingResult::U8;
@@ -465,9 +466,9 @@ impl DynamicImage {
 }
 
 #[allow(deprecated)]
-impl GenericImage for DynamicImage {
+impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>;
-    type InnerImage = DynamicImage;
+    type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, ref p -> p.dimensions())
@@ -480,6 +481,15 @@ impl GenericImage for DynamicImage {
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
         dynamic_map!(*self, ref p -> p.get_pixel(x, y).to_rgba())
     }
+
+    fn inner(&self) -> &Self::InnerImageView {
+        self
+    }
+}
+
+#[allow(deprecated)]
+impl GenericImage for DynamicImage {
+    type InnerImage = DynamicImage;
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
@@ -502,10 +512,6 @@ impl GenericImage for DynamicImage {
     /// DEPRECATED: Do not use is function: It is unimplemented!
     fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
         unimplemented!()
-    }
-
-    fn inner(&self) -> &Self::InnerImage {
-        self
     }
 
     fn inner_mut(&mut self) -> &mut Self::InnerImage {

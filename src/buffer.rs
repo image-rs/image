@@ -7,7 +7,7 @@ use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba};
 use dynimage::save_buffer;
-use image::GenericImage;
+use image::{GenericImage, GenericImageView};
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -505,14 +505,14 @@ where
     }
 }
 
-impl<P, Container> GenericImage for ImageBuffer<P, Container>
+impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
     P: Pixel + 'static,
-    Container: Deref<Target = [P::Subpixel]> + DerefMut,
+    Container: Deref<Target = [P::Subpixel]> + Deref,
     P::Subpixel: 'static,
 {
     type Pixel = P;
-    type InnerImage = Self;
+    type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -526,10 +526,6 @@ where
         *self.get_pixel(x, y)
     }
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        self.get_pixel_mut(x, y)
-    }
-
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
@@ -539,6 +535,23 @@ where
             self.data.as_ptr().offset(index),
             no_channels,
         ))
+    }
+
+    fn inner(&self) -> &Self::InnerImageView {
+        self
+    }
+}
+
+impl<P, Container> GenericImage for ImageBuffer<P, Container>
+where
+    P: Pixel + 'static,
+    Container: Deref<Target = [P::Subpixel]> + DerefMut,
+    P::Subpixel: 'static,
+{
+    type InnerImage = Self;
+
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
+        self.get_pixel_mut(x, y)
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
@@ -562,10 +575,6 @@ where
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
         self.get_pixel_mut(x, y).blend(&p)
-    }
-
-    fn inner(&self) -> &Self::InnerImage {
-        self
     }
 
     fn inner_mut(&mut self) -> &mut Self::InnerImage {

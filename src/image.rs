@@ -296,7 +296,7 @@ pub struct Pixels<'a, I: 'a> {
     height: u32,
 }
 
-impl<'a, I: GenericImage> Iterator for Pixels<'a, I> {
+impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
     type Item = (u32, u32, I::Pixel);
 
     fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
@@ -360,15 +360,15 @@ where
     }
 }
 
-/// A trait for manipulating images.
-pub trait GenericImage: Sized {
+/// Trait to inspect an image.
+pub trait GenericImageView: Sized {
     /// The type of pixel.
     type Pixel: Pixel;
 
     /// Underlying image type. This is mainly used by SubImages in order to
     /// always have a reference to the original image. This allows for less
     /// indirections and it eases the use of nested SubImages.
-    type InnerImage: GenericImage<Pixel = Self::Pixel>;
+    type InnerImageView: GenericImageView<Pixel = Self::Pixel>;
 
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
@@ -403,19 +403,50 @@ pub trait GenericImage: Sized {
     /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
-    /// Puts a pixel at location (x, y)
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
+
+    /// Returns an Iterator over the pixels of this image.
+    /// The iterator yields the coordinates of each pixel
+    /// along with their value
+    fn pixels(&self) -> Pixels<Self> {
+        let (width, height) = self.dimensions();
+
+        Pixels {
+            image: self,
+            x: 0,
+            y: 0,
+            width,
+            height,
+        }
+    }
+
+    /// Returns a reference to the underlying image.
+    fn inner(&self) -> &Self::InnerImageView;
+
+    /// Returns an subimage that is an immutable view into this image.
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        SubImage::new(self.inner(), x, y, width, height)
+    }
+}
+
+/// A trait for manipulating images.
+pub trait GenericImage: GenericImageView + Sized {
+    /// Underlying image type. This is mainly used by SubImages in order to
+    /// always have a reference to the original image. This allows for less
+    /// indirections and it eases the use of nested SubImages.
+    type InnerImage: GenericImage<Pixel = Self::Pixel>;
+
+    /// Puts a pixel at location (x, y)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(x, y)` is out of bounds.
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y)
     ///
@@ -435,21 +466,6 @@ pub trait GenericImage: Sized {
     ///
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
-
-    /// Returns an Iterator over the pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with their value
-    fn pixels(&self) -> Pixels<Self> {
-        let (width, height) = self.dimensions();
-
-        Pixels {
-            image: self,
-            x: 0,
-            y: 0,
-            width,
-            height,
-        }
-    }
 
     /// Returns an Iterator over mutable pixels of this image.
     /// The iterator yields the coordinates of each pixel
@@ -500,9 +516,6 @@ pub trait GenericImage: Sized {
         true
     }
 
-    /// Returns a reference to the underlying image.
-    fn inner(&self) -> &Self::InnerImage;
-
     /// Returns a mutable reference to the underlying image.
     fn inner_mut(&mut self) -> &mut Self::InnerImage;
 
@@ -515,11 +528,6 @@ pub trait GenericImage: Sized {
         height: u32,
     ) -> SubImage<&mut Self::InnerImage> {
         SubImage::new(self.inner_mut(), x, y, width, height)
-    }
-
-    /// Returns an subimage that is an immutable view into this image.
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage> {
-        SubImage::new(self.inner(), x, y, width, height)
     }
 }
 
@@ -556,8 +564,8 @@ impl<I> SubImage<I> {
     pub fn to_image(
         &self,
     ) -> ImageBuffer<
-        <I::Target as GenericImage>::Pixel,
-        Vec<<<I::Target as GenericImage>::Pixel as Pixel>::Subpixel>,
+        <I::Target as GenericImageView>::Pixel,
+        Vec<<<I::Target as GenericImageView>::Pixel as Pixel>::Subpixel>,
     >
     where
         I: Deref,
@@ -578,13 +586,13 @@ impl<I> SubImage<I> {
 }
 
 #[allow(deprecated)]
-impl<I> GenericImage for SubImage<I>
+impl<I> GenericImageView for SubImage<I>
 where
-    I: DerefMut,
-    I::Target: GenericImage,
+    I: Deref,
+    I::Target: GenericImageView,
 {
-    type Pixel = <I::Target as GenericImage>::Pixel;
-    type InnerImage = I::Target;
+    type Pixel = <I::Target as GenericImageView>::Pixel;
+    type InnerImageView = I::Target;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.xstride, self.ystride)
@@ -598,6 +606,29 @@ where
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
 
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        let x = self.xoffset + x;
+        let y = self.yoffset + y;
+        SubImage::new(self.inner(), x, y, width, height)
+    }
+
+    fn inner(&self) -> &Self::InnerImageView {
+        &self.image
+    }
+}
+
+#[allow(deprecated)]
+impl<I> GenericImage for SubImage<I>
+where
+    I: DerefMut,
+    I::Target: GenericImage,
+{
+    type InnerImage = I::Target;
+
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
+    }
+
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
@@ -607,16 +638,6 @@ where
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
-    }
-
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
-        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
-    }
-
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage> {
-        let x = self.xoffset + x;
-        let y = self.yoffset + y;
-        SubImage::new(self.inner(), x, y, width, height)
     }
 
     fn sub_image(
@@ -631,10 +652,6 @@ where
         SubImage::new(self.inner_mut(), x, y, width, height)
     }
 
-    fn inner(&self) -> &Self::InnerImage {
-        &self.image
-    }
-
     fn inner_mut(&mut self) -> &mut Self::InnerImage {
         &mut self.image
     }
@@ -643,7 +660,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use super::GenericImage;
+    use super::{GenericImage, GenericImageView};
     use buffer::ImageBuffer;
     use color::Rgba;
 
@@ -696,7 +713,7 @@ mod tests {
     }
 
     #[test]
-    fn test_can_nest_subimage() {
+    fn test_can_nest_views() {
         let mut source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
 
         {
@@ -706,5 +723,11 @@ mod tests {
         }
 
         assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
+
+        let view1 = source.view(0, 0, 2, 2);
+        assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
+
+        let view2 = view1.view(1, 1, 1, 1);
+        assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
     }
 }

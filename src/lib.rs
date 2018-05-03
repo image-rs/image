@@ -31,6 +31,7 @@ pub use color::{Luma, LumaA, Rgb, Rgba};
 
 pub use image::{DecodingResult,
                 GenericImage,
+                GenericImageView,
                 ImageDecoder,
                 ImageError,
                 ImageResult,

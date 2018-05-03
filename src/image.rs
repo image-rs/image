@@ -497,7 +497,7 @@ pub trait GenericImage: GenericImageView + Sized {
     /// be copied due to size constraints.
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> bool
     where
-        O: GenericImage<Pixel = Self::Pixel>,
+        O: GenericImageView<Pixel = Self::Pixel>,
     {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.

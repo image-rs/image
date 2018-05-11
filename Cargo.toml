@@ -9,7 +9,8 @@ authors = [
     "nwin",
     "TyOverby <ty@pre-alpha.com>",
     "HeroicKatora",
-    "Calum"]
+    "Calum",
+    "CensoredUsername <cens.username@gmail.com>"]
 readme = "README.md"
 documentation = "https://docs.rs/image"
 repository = "https://github.com/PistonDevelopers/image.git"

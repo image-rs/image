@@ -2,7 +2,7 @@
 
 use buffer::{ImageBuffer, Pixel};
 use color::{Luma, Rgba};
-use image::GenericImage;
+use image::{GenericImage, GenericImageView};
 use math::nq;
 use math::utils::clamp;
 use num_traits::{Num, NumCast};
@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 use traits::Primitive;
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<I: GenericImage>(
+pub fn grayscale<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
@@ -50,7 +50,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 /// Negative values decrease the contrast and positive values increase the contrast.
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -85,7 +85,7 @@ where
 /// Negative values decrease the brightness and positive values increase it.
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -120,7 +120,7 @@ where
 /// just like the css webkit filter hue-rotate(180)
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {

@@ -5,6 +5,24 @@
 //!  # Related Links
 //!  * <http://www.w3.org/Graphics/GIF/spec-gif89a.txt> - The GIF Specification
 //!
+//! # Examples
+//! ```rust,no_run
+//! use image::gif::{Decoder, Encoder};
+//! use image::ImageDecoder;
+//! use std::fs::File;
+//! # fn main() -> std::io::Result<()> {
+//! // Decode a gif into frames
+//! let file_in = File::open("foo.gif")?;
+//! let mut decoder = Decoder::new(file_in);
+//! let frames = decoder.into_frames().expect("error decoding gif");
+//!
+//! // Encode frames into a gif and save to a file
+//! let mut file_out = File::open("out.gif")?;
+//! let mut encoder = Encoder::new(file_out);
+//! encoder.encode_frames(frames);
+//! # Ok(())
+//! # }
+//! ```
 
 extern crate gif;
 extern crate num_rational;
@@ -15,7 +33,7 @@ use std::io::{Read, Write};
 use self::gif::{ColorOutput, SetParameter};
 pub use self::gif::{DisposalMethod, Frame};
 
-use animation::{Frame as Image_Frame, Frames as Image_Frames};
+use animation;
 use buffer::{ImageBuffer, Pixel};
 use color;
 use color::Rgba;
@@ -96,7 +114,7 @@ impl<R: Read> ImageDecoder for Decoder<R> {
         Ok(true)
     }
 
-    fn into_frames(mut self) -> ImageResult<Image_Frames> {
+    fn into_frames(mut self) -> ImageResult<animation::Frames> {
         let reader = try!(self.get_reader());
         let width = u32::from(reader.width());
         let height = u32::from(reader.height());
@@ -177,7 +195,7 @@ impl<R: Read> ImageDecoder for Decoder<R> {
                     }
                 }
 
-                let frame = Image_Frame::from_parts(image_buffer.clone(), left, top, delay);
+                let frame = animation::Frame::from_parts(image_buffer.clone(), left, top, delay);
                 frames.push(frame);
 
                 match dispose {
@@ -202,24 +220,56 @@ impl<R: Read> ImageDecoder for Decoder<R> {
                 };
             };
         }
-        Ok(Image_Frames::new(frames))
+        Ok(animation::Frames::new(frames))
     }
 }
 
 /// GIF encoder.
 pub struct Encoder<W: Write> {
-    w: W,
+    w: Option<W>,
+    gif_encoder: Option<gif::Encoder<W>>,
 }
 
 impl<W: Write> Encoder<W> {
     /// Creates a new GIF encoder.
     pub fn new(w: W) -> Encoder<W> {
-        Encoder { w }
+        Encoder {
+            w: Some(w),
+            gif_encoder: None,
+        }
     }
     /// Encodes a frame.
-    pub fn encode(self, frame: Frame) -> ImageResult<()> {
-        let mut encoder = try!(gif::Encoder::new(self.w, frame.width, frame.height, &[]));
-        encoder.write_frame(&frame).map_err(|err| err.into())
+    pub fn encode(&mut self, frame: &Frame) -> ImageResult<()> {
+        let result;
+        if let Some(ref mut encoder) = self.gif_encoder {
+            result = encoder.write_frame(frame).map_err(|err| err.into());
+        } else {
+            let writer = self.w.take().unwrap();
+            let mut encoder = try!(gif::Encoder::new(writer, frame.width, frame.height, &[]));
+            result = encoder.write_frame(&frame).map_err(|err| err.into());
+            self.gif_encoder = Some(encoder);
+        }
+        result
+    }
+    /// Encodes Frames.
+    pub fn encode_frames(&mut self, frames: animation::Frames) -> ImageResult<()> {
+        for img_frame in frames {
+            // get the delay before coverting img_frame
+            let frame_delay = img_frame.delay().to_integer();
+            // convert img_frame into RgbaImage
+            let rbga_frame = img_frame.into_buffer();
+
+            // Create the gif::Frame from the animation::Frame
+            let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
+            frame.delay = frame_delay;
+
+            // encode the gif::Frame
+            match self.encode(&frame).map_err(|err| err.into()) {
+                Ok(()) => (),
+                Err(e) => return Err(e),
+            };
+        }
+        Ok(())
     }
 }
 

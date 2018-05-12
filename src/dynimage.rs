@@ -421,9 +421,9 @@ impl DynamicImage {
 
             #[cfg(feature = "gif_codec")]
             image::ImageOutputFormat::GIF => {
-                let g = gif::Encoder::new(w);
+                let mut g = gif::Encoder::new(w);
 
-                try!(g.encode(gif::Frame::from_rgba(
+                try!(g.encode(&gif::Frame::from_rgba(
                     width as u16,
                     height as u16,
                     &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>()

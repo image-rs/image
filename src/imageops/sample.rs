@@ -359,8 +359,10 @@ where
                     }
                 }
 
-                let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
-                let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
+                let n = <S::Larger as NumCast>::from(
+                    (right - left) * (top - bottom)).unwrap();
+                let round = <S::Larger as NumCast>::from(
+                    n / NumCast::from(2).unwrap()).unwrap();
                 (
                     S::clamp_from((sum.0 + round)/n),
                     S::clamp_from((sum.1 + round)/n),
@@ -368,8 +370,10 @@ where
                     S::clamp_from((sum.3 + round)/n),
                 )
             } else if bottom != top {  // && left == right
-                // Can not occur in the first line because then bottom == 0 and top was a ceil result
-                debug_assert!(left > 0 && right > 0);
+                // In the first column we have left == 0 and right > ceil(y_scale) > 0 so this
+                // assertion can never trigger.
+                debug_assert!(left > 0 && right > 0,
+                    "First output column must have corresponding pixels");
 
                 let fract = (leftf.fract() + leftf.fract())/2.;
 
@@ -383,24 +387,27 @@ where
                     add_pixel(&mut sum_right, k_right);
                 }
 
-                // Now we approximate bot/n*fract + top/n*(1-fract)
+                // Now we approximate: bot/n*fract + top/n*(1-fract)
                 let fact_right =       fract /((top - bottom) as f32);
                 let fact_left  = (1. - fract)/((top - bottom) as f32);
                 
                 let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| 
-                    <S::Larger as NumCast>::from(
-                        leftv.to_f32().unwrap()*fact_left + rightv.to_f32().unwrap()*fact_right
-                    ).unwrap();
+                    <S as NumCast>::from(
+                        fact_left * leftv.to_f32().unwrap() +
+                        fact_right * rightv.to_f32().unwrap()
+                    ).expect("Average sample value should fit into sample type");
 
                 (
-                    S::clamp_from(mix_left_and_right(sum_left.0, sum_right.0)),
-                    S::clamp_from(mix_left_and_right(sum_left.1, sum_right.1)),
-                    S::clamp_from(mix_left_and_right(sum_left.2, sum_right.2)),
-                    S::clamp_from(mix_left_and_right(sum_left.3, sum_right.3)),
+                    mix_left_and_right(sum_left.0, sum_right.0),
+                    mix_left_and_right(sum_left.1, sum_right.1),
+                    mix_left_and_right(sum_left.2, sum_right.2),
+                    mix_left_and_right(sum_left.3, sum_right.3),
                 )
             } else if left != right {  // && bottom == top
-                // Can not occur in the first line because then bottom == 0 and top was a ceil result
-                debug_assert!(bottom > 0 && top > 0);
+                // In the first line we have bottom == 0 and top > ceil(x_scale) > 0 so this
+                // assertion can never trigger.
+                debug_assert!(bottom > 0 && top > 0,
+                    "First output row must have corresponding pixels");
 
                 let fract = (topf.fract() + bottomf.fract())/2.;
 
@@ -414,15 +421,15 @@ where
                     add_pixel(&mut sum_top, k_top);
                 }
 
-                // Now we approximate bot/n*fract + top/n*(1-fract)
+                // Now we approximate: bot/n*fract + top/n*(1-fract)
                 let fact_top =       fract /((right - left) as f32);
                 let fact_bot = (1. - fract)/((right - left) as f32);
                 
                 let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| 
-                    S::clamp_from(<S::Larger as NumCast>::from(
-                        fact_bot*botv.to_f32().unwrap() + 
-                        fact_top*topv.to_f32().unwrap()
-                    ).unwrap());
+                    <S as NumCast>::from(
+                        fact_bot * botv.to_f32().unwrap() +
+                        fact_top * topv.to_f32().unwrap()
+                    ).expect("Average sample value should fit into sample type");
 
                 (
                     mix_bot_and_top(sum_bot.0, sum_top.0),
@@ -432,10 +439,10 @@ where
                 )
 
             } else {  // bottom == top && left == right
-                let k1 = image.get_pixel(right - 1, top - 1).channels4();
-                let k2 = image.get_pixel(right - 1, top).channels4();
-                let k3 = image.get_pixel(right, top - 1).channels4();
-                let k4 = image.get_pixel(right, top).channels4();
+                let k_br = image.get_pixel(right - 1, top - 1).channels4();
+                let k_tr = image.get_pixel(right - 1, top    ).channels4();
+                let k_bl = image.get_pixel(right,     top - 1).channels4();
+                let k_tl = image.get_pixel(right,     top    ).channels4();
                 
                 let frac_v = (topf.fract() + bottomf.fract())/2.;
                 let frac_h = (rightf.fract() + rightf.fract())/2.;
@@ -447,25 +454,22 @@ where
 
                 let mix = |br: S, tr: S, bl: S, tl: S|
                     <S as NumCast>::from(
-                        fact_br*br.to_f32().unwrap() +
-                        fact_tr*tr.to_f32().unwrap() +
-                        fact_bl*bl.to_f32().unwrap() +
-                        fact_tl*tl.to_f32().unwrap()
-                    ).unwrap();
+                        fact_br * br.to_f32().unwrap() +
+                        fact_tr * tr.to_f32().unwrap() +
+                        fact_bl * bl.to_f32().unwrap() +
+                        fact_tl * tl.to_f32().unwrap()
+                    ).expect("Average sample value should fit into sample type");
                 
                 (
-                    mix(k1.0, k2.0, k3.0, k4.0),
-                    mix(k1.1, k2.1, k3.1, k4.1),
-                    mix(k1.2, k2.2, k3.2, k4.2),
-                    mix(k1.3, k2.3, k3.3, k4.3),
+                    mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
+                    mix(k_br.1, k_tr.1, k_bl.1, k_tl.1),
+                    mix(k_br.2, k_tr.2, k_bl.2, k_tl.2),
+                    mix(k_br.3, k_tr.3, k_bl.3, k_tl.3),
                 )
             };
 
-            out.put_pixel(
-                outx,
-                outy,
-                Pixel::from_channels(avg.0, avg.1, avg.2, avg.3),
-            );
+            let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
+            out.put_pixel(outx, outy, pixel);
         }
     }
 

@@ -299,18 +299,18 @@ where
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;
 
-    let mut top = 1;
+    let mut top = 0;
     for outy in 0..new_height {
-        let bottom = top - 1;
+        let bottom = top;
         top = clamp(
             ((outy + 1) as f32 * y_ratio).round() as u32,
             bottom + 1,
             height,
         );
 
-        let mut right = 1;
+        let mut right = 0;
         for outx in 0..new_width {
-            let left = right - 1;
+            let left = right;
             right = clamp(
                 ((outx + 1) as f32 * x_ratio).round() as u32,
                 left + 1,

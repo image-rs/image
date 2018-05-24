@@ -375,7 +375,7 @@ where
                 debug_assert!(left > 0 && right > 0,
                     "First output column must have corresponding pixels");
 
-                let fract = (leftf.fract() + leftf.fract())/2.;
+                let fract = (leftf.fract() + rightf.fract())/2.;
 
                 let mut sum_left = zero_sum();
                 let mut sum_right = zero_sum();
@@ -387,7 +387,7 @@ where
                     add_pixel(&mut sum_right, k_right);
                 }
 
-                // Now we approximate: bot/n*fract + top/n*(1-fract)
+                // Now we approximate: left/n*(1-fract) + right/n*fract
                 let fact_right =       fract /((top - bottom) as f32);
                 let fact_left  = (1. - fract)/((top - bottom) as f32);
                 
@@ -439,13 +439,13 @@ where
                 )
 
             } else {  // bottom == top && left == right
-                let k_br = image.get_pixel(right - 1, top - 1).channels4();
-                let k_tr = image.get_pixel(right - 1, top    ).channels4();
-                let k_bl = image.get_pixel(right,     top - 1).channels4();
-                let k_tl = image.get_pixel(right,     top    ).channels4();
+                let k_bl = image.get_pixel(right - 1, top - 1).channels4();
+                let k_tl = image.get_pixel(right - 1, top    ).channels4();
+                let k_br = image.get_pixel(right,     top - 1).channels4();
+                let k_tr = image.get_pixel(right,     top    ).channels4();
                 
                 let frac_v = (topf.fract() + bottomf.fract())/2.;
-                let frac_h = (rightf.fract() + rightf.fract())/2.;
+                let frac_h = (leftf.fract() + rightf.fract())/2.;
 
                 let fact_tr = frac_v        * frac_h;
                 let fact_tl = frac_v        * (1. - frac_h);
@@ -466,6 +466,7 @@ where
                     mix(k_br.2, k_tr.2, k_bl.2, k_tl.2),
                     mix(k_br.3, k_tr.3, k_bl.3, k_tl.3),
                 )
+                // (<S as NumCast>::from(0).unwrap(),<S as NumCast>::from(0).unwrap(),<S as NumCast>::from(0).unwrap(),<S as NumCast>::from(0).unwrap(),)
             };
 
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);

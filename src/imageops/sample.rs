@@ -296,52 +296,112 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
 
+	let sample_val = |val: S| <S::Larger as NumCast>::from(val).unwrap();
+
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;
 
-    let mut top = 0;
     for outy in 0..new_height {
-        let bottom = top;
-        top = clamp(
-            ((outy + 1) as f32 * y_ratio).round() as u32,
-            bottom + 1,
+		let bottomf = outy as f32 * y_ratio;
+		let topf = bottomf + y_ratio;
+
+        let bottom = bottomf.ceil() as u32;
+        let top = clamp(
+            topf.ceil() as u32,
+            bottom,
             height,
         );
 
-        let mut right = 0;
         for outx in 0..new_width {
-            let left = right;
-            right = clamp(
-                ((outx + 1) as f32 * x_ratio).round() as u32,
-                left + 1,
+			let leftf = outx as f32 * x_ratio;
+			let rightf = leftf + x_ratio;
+
+			let left = leftf.ceil() as u32;
+            let right = clamp(
+                rightf.ceil() as u32,
+                left,
                 width,
             );
 
-            let mut sum = (
-                S::Larger::zero(),
-                S::Larger::zero(),
-                S::Larger::zero(),
-                S::Larger::zero(),
-            );
-            for y in bottom..top {
-                for x in left..right {
-                    let k = image.get_pixel(x, y).channels4();
-                    sum.0 += NumCast::from(k.0).unwrap();
-                    sum.1 += NumCast::from(k.1).unwrap();
-                    sum.2 += NumCast::from(k.2).unwrap();
-                    sum.3 += NumCast::from(k.3).unwrap();
-                }
-            }
-            let n = NumCast::from((right - left) * (top - bottom)).unwrap();
-            let round = NumCast::from(n / NumCast::from(2).unwrap()).unwrap();
+			let avg = if bottom != top {
+				if left != right {
+					let mut sum = (
+						S::Larger::zero(),
+						S::Larger::zero(),
+						S::Larger::zero(),
+						S::Larger::zero(),
+					);
+
+					for y in bottom..top {
+						for x in left..right {
+							let k = image.get_pixel(x, y).channels4();
+							sum.0 += sample_val(k.0);
+							sum.1 += sample_val(k.1);
+							sum.2 += sample_val(k.2);
+							sum.3 += sample_val(k.3);
+						}
+					}
+
+					let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
+					let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
+					(
+						(sum.0 + round)/n,
+						(sum.1 + round)/n,
+						(sum.2 + round)/n,
+						(sum.3 + round)/n,
+					)
+				} else {  // left == right
+					unimplemented!()
+				}
+			} else {  // bottom == top
+				let sum = (
+					S::Larger::zero(),
+					S::Larger::zero(),
+					S::Larger::zero(),
+					S::Larger::zero(),
+				);
+
+				debug_assert!(bottom > 0 && top > 0);
+				let fract = (topf.fract() + bottomf.fract())/2.;
+
+				if left != right {
+					let mut sum_bot = sum.clone();
+					let mut sum_top = sum.clone();
+					for x in left..right {
+						let k_bot = image.get_pixel(x, top - 1).channels4();
+						let k_top = image.get_pixel(x, top).channels4();
+						
+						sum_bot.0 += sample_val(k_bot.0);
+						sum_bot.1 += sample_val(k_bot.1);
+						sum_bot.2 += sample_val(k_bot.2);
+						sum_bot.3 += sample_val(k_bot.3);
+						
+						sum_top.0 += sample_val(k_top.0);
+						sum_top.1 += sample_val(k_top.1);
+						sum_top.2 += sample_val(k_top.2);
+						sum_top.3 += sample_val(k_top.3);
+					}
+
+					unimplemented!()
+				} else {  // left == right
+					debug_assert!(left > 0 && right > 0);
+					let k1 = image.get_pixel(right - 1, top - 1).channels4();
+					let k2 = image.get_pixel(right - 1, top).channels4();
+					let k3 = image.get_pixel(right, top - 1).channels4();
+					let k4 = image.get_pixel(right, top).channels4();
+					
+					unimplemented!()
+				}
+			};
+
             out.put_pixel(
                 outx,
                 outy,
                 Pixel::from_channels(
-                    S::clamp_from((sum.0 + round) / n),
-                    S::clamp_from((sum.1 + round) / n),
-                    S::clamp_from((sum.2 + round) / n),
-                    S::clamp_from((sum.3 + round) / n),
+                    S::clamp_from(avg.0),
+                    S::clamp_from(avg.1),
+                    S::clamp_from(avg.2),
+                    S::clamp_from(avg.3),
                 ),
             );
         }

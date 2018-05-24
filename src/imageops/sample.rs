@@ -293,10 +293,28 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
+    // An initial value for summing up pixels of the image.
+    let zero_sum = || (S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero());
+
+    // Get a sample of a pixel as a value for the sum.
+    fn sample_val<S: Primitive + Enlargeable>(val: S) -> S::Larger {
+        <S::Larger as NumCast>::from(val).unwrap()
+    }
+
+    // Add a pixel of an image to a pixel sum.
+    fn add_pixel<S: Primitive + Enlargeable, P: Pixel<Subpixel = S>>(
+        sum: &mut (S::Larger, S::Larger, S::Larger, S::Larger),
+        pixel: P)
+    {
+        let pixel = pixel.channels4();
+        sum.0 += sample_val(pixel.0);
+        sum.1 += sample_val(pixel.1);
+        sum.2 += sample_val(pixel.2);
+        sum.3 += sample_val(pixel.3);
+    }
+
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
-
-    let sample_val = |val: S| <S::Larger as NumCast>::from(val).unwrap();
 
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;
@@ -332,20 +350,12 @@ where
             );
 
             let avg = if bottom != top && left != right {
-                let mut sum = (
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                );
+                let mut sum = zero_sum();
 
                 for y in bottom..top {
                     for x in left..right {
-                        let k = image.get_pixel(x, y).channels4();
-                        sum.0 += sample_val(k.0);
-                        sum.1 += sample_val(k.1);
-                        sum.2 += sample_val(k.2);
-                        sum.3 += sample_val(k.3);
+                        let k = image.get_pixel(x, y);
+                        add_pixel(&mut sum, k);
                     }
                 }
 
@@ -358,33 +368,19 @@ where
                     S::clamp_from((sum.3 + round)/n),
                 )
             } else if bottom != top {  // && left == right
-                let sum = (
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                );
-
                 // Can not occur in the first line because then bottom == 0 and top was a ceil result
                 debug_assert!(left > 0 && right > 0);
 
                 let fract = (leftf.fract() + leftf.fract())/2.;
 
-                let mut sum_left = sum.clone();
-                let mut sum_right = sum.clone();
+                let mut sum_left = zero_sum();
+                let mut sum_right = zero_sum();
                 for x in bottom..top {
-                    let k_left = image.get_pixel(right - 1, x).channels4();
-                    let k_right = image.get_pixel(right, x).channels4();
-                    
-                    sum_left.0 += sample_val(k_left.0);
-                    sum_left.1 += sample_val(k_left.1);
-                    sum_left.2 += sample_val(k_left.2);
-                    sum_left.3 += sample_val(k_left.3);
-                    
-                    sum_right.0 += sample_val(k_right.0);
-                    sum_right.1 += sample_val(k_right.1);
-                    sum_right.2 += sample_val(k_right.2);
-                    sum_right.3 += sample_val(k_right.3);
+                    let k_left = image.get_pixel(right - 1, x);
+                    add_pixel(&mut sum_left, k_left);
+
+                    let k_right = image.get_pixel(right, x);
+                    add_pixel(&mut sum_right, k_right);
                 }
 
                 // Now we approximate bot/n*fract + top/n*(1-fract)
@@ -403,33 +399,19 @@ where
                     S::clamp_from(mix_left_and_right(sum_left.3, sum_right.3)),
                 )
             } else if left != right {  // && bottom == top
-                let sum = (
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                    S::Larger::zero(),
-                );
-
                 // Can not occur in the first line because then bottom == 0 and top was a ceil result
                 debug_assert!(bottom > 0 && top > 0);
 
                 let fract = (topf.fract() + bottomf.fract())/2.;
 
-                let mut sum_bot = sum.clone();
-                let mut sum_top = sum.clone();
+                let mut sum_bot = zero_sum();
+                let mut sum_top = zero_sum();
                 for x in left..right {
-                    let k_bot = image.get_pixel(x, top - 1).channels4();
-                    let k_top = image.get_pixel(x, top).channels4();
-                    
-                    sum_bot.0 += sample_val(k_bot.0);
-                    sum_bot.1 += sample_val(k_bot.1);
-                    sum_bot.2 += sample_val(k_bot.2);
-                    sum_bot.3 += sample_val(k_bot.3);
-                    
-                    sum_top.0 += sample_val(k_top.0);
-                    sum_top.1 += sample_val(k_top.1);
-                    sum_top.2 += sample_val(k_top.2);
-                    sum_top.3 += sample_val(k_top.3);
+                    let k_bot = image.get_pixel(x, top - 1);
+                    add_pixel(&mut sum_bot, k_bot);
+
+                    let k_top = image.get_pixel(x, top);
+                    add_pixel(&mut sum_top, k_top);
                 }
 
                 // Now we approximate bot/n*fract + top/n*(1-fract)
@@ -437,15 +419,16 @@ where
                 let fact_bot = (1. - fract)/((right - left) as f32);
                 
                 let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| 
-                    <S::Larger as NumCast>::from(
-                        botv.to_f32().unwrap()*fact_bot + topv.to_f32().unwrap()*fact_top
-                    ).unwrap();
+                    S::clamp_from(<S::Larger as NumCast>::from(
+                        fact_bot*botv.to_f32().unwrap() + 
+                        fact_top*topv.to_f32().unwrap()
+                    ).unwrap());
 
                 (
-                    S::clamp_from(mix_bot_and_top(sum_bot.0, sum_top.0)),
-                    S::clamp_from(mix_bot_and_top(sum_bot.1, sum_top.1)),
-                    S::clamp_from(mix_bot_and_top(sum_bot.2, sum_top.2)),
-                    S::clamp_from(mix_bot_and_top(sum_bot.3, sum_top.3)),
+                    mix_bot_and_top(sum_bot.0, sum_top.0),
+                    mix_bot_and_top(sum_bot.1, sum_top.1),
+                    mix_bot_and_top(sum_bot.2, sum_top.2),
+                    mix_bot_and_top(sum_bot.3, sum_top.3),
                 )
 
             } else {  // bottom == top && left == right

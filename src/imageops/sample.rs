@@ -286,6 +286,27 @@ where
     out
 }
 
+/// Local struct for keeping track of pixel sums for fast thumbnail averaging
+struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+
+impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
+    fn zeroed() -> Self {
+        ThumbnailSum(S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero())
+    }
+
+    fn sample_val(val: S) -> S::Larger {
+        <S::Larger as NumCast>::from(val).unwrap()
+    }
+
+    fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+        let pixel = pixel.channels4();
+        self.0 += Self::sample_val(pixel.0);
+        self.1 += Self::sample_val(pixel.1);
+        self.2 += Self::sample_val(pixel.2);
+        self.3 += Self::sample_val(pixel.3);
+    }
+}
+
 /// Resize the supplied image down to the specific dimensions.
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
@@ -293,26 +314,6 @@ where
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
-    // An initial value for summing up pixels of the image.
-    let zero_sum = || (S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero());
-
-    // Get a sample of a pixel as a value for the sum.
-    fn sample_val<S: Primitive + Enlargeable>(val: S) -> S::Larger {
-        <S::Larger as NumCast>::from(val).unwrap()
-    }
-
-    // Add a pixel of an image to a pixel sum.
-    fn add_pixel<S: Primitive + Enlargeable, P: Pixel<Subpixel = S>>(
-        sum: &mut (S::Larger, S::Larger, S::Larger, S::Larger),
-        pixel: P)
-    {
-        let pixel = pixel.channels4();
-        sum.0 += sample_val(pixel.0);
-        sum.1 += sample_val(pixel.1);
-        sum.2 += sample_val(pixel.2);
-        sum.3 += sample_val(pixel.3);
-    }
-
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, new_height);
 
@@ -350,12 +351,12 @@ where
             );
 
             let avg = if bottom != top && left != right {
-                let mut sum = zero_sum();
+                let mut sum = ThumbnailSum::zeroed();
 
                 for y in bottom..top {
                     for x in left..right {
                         let k = image.get_pixel(x, y);
-                        add_pixel(&mut sum, k);
+                        sum.add_pixel(k);
                     }
                 }
 
@@ -377,14 +378,14 @@ where
 
                 let fract = (leftf.fract() + rightf.fract())/2.;
 
-                let mut sum_left = zero_sum();
-                let mut sum_right = zero_sum();
+                let mut sum_left = ThumbnailSum::zeroed();
+                let mut sum_right = ThumbnailSum::zeroed();
                 for x in bottom..top {
                     let k_left = image.get_pixel(right - 1, x);
-                    add_pixel(&mut sum_left, k_left);
+                    sum_left.add_pixel(k_left);
 
                     let k_right = image.get_pixel(right, x);
-                    add_pixel(&mut sum_right, k_right);
+                    sum_right.add_pixel(k_right);
                 }
 
                 // Now we approximate: left/n*(1-fract) + right/n*fract
@@ -411,14 +412,14 @@ where
 
                 let fract = (topf.fract() + bottomf.fract())/2.;
 
-                let mut sum_bot = zero_sum();
-                let mut sum_top = zero_sum();
+                let mut sum_bot = ThumbnailSum::zeroed();
+                let mut sum_top = ThumbnailSum::zeroed();
                 for x in left..right {
                     let k_bot = image.get_pixel(x, top - 1);
-                    add_pixel(&mut sum_bot, k_bot);
+                    sum_bot.add_pixel(k_bot);
 
                     let k_top = image.get_pixel(x, top);
-                    add_pixel(&mut sum_top, k_top);
+                    sum_top.add_pixel(k_top);
                 }
 
                 // Now we approximate: bot/n*fract + top/n*(1-fract)

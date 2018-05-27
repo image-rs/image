@@ -772,4 +772,36 @@ mod tests {
         let _ = resize(&img, 50, 50, FilterType::Lanczos3);
     }
 
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap();
+        b.iter(|| {
+            test::black_box(image.thumbnail(256, 256));
+        });
+        b.bytes = 512 * 512 * 4 + 256 * 256 * 4;
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail_upsize(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap().thumbnail(256, 256);
+        b.iter(|| {
+            test::black_box(image.thumbnail(512, 512));
+        });
+        b.bytes = 512 * 512 * 4 + 256 * 256 * 4;
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap().thumbnail(193, 193);
+        b.iter(|| {
+            test::black_box(image.thumbnail(256, 256));
+        });
+        b.bytes = 193 * 193 * 4 + 256 * 256 * 4;
+    }
 }

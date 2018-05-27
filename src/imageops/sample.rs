@@ -307,7 +307,18 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 }
 
-/// Resize the supplied image down to the specific dimensions.
+/// Resize the supplied image to the specific dimensions.
+///
+/// For downscaling, this method uses a fast integer algorithm where each source pixel contributes
+/// to exactly one target pixel.  May give aliasing artifacts if new size is close to old size.
+///
+/// In case the current width is smaller than the new width or similar for the height, another
+/// strategy is used instead.  For each pixel in the output, a rectangular region of the input is
+/// determined, just as previously.  But when no input pixel is part of this region, the nearest
+/// pixels are interpolated instead.
+///
+/// For speed reasons, all interpolation is performed linearly over the colour values.  It will not
+/// take the pixel colour spaces into account.
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImage<Pixel = P>,
@@ -417,6 +428,7 @@ where
     )
 }
 
+/// Get a thumbnail pixel where the input window encloses at least a vertical pixel.
 fn thumbnail_sample_fraction_horizontal<I, P, S>(
     image: &I,
     left: u32,

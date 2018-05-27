@@ -5,7 +5,7 @@
 
 use std::f32;
 
-use num_traits::{NumCast, Zero};
+use num_traits::{NumCast, ToPrimitive, Zero};
 
 use buffer::{ImageBuffer, Pixel};
 use image::GenericImageView;
@@ -286,7 +286,39 @@ where
     out
 }
 
-/// Resize the supplied image down to the specific dimensions.
+/// Local struct for keeping track of pixel sums for fast thumbnail averaging
+struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger, S::Larger);
+
+impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
+    fn zeroed() -> Self {
+        ThumbnailSum(S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero())
+    }
+
+    fn sample_val(val: S) -> S::Larger {
+        <S::Larger as NumCast>::from(val).unwrap()
+    }
+
+    fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+        let pixel = pixel.channels4();
+        self.0 += Self::sample_val(pixel.0);
+        self.1 += Self::sample_val(pixel.1);
+        self.2 += Self::sample_val(pixel.2);
+        self.3 += Self::sample_val(pixel.3);
+    }
+}
+
+/// Resize the supplied image to the specific dimensions.
+///
+/// For downscaling, this method uses a fast integer algorithm where each source pixel contributes
+/// to exactly one target pixel.  May give aliasing artifacts if new size is close to old size.
+///
+/// In case the current width is smaller than the new width or similar for the height, another
+/// strategy is used instead.  For each pixel in the output, a rectangular region of the input is
+/// determined, just as previously.  But when no input pixel is part of this region, the nearest
+/// pixels are interpolated instead.
+///
+/// For speed reasons, all interpolation is performed linearly over the colour values.  It will not
+/// take the pixel colour spaces into account.
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -299,55 +331,229 @@ where
     let x_ratio = width as f32 / new_width as f32;
     let y_ratio = height as f32 / new_height as f32;
 
-    let mut top = 0;
     for outy in 0..new_height {
-        let bottom = top;
-        top = clamp(
-            ((outy + 1) as f32 * y_ratio).round() as u32,
-            bottom + 1,
+        let bottomf = outy as f32 * y_ratio;
+        let topf = bottomf + y_ratio;
+
+        let bottom = clamp(
+            bottomf.ceil() as u32,
+            0,
+            height - 1,
+        );
+        let top = clamp(
+            topf.ceil() as u32,
+            bottom,
             height,
         );
 
-        let mut right = 0;
         for outx in 0..new_width {
-            let left = right;
-            right = clamp(
-                ((outx + 1) as f32 * x_ratio).round() as u32,
-                left + 1,
+            let leftf = outx as f32 * x_ratio;
+            let rightf = leftf + x_ratio;
+
+            let left = clamp(
+                leftf.ceil() as u32,
+                0,
+                width - 1,
+            );
+            let right = clamp(
+                rightf.ceil() as u32,
+                left,
                 width,
             );
 
-            let mut sum = (
-                S::Larger::zero(),
-                S::Larger::zero(),
-                S::Larger::zero(),
-                S::Larger::zero(),
-            );
-            for y in bottom..top {
-                for x in left..right {
-                    let k = image.get_pixel(x, y).channels4();
-                    sum.0 += NumCast::from(k.0).unwrap();
-                    sum.1 += NumCast::from(k.1).unwrap();
-                    sum.2 += NumCast::from(k.2).unwrap();
-                    sum.3 += NumCast::from(k.3).unwrap();
-                }
-            }
-            let n = NumCast::from((right - left) * (top - bottom)).unwrap();
-            let round = NumCast::from(n / NumCast::from(2).unwrap()).unwrap();
-            out.put_pixel(
-                outx,
-                outy,
-                Pixel::from_channels(
-                    S::clamp_from((sum.0 + round) / n),
-                    S::clamp_from((sum.1 + round) / n),
-                    S::clamp_from((sum.2 + round) / n),
-                    S::clamp_from((sum.3 + round) / n),
-                ),
-            );
+            let avg = if bottom != top && left != right {
+                thumbnail_sample_block(image, left, right, bottom, top)
+            } else if bottom != top {  // && left == right
+                // In the first column we have left == 0 and right > ceil(y_scale) > 0 so this
+                // assertion can never trigger.
+                debug_assert!(left > 0 && right > 0,
+                    "First output column must have corresponding pixels");
+
+                let fraction_horizontal = (leftf.fract() + rightf.fract())/2.;
+                thumbnail_sample_fraction_horizontal(image, right - 1, fraction_horizontal, bottom, top)
+            } else if left != right {  // && bottom == top
+                // In the first line we have bottom == 0 and top > ceil(x_scale) > 0 so this
+                // assertion can never trigger.
+                debug_assert!(bottom > 0 && top > 0,
+                    "First output row must have corresponding pixels");
+
+                let fraction_vertical = (topf.fract() + bottomf.fract())/2.;
+                thumbnail_sample_fraction_vertical(image, left, right, top - 1, fraction_vertical)
+            } else {  // bottom == top && left == right
+                let fraction_horizontal = (topf.fract() + bottomf.fract())/2.;
+                let fraction_vertical= (leftf.fract() + rightf.fract())/2.;
+
+                thumbnail_sample_fraction_both(image, right - 1, fraction_horizontal, top - 1, fraction_vertical)
+            };
+
+            let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
+            out.put_pixel(outx, outy, pixel);
         }
     }
 
     out
+}
+
+/// Get a pixel for a thumbnail where the input window encloses at least a full pixel.
+fn thumbnail_sample_block<I, P, S>(
+    image: &I,
+    left: u32,
+    right: u32, 
+    bottom: u32,
+    top: u32,
+) -> (S, S, S, S)
+where
+    I: GenericImageView<Pixel = P>,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
+{
+    let mut sum = ThumbnailSum::zeroed();
+
+    for y in bottom..top {
+        for x in left..right {
+            let k = image.get_pixel(x, y);
+            sum.add_pixel(k);
+        }
+    }
+
+    let n = <S::Larger as NumCast>::from(
+        (right - left) * (top - bottom)).unwrap();
+    let round = <S::Larger as NumCast>::from(
+        n / NumCast::from(2).unwrap()).unwrap();
+    (
+        S::clamp_from((sum.0 + round)/n),
+        S::clamp_from((sum.1 + round)/n),
+        S::clamp_from((sum.2 + round)/n),
+        S::clamp_from((sum.3 + round)/n),
+    )
+}
+
+/// Get a thumbnail pixel where the input window encloses at least a vertical pixel.
+fn thumbnail_sample_fraction_horizontal<I, P, S>(
+    image: &I,
+    left: u32,
+    fraction_horizontal: f32, 
+    bottom: u32,
+    top: u32,
+) -> (S, S, S, S)
+where
+    I: GenericImageView<Pixel = P>,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
+{
+    let fract = fraction_horizontal;
+
+    let mut sum_left = ThumbnailSum::zeroed();
+    let mut sum_right = ThumbnailSum::zeroed();
+    for x in bottom..top {
+        let k_left = image.get_pixel(left, x);
+        sum_left.add_pixel(k_left);
+
+        let k_right = image.get_pixel(left + 1, x);
+        sum_right.add_pixel(k_right);
+    }
+
+    // Now we approximate: left/n*(1-fract) + right/n*fract
+    let fact_right =       fract /((top - bottom) as f32);
+    let fact_left  = (1. - fract)/((top - bottom) as f32);
+    
+    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| 
+        <S as NumCast>::from(
+            fact_left * leftv.to_f32().unwrap() +
+            fact_right * rightv.to_f32().unwrap()
+        ).expect("Average sample value should fit into sample type");
+
+    (
+        mix_left_and_right(sum_left.0, sum_right.0),
+        mix_left_and_right(sum_left.1, sum_right.1),
+        mix_left_and_right(sum_left.2, sum_right.2),
+        mix_left_and_right(sum_left.3, sum_right.3),
+    )
+}
+
+/// Get a thumbnail pixel where the input window encloses at least a horizontal pixel.
+fn thumbnail_sample_fraction_vertical<I, P, S>(
+    image: &I,
+    left: u32,
+    right: u32, 
+    bottom: u32,
+    fraction_vertical: f32,
+) -> (S, S, S, S)
+where
+    I: GenericImageView<Pixel = P>,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
+{
+    let fract = fraction_vertical;
+
+    let mut sum_bot = ThumbnailSum::zeroed();
+    let mut sum_top = ThumbnailSum::zeroed();
+    for x in left..right {
+        let k_bot = image.get_pixel(x, bottom);
+        sum_bot.add_pixel(k_bot);
+
+        let k_top = image.get_pixel(x, bottom + 1);
+        sum_top.add_pixel(k_top);
+    }
+
+    // Now we approximate: bot/n*fract + top/n*(1-fract)
+    let fact_top =       fract /((right - left) as f32);
+    let fact_bot = (1. - fract)/((right - left) as f32);
+    
+    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| 
+        <S as NumCast>::from(
+            fact_bot * botv.to_f32().unwrap() +
+            fact_top * topv.to_f32().unwrap()
+        ).expect("Average sample value should fit into sample type");
+
+    (
+        mix_bot_and_top(sum_bot.0, sum_top.0),
+        mix_bot_and_top(sum_bot.1, sum_top.1),
+        mix_bot_and_top(sum_bot.2, sum_top.2),
+        mix_bot_and_top(sum_bot.3, sum_top.3),
+    )
+}
+
+/// Get a single pixel for a thumbnail where the input window does not enclose any full pixel.
+fn thumbnail_sample_fraction_both<I, P, S>(
+    image: &I,
+    left: u32,
+    fraction_vertical: f32,
+    bottom: u32,
+    fraction_horizontal: f32,
+) -> (S, S, S, S)
+where
+    I: GenericImageView<Pixel = P>,
+    P: Pixel<Subpixel = S>,
+    S: Primitive + Enlargeable,
+{
+    let k_bl = image.get_pixel(left,     bottom    ).channels4();
+    let k_tl = image.get_pixel(left,     bottom + 1).channels4();
+    let k_br = image.get_pixel(left + 1, bottom    ).channels4();
+    let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
+    
+    let frac_v = fraction_vertical;
+    let frac_h = fraction_horizontal;
+
+    let fact_tr = frac_v        * frac_h;
+    let fact_tl = frac_v        * (1. - frac_h);
+    let fact_br = (1. - frac_v) * frac_h;
+    let fact_bl = (1. - frac_v) * (1. - frac_h);
+
+    let mix = |br: S, tr: S, bl: S, tl: S|
+        <S as NumCast>::from(
+            fact_br * br.to_f32().unwrap() +
+            fact_tr * tr.to_f32().unwrap() +
+            fact_bl * bl.to_f32().unwrap() +
+            fact_tl * tl.to_f32().unwrap()
+        ).expect("Average sample value should fit into sample type");
+    
+    (
+        mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
+        mix(k_br.1, k_tr.1, k_bl.1, k_tl.1),
+        mix(k_br.2, k_tr.2, k_bl.2, k_tl.2),
+        mix(k_br.3, k_tr.3, k_bl.3, k_tl.3),
+    )
 }
 
 /// Perform a 3x3 box filter on the supplied image.
@@ -566,4 +772,36 @@ mod tests {
         let _ = resize(&img, 50, 50, FilterType::Lanczos3);
     }
 
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap();
+        b.iter(|| {
+            test::black_box(image.thumbnail(256, 256));
+        });
+        b.bytes = 512 * 512 * 4 + 256 * 256 * 4;
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail_upsize(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap().thumbnail(256, 256);
+        b.iter(|| {
+            test::black_box(image.thumbnail(512, 512));
+        });
+        b.bytes = 512 * 512 * 4 + 256 * 256 * 4;
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
+        let image = ::open(path).unwrap().thumbnail(193, 193);
+        b.iter(|| {
+            test::black_box(image.thumbnail(256, 256));
+        });
+        b.bytes = 193 * 193 * 4 + 256 * 256 * 4;
+    }
 }

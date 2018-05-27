@@ -1,7 +1,7 @@
 //! Image Processing Functions
 use std::cmp;
 
-use image::{GenericImage, SubImage};
+use image::{GenericImage, GenericImageView, SubImage};
 
 use buffer::Pixel;
 
@@ -26,18 +26,13 @@ pub mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
-// TODO: Is a 'static bound on `I` really required? Acn we avoid it?
-pub fn crop<I: GenericImage + 'static>(
+pub fn crop<I: GenericImageView>(
     image: &mut I,
     x: u32,
     y: u32,
     width: u32,
     height: u32,
-) -> SubImage<&mut I>
-where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
-{
+) -> SubImage<&mut I> {
     let (iwidth, iheight) = image.dimensions();
 
     let x = cmp::min(x, iwidth);

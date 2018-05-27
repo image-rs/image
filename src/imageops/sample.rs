@@ -8,7 +8,7 @@ use std::f32;
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use buffer::{ImageBuffer, Pixel};
-use image::GenericImage;
+use image::GenericImageView;
 use math::utils::clamp;
 use traits::{Enlargeable, Primitive};
 
@@ -129,7 +129,7 @@ fn horizontal_sample<I, P, S>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P> + 'static,
+    I: GenericImageView<Pixel = P> + 'static,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -217,7 +217,7 @@ fn vertical_sample<I, P, S>(
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P> + 'static,
+    I: GenericImageView<Pixel = P> + 'static,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -321,7 +321,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
 /// take the pixel colour spaces into account.
 pub fn thumbnail<I, P, S>(image: &I, new_width: u32, new_height: u32) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + Enlargeable + 'static,
 {
@@ -403,7 +403,7 @@ fn thumbnail_sample_block<I, P, S>(
     top: u32,
 ) -> (S, S, S, S)
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
@@ -437,7 +437,7 @@ fn thumbnail_sample_fraction_horizontal<I, P, S>(
     top: u32,
 ) -> (S, S, S, S)
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
@@ -480,7 +480,7 @@ fn thumbnail_sample_fraction_vertical<I, P, S>(
     fraction_vertical: f32,
 ) -> (S, S, S, S)
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
@@ -523,7 +523,7 @@ fn thumbnail_sample_fraction_both<I, P, S>(
     fraction_horizontal: f32,
 ) -> (S, S, S, S)
 where
-    I: GenericImage<Pixel = P>,
+    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
@@ -561,7 +561,7 @@ where
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P> + 'static,
+    I: GenericImageView<Pixel = P> + 'static,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -640,7 +640,7 @@ where
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
-pub fn resize<I: GenericImage + 'static>(
+pub fn resize<I: GenericImageView + 'static>(
     image: &I,
     nwidth: u32,
     nheight: u32,
@@ -680,7 +680,7 @@ where
 /// Performs a Gaussian blur on the supplied image.
 /// ```sigma``` is a measure of how much to blur by.
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
-pub fn blur<I: GenericImage + 'static>(
+pub fn blur<I: GenericImageView + 'static>(
     image: &I,
     sigma: f32,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
@@ -711,7 +711,7 @@ where
 // TODO: Do we really need the 'static bound on `I`? Can we avoid it?
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImage<Pixel = P> + 'static,
+    I: GenericImageView<Pixel = P> + 'static,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {

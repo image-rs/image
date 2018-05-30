@@ -487,7 +487,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
 
             _ => Err(::image::ImageError::UnsupportedError(format!(
                 "{:?} with {:?} bits per sample is unsupported",
-                self.bits_per_sample, self.photometric_interpretation
+                self.photometric_interpretation, self.bits_per_sample
             ))), // TODO: this is bad we should not fail at this point}
         }
     }

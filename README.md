@@ -208,11 +208,8 @@ fn main() {
 ### 6.2 Generating Fractals
 ```rust
 //! An example of generating julia fractals.
-extern crate num_complex;
 extern crate image;
-
-use std::fs::File;
-use std::path::Path;
+extern crate num_complex;
 
 use num_complex::Complex;
 
@@ -226,7 +223,7 @@ fn main() {
     let scaley = 4.0 / imgy as f32;
 
     // Create a new ImgBuf with width: imgx and height: imgy
-    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
+    let mut imgbuf = image::GrayImage::new(imgx, imgy);
 
     // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
@@ -249,15 +246,10 @@ fn main() {
         // Create an 8bit pixel of type Luma and value i
         // and assign in to the pixel at position (x, y)
         *pixel = image::Luma([i as u8]);
-
     }
 
-
-    // Save the image as “fractal.png”
-    let ref mut fout = File::create("fractal.png").unwrap();
-
-    // We must indicate the image's color type and what format to save as
-    image::ImageLuma8(imgbuf).save(fout, image::PNG).unwrap();
+    // Save the image as “fractal.png”, the format is deduced from the path
+    imgbuf.save("fractal.png").unwrap();
 }
 ```
 

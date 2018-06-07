@@ -2,8 +2,6 @@
 extern crate image;
 extern crate num_complex;
 
-use std::fs::File;
-
 use num_complex::Complex;
 
 fn main() {
@@ -16,7 +14,7 @@ fn main() {
     let scaley = 4.0 / imgy as f32;
 
     // Create a new ImgBuf with width: imgx and height: imgy
-    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
+    let mut imgbuf = image::GrayImage::new(imgx, imgy);
 
     // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
@@ -30,7 +28,7 @@ fn main() {
 
         for t in 0..max_iterations {
             if z.norm() > 2.0 {
-                break;
+                break
             }
             z = z * z + c;
             i = t;
@@ -41,11 +39,6 @@ fn main() {
         *pixel = image::Luma([i as u8]);
     }
 
-    // Save the image as “fractal.png”
-    let fout = &mut File::create("fractal.png").unwrap();
-
-    // We must indicate the image's color type and what format to save as
-    image::ImageLuma8(imgbuf)
-        .write_to(fout, image::PNG)
-        .unwrap();
+    // Save the image as “fractal.png”, the format is deduced from the path
+    imgbuf.save("fractal.png").unwrap();
 }

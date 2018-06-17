@@ -111,14 +111,6 @@ pub enum DecodingResult {
     U16(Vec<u16>),
 }
 
-// A buffer for image decoding
-pub enum DecodingBuffer<'a> {
-    /// A slice of unsigned bytes
-    U8(&'a mut [u8]),
-    /// A slice of unsigned words
-    U16(&'a mut [u16]),
-}
-
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

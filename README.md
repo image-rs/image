@@ -183,8 +183,6 @@ The image format is determined from the path's file extension.
 ```rust
 extern crate image;
 
-use std::fs::File;
-
 use image::GenericImage;
 
 fn main() {
@@ -198,10 +196,8 @@ fn main() {
     // The color method returns the image's `ColorType`.
     println!("{:?}", img.color());
 
-    let ref mut fout = File::create("test.png").unwrap();
-
     // Write the contents of this image to the Writer in PNG format.
-    img.save(fout, image::PNG).unwrap();
+    img.save("test.png").unwrap();
 }
 ```
 

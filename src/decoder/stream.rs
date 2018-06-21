@@ -135,7 +135,7 @@ impl StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: (Crc32::new(), 0, Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
-            inflater: InflateStream::from_zlib(),
+            inflater: if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()},
             info: None,
             current_seq_no: None,
             have_idat: false
@@ -148,7 +148,7 @@ impl StreamingDecoder {
         self.current_chunk.0 = Crc32::new();
         self.current_chunk.1 = 0;
         self.current_chunk.2.clear();
-        self.inflater = InflateStream::from_zlib();
+        self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
         self.info = None;
         self.current_seq_no = None;
         self.have_idat = false;
@@ -254,7 +254,7 @@ impl StreamingDecoder {
                         )
                     },
                     Crc(type_str) => {
-                        if val == self.current_chunk.0.checksum() {
+                        if cfg!(fuzzing) || val == self.current_chunk.0.checksum() {
                             goto!(
                                 State::U32(U32Value::Length),
                                 emit if type_str == IEND {
@@ -447,7 +447,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = InflateStream::from_zlib();
+        self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
         self.info.as_mut().unwrap().frame_control = Some(FrameControl {
             sequence_number: next_seq_no,
             width: try!(buf.read_be()),

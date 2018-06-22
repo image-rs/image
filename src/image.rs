@@ -288,7 +288,7 @@ pub trait ImageDecoder: Sized {
 }
 
 /// Immutable pixel iterator
-pub struct Pixels<'a, I: 'a> {
+pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
     x: u32,
     y: u32,
@@ -321,7 +321,7 @@ impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
 /// Mutable pixel iterator
 ///
 /// DEPRECATED: It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead.
-pub struct MutPixels<'a, I: 'a> {
+pub struct MutPixels<'a, I: ?Sized + 'a> {
     image: &'a mut I,
     x: u32,
     y: u32,
@@ -361,7 +361,7 @@ where
 }
 
 /// Trait to inspect an image.
-pub trait GenericImageView: Sized {
+pub trait GenericImageView {
     /// The type of pixel.
     type Pixel: Pixel;
 
@@ -435,7 +435,7 @@ pub trait GenericImageView: Sized {
 }
 
 /// A trait for manipulating images.
-pub trait GenericImage: GenericImageView + Sized {
+pub trait GenericImage: GenericImageView {
     /// Underlying image type. This is mainly used by SubImages in order to
     /// always have a reference to the original image. This allows for less
     /// indirections and it eases the use of nested SubImages.
@@ -589,7 +589,7 @@ impl<I> SubImage<I> {
 impl<I> GenericImageView for SubImage<I>
 where
     I: Deref,
-    I::Target: GenericImageView,
+    I::Target: GenericImageView + Sized,
 {
     type Pixel = <I::Target as GenericImageView>::Pixel;
     type InnerImageView = I::Target;
@@ -621,7 +621,7 @@ where
 impl<I> GenericImage for SubImage<I>
 where
     I: DerefMut,
-    I::Target: GenericImage,
+    I::Target: GenericImage + Sized,
 {
     type InnerImage = I::Target;
 

@@ -433,7 +433,7 @@ pub trait GenericImage: GenericImageView {
     /// indirections and it eases the use of nested SubImages.
     type InnerImage: GenericImage<Pixel = Self::Pixel>;
 
-    /// Puts a pixel at location (x, y)
+    /// Gets a reference to the mutable pixel at location `(x, y)`
     ///
     /// # Panics
     ///

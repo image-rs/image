@@ -270,7 +270,7 @@ impl<R: Read> Reader<R> {
                 if transform.contains(::Transformations::EXPAND) {
                     match color_type {
                         Indexed => {
-                            expand_paletted(output_buffer, get_info!(self))
+                            expand_paletted(output_buffer, get_info!(self))?
                         }
                         Grayscale | GrayscaleAlpha if bit_depth < 8 => expand_gray_u8(
                             output_buffer, get_info!(self)
@@ -446,27 +446,31 @@ impl<R: Read> Reader<R> {
     }
 }
 
-fn expand_paletted(buffer: &mut [u8], info: &Info) {
-    let palette = info.palette.as_ref().unwrap();
-    let black = [0, 0, 0];
-    if let Some(ref trns) = info.trns {
-        utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
-            let (rgb, a) = (
-                palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
-                *trns.get(i as usize).unwrap_or(&0xFF)
-            );
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-            chunk[3] = a;
-        });
+fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
+    if let Some(palette) = info.palette.as_ref() {
+        let black = [0, 0, 0];
+        if let Some(ref trns) = info.trns {
+            utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
+                let (rgb, a) = (
+                    palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
+                    *trns.get(i as usize).unwrap_or(&0xFF)
+                );
+                chunk[0] = rgb[0];
+                chunk[1] = rgb[1];
+                chunk[2] = rgb[2];
+                chunk[3] = a;
+            });
+        } else {
+            utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
+                let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
+                chunk[0] = rgb[0];
+                chunk[1] = rgb[1];
+                chunk[2] = rgb[2];
+            })
+        }
+        Ok(())
     } else {
-        utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-            let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-        })
+        Err(DecodingError::Format("missing palette".into()))
     }
 }
 

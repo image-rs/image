@@ -7,7 +7,7 @@ fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
     let decoder = png::Decoder::new(data);
     let (info, mut reader) = decoder.read_info().map_err(|_| ())?;
 
-    if info.buffer_size() > 50_000_000 {
+    if info.buffer_size() > 5_000_000 {
         return Err(());
     }
 

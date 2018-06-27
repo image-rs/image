@@ -4,6 +4,7 @@ pub use self::stream::{StreamingDecoder, Decoded, DecodingError};
 use self::stream::{CHUNCK_BUFFER_SIZE, get_info};
 
 use std::mem;
+use std::borrow;
 use std::io::{Read, Write, BufReader, BufRead};
 
 use traits::{HasParameters, Parameter};
@@ -409,7 +410,11 @@ impl<R: Read> Reader<R> {
         loop {
             if self.current.len() >= rowlen {
                 if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
+                    if let Err(message) = unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]) {
+                        return Err(DecodingError::Format(
+                            borrow::Cow::Borrowed(message)
+                        ))
+                    }
                     self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
                     // TODO optimize
                     self.current = self.current[rowlen..].into();

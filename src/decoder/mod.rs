@@ -243,10 +243,6 @@ impl<R: Read> Reader<R> {
     pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use common::ColorType::*;
         let transform = self.transform;
-        let (color_type, bit_depth, trns) = {
-            let info = get_info!(self);
-            (info.color_type, info.bit_depth as u8, info.trns.is_some())
-        };
         if transform == ::Transformations::IDENTITY {
             self.next_raw_interlaced_row()
         } else {
@@ -261,6 +257,10 @@ impl<R: Read> Reader<R> {
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
+                let (color_type, bit_depth, trns) = {
+                    let info = get_info!(self);
+                    (info.color_type, info.bit_depth as u8, info.trns.is_some())
+                };
                 let output_buffer = if let Some((_, _, width)) = adam7 {
                     let width = self.line_size(width);
                     &mut self.processed[..width]

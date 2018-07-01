@@ -453,27 +453,31 @@ impl<R: Read> Reader<R> {
 
 fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
     if let Some(palette) = info.palette.as_ref() {
-        let black = [0, 0, 0];
-        if let Some(ref trns) = info.trns {
-            utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
-                let (rgb, a) = (
-                    palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
-                    *trns.get(i as usize).unwrap_or(&0xFF)
-                );
-                chunk[0] = rgb[0];
-                chunk[1] = rgb[1];
-                chunk[2] = rgb[2];
-                chunk[3] = a;
-            });
+        if let BitDepth::Sixteen = info.bit_depth {
+            Err(DecodingError::Format("Bit depth '16' is not valid for paletted images".into()))
         } else {
-            utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-                let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
-                chunk[0] = rgb[0];
-                chunk[1] = rgb[1];
-                chunk[2] = rgb[2];
-            })
+            let black = [0, 0, 0];
+            if let Some(ref trns) = info.trns {
+                utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
+                    let (rgb, a) = (
+                        palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
+                        *trns.get(i as usize).unwrap_or(&0xFF)
+                    );
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                    chunk[3] = a;
+                });
+            } else {
+                utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
+                    let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                })
+            }
+            Ok(())
         }
-        Ok(())
     } else {
         Err(DecodingError::Format("missing palette".into()))
     }

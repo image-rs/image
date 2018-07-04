@@ -185,18 +185,15 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
     } else {
         // If the full size is less than twice the initial buffer, we have to
         // copy in two steps
+        let overlap = old_size - extend;
 
         // First we copy the data that fits into the bit we extended.
         let (lower, upper) = buffer.split_at_mut(old_size);
-        let upper_len = upper.len();
-        let lower_len = lower.len();
-        upper.copy_from_slice(&lower[lower_len - upper_len..]);
+        upper.copy_from_slice(&lower[overlap..]);
 
         // Then we slide the data that hasn't been copied yet to the top of the buffer
         let (new, old) = lower.split_at_mut(extend);
-        let new_len = new.len();
-        let old_len = old.len();
-        old.copy_from_slice(&new[new_len - old_len..]);
+        old[..overlap].copy_from_slice(&new[..overlap]);
         new
     };
     if blank {

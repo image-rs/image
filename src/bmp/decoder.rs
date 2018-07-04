@@ -167,21 +167,14 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
     let extend = full_size - buffer.len();
 
     buffer.extend(repeat(0xFF).take(extend));
-
-    let buffer_len = buffer.len();
+    assert_eq!(buffer.len(), full_size);
 
     let ret = if extend >= old_size {
         // If the full buffer length is more or equal to twice the initial one, we can simply
         // copy the data in the lower part of the buffer to the end of it and input from there.
-        {
-            let (lower, upper) = buffer.split_at_mut(old_size);
-            let upper_len = upper.len();
-            let lower_len = lower.len();
-
-            upper[upper_len - lower_len..].copy_from_slice(lower);
-        }
-
-        &mut buffer[..buffer_len - old_size]
+        let (new, old) = buffer.split_at_mut(extend);
+        old.copy_from_slice(&new[..old_size]);
+        new
     } else {
         // If the full size is less than twice the initial buffer, we have to
         // copy in two steps

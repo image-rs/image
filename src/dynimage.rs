@@ -549,7 +549,12 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             // Note: this conversion assumes that the scanlines begin on byte boundaries
             let mask = (1u8 << bit_depth as usize) - 1;
             let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
-            let skip = (w % 8) / u32::from(bit_depth);
+            let bit_width = w * u32::from(bit_depth);
+            let skip = if bit_width % 8 == 0 {
+                0
+            } else {
+                (8 - bit_width % 8) / u32::from(bit_depth)
+            };
             let row_len = w + skip;
             let p = buf
                        .iter()

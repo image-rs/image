@@ -574,24 +574,11 @@ impl Sample for PbmBit {
 
     fn from_bytes(
         bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
+        _width: u32,
+        _height: u32,
+        _samples: u32,
     ) -> ImageResult<Vec<Self::T>> {
-        let mut buffer = Vec::new();
-        let linecount = width * samples;
-        let linebytelen = (linecount / 8) + ((linecount % 8) != 0) as u32;
-        buffer.resize((width * height * samples) as usize, 0 as u8);
-        for (line, linebuffer) in bytes.chunks(linebytelen as usize).enumerate() {
-            let outbase = line * linecount as usize;
-            for samplei in 0..linecount {
-                let byteindex = (samplei / 8) as usize;
-                let inindex = 7 - samplei % 8;
-                let indicator = (linebuffer[byteindex] >> inindex) & 0x01;
-                buffer[outbase + samplei as usize] = if indicator == 0 { 1 } else { 0 };
-            }
-        }
-        Ok(buffer)
+        Ok(bytes.iter().map(|pixel| !pixel).collect())
     }
 
     fn from_unsigned(val: u32) -> ImageResult<Self::T> {
@@ -884,7 +871,7 @@ ENDHDR
         );
         match decoder.read_image().unwrap() {
             DecodingResult::U16(_) => panic!("Decoded wrong image format"),
-            DecodingResult::U8(data) => assert_eq!(data, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]),
+            DecodingResult::U8(data) => assert_eq!(data, vec![0b10010011, 0b01001000]),
         }
         match decoder.into_inner() {
             (

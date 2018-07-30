@@ -7,7 +7,8 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
-use std::io::{Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::mem;
 
 use color::ColorType;
 use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
@@ -62,6 +63,9 @@ pub struct DXTDecoder<R: Read> {
     height_blocks: u32,
     variant: DXTVariant,
     row: u32,
+
+    current_scanline: Vec<u8>,
+    scanline_offset: usize,
 }
 
 impl<R: Read> DXTDecoder<R> {
@@ -92,6 +96,8 @@ impl<R: Read> DXTDecoder<R> {
             height_blocks,
             variant,
             row: 0,
+            current_scanline: Vec::new(),
+            scanline_offset: 0,
         })
     }
 }
@@ -126,11 +132,89 @@ impl<R: Read> ImageDecoder for DXTDecoder<R> {
     }
 
     fn read_image(&mut self) -> ImageResult<DecodingResult> {
+        assert_eq!(self.row, 0);
+
         let mut dest = vec![0u8; self.height_blocks as usize * self.row_len()?];
         for chunk in dest.chunks_mut(self.row_len()?) {
             self.read_scanline(chunk)?;
         }
         Ok(DecodingResult::U8(dest))
+    }
+}
+
+impl<R: Read> Read for DXTDecoder<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.row > self.height_blocks {
+            // Note that self.row indicates the *next* scanline that will be read, so we are only
+            // out of bounds once it is greater than the height in blocks.
+            return Ok(0);
+        }
+
+        let row_len = self.row_len().unwrap();
+
+        if self.current_scanline.is_empty() {
+            self.current_scanline.resize(row_len, 0);
+            let mut current_scanline = mem::replace(&mut self.current_scanline, Vec::new());
+            self.read_scanline(&mut current_scanline[..])
+                .map_err(|e| match e {
+                    ImageError::IoError(e) => e,
+                    _ => unreachable!(),
+                })?;
+            self.current_scanline = current_scanline;
+        }
+
+        if buf.len() >= row_len - self.scanline_offset {
+            let len = row_len - self.scanline_offset;
+            buf[..len].copy_from_slice(&self.current_scanline[self.scanline_offset..]);
+            self.current_scanline.clear();
+            self.scanline_offset = 0;
+            Ok(len)
+        } else {
+            let buf_len = buf.len();
+            buf.copy_from_slice(
+                &self.current_scanline[self.scanline_offset..(self.scanline_offset + buf_len)],
+            );
+            self.scanline_offset += buf.len();
+            Ok(buf.len())
+        }
+    }
+}
+
+impl<R: Read + Seek> DXTDecoder<R> {
+    fn seek_scanline(&mut self, scanline: u32) -> io::Result<()> {
+        self.scanline_offset = 0;
+
+        if (!self.current_scanline.is_empty() || self.row != scanline)
+            && (self.current_scanline.is_empty() || self.row != scanline + 1)
+        {
+            let row_len = self.row_len().unwrap();
+            self.current_scanline.clear();
+            self.inner
+                .seek(SeekFrom::Start(scanline as u64 * row_len as u64))
+                .map(|_| ())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<R: Read + Seek> Seek for DXTDecoder<R> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let row_len = self.row_len().unwrap();
+        let offset = match pos {
+            SeekFrom::Start(offset) => offset,
+            SeekFrom::Current(offset) => {
+                (((self.row - 1) as usize * row_len as usize + self.scanline_offset) as i64
+                    + offset) as u64
+            }
+            SeekFrom::End(offset) => {
+                ((self.height_blocks as usize * row_len) as i64 + offset) as u64
+            }
+        };
+
+        self.seek_scanline((offset / row_len as u64) as u32)?;
+        self.scanline_offset = (offset % row_len as u64) as usize;
+        Ok(offset)
     }
 }
 

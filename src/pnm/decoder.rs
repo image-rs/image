@@ -458,15 +458,14 @@ impl<R: Read> PNMDecoder<R> {
     }
 
     fn read_ascii_sample(&mut self) -> ImageResult<u32> {
-        let istoken = |v: &Result<u8, _>| match *v {
-            Err(_) => false,
-            Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => false,
-            _ => true,
+        let is_separator = |v: &u8| match *v {
+            b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
+            _ => false,
         };
         let token = (&mut self.reader)
             .bytes()
-            .skip_while(|v| !istoken(v))
-            .take_while(&istoken)
+            .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
+            .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
             .collect::<Result<Vec<u8>, _>>()?;
         if !token.is_ascii() {
             return Err(ImageError::FormatError(
@@ -901,6 +900,30 @@ ENDHDR
             ) => (),
             _ => panic!("Decoded header is incorrect"),
         }
+    }
+
+    /// A previous inifite loop.
+    #[test]
+    fn pbm_binary_ascii_termination() {
+        use std::io::{Cursor, Error, ErrorKind, Read, Result};
+        struct FailRead(Cursor<&'static [u8]>);
+
+        impl Read for FailRead {
+            fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+                match self.0.read(buf) {
+                    Ok(n) if n > 0 => Ok(n),
+                    _ => Err(Error::new(
+                        ErrorKind::BrokenPipe,
+                        "Simulated broken pipe error"
+                    )),
+                }
+            }
+        }
+
+        let pbmbinary = FailRead(Cursor::new(b"P1 1 1\n"));
+
+        PNMDecoder::new(pbmbinary).unwrap()
+            .read_image().expect_err("Image is malformed");
     }
 
     #[test]

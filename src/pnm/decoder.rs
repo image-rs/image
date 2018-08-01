@@ -1,5 +1,6 @@
-use std::io::{BufRead, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read};
 use std::str::FromStr;
+use std::fmt::Display;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
@@ -51,10 +52,10 @@ impl<R: Read> PNMDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
     pub fn new(read: R) -> ImageResult<PNMDecoder<R>> {
         let mut buf = BufReader::new(read);
-        let magic = try!(buf.read_magic_constant());
+        let magic = buf.read_magic_constant()?;
         if magic[0] != b'P' {
             return Err(ImageError::FormatError(
-                "Expected magic constant for pnm, P1 through P7".to_string(),
+                format!("Expected magic constant for pnm, P1 through P7 instead of {:?}", magic),
             ));
         }
 
@@ -68,8 +69,8 @@ impl<R: Read> PNMDecoder<R> {
             b'7' => PNMSubtype::ArbitraryMap,
             _ => {
                 return Err(ImageError::FormatError(
-                    "Expected magic constant for ppm, P1 through P7".to_string(),
-                ))
+                    format!("Expected magic constant for pnm, P1 through P7 instead of {:?}", magic),
+                ));
             }
         };
 
@@ -152,7 +153,7 @@ trait HeaderReader: BufRead {
     fn read_magic_constant(&mut self) -> ImageResult<[u8; 2]> {
         let mut magic: [u8; 2] = [0, 0];
         self.read_exact(&mut magic)
-            .map_err(|_| ImageError::NotEnoughData)?;
+            .map_err(ImageError::IoError)?;
         Ok(magic)
     }
 
@@ -179,44 +180,53 @@ trait HeaderReader: BufRead {
                         break; // We're done as we already have some content
                     }
                 }
+                Ok(byte) if !byte.is_ascii() => {
+                    return Err(ImageError::FormatError(
+                        format!("Non ascii character {} in header", byte),
+                    ));
+                },
                 Ok(byte) => {
                     bytes.push(byte);
-                }
+                },
                 Err(_) => break,
             }
         }
 
         if bytes.is_empty() {
-            return Err(ImageError::FormatError("Unexpected eof".to_string()));
+            return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into()));
         }
 
         if !bytes.as_slice().is_ascii() {
-            return Err(ImageError::FormatError(
-                "Non ascii character in preamble".to_string(),
-            ));
+            // We have only filled the buffer with characters for which `byte.is_ascii()` holds.
+            unreachable!("Non ascii character should have returned sooner")
         }
 
-        String::from_utf8(bytes)
-            .map_err(|_| ImageError::FormatError("Couldn't read preamble".to_string()))
+        let string = String::from_utf8(bytes)
+            // We checked the precondition ourselves a few lines before, `bytes.as_slice().is_ascii()`.
+            .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
+
+        Ok(string)
     }
 
     /// Read the next line
     fn read_next_line(&mut self) -> ImageResult<String> {
         let mut buffer = String::new();
         self.read_line(&mut buffer)
-            .map_err(|_| ImageError::FormatError("Line not properly formatted".to_string()))?;
+            .map_err(ImageError::IoError)?;
         Ok(buffer)
     }
 
     fn read_next_u32(&mut self) -> ImageResult<u32> {
-        let s = try!(self.read_next_string());
+        let s = self.read_next_string()?;
         s.parse::<u32>()
-            .map_err(|_| ImageError::FormatError("Invalid number in preamble".to_string()))
+            .map_err(|err| ImageError::FormatError(
+                    format!("Error parsing number {} in preamble: {}", s, err)
+                ))
     }
 
     fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
-        let width = try!(self.read_next_u32());
-        let height = try!(self.read_next_u32());
+        let width = self.read_next_u32()?;
+        let height = self.read_next_u32()?;
         Ok(BitmapHeader {
             encoding,
             width,
@@ -241,9 +251,9 @@ trait HeaderReader: BufRead {
     }
 
     fn read_pixmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<PixmapHeader> {
-        let width = try!(self.read_next_u32());
-        let height = try!(self.read_next_u32());
-        let maxval = try!(self.read_next_u32());
+        let width = self.read_next_u32()?;
+        let height = self.read_next_u32()?;
+        let maxval = self.read_next_u32()?;
         Ok(PixmapHeader {
             encoding,
             width,
@@ -254,12 +264,12 @@ trait HeaderReader: BufRead {
 
     fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
         match self.bytes().next() {
-            None => return Err(ImageError::FormatError("Input too short".to_string())),
+            None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
             Some(Err(io)) => return Err(ImageError::IoError(io)),
             Some(Ok(b'\n')) => (),
-            _ => {
+            Some(Ok(c)) => {
                 return Err(ImageError::FormatError(
-                    "Expected newline after P7".to_string(),
+                    format!("Expected newline after P7 magic instead of {}", c),
                 ))
             }
         }
@@ -290,7 +300,9 @@ trait HeaderReader: BufRead {
                 } else {
                     let h = rest.trim()
                         .parse::<u32>()
-                        .map_err(|_| ImageError::FormatError("Invalid height".to_string()))?;
+                        .map_err(|err| ImageError::FormatError(
+                                format!("Invalid height {}: {}", rest, err)
+                            ))?;
                     height = Some(h);
                 },
                 "WIDTH" => if width.is_some() {
@@ -298,7 +310,9 @@ trait HeaderReader: BufRead {
                 } else {
                     let w = rest.trim()
                         .parse::<u32>()
-                        .map_err(|_| ImageError::FormatError("Invalid width".to_string()))?;
+                        .map_err(|err| ImageError::FormatError(
+                                format!("Invalid width {}: {}", rest, err)
+                            ))?;
                     width = Some(w);
                 },
                 "DEPTH" => if depth.is_some() {
@@ -306,7 +320,9 @@ trait HeaderReader: BufRead {
                 } else {
                     let d = rest.trim()
                         .parse::<u32>()
-                        .map_err(|_| ImageError::FormatError("Invalid depth".to_string()))?;
+                        .map_err(|err| ImageError::FormatError(
+                                format!("Invalid depth {}: {}", rest, err)
+                            ))?;
                     depth = Some(d);
                 },
                 "MAXVAL" => if maxval.is_some() {
@@ -314,7 +330,9 @@ trait HeaderReader: BufRead {
                 } else {
                     let m = rest.trim()
                         .parse::<u32>()
-                        .map_err(|_| ImageError::FormatError("Invalid maxval".to_string()))?;
+                        .map_err(|err| ImageError::FormatError(
+                                format!("Invalid maxval {}: {}", rest, err)
+                            ))?;
                     maxval = Some(m);
                 },
                 "TUPLTYPE" => {
@@ -475,26 +493,33 @@ impl TupleType {
     }
 }
 
-fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T> {
+fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
+    where T::Err: Display
+{
     let is_separator = |v: &u8| match *v {
         b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
         _ => false,
     };
+
     let token = reader
         .bytes()
         .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
         .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
         .collect::<Result<Vec<u8>, _>>()?;
+
     if !token.is_ascii() {
         return Err(ImageError::FormatError(
             "Non ascii character where sample value was expected".to_string(),
         ));
     }
+
     let string = String::from_utf8(token)
-        .map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
+        // We checked the precondition ourselves a few lines before, `token.is_ascii()`.
+        .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
+
     string
         .parse()
-        .map_err(|_| ImageError::FormatError(format!("Sample value {} is not valid", string)))
+        .map_err(|err| ImageError::FormatError(format!("Error parsing {} as a sample: {}", string, err)))
 }
 
 impl Sample for U8 {
@@ -641,9 +666,9 @@ impl Sample for BWBit {
         samples: u32,
     ) -> ImageResult<Vec<Self::T>> {
         let values = U8::from_bytes(bytes, width, height, samples)?;
-        if values.iter().any(|&val| val > 1) {
+        if let Some(val) = values.iter().find(|&val| *val > 1) {
             return Err(ImageError::FormatError(
-                "Sample value outside of bounds".to_string(),
+                format!("Sample value {} outside of bounds", val),
             ));
         };
         Ok(values)
@@ -655,7 +680,7 @@ impl Sample for BWBit {
         _height: u32,
         _samples: u32,
     ) -> ImageResult<Vec<Self::T>> {
-        panic!("BW bits from anymaps are not encoded as ascii")
+        panic!("BW bits from anymaps are never encoded as ascii")
     }
 }
 

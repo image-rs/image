@@ -1,4 +1,5 @@
 use std::io::{BufRead, BufReader, Read};
+use std::str::FromStr;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
@@ -21,10 +22,13 @@ enum TupleType {
 trait Sample {
     type T;
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
+
     /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32)
         -> ImageResult<Vec<Self::T>>;
-    fn from_unsigned(u32) -> ImageResult<Self::T>;
+
+    fn from_ascii(reader: &mut Read, width: u32, height: u32, samples: u32)
+        -> ImageResult<Vec<Self::T>>;
 }
 
 struct U8;
@@ -448,35 +452,7 @@ impl<R: Read> PNMDecoder<R> {
     }
 
     fn read_ascii<Basic: Sample>(&mut self, components: u32) -> ImageResult<Vec<Basic::T>> {
-        let mut buffer = Vec::new();
-        for _ in 0..(self.header.width() * self.header.height() * components) {
-            let value = self.read_ascii_sample()?;
-            let sample = Basic::from_unsigned(value)?;
-            buffer.push(sample);
-        }
-        Ok(buffer)
-    }
-
-    fn read_ascii_sample(&mut self) -> ImageResult<u32> {
-        let is_separator = |v: &u8| match *v {
-            b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
-            _ => false,
-        };
-        let token = (&mut self.reader)
-            .bytes()
-            .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
-            .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
-            .collect::<Result<Vec<u8>, _>>()?;
-        if !token.is_ascii() {
-            return Err(ImageError::FormatError(
-                "Non ascii character where sample value was expected".to_string(),
-            ));
-        }
-        let string = String::from_utf8(token)
-            .map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
-        string
-            .parse::<u32>()
-            .map_err(|_| ImageError::FormatError("Error parsing sample value".to_string()))
+        Basic::from_ascii(&mut self.reader, self.header.width(), self.header.height(), components)
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
@@ -499,6 +475,28 @@ impl TupleType {
     }
 }
 
+fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T> {
+    let is_separator = |v: &u8| match *v {
+        b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
+        _ => false,
+    };
+    let token = reader
+        .bytes()
+        .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
+        .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
+        .collect::<Result<Vec<u8>, _>>()?;
+    if !token.is_ascii() {
+        return Err(ImageError::FormatError(
+            "Non ascii character where sample value was expected".to_string(),
+        ));
+    }
+    let string = String::from_utf8(token)
+        .map_err(|_| ImageError::FormatError("Error parsing sample".to_string()))?;
+    string
+        .parse()
+        .map_err(|_| ImageError::FormatError(format!("Sample value {} is not valid", string)))
+}
+
 impl Sample for U8 {
     type T = u8;
 
@@ -518,14 +516,15 @@ impl Sample for U8 {
         Ok(buffer)
     }
 
-    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        if val > u32::from(u8::max_value()) {
-            Err(ImageError::FormatError(
-                "Sample value outside of bounds".to_string(),
-            ))
-        } else {
-            Ok(val as u8)
-        }
+    fn from_ascii(
+        reader: &mut Read,
+        width: u32,
+        height: u32,
+        samples: u32,
+    ) -> ImageResult<Vec<Self::T>> {
+        (0..width*height*samples)
+            .map(|_| read_separated_ascii(reader))
+            .collect()
     }
 }
 
@@ -548,14 +547,15 @@ impl Sample for U16 {
         Ok(buffer)
     }
 
-    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        if val > u32::from(u16::max_value()) {
-            Err(ImageError::FormatError(
-                "Sample value outside of bounds".to_string(),
-            ))
-        } else {
-            Ok(val as u16)
-        }
+    fn from_ascii(
+        reader: &mut Read,
+        width: u32,
+        height: u32,
+        samples: u32,
+    ) -> ImageResult<Vec<Self::T>> {
+        (0..width*height*samples)
+            .map(|_| read_separated_ascii(reader))
+            .collect()
     }
 }
 
@@ -593,16 +593,36 @@ impl Sample for PbmBit {
         Ok(buffer)
     }
 
-    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        match val {
-            // 0 is white in pbm
-            0 => Ok(1 as u8),
-            // 1 is black in pbm
-            1 => Ok(0 as u8),
-            _ => Err(ImageError::FormatError(
-                "Sample value outside of bounds".to_string(),
-            )),
+    fn from_ascii(
+        reader: &mut Read,
+        width: u32,
+        height: u32,
+        samples: u32,
+    ) -> ImageResult<Vec<Self::T>> {
+        let count = (width*height*samples) as usize;
+        let raw_samples = reader.bytes()
+            .filter_map(|ascii| match ascii {
+                Ok(b'0') => Some(Ok(1)),
+                Ok(b'1') => Some(Ok(0)),
+                Err(err) => Some(Err(ImageError::IoError(err))),
+                Ok(b'\t')
+                | Ok(b'\n')
+                | Ok(b'\x0b')
+                | Ok(b'\x0c')
+                | Ok(b'\r')
+                | Ok(b' ') => None,
+                Ok(c) => Some(Err(ImageError::FormatError(
+                        format!("Unexpected character {} within sample raster", c),
+                    ))),
+            })
+            .take(count)
+            .collect::<ImageResult<Vec<Self::T>>>()?;
+
+        if raw_samples.len() < count {
+            return Err(ImageError::NotEnoughData)
         }
+
+        Ok(raw_samples)
     }
 }
 
@@ -629,14 +649,13 @@ impl Sample for BWBit {
         Ok(values)
     }
 
-    fn from_unsigned(val: u32) -> ImageResult<Self::T> {
-        match val {
-            0 => Ok(0 as u8),
-            1 => Ok(1 as u8),
-            _ => Err(ImageError::FormatError(
-                "Sample value outside of bounds".to_string(),
-            )),
-        }
+    fn from_ascii(
+        _reader: &mut Read,
+        _width: u32,
+        _height: u32,
+        _samples: u32,
+    ) -> ImageResult<Vec<Self::T>> {
+        panic!("BW bits from anymaps are not encoded as ascii")
     }
 }
 
@@ -929,8 +948,40 @@ ENDHDR
     #[test]
     fn pbm_ascii() {
         // The data contains two rows of the image (each line is padded to the full byte). For
-        // comments on its format, see documentation of `impl SampleType for PbmBit`.
-        let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0 1";
+        // comments on its format, see documentation of `impl SampleType for PbmBit`.  Tests all
+        // whitespace characters that should be allowed (the 6 characters according to POSIX).
+        let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0\t\n\x0b\x0c\r1";
+        let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
+        assert_eq!(decoder.dimensions().unwrap(), (6, 2));
+        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
+        match decoder.read_image().unwrap() {
+            DecodingResult::U16(_) => panic!("Decoded wrong image format"),
+            DecodingResult::U8(data) => assert_eq!(data, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]),
+        }
+        match decoder.into_inner() {
+            (
+                _,
+                PNMHeader {
+                    decoded:
+                        HeaderRecord::Bitmap(BitmapHeader {
+                            encoding: SampleEncoding::Ascii,
+                            width: 6,
+                            height: 2,
+                        }),
+                    encoded: _,
+                },
+            ) => (),
+            _ => panic!("Decoded header is incorrect"),
+        }
+    }
+
+    #[test]
+    fn pbm_ascii_nospace() {
+        // The data contains two rows of the image (each line is padded to the full byte). Notably,
+        // it is completely within specification for the ascii data not to contain separating
+        // whitespace for the pbm format or any mix.
+        let pbmbinary = b"P1 6 2\n011011101101";
         let mut decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(1));
         assert_eq!(decoder.dimensions().unwrap(), (6, 2));

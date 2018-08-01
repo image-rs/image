@@ -546,26 +546,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         (color::ColorType::Gray(bit_depth), U8(ref buf))
             if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
         {
-            // Note: this conversion assumes that the scanlines begin on byte boundaries
-            let mask = (1u8 << bit_depth as usize) - 1;
-            let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
-            let skip = (w % 8) / u32::from(bit_depth);
-            let row_len = w + skip;
-            let p = buf
-                       .iter()
-                       .flat_map(|&v|
-                           num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
-                           .zip(iter::repeat(v))
-                       )
-                       // skip the pixels that can be neglected because scanlines should
-                       // start at byte boundaries
-                       .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
-                       .map(|(shift, pixel)|
-                           (pixel & mask << shift as usize) >> shift as usize
-                       )
-                       .map(|pixel| pixel * scaling_factor)
-                       .collect();
-            ImageBuffer::from_raw(w, h, p).map(DynamicImage::ImageLuma8)
+            gray_to_luma8(bit_depth, w, h, buf).map(DynamicImage::ImageLuma8)
         }
         _ => return Err(image::ImageError::UnsupportedColor(color)),
     };
@@ -573,6 +554,34 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         Some(image) => Ok(image),
         None => Err(image::ImageError::DimensionError),
     }
+}
+
+fn gray_to_luma8(bit_depth: u8, w: u32, h: u32, buf: &[u8]) -> Option<GrayImage> {
+    // Note: this conversion assumes that the scanlines begin on byte boundaries
+    let mask = (1u8 << bit_depth as usize) - 1;
+    let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
+    let bit_width = w * u32::from(bit_depth);
+    let skip = if bit_width % 8 == 0 {
+        0
+    } else {
+        (8 - bit_width % 8) / u32::from(bit_depth)
+    };
+    let row_len = w + skip;
+    let p = buf
+        .iter()
+        .flat_map(|&v|
+                  num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
+                  .zip(iter::repeat(v))
+                 )
+        // skip the pixels that can be neglected because scanlines should
+        // start at byte boundaries
+        .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
+        .map(|(shift, pixel)|
+             (pixel & mask << shift as usize) >> shift as usize
+            )
+        .map(|pixel| pixel * scaling_factor)
+        .collect();
+    ImageBuffer::from_raw(w, h, p)
 }
 
 #[allow(deprecated)]
@@ -875,5 +884,34 @@ mod test {
         let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
         assert!(result.0 == ::std::u32::MAX);
         assert!(result.1 == 100);
+    }
+
+    #[test]
+    fn gray_to_luma8_skip() {
+        let check = |bit_depth, w, h, from, to| {
+            assert_eq!(
+                super::gray_to_luma8(bit_depth, w, h, from).map(super::GrayImage::into_raw),
+                Some(to));
+        };
+        // Bit depth 1, skip is more than half a byte
+        check(
+            1, 10, 2,
+            &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
+            vec![255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255]);
+        // Bit depth 2, skip is more than half a byte
+        check(
+            2, 5, 2,
+            &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
+            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255]);
+        // Bit depth 2, skip is 0
+        check(
+            2, 4, 2,
+            &[0b11110000, 0b00001111],
+            vec![255, 255, 0, 0, 0, 0, 255, 255]);
+        // Bit depth 4, skip is half a byte
+        check(
+            4, 1, 2,
+            &[0b11110011, 0b00001100],
+            vec![255, 0]);
     }
 }

@@ -680,7 +680,7 @@ impl Sample for BWBit {
         _height: u32,
         _samples: u32,
     ) -> ImageResult<Vec<Self::T>> {
-        panic!("BW bits from anymaps are never encoded as ascii")
+        unreachable!("BW bits from anymaps are never encoded as ascii")
     }
 }
 

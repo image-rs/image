@@ -1,5 +1,5 @@
 use std::io::{self, BufRead, BufReader, Read};
-use std::str::FromStr;
+use std::str::{self, FromStr};
 use std::fmt::Display;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
@@ -513,7 +513,7 @@ fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
         ));
     }
 
-    let string = String::from_utf8(token)
+    let string = str::from_utf8(&token)
         // We checked the precondition ourselves a few lines before, `token.is_ascii()`.
         .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
 

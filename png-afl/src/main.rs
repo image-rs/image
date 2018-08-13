@@ -1,34 +1,32 @@
-#![feature(test)]
-#![feature(plugin)]
-#![plugin(afl_coverage_plugin)]
-
-extern crate afl_coverage;
-extern crate test;
+extern crate afl;
 extern crate png;
 
-use png::HasParameters;
-use std::io::{self, Read};
+// detect_odr_violation=0 is for https://github.com/rust-lang/rust/issues/41807
+const ASAN_DEFAULT_OPTIONS: &'static [u8] = b"detect_odr_violation=0\0";
+
+#[no_mangle]
+pub extern "C" fn __asan_default_options() -> *const u8 {
+    ASAN_DEFAULT_OPTIONS as *const [u8] as *const u8
+}
+
+#[inline(always)]
+fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
+    let decoder = png::Decoder::new(data);
+    let (info, mut reader) = decoder.read_info().map_err(|_| ())?;
+
+    if info.buffer_size() > 5_000_000 {
+        return Err(());
+    }
+
+    let mut img_data = Vec::with_capacity(info.buffer_size());
+    reader.next_frame(&mut img_data).map_err(|_| ())?;
+
+    Ok((info, img_data))
+}
 
 fn main() {
-    let mut input = Vec::new();
-    io::stdin().read_to_end(&mut input).unwrap();
-    let mut decoder = png::Decoder::new(&*input);
-    /*let file = ::std::fs::File::open(
-        "fuzzer_out/crashes/id:000002,sig:04,src:000005,op:flip1,pos:43"
-    ).unwrap();
-    let mut decoder = png::Decoder::new(file);*/
-    match (|| -> Result<(), png::DecodingError> {
-        let (info, mut reader) = try!(decoder.read_info());
-        println!("width = {}, height = {}", info.width, info.height);
-        if info.buffer_size() > 50_000_000 {
-            return Ok(())
-        }
-        let mut img_data = vec![0; info.buffer_size()];
-        let frame = try!(reader.next_frame(&mut img_data));
-        println!("frame 1: {:?}", frame);
-        Ok(())
-    })() {
-        Ok(_) => (),
-        Err(err) => println!("{:?}", err)
-    }
+    afl::fuzz(|data| {
+    //afl::read_stdio_bytes(|data| {
+        png_decode(&data);
+    });
 }

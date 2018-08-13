@@ -1,14 +1,10 @@
 [package]
 name = "png-afl"
-version = "0.1.0"
-authors = ["nwin <nwin@users.noreply.github.com>"]
+version = "0.2.0"
+authors = ["Sergey Davidoff <shnatsel@gmail.com>", "Paul Grandperrin <paul.grandperrin@gmail.com>"]
 
-[dependencies.png]
-version = "*"
-path = "../"
+[dependencies]
+afl = "0.4.0"
+png = {path = "../"}
 
-[dependencies.afl-plugin]
-git = "https://github.com/kmcallister/afl.rs"
 
-[dependencies.afl]
-git = "https://github.com/kmcallister/afl.rs"

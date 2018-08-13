@@ -1,3 +1,5 @@
+use std;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum FilterType {
@@ -42,50 +44,71 @@ fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
     }
 }
 
-pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
+pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) -> std::result::Result<(), &'static str> {
     use self::FilterType::*;
+    assert!(bpp > 0);
     let len = current.len();
 
     match filter {
-        NoFilter => (),
+        NoFilter => Ok(()),
         Sub => {
             for i in bpp..len {
                 current[i] = current[i].wrapping_add(
                     current[i - bpp]
                 );
             }
+            Ok(())
         }
         Up => {
-            for i in 0..len {
-                current[i] = current[i].wrapping_add(
-                    previous[i]
-                );
+            if previous.len() < len {
+                Err("Filtering failed: not enough data in previous row")
+            } else {
+                for i in 0..len {
+                    current[i] = current[i].wrapping_add(
+                        previous[i]
+                    );
+                }
+                Ok(())
             }
         }
         Avg => {
-            for i in 0..bpp {
-                current[i] = current[i].wrapping_add(
-                    previous[i] / 2
-                );
-            }
+            if previous.len() < len {
+                Err("Filtering failed:  not enough data in previous row")
+            } else if bpp > len {
+                Err("Filtering failed: bytes per pixel is greater than length of row")
+            } else {
+                for i in 0..bpp {
+                    current[i] = current[i].wrapping_add(
+                        previous[i] / 2
+                    );
+                }
 
-            for i in bpp..len {
-                current[i] = current[i].wrapping_add(
-                    ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8
-                );
+                for i in bpp..len {
+                    current[i] = current[i].wrapping_add(
+                        ((current[i - bpp] as i16 + previous[i] as i16) / 2) as u8
+                    );
+                }
+                Ok(())
             }
         }
         Paeth => {
-            for i in 0..bpp {
-                current[i] = current[i].wrapping_add(
-                    filter_paeth(0, previous[i], 0)
-                );
-            }
+            if previous.len() < len {
+                Err("Filtering failed: not enough data in previous row")
+            } else if bpp > len {
+                Err("Filtering failed: bytes per pixel is greater than length of row")
+            } else {
+                for i in 0..bpp {
+                    current[i] = current[i].wrapping_add(
+                        filter_paeth(0, previous[i], 0)
+                    );
+                }
 
-            for i in bpp..len {
-                current[i] = current[i].wrapping_add(
-                    filter_paeth(current[i - bpp], previous[i], previous[i - bpp])
-                );
+                for i in bpp..len {
+                    current[i] = current[i].wrapping_add(
+                        filter_paeth(current[i - bpp], previous[i], previous[i - bpp])
+                    );
+                }
+                Ok(())
             }
         }
     }
@@ -93,6 +116,7 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
 
 pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     use self::FilterType::*;
+    assert!(bpp > 0);
     let len  = current.len();
 
     match method {

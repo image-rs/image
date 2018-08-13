@@ -4,6 +4,7 @@ pub use self::stream::{StreamingDecoder, Decoded, DecodingError};
 use self::stream::{CHUNCK_BUFFER_SIZE, get_info};
 
 use std::mem;
+use std::borrow;
 use std::io::{Read, Write, BufReader, BufRead};
 
 use traits::{HasParameters, Parameter};
@@ -242,10 +243,6 @@ impl<R: Read> Reader<R> {
     pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use common::ColorType::*;
         let transform = self.transform;
-        let (color_type, bit_depth, trns) = {
-            let info = get_info!(self);
-            (info.color_type, info.bit_depth as u8, info.trns.is_some())
-        };
         if transform == ::Transformations::IDENTITY {
             self.next_raw_interlaced_row()
         } else {
@@ -260,6 +257,10 @@ impl<R: Read> Reader<R> {
             // swap back
             let _ = mem::replace(&mut self.processed, buffer);
             if got_next {
+                let (color_type, bit_depth, trns) = {
+                    let info = get_info!(self);
+                    (info.color_type, info.bit_depth as u8, info.trns.is_some())
+                };
                 let output_buffer = if let Some((_, _, width)) = adam7 {
                     let width = self.line_size(width);
                     &mut self.processed[..width]
@@ -270,7 +271,7 @@ impl<R: Read> Reader<R> {
                 if transform.contains(::Transformations::EXPAND) {
                     match color_type {
                         Indexed => {
-                            expand_paletted(output_buffer, get_info!(self))
+                            expand_paletted(output_buffer, get_info!(self))?
                         }
                         Grayscale | GrayscaleAlpha if bit_depth < 8 => expand_gray_u8(
                             output_buffer, get_info!(self)
@@ -409,7 +410,11 @@ impl<R: Read> Reader<R> {
         loop {
             if self.current.len() >= rowlen {
                 if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]);
+                    if let Err(message) = unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]) {
+                        return Err(DecodingError::Format(
+                            borrow::Cow::Borrowed(message)
+                        ))
+                    }
                     self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
                     // TODO optimize
                     self.current = self.current[rowlen..].into();
@@ -446,27 +451,35 @@ impl<R: Read> Reader<R> {
     }
 }
 
-fn expand_paletted(buffer: &mut [u8], info: &Info) {
-    let palette = info.palette.as_ref().unwrap();
-    let black = [0, 0, 0];
-    if let Some(ref trns) = info.trns {
-        utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
-            let (rgb, a) = (
-                palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
-                *trns.get(i as usize).unwrap_or(&0xFF)
-            );
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-            chunk[3] = a;
-        });
+fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
+    if let Some(palette) = info.palette.as_ref() {
+        if let BitDepth::Sixteen = info.bit_depth {
+            Err(DecodingError::Format("Bit depth '16' is not valid for paletted images".into()))
+        } else {
+            let black = [0, 0, 0];
+            if let Some(ref trns) = info.trns {
+                utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
+                    let (rgb, a) = (
+                        palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
+                        *trns.get(i as usize).unwrap_or(&0xFF)
+                    );
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                    chunk[3] = a;
+                });
+            } else {
+                utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
+                    let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
+                    chunk[0] = rgb[0];
+                    chunk[1] = rgb[1];
+                    chunk[2] = rgb[2];
+                })
+            }
+            Ok(())
+        }
     } else {
-        utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-            let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
-            chunk[0] = rgb[0];
-            chunk[1] = rgb[1];
-            chunk[2] = rgb[2];
-        })
+        Err(DecodingError::Format("missing palette".into()))
     }
 }
 

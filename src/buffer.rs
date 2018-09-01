@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba};
+use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
 use traits::Primitive;
@@ -81,6 +81,12 @@ pub trait Pixel: Copy + Clone {
 
     /// Convert this pixel to luma with an alpha channel
     fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
+
+    /// Convert this pixel to BGR
+    fn to_bgr(&self) -> Bgr<Self::Subpixel>;
+
+    /// Convert this pixel to BGR with an alpha channel
+    fn to_bgra(&self) -> Bgra<Self::Subpixel>;
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self
@@ -719,6 +725,10 @@ pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
+/// Sendable Bgr image buffer
+pub type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
+/// Sendable Bgr + alpha channel image buffer
+pub type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {

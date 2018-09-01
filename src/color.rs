@@ -22,7 +22,11 @@ pub enum ColorType {
 
     /// Pixel is RGB with an alpha channel
     RGBA(u8),
+
+    /// Pixel contains B, G and R channels
     BGR(u8),
+
+    /// Pixel is BGR with an alpha channel
     BGRA(u8),
 
 }
@@ -220,9 +224,9 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
     }
 }
 
-Bgradefine_colors! {
+define_colors! {
     Rgb, 3, 0, "RGB", RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", RGB, #[doc = "BGR colors"];
+    Bgr, 3, 0, "BGR", BGR, #[doc = "BGR colors"];
     Luma, 1, 0, "Y", Gray, #[doc = "Grayscale colors"];
     Rgba, 4, 1, "RGBA", RGBA, #[doc = "RGB colors + alpha channel"];
     Bgra, 4, 1, "BGRA", BGRA, #[doc = "BGR colors + alpha channel"];
@@ -405,15 +409,29 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Rgba<T> {
         rgba[3] = T::max_value();
     }
 }
+
+
 /// `FromColor` for BGRA
 
 impl<T: Primitive + 'static> FromColor<Rgb<T>> for Bgra<T> {
     fn from_color(&mut self, other: &Rgb<T>) {
         let bgra = self.channels_mut();
         let rgb = other.channels();
-        bgra[0] = rgb[0];
+        bgra[0] = rgb[2];
         bgra[1] = rgb[1];
-        bgra[2] = rgb[2];
+        bgra[2] = rgb[0];
+        bgra[3] = T::max_value();
+    }
+}
+
+
+impl<T: Primitive + 'static> FromColor<Bgr<T>> for Bgra<T> {
+    fn from_color(&mut self, other: &Bgr<T>) {
+        let bgra = self.channels_mut();
+        let bgr = other.channels();
+        bgra[0] = bgr[0];
+        bgra[1] = bgr[1];
+        bgra[2] = bgr[2];
         bgra[3] = T::max_value();
     }
 }
@@ -426,18 +444,18 @@ impl<T: Primitive + 'static> FromColor<Rgba<T>> for Bgra<T> {
         bgra[2] = rgba[0];
         bgra[1] = rgba[1];
         bgra[0] = rgba[2];
-        bgra[3] = rgba[4];
+        bgra[3] = rgba[3];
     }
 }
 
 impl<T: Primitive + 'static> FromColor<LumaA<T>> for Bgra<T> {
     fn from_color(&mut self, other: &LumaA<T>) {
-        let rgba = self.channels_mut();
+        let bgra = self.channels_mut();
         let gray = other.channels();
-        Bgra[0] = gray[0];
-        Bgra[1] = gray[0];
-        Bgra[2] = gray[0];
-        Bgra[3] = gray[1];
+        bgra[0] = gray[0];
+        bgra[1] = gray[0];
+        bgra[2] = gray[0];
+        bgra[3] = gray[1];
     }
 }
 
@@ -520,7 +538,7 @@ impl<T: Primitive + 'static> FromColor<Rgba<T>> for Bgr<T> {
 }
 
 impl<T: Primitive + 'static> FromColor<Rgb<T>> for Bgr<T> {
-    fn from_color(&mut self, other: &Rgba<T>) {
+    fn from_color(&mut self, other: &Rgb<T>) {
         let bgr = self.channels_mut();
         let rgb = other.channels();
         bgr[0] = rgb[2];
@@ -662,11 +680,76 @@ impl<T: Primitive> Blend for Rgba<T> {
     }
 }
 
+
+
+impl<T: Primitive> Blend for Bgra<T> {
+    fn blend(&mut self, other: &Bgra<T>) {
+        // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
+
+        // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
+        let max_t = T::max_value();
+        let max_t = max_t.to_f32().unwrap();
+        let (bg_r, bg_g, bg_b, bg_a) = (self.data[2], self.data[1], self.data[0], self.data[3]);
+        let (fg_r, fg_g, fg_b, fg_a) = (other.data[2], other.data[1], other.data[0], other.data[3]);
+        let (bg_r, bg_g, bg_b, bg_a) = (
+            bg_r.to_f32().unwrap() / max_t,
+            bg_g.to_f32().unwrap() / max_t,
+            bg_b.to_f32().unwrap() / max_t,
+            bg_a.to_f32().unwrap() / max_t,
+        );
+        let (fg_r, fg_g, fg_b, fg_a) = (
+            fg_r.to_f32().unwrap() / max_t,
+            fg_g.to_f32().unwrap() / max_t,
+            fg_b.to_f32().unwrap() / max_t,
+            fg_a.to_f32().unwrap() / max_t,
+        );
+
+        // Work out what the final alpha level will be
+        let alpha_final = bg_a + fg_a - bg_a * fg_a;
+        if alpha_final == 0.0 {
+            return;
+        };
+
+        // We premultiply our channels by their alpha, as this makes it easier to calculate
+        let (bg_r_a, bg_g_a, bg_b_a) = (bg_r * bg_a, bg_g * bg_a, bg_b * bg_a);
+        let (fg_r_a, fg_g_a, fg_b_a) = (fg_r * fg_a, fg_g * fg_a, fg_b * fg_a);
+
+        // Standard formula for src-over alpha compositing
+        let (out_r_a, out_g_a, out_b_a) = (
+            fg_r_a + bg_r_a * (1.0 - fg_a),
+            fg_g_a + bg_g_a * (1.0 - fg_a),
+            fg_b_a + bg_b_a * (1.0 - fg_a),
+        );
+
+        // Unmultiply the channels by our resultant alpha channel
+        let (out_r, out_g, out_b) = (
+            out_r_a / alpha_final,
+            out_g_a / alpha_final,
+            out_b_a / alpha_final,
+        );
+
+        // Cast back to our initial type on return
+        *self = Bgra([
+            NumCast::from(max_t * out_b).unwrap(),
+            NumCast::from(max_t * out_g).unwrap(),
+            NumCast::from(max_t * out_r).unwrap(),
+            NumCast::from(max_t * alpha_final).unwrap(),
+        ])
+    }
+}
+
 impl<T: Primitive> Blend for Rgb<T> {
     fn blend(&mut self, other: &Rgb<T>) {
         *self = *other
     }
 }
+
+impl<T: Primitive> Blend for Bgr<T> {
+    fn blend(&mut self, other: &Bgr<T>) {
+        *self = *other
+    }
+}
+
 
 /// Invert a color
 pub trait Invert {
@@ -704,6 +787,18 @@ impl<T: Primitive> Invert for Rgba<T> {
     }
 }
 
+
+impl<T: Primitive> Invert for Bgra<T> {
+    fn invert(&mut self) {
+        let bgra = self.data;
+
+        let max = T::max_value();
+
+        *self = Bgra([max - bgra[2], max - bgra[1], max - bgra[0], bgra[3]])
+    }
+}
+
+
 impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.data;
@@ -718,9 +813,23 @@ impl<T: Primitive> Invert for Rgb<T> {
     }
 }
 
+impl<T: Primitive> Invert for Bgr<T> {
+    fn invert(&mut self) {
+        let bgr = self.data;
+
+        let max = T::max_value();
+
+        let r1 = max - bgr[2];
+        let g1 = max - bgr[1];
+        let b1 = max - bgr[0];
+
+        *self = Bgr([b1, g1, r1])
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{LumaA, Pixel, Rgb, Rgba};
+    use super::{LumaA, Pixel, Rgb, Rgba, Bgr, Bgra};
 
     #[test]
     fn test_apply_with_alpha_rgba() {
@@ -735,11 +844,31 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_with_alpha_bgra() {
+        let mut bgra = Bgra { data: [0, 0, 0, 0] };
+        bgra.apply_with_alpha(|s| s, |_| 0xFF);
+        assert_eq!(
+            bgra,
+            Bgra {
+                data: [0, 0, 0, 0xFF]
+            }
+        );
+    }
+
+    #[test]
     fn test_apply_with_alpha_rgb() {
         let mut rgb = Rgb { data: [0, 0, 0] };
         rgb.apply_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(rgb, Rgb { data: [0, 0, 0] });
     }
+
+    #[test]
+    fn test_apply_with_alpha_bgr() {
+        let mut bgr = Bgr { data: [0, 0, 0] };
+        bgr.apply_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(bgr, Bgr { data: [0, 0, 0] });
+    }
+
 
     #[test]
     fn test_map_with_alpha_rgba() {
@@ -756,6 +885,24 @@ mod tests {
     fn test_map_with_alpha_rgb() {
         let rgb = Rgb { data: [0, 0, 0] }.map_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(rgb, Rgb { data: [0, 0, 0] });
+    }
+
+    #[test]
+    fn test_map_with_alpha_bgr() {
+        let bgr = Bgr { data: [0, 0, 0] }.map_with_alpha(|s| s, |_| panic!("bug"));
+        assert_eq!(bgr, Bgr { data: [0, 0, 0] });
+    }
+
+
+    #[test]
+    fn test_map_with_alpha_bgra() {
+        let bgra = Bgra { data: [0, 0, 0, 0] }.map_with_alpha(|s| s, |_| 0xFF);
+        assert_eq!(
+            bgra,
+            Bgra {
+                data: [0, 0, 0, 0xFF]
+            }
+        );
     }
 
     #[test]

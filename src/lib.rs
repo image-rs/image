@@ -23,9 +23,9 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA,BGR,BGRA};
+pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA, BGR, BGRA};
 
-pub use color::{Luma, LumaA, Rgb, Rgba,Bgr,Bgra};
+pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
 pub use image::{DecodingResult,
                 GenericImage,
@@ -60,7 +60,7 @@ pub use traits::Primitive;
 pub use dynimage::{guess_format, load, load_from_memory, load_from_memory_with_format, open,
                    save_buffer};
 
-pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8};
+pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8, ImageBgr8, ImageBgra8};
 
 pub use animation::{Frame, Frames};
 

@@ -132,7 +132,7 @@ impl DynamicImage {
 
     /// Creates a dynamic image backed by a buffer of BGR pixels.
     pub fn new_bgr8(w: u32, h: u32) -> DynamicImage {
-        DynamicImage::ImageBgra8(ImageBuffer::new(w, h))
+        DynamicImage::ImageBgr8(ImageBuffer::new(w, h))
     }
 
 

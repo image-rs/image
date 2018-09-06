@@ -57,7 +57,7 @@ mod common;
 mod utils;
 
 pub use common::*;
-pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError};
+pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError, Limits};
 #[cfg(feature = "png-encoding")]
 pub use encoder::{Encoder, Writer, EncodingError};
 

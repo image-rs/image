@@ -16,7 +16,7 @@ use common::{ColorType, BitDepth, Info, Unit, PixelDimensions, AnimationControl,
 use chunk::{self, ChunkType, IHDR, IDAT, IEND};
 
 /// TODO check if these size are reasonable
-pub const CHUNCK_BUFFER_SIZE: usize = 32*1024;
+pub const CHUNCK_BUFFER_SIZE: usize = 1024*1024;
 
 #[derive(Debug)]
 enum U32Value {

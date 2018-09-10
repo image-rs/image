@@ -99,3 +99,13 @@ impl<W: io::Write + ?Sized> WriteBytesExt<u32> for W {
         ])
     }
 }
+
+impl<W: io::Write + ?Sized> WriteBytesExt<u16> for W {
+    #[inline]
+    fn write_be(&mut self, n: u16) -> io::Result<()> {
+        write_all(self, &[
+            (n >>  8) as u8,
+            n         as u8
+        ])
+    }
+}

@@ -133,7 +133,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
         }
         Avg  => {
             for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub((current[i - bpp].wrapping_add(previous[i]) / 2));
+                current[i] = current[i].wrapping_sub(current[i - bpp].wrapping_add(previous[i]) / 2);
             }
 
             for i in 0..bpp {

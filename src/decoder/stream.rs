@@ -424,6 +424,7 @@ impl StreamingDecoder {
 
     fn parse_fctl(&mut self)
     -> Result<Decoded, DecodingError> {
+        use common::{BlendOp, DisposeOp};
         let mut buf = &self.current_chunk.2[..];
         let next_seq_no = try!(buf.read_be());
 
@@ -456,8 +457,14 @@ impl StreamingDecoder {
             y_offset: try!(buf.read_be()),
             delay_num: try!(buf.read_be()),
             delay_den: try!(buf.read_be()),
-            dispose_op: try!(buf.read_be()),
-            blend_op : try!(buf.read_be()),
+            dispose_op: match DisposeOp::from_u8(buf.read_be()?) {
+                Some(dispose_op) => dispose_op,
+                None => return Err(DecodingError::Format("invalid dispose operation".into()))
+            },
+            blend_op : match BlendOp::from_u8(buf.read_be()?) {
+                Some(blend_op) => blend_op,
+                None => return Err(DecodingError::Format("invalid blend operation".into()))
+            },
         });
         Ok(Decoded::FrameControl(self.info.as_ref().unwrap().frame_control.as_ref().unwrap()))
     }

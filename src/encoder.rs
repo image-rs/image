@@ -220,7 +220,7 @@ impl<W: Write> Writer<W> {
 
     #[allow(non_snake_case)]
     fn write_fdAT(&mut self, data: &[u8]) -> Result<()> {
-        println!("Writing fdAT:{:?}", self.info.frame_control.unwrap().sequence_number+1);
+        // println!("Writing fdAT:{:?}", self.info.frame_control.unwrap().sequence_number+1);
 
         let zlib = self.get_image_data(data)?;
 
@@ -232,7 +232,7 @@ impl<W: Write> Writer<W> {
     }
 
     pub fn write_frame(&mut self, data: &[u8]) -> Result<()> {
-        println!("{:?}", self.info.frame_control.unwrap().sequence_number);
+        // println!("{:?}", self.info.frame_control.unwrap().sequence_number);
 
         match self.info {
             Info { animation_control: Some(AnimationControl { num_frames: 0, ..}) , frame_control: Some(_), ..} => {
@@ -257,7 +257,7 @@ impl<W: Write> Writer<W> {
                         ret
                     },
                     x if x == 2 * anim_ctl.num_frames - 1 => {
-                        println!("We're done, boss");
+                        // println!("We're done, boss");
 
                         // This is the last frame:
                         // Do the usual and also set AnimationControl to no remaining frames:
@@ -270,7 +270,7 @@ impl<W: Write> Writer<W> {
                     _ => {
                         // Usual case:
                         // fcTL + fdAT
-                        println!("Buisness as usual");
+                        // println!("Buisness as usual");
                         let ret = self.write_fcTL().and(self.write_fdAT(data));
                         let mut fc = self.info.frame_control.unwrap();
                         fc.inc_seq_num(2);

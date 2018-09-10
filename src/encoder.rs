@@ -62,6 +62,17 @@ impl<W: Write> Encoder<W> {
         Encoder { w: w, info: info }
     }
 
+    pub fn new_animated_with_frame_rate(w: W, width: u32, height: u32, frames: u32, delay_num: u16, delay_den: u16) -> Result<Encoder<W>> {
+        let mut enc = Encoder::new_animated(w, width, height, frames)?;
+
+        let mut frame_ctl = enc.info.frame_control.unwrap();
+        frame_ctl.delay_num = delay_num;
+        frame_ctl.delay_den = delay_den;
+
+        enc.info.frame_control = Some(frame_ctl);
+        Ok(enc)
+    }
+
     pub fn new_animated(w: W, width: u32, height: u32, frames: u32) -> Result<Encoder<W>> {
         if frames > 0 {
             let mut encoder = Encoder::new(w, width, height);

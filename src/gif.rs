@@ -23,6 +23,7 @@
 //! # Ok(())
 //! # }
 //! ```
+#![cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
 
 extern crate gif;
 extern crate num_rational;
@@ -264,10 +265,9 @@ impl<W: Write> Encoder<W> {
             frame.delay = frame_delay;
 
             // encode the gif::Frame
-            match self.encode(&frame).map_err(|err| err.into()) {
-                Ok(()) => (),
-                Err(e) => return Err(e),
-            };
+            if let Err(e) = self.encode(&frame) {
+                return Err(e);
+            }
         }
         Ok(())
     }

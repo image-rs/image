@@ -9,13 +9,15 @@ use num_traits::{Num, NumCast};
 use std::f64::consts::PI;
 use traits::Primitive;
 
+type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
+
 /// Convert the supplied image to grayscale
 pub fn grayscale<I: GenericImageView>(
     image: &I,
-) -> ImageBuffer<Luma<<I::Pixel as Pixel>::Subpixel>, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
 where
-    <I::Pixel as Pixel>::Subpixel: 'static,
-    <<I::Pixel as Pixel>::Subpixel as Num>::FromStrRadixErr: 'static,
+    Subpixel<I>: 'static,
+    <Subpixel<I> as Num>::FromStrRadixErr: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

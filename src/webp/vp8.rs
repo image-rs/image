@@ -870,12 +870,11 @@ impl<R: Read> VP8Decoder<R> {
     }
 
     fn update_token_probabilities(&mut self) {
-        for i in 0usize..4 {
-            for j in 0usize..8 {
-                for k in 0usize..3 {
-                    for t in 0usize..NUM_DCT_TOKENS - 1 {
-                        let prob = COEFF_UPDATE_PROBS[i][j][k][t];
-                        if self.b.read_bool(prob) != 0 {
+        for (i, is) in COEFF_UPDATE_PROBS.iter().enumerate() {
+            for (j, js) in is.iter().enumerate() {
+                for (k, ks) in js.iter().enumerate() {
+                    for (t, prob) in ks.iter().enumerate().take(NUM_DCT_TOKENS - 1) {
+                        if self.b.read_bool(*prob) != 0 {
                             let v = self.b.read_literal(8);
                             self.token_probs[i][j][k][t] = v;
                         }

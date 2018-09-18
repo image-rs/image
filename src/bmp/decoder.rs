@@ -1262,7 +1262,7 @@ mod test {
     #[test]
     fn test_bitfield_len() {
         for len in 1..9 {
-            let bitfield = Bitfield { shift: 0, len: len };
+            let bitfield = Bitfield { shift: 0, len };
             for i in 0..(1 << len) {
                 let read = bitfield.read(i);
                 let calc = (i as f64 / ((1 << len) - 1) as f64 * 255f64).round() as u8;

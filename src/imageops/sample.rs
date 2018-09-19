@@ -135,47 +135,51 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
+    let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::max_value()).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    for y in 0..height {
-        for outx in 0..new_width {
-            // Find the point in the input image corresponding to the centre
-            // of the current pixel in the output image.
-            let inputx = (outx as f32 + 0.5) * ratio;
+    for outx in 0..new_width {
+        // Find the point in the input image corresponding to the centre
+        // of the current pixel in the output image.
+        let inputx = (outx as f32 + 0.5) * ratio;
 
-            // Left and right are slice bounds for the input pixels relevant
-            // to the output pixel we are calculating.  Pixel x is relevant
-            // if and only if (x >= left) && (x < right).
+        // Left and right are slice bounds for the input pixels relevant
+        // to the output pixel we are calculating.  Pixel x is relevant
+        // if and only if (x >= left) && (x < right).
 
-            // Invariant: 0 <= left < right <= width
+        // Invariant: 0 <= left < right <= width
 
-            let left = (inputx - src_support).floor() as i64;
-            let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
+        let left = (inputx - src_support).floor() as i64;
+        let left = clamp(left, 0, <i64 as From<_>>::from(width) - 1) as u32;
 
-            let right = (inputx + src_support).ceil() as i64;
-            let right = clamp(
-                right,
-                <i64 as From<_>>::from(left) + 1,
-                <i64 as From<_>>::from(width),
-            ) as u32;
+        let right = (inputx + src_support).ceil() as i64;
+        let right = clamp(
+            right,
+            <i64 as From<_>>::from(left) + 1,
+            <i64 as From<_>>::from(width),
+        ) as u32;
 
-            // Go back to left boundary of pixel, to properly compare with i
-            // below, as the kernel treats the centre of a pixel as 0.
-            let inputx = inputx - 0.5;
+        // Go back to left boundary of pixel, to properly compare with i
+        // below, as the kernel treats the centre of a pixel as 0.
+        let inputx = inputx - 0.5;
 
-            let mut sum = 0.0;
+        ws.clear();
+        let mut sum = 0.0;
+        for i in left..right {
+            let w = (filter.kernel)((i as f32 - inputx) / sratio);
+            ws.push(w);
+            sum += w;
+        }
 
+        for y in 0..height {
             let mut t = (0.0, 0.0, 0.0, 0.0);
 
-            for i in left..right {
-                let w = (filter.kernel)((i as f32 - inputx) / sratio);
-                sum += w;
-
-                let p = image.get_pixel(i, y);
+            for (i, w) in ws.iter().enumerate() {
+                let p = image.get_pixel(left + i as u32, y);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -223,39 +227,43 @@ where
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
+    let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::max_value()).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
 
-    for x in 0..width {
-        for outy in 0..new_height {
-            // For an explanation of this algorithm, see the comments
-            // in horizontal_sample.
-            let inputy = (outy as f32 + 0.5) * ratio;
+    for outy in 0..new_height {
+        // For an explanation of this algorithm, see the comments
+        // in horizontal_sample.
+        let inputy = (outy as f32 + 0.5) * ratio;
 
-            let left = (inputy - src_support).floor() as i64;
-            let left = clamp(left, 0, <i64 as From<_>>::from(height) - 1) as u32;
+        let left = (inputy - src_support).floor() as i64;
+        let left = clamp(left, 0, <i64 as From<_>>::from(height) - 1) as u32;
 
-            let right = (inputy + src_support).ceil() as i64;
-            let right = clamp(
-                right,
-                <i64 as From<_>>::from(left) + 1,
-                <i64 as From<_>>::from(height),
-            ) as u32;
+        let right = (inputy + src_support).ceil() as i64;
+        let right = clamp(
+            right,
+            <i64 as From<_>>::from(left) + 1,
+            <i64 as From<_>>::from(height),
+        ) as u32;
 
-            let inputy = inputy - 0.5;
+        let inputy = inputy - 0.5;
 
-            let mut sum = 0.0;
+        ws.clear();
+        let mut sum = 0.0;
+        for i in left..right {
+            let w = (filter.kernel)((i as f32 - inputy) / sratio);
+            ws.push(w);
+            sum += w;
+        }
 
+        for x in 0..width {
             let mut t = (0.0, 0.0, 0.0, 0.0);
 
-            for i in left..right {
-                let w = (filter.kernel)((i as f32 - inputy) / sratio);
-                sum += w;
-
-                let p = image.get_pixel(x, i);
+            for (i, w) in ws.iter().enumerate() {
+                let p = image.get_pixel(x, left + i as u32);
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (

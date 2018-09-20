@@ -33,8 +33,8 @@ impl From<tiff::TiffError> for ImageError {
     fn from(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc),
-            tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc),
+            tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
+            tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
         }
     }
 }
@@ -46,7 +46,8 @@ impl From<tiff::ColorType> for ColorType {
             tiff::ColorType::RGB(depth) => ColorType::RGB(depth),
             tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
             tiff::ColorType::GrayA(depth) => ColorType::GrayA(depth),
-            tiff::ColorType::RGBA(depth) => ColorType::RGBA(depth)
+            tiff::ColorType::RGBA(depth) => ColorType::RGBA(depth),
+            tiff::ColorType::CMYK(_) => unimplemented!()
         }
     }
 }

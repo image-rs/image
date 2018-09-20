@@ -329,8 +329,8 @@ impl<'a> CheckedDimensions<'a> {
         let components = match color {
             ColorType::Gray(_) => 1,
             ColorType::GrayA(_) => 2,
-            ColorType::Palette(_) | ColorType::RGB(_) => 3,
-            ColorType::RGBA(_) => 4,
+            ColorType::Palette(_) | ColorType::RGB(_) | ColorType::BGR(_)=> 3,
+            ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
         };
 
         match *self.unchecked.header {
@@ -428,7 +428,9 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::GrayA(n)
             | ColorType::Palette(n)
             | ColorType::RGB(n)
-            | ColorType::RGBA(n) if n > 16 =>
+            | ColorType::RGBA(n)
+            | ColorType::BGR(n)
+            | ColorType::BGRA(n) if n > 16 =>
             {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -439,7 +441,9 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::GrayA(n)
             | ColorType::Palette(n)
             | ColorType::RGB(n)
-            | ColorType::RGBA(n) => (1 << n) - 1,
+            | ColorType::RGBA(n)
+            | ColorType::BGR(n)
+            | ColorType::BGRA(n) => (1 << n) - 1,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

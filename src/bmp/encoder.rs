@@ -27,7 +27,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let bmp_header_size = 14;
         let dib_header_size = 40; // using BITMAPINFOHEADER
 
-        let (raw_pixel_size, written_pixel_size, palette_color_count) = try!(get_pixel_info(&c));
+        let (raw_pixel_size, written_pixel_size, palette_color_count) = try!(get_pixel_info(c));
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
 
         let image_size = width * height * written_pixel_size + (height * row_pad_size);
@@ -72,7 +72,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    &get_unsupported_error_message(&c)[..],
+                    &get_unsupported_error_message(c)[..],
                 ))
             }
         }
@@ -157,7 +157,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
     }
 }
 
-fn get_unsupported_error_message(c: &color::ColorType) -> String {
+fn get_unsupported_error_message(c: color::ColorType) -> String {
     format!(
         "Unsupported color type {:?}.  Supported types: RGB(8), RGBA(8), Gray(8), GrayA(8).",
         c
@@ -165,8 +165,8 @@ fn get_unsupported_error_message(c: &color::ColorType) -> String {
 }
 
 /// Returns a tuple representing: (raw pixel size, written pixel size, palette color count).
-fn get_pixel_info(c: &color::ColorType) -> io::Result<(u32, u32, u32)> {
-    let sizes = match *c {
+fn get_pixel_info(c: color::ColorType) -> io::Result<(u32, u32, u32)> {
+    let sizes = match c {
         color::ColorType::RGB(8) => (3, 3, 0),
         color::ColorType::RGBA(8) => (4, 3, 0),
         color::ColorType::Gray(8) => (1, 1, 256),

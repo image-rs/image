@@ -31,24 +31,24 @@ pub enum DXTVariant {
 impl DXTVariant {
     /// Returns the amount of bytes of raw image data
     /// that is encoded in a single DXTn block
-    fn decoded_bytes_per_block(&self) -> usize {
-        match *self {
+    fn decoded_bytes_per_block(self) -> usize {
+        match self {
             DXTVariant::DXT1 => 48,
             DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
         }
     }
 
     /// Returns the amount of bytes per block of encoded DXTn data
-    fn encoded_bytes_per_block(&self) -> usize {
-        match *self {
+    fn encoded_bytes_per_block(self) -> usize {
+        match self {
             DXTVariant::DXT1 => 8,
             DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
         }
     }
 
     /// Returns the colortype that is stored in this DXT variant
-    pub fn colortype(&self) -> ColorType {
-        match *self {
+    pub fn colortype(self) -> ColorType {
+        match self {
             DXTVariant::DXT1 => ColorType::RGB(8),
             DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::RGBA(8),
         }
@@ -217,7 +217,7 @@ fn square(a: i32) -> i32 {
 }
 
 /// returns the squared error between two RGB values
-fn diff(a: &Rgb, b: &Rgb) -> i32 {
+fn diff(a: Rgb, b: Rgb) -> i32 {
     square(i32::from(a[0]) - i32::from(b[0])) + square(i32::from(a[1]) - i32::from(b[1]))
         + square(i32::from(a[2]) - i32::from(b[2]))
 }
@@ -456,7 +456,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
         let mut rgb = targets
             .iter()
             .cloned()
-            .max_by_key(|rgb| diff(rgb, &ref_rgb))
+            .max_by_key(|rgb| diff(*rgb, ref_rgb))
             .unwrap();
         // amplify differences by 2.5, which should push them to the next quantized value
         // if possible without overshoot
@@ -529,7 +529,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
                 // pixel.
                 let total_error = targets
                     .iter()
-                    .map(|t| colors.iter().map(|c| diff(c, t) as u32).min().unwrap())
+                    .map(|t| colors.iter().map(|c| diff(*c, *t) as u32).min().unwrap())
                     .sum();
 
                 // update the match if we found a better one
@@ -554,7 +554,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
         let (idx, _) = chosen_colors
             .iter()
             .enumerate()
-            .min_by_key(|&(_, c)| diff(c, t))
+            .min_by_key(|&(_, c)| diff(*c, *t))
             .unwrap();
         chosen_indices = (chosen_indices << 2) | idx as u32;
     }

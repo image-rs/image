@@ -8,6 +8,25 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.20
+
+- Clippy lint pass
+- Updated num-rational dependency
+- Added BGRA and BGR color types
+- Improved performance of image resizing
+- Improved PBM decoding
+- PNM P4 decoding now returns bits instead of bytes
+- Fixed move of overlapping buffers in BMP decoder
+- Fixed some document comments
+- `GenericImage` and `GenericImageView` is now object-safe
+- Moved TIFF code to its own library
+- Fixed README examples
+- Fixed ordering of interpolated parameters in TIFF decode error string
+- Thumbnail now handles upscaling
+- GIF encoding for multiple frames
+- Improved subimages API
+- Cargo fmt fixes
+
 ### Version 0.19
 
 - Fixed panic when blending with alpha zero.

@@ -183,7 +183,7 @@ The image format is determined from the path's file extension.
 ```rust
 extern crate image;
 
-use image::GenericImage;
+use image::GenericImageView;
 
 fn main() {
     // Use the open function to load an image from a Path.

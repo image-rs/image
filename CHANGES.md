@@ -1,4 +1,4 @@
-# Rust Image 0.4 Release Notes
+# Rust Image Release Notes
 
 Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
 

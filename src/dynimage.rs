@@ -665,7 +665,14 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         None => Err(image::ImageError::DimensionError),
     }
 }
+// Compilation of this function failed on wasm32-unknown-emscripten
+// This is intented as temporary workaround
+#[cfg(target_os = "emscripten")]
+fn gray_to_luma8(_bit_depth: u8, _w: u32, _h: u32, _buf: &[u8]) -> Option<GrayImage> {
+    panic!("This feature is not supported on emscripten ");
+}
 
+#[cfg(not(target_os = "emscripten"))]
 fn gray_to_luma8(bit_depth: u8, w: u32, h: u32, buf: &[u8]) -> Option<GrayImage> {
     // Note: this conversion assumes that the scanlines begin on byte boundaries
     let mask = (1u8 << bit_depth as usize) - 1;

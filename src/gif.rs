@@ -8,12 +8,12 @@
 //! # Examples
 //! ```rust,no_run
 //! use image::gif::{Decoder, Encoder};
-//! use image::ImageDecoder;
+//! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
 //! # fn main() -> std::io::Result<()> {
 //! // Decode a gif into frames
 //! let file_in = File::open("foo.gif")?;
-//! let mut decoder = Decoder::new(file_in);
+//! let mut decoder = Decoder::new(file_in).unwrap();
 //! let frames = decoder.into_frames().expect("error decoding gif");
 //!
 //! // Encode frames into a gif and save to a file
@@ -29,7 +29,7 @@ extern crate gif;
 extern crate num_rational;
 
 use std::clone::Clone;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 
 use self::gif::{ColorOutput, SetParameter};
 pub use self::gif::{DisposalMethod, Frame};
@@ -38,97 +38,72 @@ use animation;
 use buffer::{ImageBuffer, Pixel};
 use color;
 use color::Rgba;
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
+use image::{AnimationDecoder, ImageDecoder, ImageError, ImageResult};
 use num_rational::Ratio;
-
-enum Either<T, U> {
-    Left(T),
-    Right(U),
-}
 
 /// GIF decoder
 pub struct Decoder<R: Read> {
-    inner: Option<Either<gif::Decoder<R>, gif::Reader<R>>>,
+    reader: gif::Reader<R>,
 }
 
 impl<R: Read> Decoder<R> {
     /// Creates a new decoder that decodes the input steam ```r```
-    pub fn new(r: R) -> Decoder<R> {
+    pub fn new(r: R) -> ImageResult<Decoder<R>> {
         let mut decoder = gif::Decoder::new(r);
         decoder.set(ColorOutput::RGBA);
-        Decoder {
-            inner: Some(Either::Left(decoder)),
-        }
-    }
 
-    // Converts the inner decoder to a reader
-    fn get_reader(&mut self) -> Result<&mut gif::Reader<R>, gif::DecodingError> {
-        let inner = self.inner.take().unwrap();
-        self.inner = Some(match inner {
-            Either::Left(decoder) => {
-                let reader = try!(decoder.read_info());
-                Either::Right(reader)
-            }
-            Either::Right(reader) => Either::Right(reader),
-        });
-        match self.inner {
-            Some(Either::Right(ref mut reader)) => Ok(reader),
-            _ => unreachable!(),
-        }
+        Ok(Decoder {
+            reader: decoder.read_info()?,
+        })
     }
 }
 
 impl<R: Read> ImageDecoder for Decoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        let reader = try!(self.get_reader());
-        Ok((u32::from(reader.width()), u32::from(reader.height())))
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.reader.width()), u32::from(self.reader.height()))
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        Ok(color::ColorType::RGBA(8))
+    fn colortype(&self) -> color::ColorType {
+        color::ColorType::RGBA(8)
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        let reader = try!(self.get_reader());
-        Ok(reader.line_length())
+    // fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+    //     let reader = try!(self.get_reader());
+    //     let len = reader.line_length();
+    //     try!(reader.fill_buffer(&mut buf[..len]));
+    //     Ok(len as u32)
+    // }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        let reader = try!(self.get_reader());
-        let len = reader.line_length();
-        try!(reader.fill_buffer(&mut buf[..len]));
-        Ok(len as u32)
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let reader = try!(self.get_reader());
-        if try!(reader.next_frame_info()).is_some() {
-            let mut buf = vec![0; reader.buffer_size()];
-            try!(reader.read_into_buffer(&mut buf));
-            Ok(DecodingResult::U8(buf))
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+        if self.reader.next_frame_info()?.is_some() {
+            let mut buf = vec![0; self.reader.buffer_size()];
+            self.reader.read_into_buffer(&mut buf)?;
+            Ok(buf)
         } else {
             Err(ImageError::ImageEnd)
         }
     }
+}
 
-    fn is_animated(&mut self) -> ImageResult<bool> {
-        Ok(true)
-    }
-
+impl<R: Read> AnimationDecoder for Decoder<R> {
     fn into_frames(mut self) -> ImageResult<animation::Frames> {
-        let reader = try!(self.get_reader());
-        let width = u32::from(reader.width());
-        let height = u32::from(reader.height());
+        let (width, height) = self.dimensions();
 
         // variable to hold all the image frames
         let mut frames = Vec::new();
 
         // set the background color to be either the bg_color defined in the gif
         // or a transparent pixel.
-        let background_color_option = reader.bg_color();
+        let background_color_option = self.reader.bg_color();
         let mut background_color = vec![0; 4];
         let background_pixel = {
-            let global_palette = reader.global_palette();
+            let global_palette = self.reader.global_palette();
             match background_color_option {
                 Some(index) => {
                     // find the color by looking in the global palette
@@ -163,7 +138,7 @@ impl<R: Read> ImageDecoder for Decoder<R> {
 
         // begin looping over each frame
         loop {
-            if let Some(frame) = try!(reader.next_frame_info()) {
+            if let Some(frame) = try!(self.reader.next_frame_info()) {
                 left = u32::from(frame.left);
                 top = u32::from(frame.top);
 
@@ -175,8 +150,8 @@ impl<R: Read> ImageDecoder for Decoder<R> {
                 break;
             }
 
-            let mut vec = vec![0; reader.buffer_size()];
-            try!(reader.fill_buffer(&mut vec));
+            let mut vec = vec![0; self.reader.buffer_size()];
+            try!(self.reader.fill_buffer(&mut vec));
 
             // create the image buffer from the raw frame
             if let Some(mut image_buffer) = ImageBuffer::from_raw(width, height, vec) {

@@ -1,13 +1,13 @@
 use std::cmp;
 use std::io;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::slice::ChunksMut;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use color::ColorType;
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
+use image::{ImageDecoder, ImageError, ImageResult};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -479,8 +479,8 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
 
 impl<R: Read + Seek> BMPDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> BMPDecoder<R> {
-        BMPDecoder {
+    pub fn new(r: R) -> ImageResult<BMPDecoder<R>> {
+        let mut decoder = BMPDecoder {
             r,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -498,12 +498,40 @@ impl<R: Read + Seek> BMPDecoder<R> {
             colors_used: 0,
             palette: None,
             bitfields: None,
-        }
+        };
+
+        decoder.read_metadata()?;
+        Ok(decoder)
     }
 
     #[cfg(feature = "ico")]
-    #[doc(hidden)]
-    pub fn reader(&mut self) -> &mut R {
+    pub(crate) fn new_with_ico_format(r: R) -> ImageResult<BMPDecoder<R>> {
+        let mut decoder = BMPDecoder {
+            r,
+
+            bmp_header_type: BMPHeaderType::Info,
+
+            width: 0,
+            height: 0,
+            data_offset: 0,
+            top_down: false,
+            no_file_header: false,
+            add_alpha_channel: false,
+            has_loaded_metadata: false,
+            image_type: ImageType::Palette,
+
+            bit_count: 0,
+            colors_used: 0,
+            palette: None,
+            bitfields: None,
+        };
+
+        decoder.read_metadata_in_ico_format()?;
+        Ok(decoder)
+    }
+
+    #[cfg(feature = "ico")]
+    pub(crate) fn reader(&mut self) -> &mut R {
         &mut self.r
     }
 
@@ -1197,7 +1225,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
         Ok((delta_pixels_left, delta_rows_left, eof_hit))
     }
 
-    fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
+    /// Read the actual data of the image. This function is deliberately not public because it
+    /// cannot be called multiple times without seeking back the underlying reader in between.
+    pub(crate) fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
         match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
@@ -1226,32 +1256,26 @@ impl<R: Read + Seek> BMPDecoder<R> {
 }
 
 impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        try!(self.read_metadata());
-        Ok((self.width as u32, self.height as u32))
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width as u32, self.height as u32)
     }
 
-    fn colortype(&mut self) -> ImageResult<ColorType> {
-        try!(self.read_metadata());
+    fn colortype(&self) -> ColorType {
         if self.add_alpha_channel {
-            Ok(ColorType::RGBA(8))
+            ColorType::RGBA(8)
         } else {
-            Ok(ColorType::RGB(8))
+            ColorType::RGB(8)
         }
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        try!(self.read_metadata());
-        Ok(3 * self.width as usize)
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
-        unimplemented!();
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        try!(self.read_metadata());
-        self.read_image_data().map(DecodingResult::U8)
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+        self.read_image_data()
     }
 }
 

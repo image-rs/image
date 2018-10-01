@@ -33,8 +33,6 @@ use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutp
             ImageResult};
 use imageops;
 
-use image::DecodingResult::U8;
-
 /// A Dynamic Image
 #[derive(Clone)]
 pub enum DynamicImage {
@@ -623,40 +621,38 @@ impl GenericImage for DynamicImage {
 
 /// Decodes an image and stores it into a dynamic image
 pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
-    let mut codec = codec;
-
-    let color = try!(codec.colortype());
+    let color = codec.colortype();
+    let (w, h) = codec.dimensions();
     let buf = try!(codec.read_image());
-    let (w, h) = try!(codec.dimensions());
 
-    let image = match (color, buf) {
-        (color::ColorType::RGB(8), U8(buf)) => {
+    let image = match color {
+        color::ColorType::RGB(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
-        (color::ColorType::RGBA(8), U8(buf)) => {
+        color::ColorType::RGBA(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
-        (color::ColorType::BGR(8), U8(buf)) => {
+        color::ColorType::BGR(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8)
         }
 
-        (color::ColorType::BGRA(8), U8(buf)) => {
+        color::ColorType::BGRA(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
         }
 
-        (color::ColorType::Gray(8), U8(buf)) => {
+        color::ColorType::Gray(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
-        (color::ColorType::GrayA(8), U8(buf)) => {
+        color::ColorType::GrayA(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        (color::ColorType::Gray(bit_depth), U8(ref buf))
+        color::ColorType::Gray(bit_depth)
             if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
         {
-            gray_to_luma8(bit_depth, w, h, buf).map(DynamicImage::ImageLuma8)
+            gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
         }
         _ => return Err(image::ImageError::UnsupportedColor(color)),
     };
@@ -824,19 +820,19 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::new(r)),
+        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::new(r)?),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => decoder_to_image(gif::Decoder::new(r)),
+        image::ImageFormat::GIF => decoder_to_image(gif::Decoder::new(r)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)?),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)),
+        image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)),
+        image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)?),
         #[cfg(feature = "ico")]
         image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
         #[cfg(feature = "hdr")]

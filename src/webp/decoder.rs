@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::default::Default;
 use std::io;
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use image;
 use image::ImageDecoder;
@@ -17,21 +17,21 @@ pub struct WebpDecoder<R> {
     r: R,
     frame: Frame,
     have_frame: bool,
-    decoded_rows: u32,
 }
 
 impl<R: Read> WebpDecoder<R> {
     /// Create a new WebpDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
-    pub fn new(r: R) -> WebpDecoder<R> {
+    pub fn new(r: R) -> ImageResult<WebpDecoder<R>> {
         let f: Frame = Default::default();
 
-        WebpDecoder {
+        let mut decoder = WebpDecoder {
             r,
             have_frame: false,
             frame: f,
-            decoded_rows: 0,
-        }
+        };
+        decoder.read_metadata()?;
+        Ok(decoder)
     }
 
     fn read_riff_header(&mut self) -> ImageResult<u32> {
@@ -98,42 +98,21 @@ impl<R: Read> WebpDecoder<R> {
 }
 
 impl<R: Read> ImageDecoder for WebpDecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        try!(self.read_metadata());
+    type Reader = Cursor<Vec<u8>>;
 
-        Ok((u32::from(self.frame.width), u32::from(self.frame.height)))
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.frame.width), u32::from(self.frame.height))
     }
 
-    fn colortype(&mut self) -> ImageResult<color::ColorType> {
-        Ok(color::ColorType::Gray(8))
+    fn colortype(&self) -> color::ColorType {
+        color::ColorType::Gray(8)
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        try!(self.read_metadata());
-
-        Ok(self.frame.width as usize)
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.frame.ybuf))
     }
 
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        try!(self.read_metadata());
-
-        if self.decoded_rows > u32::from(self.frame.height) {
-            return Err(image::ImageError::ImageEnd);
-        }
-
-        let rlen = buf.len();
-        let slice = &self.frame.ybuf
-            [self.decoded_rows as usize * rlen..self.decoded_rows as usize * rlen + rlen];
-
-        ::copy_memory(slice, buf);
-        self.decoded_rows += 1;
-
-        Ok(self.decoded_rows)
-    }
-
-    fn read_image(&mut self) -> ImageResult<image::DecodingResult> {
-        try!(self.read_metadata());
-
-        Ok(image::DecodingResult::U8(self.frame.ybuf.clone()))
+    fn read_image(self) -> ImageResult<Vec<u8>> {
+        Ok(self.frame.ybuf)
     }
 }

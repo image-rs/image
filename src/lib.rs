@@ -27,10 +27,11 @@ pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA, BGR, BGRA};
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
-pub use image::{DecodingResult,
+pub use image::{AnimationDecoder,
                 GenericImage,
                 GenericImageView,
                 ImageDecoder,
+                ImageDecoderExt,
                 ImageError,
                 ImageResult,
                 MutPixels,

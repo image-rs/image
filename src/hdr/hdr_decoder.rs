@@ -4,13 +4,13 @@ use num_traits::identities::Zero;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Cursor};
 use std::iter::Iterator;
 use std::path::Path;
 use Primitive;
 
 use color::{ColorType, Rgb};
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
+use image::{ImageDecoder, ImageError, ImageResult};
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
@@ -42,27 +42,25 @@ impl<R: BufRead> HDRAdapter<R> {
 }
 
 impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        Ok((self.meta.width, self.meta.height))
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u32, u32) {
+        (self.meta.width, self.meta.height)
     }
 
-    fn colortype(&mut self) -> ImageResult<ColorType> {
-        Ok(ColorType::RGB(8))
+    fn colortype(&self) -> ColorType {
+        ColorType::RGB(8)
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        Ok(3 * (self.meta.width as usize)) // 3 4-byte floats
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, _: &mut [u8]) -> ImageResult<u32> {
-        unimplemented!()
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
         match self.inner.take() {
             Some(decoder) => {
                 let elem_len = ::std::mem::size_of::<Rgb<u8>>();
-                let mut img: Vec<Rgb<u8>> = try!(decoder.read_image_ldr());
+                let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
                 // let's transform Vec<Rgb<u8>> into Vec<u8>
                 let p = img.as_mut_ptr() as *mut u8;
                 let len = img.len() * elem_len; // length in bytes
@@ -70,7 +68,7 @@ impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
 
                 unsafe {
                     ::std::mem::forget(img);
-                    Ok(DecodingResult::U8(Vec::from_raw_parts(p, len, cap)))
+                    Ok(Vec::from_raw_parts(p, len, cap))
                 }
             }
             None => Err(ImageError::ImageEnd),

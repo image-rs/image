@@ -19,8 +19,9 @@ mod header;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use byteorder::{ByteOrder, NativeEndian};
     use color::ColorType;
-    use image::{DecodingResult, ImageDecoder};
+    use image::ImageDecoder;
 
     fn execute_roundtrip_default(buffer: &[u8], width: u32, height: u32, color: ColorType) {
         let mut encoded_buffer = Vec::new();
@@ -34,22 +35,16 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype().expect("Failed to decode color type");
+            let colortype = decoder.colortype();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = decoder.into_inner();
+            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, colortype, image)
         };
 
         assert_eq!(header.width(), width);
         assert_eq!(header.height(), height);
         assert_eq!(loaded_color, color);
-        match loaded_image {
-            DecodingResult::U8(ref data) if data.as_slice() == buffer => (),
-            _ => panic!(
-                "Loaded image buffer deviates from original! {:?}",
-                loaded_image
-            ),
-        }
+        assert_eq!(loaded_image.as_slice(), buffer);
     }
 
     fn execute_roundtrip_with_subtype(
@@ -70,9 +65,9 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype().expect("Failed to decode color type");
+            let colortype = decoder.colortype();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = decoder.into_inner();
+            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, colortype, image)
         };
 
@@ -80,13 +75,7 @@ mod tests {
         assert_eq!(header.height(), height);
         assert_eq!(header.subtype(), subtype);
         assert_eq!(loaded_color, color);
-        match loaded_image {
-            DecodingResult::U8(ref data) if data.as_slice() == buffer => (),
-            _ => panic!(
-                "Loaded image buffer deviates from original! {:?}",
-                loaded_image
-            ),
-        }
+        assert_eq!(loaded_image.as_slice(), buffer);
     }
 
     fn execute_roundtrip_u16(buffer: &[u16], width: u32, height: u32, color: ColorType) {
@@ -101,22 +90,19 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let mut decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype().expect("Failed to decode color type");
+            let colortype = decoder.colortype();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = decoder.into_inner();
+            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, colortype, image)
         };
+
+        let mut buffer_u8 = vec![0; buffer.len() * 2];
+        NativeEndian::write_u16_into(buffer, &mut buffer_u8[..]);
 
         assert_eq!(header.width(), width);
         assert_eq!(header.height(), height);
         assert_eq!(loaded_color, color);
-        match loaded_image {
-            DecodingResult::U16(ref data) if data.as_slice() == buffer => (),
-            _ => panic!(
-                "Loaded image buffer deviates from original! {:?}",
-                loaded_image
-            ),
-        }
+        assert_eq!(loaded_image, buffer_u8);
     }
 
     #[test]

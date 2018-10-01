@@ -1,8 +1,8 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use color::ColorType;
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
+use image::{ImageDecoder, ImageError, ImageResult};
 
 use self::InnerDecoder::*;
 use bmp::BMPDecoder;
@@ -151,47 +151,44 @@ impl DirEntry {
         try!(self.seek_to_start(&mut r));
 
         if is_png {
-            Ok(PNG(PNGDecoder::new(r)))
+            Ok(PNG(PNGDecoder::new(r)?))
         } else {
-            let mut decoder = BMPDecoder::new(r);
-            try!(decoder.read_metadata_in_ico_format());
-            Ok(BMP(decoder))
+            Ok(BMP(BMPDecoder::new_with_ico_format(r)?))
         }
     }
 }
 
 impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
-            BMP(ref mut decoder) => decoder.dimensions(),
-            PNG(ref mut decoder) => decoder.dimensions(),
+            BMP(ref decoder) => decoder.dimensions(),
+            PNG(ref decoder) => decoder.dimensions(),
         }
     }
 
-    fn colortype(&mut self) -> ImageResult<ColorType> {
+    fn colortype(&self) -> ColorType {
         match self.inner_decoder {
-            BMP(ref mut decoder) => decoder.colortype(),
-            PNG(ref mut decoder) => decoder.colortype(),
+            BMP(ref decoder) => decoder.colortype(),
+            PNG(ref decoder) => decoder.colortype(),
         }
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        match self.inner_decoder {
-            BMP(ref mut decoder) => decoder.row_len(),
-            PNG(ref mut decoder) => decoder.row_len(),
-        }
+    // fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+    //     match self.inner_decoder {
+    //         BMP(ref mut decoder) => decoder.read_scanline(buf),
+    //         PNG(ref mut decoder) => decoder.read_scanline(buf),
+    //     }
+    // }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
+    fn read_image(self) -> ImageResult<Vec<u8>> {
         match self.inner_decoder {
-            BMP(ref mut decoder) => decoder.read_scanline(buf),
-            PNG(ref mut decoder) => decoder.read_scanline(buf),
-        }
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        match self.inner_decoder {
-            PNG(ref mut decoder) => {
+            PNG(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(ImageError::FormatError(
                         "Entry specified a length that is shorter than PNG header!".to_string(),
@@ -199,7 +196,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                 }
 
                 // Check if the image dimensions match the ones in the image data.
-                let (width, height) = try!(decoder.dimensions());
+                let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(ImageError::FormatError(
                         "Entry and PNG dimensions do not match!".to_string(),
@@ -208,7 +205,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                let color_type = try!(decoder.colortype());
+                let color_type = decoder.colortype();
                 if let ColorType::RGBA(8) = color_type {
                 } else {
                     return Err(ImageError::FormatError(
@@ -218,8 +215,8 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
 
                 decoder.read_image()
             }
-            BMP(ref mut decoder) => {
-                let (width, height) = try!(decoder.dimensions());
+            BMP(mut decoder) => {
+                let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(ImageError::FormatError(
                         "Entry({:?}) and BMP({:?}) dimensions do not match!".to_string(),
@@ -227,16 +224,13 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if try!(decoder.colortype()) != ColorType::RGBA(8) {
+                if decoder.colortype() != ColorType::RGBA(8) {
                     return Err(ImageError::UnsupportedError(
                         "Unsupported color type".to_string(),
                     ));
                 }
 
-                let mut pixel_data = match try!(decoder.read_image()) {
-                    DecodingResult::U8(v) => v,
-                    _ => unreachable!(),
-                };
+                let mut pixel_data = decoder.read_image_data()?;
 
                 // If there's an AND mask following the image, read and apply it.
                 let r = decoder.reader();
@@ -271,7 +265,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
                         }
                     }
                 }
-                Ok(DecodingResult::U8(pixel_data))
+                Ok(pixel_data)
             }
         }
     }

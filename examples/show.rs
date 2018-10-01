@@ -88,7 +88,7 @@ fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
         events_loop.poll_events(|event| {
             if stop {return;}
             match event {
-                Event::WindowEvent {event: WindowEvent::Closed, ..} => {
+                Event::WindowEvent {event: WindowEvent::CloseRequested, ..} => {
                     stop = true;
                     return;
                 }

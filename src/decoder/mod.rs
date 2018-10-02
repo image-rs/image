@@ -53,21 +53,61 @@ impl OutputInfo {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// max number of pixels: `width * height` (default: 67M = 2<sup>26</sup>)
+    pub pixels: u64,
+}
+
+impl Default for Limits {
+    fn default() -> Limits {
+        Limits {
+            pixels: 1 << 26,
+        }
+    }
+}
+
 /// PNG Decoder
 pub struct Decoder<R: Read> {
     /// Reader
     r: R,
     /// Output transformations
     transform: Transformations,
+    /// Images that are considered too big
+    limits: Limits,
 }
 
 impl<R: Read> Decoder<R> {
     pub fn new(r: R) -> Decoder<R> {
+        Decoder::new_with_limits(r, Limits::default())
+    }
+    
+    pub fn new_with_limits(r: R, l: Limits) -> Decoder<R> {
         Decoder {
             r: r,
             transform: ::Transformations::EXPAND | ::Transformations::SCALE_16 | ::Transformations::STRIP_16,
-
+            limits: l,
         }
+    }
+
+    /// Images that are considered too big
+    ///
+    /// ```
+    /// use std::fs::File;
+    /// use png::{Decoder, Limits};
+    /// // This image is 32x32 pixels, so it's more than four pixels in size.
+    /// let mut limits = Limits::default();
+    /// limits.pixels = 4;
+    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png", limits).unwrap());
+    /// assert!(decoder.read_info().is_err());
+    /// // This image is 32x32 pixels, so it's exactly 1024 pixels in size.
+    /// let mut limits = Limits::default();
+    /// limits.pixels = 1024;
+    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png", limits).unwrap());
+    /// assert!(decoder.read_info().is_ok());
+    /// ```
+    pub fn set_limits(&mut self, limits: Limits) {
+        self.limits = limits;
     }
 
     /// Reads all meta data until the first IDAT chunk
@@ -85,6 +125,12 @@ impl<R: Read> Decoder<R> {
                 line_size: r.output_line_size(info.width),
             }
         };
+        let (width, height, pixels) = (info.width as u64, info.height as u64, self.limits.pixels);
+        if width.checked_mul(height).map(|p| p > pixels).unwrap_or(true) {
+            // DecodingError::Other is used for backwards compatibility.
+            // In the next major version, add a variant for this.
+            return Err(DecodingError::Other(borrow::Cow::Borrowed("pixels limit exceeded")));
+        }
         Ok((info, r))
     }
 }

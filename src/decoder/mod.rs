@@ -98,12 +98,12 @@ impl<R: Read> Decoder<R> {
     /// // This image is 32x32 pixels, so it's more than four pixels in size.
     /// let mut limits = Limits::default();
     /// limits.pixels = 4;
-    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png", limits).unwrap());
+    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);
     /// assert!(decoder.read_info().is_err());
     /// // This image is 32x32 pixels, so it's exactly 1024 pixels in size.
     /// let mut limits = Limits::default();
     /// limits.pixels = 1024;
-    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png", limits).unwrap());
+    /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_limits(&mut self, limits: Limits) {

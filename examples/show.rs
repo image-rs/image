@@ -11,7 +11,7 @@ use std::error::Error;
 
 use glium::{Surface, Rect, BlitTarget};
 use glium::texture::{RawImage2d, ClientFormat};
-use glium::glutin::{self, Event, VirtualKeyCode};
+use glium::glutin::{self, Event, VirtualKeyCode, dpi};
 use glium::backend::glutin::Display;
 
 /// Load the image using `png`
@@ -157,7 +157,7 @@ fn resize_window(display: &Display, image: &RawImage2d<'static, u8>) {
         width *= 10;
         height *= 10;
     }
-    display.gl_window().set_inner_size(width, height);
+    display.gl_window().set_inner_size(dpi::LogicalSize::new(f64::from(width), f64::from(height)));
 }
 
 fn main() {

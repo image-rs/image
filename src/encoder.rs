@@ -123,8 +123,9 @@ impl<W: Write> Writer<W> {
         let mut prev = vec![0; in_len];
         let mut current = vec![0; in_len];
         let data_size = in_len * self.info.height as usize;
-        if data.len() < data_size || data_size == 0 {
-            return Err(EncodingError::Format("not enough image data provided".into()));
+        if data_size != data.len() {
+            let message = format!("wrong data size, expected {} got {}", data_size, data.len());
+            return Err(EncodingError::Format(message.into()));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), deflate::Compression::Fast);
         let filter_method = FilterType::Sub;
@@ -166,4 +167,26 @@ fn roundtrip() {
     reader.next_frame(&mut buf2).unwrap();
     // check if the encoded image is ok:
     assert_eq!(buf, buf2);
+}
+
+#[test]
+fn expect_error_on_wrong_image_len() -> Result<()> {
+    use std::io::Cursor;
+
+    let width = 10;
+    let height = 10;
+
+    let output = vec![0u8; 1024];
+    let writer = Cursor::new(output);
+    let mut encoder = Encoder::new(writer, width as u32, height as u32);
+    encoder.set(BitDepth::Eight);
+    encoder.set(ColorType::RGB);
+    let mut png_writer = encoder.write_header()?;
+
+    let correct_image_size = width * height * 3;
+    let image = vec![0u8; correct_image_size + 1];
+    let result = png_writer.write_image_data(image.as_ref());
+    assert!(result.is_err());
+
+    Ok(())
 }

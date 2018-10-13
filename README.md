@@ -203,45 +203,47 @@ fn main() {
 
 ### 6.2 Generating Fractals
 ```rust
-//! An example of generating julia fractals.
+// An example of generating julia fractals.
 extern crate image;
 extern crate num_complex;
 
-use num_complex::Complex;
-
 fn main() {
-    let max_iterations = 256u16;
-
     let imgx = 800;
     let imgy = 800;
 
-    let scalex = 4.0 / imgx as f32;
-    let scaley = 4.0 / imgy as f32;
+    let scalex = 3.0 / imgx as f32;
+    let scaley = 3.0 / imgy as f32;
 
     // Create a new ImgBuf with width: imgx and height: imgy
-    let mut imgbuf = image::GrayImage::new(imgx, imgy);
+    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
 
     // Iterate over the coordinates and pixels of the image
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
-        let cy = y as f32 * scaley - 2.0;
-        let cx = x as f32 * scalex - 2.0;
+        let r = (0.3 * x as f32) as u8;
+        let b = (0.3 * y as f32) as u8;
+        *pixel = image::Rgb([r, 0, b]);
+    }
 
-        let mut z = Complex::new(cx, cy);
-        let c = Complex::new(-0.4, 0.6);
+    // A redundant loop to demonstrate reading image data
+    for x in 0..imgx {
+        for y in 0..imgy {
+            let cx = y as f32 * scalex - 1.5;
+            let cy = x as f32 * scaley - 1.5;
 
-        let mut i = 0;
+            let c = num_complex::Complex::new(-0.4, 0.6);
+            let mut z = num_complex::Complex::new(cx, cy);
 
-        for t in 0..max_iterations {
-            if z.norm() > 2.0 {
-                break
+            let mut i = 0;
+
+            for t in 0..256 {
+                if z.norm() > 2.0 { break }
+                z = z * z + c;
+                i = t;
             }
-            z = z * z + c;
-            i = t;
+            let pixel = imgbuf.get_pixel_mut(x, y);
+            let data = (*pixel as image::Rgb<u8>).data;
+            *pixel = image::Rgb([data[0], i as u8, data[2]]);
         }
-
-        // Create an 8bit pixel of type Luma and value i
-        // and assign in to the pixel at position (x, y)
-        *pixel = image::Luma([i as u8]);
     }
 
     // Save the image as “fractal.png”, the format is deduced from the path
@@ -251,7 +253,7 @@ fn main() {
 
 Example output:
 
-![alt tag](https://raw.githubusercontent.com/ccgn/rust-image/master/examples/fractal.png "A Julia Fractal, c: -0.4 + 0.6i")
+<img src="examples/fractal.png" alt="A Julia Fractal, c: -0.4 + 0.6i" width="500" />
 
 ### 6.3 Writing raw buffers
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.

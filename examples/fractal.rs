@@ -29,12 +29,11 @@ fn main() {
             let mut z = num_complex::Complex::new(cx, cy);
 
             let mut i = 0;
-
-            for t in 0..256 {
-                if z.norm() > 2.0 { break }
+            while i < 255 && z.norm() <= 2.0 {
                 z = z * z + c;
-                i = t;
+                i += 1;
             }
+
             let pixel = imgbuf.get_pixel_mut(x, y);
             let data = (*pixel as image::Rgb<u8>).data;
             *pixel = image::Rgb([data[0], i as u8, data[2]]);

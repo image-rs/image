@@ -34,8 +34,8 @@ impl<R: Read> JPEGDecoder<R> {
 impl<R: Read> ImageDecoder for JPEGDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.metadata.width), u32::from(self.metadata.height))
+    fn dimensions(&self) -> (u64, u64) {
+        (self.metadata.width as u64, self.metadata.height as u64)
     }
 
     fn colortype(&self) -> ColorType {

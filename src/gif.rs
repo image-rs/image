@@ -61,8 +61,8 @@ impl<R: Read> Decoder<R> {
 impl<R: Read> ImageDecoder for Decoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.reader.width()), u32::from(self.reader.height()))
+    fn dimensions(&self) -> (u64, u64) {
+        (self.reader.width() as u64, self.reader.height() as u64)
     }
 
     fn colortype(&self) -> color::ColorType {
@@ -94,6 +94,9 @@ impl<R: Read> ImageDecoder for Decoder<R> {
 impl<R: Read> AnimationDecoder for Decoder<R> {
     fn into_frames(mut self) -> ImageResult<animation::Frames> {
         let (width, height) = self.dimensions();
+
+        // TODO: Avoid this cast
+        let (width, height) = (width as u32, height as u32);
 
         // variable to hold all the image frames
         let mut frames = Vec::new();

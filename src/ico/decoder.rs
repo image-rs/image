@@ -127,8 +127,8 @@ impl DirEntry {
         }
     }
 
-    fn matches_dimensions(&self, width: u32, height: u32) -> bool {
-        u32::from(self.real_width()) == width && u32::from(self.real_height()) == height
+    fn matches_dimensions(&self, width: u64, height: u64) -> bool {
+        u64::from(self.real_width()) == width && u64::from(self.real_height()) == height
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
@@ -161,7 +161,7 @@ impl DirEntry {
 impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
+    fn dimensions(&self) -> (u64, u64) {
         match self.inner_decoder {
             BMP(ref decoder) => decoder.dimensions(),
             PNG(ref decoder) => decoder.dimensions(),

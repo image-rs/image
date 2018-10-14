@@ -65,8 +65,8 @@ impl From<tiff::ColorType> for ColorType {
 impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.dimensions
+    fn dimensions(&self) -> (u64, u64) {
+        (self.dimensions.0 as u64, self.dimensions.1 as u64)
     }
 
     fn colortype(&self) -> ColorType {

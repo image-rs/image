@@ -35,8 +35,9 @@ impl<R: Read> PNGDecoder<R> {
 impl<R: Read> ImageDecoder for PNGDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        self.reader.info().size()
+    fn dimensions(&self) -> (u64, u64) {
+        let (w, h) = self.reader.info().size();
+        (w as u64, h as u64)
     }
 
     fn colortype(&self) -> ColorType {

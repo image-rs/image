@@ -625,6 +625,11 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
     let (w, h) = codec.dimensions();
     let buf = try!(codec.read_image());
 
+    // TODO: Avoid this cast by having ImageBuffer use u64's
+    assert!(w <= u32::max_value() as u64);
+    assert!(h <= u32::max_value() as u64);
+    let (w, h) = (w as u32, h as u32);
+
     let image = match color {
         color::ColorType::RGB(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)

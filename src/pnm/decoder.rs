@@ -403,8 +403,8 @@ impl<R: Read> HeaderReader for BufReader<R> {}
 impl<R: Read> ImageDecoder for PNMDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.header.width(), self.header.height())
+    fn dimensions(&self) -> (u64, u64) {
+        (self.header.width() as u64, self.header.height() as u64)
     }
 
     fn colortype(&self) -> ColorType {

@@ -500,17 +500,25 @@ impl<R: Read + Seek> TGADecoder<R> {
 impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
     type Reader = TGAReader<R>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn dimensions(&self) -> (u64, u64) {
+        (self.width as u64, self.height as u64)
     }
 
     fn colortype(&self) -> ColorType {
         self.color_type
     }
 
+    fn scanline_bytes(&self) -> u64 {
+        self.row_bytes()
+    }
+
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        if self.total_bytes() > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
         Ok(TGAReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
             decoder: self,
         })
     }

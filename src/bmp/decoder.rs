@@ -1258,8 +1258,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
 impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width as u32, self.height as u32)
+    fn dimensions(&self) -> (u64, u64) {
+        (self.width as u64, self.height as u64)
     }
 
     fn colortype(&self) -> ColorType {

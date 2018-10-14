@@ -38,6 +38,9 @@ pub enum ImageError {
 
     /// The end of the image has been reached
     ImageEnd,
+
+    /// There is not enough memory to complete the given operation
+    InsufficientMemory,
 }
 
 impl fmt::Display for ImageError {
@@ -68,6 +71,7 @@ impl fmt::Display for ImageError {
             ),
             ImageError::IoError(ref e) => e.fmt(fmt),
             ImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
+            ImageError::InsufficientMemory => write!(fmt, "Insufficient memory"),
         }
     }
 }
@@ -82,6 +86,7 @@ impl Error for ImageError {
             ImageError::NotEnoughData => "Not enough data",
             ImageError::IoError(..) => "IO error",
             ImageError::ImageEnd => "Image end",
+            ImageError::InsufficientMemory => "Insufficient memory",
         }
     }
 
@@ -239,8 +244,7 @@ impl ImageReadBuffer {
                 self.buffer.resize(bytes_read, 0);
                 self.offset += bytes_read;
 
-
-                assert!(bytes_read == self.scanline_bytes ||  self.offset == self.total_bytes);
+                assert!(bytes_read == self.scanline_bytes || self.offset == self.total_bytes);
             }
         }
 
@@ -301,7 +305,6 @@ impl ImageReadBuffer {
 //     Ok(buf)
 // }
 
-
 /// Represents the progress of an image operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {
@@ -315,7 +318,7 @@ pub trait ImageDecoder: Sized {
     type Reader: Read;
 
     /// Returns a tuple containing the width and height of the image
-    fn dimensions(&self) -> (u32, u32);
+    fn dimensions(&self) -> (u64, u64);
 
     /// Returns the color type of the image e.g. RGB(8) (8bit RGB)
     fn colortype(&self) -> ColorType;
@@ -327,18 +330,18 @@ pub trait ImageDecoder: Sized {
 
     /// Returns the number of bytes in a single row of the image. All decoders will pad image rows
     /// to a byte boundary.
-    fn row_bytes(&self) -> usize {
-        (self.dimensions().0 as usize * color::bits_per_pixel(self.colortype()) + 7) / 8
+    fn row_bytes(&self) -> u64 {
+        (self.dimensions().0 * color::bits_per_pixel(self.colortype()) as u64 + 7) / 8
     }
 
     /// Returns the total number of bytes in the image.
-    fn total_bytes(&self) -> usize {
-        self.dimensions().1 as usize * self.row_bytes()
+    fn total_bytes(&self) -> u64 {
+        self.dimensions().1 * self.row_bytes()
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
     /// be as few as 1 or as many as `total_bytes()`.
-    fn scanline_bytes(&self) -> usize {
+    fn scanline_bytes(&self) -> u64 {
         self.total_bytes()
     }
 
@@ -354,7 +357,12 @@ pub trait ImageDecoder: Sized {
         progress_callback: F,
     ) -> ImageResult<Vec<u8>> {
         let total_bytes = self.total_bytes();
-        let scanline_bytes = self.scanline_bytes();
+        if total_bytes > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
+        let total_bytes = total_bytes as usize;
+        let scanline_bytes = self.scanline_bytes() as usize;
         let target_read_size = if scanline_bytes < 4096 {
             (4096 / scanline_bytes) * scanline_bytes
         } else {

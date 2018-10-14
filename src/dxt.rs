@@ -96,7 +96,7 @@ impl<R: Read> DXTDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(buf.len(), self.scanline_bytes());
+        assert_eq!(buf.len() as u64, self.scanline_bytes());
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -116,28 +116,36 @@ impl<R: Read> DXTDecoder<R> {
 impl<R: Read> ImageDecoder for DXTDecoder<R> {
     type Reader = DXTReader<R>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width_blocks * 4, self.height_blocks * 4)
+    fn dimensions(&self) -> (u64, u64) {
+        (self.width_blocks as u64 * 4, self.height_blocks as u64 * 4)
     }
 
     fn colortype(&self) -> ColorType {
         self.variant.colortype()
     }
 
-    fn scanline_bytes(&self) -> usize {
-        self.variant.decoded_bytes_per_block() * self.width_blocks as usize
+    fn scanline_bytes(&self) -> u64 {
+        self.variant.decoded_bytes_per_block() as u64 * self.width_blocks as u64
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        if self.total_bytes() > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
         Ok(DXTReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
             decoder: self,
         })
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        let mut dest = vec![0u8; self.total_bytes()];
-        for chunk in dest.chunks_mut(self.scanline_bytes()) {
+        if self.total_bytes() > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
+        let mut dest = vec![0u8; self.total_bytes() as usize];
+        for chunk in dest.chunks_mut(self.scanline_bytes() as usize) {
             self.read_scanline(chunk)?;
         }
         Ok(dest)

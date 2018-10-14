@@ -100,8 +100,8 @@ impl<R: Read> WebpDecoder<R> {
 impl<R: Read> ImageDecoder for WebpDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.frame.width), u32::from(self.frame.height))
+    fn dimensions(&self) -> (u64, u64) {
+        (self.frame.width as u64, self.frame.height as u64)
     }
 
     fn colortype(&self) -> color::ColorType {

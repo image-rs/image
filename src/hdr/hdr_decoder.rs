@@ -44,8 +44,8 @@ impl<R: BufRead> HDRAdapter<R> {
 impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
     type Reader = Cursor<Vec<u8>>;
 
-    fn dimensions(&self) -> (u32, u32) {
-        (self.meta.width, self.meta.height)
+    fn dimensions(&self) -> (u64, u64) {
+        (self.meta.width as u64, self.meta.height as u64)
     }
 
     fn colortype(&self) -> ColorType {

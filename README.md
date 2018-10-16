@@ -116,7 +116,7 @@ let img = ImageBuffer::from_fn(512, 512, |x, y| {
 });
 
 // Obtain the image's width and height.
-let (width, height) = img.dimensions();
+let (width, height) = img.dimensions();  
 
 // Access the pixel at coordinate (100, 100).
 let pixel = img[(100, 100)];

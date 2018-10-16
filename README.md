@@ -98,7 +98,7 @@ pub trait GenericImage {
 #### 4.2.1 ```ImageBuffer```
 An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the ```GenericImage``` trait.
 
-```rust
+```rust 
 extern crate image;
 
 use image::{GenericImage, ImageBuffer};

@@ -462,8 +462,7 @@ impl<R: Read> Reader<R> {
                         ))
                     }
                     self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
-                    // TODO optimize
-                    self.current = self.current[rowlen..].into();
+                    self.current.drain(0..rowlen);
                     return Ok(
                         Some((
                             &self.prev[1..rowlen],

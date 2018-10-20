@@ -7,10 +7,10 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use color::ColorType;
-use image::{ImageReadBuffer, ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageReadBuffer, ImageResult, Progress};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -149,6 +149,31 @@ impl<R: Read> ImageDecoder for DXTDecoder<R> {
             self.read_scanline(chunk)?;
         }
         Ok(dest)
+    }
+}
+
+impl<R: Read + Seek> ImageDecoderExt for DXTDecoder<R> {
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        let encoded_scanline_bytes = self.variant.encoded_bytes_per_block() as u64
+            * self.width_blocks as u64;
+
+        let start = self.inner.seek(SeekFrom::Current(0))?;
+        image::load_rect(x, y, width, height, buf, progress_callback, self,
+                         |s, scanline| {
+                             s.inner.seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
+                             Ok(())
+                         },
+            |s, buf| s.read_scanline(buf))?;
+        self.inner.seek(SeekFrom::Start(start))?;
+        Ok(())
     }
 }
 

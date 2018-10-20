@@ -69,13 +69,6 @@ impl<R: Read> ImageDecoder for Decoder<R> {
         color::ColorType::RGBA(8)
     }
 
-    // fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-    //     let reader = try!(self.get_reader());
-    //     let len = reader.line_length();
-    //     try!(reader.fill_buffer(&mut buf[..len]));
-    //     Ok(len as u32)
-    // }
-
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(Cursor::new(self.read_image()?))
     }

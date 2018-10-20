@@ -175,13 +175,6 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
         }
     }
 
-    // fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-    //     match self.inner_decoder {
-    //         BMP(ref mut decoder) => decoder.read_scanline(buf),
-    //         PNG(ref mut decoder) => decoder.read_scanline(buf),
-    //     }
-    // }
-
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(Cursor::new(self.read_image()?))
     }

@@ -503,7 +503,7 @@ fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
 
     let token = reader
         .bytes()
-        .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
+        .skip_while(|v| v.as_ref().ok().map(&is_separator).unwrap_or(false))
         .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
         .collect::<Result<Vec<u8>, _>>()?;
 

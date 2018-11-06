@@ -278,57 +278,77 @@ pub(crate) fn load_rect<D, F, F1, F2>(x: u64, y: u64, width: u64, height: u64, b
     let row_bytes = decoder.row_bytes();
     let scanline_bytes = decoder.scanline_bytes();
     let bits_per_pixel = color::bits_per_pixel(decoder.colortype()) as u64;
+    let total_bits = width * height * bits_per_pixel;
 
-    if x + width > dimensions.0 || y + height > dimensions.0
-        || width == 0 || height == 0 {
-        return Err(ImageError::DimensionError);
-    }
-    if scanline_bytes > usize::max_value() as u64 {
-        return Err(ImageError::InsufficientMemory);
-    }
+    let mut bits_read = 0u64;
+    let mut current_scanline = 0;
+    let mut tmp = Vec::new();
 
-    if x == 0 && width == dimensions.0 {
-        // Offsets are in *bits*
-        let start = x * bits_per_pixel + y * row_bytes * 8;
-        let end = (x + width) * bits_per_pixel + (y + height - 1) * row_bytes * 8;
-        let mut position = 8 * start / (scanline_bytes * 8);
-
-        if position != 0 {
-            seek_scanline(decoder, start / (scanline_bytes * 8))?;
-        }
-
-        progress_callback(Progress {current: 0, total: end - start});
-
-        let mut i = 0;
-        let mut tmp = Vec::new();
-        while position < end {
-            if position >= start && end - position >= scanline_bytes * 8 {
-                read_scanline(decoder, &mut buf[i..][..(scanline_bytes as usize)])?;
-                position += scanline_bytes * 8;
-                i += scanline_bytes as usize;
-            } else {
-                tmp.resize(scanline_bytes as usize, 0u8);
-                read_scanline(decoder, &mut tmp)?;
-                position += scanline_bytes * 8;
-
-                let offset = start - position;
-                let len = (end - start).min(scanline_bytes * 8 - offset);
-
-                if offset % 8 == 0 && len % 8 == 0 {
-                    let offset = (offset / 8) as usize;
-                    let len = (len / 8) as usize;
-                    buf[i..][..len].copy_from_slice(&tmp[(offset as usize)..][..len]);
-                    i += (len / 8) as usize;
-                } else {
-                    unimplemented!("Target rectangle not aligned on byte boundaries")
-                }
+    {
+        // Read a range of the image starting from bit number `start` and continuing until bit
+        // number `end`. Updates `current_scanline` and `bits_read` appropiately.
+        let mut read_image_range = |start: u64, end: u64| -> ImageResult<()> {
+            let target_scanline = start / (scanline_bytes * 8);
+            if target_scanline != current_scanline {
+                seek_scanline(decoder, target_scanline)?;
+                current_scanline = target_scanline;
             }
-            progress_callback(Progress {current: end - position, total: end - start});
+
+            let mut position = current_scanline * scanline_bytes * 8;
+            while position < end {
+                if position >= start && end - position >= scanline_bytes * 8 && bits_read % 8 == 0 {
+                    read_scanline(decoder, &mut buf[((bits_read/8) as usize)..]
+                                                   [..(scanline_bytes as usize)])?;
+                    bits_read += scanline_bytes * 8;
+                } else {
+                    tmp.resize(scanline_bytes as usize, 0u8);
+                    read_scanline(decoder, &mut tmp)?;
+
+                    let offset = start.saturating_sub(position);
+                    let len = (end - start)
+                        .min(scanline_bytes * 8 - offset)
+                        .min(end - position);
+                    if bits_read % 8 == 0 && offset % 8 == 0 && len % 8 == 0 {
+                        let o = (offset / 8) as usize;
+                        let l = (len / 8) as usize;
+                        buf[((bits_read/8) as usize)..][..l].copy_from_slice(&tmp[o..][..l]);
+                        bits_read += len;
+                    } else {
+                        unimplemented!("Target rectangle not aligned on byte boundaries")
+                    }
+                }
+
+                current_scanline += 1;
+                position += scanline_bytes * 8;
+                progress_callback(Progress {current: bits_read, total: total_bits});
+            }
+            Ok(())
+        };
+
+        if x + width > dimensions.0 || y + height > dimensions.0
+            || width == 0 || height == 0 {
+                return Err(ImageError::DimensionError);
+            }
+        if scanline_bytes > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
         }
-        Ok(())
-    } else {
-        unimplemented!("TODO")
+
+        progress_callback(Progress {current: 0, total: total_bits});
+        if x == 0 && width == dimensions.0 {
+            let start = x * bits_per_pixel + y * row_bytes * 8;
+            let end = (x + width) * bits_per_pixel + (y + height - 1) * row_bytes * 8;
+            read_image_range(start, end)?;
+        } else {
+            for row in y..(y+height) {
+                let start = x * bits_per_pixel + row * row_bytes * 8;
+                let end = (x + width) * bits_per_pixel + row * row_bytes * 8;
+                read_image_range(start, end)?;
+            }
+        }
     }
+
+    // Seek back to the start
+    Ok(seek_scanline(decoder, 0)?)
 }
 
 /// Represents the progress of an image operation.
@@ -889,5 +909,69 @@ mod tests {
 
         let view2 = view1.view(1, 1, 1, 1);
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+    }
+
+    #[test]
+    fn test_load_rect() {
+        use super::*;
+
+        struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
+        impl ImageDecoder for MockDecoder {
+            type Reader = Box<::std::io::Read>;
+            fn dimensions(&self) -> (u64, u64) {(5, 5)}
+            fn colortype(&self) -> ColorType {  ColorType::Gray(8) }
+            fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
+            fn scanline_bytes(&self) -> u64 { self.scanline_bytes }
+        }
+
+        const DATA: [u8; 25] = [0,  1,  2,  3,  4,
+                                5,  6,  7,  8,  9,
+                                10, 11, 12, 13, 14,
+                                15, 16, 17, 18, 19,
+                                20, 21, 22, 23, 24];
+
+        fn seek_scanline(m: &mut MockDecoder, n: u64) -> io::Result<()> {
+            m.scanline_number = n;
+            Ok(())
+        }
+        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<usize> {
+            let bytes_read = m.scanline_number * m.scanline_bytes;
+            if bytes_read >= 25 { return Ok(0); }
+
+            let len = m.scanline_bytes.min(25 - bytes_read);
+            buf[..(len as usize)].copy_from_slice(&DATA[(bytes_read as usize)..][..(len as usize)]);
+            m.scanline_number += 1;
+            Ok(len as usize)
+        }
+
+        for scanline_bytes in 1..30 {
+            let mut output = [0u8; 26];
+
+            load_rect(0, 0, 5, 5, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..25], DATA);
+            assert_eq!(output[25], 0);
+
+            output = [0u8; 26];
+            load_rect(3, 2, 1, 1, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..2], [13, 0]);
+
+            output = [0u8; 26];
+            load_rect(3, 2, 2, 2, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..5], [13, 14, 18, 19, 0]);
+
+
+            output = [0u8; 26];
+            load_rect(1, 1, 2, 4, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
+
+        }
     }
 }

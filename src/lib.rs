@@ -53,6 +53,8 @@ pub use buffer::{ConvertBuffer,
                  RgbImage,
                  RgbaImage};
 
+pub use flat::{FlatSamples};
+
 // Traits
 pub use traits::Primitive;
 
@@ -98,6 +100,7 @@ mod animation;
 mod buffer;
 mod color;
 mod dynimage;
+mod flat;
 mod image;
 mod traits;
 mod utils;

@@ -41,7 +41,7 @@ impl<R: BufRead> HDRAdapter<R> {
     }
 }
 
-impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
+impl<'a, R: BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.meta.width, self.meta.height))
     }

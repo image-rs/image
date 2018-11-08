@@ -8,11 +8,26 @@ use buffer::{ImageBuffer, Pixel};
 use color;
 use color::ColorType;
 
-use animation::{Frame, Frames};
+use animation::{Frame, FrameIterator};
 use dynimage::decoder_to_image;
 
 #[cfg(feature = "pnm")]
 use pnm::PNMSubtype;
+
+struct SingleFrameIterator {
+    frame: Option<Frame>,
+}
+
+impl Iterator for SingleFrameIterator {
+    type Item = ImageResult<Frame>;
+    fn next(&mut self) -> Option<ImageResult<Frame>> {
+        let frame = self.frame.take();
+        match frame {
+            None => None,
+            Some(frame) => Some(Ok(frame)),
+        }
+    }
+}
 
 /// An enumeration of Image errors
 #[derive(Debug)]
@@ -204,7 +219,7 @@ impl From<ImageFormat> for ImageOutputFormat {
 }
 
 /// The trait that all decoders implement
-pub trait ImageDecoder: Sized {
+pub trait ImageDecoder<'a>: Sized {
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
 
@@ -231,10 +246,10 @@ pub trait ImageDecoder: Sized {
     ///
     /// If the image is not animated it returns a single frame
     #[allow(unused)]
-    fn into_frames(mut self) -> ImageResult<Frames> {
-        Ok(Frames::new(vec![Frame::new(
-            try!(decoder_to_image(self)).to_rgba(),
-        )]))
+    fn into_frames(mut self) -> ImageResult<FrameIterator<'a>> {
+        Ok(FrameIterator::new(Box::new(SingleFrameIterator {
+            frame: Some(Frame::new(try!(decoder_to_image(self)).to_rgba())),
+        })))
     }
 
     /// Decodes a specific region of the image, represented by the rectangle

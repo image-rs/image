@@ -160,7 +160,7 @@ impl DirEntry {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
+impl<'a, R: Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         match self.inner_decoder {
             BMP(ref mut decoder) => decoder.dimensions(),

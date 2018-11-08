@@ -61,7 +61,7 @@ impl From<tiff::decoder::DecodingResult> for DecodingResult {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
+impl<'a, R: Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         self.inner.dimensions().map_err(|e| e.into())
     }

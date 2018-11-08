@@ -1225,7 +1225,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
+impl<'a, R: Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
         Ok((self.width as u32, self.height as u32))

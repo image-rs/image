@@ -62,7 +62,7 @@ pub use dynimage::{guess_format, load, load_from_memory, load_from_memory_with_f
 
 pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8, ImageBgr8, ImageBgra8};
 
-pub use animation::{Frame, Frames};
+pub use animation::{Frame, FrameIterator};
 
 // Math utils
 pub mod math;

@@ -1,20 +1,26 @@
+use std::iter::Iterator;
+
 use num_rational::Ratio;
 
 use buffer::RgbaImage;
+use image::ImageResult;
 
-/// Holds the frames of the animated image
-pub struct Frames {
-    frames: Vec<Frame>,
-    current_frame: usize,
+/// Struct that can be used to iterate through the frames of an animated image such as a gif.
+pub struct FrameIterator<'a> {
+    iterator: Box<Iterator<Item = ImageResult<Frame>> + 'a>
 }
 
-impl Frames {
-    /// Contructs a new frame iterator
-    pub fn new(frames: Vec<Frame>) -> Frames {
-        Frames {
-            frames,
-            current_frame: 0,
-        }
+impl<'a> FrameIterator<'a> {
+    /// Creates a new `FrameIterator` from an an implementation specific iterator
+    pub fn new(iterator: Box<Iterator<Item = ImageResult<Frame>> + 'a>) -> FrameIterator<'a> {
+        FrameIterator { iterator }
+    }
+}
+
+impl<'a> Iterator for FrameIterator<'a> {
+    type Item = ImageResult<Frame>;
+    fn next(&mut self) -> Option<ImageResult<Frame>> {
+        self.iterator.next()
     }
 }
 
@@ -74,14 +80,5 @@ impl Frame {
     /// Returns the y offset
     pub fn top(&self) -> u32 {
         self.top
-    }
-}
-
-impl<'a> Iterator for Frames {
-    type Item = Frame;
-    fn next(&mut self) -> Option<Frame> {
-        let frame = self.current_frame;
-        self.current_frame += 1;
-        self.frames.get(frame).cloned()
     }
 }

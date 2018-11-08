@@ -98,7 +98,7 @@ impl<R: Read> DXTDecoder<R> {
 
 /// Note that, due to the way that DXT compression works, a scanline is considered
 /// to consist out of 4 lines of pixels.
-impl<R: Read> ImageDecoder for DXTDecoder<R> {
+impl<'a, R: Read> ImageDecoder<'a> for DXTDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.width_blocks * 4, self.height_blocks * 4))
     }

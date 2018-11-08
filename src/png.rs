@@ -50,7 +50,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for PNGDecoder<R> {
+impl<'a, R: Read> ImageDecoder<'a> for PNGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let reader = try!(self.get_reader());
         Ok(reader.info().size())

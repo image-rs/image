@@ -622,7 +622,7 @@ impl GenericImage for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> {
+pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
     let mut codec = codec;
 
     let color = try!(codec.colortype());

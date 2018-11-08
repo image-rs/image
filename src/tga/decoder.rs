@@ -467,7 +467,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
+impl<'a, R: Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         try!(self.read_metadata());
 

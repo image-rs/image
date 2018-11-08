@@ -401,7 +401,7 @@ trait HeaderReader: BufRead {
 
 impl<R: Read> HeaderReader for BufReader<R> {}
 
-impl<R: Read> ImageDecoder for PNMDecoder<R> {
+impl<'a, R: Read> ImageDecoder<'a> for PNMDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         Ok((self.header.width(), self.header.height()))
     }

@@ -39,7 +39,7 @@ impl<R: Read> JPEGDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for JPEGDecoder<R> {
+impl<'a, R: Read> ImageDecoder<'a> for JPEGDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let metadata = try!(self.metadata());
         Ok((u32::from(metadata.width), u32::from(metadata.height)))

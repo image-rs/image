@@ -21,8 +21,6 @@ extern crate test;
 #[macro_use]
 extern crate quickcheck;
 
-use std::io::Write;
-
 pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA, BGR, BGRA};
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
@@ -101,13 +99,3 @@ mod dynimage;
 mod image;
 mod traits;
 mod utils;
-
-// Copies data from `src` to `dst`
-//
-// Panics if the length of `dst` is less than the length of `src`.
-#[inline]
-fn copy_memory(src: &[u8], mut dst: &mut [u8]) {
-    let len_src = src.len();
-    assert!(dst.len() >= len_src);
-    dst.write_all(src).unwrap();
-}

@@ -70,7 +70,7 @@ impl<R: Read> ImageDecoder for PNGDecoder<R> {
     fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
         match try!(try!(self.get_reader()).next_row()) {
             Some(line) => {
-                ::copy_memory(line, &mut buf[..line.len()]);
+                buf[..line.len()].copy_from_slice(line);
                 Ok(line.len() as u32)
             }
             None => Err(ImageError::ImageEnd),

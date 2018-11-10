@@ -125,7 +125,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
         let slice = &self.frame.ybuf
             [self.decoded_rows as usize * rlen..self.decoded_rows as usize * rlen + rlen];
 
-        ::copy_memory(slice, buf);
+        buf.copy_from_slice(slice);
         self.decoded_rows += 1;
 
         Ok(self.decoded_rows)

@@ -153,3 +153,35 @@ impl From<png::DecodingError> for ImageError {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use buffer::{Pixel, RgbaImage};
+    use color::Rgba;
+    use image::{GenericImage, GenericImageView};
+
+    #[test]
+    fn test_load_rect() {
+        let (width, height) = (5, 4);
+        let (sub_width, sub_height) = (3, 2);
+        let (sub_xstart, sub_ystart) = (2, 1);
+        let mut source = RgbaImage::from_fn(width, height, |x, y| Rgba([(y * width + x) as u8; 4]));
+        let mut w = Vec::new();
+        {
+            let png_image = PNGEncoder::new(&mut w);
+            png_image.encode(&*source, width, height, Rgba::<u8>::color_type()).unwrap();
+        }
+        let mut decoder = PNGDecoder::new(&w[..]);
+        let subimg1 = {
+            let tmp = decoder.load_rect(sub_xstart, sub_ystart, sub_height, sub_width).unwrap();
+            RgbaImage::from_vec(sub_width, sub_height, tmp).unwrap()
+        };
+        let subimg2 = source.sub_image(sub_xstart, sub_ystart, sub_width, sub_height);
+        for y in 0..sub_height {
+            for x in 0..sub_width {
+                assert_eq!(*subimg1.get_pixel(x, y), subimg2.get_pixel(x, y));
+            }
+        }
+    }
+}

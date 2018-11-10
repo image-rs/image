@@ -242,7 +242,7 @@ pub trait ImageDecoder: Sized {
     fn load_rect(&mut self, x: u32, y: u32, length: u32, width: u32) -> ImageResult<Vec<u8>> {
         let (w, h) = try!(self.dimensions());
 
-        if length > h || width > w || x > w || y > h {
+        if length + y > h || width + x > w {
             return Err(ImageError::DimensionError);
         }
 
@@ -252,26 +252,19 @@ pub trait ImageDecoder: Sized {
 
         let rowlen = try!(self.row_len());
 
-        let mut buf = vec![0u8; length as usize * width as usize * bpp];
+        let width = width as usize;
+        let mut buf = vec![0u8; length as usize * width * bpp];
         let mut tmp = vec![0u8; rowlen];
 
-        loop {
-            let row = try!(self.read_scanline(&mut tmp));
-
-            if row - 1 == y {
-                break;
-            }
+        for _ in 0..y {
+            let _ = try!(self.read_scanline(&mut tmp));
         }
 
         for i in 0..length as usize {
-            {
-                let from = &tmp[x as usize * bpp..width as usize * bpp];
-
-                let start = i * width as usize;
-                buf[start..start + from.len()].copy_from_slice(from);
-            }
-
             let _ = try!(self.read_scanline(&mut tmp));
+            let from = &tmp[x as usize * bpp..][..width * bpp];
+            let to = &mut buf[i * width * bpp..][..width * bpp];
+            to.copy_from_slice(from);
         }
 
         Ok(buf)

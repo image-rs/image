@@ -381,7 +381,7 @@ where
     ///
     /// The returned buffer is guaranteed to be well formed in all cases. It is
     /// layed out by colors, width then height, meaning `channel_stride <=
-    /// vertical_stride <= horizontal_stride`. All strides are in numbers of
+    /// horizontal_stride <= vertical_stride`. All strides are in numbers of
     /// elements but those are mostly `u8` in which case the strides are also
     /// byte strides.
     pub fn flattened(self) -> FlatSamples<P::Subpixel, Container> 
@@ -390,7 +390,7 @@ where
         // None of these can overflow, as all our memory is addressable.
         let cstride = 1usize;
         let vstride = <P as Pixel>::channel_count() as usize;
-        let hstride = cstride*self.width as usize;
+        let hstride = vstride*self.width as usize;
         FlatSamples {
             samples: self.data,
             horizontal_stride: hstride,
@@ -412,7 +412,7 @@ where
         // None of these can overflow, as all our memory is addressable.
         let cstride = 1usize;
         let vstride = <P as Pixel>::channel_count() as usize;
-        let hstride = cstride*self.width as usize;
+        let hstride = vstride*self.width as usize;
         FlatSamples {
             samples: self.data.as_ref(),
             horizontal_stride: hstride,

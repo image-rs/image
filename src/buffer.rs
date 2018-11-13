@@ -6,6 +6,7 @@ use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use flat::FlatSamples;
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
 use traits::Primitive;
@@ -374,6 +375,54 @@ where
         let no_channels = <P as Pixel>::channel_count() as usize;
         let index = no_channels * (y * self.width + x) as usize;
         <P as Pixel>::from_slice(&self.data[index..index + no_channels])
+    }
+
+    /// Return the raw sample buffer with its stride an dimension information.
+    ///
+    /// The returned buffer is guaranteed to be well formed in all cases. It is
+    /// layed out by colors, width then height, meaning `channel_stride <=
+    /// vertical_stride <= horizontal_stride`. All strides are in numbers of
+    /// elements but those are mostly `u8` in which case the strides are also
+    /// byte strides.
+    pub fn flattened(self) -> FlatSamples<P::Subpixel, Container> 
+        where Container: AsRef<[P::Subpixel]> 
+    {
+        // None of these can overflow, as all our memory is addressable.
+        let cstride = 1usize;
+        let vstride = <P as Pixel>::channel_count() as usize;
+        let hstride = cstride*self.width as usize;
+        FlatSamples {
+            samples: self.data,
+            horizontal_stride: hstride,
+            vertical_stride: vstride,
+            channel_stride: cstride,
+            width: self.width,
+            height: self.height,
+            channels: P::channel_count(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Return a view on the raw sample buffer.
+    ///
+    /// See `flattened` for more details.
+    pub fn as_flattened(&self) -> FlatSamples<P::Subpixel, &[P::Subpixel]>
+        where Container: AsRef<[P::Subpixel]> 
+    {
+        // None of these can overflow, as all our memory is addressable.
+        let cstride = 1usize;
+        let vstride = <P as Pixel>::channel_count() as usize;
+        let hstride = cstride*self.width as usize;
+        FlatSamples {
+            samples: self.data.as_ref(),
+            horizontal_stride: hstride,
+            vertical_stride: vstride,
+            channel_stride: cstride,
+            width: self.width,
+            height: self.height,
+            channels: P::channel_count(),
+            phantom: PhantomData,
+        }
     }
 }
 

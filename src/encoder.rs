@@ -94,7 +94,7 @@ impl<W: Write> Writer<W> {
     }
 
     fn init(mut self) -> Result<Self> {
-        try!(self.w.write(&[137, 80, 78, 71, 13, 10, 26, 10]));
+        try!(self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10]));
         let mut data = [0; 13];
         try!((&mut data[..]).write_be(self.info.width));
         try!((&mut data[4..]).write_be(self.info.height));
@@ -107,8 +107,8 @@ impl<W: Write> Writer<W> {
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
         try!(self.w.write_be(data.len() as u32));
-        try!(self.w.write(&name));
-        try!(self.w.write(data));
+        try!(self.w.write_all(&name));
+        try!(self.w.write_all(data));
         let mut crc = Crc32::new();
         crc.update(&name);
         crc.update(data);

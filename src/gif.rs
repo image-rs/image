@@ -303,20 +303,32 @@ impl<W: Write> Encoder<W> {
         result
     }
     /// Encodes Frames.
-    pub fn encode_frames<FrameIter: Iterator<Item = animation::Frame>>(&mut self, frames: FrameIter) -> ImageResult<()> {
-        for img_frame in frames {
-            // get the delay before coverting img_frame
-            let frame_delay = img_frame.delay().to_integer();
-            // convert img_frame into RgbaImage
-            let rbga_frame = img_frame.into_buffer();
+    pub fn encode_frames<Frames>(&mut self, frames: Frames) -> ImageResult<()>
+    where
+        Frames: Iterator<Item = ImageResult<animation::Frame>>
+    {
+        for frame_result in frames {
+            match frame_result {
+                Ok(img_frame) => {
+                    // get the delay before coverting img_frame
+                    let frame_delay = img_frame.delay().to_integer();
+                    // convert img_frame into RgbaImage
+                    let rbga_frame = img_frame.into_buffer();
 
-            // Create the gif::Frame from the animation::Frame
-            let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
-            frame.delay = frame_delay;
+                    // Create the gif::Frame from the animation::Frame
+                    let mut frame = Frame::from_rgba(
+                        rbga_frame.width() as u16,
+                        rbga_frame.height() as u16,
+                        &mut rbga_frame.into_raw()
+                    );
+                    frame.delay = frame_delay;
 
-            // encode the gif::Frame
-            if let Err(e) = self.encode(&frame) {
-                return Err(e);
+                    // encode the gif::Frame
+                    if let Err(e) = self.encode(&frame) {
+                        return Err(e);
+                    }
+                },
+                Err(err) => return Err(err),
             }
         }
         Ok(())

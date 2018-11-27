@@ -94,7 +94,7 @@ impl<W: Write> Writer<W> {
     }
 
     fn init(mut self) -> Result<Self> {
-        try!(self.w.write(&[137, 80, 78, 71, 13, 10, 26, 10]));
+        try!(self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10]));
         let mut data = [0; 13];
         try!((&mut data[..]).write_be(self.info.width));
         try!((&mut data[4..]).write_be(self.info.height));
@@ -107,8 +107,8 @@ impl<W: Write> Writer<W> {
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
         try!(self.w.write_be(data.len() as u32));
-        try!(self.w.write(&name));
-        try!(self.w.write(data));
+        try!(self.w.write_all(&name));
+        try!(self.w.write_all(data));
         let mut crc = Crc32::new();
         crc.update(&name);
         crc.update(data);
@@ -146,47 +146,97 @@ impl<W: Write> Drop for Writer<W> {
     }
 }
 
-#[test]
-fn roundtrip() {
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    extern crate rand;
+    extern crate glob;
+
+    use self::rand::Rng;
+    use std::{io, cmp};
+    use std::io::Write;
     use std::fs::File;
-    // Decode image
-    let decoder = ::Decoder::new(File::open("tests/pngsuite/basi0g01.png").unwrap());
-    let (info, mut reader) = decoder.read_info().unwrap();
-    let mut buf = vec![0; info.buffer_size()];
-    reader.next_frame(&mut buf).unwrap();
-    // Encode decoded image
-    let mut out = Vec::new();
-    {
-        let mut encoder = Encoder::new(&mut out, info.width, info.height).write_header().unwrap();
-        encoder.write_image_data(&buf).unwrap();
+
+    #[test]
+    fn roundtrip() {
+        // More loops = more random testing, but also more test wait time
+        for _ in 0..10 {
+            for path in glob::glob("tests/pngsuite/*.png").unwrap().map(|r| r.unwrap()) {
+                if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
+                    // x* files are expected to fail to decode
+                    continue;
+                }
+                // Decode image
+                let decoder = ::Decoder::new(File::open(path).unwrap());
+                let (info, mut reader) = decoder.read_info().unwrap();
+                if info.line_size != 32 {
+                    // TODO encoding only works with line size 32?
+                    continue;
+                }
+                let mut buf = vec![0; info.buffer_size()];
+                reader.next_frame(&mut buf).unwrap();
+                // Encode decoded image
+                let mut out = Vec::new();
+                {
+                    let mut wrapper = RandomChunkWriter {
+                        rng: self::rand::thread_rng(),
+                        w: &mut out
+                    };
+
+                    let mut encoder = Encoder::new(&mut wrapper, info.width, info.height).write_header().unwrap();
+                    encoder.write_image_data(&buf).unwrap();
+                }
+                // Decode encoded decoded image
+                let decoder = ::Decoder::new(&*out);
+                let (info, mut reader) = decoder.read_info().unwrap();
+                let mut buf2 = vec![0; info.buffer_size()];
+                reader.next_frame(&mut buf2).unwrap();
+                // check if the encoded image is ok:
+                assert_eq!(buf, buf2);
+            }
+        }
     }
-    // Decode encoded decoded image
-    let decoder = ::Decoder::new(&*out);
-    let (info, mut reader) = decoder.read_info().unwrap();
-    let mut buf2 = vec![0; info.buffer_size()];
-    reader.next_frame(&mut buf2).unwrap();
-    // check if the encoded image is ok:
-    assert_eq!(buf, buf2);
-}
 
-#[test]
-fn expect_error_on_wrong_image_len() -> Result<()> {
-    use std::io::Cursor;
+    #[test]
+    fn expect_error_on_wrong_image_len() -> Result<()> {
+        use std::io::Cursor;
 
-    let width = 10;
-    let height = 10;
+        let width = 10;
+        let height = 10;
 
-    let output = vec![0u8; 1024];
-    let writer = Cursor::new(output);
-    let mut encoder = Encoder::new(writer, width as u32, height as u32);
-    encoder.set(BitDepth::Eight);
-    encoder.set(ColorType::RGB);
-    let mut png_writer = encoder.write_header()?;
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let mut encoder = Encoder::new(writer, width as u32, height as u32);
+        encoder.set(BitDepth::Eight);
+        encoder.set(ColorType::RGB);
+        let mut png_writer = encoder.write_header()?;
 
-    let correct_image_size = width * height * 3;
-    let image = vec![0u8; correct_image_size + 1];
-    let result = png_writer.write_image_data(image.as_ref());
-    assert!(result.is_err());
+        let correct_image_size = width * height * 3;
+        let image = vec![0u8; correct_image_size + 1];
+        let result = png_writer.write_image_data(image.as_ref());
+        assert!(result.is_err());
 
-    Ok(())
+        Ok(())
+    }
+
+    /// A Writer that only writes a few bytes at a time
+    struct RandomChunkWriter<'a, R: Rng, W: Write + 'a> {
+        rng: R,
+        w: &'a mut W
+    }
+
+    impl<'a, R: Rng, W: Write + 'a> Write for RandomChunkWriter<'a, R, W> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            // choose a random length to write
+            let len = cmp::min(self.rng.gen_range(1, 50), buf.len());
+
+            self.w.write(&buf[0..len])
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.w.flush()
+        }
+    }
+
 }

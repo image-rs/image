@@ -19,6 +19,7 @@ bitflags = "1.0"
 getopts = "0.2.14"
 term = "0.4"
 glob = "0.2.11"
+rand = "0.5.5"
 
 [dev-dependencies.glium]
 version = "0.22"

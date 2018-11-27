@@ -29,21 +29,6 @@ fn read_all<R: io::Read + ?Sized>(this: &mut R, buf: &mut [u8]) -> io::Result<()
     Ok(())
 }
 
-// Will be replaced by stdlib solution
-fn write_all<W: io::Write + ?Sized>(this: &mut W, buf: &[u8]) -> io::Result<()> {
-    let mut total = 0;
-    while total < buf.len() {
-        match this.write(&buf[total..]) {
-            Ok(0) => return Err(io::Error::new(io::ErrorKind::Other,
-                                               "failed to write the whole buffer")),
-            Ok(n) => total += n,
-            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
-}
-
 /// Read extension to read big endian data
 pub trait ReadBytesExt<T>: io::Read {
     /// Read `T` from a bytes stream. Most significant byte first.
@@ -91,7 +76,7 @@ impl<W: io::Read + ?Sized> ReadBytesExt<u32> for W {
 impl<W: io::Write + ?Sized> WriteBytesExt<u32> for W {
     #[inline]
     fn write_be(&mut self, n: u32) -> io::Result<()> {
-        write_all(self, &[
+        self.write_all(&[
             (n >> 24) as u8,
             (n >> 16) as u8,
             (n >>  8) as u8,

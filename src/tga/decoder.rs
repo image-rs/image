@@ -252,6 +252,7 @@ impl<R: Read + Seek> TGADecoder<R> {
         match (num_alpha_bits, other_channel_bits, color) {
             // really, the encoding is BGR and BGRA, this is fixed
             // up with `TGADecoder::reverse_encoding`.
+            (0, 32, true) => self.color_type = ColorType::RGBA(8),
             (8, 24, true) => self.color_type = ColorType::RGBA(8),
             (0, 24, true) => self.color_type = ColorType::RGB(8),
             (8, 8, false) => self.color_type = ColorType::GrayA(8),

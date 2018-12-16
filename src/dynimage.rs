@@ -158,7 +158,7 @@ impl DynamicImage {
         })
     }
 
-    /// Returns a copy of this image as an RGBA image.
+    /// Returns a copy of this image as an BGRA image.
     pub fn to_bgra(&self) -> BgraImage {
         dynamic_map!(*self, ref p -> {
             p.convert()

@@ -2,7 +2,6 @@ use num_iter;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
-use std::iter;
 use std::path::Path;
 
 #[cfg(feature = "bmp")]
@@ -677,20 +676,19 @@ fn gray_to_luma8(bit_depth: u8, w: u32, h: u32, buf: &[u8]) -> Option<GrayImage>
         (8 - bit_width % 8) / u32::from(bit_depth)
     };
     let row_len = w + skip;
-    let p = buf
-        .iter()
-        .flat_map(|&v|
-                  num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8))
-                  .zip(iter::repeat(v))
-                 )
-        // skip the pixels that can be neglected because scanlines should
-        // start at byte boundaries
-        .enumerate().filter(|&(i, _)| i % (row_len as usize) < (w as usize) ).map(|(_, p)| p)
-        .map(|(shift, pixel)|
-             (pixel & mask << shift as usize) >> shift as usize
-            )
-        .map(|pixel| pixel * scaling_factor)
-        .collect();
+    let mut p = Vec::new();
+    let mut i = 0;
+    for v in buf {
+        for shift in num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8)) {
+            // skip the pixels that can be neglected because scanlines should
+            // start at byte boundaries
+            if i % (row_len as usize) < (w as usize) {
+                let pixel = (v & mask << shift as usize) >> shift as usize;
+                p.push(pixel * scaling_factor);
+            }
+            i += 1;
+        }
+    }
     ImageBuffer::from_raw(w, h, p)
 }
 

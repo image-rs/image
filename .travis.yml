@@ -6,6 +6,7 @@ os:
     - linux
     - osx
 rust:
+    - 1.24.1
     - stable
     - beta
     - nightly

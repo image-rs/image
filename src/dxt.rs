@@ -111,8 +111,8 @@ impl<R: Read> DXTDecoder<R> {
     }
 }
 
-/// Note that, due to the way that DXT compression works, a scanline is considered
-/// to consist out of 4 lines of pixels.
+// Note that, due to the way that DXT compression works, a scanline is considered to consist out of
+// 4 lines of pixels.
 impl<R: Read> ImageDecoder for DXTDecoder<R> {
     type Reader = DXTReader<R>;
 
@@ -171,7 +171,7 @@ impl<R: Read + Seek> ImageDecoderExt for DXTDecoder<R> {
                              s.inner.seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
                              Ok(())
                          },
-            |s, buf| s.read_scanline(buf))?;
+                         |s, buf| s.read_scanline(buf))?;
         self.inner.seek(SeekFrom::Start(start))?;
         Ok(())
     }

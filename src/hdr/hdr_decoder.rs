@@ -4,18 +4,19 @@ use num_traits::identities::Zero;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{self, BufRead, Cursor};
+use std::io::{self, BufRead, Cursor, Seek};
 use std::iter::Iterator;
 use std::path::Path;
 use Primitive;
 
 use color::{ColorType, Rgb};
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
 pub struct HDRAdapter<R: BufRead> {
     inner: Option<HDRDecoder<R>>,
+    data: Option<Vec<u8>>,
     meta: HDRMetadata,
 }
 
@@ -26,6 +27,7 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
+            data: None,
             meta,
         })
     }
@@ -36,9 +38,32 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
+            data: None,
             meta,
         })
     }
+
+    /// Read the actual data of the image, and store it in Self::data.
+    fn read_image_data(&mut self) -> ImageResult<()> {
+        match self.inner.take() {
+            Some(decoder) => {
+                let elem_len = ::std::mem::size_of::<Rgb<u8>>();
+                let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
+                // let's transform Vec<Rgb<u8>> into Vec<u8>
+                let p = img.as_mut_ptr() as *mut u8;
+                let len = img.len() * elem_len; // length in bytes
+                let cap = img.capacity() * elem_len; //
+                ::std::mem::forget(img);
+
+                unsafe {
+                    self.data = Some(Vec::from_raw_parts(p, len, cap));
+                }
+                Ok(())
+            }
+            None => Err(ImageError::ImageEnd),
+        }
+    }
+
 }
 
 impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
@@ -57,22 +82,34 @@ impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        match self.inner.take() {
-            Some(decoder) => {
-                let elem_len = ::std::mem::size_of::<Rgb<u8>>();
-                let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                // let's transform Vec<Rgb<u8>> into Vec<u8>
-                let p = img.as_mut_ptr() as *mut u8;
-                let len = img.len() * elem_len; // length in bytes
-                let cap = img.capacity() * elem_len; //
-
-                unsafe {
-                    ::std::mem::forget(img);
-                    Ok(Vec::from_raw_parts(p, len, cap))
-                }
-            }
-            None => Err(ImageError::ImageEnd),
+        if let Some(data) = self.data {
+            return Ok(data);
         }
+
+        self.read_image_data()?;
+        Ok(self.data.unwrap())
+    }
+}
+
+impl<R: BufRead + Seek> ImageDecoderExt for HDRAdapter<R> {
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        if self.data.is_none() {
+            self.read_image_data()?;
+        }
+
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+                         |s, buf| {
+                             buf.copy_from_slice(&*s.data.as_ref().unwrap());
+                             Ok(buf.len())
+                         })
     }
 }
 

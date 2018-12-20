@@ -7,7 +7,7 @@ use std::slice::ChunksMut;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -1276,6 +1276,28 @@ impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
         self.read_image_data()
+    }
+}
+
+impl<R: Read + Seek> ImageDecoderExt for BMPDecoder<R> {
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        let start = self.r.seek(SeekFrom::Current(0))?;
+        let data = self.read_image_data();
+        self.r.seek(SeekFrom::Start(start))?;
+
+        let data = data?;
+
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+                         |_, buf| { buf.copy_from_slice(&data); Ok(buf.len()) })?;
+        Ok(())
     }
 }
 

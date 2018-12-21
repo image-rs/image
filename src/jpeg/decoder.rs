@@ -1,72 +1,59 @@
 extern crate jpeg_decoder;
 
-use std::io::Read;
+use std::io::{Cursor, Read};
 
-use color::{self, ColorType};
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
+use color::ColorType;
+use image::{ImageDecoder, ImageError, ImageResult};
 
 /// JPEG decoder
 pub struct JPEGDecoder<R> {
     decoder: jpeg_decoder::Decoder<R>,
-    metadata: Option<jpeg_decoder::ImageInfo>,
+    metadata: jpeg_decoder::ImageInfo,
 }
 
 impl<R: Read> JPEGDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> JPEGDecoder<R> {
-        JPEGDecoder {
-            decoder: jpeg_decoder::Decoder::new(r),
-            metadata: None,
+    pub fn new(r: R) -> ImageResult<JPEGDecoder<R>> {
+        let mut decoder = jpeg_decoder::Decoder::new(r);
+
+        decoder.read_info()?;
+        let mut metadata = decoder.info().unwrap();
+
+        // We convert CMYK data to RGB before returning it to the user.
+        if metadata.pixel_format == jpeg_decoder::PixelFormat::CMYK32 {
+            metadata.pixel_format = jpeg_decoder::PixelFormat::RGB24;
         }
-    }
 
-    fn metadata(&mut self) -> ImageResult<jpeg_decoder::ImageInfo> {
-        match self.metadata {
-            Some(metadata) => Ok(metadata),
-            None => {
-                try!(self.decoder.read_info());
-                let mut metadata = self.decoder.info().unwrap();
-
-                // We convert CMYK data to RGB before returning it to the user.
-                if metadata.pixel_format == jpeg_decoder::PixelFormat::CMYK32 {
-                    metadata.pixel_format = jpeg_decoder::PixelFormat::RGB24;
-                }
-
-                self.metadata = Some(metadata);
-                Ok(metadata)
-            }
-        }
+        Ok(JPEGDecoder {
+            decoder,
+            metadata,
+        })
     }
 }
 
 impl<R: Read> ImageDecoder for JPEGDecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        let metadata = try!(self.metadata());
-        Ok((u32::from(metadata.width), u32::from(metadata.height)))
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u64, u64) {
+        (self.metadata.width as u64, self.metadata.height as u64)
     }
 
-    fn colortype(&mut self) -> ImageResult<ColorType> {
-        let metadata = try!(self.metadata());
-        Ok(metadata.pixel_format.into())
+    fn colortype(&self) -> ColorType {
+        self.metadata.pixel_format.into()
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        let metadata = try!(self.metadata());
-        Ok(metadata.width as usize * color::num_components(metadata.pixel_format.into()))
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, _buf: &mut [u8]) -> ImageResult<u32> {
-        unimplemented!();
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let mut data = try!(self.decoder.decode());
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+        let mut data = self.decoder.decode()?;
         data = match self.decoder.info().unwrap().pixel_format {
             jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
         };
 
-        Ok(DecodingResult::U8(data))
+        Ok(data)
     }
 }
 

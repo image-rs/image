@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::io;
+use std::io::Read;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
@@ -8,8 +9,7 @@ use buffer::{ImageBuffer, Pixel};
 use color;
 use color::ColorType;
 
-use animation::{Frame, Frames};
-use dynimage::decoder_to_image;
+use animation::Frames;
 
 #[cfg(feature = "pnm")]
 use pnm::PNMSubtype;
@@ -38,6 +38,9 @@ pub enum ImageError {
 
     /// The end of the image has been reached
     ImageEnd,
+
+    /// There is not enough memory to complete the given operation
+    InsufficientMemory,
 }
 
 impl fmt::Display for ImageError {
@@ -68,6 +71,7 @@ impl fmt::Display for ImageError {
             ),
             ImageError::IoError(ref e) => e.fmt(fmt),
             ImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
+            ImageError::InsufficientMemory => write!(fmt, "Insufficient memory"),
         }
     }
 }
@@ -82,6 +86,7 @@ impl Error for ImageError {
             ImageError::NotEnoughData => "Not enough data",
             ImageError::IoError(..) => "IO error",
             ImageError::ImageEnd => "Image end",
+            ImageError::InsufficientMemory => "Insufficient memory",
         }
     }
 
@@ -101,15 +106,6 @@ impl From<io::Error> for ImageError {
 
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
-
-/// Result of a decoding process
-#[derive(Debug)]
-pub enum DecodingResult {
-    /// A vector of unsigned bytes
-    U8(Vec<u8>),
-    /// A vector of unsigned words
-    U16(Vec<u16>),
-}
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
@@ -203,80 +199,271 @@ impl From<ImageFormat> for ImageOutputFormat {
     }
 }
 
+// This struct manages buffering associated with implementing `Read` and `Seek` on decoders that can
+// must decode ranges of bytes at a time.
+pub(crate) struct ImageReadBuffer {
+    scanline_bytes: usize,
+    buffer: Vec<u8>,
+    consumed: usize,
+
+    total_bytes: usize,
+    offset: usize,
+}
+impl ImageReadBuffer {
+    pub fn new(scanline_bytes: usize, total_bytes: usize) -> Self {
+        Self {
+            scanline_bytes,
+            buffer: Vec::new(),
+            consumed: 0,
+            total_bytes,
+            offset: 0,
+        }
+    }
+    pub fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    where
+        F: FnMut(&mut [u8]) -> io::Result<usize>,
+    {
+        if self.buffer.len() == self.consumed {
+            if self.offset == self.total_bytes {
+                return Ok(0);
+            } else if buf.len() >= self.scanline_bytes {
+                // If there is nothing buffered and the user requested a full scanline worth of
+                // data, skip buffering.
+                let bytes_read = read_scanline(&mut buf[..self.scanline_bytes])?;
+                self.offset += bytes_read;
+                return Ok(bytes_read);
+            } else {
+                // Lazily allocate buffer the first time that read is called with a buffer smaller
+                // than the scanline size.
+                if self.buffer.is_empty() {
+                    self.buffer.resize(self.scanline_bytes, 0);
+                }
+
+                self.consumed = 0;
+                let bytes_read = read_scanline(&mut self.buffer[..])?;
+                self.buffer.resize(bytes_read, 0);
+                self.offset += bytes_read;
+
+                assert!(bytes_read == self.scanline_bytes || self.offset == self.total_bytes);
+            }
+        }
+
+        // Finally, copy bytes into output buffer.
+        let bytes_buffered = self.buffer.len() - self.consumed;
+        if bytes_buffered > buf.len() {
+            ::copy_memory(&self.buffer[self.consumed..][..buf.len()], &mut buf[..]);
+            self.consumed += buf.len();
+            Ok(buf.len())
+        } else {
+            ::copy_memory(&self.buffer[self.consumed..], &mut buf[..bytes_buffered]);
+            self.consumed = self.buffer.len();
+            Ok(bytes_buffered)
+        }
+    }
+}
+
+/// Decodes a specific region of the image, represented by the rectangle
+/// starting from ```x``` and ```y``` and having ```length``` and ```width```
+pub(crate) fn load_rect<D, F, F1, F2>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
+                                      progress_callback: F,
+                                      decoder: &mut D,
+                                      mut seek_scanline: F1,
+                                      mut read_scanline: F2) -> ImageResult<()>
+    where D: ImageDecoder,
+          F: Fn(Progress),
+          F1: FnMut(&mut D, u64) -> io::Result<()>,
+          F2: FnMut(&mut D, &mut [u8]) -> io::Result<usize>
+{
+    let dimensions = decoder.dimensions();
+    let row_bytes = decoder.row_bytes();
+    let scanline_bytes = decoder.scanline_bytes();
+    let bits_per_pixel = color::bits_per_pixel(decoder.colortype()) as u64;
+    let total_bits = width * height * bits_per_pixel;
+
+    let mut bits_read = 0u64;
+    let mut current_scanline = 0;
+    let mut tmp = Vec::new();
+
+    {
+        // Read a range of the image starting from bit number `start` and continuing until bit
+        // number `end`. Updates `current_scanline` and `bits_read` appropiately.
+        let mut read_image_range = |start: u64, end: u64| -> ImageResult<()> {
+            let target_scanline = start / (scanline_bytes * 8);
+            if target_scanline != current_scanline {
+                seek_scanline(decoder, target_scanline)?;
+                current_scanline = target_scanline;
+            }
+
+            let mut position = current_scanline * scanline_bytes * 8;
+            while position < end {
+                if position >= start && end - position >= scanline_bytes * 8 && bits_read % 8 == 0 {
+                    read_scanline(decoder, &mut buf[((bits_read/8) as usize)..]
+                                                   [..(scanline_bytes as usize)])?;
+                    bits_read += scanline_bytes * 8;
+                } else {
+                    tmp.resize(scanline_bytes as usize, 0u8);
+                    read_scanline(decoder, &mut tmp)?;
+
+                    let offset = start.saturating_sub(position);
+                    let len = (end - start)
+                        .min(scanline_bytes * 8 - offset)
+                        .min(end - position);
+                    if bits_read % 8 == 0 && offset % 8 == 0 && len % 8 == 0 {
+                        let o = (offset / 8) as usize;
+                        let l = (len / 8) as usize;
+                        buf[((bits_read/8) as usize)..][..l].copy_from_slice(&tmp[o..][..l]);
+                        bits_read += len;
+                    } else {
+                        unimplemented!("Target rectangle not aligned on byte boundaries")
+                    }
+                }
+
+                current_scanline += 1;
+                position += scanline_bytes * 8;
+                progress_callback(Progress {current: bits_read, total: total_bits});
+            }
+            Ok(())
+        };
+
+        if x + width > dimensions.0 || y + height > dimensions.0
+            || width == 0 || height == 0 {
+                return Err(ImageError::DimensionError);
+            }
+        if scanline_bytes > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
+        progress_callback(Progress {current: 0, total: total_bits});
+        if x == 0 && width == dimensions.0 {
+            let start = x * bits_per_pixel + y * row_bytes * 8;
+            let end = (x + width) * bits_per_pixel + (y + height - 1) * row_bytes * 8;
+            read_image_range(start, end)?;
+        } else {
+            for row in y..(y+height) {
+                let start = x * bits_per_pixel + row * row_bytes * 8;
+                let end = (x + width) * bits_per_pixel + row * row_bytes * 8;
+                read_image_range(start, end)?;
+            }
+        }
+    }
+
+    // Seek back to the start
+    Ok(seek_scanline(decoder, 0)?)
+}
+
+/// Represents the progress of an image operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Progress {
+    current: u64,
+    total: u64,
+}
+
 /// The trait that all decoders implement
 pub trait ImageDecoder: Sized {
+    /// The type of reader produced by `into_reader`.
+    type Reader: Read;
+
     /// Returns a tuple containing the width and height of the image
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)>;
+    fn dimensions(&self) -> (u64, u64);
 
     /// Returns the color type of the image e.g. RGB(8) (8bit RGB)
-    fn colortype(&mut self) -> ImageResult<ColorType>;
+    fn colortype(&self) -> ColorType;
 
-    /// Returns the length in bytes of one decoded row of the image
-    fn row_len(&mut self) -> ImageResult<usize>;
+    /// Returns a reader that can be used to obtain the bytes of the image. For the best
+    /// performance, always try to read at least `scanline_bytes` from the reader at a time. Reading
+    /// fewer bytes will cause the reader to perform internal buffering.
+    fn into_reader(self) -> ImageResult<Self::Reader>;
 
-    /// Reads one row from the image into ```buf``` and returns the row index
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32>;
-
-    /// Decodes the entire image and return it as a Vector
-    fn read_image(&mut self) -> ImageResult<DecodingResult>;
-
-    /// Returns true if the image is animated
-    fn is_animated(&mut self) -> ImageResult<bool> {
-        // since most image formats do not support animation
-        // just return false by default
-        Ok(false)
+    /// Returns the number of bytes in a single row of the image. All decoders will pad image rows
+    /// to a byte boundary.
+    fn row_bytes(&self) -> u64 {
+        (self.dimensions().0 * color::bits_per_pixel(self.colortype()) as u64 + 7) / 8
     }
 
-    /// Returns the frames of the image
-    ///
-    /// If the image is not animated it returns a single frame
-    #[allow(unused)]
-    fn into_frames(mut self) -> ImageResult<Frames> {
-        Ok(Frames::new(vec![Frame::new(
-            try!(decoder_to_image(self)).to_rgba(),
-        )]))
+    /// Returns the total number of bytes in the image.
+    fn total_bytes(&self) -> u64 {
+        self.dimensions().1 * self.row_bytes()
     }
 
-    /// Decodes a specific region of the image, represented by the rectangle
-    /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-    fn load_rect(&mut self, x: u32, y: u32, length: u32, width: u32) -> ImageResult<Vec<u8>> {
-        let (w, h) = try!(self.dimensions());
-
-        if length > h || width > w || x > w || y > h {
-            return Err(ImageError::DimensionError);
-        }
-
-        let c = try!(self.colortype());
-
-        let bpp = color::bits_per_pixel(c) / 8;
-
-        let rowlen = try!(self.row_len());
-
-        let mut buf = vec![0u8; length as usize * width as usize * bpp];
-        let mut tmp = vec![0u8; rowlen];
-
-        loop {
-            let row = try!(self.read_scanline(&mut tmp));
-
-            if row - 1 == y {
-                break;
-            }
-        }
-
-        for i in 0..length as usize {
-            {
-                let from = &tmp[x as usize * bpp..width as usize * bpp];
-
-                let to = &mut buf[i * width as usize * bpp..width as usize * bpp];
-
-                ::copy_memory(from, to);
-            }
-
-            let _ = try!(self.read_scanline(&mut tmp));
-        }
-
-        Ok(buf)
+    /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
+    /// be as few as 1 or as many as `total_bytes()`.
+    fn scanline_bytes(&self) -> u64 {
+        self.total_bytes()
     }
+
+    /// Returns all the bytes in the image.
+    fn read_image(self) -> ImageResult<Vec<u8>> {
+        self.read_image_with_progress(|_| {})
+    }
+
+    /// Same as `read_image` but periodically calls the provided callback to give updates on loading
+    /// progress.
+    fn read_image_with_progress<F: Fn(Progress)>(
+        self,
+        progress_callback: F,
+    ) -> ImageResult<Vec<u8>> {
+        let total_bytes = self.total_bytes();
+        if total_bytes > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
+        let total_bytes = total_bytes as usize;
+        let scanline_bytes = self.scanline_bytes() as usize;
+        let target_read_size = if scanline_bytes < 4096 {
+            (4096 / scanline_bytes) * scanline_bytes
+        } else {
+            scanline_bytes
+        };
+
+        let mut reader = self.into_reader()?;
+
+        let mut bytes_read = 0;
+        let mut contents = vec![0; total_bytes];
+        while bytes_read < total_bytes {
+            let read_size = target_read_size.min(total_bytes - bytes_read);
+            reader.read_exact(&mut contents[bytes_read..][..read_size])?;
+            bytes_read += read_size;
+
+            progress_callback(Progress {
+                current: bytes_read as u64,
+                total: total_bytes as u64,
+            });
+        }
+
+        Ok(contents)
+    }
+}
+
+/// ImageDecoderExt trait
+pub trait ImageDecoderExt: ImageDecoder + Sized {
+    /// Read a rectangular section of the image.
+    fn read_rect(
+        &mut self,
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+        buf: &mut [u8],
+    ) -> ImageResult<()> {
+        self.read_rect_with_progress(x, y, width, height, buf, |_|{})
+    }
+
+    /// Read a rectangular section of the image, periodically reporting progress.
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()>;
+}
+
+/// AnimationDecoder trait
+pub trait AnimationDecoder {
+    /// Consume the decoder producing a series of frames.
+    fn into_frames(self) -> ImageResult<Frames>;
 }
 
 /// Immutable pixel iterator
@@ -559,10 +746,7 @@ impl<I> SubImage<I> {
     }
 
     /// Convert this subimage to an ImageBuffer
-    pub fn to_image(
-        &self,
-    ) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>,
-    >
+    pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
         I: Deref,
         I::Target: GenericImage + 'static,
@@ -725,5 +909,69 @@ mod tests {
 
         let view2 = view1.view(1, 1, 1, 1);
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+    }
+
+    #[test]
+    fn test_load_rect() {
+        use super::*;
+
+        struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
+        impl ImageDecoder for MockDecoder {
+            type Reader = Box<::std::io::Read>;
+            fn dimensions(&self) -> (u64, u64) {(5, 5)}
+            fn colortype(&self) -> ColorType {  ColorType::Gray(8) }
+            fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
+            fn scanline_bytes(&self) -> u64 { self.scanline_bytes }
+        }
+
+        const DATA: [u8; 25] = [0,  1,  2,  3,  4,
+                                5,  6,  7,  8,  9,
+                                10, 11, 12, 13, 14,
+                                15, 16, 17, 18, 19,
+                                20, 21, 22, 23, 24];
+
+        fn seek_scanline(m: &mut MockDecoder, n: u64) -> io::Result<()> {
+            m.scanline_number = n;
+            Ok(())
+        }
+        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<usize> {
+            let bytes_read = m.scanline_number * m.scanline_bytes;
+            if bytes_read >= 25 { return Ok(0); }
+
+            let len = m.scanline_bytes.min(25 - bytes_read);
+            buf[..(len as usize)].copy_from_slice(&DATA[(bytes_read as usize)..][..(len as usize)]);
+            m.scanline_number += 1;
+            Ok(len as usize)
+        }
+
+        for scanline_bytes in 1..30 {
+            let mut output = [0u8; 26];
+
+            load_rect(0, 0, 5, 5, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..25], DATA);
+            assert_eq!(output[25], 0);
+
+            output = [0u8; 26];
+            load_rect(3, 2, 1, 1, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..2], [13, 0]);
+
+            output = [0u8; 26];
+            load_rect(3, 2, 2, 2, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..5], [13, 14, 18, 19, 0]);
+
+
+            output = [0u8; 26];
+            load_rect(1, 1, 2, 4, &mut output, |_|{},
+                      &mut MockDecoder{scanline_number:0, scanline_bytes},
+                      seek_scanline, read_scanline).unwrap();
+            assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
+
+        }
     }
 }

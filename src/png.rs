@@ -10,78 +10,48 @@ extern crate png;
 
 use self::png::HasParameters;
 
-use std::io::{self, Read, Write};
+use std::io::{self, Cursor, Read, Write};
 
 use color::ColorType;
-use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
-
-enum Either<T, U> {
-    Left(T),
-    Right(U),
-}
+use image::{ImageDecoder, ImageError, ImageResult};
 
 /// PNG decoder
 pub struct PNGDecoder<R: Read> {
-    inner: Option<Either<png::Decoder<R>, png::Reader<R>>>,
+    colortype: ColorType,
+    reader: png::Reader<R>,
 }
 
 impl<R: Read> PNGDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> PNGDecoder<R> {
-        PNGDecoder {
-            inner: Some(Either::Left(png::Decoder::new(r))),
-        }
-    }
+    pub fn new(r: R) -> ImageResult<PNGDecoder<R>> {
+        let decoder = png::Decoder::new(r);
+        let (_, mut reader) = decoder.read_info()?;
+        let colortype = reader.output_color_type().into();
 
-    // Converts the inner decoder to a reader
-    fn get_reader(&mut self) -> Result<&mut png::Reader<R>, png::DecodingError> {
-        let inner = self.inner.take().unwrap();
-        self.inner = Some(match inner {
-            Either::Left(decoder) => {
-                let (_, reader) = try!(decoder.read_info());
-                Either::Right(reader)
-            }
-            Either::Right(reader) => Either::Right(reader),
-        });
-        match self.inner {
-            Some(Either::Right(ref mut reader)) => Ok(reader),
-            _ => unreachable!(),
-        }
+        Ok(PNGDecoder { colortype, reader })
     }
 }
 
 impl<R: Read> ImageDecoder for PNGDecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        let reader = try!(self.get_reader());
-        Ok(reader.info().size())
+    type Reader = Cursor<Vec<u8>>;
+
+    fn dimensions(&self) -> (u64, u64) {
+        let (w, h) = self.reader.info().size();
+        (w as u64, h as u64)
     }
 
-    fn colortype(&mut self) -> ImageResult<ColorType> {
-        let reader = try!(self.get_reader());
-        Ok(reader.output_color_type().into())
+    fn colortype(&self) -> ColorType {
+        self.colortype
     }
 
-    fn row_len(&mut self) -> ImageResult<usize> {
-        let reader = try!(self.get_reader());
-        let width = reader.info().width;
-        Ok(reader.output_line_size(width))
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(Cursor::new(self.read_image()?))
     }
 
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        match try!(try!(self.get_reader()).next_row()) {
-            Some(line) => {
-                ::copy_memory(line, &mut buf[..line.len()]);
-                Ok(line.len() as u32)
-            }
-            None => Err(ImageError::ImageEnd),
-        }
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        let reader = try!(self.get_reader());
-        let mut data = vec![0; reader.output_buffer_size()];
-        try!(reader.next_frame(&mut data));
-        Ok(DecodingResult::U8(data))
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+        let mut data = vec![0; self.reader.output_buffer_size()];
+        self.reader.next_frame(&mut data)?;
+        Ok(data)
     }
 }
 

@@ -759,7 +759,7 @@ mod tests {
     use super::super::JPEGDecoder;
     use super::JPEGEncoder;
     use color::ColorType;
-    use image::{DecodingResult, ImageDecoder};
+    use image::ImageDecoder;
     use std::io::Cursor;
 
     #[test]
@@ -778,19 +778,15 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let mut decoder = JPEGDecoder::new(Cursor::new(&encoded_img));
-            match decoder.read_image().expect("Could not decode image") {
-                DecodingResult::U8(decoded) => {
-                    // note that, even with the encode quality set to 100, we
-                    // do not get the same image back. Therefore, we're going
-                    // to assert that it's at least red-ish:
-                    assert_eq!(3, decoded.len());
-                    assert!(decoded[0] > 0x80);
-                    assert!(decoded[1] < 0x80);
-                    assert!(decoded[2] < 0x80);
-                }
-                _ => panic!("Image did not decode as 8-bit"),
-            }
+            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+                .expect("Could not decode image");
+            let decoded = decoder.read_image().expect("Could not decode image");
+            // note that, even with the encode quality set to 100, we do not get the same image
+            // back. Therefore, we're going to assert that it's at least red-ish:
+            assert_eq!(3, decoded.len());
+            assert!(decoded[0] > 0x80);
+            assert!(decoded[1] < 0x80);
+            assert!(decoded[2] < 0x80);
         }
     }
 
@@ -810,20 +806,16 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let mut decoder = JPEGDecoder::new(Cursor::new(&encoded_img));
-            match decoder.read_image().expect("Could not decode image") {
-                DecodingResult::U8(decoded) => {
-                    // note that, even with the encode quality set to 100, we
-                    // do not get the same image back. Therefore, we're going
-                    // to assert that the diagonal is at least white-ish:
-                    assert_eq!(4, decoded.len());
-                    assert!(decoded[0] > 0x80);
-                    assert!(decoded[1] < 0x80);
-                    assert!(decoded[2] < 0x80);
-                    assert!(decoded[3] > 0x80);
-                }
-                _ => panic!("Image did not decode as 8-bit"),
-            }
+            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+                .expect("Could not decode image");
+            let decoded = decoder.read_image().expect("Could not decode image");
+            // note that, even with the encode quality set to 100, we do not get the same image
+            // back. Therefore, we're going to assert that the diagonal is at least white-ish:
+            assert_eq!(4, decoded.len());
+            assert!(decoded[0] > 0x80);
+            assert!(decoded[1] < 0x80);
+            assert!(decoded[2] < 0x80);
+            assert!(decoded[3] > 0x80);
         }
     }
 }

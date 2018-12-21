@@ -187,7 +187,7 @@ mod tests {
     use super::super::BMPDecoder;
     use super::BMPEncoder;
     use color::ColorType;
-    use image::{DecodingResult, ImageDecoder};
+    use image::ImageDecoder;
     use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
@@ -199,11 +199,8 @@ mod tests {
                 .expect("could not encode image");
         }
 
-        let mut decoder = BMPDecoder::new(Cursor::new(&encoded_data));
-        match decoder.read_image().expect("failed to decode") {
-            DecodingResult::U8(decoded) => decoded,
-            _ => panic!("failed to decode"),
-        }
+        let decoder = BMPDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+        decoder.read_image().expect("failed to decode")
     }
 
     #[test]

@@ -3,10 +3,7 @@ use std::io;
 use std::io::{Read, Seek};
 
 use color::ColorType;
-use image::DecodingResult;
-use image::ImageDecoder;
-use image::ImageError;
-use image::ImageResult;
+use image::{ImageDecoder, ImageError, ImageReadBuffer, ImageResult};
 
 enum ImageType {
     NoImageData = 0,
@@ -177,8 +174,8 @@ pub struct TGADecoder<R> {
 
 impl<R: Read + Seek> TGADecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
-    pub fn new(r: R) -> TGADecoder<R> {
-        TGADecoder {
+    pub fn new(r: R) -> ImageResult<TGADecoder<R>> {
+        let mut decoder = TGADecoder {
             r,
 
             width: 0,
@@ -194,7 +191,9 @@ impl<R: Read + Seek> TGADecoder<R> {
 
             line_read: None,
             line_remain_buff: Vec::new(),
-        }
+        };
+        decoder.read_metadata()?;
+        Ok(decoder)
     }
 
     fn read_header(&mut self) -> ImageResult<()> {
@@ -343,7 +342,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 
     /// Reads a run length encoded data for given number of bytes
-    fn read_encoded_data(&mut self, num_bytes: usize) -> ImageResult<Vec<u8>> {
+    fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
         let mut pixel_data = Vec::with_capacity(num_bytes);
 
         while pixel_data.len() < num_bytes {
@@ -384,11 +383,11 @@ impl<R: Read + Seek> TGADecoder<R> {
     fn read_all_encoded_data(&mut self) -> ImageResult<Vec<u8>> {
         let num_bytes = self.width * self.height * self.bytes_per_pixel;
 
-        self.read_encoded_data(num_bytes)
+        Ok(self.read_encoded_data(num_bytes)?)
     }
 
     /// Reads a run length encoded line
-    fn read_encoded_line(&mut self) -> ImageResult<Vec<u8>> {
+    fn read_encoded_line(&mut self) -> io::Result<Vec<u8>> {
         let line_num_bytes = self.width * self.bytes_per_pixel;
         let remain_len = self.line_remain_buff.len();
 
@@ -465,43 +464,21 @@ impl<R: Read + Seek> TGADecoder<R> {
         let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
         !screen_origin_bit
     }
-}
 
-impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
-    fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
-        try!(self.read_metadata());
-
-        Ok((self.width as u32, self.height as u32))
-    }
-
-    fn colortype(&mut self) -> ImageResult<ColorType> {
-        try!(self.read_metadata());
-
-        Ok(self.color_type)
-    }
-
-    fn row_len(&mut self) -> ImageResult<usize> {
-        try!(self.read_metadata());
-
-        Ok(self.bytes_per_pixel * self.width)
-    }
-
-    fn read_scanline(&mut self, buf: &mut [u8]) -> ImageResult<u32> {
-        try!(self.read_metadata());
-
+    fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(line_read) = self.line_read {
             if line_read == self.height {
-                return Err(ImageError::ImageEnd);
+                return Ok(0);
             }
         }
 
         // read the pixels from the data region
         let mut pixel_data = if self.image_type.is_encoded() {
-            try!(self.read_encoded_line())
+            self.read_encoded_line()?
         } else {
             let num_raw_bytes = self.width * self.bytes_per_pixel;
             let mut buf = vec![0; num_raw_bytes];
-            try!(self.r.by_ref().read_exact(&mut buf));
+            self.r.by_ref().read_exact(&mut buf)?;
             buf
         };
 
@@ -514,18 +491,51 @@ impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
         // copy to the output buffer
         buf[..pixel_data.len()].copy_from_slice(&pixel_data);
 
-        let mut row_index = self.line_read.unwrap_or(0) + 1;
-        self.line_read = Some(row_index);
+        self.line_read = Some(self.line_read.unwrap_or(0) + 1);
 
-        if self.is_flipped_vertically() {
-            row_index = self.height - (row_index - 1);
-        }
-
-        Ok(row_index as u32)
-    }
-
-    fn read_image(&mut self) -> ImageResult<DecodingResult> {
-        try!(self.read_metadata());
-        self.read_image_data().map(DecodingResult::U8)
+        Ok(pixel_data.len())
     }
 }
+
+impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
+    type Reader = TGAReader<R>;
+
+    fn dimensions(&self) -> (u64, u64) {
+        (self.width as u64, self.height as u64)
+    }
+
+    fn colortype(&self) -> ColorType {
+        self.color_type
+    }
+
+    fn scanline_bytes(&self) -> u64 {
+        self.row_bytes()
+    }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        if self.total_bytes() > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
+        }
+
+        Ok(TGAReader {
+            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
+            decoder: self,
+        })
+    }
+
+    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+        self.read_image_data()
+    }
+}
+
+pub struct TGAReader<R> {
+    buffer: ImageReadBuffer,
+    decoder: TGADecoder<R>,
+}
+impl<R: Read + Seek> Read for TGAReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let ref mut decoder = &mut self.decoder;
+        self.buffer.read(buf, |buf| decoder.read_scanline(buf))
+    }
+}
+

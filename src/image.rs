@@ -461,9 +461,9 @@ pub trait ImageDecoderExt: ImageDecoder + Sized {
 }
 
 /// AnimationDecoder trait
-pub trait AnimationDecoder {
+pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
-    fn into_frames(self) -> ImageResult<Frames>;
+    fn into_frames(self) -> Frames<'a>;
 }
 
 /// Immutable pixel iterator

@@ -15,7 +15,7 @@ check_release_description() {
 	minor=${minor_patch%%.*}
 	patch=${minor_patch#$minor.}
 	# We just need to find a fitting header line
-	grep -q "### Version $major.$minor" CHANGES.md
+	grep -Eq "^### Version ${major}.${minor}$" CHANGES.md
 }
 
 version="$(determine_new_version)"

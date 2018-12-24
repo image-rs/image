@@ -620,8 +620,7 @@ fn decode_old_rle<R: BufRead>(
 fn read_rgbe<R: BufRead>(r: &mut R) -> io::Result<RGBE8Pixel> {
     let mut buf = [0u8; 4];
     try!(r.read_exact(&mut buf[..]));
-    // It's actually safe: RGBE8Pixel is repr(C) and it doesn't implement Drop
-    Ok(unsafe { ::std::mem::transmute(buf) })
+    Ok(RGBE8Pixel {c: [buf[0], buf[1], buf[2]], e: buf[3] })
 }
 
 /// Metadata for Radiance HDR image

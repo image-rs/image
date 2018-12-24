@@ -221,11 +221,7 @@ fn rle_compress(data: &[u8], rle: &mut Vec<u8>) {
 }
 
 fn write_rgbe8<W: Write>(w: &mut W, v: RGBE8Pixel) -> Result<()> {
-    let buf: [u8; 4] = unsafe {
-        // It's safe, RGBE8Pixel doesn't implement Drop and it is repr(C)
-        ::std::mem::transmute(v)
-    };
-    w.write_all(&buf[..])
+    w.write_all(&[v.c[0], v.c[1], v.c[2], v.e])
 }
 
 /// Converts ```Rgb<f32>``` into ```RGBE8Pixel```

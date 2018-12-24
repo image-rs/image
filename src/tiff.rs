@@ -10,6 +10,7 @@ extern crate tiff;
 
 use color::ColorType;
 use image::{ImageDecoder, ImageResult, ImageError};
+use safe_transmute;
 
 use std::io::{Cursor, Read, Seek};
 
@@ -80,13 +81,8 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
         match self.inner.read_image()? {
             tiff::decoder::DecodingResult::U8(v) => Ok(v),
-            tiff::decoder::DecodingResult::U16(mut v) => {
-                let p: *mut u16 = v.as_mut_ptr();
-                let len = v.len();
-                let cap = v.capacity();
-
-                // TODO: get rid of this unsafe block somehow
-                unsafe { Ok(Vec::<u8>::from_raw_parts(p as *mut u8, len*2, cap*2)) }
+            tiff::decoder::DecodingResult::U16(v) => {
+                Ok(safe_transmute::guarded_transmute_to_bytes_pod_vec(v))
             }
         }
     }

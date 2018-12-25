@@ -57,7 +57,11 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
     };
 
     let range_height = if y + top_height > bottom_height {
-        bottom_height - y
+        if y < bottom_height {
+            bottom_height - y
+        } else {
+            0
+        }
     } else {
         top_height
     };

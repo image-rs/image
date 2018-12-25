@@ -19,15 +19,10 @@ impl<'a> Frames<'a> {
     /// Steps through the iterator from the current frame until the end and pushes each frame into
     /// a `Vec`.
     /// If en error is encountered that error is returned instead.
-    pub fn collect_frames(mut self) -> ImageResult<Vec<Frame>> {
-        let mut result = Vec::new();
-        while let Some(item) = self.next() {
-            match item {
-                Ok(item) => result.push(item),
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(result)
+    /// 
+    /// Note: This is equvalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
+    pub fn collect_frames(self) -> ImageResult<Vec<Frame>> {
+        self.collect()
     }
 }
 

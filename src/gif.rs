@@ -268,27 +268,44 @@ impl<W: Write> Encoder<W> {
         }
         result
     }
+
     /// Encodes Frames.
-    pub fn encode_frames<Frames>(&mut self, frames: Frames) -> ImageResult<()>
+    /// Consider using `try_encode_frames` instead to encode an `animation::Frames` like iterator.
+    pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where 
-        Frames: Iterator<Item = animation::Frame>
+        F: IntoIterator<Item = animation::Frame>
     {
         for img_frame in frames {
-            // get the delay before coverting img_frame
-            let frame_delay = img_frame.delay().to_integer();
-            // convert img_frame into RgbaImage
-            let rbga_frame = img_frame.into_buffer();
-
-            // Create the gif::Frame from the animation::Frame
-            let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
-            frame.delay = frame_delay;
-
-            // encode the gif::Frame
-            if let Err(e) = self.encode(&frame) {
-                return Err(e);
-            }
+            self.encode_single_frame(img_frame)?;
         }
         Ok(())
+    }
+
+    /// Try to encode a collection of `ImageResult<animation::Frame>` objects.
+    /// Use this function to encode an `animation::Frames` like iterator.
+    /// Whenever an `Err` item is encountered, that value is returned without further actions.
+    pub fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
+    where
+        F: IntoIterator<Item = ImageResult<animation::Frame>>
+    {
+        for img_frame in frames {
+            self.encode_single_frame(img_frame?)?;
+        }
+        Ok(())
+    }
+
+    fn encode_single_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
+        // get the delay before coverting img_frame
+        let frame_delay = img_frame.delay().to_integer();
+        // convert img_frame into RgbaImage
+        let rbga_frame = img_frame.into_buffer();
+
+        // Create the gif::Frame from the animation::Frame
+        let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
+        frame.delay = frame_delay;
+
+        // encode the gif::Frame
+        self.encode(&frame)
     }
 }
 

@@ -55,7 +55,51 @@ pub fn crop<I: GenericImageView>(
 /// The main idea is to make use of inequalities provided by the nature of `saturing_add` and
 /// `saturating_sub`. These intrinsically validate that all resulting coordinates will be in bounds
 /// for both images.
-fn overlay_bounds(
+///
+/// We want that all these coordinate accesses are safe:
+/// 1. `bottom.get_pixel(x + [0..x_range), y + [0..y_range))`
+/// 2. `top.get_pixel([0..x_range), [0..y_range))`
+///
+/// Proof that the function provides the necessary bounds for width. Note that all unaugmented math
+/// operations are to be read in standard arithmetic, not integer arithmetic. Since no direct
+/// integer arithmetic occurs in the implementation, this is unambiguous.
+///
+/// ```text
+/// Three short notes/lemmata:
+/// - Iff `(a - b) <= 0` then `a.saturating_sub(b) = 0`
+/// - Iff `(a - b) >= 0` then `a.saturating_sub(b) = a - b`
+/// - If  `a <= c` then `a.saturating_sub(b) <= c.saturating_sub(b)`
+///
+/// 1.1 We show that if `bottom_width <= x`, then `x_range = 0` therefore `x + [0..x_range)` is empty.
+///
+/// x_range 
+///  = (top_width.saturating_add(x).min(bottom_width)).saturating_sub(x) 
+/// <= bottom_width.saturating_sub(x)
+///
+/// bottom_width <= x
+/// <==> bottom_width - x <= 0
+/// <==> bottom_width.saturating_sub(x) = 0
+///  ==> x_range <= 0
+///  ==> x_range  = 0
+///
+/// 1.2 If `x < bottom_width` then `x + x_range < bottom_width`
+///
+/// x + x_range 
+/// <= x + bottom_width.saturating_sub(x) 
+///  = x + (bottom_width - x) 
+///  = bottom_width
+///
+/// 2. We show that `x_range <= top_width`
+///
+/// x_range 
+///  = (top_width.saturating_add(x).min(bottom_width)).saturating_sub(x) 
+/// <= top_width.saturating_add(x).saturating_sub(x)
+/// <= (top_wdith + x).saturating_sub(x)
+///  = top_width (due to `top_width >= 0` and `x >= 0`)
+/// ```
+///
+/// Proof is the same for height.
+pub fn overlay_bounds(
     (bottom_width, bottom_height): (u32, u32),
     (top_width, top_height): (u32, u32),
     x: u32,
@@ -63,10 +107,10 @@ fn overlay_bounds(
 )
     -> (u32, u32) 
 {
-    let x_range = x.saturating_add(top_width) // Calculate max coordinate
+    let x_range = top_width.saturating_add(x) // Calculate max coordinate
         .min(bottom_width) // Restrict to lower width
         .saturating_sub(x); // Determinate length from start `x`
-    let y_range = y.saturating_add(top_height)
+    let y_range = top_height.saturating_add(y)
         .min(bottom_height)
         .saturating_sub(y);
     (x_range, y_range)
@@ -74,11 +118,11 @@ fn overlay_bounds(
 
 /// Overlay an image at a given coordinate (x, y)
 pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
-    let top_dims = top.dimensions();
     let bottom_dims = bottom.dimensions();
+    let top_dims = top.dimensions();
 
     // Crop our top image if we're going out of bounds
-    let (range_width, range_height) = overlay_bounds(top_dims, bottom_dims, x, y);
+    let (range_width, range_height) = overlay_bounds(bottom_dims, top_dims, x, y);
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
@@ -93,11 +137,11 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
 
 /// Replace the contents of an image at a given coordinate (x, y)
 pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
-    let top_dims = top.dimensions();
     let bottom_dims = bottom.dimensions();
+    let top_dims = top.dimensions();
 
     // Crop our top image if we're going out of bounds
-    let (range_width, range_height) = overlay_bounds(top_dims, bottom_dims, x, y);
+    let (range_width, range_height) = overlay_bounds(bottom_dims, top_dims, x, y);
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
@@ -136,5 +180,29 @@ mod tests {
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
         assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
+    }
+
+    #[test]
+    /// Test that images written to coordinates out of the frame doesn't blow up
+    /// (issue came up in #848)
+    fn test_image_outside_image_no_wrap_around() {
+        let mut target = ImageBuffer::new(32, 32);
+        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        overlay(&mut target, &source, 33, 33);
+        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(31, 31) == Rgb([0, 0, 0]));
+    }
+
+    #[test]
+    /// Test that images written to coordinates with overflow works
+    fn test_image_coordinate_overflow() {
+        let mut target = ImageBuffer::new(16, 16);
+        let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
+        // Overflows to 'sane' coordinates but top is larger than bot.
+        overlay(&mut target, &source, u32::max_value() - 31, u32::max_value() - 31);
+        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
+        assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
     }
 }

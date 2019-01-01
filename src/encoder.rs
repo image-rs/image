@@ -81,6 +81,12 @@ impl<W: Write> Parameter<Encoder<W>> for BitDepth {
     }
 }
 
+impl<W: Write> Parameter<Encoder<W>> for deflate::CompressionOptions {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.compression = self
+    }
+}
+
 /// PNG writer
 pub struct Writer<W: Write> {
     w: W,
@@ -127,7 +133,7 @@ impl<W: Write> Writer<W> {
             let message = format!("wrong data size, expected {} got {}", data_size, data.len());
             return Err(EncodingError::Format(message.into()));
         }
-        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), deflate::Compression::Fast);
+        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression);
         let filter_method = FilterType::Sub;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);

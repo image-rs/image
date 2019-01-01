@@ -134,7 +134,8 @@ pub struct Info {
     pub pixel_dims: Option<PixelDimensions>,
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
-    pub animation_control: Option<AnimationControl>
+    pub animation_control: Option<AnimationControl>,
+    pub compression: deflate::CompressionOptions,
 }
 
 impl Default for Info {
@@ -149,7 +150,9 @@ impl Default for Info {
             trns: None,
             pixel_dims: None,
             frame_control: None,
-            animation_control: None
+            animation_control: None,
+            // Default to `fast` to maintain backward compatible output. 
+            compression: deflate::CompressionOptions::fast(),
         }
     }
 }

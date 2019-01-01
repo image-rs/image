@@ -87,6 +87,12 @@ impl<W: Write> Parameter<Encoder<W>> for deflate::CompressionOptions {
     }
 }
 
+impl <W: Write> Parameter<Encoder<W>> for FilterType {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.filter = self
+    }
+}
+
 /// PNG writer
 pub struct Writer<W: Write> {
     w: W,
@@ -134,7 +140,7 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format(message.into()));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression);
-        let filter_method = FilterType::Sub;
+        let filter_method = self.info.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
             try!(zlib.write_all(&[filter_method as u8]));

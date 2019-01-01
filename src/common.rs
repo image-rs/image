@@ -1,4 +1,5 @@
 //! Common types shared between the encoder and decoder
+use filter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -136,6 +137,7 @@ pub struct Info {
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: deflate::CompressionOptions,
+    pub filter: filter::FilterType,
 }
 
 impl Default for Info {
@@ -151,8 +153,10 @@ impl Default for Info {
             pixel_dims: None,
             frame_control: None,
             animation_control: None,
-            // Default to `fast` to maintain backward compatible output. 
+            // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub` 
+            // to maintain backward compatible output. 
             compression: deflate::CompressionOptions::fast(),
+            filter: filter::FilterType::Sub,
         }
     }
 }

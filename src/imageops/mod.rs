@@ -44,23 +44,41 @@ pub fn crop<I: GenericImageView>(
     SubImage::new(image, x, y, width, height)
 }
 
+/// Calculate the region that can be copied from top to bottom.
+///
+/// Given image size of bottom and top image, and a point at which we want to place the top image
+/// onto the bottom image, how large can we be? Have to wary of the following issues:
+/// * Top might be larger than bottom
+/// * Overflows in the computation
+/// * Coordinates could be completely out of bounds
+///
+/// The main idea is to make use of inequalities provided by the nature of `saturing_add` and
+/// `saturating_sub`. These intrinsically validate that all resulting coordinates will be in bounds
+/// for both images.
+fn overlay_bounds(
+    (bottom_width, bottom_height): (u32, u32),
+    (top_width, top_height): (u32, u32),
+    x: u32,
+    y: u32
+)
+    -> (u32, u32) 
+{
+    let x_range = x.saturating_add(top_width) // Calculate max coordinate
+        .min(bottom_width) // Restrict to lower width
+        .saturating_sub(x); // Determinate length from start `x`
+    let y_range = y.saturating_add(top_height)
+        .min(bottom_height)
+        .saturating_sub(y);
+    (x_range, y_range)
+}
+
 /// Overlay an image at a given coordinate (x, y)
 pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
-    let (top_width, top_height) = top.dimensions();
-    let (bottom_width, bottom_height) = bottom.dimensions();
+    let top_dims = top.dimensions();
+    let bottom_dims = bottom.dimensions();
 
     // Crop our top image if we're going out of bounds
-    let range_width = if x + top_width > bottom_width {
-        bottom_width - x
-    } else {
-        top_width
-    };
-
-    let range_height = if y + top_height > bottom_height {
-        bottom_height - y
-    } else {
-        top_height
-    };
+    let (range_width, range_height) = overlay_bounds(top_dims, bottom_dims, x, y);
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
@@ -75,21 +93,11 @@ pub fn overlay<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
 
 /// Replace the contents of an image at a given coordinate (x, y)
 pub fn replace<I: GenericImage>(bottom: &mut I, top: &I, x: u32, y: u32) {
-    let (top_width, top_height) = top.dimensions();
-    let (bottom_width, bottom_height) = bottom.dimensions();
+    let top_dims = top.dimensions();
+    let bottom_dims = bottom.dimensions();
 
     // Crop our top image if we're going out of bounds
-    let range_width = if x + top_width > bottom_width {
-        bottom_width - x
-    } else {
-        top_width
-    };
-
-    let range_height = if y + top_height > bottom_height {
-        bottom_height - y
-    } else {
-        top_height
-    };
+    let (range_width, range_height) = overlay_bounds(top_dims, bottom_dims, x, y);
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
@@ -129,5 +137,4 @@ mod tests {
         assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
         assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
     }
-
 }

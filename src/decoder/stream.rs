@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::default::Default;
 use std::error;
 use std::fmt;
-use std::mem;
 use std::io;
 use std::cmp::min;
 use std::convert::From;
@@ -40,7 +39,7 @@ enum State {
 
 #[derive(Debug)]
 /// Result of the decoding process
-pub enum Decoded<'a> {
+pub enum Decoded {
     /// Nothing decoded yet
     Nothing,
     Header(u32, u32, BitDepth, ColorType, bool),
@@ -48,10 +47,10 @@ pub enum Decoded<'a> {
     ChunkComplete(u32, ChunkType),
     PixelDimensions(PixelDimensions),
     AnimationControl(AnimationControl),
-    FrameControl(&'a FrameControl),
+    FrameControl(FrameControl),
     /// Decoded raw image data.
-    ImageData(&'a [u8]),
-    PartialChunk(ChunkType, &'a [u8]),
+    ImageData,
+    PartialChunk(ChunkType),
     ImageEnd,
 }
 
@@ -156,36 +155,20 @@ impl StreamingDecoder {
 
     /// Low level StreamingDecoder interface.
     ///
-    /// Allows to stream partial data to the encoder. Returns a tuple containing the
-    /// bytes that have been consumed from the input buffer and the current decoding
-    /// result.
-    pub fn update<'a>(&'a mut self, mut buf: &[u8])
-    -> Result<(usize, Decoded<'a>), DecodingError> {
-        // NOTE: Do not change the function signature without double-checking the
-        //       unsafe block!
+    /// Allows to stream partial data to the encoder. Returns a tuple containing the bytes that have
+    /// been consumed from the input buffer and the current decoding result. If the decoded chunk
+    /// was an image data chunk, it also appends the read data to `image_data`.
+    pub fn update(&mut self, mut buf: &[u8], image_data: &mut Vec<u8>)
+    -> Result<(usize, Decoded), DecodingError> {
         let len = buf.len();
         while buf.len() > 0 && self.state.is_some() {
-            match self.next_state(buf) {
+            match self.next_state(buf, image_data) {
                 Ok((bytes, Decoded::Nothing)) => {
                     buf = &buf[bytes..]
                 }
                 Ok((bytes, result)) => {
                     buf = &buf[bytes..];
-                    return Ok(
-                        (len-buf.len(),
-                        // This transmute just casts the lifetime away. Since Rust only
-                        // has SESE regions, this early return cannot be worked out and
-                        // such that the borrow region of self includes the whole block.
-                        // The explixit lifetimes in the function signature ensure that
-                        // this is safe.
-                        // ### NOTE
-                        // To check that everything is sound, return the result without
-                        // the match (e.g. `return Ok(try!(self.next_state(buf)))`). If
-                        // it compiles the returned lifetime is correct.
-                        unsafe {
-                            mem::transmute::<Decoded, Decoded>(result)
-                        }
-                    ))
+                    return Ok((len-buf.len(), result));
                 }
                 Err(err) => return Err(err)
             }
@@ -193,8 +176,8 @@ impl StreamingDecoder {
         Ok((len-buf.len(), Decoded::Nothing))
     }
 
-    fn next_state<'a>(&'a mut self, buf: &[u8])
-    -> Result<(usize, Decoded<'a>), DecodingError> {
+    fn next_state<'a>(&'a mut self, buf: &[u8], image_data: &mut Vec<u8>)
+    -> Result<(usize, Decoded), DecodingError> {
         use self::State::*;
 
         macro_rules! goto (
@@ -290,7 +273,7 @@ impl StreamingDecoder {
                         goto!(
                             0,
                             DecodeData(type_str, 0),
-                            emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                            emit Decoded::PartialChunk(type_str)
                         )
                     },
                     chunk::fdAT => {
@@ -311,7 +294,7 @@ impl StreamingDecoder {
                         goto!(
                             0,
                             DecodeData(type_str, 4),
-                            emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                            emit Decoded::PartialChunk(type_str)
                         )
                     },
                     // Handle other chunks
@@ -321,7 +304,7 @@ impl StreamingDecoder {
                         } else {
                             goto!(
                                 0, ReadChunk(type_str, true),
-                                emit Decoded::PartialChunk(type_str, &self.current_chunk.2)
+                                emit Decoded::PartialChunk(type_str)
                             )
                         }
                     }
@@ -359,18 +342,19 @@ impl StreamingDecoder {
             DecodeData(type_str, mut n) => {
                 let chunk_len = self.current_chunk.2.len();
                 let (c, data) = try!(self.inflater.update(&self.current_chunk.2[n..]));
+                image_data.extend_from_slice(data);
                 n += c;
                 if n == chunk_len && data.len() == 0 && c == 0 {
                     goto!(
                         0,
                         ReadChunk(type_str, true),
-                        emit Decoded::ImageData(data)
+                        emit Decoded::ImageData
                     )
                 } else {
                     goto!(
                         0,
                         DecodeData(type_str, n),
-                        emit Decoded::ImageData(data)
+                        emit Decoded::ImageData
                     )
                 }
             }
@@ -380,7 +364,6 @@ impl StreamingDecoder {
     fn parse_chunk(&mut self, type_str: [u8; 4])
     -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
-        let state_ptr: *mut _ = &mut self.state;
         if self.info.is_none() && type_str != IHDR {
             return Err(DecodingError::Format(format!(
                 "{} chunk appeared before IHDR chunk", String::from_utf8_lossy(&type_str)
@@ -405,11 +388,11 @@ impl StreamingDecoder {
             chunk::fcTL => {
                 self.parse_fctl()
             }
-            _ => Ok(Decoded::PartialChunk(type_str, &self.current_chunk.2))
+            _ => Ok(Decoded::PartialChunk(type_str))
         } {
             Err(err) =>{
                 // Borrow of self ends here, because Decoding error does not borrow self.
-                *unsafe { &mut *state_ptr } = None;
+                self.state = None;
                 Err(err)
             },
             ok => ok
@@ -448,7 +431,7 @@ impl StreamingDecoder {
             0
         });
         self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
-        self.info.as_mut().unwrap().frame_control = Some(FrameControl {
+        let fc = FrameControl {
             sequence_number: next_seq_no,
             width: try!(buf.read_be()),
             height: try!(buf.read_be()),
@@ -458,8 +441,9 @@ impl StreamingDecoder {
             delay_den: try!(buf.read_be()),
             dispose_op: try!(buf.read_be()),
             blend_op : try!(buf.read_be()),
-        });
-        Ok(Decoded::FrameControl(self.info.as_ref().unwrap().frame_control.as_ref().unwrap()))
+        };
+        self.info.as_mut().unwrap().frame_control = Some(fc.clone());
+        Ok(Decoded::FrameControl(fc))
     }
 
     fn parse_actl(&mut self)

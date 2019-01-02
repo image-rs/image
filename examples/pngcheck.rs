@@ -170,7 +170,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             }));
             buf = &data[..n];
         }
-        match decoder.update(buf) {
+        match decoder.update(buf, &mut Vec::new()) {
             Ok((_, ImageEnd)) => {
                 if !have_idat {
                     try!(display_error(png::DecodingError::Format("IDAT chunk missing".into())));
@@ -259,7 +259,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             _ => ()
                         }
                     }
-                    ImageData(_) => {
+                    ImageData => {
                         //println!("got {} bytes of image data", data.len())
                     }
                     ChunkComplete(_, type_str) if c.verbose => {

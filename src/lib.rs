@@ -41,7 +41,7 @@
 //! ```
 //!
 //#![cfg_attr(test, feature(test))]
-
+#![feature(nll)]
 #[macro_use] extern crate bitflags;
 
 extern crate num_iter;

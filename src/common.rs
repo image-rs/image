@@ -1,4 +1,5 @@
 //! Common types shared between the encoder and decoder
+extern crate deflate;
 use filter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +124,44 @@ pub struct AnimationControl {
     pub num_plays: u32,
 }
 
+#[derive(Debug, Clone)]
+pub enum Compression {
+    /// Default level  
+    Default,
+    /// Fast minimal compression
+    Fast,
+    /// Higher compression level  
+    ///
+    /// Best in this context isn't actually the highest possible level
+    /// the encoder can do, but is meant to emulate the `Best` setting in the `Flate2`
+    /// library.
+    Best,
+    Huffman,
+    Rle,
+}
+
+impl From<deflate::Compression> for Compression {
+    fn from(c: deflate::Compression) -> Self {
+        match c {
+            deflate::Compression::Default => Compression::Default,
+            deflate::Compression::Fast => Compression::Fast,
+            deflate::Compression::Best => Compression::Best,
+        }
+    }
+}
+
+impl From<Compression> for deflate::CompressionOptions {
+    fn from(c: Compression) -> Self {
+        match c {
+            Compression::Default => deflate::CompressionOptions::default(),
+            Compression::Fast => deflate::CompressionOptions::fast(),
+            Compression::Best => deflate::CompressionOptions::high(),
+            Compression::Huffman => deflate::CompressionOptions::huffman_only(),
+            Compression::Rle => deflate::CompressionOptions::rle(),
+        }
+    }
+}
+
 /// PNG info struct
 #[derive(Debug)]
 pub struct Info {
@@ -136,7 +175,7 @@ pub struct Info {
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
-    pub compression: deflate::CompressionOptions,
+    pub compression: Compression,
     pub filter: filter::FilterType,
 }
 
@@ -155,7 +194,7 @@ impl Default for Info {
             animation_control: None,
             // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub` 
             // to maintain backward compatible output. 
-            compression: deflate::CompressionOptions::fast(),
+            compression: deflate::Compression::Fast.into(),
             filter: filter::FilterType::Sub,
         }
     }
@@ -257,5 +296,3 @@ bitflags! {
     }
 }
 
-
-    

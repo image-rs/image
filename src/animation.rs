@@ -20,7 +20,7 @@ impl<'a> Frames<'a> {
     /// a `Vec`.
     /// If en error is encountered that error is returned instead.
     /// 
-    /// Note: This is equvalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
+    /// Note: This is equivalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
     pub fn collect_frames(self) -> ImageResult<Vec<Frame>> {
         self.collect()
     }

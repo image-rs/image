@@ -295,7 +295,7 @@ impl<W: Write> Encoder<W> {
     }
 
     fn encode_single_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
-        // get the delay before coverting img_frame
+        // get the delay before converting img_frame
         let frame_delay = img_frame.delay().to_integer();
         // convert img_frame into RgbaImage
         let rbga_frame = img_frame.into_buffer();

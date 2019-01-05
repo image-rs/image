@@ -1,20 +1,35 @@
+use std::iter::Iterator;
+
 use num_rational::Ratio;
 
 use buffer::RgbaImage;
+use image::ImageResult;
 
-/// Holds the frames of the animated image
-pub struct Frames {
-    frames: Vec<Frame>,
-    current_frame: usize,
+/// An implementation dependent iterator, reading the frames as requested
+pub struct Frames<'a> {
+    iterator: Box<Iterator<Item = ImageResult<Frame>> + 'a>
 }
 
-impl Frames {
-    /// Contructs a new frame iterator
-    pub fn new(frames: Vec<Frame>) -> Frames {
-        Frames {
-            frames,
-            current_frame: 0,
-        }
+impl<'a> Frames<'a> {
+    /// Creates a new `Frames` from an implementation specific iterator.
+    pub fn new(iterator: Box<Iterator<Item = ImageResult<Frame>> + 'a>) -> Self {
+        Frames { iterator }
+    }
+
+    /// Steps through the iterator from the current frame until the end and pushes each frame into
+    /// a `Vec`.
+    /// If en error is encountered that error is returned instead.
+    /// 
+    /// Note: This is equivalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
+    pub fn collect_frames(self) -> ImageResult<Vec<Frame>> {
+        self.collect()
+    }
+}
+
+impl<'a> Iterator for Frames<'a> {
+    type Item = ImageResult<Frame>;
+    fn next(&mut self) -> Option<ImageResult<Frame>> {
+        self.iterator.next()
     }
 }
 
@@ -74,14 +89,5 @@ impl Frame {
     /// Returns the y offset
     pub fn top(&self) -> u32 {
         self.top
-    }
-}
-
-impl<'a> Iterator for Frames {
-    type Item = Frame;
-    fn next(&mut self) -> Option<Frame> {
-        let frame = self.current_frame;
-        self.current_frame += 1;
-        self.frames.get(frame).cloned()
     }
 }

@@ -9,7 +9,7 @@ use std::result;
 
 use chunk;
 use crc::Crc32;
-use common::{Info, ColorType, BitDepth};
+use common::{Info, ColorType, BitDepth, Compression};
 use filter::{FilterType, filter};
 use traits::{WriteBytesExt, HasParameters, Parameter};
 
@@ -81,6 +81,21 @@ impl<W: Write> Parameter<Encoder<W>> for BitDepth {
     }
 }
 
+/// Set compression param for a ```Compression``` or any type that can transform 
+/// into a ```Compression```, notably ```deflate::Compression``` and 
+/// ```deflate::CompressionOptions``` which "just work".
+impl<W: Write, C: Into<Compression>> Parameter<Encoder<W>> for C {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.compression = self.into()
+    }
+}
+
+impl <W: Write> Parameter<Encoder<W>> for FilterType {
+    fn set_param(self, this: &mut Encoder<W>) {
+        this.info.filter = self
+    }
+}
+
 /// PNG writer
 pub struct Writer<W: Write> {
     w: W,
@@ -127,8 +142,8 @@ impl<W: Write> Writer<W> {
             let message = format!("wrong data size, expected {} got {}", data_size, data.len());
             return Err(EncodingError::Format(message.into()));
         }
-        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), deflate::Compression::Fast);
-        let filter_method = FilterType::Sub;
+        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());
+        let filter_method = self.info.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
             try!(zlib.write_all(&[filter_method as u8]));

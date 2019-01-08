@@ -60,5 +60,6 @@ pub use common::*;
 pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError, Limits};
 #[cfg(feature = "png-encoding")]
 pub use encoder::{Encoder, Writer, EncodingError};
+pub use filter::FilterType;
 
 pub use traits::{Parameter, HasParameters};

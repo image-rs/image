@@ -144,7 +144,9 @@ struct ReadDecoder<R: Read> {
 }
 
 impl<R: Read> ReadDecoder<R> {
-    fn decode_next(&mut self) -> Result<Option<Decoded>, DecodingError> {
+    /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
+    /// into image_data.
+    fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Option<Decoded>, DecodingError> {
         while !self.at_eof {
             let (consumed, result) = {
                 let buf = try!(self.reader.fill_buf());
@@ -153,17 +155,13 @@ impl<R: Read> ReadDecoder<R> {
                         "unexpected EOF".into()
                     ))
                 }
-                try!(self.decoder.update(buf))
+                try!(self.decoder.update(buf, image_data))
             };
             self.reader.consume(consumed);
             match result {
                 Decoded::Nothing => (),
                 Decoded::ImageEnd => self.at_eof = true,
-                result => return Ok(Some(unsafe {
-                    // This transmute just casts the lifetime away. See comment
-                    // in StreamingDecoder::update for more information.
-                    mem::transmute::<Decoded, Decoded>(result)
-                }))
+                result => return Ok(Some(result))
             }
         }
         Ok(None)
@@ -224,7 +222,7 @@ impl<R: Read> Reader<R> {
             Ok(())
         } else {
             loop {
-                match try!(self.decoder.decode_next()) {
+                match try!(self.decoder.decode_next(&mut Vec::new())) {
                     Some(ChunkBegin(_, IDAT)) => break,
                     None => return Err(DecodingError::Format(
                         "IDAT chunk missing".into()
@@ -475,11 +473,9 @@ impl<R: Read> Reader<R> {
                     ))
                 }
             } else {
-                let val = try!(self.decoder.decode_next());
+                let val = try!(self.decoder.decode_next(&mut self.current));
                 match val {
-                    Some(Decoded::ImageData(data)) => {
-                        self.current.extend_from_slice(data);
-                    },
+                    Some(Decoded::ImageData) => {}
                     None => {
                         if self.current.len() > 0 {
                             return Err(DecodingError::Format(

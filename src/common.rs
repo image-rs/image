@@ -93,7 +93,7 @@ impl Unit {
 }
 
 /// Frame control information
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FrameControl {
     /// Sequence number of the animation chunk, starting from 0
     pub sequence_number: u32,

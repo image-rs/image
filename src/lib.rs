@@ -14,6 +14,7 @@ extern crate lzw;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
+extern crate safe_transmute;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 

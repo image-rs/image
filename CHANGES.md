@@ -8,6 +8,21 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.21
+
+- Updated README to use `GenericImageView`
+- Removed outdated version number from CHANGES
+- Compiles now with wasm-unknown-emscripten target
+- Restructured `ImageDecoder` trait
+- Updated README with a more colorful example for the Julia fractal
+- Use Rust 1.24.1 as minimum supported version
+- Support for loading GIF frames one at a time with `animation::Frames`
+- The TGA decoder now recognizes 32 bpp as RGBA(8)
+- Fixed `to_bgra` document comment
+- Added release test script
+- Removed unsafe code blocks several places
+- Fixed overlay overflow bug issues with documented proofs
+
 ### Version 0.20
 
 - Clippy lint pass

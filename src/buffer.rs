@@ -371,9 +371,30 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
+        let pixel_indices = self.pixel_indices(x, y)
+            .unwrap_or_else(|| panic!(
+                "Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height),
+            ));
+        <P as Pixel>::from_slice(&self.data[pixel_indices])
+    }
+
+    #[inline(always)]
+    fn pixel_indices(&self, x: u32, y: u32) -> Option<std::ops::Range<usize>> {
         let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels * (y * self.width + x) as usize;
-        <P as Pixel>::from_slice(&self.data[index..index + no_channels])
+        let max_index = Some(self.width as usize)
+            .and_then(|w| w.checked_mul(y as usize))
+            .and_then(|y| y.checked_add(x as usize))
+            .and_then(|x| x.checked_mul(no_channels))
+            .and_then(|i| i.checked_add(no_channels))?;
+        // Can't wrap.
+        let min_index = max_index.checked_sub(no_channels).unwrap();
+        Some(min_index..max_index)
+    }
+
+    unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> std::ops::Range<usize> {
+        let no_channels = <P as Pixel>::channel_count();
+        let min_index = ((self.width as usize)*(y as usize) + (x as usize))*(no_channels as usize);
+        min_index..min_index+(no_channels as usize)
     }
 }
 
@@ -409,9 +430,11 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels * (y * self.width + x) as usize;
-        <P as Pixel>::from_slice_mut(&mut self.data[index..index + no_channels])
+        let pixel_indices = self.pixel_indices(x, y)
+            .unwrap_or_else(|| panic!(
+                "Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height),
+            ));
+        <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices])
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -535,12 +558,8 @@ where
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels as isize * (y * self.width + x) as isize;
-        *<P as Pixel>::from_slice(::std::slice::from_raw_parts(
-            self.data.as_ptr().offset(index),
-            no_channels,
-        ))
+        let indices = self.unsafe_pixel_indices(x, y);
+        *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
 
     fn inner(&self) -> &Self::InnerImageView {
@@ -567,12 +586,8 @@ where
     /// Puts a pixel at location (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels as isize * (y * self.width + x) as isize;
-        let p = <P as Pixel>::from_slice_mut(::std::slice::from_raw_parts_mut(
-            self.data.as_mut_ptr().offset(index),
-            no_channels,
-        ));
+        let indices = self.unsafe_pixel_indices(x, y);
+        let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
         *p = pixel
     }
 

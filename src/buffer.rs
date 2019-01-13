@@ -801,4 +801,34 @@ mod test {
         });
         b.bytes = 1000 * 1000 * 3
     }
+
+    #[bench]
+    #[cfg(feature = "benchmarks")]
+    fn bench_image_access_good_cache(b: &mut test::Bencher) {
+        use buffer::{ImageBuffer, Pixel};
+
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for mut p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+
+        b.iter(move || {
+            let image: &RgbImage = test::black_box(&a);
+            let mut sum: usize = 0;
+            for x in 0..1000 {
+                for y in 0..1000 {
+                    let pixel = image.get_pixel(x, y);
+                    sum = sum.wrapping_add(pixel[0] as usize);
+                    sum = sum.wrapping_add(pixel[1] as usize);
+                    sum = sum.wrapping_add(pixel[2] as usize);
+                }
+            }
+            test::black_box(sum)
+        });
+
+        b.bytes = 1000 * 1000 * 3;
+    }
 }

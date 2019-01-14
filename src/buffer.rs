@@ -312,9 +312,10 @@ where
     /// Contructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
     ///
-    /// Returns None if the container is not big enough
+    /// Returns `None` if the container is not big enough (including when the image dimensions
+    /// necessitate an allocation of more bytes than supported by the container).
     pub fn from_raw(width: u32, height: u32, buf: Container) -> Option<ImageBuffer<P, Container>> {
-        if width as usize * height as usize * <P as Pixel>::channel_count() as usize <= buf.len() {
+        if Self::check_image_fits(width, height, buf.len()) {
             Some(ImageBuffer {
                 data: buf,
                 width,
@@ -378,23 +379,39 @@ where
         <P as Pixel>::from_slice(&self.data[pixel_indices])
     }
 
-    #[inline(always)]
-    fn pixel_indices(&self, x: u32, y: u32) -> Option<std::ops::Range<usize>> {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let max_index = Some(self.width as usize)
-            .and_then(|w| w.checked_mul(y as usize))
-            .and_then(|y| y.checked_add(x as usize))
-            .and_then(|x| x.checked_mul(no_channels))
-            .and_then(|i| i.checked_add(no_channels))?;
-        // Can't wrap.
-        let min_index = max_index.checked_sub(no_channels).unwrap();
-        Some(min_index..max_index)
+    /// Test that the image fits inside the buffer.
+    ///
+    /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
+    /// length. Note that as a corrolary we also have that the index calculation of pixels inside
+    /// the bounds will not overflow.
+    fn check_image_fits(width: u32, height: u32, len: usize) -> bool {
+        let checked_len = Self::image_buffer_len(width, height);
+        checked_len.map(|min_len| min_len < len).unwrap_or(false)
     }
 
+    fn image_buffer_len(width: u32, height: u32) -> Option<usize> {
+        Some(<P as Pixel>::channel_count() as usize)
+            .and_then(|size| size.checked_mul(width as usize))
+            .and_then(|size| size.checked_mul(height as usize))
+    }
+
+    #[inline(always)]
+    fn pixel_indices(&self, x: u32, y: u32) -> Option<std::ops::Range<usize>> {
+        if x >= self.width || y >= self.height {
+            return None
+        }
+
+        Some(unsafe {
+            self.unsafe_pixel_indices(x, y)
+        })
+    }
+
+    #[inline(always)]
     unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> std::ops::Range<usize> {
-        let no_channels = <P as Pixel>::channel_count();
-        let min_index = ((self.width as usize)*(y as usize) + (x as usize))*(no_channels as usize);
-        min_index..min_index+(no_channels as usize)
+        let no_channels = <P as Pixel>::channel_count() as usize;
+        // If in bounds, this can't overflow as we have tested that at construction!
+        let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
+        min_index..min_index+no_channels
     }
 }
 
@@ -614,12 +631,15 @@ where
     P::Subpixel: 'static,
 {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let size = Self::image_buffer_len(width, height)
+            .expect("Buffer length in `ImageBuffer::new` overflows usize");
         ImageBuffer {
-            data: vec![
-                Zero::zero();
-                width as usize * height as usize * (<P as Pixel>::channel_count() as usize)
-            ],
+            data: vec![Zero::zero(); size],
             width,
             height,
             _phantom: PhantomData,
@@ -627,6 +647,10 @@ where
     }
 
     /// Constructs a new ImageBuffer by copying a pixel
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
@@ -636,7 +660,12 @@ where
     }
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
+    ///
     /// The arguments to the function are the pixel's x and y coordinates.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: FnMut(u32, u32) -> P,

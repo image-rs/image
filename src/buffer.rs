@@ -372,11 +372,10 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
-        let pixel_indices = self.pixel_indices(x, y)
-            .unwrap_or_else(|| panic!(
-                "Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height),
-            ));
-        <P as Pixel>::from_slice(&self.data[pixel_indices])
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+        }
     }
 
     /// Test that the image fits inside the buffer.
@@ -447,11 +446,10 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        let pixel_indices = self.pixel_indices(x, y)
-            .unwrap_or_else(|| panic!(
-                "Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height),
-            ));
-        <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices])
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+        }
     }
 
     /// Puts a pixel at location `(x, y)`

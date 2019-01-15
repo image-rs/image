@@ -1,7 +1,7 @@
 use num_traits::Zero;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
@@ -312,9 +312,10 @@ where
     /// Contructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
     ///
-    /// Returns None if the container is not big enough
+    /// Returns `None` if the container is not big enough (including when the image dimensions
+    /// necessitate an allocation of more bytes than supported by the container).
     pub fn from_raw(width: u32, height: u32, buf: Container) -> Option<ImageBuffer<P, Container>> {
-        if width as usize * height as usize * <P as Pixel>::channel_count() as usize <= buf.len() {
+        if Self::check_image_fits(width, height, buf.len()) {
             Some(ImageBuffer {
                 data: buf,
                 width,
@@ -371,9 +372,45 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+        }
+    }
+
+    /// Test that the image fits inside the buffer.
+    ///
+    /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
+    /// length. Note that as a corrolary we also have that the index calculation of pixels inside
+    /// the bounds will not overflow.
+    fn check_image_fits(width: u32, height: u32, len: usize) -> bool {
+        let checked_len = Self::image_buffer_len(width, height);
+        checked_len.map(|min_len| min_len <= len).unwrap_or(false)
+    }
+
+    fn image_buffer_len(width: u32, height: u32) -> Option<usize> {
+        Some(<P as Pixel>::channel_count() as usize)
+            .and_then(|size| size.checked_mul(width as usize))
+            .and_then(|size| size.checked_mul(height as usize))
+    }
+
+    #[inline(always)]
+    fn pixel_indices(&self, x: u32, y: u32) -> Option<Range<usize>> {
+        if x >= self.width || y >= self.height {
+            return None
+        }
+
+        Some(unsafe {
+            self.unsafe_pixel_indices(x, y)
+        })
+    }
+
+    #[inline(always)]
+    unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> Range<usize> {
         let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels * (y * self.width + x) as usize;
-        <P as Pixel>::from_slice(&self.data[index..index + no_channels])
+        // If in bounds, this can't overflow as we have tested that at construction!
+        let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
+        min_index..min_index+no_channels
     }
 }
 
@@ -409,9 +446,10 @@ where
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels * (y * self.width + x) as usize;
-        <P as Pixel>::from_slice_mut(&mut self.data[index..index + no_channels])
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+        }
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -535,12 +573,8 @@ where
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels as isize * (y * self.width + x) as isize;
-        *<P as Pixel>::from_slice(::std::slice::from_raw_parts(
-            self.data.as_ptr().offset(index),
-            no_channels,
-        ))
+        let indices = self.unsafe_pixel_indices(x, y);
+        *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
 
     fn inner(&self) -> &Self::InnerImageView {
@@ -567,12 +601,8 @@ where
     /// Puts a pixel at location (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let no_channels = <P as Pixel>::channel_count() as usize;
-        let index = no_channels as isize * (y * self.width + x) as isize;
-        let p = <P as Pixel>::from_slice_mut(::std::slice::from_raw_parts_mut(
-            self.data.as_mut_ptr().offset(index),
-            no_channels,
-        ));
+        let indices = self.unsafe_pixel_indices(x, y);
+        let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
         *p = pixel
     }
 
@@ -599,12 +629,15 @@ where
     P::Subpixel: 'static,
 {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        let size = Self::image_buffer_len(width, height)
+            .expect("Buffer length in `ImageBuffer::new` overflows usize");
         ImageBuffer {
-            data: vec![
-                Zero::zero();
-                width as usize * height as usize * (<P as Pixel>::channel_count() as usize)
-            ],
+            data: vec![Zero::zero(); size],
             width,
             height,
             _phantom: PhantomData,
@@ -612,6 +645,10 @@ where
     }
 
     /// Constructs a new ImageBuffer by copying a pixel
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn from_pixel(width: u32, height: u32, pixel: P) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let mut buf = ImageBuffer::new(width, height);
         for p in buf.pixels_mut() {
@@ -621,7 +658,12 @@ where
     }
 
     /// Constructs a new ImageBuffer by repeated application of the supplied function.
+    ///
     /// The arguments to the function are the pixel's x and y coordinates.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting image is larger the the maximum size of a vector.
     pub fn from_fn<F>(width: u32, height: u32, mut f: F) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         F: FnMut(u32, u32) -> P,
@@ -785,5 +827,65 @@ mod test {
             test::black_box(b);
         });
         b.bytes = 1000 * 1000 * 3
+    }
+
+    #[bench]
+    #[cfg(feature = "benchmarks")]
+    fn bench_image_access_row_by_row(b: &mut test::Bencher) {
+        use buffer::{ImageBuffer, Pixel};
+
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for mut p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+
+        b.iter(move || {
+            let image: &RgbImage = test::black_box(&a);
+            let mut sum: usize = 0;
+            for y in 0..1000 {
+                for x in 0..1000 {
+                    let pixel = image.get_pixel(x, y);
+                    sum = sum.wrapping_add(pixel[0] as usize);
+                    sum = sum.wrapping_add(pixel[1] as usize);
+                    sum = sum.wrapping_add(pixel[2] as usize);
+                }
+            }
+            test::black_box(sum)
+        });
+
+        b.bytes = 1000 * 1000 * 3;
+    }
+
+    #[bench]
+    #[cfg(feature = "benchmarks")]
+    fn bench_image_access_col_by_col(b: &mut test::Bencher) {
+        use buffer::{ImageBuffer, Pixel};
+
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for mut p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+
+        b.iter(move || {
+            let image: &RgbImage = test::black_box(&a);
+            let mut sum: usize = 0;
+            for x in 0..1000 {
+                for y in 0..1000 {
+                    let pixel = image.get_pixel(x, y);
+                    sum = sum.wrapping_add(pixel[0] as usize);
+                    sum = sum.wrapping_add(pixel[1] as usize);
+                    sum = sum.wrapping_add(pixel[2] as usize);
+                }
+            }
+            test::black_box(sum)
+        });
+
+        b.bytes = 1000 * 1000 * 3;
     }
 }

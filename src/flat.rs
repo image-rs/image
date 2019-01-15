@@ -1,3 +1,4 @@
+use std::cmp;
 use std::marker::PhantomData;
 
 use num_traits::Zero;
@@ -35,6 +36,10 @@ pub struct FlatSamples<Buffer> {
     /// Add this to an index to get to the next sample in y-direction.
     pub height_stride: usize,
 }
+
+/// Helper struct for a (stride, length) pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Dim(usize, usize);
 
 impl<Buffer> FlatSamples<Buffer> {
     /// Get the strides for indexing matrix-like [(h, w, c)].
@@ -159,60 +164,118 @@ impl<Buffer> FlatSamples<Buffer> {
         )
     }
 
+    /// The extents of this array, in order of increasing strides.
+    fn increasing_stride_dims(&self) -> [Dim; 3] {
+        impl Dim {
+            fn stride(self) -> usize {
+                self.0
+            }
+
+            /// Length of this dimension in memory.
+            fn checked_len(self) -> Option<usize> {
+                self.0.checked_mul(self.1)
+            }
+
+            fn len(self) -> usize {
+                self.0*self.1
+            }
+        }
+
+        // Order extents by strides, then check that each is less equal than the next stride.
+        let mut grouped: [Dim; 3] = [
+            Dim(self.channel_stride, self.channels as usize),
+            Dim(self.width_stride, self.width as usize),
+            Dim(self.height_stride, self.height as usize)];
+
+        grouped.sort();
+
+        let [min_dim, mid_dim, max_dim] = grouped;
+        assert!(min_dim.stride() <= mid_dim.stride() && mid_dim.stride() <= max_dim.stride());
+        
+        grouped
+    }
+
     /// If there are any samples aliasing each other.
     ///
     /// If this is not the case, it would always be safe to allow mutable access to two different
     /// samples at the same time. Otherwise, this operation would need additional checks. When one
     /// dimension overflows `usize` with its stride we also consider this aliasing.
     pub fn has_aliased_samples(&self) -> bool {
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-        struct Dim(usize, usize);
+        let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
 
-        impl Dim {
-            fn stride(self) -> usize {
-                self.0
-            }
-
-            fn count(self) -> usize {
-                self.1
-            }
-
-            /// Length of this dimension in memory.
-            fn len(self) -> Option<usize> {
-                self.stride().checked_mul(self.count())
-            }
-        }
-
-        // Order extents by strides, then check that each is less equal than the next stride.
-        let grouped: [Dim; 3] = [
-            Dim(self.channel_stride, self.channels as usize),
-            Dim(self.width_stride, self.width as usize),
-            Dim(self.height_stride, self.height as usize)];
-
-        let min_dim = grouped.iter().min().unwrap();
-        let max_dim = grouped.iter().max().unwrap();
-        // The smaller of the two largest elements.
-        let mid_dim = (grouped[0].max(grouped[1]))
-            .min(grouped[0].max(grouped[2]));
-        assert!(min_dim.stride() <= mid_dim.stride() && mid_dim.stride() <= max_dim.stride());
-
-        let min_size = match min_dim.len() {
+        let min_size = match min_dim.checked_len() {
             None => return true,
             Some(size) => size,
         };
 
-        let mid_size = match mid_dim.len() {
+        let mid_size = match mid_dim.checked_len() {
             None => return true,
             Some(size) => size,
         };
 
-        let _max_size = match max_dim.len() {
+        let _max_size = match max_dim.checked_len() {
             None => return true,
             Some(_) => (), // Only want to know this didn't overflow.
         };
 
         // Each higher dimension must walk over all of one lower dimension.
         min_size > mid_dim.stride() || mid_size > max_dim.stride()
+    }
+
+    /// Check if a buffer fulfills the requirements of a normal form.
+    ///
+    /// Certain conversions have preconditions on the structure of the sample buffer that are not
+    /// captured (by design) by the type system. These are then checked before the conversion. Such
+    /// checks can all be done in constant time and will not inspect the buffer content. You can
+    /// perform these checks yourself when the conversion is not required at this moment but maybe
+    /// still performed later.
+    pub fn is_normal(&self, form: NormalForm) -> bool {
+        if self.has_aliased_samples() {
+            return false;
+        }
+
+        if form >= NormalForm::PixelPacked && self.channel_stride != 1 {
+            return false;
+        }
+
+        if form >= NormalForm::ImagePacked {
+            // has aliased already checked for overflows.
+            let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
+
+            if 1 != min_dim.stride() {
+                return false;
+            }
+
+            if min_dim.len() != mid_dim.stride() {
+                return false;
+            }
+
+            if  mid_dim.len() != max_dim.stride() {
+                return false;
+            }
+        }
+
+        if form >= NormalForm::RowMajorPacked {
+            if self.width_stride != self.channels as usize {
+                return false;
+            }
+
+            if self.width as usize*self.width_stride != self.height_stride {
+                return false;
+            }
+        }
+
+        if form >= NormalForm::ColumnMajorPacked {
+            if self.height_stride != self.channels as usize {
+                return false;
+            }
+            
+            if self.height as usize*self.height_stride != self.width_stride {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// Check that the pixel and the channel index are in bounds.
@@ -317,10 +380,13 @@ pub enum Error {
 /// Different normal forms of buffers.
 ///
 /// A normal form is an unaliased buffer with some additional constraints.  The `ÌmageBuffer` uses
-/// row major form with packed samples.
+/// row major form with packed samples. 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NormalForm {
-    /// No further constraints than no pixel aliases another.
+    /// No pixel aliases another.
+    ///
+    /// Unaliased also guarantees that all index calculations in the image bounds using
+    /// `dim_index*dim_stride` (such as `x*width_stride + y*height_stride`) do not overflow.
     Unaliased,
 
     /// At least pixels are packed.
@@ -329,12 +395,24 @@ pub enum NormalForm {
     /// precondition for `GenericImage` which requires by-reference access to pixels.
     PixelPacked,
 
+    /// All samples are packed.
+    ///
+    /// This is orthogonal to `PixelPacked`. It requires that there are no holes in the image but
+    /// it is not necessary that the pixel samples themselves are adjacent. An example of this
+    /// behaviour is a planar image format.
+    ImagePacked,
+
     /// The samples are in row-major form and all samples are packed.
     ///
-    /// In addition to `PixelPacked` this also asserts that the pixel matrix is in row-major form
-    /// and all rows and columns are also packed. Therefore, the number of elements in the
-    /// underlying buffer is exactly `channels*width*height`.
+    /// In addition to `PixelPacked` and `ImagePacked` this also asserts that the pixel matrix is
+    /// in row-major form. 
     RowMajorPacked,
+
+    /// The samples are in column-major form and all samples are packed.
+    ///
+    /// In addition to `PixelPacked` and `ImagePacked` this also asserts that the pixel matrix is
+    /// in column-major form. 
+    ColumnMajorPacked,
 }
 
 impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P> 
@@ -465,6 +543,39 @@ impl From<Error> for ImageError {
     }
 }
 
+impl PartialOrd for NormalForm {
+    /// Compares the logical preconditions.
+    ///
+    /// `a < b` if the normal form `a` has less preconditions than `b`.
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        match (*self, *other) {
+            (NormalForm::Unaliased, NormalForm::Unaliased) => Some(cmp::Ordering::Equal),
+            (NormalForm::PixelPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Equal),
+            (NormalForm::ImagePacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Equal),
+            (NormalForm::RowMajorPacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Equal),
+            (NormalForm::ColumnMajorPacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Equal),
+
+            (NormalForm::Unaliased, _) => Some(cmp::Ordering::Less),
+            (_, NormalForm::Unaliased) => Some(cmp::Ordering::Greater),
+
+            (NormalForm::PixelPacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Less),
+            (NormalForm::PixelPacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Less),
+            (NormalForm::RowMajorPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Greater),
+            (NormalForm::ColumnMajorPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Greater),
+
+            (NormalForm::ImagePacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Less),
+            (NormalForm::ImagePacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Less),
+            (NormalForm::RowMajorPacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Greater),
+            (NormalForm::ColumnMajorPacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Greater),
+
+            (NormalForm::ImagePacked, NormalForm::PixelPacked) => None,
+            (NormalForm::PixelPacked, NormalForm::ImagePacked) => None,
+            (NormalForm::RowMajorPacked, NormalForm::ColumnMajorPacked) => None,
+            (NormalForm::ColumnMajorPacked, NormalForm::RowMajorPacked) => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,5 +627,48 @@ mod tests {
         buffer.samples.iter()
             .enumerate()
             .for_each(|(idx, sample)| assert_eq!(idx, *sample));
+    }
+
+    #[test]
+    fn normal_forms() {
+        assert!(FlatSamples {
+            samples: [0u8; 0],
+            channels: 2,
+            channel_stride: 1,
+            width: 3,
+            width_stride: 9,
+            height: 3,
+            height_stride: 28,
+        }.is_normal(NormalForm::PixelPacked));
+
+        assert!(FlatSamples {
+            samples: [0u8; 0],
+            channels: 2,
+            channel_stride: 8,
+            width: 4,
+            width_stride: 1,
+            height: 2,
+            height_stride: 4,
+        }.is_normal(NormalForm::ImagePacked));
+
+        assert!(FlatSamples {
+            samples: [0u8; 0],
+            channels: 2,
+            channel_stride: 1,
+            width: 4,
+            width_stride: 2,
+            height: 2,
+            height_stride: 8,
+        }.is_normal(NormalForm::RowMajorPacked));
+
+        assert!(FlatSamples {
+            samples: [0u8; 0],
+            channels: 2,
+            channel_stride: 1,
+            width: 4,
+            width_stride: 4,
+            height: 2,
+            height_stride: 2,
+        }.is_normal(NormalForm::ColumnMajorPacked));
     }
 }

@@ -35,7 +35,7 @@ pub struct FlatSamples<T, C: AsRef<[T]>> {
 impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
     /// Get the strides for indexing matrix-like [(h, w, c)].
     ///
-    /// For a row-major layout with grouped samples, this tuple is strictl
+    /// For a row-major layout with grouped samples, this tuple is strictly
     /// decreasing.
     pub fn strides_hwc(&self) -> (usize, usize, usize) {
         (self.horizontal_stride, self.vertical_stride, self.channel_stride)
@@ -74,7 +74,7 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
     /// This method will allow zero strides, allowing compact representations
     /// of monochrome images. To check that no aliasing occurs, try
     /// `check_alias_invariants` [WIP].
-    pub fn check_index_validities(&self) -> bool {
+    pub fn has_valid_indexing(&self) -> bool {
         // Construct the maximum index, and test that.  Note that when one
         // dimensions is `0`, there is no maximum index so the check should
         // succeed.
@@ -85,6 +85,43 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
         );
 
         max < Some(self.as_slice().len())
+    }
+
+    /// If there are any samples aliasing each other.
+    ///
+    /// If this is not the case, it would always be safe to allow mutable access to two different
+    /// samples at the same time. Otherwise, this operation would need additional checks. When one
+    /// dimension overflows `usize` with its stride we also consider this aliasing.
+    pub fn has_aliased_samples(&self) -> bool {
+        // Order extents by strides, then check that each is less equal than the next stride.
+        let strides = self.strides_hwc();
+        let sizes = self.extents();
+        let grouped: [(usize, usize); 3] = [
+            (strides.0, sizes.0),
+            (strides.1, sizes.1),
+            (strides.2, sizes.2)];
+
+        let min_dim = grouped[0].min(grouped[1]).min(grouped[2]);
+        let max_dim = grouped[0].max(grouped[1]).max(grouped[2]);
+        let mid_dim = (grouped[0].max(grouped[1]))
+            .min(grouped[0].max(grouped[2]));
+
+        let min_size = match min_dim.0.checked_mul(min_dim.1) {
+            None => return true,
+            Some(size) => size,
+        };
+
+        let mid_size = match mid_dim.0.checked_mul(mid_dim.1) {
+            None => return true,
+            Some(size) => size,
+        };
+
+        let _max_size = match max_dim.0.checked_mul(max_dim.1) {
+            None => return true,
+            Some(_) => (), // Only want to know this didn't overflow.
+        };
+
+        return min_size > mid_dim.0 || mid_size > max_dim.0;
     }
 
     /// Resolve the index of a particular sample.
@@ -106,4 +143,54 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
             .and_then(|b| idx_y.and_then(|y| b.checked_add(y)))
             .and_then(|b| idx_c.and_then(|c| b.checked_add(c)))
     }
+}
+
+/// Denotes invalid flat sample buffers when trying to convert to stricter types.
+///
+/// The biggest use case being `ImageBuffer` which expects closely packed
+/// samples in a row major matrix representation. But this error type may be
+/// resused for other import functions. A more versatile user may also try to
+/// correct the underlying representation depending on the error variant.
+pub enum ImportError {
+    /// The pixels may not alias to be used underlying the target, but they do.
+    Aliasing,
+
+    /// There may be no holes using the image strides.
+    ///
+    /// In other words, the target requires all strides to be strictly equal to the stride below
+    /// them times the size in that dimension.
+    Unpacked,
+
+    /// The represented image was too large.
+    ///
+    /// The optional value denotes a possibly accepted maximal bound.
+    TooLarge,
+
+    /// The represented image can not use this representation.
+    InvalidFormat {
+        /// The normalized form that would be accepted.
+        require: Option<NormalForm>,
+    },
+}
+
+/// Different normal forms of buffers.
+///
+/// A normal form is an unaliased buffer with some additional constraints.  The `ÌmageBuffer` uses
+/// row major form with packed samples.
+pub enum NormalForm {
+    /// No further constraints than no pixel aliases another.
+    Unaliased,
+
+    /// At least pixels are packed.
+    ///
+    /// Images of these types can wrap `[T]`-slices into the standard color types. This is a
+    /// precondition for `GenericImage` which requires by-reference access to pixels.
+    PixelPacked,
+
+    /// The samples are in row-major form and all samples are packed.
+    ///
+    /// In addition to `PixelPacked` this also asserts that the pixel matrix is in row-major form
+    /// and all rows and columns are also packed. Therefore, the number of elements in the
+    /// underlying buffer is exactly `channels*width*height`.
+    RowMajorPacked,
 }

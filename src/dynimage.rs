@@ -288,7 +288,7 @@ impl DynamicImage {
     }
 
     /// Return a view on the raw sample buffer.
-    pub fn as_flattened(&self) -> FlatSamples<u8, &[u8]> {
+    pub fn as_flattened(&self) -> FlatSamples<&[u8]> {
         dynamic_map!(*self, ref p -> p.as_flattened())
     }
 

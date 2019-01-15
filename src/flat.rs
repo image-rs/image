@@ -1,14 +1,20 @@
 use std::marker::PhantomData;
 
+use num_traits::Zero;
+
+use buffer::Pixel;
+use image::GenericImageView;
+
 /// A flat buffer over a (multi channel) image.
 ///
 /// Note that the strides need not conform to the assumption that constructed
 /// indices actually refer inside the underlying buffer but return values
 /// of library functions will always guarantee this. To manually make this
 /// check use `check_index_validities` and maybe put that inside an assert.
-pub struct FlatSamples<T, C: AsRef<[T]>> {
+#[derive(Clone, Debug)]
+pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.
-    pub samples: C,
+    pub samples: Buffer,
 
     /// Add this to an index to get to the next sample in x-direction.
     pub horizontal_stride: usize,
@@ -27,12 +33,9 @@ pub struct FlatSamples<T, C: AsRef<[T]>> {
 
     /// The number of channels in the color representation of the image.
     pub channels: u8,
-
-    /// Notes the sample type to the compiler.
-    pub phantom: PhantomData<T>,
 }
 
-impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
+impl<Buffer> FlatSamples<Buffer> {
     /// Get the strides for indexing matrix-like [(h, w, c)].
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
@@ -51,7 +54,7 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
     }
 
     /// Get a reference based version.
-    pub fn as_ref(&self) -> FlatSamples<T, &[T]> {
+    pub fn as_ref<T>(&self) -> FlatSamples<&[T]> where Buffer: AsRef<[T]> {
         FlatSamples {
             samples: self.samples.as_ref(),
             horizontal_stride: self.horizontal_stride,
@@ -60,31 +63,45 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
             width: self.width,
             height: self.height,
             channels: self.channels,
-            phantom: PhantomData,
         }
     }
 
+    /// View this buffer as an image over some type of samples.
+    pub fn view<P>(self) -> Result<View<Buffer, P>, ViewError<Buffer>> 
+        where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
+    {
+        // The length must be smaller than the maximum index. `usize::max_value()` is a safe
+        // default value in case the maximum index calculation overflowed as there is no larger
+        // length that could still fulfill this condition.
+        if self.samples.as_ref().len() <= self.max_index().unwrap_or(usize::max_value()) {
+            return Err(ViewError::BufferTooSmall(self))
+        }
+
+        if self.channels != P::channel_count() {
+            return Err(ViewError::WrongChannels(self))
+        }
+
+        Ok(View {
+            inner: self,
+            phantom: PhantomData,
+        })
+    }
+
     /// View the samples as a slice.
-    pub fn as_slice(&self) -> &[T] {
+    pub fn as_slice<T>(&self) -> &[T] where Buffer: AsRef<[T]> {
         self.samples.as_ref()
     }
 
-    /// Check if every indexable pixel refers inside the samples.
+    /// Get the largest index of a sample in this image.
     /// 
-    /// This method will allow zero strides, allowing compact representations
-    /// of monochrome images. To check that no aliasing occurs, try
-    /// `check_alias_invariants` [WIP].
-    pub fn has_valid_indexing(&self) -> bool {
-        // Construct the maximum index, and test that.  Note that when one
-        // dimensions is `0`, there is no maximum index so the check should
-        // succeed.
-        let max = self.index(
+    /// This method will allow zero strides, allowing compact representations of monochrome images.
+    /// To check that no aliasing occurs, try `check_alias_invariants`.
+    pub fn max_index(&self) -> Option<usize> {
+        self.index(
             self.width.saturating_sub(1),
             self.height.saturating_sub(1),
             self.channels.saturating_sub(1),
-        );
-
-        max < Some(self.as_slice().len())
+        )
     }
 
     /// If there are any samples aliasing each other.
@@ -124,25 +141,62 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
         return min_size > mid_dim.0 || mid_size > max_dim.0;
     }
 
+    /// Check that the pixel and the channel index are in bounds.
+    pub fn in_bounds(&self, x: u32, y: u32, channel: u8) -> bool {
+        return x < self.width && y < self.height && channel < self.channels
+    }
+
     /// Resolve the index of a particular sample.
     ///
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
     pub fn index(&self, x: u32, y: u32, channel: u8) -> Option<usize> {
-        let base = if x < self.width && y < self.height && channel < self.channels { 
-            Some(0usize) 
-        } else {
-            None
-        };
+        if !self.in_bounds(x, y, channel) {
+            return None
+        }
 
         let idx_x = (x as usize).checked_mul(self.vertical_stride);
         let idx_y = (y as usize).checked_mul(self.horizontal_stride);
         let idx_c = (channel as usize).checked_mul(self.channel_stride);
 
-        base
+        Some(0usize)
             .and_then(|b| idx_x.and_then(|x| b.checked_add(x)))
             .and_then(|b| idx_y.and_then(|y| b.checked_add(y)))
             .and_then(|b| idx_c.and_then(|c| b.checked_add(c)))
     }
+}
+
+/// A flat buffer that can be used as an image view.
+///
+/// This is a nearly trivial wrapper around a buffer but at least sanitizes by checking the buffer
+/// length first and constraining the pixel type.
+///
+/// Note that this does not eliminate panics as the `AsRef<[T]` implementation of `Buffer` may be
+/// unreliable, i.e. return different buffers at different times. This of course is a non-issue for
+/// all common collections where the bounds check once must be enough.
+#[derive(Clone, Debug)]
+pub struct View<Buffer, P: Pixel> 
+where 
+    Buffer: AsRef<[P::Subpixel]> 
+{
+    inner: FlatSamples<Buffer>,
+    phantom: PhantomData<P>,
+}
+
+#[derive(Debug)]
+pub enum ViewError<Buffer> {
+    /// The buffer was smaller than the strides suggest.
+    BufferTooSmall(FlatSamples<Buffer>),
+
+    /// The channel count of the buffer and the pixel type differ.
+    ///
+    /// In some cases you might be able to fix this by lowering the reported pixel count of the
+    /// buffer without touching the strides.
+    ///
+    /// In very special circumstances you *may* do the opposite. This is **VERY** dangerous but not
+    /// directly memory unsafe although that will likely alias pixels. One scenario is when you
+    /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
+    /// care about the value of the alpha channel even though you need `Rgba`.
+    WrongChannels(FlatSamples<Buffer>),
 }
 
 /// Denotes invalid flat sample buffers when trying to convert to stricter types.
@@ -151,6 +205,7 @@ impl<T, C: AsRef<[T]>> FlatSamples<T, C> {
 /// samples in a row major matrix representation. But this error type may be
 /// resused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ImportError {
     /// The pixels may not alias to be used underlying the target, but they do.
     Aliasing,
@@ -177,6 +232,7 @@ pub enum ImportError {
 ///
 /// A normal form is an unaliased buffer with some additional constraints.  The `ÌmageBuffer` uses
 /// row major form with packed samples.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NormalForm {
     /// No further constraints than no pixel aliases another.
     Unaliased,
@@ -193,4 +249,90 @@ pub enum NormalForm {
     /// and all rows and columns are also packed. Therefore, the number of elements in the
     /// underlying buffer is exactly `channels*width*height`.
     RowMajorPacked,
+}
+
+impl<Buffer, P> View<Buffer, P> 
+where
+    P: Pixel,
+    Buffer: AsRef<[P::Subpixel]>,
+{
+    /// Get an index provided it is inbouds.
+    ///
+    /// The computation can not overflow as we could represent the maximum coordinate.
+    fn in_bounds_index(&self, x: u32, y: u32, c: u8) -> usize {
+        let (y_stride, x_stride, c_stride) = self.inner.strides_hwc();
+        (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
+    }
+}
+
+impl<Buffer, P> GenericImageView for View<Buffer, P> 
+where
+    P: Pixel,
+    Buffer: AsRef<[P::Subpixel]>,
+{
+    type Pixel = P;
+
+    // We don't proxy an inner image.
+    type InnerImageView = Self;
+
+    fn dimensions(&self) -> (u32, u32) {
+        (self.inner.width, self.inner.height)
+    }
+
+    fn bounds(&self) -> (u32, u32, u32, u32) {
+        (0, self.inner.width, 0, self.inner.height)
+    }
+
+    fn in_bounds(&self, x: u32, y: u32) -> bool {
+        let (w, h) = self.dimensions();
+        x < w && y < h
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        if !self.inner.in_bounds(x, y, 0) {
+            panic!("Image index {:?} out of bounds {:?}", (x, y), (self.inner.width, self.inner.height))
+        }
+
+        let image = self.inner.samples.as_ref();
+        let base_index = self.in_bounds_index(x, y, 0);
+        let channels = P::channel_count() as usize;
+
+        let mut buffer = [Zero::zero(); 256];
+        buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
+            let index = base_index + c*self.inner.channel_stride;
+            *to = image[index];
+        });
+
+        P::from_slice(&buffer[..channels]).clone()
+    }
+
+    fn inner(&self) -> &Self {
+        self // There is no other inner image.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use color::Rgb;
+
+    #[test]
+    fn aliasing_view() {
+       let buffer = FlatSamples {
+           samples: &[42],
+           horizontal_stride: 0,
+           vertical_stride: 0,
+           channel_stride: 0,
+           width: 100,
+           height: 100,
+           channels: 3,
+       };
+
+       let view = buffer.view::<Rgb<usize>>()
+           .expect("This is a valid view");
+       let pixel_count = view.pixels()
+           .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
+           .count();
+       assert_eq!(pixel_count, 100*100);
+    }
 }

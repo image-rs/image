@@ -384,7 +384,7 @@ where
     /// horizontal_stride <= vertical_stride`. All strides are in numbers of
     /// elements but those are mostly `u8` in which case the strides are also
     /// byte strides.
-    pub fn flattened(self) -> FlatSamples<P::Subpixel, Container> 
+    pub fn into_flattened(self) -> FlatSamples<Container> 
         where Container: AsRef<[P::Subpixel]> 
     {
         // None of these can overflow, as all our memory is addressable.
@@ -399,14 +399,13 @@ where
             width: self.width,
             height: self.height,
             channels: P::channel_count(),
-            phantom: PhantomData,
         }
     }
 
     /// Return a view on the raw sample buffer.
     ///
     /// See `flattened` for more details.
-    pub fn as_flattened(&self) -> FlatSamples<P::Subpixel, &[P::Subpixel]>
+    pub fn as_flattened(&self) -> FlatSamples<&[P::Subpixel]>
         where Container: AsRef<[P::Subpixel]> 
     {
         // None of these can overflow, as all our memory is addressable.
@@ -421,7 +420,6 @@ where
             width: self.width,
             height: self.height,
             channels: P::channel_count(),
-            phantom: PhantomData,
         }
     }
 }

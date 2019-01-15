@@ -1,7 +1,7 @@
 use num_traits::Zero;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
@@ -395,7 +395,7 @@ where
     }
 
     #[inline(always)]
-    fn pixel_indices(&self, x: u32, y: u32) -> Option<std::ops::Range<usize>> {
+    fn pixel_indices(&self, x: u32, y: u32) -> Option<Range<usize>> {
         if x >= self.width || y >= self.height {
             return None
         }
@@ -406,7 +406,7 @@ where
     }
 
     #[inline(always)]
-    unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> std::ops::Range<usize> {
+    unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> Range<usize> {
         let no_channels = <P as Pixel>::channel_count() as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize*self.width as usize + x as usize)*no_channels;

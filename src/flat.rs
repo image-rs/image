@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use num_traits::Zero;
 
 use buffer::Pixel;
-use image::{GenericImage, GenericImageView};
+use color::ColorType;
+use image::{GenericImage, GenericImageView, ImageError};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -94,7 +95,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.channels != P::channel_count() {
-            return Err(Error::WrongColor)
+            return Err(Error::WrongColor(P::color_type()))
         }
 
         Ok(View {
@@ -122,6 +123,10 @@ impl<Buffer> FlatSamples<Buffer> {
 
         if self.channel_stride != 1 {
             return Err(Error::NormalFormRequired(NormalForm::PixelPacked))
+        }
+
+        if self.channels != P::channel_count() {
+            return Err(Error::WrongColor(P::color_type()))
         }
 
         let max_index = self.max_index().unwrap_or(usize::max_value());
@@ -306,7 +311,7 @@ pub enum Error {
     /// directly memory unsafe although that will likely alias pixels. One scenario is when you
     /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
     /// care about the value of the alpha channel even though you need `Rgba`.
-    WrongColor,
+    WrongColor(ColorType),
 }
 
 /// Different normal forms of buffers.
@@ -331,8 +336,6 @@ pub enum NormalForm {
     /// underlying buffer is exactly `channels*width*height`.
     RowMajorPacked,
 }
-
-// FIXME: Into<ImageError> for Error.
 
 impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P> 
     where Buffer: AsRef<[P::Subpixel]>
@@ -448,6 +451,17 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 
     fn inner_mut(&mut self) -> &mut Self {
         self
+    }
+}
+
+impl From<Error> for ImageError {
+    fn from(error: Error) -> ImageError {
+        match error {
+            Error::TooLarge => ImageError::DimensionError,
+            Error::WrongColor(color) => ImageError::UnsupportedColor(color),
+            Error::NormalFormRequired(form) => ImageError::FormatError(
+                format!("Required sample buffer in normal form {:?}", form)),
+        }
     }
 }
 

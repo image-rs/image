@@ -385,7 +385,7 @@ where
     /// the bounds will not overflow.
     fn check_image_fits(width: u32, height: u32, len: usize) -> bool {
         let checked_len = Self::image_buffer_len(width, height);
-        checked_len.map(|min_len| min_len < len).unwrap_or(false)
+        checked_len.map(|min_len| min_len <= len).unwrap_or(false)
     }
 
     fn image_buffer_len(width: u32, height: u32) -> Option<usize> {

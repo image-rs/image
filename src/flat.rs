@@ -1,9 +1,10 @@
 use std::cmp;
+use std::ops::Deref;
 use std::marker::PhantomData;
 
 use num_traits::Zero;
 
-use buffer::Pixel;
+use buffer::{ImageBuffer, Pixel};
 use color::ColorType;
 use image::{GenericImage, GenericImageView, ImageError};
 
@@ -92,15 +93,12 @@ impl<Buffer> FlatSamples<Buffer> {
     {
         let as_ref = self.as_ref();
 
-        // The length must be smaller than the maximum index. `usize::max_value()` is a safe
-        // default value in case the maximum index calculation overflowed as there is no larger
-        // length that could still fulfill this condition.
-        if as_ref.samples.len() <= self.max_index().unwrap_or(usize::max_value()) {
-            return Err(Error::TooLarge)
-        }
-
         if self.channels != P::channel_count() {
             return Err(Error::WrongColor(P::color_type()))
+        }
+
+        if !self.fits(self.samples.as_ref().len()) {
+            return Err(Error::TooLarge)
         }
 
         Ok(View {
@@ -152,6 +150,34 @@ impl<Buffer> FlatSamples<Buffer> {
         self.samples.as_ref()
     }
 
+    /// Move the data into an image buffer.
+    ///
+    /// This does **not** convert the image format. The buffer needs to be in packed row-major form
+    /// before calling this function. In case of an error, returns the buffer again so that it does
+    /// not release any allocation.
+    pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)> 
+    where 
+        P: Pixel + 'static,
+        P::Subpixel: 'static,
+        Buffer: Deref<Target=[P::Subpixel]>,
+    {
+        if !self.is_normal(NormalForm::RowMajorPacked) {
+            return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self))
+        }
+
+        if self.channels != P::channel_count() {
+            return Err((Error::WrongColor(P::color_type()), self))
+        }
+
+        if !self.fits(self.samples.deref().len()) {
+            return Err((Error::TooLarge, self))
+        }
+
+
+        Ok(ImageBuffer::from_raw(self.width, self.height, self.samples).unwrap_or_else(
+            || panic!("Preconditions should have been ensured before conversion")))
+    }
+
     /// Get the largest index of a sample in this image.
     /// 
     /// This method will allow zero strides, allowing compact representations of monochrome images.
@@ -162,6 +188,14 @@ impl<Buffer> FlatSamples<Buffer> {
             self.height.saturating_sub(1),
             self.channels.saturating_sub(1),
         )
+    }
+
+    /// Check if the buffer is large enough.
+    pub fn fits(&self, len: usize) -> bool {
+        // The length must be smaller than the maximum index. `usize::max_value()` is a safe
+        // default value in case the maximum index calculation overflowed as there is no larger
+        // length that could still fulfill this condition.
+        len > self.max_index().unwrap_or_else(usize::max_value)
     }
 
     /// The extents of this array, in order of increasing strides.
@@ -579,6 +613,7 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use buffer::GrayAlphaImage;
     use color::{LumaA, Rgb};
 
     #[test]
@@ -670,5 +705,21 @@ mod tests {
             height: 2,
             height_stride: 2,
         }.is_normal(NormalForm::ColumnMajorPacked));
+    }
+
+    #[test]
+    fn image_buffer_conversion() {
+        let buffer = FlatSamples {
+            samples: vec![0u8; 16],
+            channels: 2,
+            channel_stride: 1,
+            width: 4,
+            width_stride: 2,
+            height: 2,
+            height_stride: 8,
+        };
+
+        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)|
+            panic!("Expected buffer to be convertible but {:?}", error));
     }
 }

@@ -238,7 +238,7 @@ impl<Buffer> FlatSamples<Buffer> {
 
         grouped.sort();
 
-        let [min_dim, mid_dim, max_dim] = grouped;
+        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
         assert!(min_dim.stride() <= mid_dim.stride() && mid_dim.stride() <= max_dim.stride());
         
         grouped
@@ -250,7 +250,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// samples at the same time. Otherwise, this operation would need additional checks. When one
     /// dimension overflows `usize` with its stride we also consider this aliasing.
     pub fn has_aliased_samples(&self) -> bool {
-        let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
+        let grouped = self.increasing_stride_dims();
+        let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
 
         let min_size = match min_dim.checked_len() {
             None => return true,
@@ -289,7 +290,8 @@ impl<Buffer> FlatSamples<Buffer> {
 
         if form >= NormalForm::ImagePacked {
             // has aliased already checked for overflows.
-            let [min_dim, mid_dim, max_dim] = self.increasing_stride_dims();
+            let grouped = self.increasing_stride_dims();
+            let (min_dim, mid_dim, max_dim) = (grouped[0], grouped[1], grouped[2]);
 
             if 1 != min_dim.stride() {
                 return false;

@@ -87,6 +87,21 @@ impl<Buffer> FlatSamples<Buffer> {
         }
     }
 
+    /// Copy the data into an owned vector.
+    pub fn to_vec<T>(&self) -> FlatSamples<Vec<T>> 
+        where T: Clone, Buffer: AsRef<[T]> 
+    {
+        FlatSamples {
+            samples: self.samples.as_ref().to_vec(),
+            width_stride: self.width_stride,
+            height_stride: self.height_stride,
+            channel_stride: self.channel_stride,
+            width: self.width,
+            height: self.height,
+            channels: self.channels,
+        }
+    }
+
     /// View this buffer as an image over some type of samples.
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error> 
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
-use flat::FlatSamples;
+use flat::{FlatSamples, MatrixFormat};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
 use traits::Primitive;
@@ -377,6 +377,23 @@ where
         <P as Pixel>::from_slice(&self.data[index..index + no_channels])
     }
 
+    /// Get the format of the buffer when viewed as a matrix of samples.
+    pub fn matrix_format(&self) -> MatrixFormat {
+        // None of these can overflow, as all our memory is addressable.
+        let channel_stride = 1usize;
+        let width_stride = <P as Pixel>::channel_count() as usize;
+        let height_stride = width_stride*self.width as usize;
+
+        MatrixFormat {
+            channels: P::channel_count(),
+            channel_stride,
+            width: self.width,
+            width_stride,
+            height: self.height,
+            height_stride,
+        }
+    }
+
     /// Return the raw sample buffer with its stride an dimension information.
     ///
     /// The returned buffer is guaranteed to be well formed in all cases. It is layed out by
@@ -387,17 +404,10 @@ where
         where Container: AsRef<[P::Subpixel]> 
     {
         // None of these can overflow, as all our memory is addressable.
-        let channel_stride = 1usize;
-        let width_stride = <P as Pixel>::channel_count() as usize;
-        let height_stride = width_stride*self.width as usize;
+        let format = self.matrix_format();
         FlatSamples {
             samples: self.data,
-            channels: P::channel_count(),
-            channel_stride,
-            width: self.width,
-            width_stride,
-            height: self.height,
-            height_stride,
+            format,
         }
     }
 
@@ -407,18 +417,10 @@ where
     pub fn as_flattened(&self) -> FlatSamples<&[P::Subpixel]>
         where Container: AsRef<[P::Subpixel]> 
     {
-        // None of these can overflow, as all our memory is addressable.
-        let channel_stride = 1usize;
-        let width_stride = <P as Pixel>::channel_count() as usize;
-        let height_stride = width_stride*self.width as usize;
+        let format = self.matrix_format();
         FlatSamples {
             samples: self.data.as_ref(),
-            channels: P::channel_count(),
-            channel_stride,
-            width: self.width,
-            width_stride,
-            height: self.height,
-            height_stride,
+            format,
         }
     }
 }

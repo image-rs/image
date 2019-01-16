@@ -72,6 +72,9 @@ pub mod math;
 // Image processing functions
 pub mod imageops;
 
+// Buffer representations for ffi.
+pub mod flat;
+
 // Image codecs
 #[cfg(feature = "bmp")]
 pub mod bmp;
@@ -100,7 +103,6 @@ mod animation;
 mod buffer;
 mod color;
 mod dynimage;
-mod flat;
 mod image;
 mod traits;
 mod utils;

@@ -102,7 +102,12 @@ impl<Buffer> FlatSamples<Buffer> {
         }
     }
 
-    /// View this buffer as an image over some type of samples.
+    /// View this buffer as an image over some type of pixel.
+    ///
+    /// This first ensures that all in-bounds coordinates refer to valid indices in the sample
+    /// buffer. It also checks that the specified pixel format expects the same number of channels
+    /// that are present in this buffer. Neither are larger nor a smaller number will be accepted.
+    /// There is no automatic conversion.
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error> 
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
     {
@@ -125,7 +130,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// Interpret this buffer as a mutable image.
     ///
     /// To succeed, the pixels in this buffer may not alias each other and the samples of each
-    /// pixel must be packed (i.e. `channel_stride` is `1`).
+    /// pixel must be packed (i.e. `channel_stride` is `1`). The number of channels must be
+    /// consistent with the channel count expected by the pixel format.
     ///
     /// This is similar to an `ImageBuffer` except it is a temporary view that is not normalized as
     /// strongly. To get an owning version, consider copying the data into an `ImageBuffer`. This
@@ -147,11 +153,15 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err(Error::WrongColor(P::color_type()))
         }
 
-        let max_index = self.max_index().unwrap_or(usize::max_value());
+        // Slightly weird order because we borrow ourselves mutably below ..
+        let min_length = self.min_length();
+        // ... from here on no more member calls
         let as_mut = self.as_mut();
-
-        if as_mut.samples.len() <= max_index {
-            return Err(Error::TooLarge)
+        
+        match min_length {
+            None => return Err(Error::TooLarge),
+            Some(min) if as_mut.samples.len() < min => return Err(Error::TooLarge),
+            Some(_) => (),
         }
 
         Ok(ViewMut {
@@ -161,8 +171,53 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 
     /// View the samples as a slice.
+    ///
+    /// The slice is not limited to the region of the image and not all sample indices are valid
+    /// indices into this buffer. See `image_mut_slice` as an alternative.
     pub fn as_slice<T>(&self) -> &[T] where Buffer: AsRef<[T]> {
         self.samples.as_ref()
+    }
+
+    /// View the samples as a slice.
+    ///
+    /// The slice is not limited to the region of the image and not all sample indices are valid
+    /// indices into this buffer. See `image_mut_slice` as an alternative.
+    pub fn as_mut_slice<T>(&mut self) -> &mut [T] where Buffer: AsMut<[T]> {
+        self.samples.as_mut()
+    }
+
+    /// Return the portion of the buffer that holds sample values.
+    ///
+    /// This may fail when the coordinates in this image are either out-of-bounds of the underlying
+    /// buffer or can not be represented. Note that the slice may have holes that do not correspond
+    /// to any sample in the image represented by it.
+    pub fn image_slice<T>(&self) -> Option<&[T]> where Buffer: AsRef<[T]> {
+        let min_length = match self.min_length() {
+            None => return None,
+            Some(index) => index,
+        };
+
+        let slice = self.samples.as_ref();
+        if slice.len() < min_length {
+            return None
+        }
+
+        Some(&slice[..min_length])
+    }
+
+    /// Mutable portion of the buffer that holds sample values.
+    pub fn image_mut_slice<T>(&mut self) -> Option<&mut [T]> where Buffer: AsMut<[T]> {
+        let min_length = match self.min_length() {
+            None => return None,
+            Some(index) => index,
+        };
+
+        let slice = self.samples.as_mut();
+        if slice.len() < min_length {
+            return None
+        }
+
+        Some(&mut slice[..min_length])
     }
 
     /// Move the data into an image buffer.
@@ -193,24 +248,69 @@ impl<Buffer> FlatSamples<Buffer> {
             || panic!("Preconditions should have been ensured before conversion")))
     }
 
-    /// Get the largest index of a sample in this image.
+    /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
     /// 
     /// This method will allow zero strides, allowing compact representations of monochrome images.
-    /// To check that no aliasing occurs, try `check_alias_invariants`.
-    pub fn max_index(&self) -> Option<usize> {
-        self.index(
-            self.width.saturating_sub(1),
-            self.height.saturating_sub(1),
-            self.channels.saturating_sub(1),
-        )
+    /// To check that no aliasing occurs, try `check_alias_invariants`. For compact images (no
+    /// aliasing and no unindexed samples) this is `width*height*channels`. But for both of the
+    /// other cases, the reasoning is slightly more involved.
+    ///
+    /// # Explanation
+    ///
+    /// Note that there is a difference between `min_length` and the index of the sample
+    /// 'one-past-the-end`. This is due to strides that may be larger than the dimension below.
+    ///
+    /// ## Example with holes
+    ///
+    /// Let's look at an example of a grayscale image with 
+    /// * `width_stride = 1`
+    /// * `width = 2`
+    /// * `height_stride = 3`
+    /// * `height = 2`
+    ///
+    /// ```text
+    /// | x x   | x x m | $
+    ///  min_length m ^
+    ///                   ^ one-past-the-end $
+    /// ```
+    ///
+    /// The difference is also extreme for empty images with large strides. The one-past-the-end
+    /// sample index is still as large as the largest of these strides while `min_length = 0`.
+    ///
+    /// ## Example with aliasing
+    ///
+    /// The concept gets even more important when you allow samples to alias each other. Here we
+    /// have the buffer of a small grayscale image where this is the case, this time we will first
+    /// show the buffer and then the individual rows below.
+    ///
+    /// * `width_stride = 1`
+    /// * `width = 3`
+    /// * `height_stride = 2`
+    /// * `height = 2`
+    ///
+    /// ```text
+    ///  1 2 3 4 5 m
+    /// |1 2 3| row one
+    ///     |3 4 5| row two
+    ///            ^ m min_length
+    ///          ^ ??? one-past-the-end
+    /// ```
+    ///
+    /// This time 'one-past-the-end' is not even simply the largest stride times the extent of its
+    /// dimension. That still points inside the image because `height*height_stride = 4` but also
+    /// `index_of(1, 2) = 4`.
+    pub fn min_length(&self) -> Option<usize> {
+        if self.width == 0 || self.height == 0 || self.channels == 0 {
+            return Some(0)
+        }
+
+        self.index(self.width - 1, self.height - 1, self.channels - 1)
+            .and_then(|idx| idx.checked_add(1))
     }
 
     /// Check if the buffer is large enough.
     pub fn fits(&self, len: usize) -> bool {
-        // The length must be smaller than the maximum index. `usize::max_value()` is a safe
-        // default value in case the maximum index calculation overflowed as there is no larger
-        // length that could still fulfill this condition.
-        len > self.max_index().unwrap_or_else(usize::max_value)
+        self.min_length().map(|min| len >= min).unwrap_or(false)
     }
 
     /// The extents of this array, in order of increasing strides.
@@ -342,6 +442,14 @@ impl<Buffer> FlatSamples<Buffer> {
             return None
         }
 
+        self.checked_index(x as usize, y as usize, channel as usize)
+    }
+
+    /// Get the theoretical position of sample (x, y, channel).
+    ///
+    /// The 'check' is for overflow during index calculation, not that it is contained in the
+    /// image.
+    fn checked_index(&self, x: usize, y: usize, channel: usize) -> Option<usize> {
         let idx_c = (channel as usize).checked_mul(self.channel_stride);
         let idx_x = (x as usize).checked_mul(self.width_stride);
         let idx_y = (y as usize).checked_mul(self.height_stride);
@@ -363,6 +471,18 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn in_bounds_index(&self, x: u32, y: u32, c: u8) -> usize {
         let (y_stride, x_stride, c_stride) = self.strides_hwc();
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
+    }
+
+
+    /// Shrink the image to the minimum of current and given extents.
+    ///
+    /// This does not modify the strides, so that the resulting sample buffer may have holes
+    /// created by the shrinking operation. Shrinking could also lead to an non-aliasing image when
+    /// samples had aliased each other before.
+    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
+        self.width = self.width.min(width);
+        self.height = self.height.min(height);
+        self.channels = self.channels.min(channels);
     }
 }
 
@@ -464,6 +584,102 @@ pub enum NormalForm {
     /// In addition to `PixelPacked` and `ImagePacked` this also asserts that the pixel matrix is
     /// in column-major form. 
     ColumnMajorPacked,
+}
+
+impl<Buffer, P: Pixel> View<Buffer, P>
+where 
+    Buffer: AsRef<[P::Subpixel]> 
+{
+    /// Take out the sample buffer.
+    ///
+    /// Gives up the normalization invariants on the buffer format.
+    pub fn into_inner(self) -> FlatSamples<Buffer> {
+        self.inner
+    }
+
+    /// Get a reference on the inner buffer.
+    ///
+    /// There is no mutable counterpart as modifying the buffer format, including strides and
+    /// lengths, could invalidate the accessibility invariants of the `View`. It is not specified
+    /// if the inner buffer is the same as the buffer of the image from which this view was
+    /// created. It might have been truncated as an optimization.
+    pub fn samples(&self) -> &FlatSamples<Buffer> {
+        &self.inner
+    }
+
+    /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
+    ///
+    /// See `FlatSamples::min_length`. This method will always succeed.
+    pub fn min_length(&self) -> usize {
+        self.inner.min_length().unwrap()
+    }
+
+    /// Return the portion of the buffer that holds sample values.
+    ///
+    /// While this can not fail–the validity of all coordinates has been validated during the
+    /// conversion from `FlatSamples`–the resulting slice may still contain holes.
+    pub fn image_slice(&self) -> &[P::Subpixel] {
+        &self.inner.samples.as_ref()[..self.min_length()]
+    }
+
+    /// Shrink the inner image.
+    ///
+    /// The new dimensions will be the minimum of the previous dimensions. Since the set of
+    /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
+    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
+        self.inner.shrink_to(width, height, channels)
+    }
+}
+
+impl<Buffer, P: Pixel> ViewMut<Buffer, P>
+where 
+    Buffer: AsMut<[P::Subpixel]>
+{
+    /// Take out the sample buffer.
+    ///
+    /// Gives up the normalization invariants on the buffer format.
+    pub fn into_inner(self) -> FlatSamples<Buffer> {
+        self.inner
+    }
+
+    /// Get a reference on the inner buffer.
+    ///
+    /// There is no mutable counterpart as modifying the buffer format, including strides and
+    /// lengths, could invalidate the accessibility invariants of the `View`. It is not specified
+    /// if the inner buffer is the same as the buffer of the image from which this view was
+    /// created. It might have been truncated as an optimization.
+    pub fn samples(&self) -> &FlatSamples<Buffer> {
+        &self.inner
+    }
+
+    /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
+    ///
+    /// See `FlatSamples::min_length`. This method will always succeed.
+    pub fn min_length(&self) -> usize {
+        self.inner.min_length().unwrap()
+    }
+
+    /// Return the portion of the buffer that holds sample values.
+    ///
+    /// While this can not fail–the validity of all coordinates has been validated during the
+    /// conversion from `FlatSamples`–the resulting slice may still contain holes.
+    pub fn image_slice(&self) -> &[P::Subpixel] where Buffer: AsRef<[P::Subpixel]> {
+        &self.inner.samples.as_ref()[..self.min_length()]
+    }
+
+    /// Return the mutable buffer that holds sample values.
+    pub fn image_mut_slice(&mut self) -> &mut [P::Subpixel] {
+        let length = self.min_length();
+        &mut self.inner.samples.as_mut()[..length]
+    }
+
+    /// Shrink the inner image.
+    ///
+    /// The new dimensions will be the minimum of the previous dimensions. Since the set of
+    /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
+    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
+        self.inner.shrink_to(width, height, channels)
+    }
 }
 
 impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P> 

@@ -288,8 +288,8 @@ impl DynamicImage {
     }
 
     /// Return a view on the raw sample buffer.
-    pub fn as_flattened(&self) -> FlatSamples<&[u8]> {
-        dynamic_map!(*self, ref p -> p.as_flattened())
+    pub fn as_flat_samples(&self) -> FlatSamples<&[u8]> {
+        dynamic_map!(*self, ref p -> p.as_flat_samples())
     }
 
     /// Return this image's color type.

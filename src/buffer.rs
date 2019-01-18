@@ -400,7 +400,7 @@ where
     /// colors, width then height, meaning `channel_stride <= width_stride <= height_stride`. All
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
-    pub fn into_flattened(self) -> FlatSamples<Container> 
+    pub fn into_flat_samples(self) -> FlatSamples<Container>
         where Container: AsRef<[P::Subpixel]> 
     {
         // None of these can overflow, as all our memory is addressable.
@@ -414,7 +414,7 @@ where
     /// Return a view on the raw sample buffer.
     ///
     /// See `flattened` for more details.
-    pub fn as_flattened(&self) -> FlatSamples<&[P::Subpixel]>
+    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
         where Container: AsRef<[P::Subpixel]> 
     {
         let format = self.matrix_format();

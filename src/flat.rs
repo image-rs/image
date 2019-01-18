@@ -41,7 +41,7 @@
 //! ```
 //! 
 use std::cmp;
-use std::ops::Deref;
+use std::ops::{Deref, Index, IndexMut};
 use std::marker::PhantomData;
 
 use num_traits::Zero;
@@ -52,10 +52,14 @@ use image::{GenericImage, GenericImageView, ImageError};
 
 /// A flat buffer over a (multi channel) image.
 ///
-/// Note that the strides need not conform to the assumption that constructed
-/// indices actually refer inside the underlying buffer but return values
-/// of library functions will always guarantee this. To manually make this
-/// check use `check_index_validities` and maybe put that inside an assert.
+/// In contrast to `ImageBuffer`, this representation of a sample collection is much more lenient
+/// in the layout thereof. In particular, it also allows grouping by color planes instead of by
+/// pixel, at least for the purpose of a `GenericImageView`.
+///
+/// Note that the strides need not conform to the assumption that constructed indices actually
+/// refer inside the underlying buffer but return values of library functions will always guarantee
+/// this. To manually make this check use `check_index_validities` and maybe put that inside an
+/// assert.
 #[derive(Clone, Debug)]
 pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.
@@ -844,6 +848,47 @@ where
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
     pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
         self.inner.shrink_to(width, height, channels)
+    }
+}
+
+impl<Buffer> Index<(u32, u32, u8)> for FlatSamples<Buffer>
+    where Buffer: Index<usize>
+{
+    type Output = Buffer::Output;
+
+    /// Return a reference to a single sample at specified coordinates.
+    ///
+    /// # Panics
+    ///
+    /// When the coordinates are out of bounds or the index calculation fails.
+    fn index(&self, (x, y, c): (u32, u32, u8)) -> &Self::Output {
+        let index = self.index(x, y, c).unwrap_or_else(|| {
+            panic!("Sample coordinates {:?} out of bounds {:?} with strides {:?}",
+                (y, x, c),
+                self.extents(),
+                self.strides_hwc())
+        });
+        &self.samples[index]
+    }
+}
+
+impl<Buffer> IndexMut<(u32, u32, u8)> for FlatSamples<Buffer>
+    where Buffer: IndexMut<usize>
+{
+
+    /// Return a mutable reference to a single sample at specified coordinates.
+    ///
+    /// # Panics
+    ///
+    /// When the coordinates are out of bounds or the index calculation fails.
+    fn index_mut(&mut self, (x, y, c): (u32, u32, u8)) -> &mut Self::Output {
+        let extents = self.extents();
+        let strides = self.strides_hwc();
+        let index = self.index(x, y, c).unwrap_or_else(|| {
+            panic!("Sample coordinates {:?} out of bounds {:?} with strides {:?}",
+                (y, x, c), extents, strides)
+        });
+        &mut self.samples[index]
     }
 }
 

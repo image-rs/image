@@ -378,20 +378,9 @@ where
     }
 
     /// Get the format of the buffer when viewed as a matrix of samples.
-    pub fn matrix_format(&self) -> SampleLayout {
+    pub fn sample_layout(&self) -> SampleLayout {
         // None of these can overflow, as all our memory is addressable.
-        let channel_stride = 1usize;
-        let width_stride = <P as Pixel>::channel_count() as usize;
-        let height_stride = width_stride*self.width as usize;
-
-        SampleLayout {
-            channels: P::channel_count(),
-            channel_stride,
-            width: self.width,
-            width_stride,
-            height: self.height,
-            height_stride,
-        }
+        SampleLayout::row_major_packed(<P as Pixel>::channel_count(), self.width, self.height)
     }
 
     /// Return the raw sample buffer with its stride an dimension information.
@@ -404,10 +393,10 @@ where
         where Container: AsRef<[P::Subpixel]> 
     {
         // None of these can overflow, as all our memory is addressable.
-        let format = self.matrix_format();
+        let layout = self.sample_layout();
         FlatSamples {
             samples: self.data,
-            format,
+            layout,
             color_hint: Some(P::color_type()),
         }
     }
@@ -418,10 +407,10 @@ where
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
         where Container: AsRef<[P::Subpixel]> 
     {
-        let format = self.matrix_format();
+        let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),
-            format,
+            layout,
             color_hint: Some(P::color_type()),
         }
     }

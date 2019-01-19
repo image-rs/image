@@ -16,21 +16,21 @@
 //! #[no_mangle]
 //! pub extern "C" fn store_rgb8_compressed(
 //!     data: *const u8, len: usize,
-//!     format: *const SampleLayout
+//!     layout: *const SampleLayout
 //! )
 //!     -> bool
 //! {
 //!     let samples = unsafe { slice::from_raw_parts(data, len) };
-//!     let format = unsafe { ptr::read(format) };
+//!     let layout = unsafe { ptr::read(layout) };
 //!
 //!     let buffer = FlatSamples {
 //!         samples,
-//!         format,
+//!         layout,
 //!         color_hint: None,
 //!     };
 //!
 //!     let view = match buffer.as_view::<Rgb<u8>>() {
-//!         Err(_) => return false, // Invalid format.
+//!         Err(_) => return false, // Invalid layout.
 //!         Ok(view) => view,
 //!     };
 //!
@@ -66,8 +66,8 @@ pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.
     pub samples: Buffer,
 
-    /// A `repr(C)` description of the buffer format.
-    pub format: SampleLayout,
+    /// A `repr(C)` description of the layout of buffer samples.
+    pub layout: SampleLayout,
 
     /// Supplementary color information.
     ///
@@ -106,6 +106,64 @@ pub struct SampleLayout {
 struct Dim(usize, usize);
 
 impl SampleLayout {
+    /// Describe a row-major image packed in all directions.
+    ///
+    /// The resulting will surely be `NormalForm::RowMajorPacked`. It can therefore be converted to
+    /// safely to an `ImageBuffer` with a large enough underlying buffer.
+    ///
+    /// ```
+    /// # use image::flat::{NormalForm, SampleLayout};
+    /// let layout = SampleLayout::row_major_packed(3, 640, 480);
+    /// assert!(layout.is_normal(NormalForm::RowMajorPacked));
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
+    /// in the `height` direction would be larger than `usize::max_value()`. On other platforms
+    /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
+    pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
+        let height_stride = (channels as usize).checked_mul(width as usize)
+            .expect("Row major packed image can not be described because it does not fit into memory");
+        SampleLayout {
+            channels,
+            channel_stride: 1,
+            width,
+            width_stride: channels as usize,
+            height,
+            height_stride,
+        }
+    }
+
+    /// Describe a column-major image packed in all directions.
+    ///
+    /// The resulting will surely be `NormalForm::ColumnMajorPacked`. This is not particularly
+    /// useful for conversion but can be used to describe such a buffer without pitfalls.
+    ///
+    /// ```
+    /// # use image::flat::{NormalForm, SampleLayout};
+    /// let layout = SampleLayout::column_major_packed(3, 640, 480);
+    /// assert!(layout.is_normal(NormalForm::ColumnMajorPacked));
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
+    /// in the `width` direction would be larger than `usize::max_value()`. On other platforms
+    /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
+    pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
+        let width_stride = (channels as usize).checked_mul(height as usize)
+            .expect("Column major packed image can not be described because it does not fit into memory");
+        SampleLayout {
+            channels,
+            channel_stride: 1,
+            height,
+            height_stride: channels as usize,
+            width,
+            width_stride,
+        }
+    }
+
     /// Get the strides for indexing matrix-like [(c, w, h)].
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
@@ -376,7 +434,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// For a row-major layout with grouped samples, this tuple is strictly
     /// increasing.
     pub fn strides_cwh(&self) -> (usize, usize, usize) {
-        self.format.strides_cwh()
+        self.layout.strides_cwh()
     }
 
     /// Get the dimensions (channels, width, height).
@@ -384,7 +442,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
     /// before width and height.
     pub fn extents(&self) -> (usize, usize, usize) {
-        self.format.extents()
+        self.layout.extents()
     }
 
     /// Tuple of bounds in the order of coordinate inputs.
@@ -392,14 +450,14 @@ impl<Buffer> FlatSamples<Buffer> {
     /// This function should be used whenever working with image coordinates opposed to buffer
     /// coordinates.
     pub fn bounds(&self) -> (u8, u32, u32) {
-        self.format.bounds()
+        self.layout.bounds()
     }
 
     /// Get a reference based version.
     pub fn as_ref<T>(&self) -> FlatSamples<&[T]> where Buffer: AsRef<[T]> {
         FlatSamples {
             samples: self.samples.as_ref(),
-            format: self.format,
+            layout: self.layout,
             color_hint: self.color_hint,
         }
     }
@@ -408,7 +466,7 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn as_mut<T>(&mut self) -> FlatSamples<&mut [T]> where Buffer: AsMut<[T]> {
         FlatSamples {
             samples: self.samples.as_mut(),
-            format: self.format,
+            layout: self.layout,
             color_hint: self.color_hint,
         }
     }
@@ -419,7 +477,7 @@ impl<Buffer> FlatSamples<Buffer> {
     {
         FlatSamples {
             samples: self.samples.as_ref().to_vec(),
-            format: self.format,
+            layout: self.layout,
             color_hint: self.color_hint,
         }
     }
@@ -433,19 +491,19 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error> 
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
     {
-        if self.format.channels != P::channel_count() {
+        if self.layout.channels != P::channel_count() {
             return Err(Error::WrongColor(P::color_type()))
         }
 
         let as_ref = self.samples.as_ref();
-        if !self.format.fits(as_ref.len()) {
+        if !self.layout.fits(as_ref.len()) {
             return Err(Error::TooLarge)
         }
 
         Ok(View {
             inner: FlatSamples {
                 samples: as_ref,
-                format: self.format,
+                layout: self.layout,
                 color_hint: self.color_hint,
             },
             phantom: PhantomData,
@@ -466,23 +524,23 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn as_view_mut<P>(&mut self) -> Result<ViewMut<&mut [P::Subpixel], P>, Error>
         where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
     {
-        if !self.format.is_normal(NormalForm::PixelPacked) {
+        if !self.layout.is_normal(NormalForm::PixelPacked) {
             return Err(Error::NormalFormRequired(NormalForm::PixelPacked))
         }
 
-        if self.format.channels != P::channel_count() {
+        if self.layout.channels != P::channel_count() {
             return Err(Error::WrongColor(P::color_type()))
         }
 
         let as_mut = self.samples.as_mut();
-        if !self.format.fits(as_mut.len()) {
+        if !self.layout.fits(as_mut.len()) {
             return Err(Error::TooLarge)
         }
 
         Ok(ViewMut {
             inner: FlatSamples {
                 samples: as_mut,
-                format: self.format,
+                layout: self.layout,
                 color_hint: self.color_hint,
             },
             phantom: PhantomData,
@@ -541,7 +599,7 @@ impl<Buffer> FlatSamples<Buffer> {
 
     /// Move the data into an image buffer.
     ///
-    /// This does **not** convert the image format. The buffer needs to be in packed row-major form
+    /// This does **not** convert the sample layout. The buffer needs to be in packed row-major form
     /// before calling this function. In case of an error, returns the buffer again so that it does
     /// not release any allocation.
     pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)> 
@@ -554,7 +612,7 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self))
         }
 
-        if self.format.channels != P::channel_count() {
+        if self.layout.channels != P::channel_count() {
             return Err((Error::WrongColor(P::color_type()), self))
         }
 
@@ -563,7 +621,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
 
-        Ok(ImageBuffer::from_raw(self.format.width, self.format.height, self.samples).unwrap_or_else(
+        Ok(ImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples).unwrap_or_else(
             || panic!("Preconditions should have been ensured before conversion")))
     }
 
@@ -619,12 +677,12 @@ impl<Buffer> FlatSamples<Buffer> {
     /// dimension. That still points inside the image because `height*height_stride = 4` but also
     /// `index_of(1, 2) = 4`.
     pub fn min_length(&self) -> Option<usize> {
-        self.format.min_length()
+        self.layout.min_length()
     }
 
     /// Check if the buffer is large enough.
     pub fn fits(&self, len: usize) -> bool {
-        self.format.fits(len)
+        self.layout.fits(len)
     }
 
     /// If there are any samples aliasing each other.
@@ -633,7 +691,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// samples at the same time. Otherwise, this operation would need additional checks. When one
     /// dimension overflows `usize` with its stride we also consider this aliasing.
     pub fn has_aliased_samples(&self) -> bool {
-        self.format.has_aliased_samples()
+        self.layout.has_aliased_samples()
     }
 
     /// Check if a buffer fulfills the requirements of a normal form.
@@ -644,19 +702,19 @@ impl<Buffer> FlatSamples<Buffer> {
     /// perform these checks yourself when the conversion is not required at this moment but maybe
     /// still performed later.
     pub fn is_normal(&self, form: NormalForm) -> bool {
-        self.format.is_normal(form)
+        self.layout.is_normal(form)
     }
 
     /// Check that the pixel and the channel index are in bounds.
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
-        self.format.in_bounds(channel, x, y)
+        self.layout.in_bounds(channel, x, y)
     }
 
     /// Resolve the index of a particular sample.
     ///
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
     pub fn index(&self, channel: u8, x: u32, y: u32) -> Option<usize> {
-        self.format.index(channel, x, y)
+        self.layout.index(channel, x, y)
     }
 
     /// Get the theoretical position of sample (x, y, channel).
@@ -664,7 +722,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// The 'check' is for overflow during index calculation, not that it is contained in the
     /// image.
     pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
-        self.format.index_ignoring_bounds(channel, x, y)
+        self.layout.index_ignoring_bounds(channel, x, y)
     }
 
     /// Get an index provided it is inbouds.
@@ -673,7 +731,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// not overflow as we could represent the maximum coordinate. Since overflow is defined either
     /// way, this method can not be unsafe.
     pub fn in_bounds_index(&self, channel: u8, x: u32, y: u32) -> usize {
-        self.format.in_bounds_index(channel, x, y)
+        self.layout.in_bounds_index(channel, x, y)
     }
 
     /// Shrink the image to the minimum of current and given extents.
@@ -682,7 +740,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// created by the shrinking operation. Shrinking could also lead to an non-aliasing image when
     /// samples had aliased each other before.
     pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
-        self.format.shrink_to(channels, width, height)
+        self.layout.shrink_to(channels, width, height)
     }
 }
 
@@ -770,7 +828,7 @@ pub enum NormalForm {
     ///
     /// This is orthogonal to `PixelPacked`. It requires that there are no holes in the image but
     /// it is not necessary that the pixel samples themselves are adjacent. An example of this
-    /// behaviour is a planar image format.
+    /// behaviour is a planar image layout.
     ImagePacked,
 
     /// The samples are in row-major form and all samples are packed.
@@ -1011,7 +1069,7 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
     type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.inner.format.width, self.inner.format.height)
+        (self.inner.layout.width, self.inner.layout.height)
     }
 
     fn bounds(&self) -> (u32, u32, u32, u32) {
@@ -1035,7 +1093,7 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
 
         let mut buffer = [Zero::zero(); 256];
         buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
-            let index = base_index + c*self.inner.format.channel_stride;
+            let index = base_index + c*self.inner.layout.channel_stride;
             *to = image[index];
         });
 
@@ -1056,7 +1114,7 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
     type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.inner.format.width, self.inner.format.height)
+        (self.inner.layout.width, self.inner.layout.height)
     }
 
     fn bounds(&self) -> (u32, u32, u32, u32) {
@@ -1080,7 +1138,7 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
 
         let mut buffer = [Zero::zero(); 256];
         buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
-            let index = base_index + c*self.inner.format.channel_stride;
+            let index = base_index + c*self.inner.layout.channel_stride;
             *to = image[index];
         });
 
@@ -1175,7 +1233,7 @@ mod tests {
     fn aliasing_view() {
        let buffer = FlatSamples {
            samples: &[42],
-           format: SampleLayout {
+           layout: SampleLayout {
                channels: 3,
                channel_stride: 0,
                width: 100,
@@ -1198,7 +1256,7 @@ mod tests {
     fn mutable_view() {
         let mut buffer = FlatSamples {
             samples: [0; 18],
-            format: SampleLayout {
+            layout: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 3,
@@ -1229,7 +1287,7 @@ mod tests {
     fn normal_forms() {
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: SampleLayout {
+            layout: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 3,
@@ -1242,7 +1300,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: SampleLayout {
+            layout: SampleLayout {
                 channels: 2,
                 channel_stride: 8,
                 width: 4,
@@ -1255,7 +1313,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: SampleLayout {
+            layout: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 4,
@@ -1268,7 +1326,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: SampleLayout {
+            layout: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 4,
@@ -1282,18 +1340,19 @@ mod tests {
 
     #[test]
     fn image_buffer_conversion() {
-        let buffer = FlatSamples {
-            samples: vec![0u8; 16],
-            format: SampleLayout {
-                channels: 2,
-                channel_stride: 1,
-                width: 4,
-                width_stride: 2,
-                height: 2,
-                height_stride: 8,
-            },
-            color_hint: None,
+        let expected_layout = SampleLayout {
+            channels: 2,
+            channel_stride: 1,
+            width: 4,
+            width_stride: 2,
+            height: 2,
+            height_stride: 8,
         };
+
+        let initial = GrayAlphaImage::new(expected_layout.width, expected_layout.height);
+        let buffer = initial.into_flat_samples();
+
+        assert_eq!(buffer.layout, expected_layout);
 
         let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)|
             panic!("Expected buffer to be convertible but {:?}", error));

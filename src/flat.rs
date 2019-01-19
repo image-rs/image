@@ -164,7 +164,7 @@ impl SampleLayout {
         }
     }
 
-    /// Get the strides for indexing matrix-like [(c, w, h)].
+    /// Get the strides for indexing matrix-like `[(c, w, h)]`.
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
     /// increasing.
@@ -172,7 +172,7 @@ impl SampleLayout {
         (self.channel_stride, self.width_stride, self.height_stride)
     }
 
-    /// Get the dimensions (channels, width, height).
+    /// Get the dimensions `(channels, width, height)`.
     ///
     /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
     /// before width and height.
@@ -183,7 +183,7 @@ impl SampleLayout {
     /// Tuple of bounds in the order of coordinate inputs.
     ///
     /// This function should be used whenever working with image coordinates opposed to buffer
-    /// coordinates.
+    /// coordinates. The only difference compared to `extents` is the output type.
     pub fn bounds(&self) -> (u8, u32, u32) {
         (self.channels, self.width, self.height)
     }
@@ -248,7 +248,7 @@ impl SampleLayout {
             .and_then(|idx| idx.checked_add(1))
     }
 
-    /// Check if the buffer is large enough.
+    /// Check if a buffer of length `len` is large enough.
     pub fn fits(&self, len: usize) -> bool {
         self.min_length().map(|min| len >= min).unwrap_or(false)
     }
@@ -355,6 +355,10 @@ impl SampleLayout {
     }
 
     /// Check that the pixel and the channel index are in bounds.
+    ///
+    /// An in-bound coordinate does not yet guarantee that the corresponding calculation of a
+    /// buffer index does not overflow. However, if such a buffer large enough to hold all samples
+    /// actually exists in memory, this porperty of course follows.
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
         return channel < self.channels && x < self.width && y < self.height
     }
@@ -373,7 +377,8 @@ impl SampleLayout {
     /// Get the theoretical position of sample (channel, x, y).
     ///
     /// The 'check' is for overflow during index calculation, not that it is contained in the
-    /// image.
+    /// image. Two samples may return the same index, even when one of them is out of bounds. This
+    /// happens when all strides are `0`, i.e. the image is an arbitrarily large monochrome image.
     pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
         let idx_c = (channel as usize).checked_mul(self.channel_stride);
         let idx_x = (x as usize).checked_mul(self.width_stride);
@@ -429,7 +434,7 @@ impl Dim {
 }
 
 impl<Buffer> FlatSamples<Buffer> {
-    /// Get the strides for indexing matrix-like [(c, w, h)].
+    /// Get the strides for indexing matrix-like `[(c, w, h)]`.
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
     /// increasing.
@@ -437,7 +442,7 @@ impl<Buffer> FlatSamples<Buffer> {
         self.layout.strides_cwh()
     }
 
-    /// Get the dimensions (channels, width, height).
+    /// Get the dimensions `(channels, width, height)`.
     ///
     /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
     /// before width and height.
@@ -448,7 +453,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// Tuple of bounds in the order of coordinate inputs.
     ///
     /// This function should be used whenever working with image coordinates opposed to buffer
-    /// coordinates.
+    /// coordinates. The only difference compared to `extents` is the output type.
     pub fn bounds(&self) -> (u8, u32, u32) {
         self.layout.bounds()
     }
@@ -780,7 +785,7 @@ impl<Buffer> FlatSamples<Buffer> {
         self.layout.min_length()
     }
 
-    /// Check if the buffer is large enough.
+    /// Check if a buffer of length `len` is large enough.
     pub fn fits(&self, len: usize) -> bool {
         self.layout.fits(len)
     }
@@ -806,6 +811,10 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 
     /// Check that the pixel and the channel index are in bounds.
+    ///
+    /// An in-bound coordinate does not yet guarantee that the corresponding calculation of a
+    /// buffer index does not overflow. However, if such a buffer large enough to hold all samples
+    /// actually exists in memory, this porperty of course follows.
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
         self.layout.in_bounds(channel, x, y)
     }
@@ -820,7 +829,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// Get the theoretical position of sample (x, y, channel).
     ///
     /// The 'check' is for overflow during index calculation, not that it is contained in the
-    /// image.
+    /// image. Two samples may return the same index, even when one of them is out of bounds. This
+    /// happens when all strides are `0`, i.e. the image is an arbitrarily large monochrome image.
     pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
         self.layout.index_ignoring_bounds(channel, x, y)
     }
@@ -849,9 +859,15 @@ impl<Buffer> FlatSamples<Buffer> {
 /// This is a nearly trivial wrapper around a buffer but at least sanitizes by checking the buffer
 /// length first and constraining the pixel type.
 ///
-/// Note that this does not eliminate panics as the `AsRef<[T]` implementation of `Buffer` may be
+/// Note that this does not eliminate panics as the `AsRef<[T]>` implementation of `Buffer` may be
 /// unreliable, i.e. return different buffers at different times. This of course is a non-issue for
 /// all common collections where the bounds check once must be enough.
+///
+/// # Inner invariants
+///
+/// * For all indices inside bounds, the corresponding index is valid in the buffer
+/// * `P::channel_count()` agrees with `self.inner.layout.channels`
+///
 #[derive(Clone, Debug)]
 pub struct View<Buffer, P: Pixel> 
 where 
@@ -867,6 +883,14 @@ where
 /// library endorsed normalized representation is still `ImageBuffer`. Also, the implementation of
 /// `AsMut<[P::Subpixel]>` must always yield the same buffer. Therefore there is no public way to
 /// construct this with an owning buffer.
+///
+/// # Inner invariants
+///
+/// * For all indices inside bounds, the corresponding index is valid in the buffer
+/// * There is no aliasing of samples
+/// * The samples are packed, i.e. `self.inner.layout.sample_stride == 1`
+/// * `P::channel_count()` agrees with `self.inner.layout.channels`
+///
 #[derive(Clone, Debug)]
 pub struct ViewMut<Buffer, P: Pixel> 
 where 
@@ -891,7 +915,7 @@ pub enum Error {
 
     /// The represented image can not use this representation.
     ///
-    /// The normalized form that would be accepted.
+    /// Has an additional value of the normalized form that would be accepted.
     NormalFormRequired(NormalForm),
 
     /// The color format did not match the channel count.

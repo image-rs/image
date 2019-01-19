@@ -325,7 +325,9 @@ impl MatrixFormat {
 
     /// Get an index provided it is inbouds.
     ///
-    /// The computation can not overflow as we could represent the maximum coordinate.
+    /// Assumes that the image is backed by some sufficiently large buffer. Then computation can
+    /// not overflow as we could represent the maximum coordinate. Since overflow is defined either
+    /// way, this method can not be unsafe.
     pub fn in_bounds_index(&self, c: u8, x: u32, y: u32) -> usize {
         let (c_stride, x_stride, y_stride) = self.strides_cwh();
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
@@ -653,8 +655,9 @@ impl<Buffer> FlatSamples<Buffer> {
 
     /// Get an index provided it is inbouds.
     ///
-    /// The computation is assumed to not overflow. It is unspecified what the result is if this is
-    /// happens or if the index is actually not in bounds.
+    /// Assumes that the image is backed by some sufficiently large buffer. Then computation can
+    /// not overflow as we could represent the maximum coordinate. Since overflow is defined either
+    /// way, this method can not be unsafe.
     pub fn in_bounds_index(&self, channel: u8, x: u32, y: u32) -> usize {
         self.format.in_bounds_index(channel, x, y)
     }
@@ -780,14 +783,36 @@ where
         self.inner
     }
 
-    /// Get a reference on the inner buffer.
+    /// Get a reference on the inner sample descriptor.
     ///
     /// There is no mutable counterpart as modifying the buffer format, including strides and
     /// lengths, could invalidate the accessibility invariants of the `View`. It is not specified
     /// if the inner buffer is the same as the buffer of the image from which this view was
     /// created. It might have been truncated as an optimization.
-    pub fn samples(&self) -> &FlatSamples<Buffer> {
+    pub fn flat(&self) -> &FlatSamples<Buffer> {
         &self.inner
+    }
+
+    /// Get a reference on the inner buffer.
+    ///
+    /// There is no mutable counter part since it is not intended to allow you to reassign the
+    /// buffer or otherwise change its size or properties.
+    pub fn samples(&self) -> &Buffer {
+        &self.inner.samples
+    }
+
+    /// Get a reference to a selected subpixel if it is in-bounds.
+    ///
+    /// This method will return `None` when the sample is out-of-bounds. All errors that could
+    /// occur due to overflow have been eliminated while construction the `View`.
+    pub fn get_sample(&self, channel: u8, x: u32, y: u32) -> Option<&P::Subpixel> {
+        if !self.inner.in_bounds(channel, x, y) {
+            return None
+        }
+
+        let index = self.inner.in_bounds_index(channel, x, y);
+        // Should always be `Some(_)` but checking is more costly.
+        self.samples().as_ref().get(index)
     }
 
     /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
@@ -802,7 +827,7 @@ where
     /// While this can not fail–the validity of all coordinates has been validated during the
     /// conversion from `FlatSamples`–the resulting slice may still contain holes.
     pub fn image_slice(&self) -> &[P::Subpixel] {
-        &self.inner.samples.as_ref()[..self.min_length()]
+        &self.samples().as_ref()[..self.min_length()]
     }
 
     /// Shrink the inner image.
@@ -825,14 +850,23 @@ where
         self.inner
     }
 
-    /// Get a reference on the inner buffer.
+    /// Get a reference on the sample buffer descriptor.
     ///
     /// There is no mutable counterpart as modifying the buffer format, including strides and
     /// lengths, could invalidate the accessibility invariants of the `View`. It is not specified
     /// if the inner buffer is the same as the buffer of the image from which this view was
     /// created. It might have been truncated as an optimization.
-    pub fn samples(&self) -> &FlatSamples<Buffer> {
+    pub fn flat(&self) -> &FlatSamples<Buffer> {
         &self.inner
+    }
+
+    /// Get a reference on the inner buffer.
+    ///
+    /// There is no mutable counter part since it is not intended to allow you to reassign the
+    /// buffer or otherwise change its size or properties. However, its contents can be accessed
+    /// mutable through a slice with `image_mut_slice`.
+    pub fn samples(&self) -> &Buffer {
+        &self.inner.samples
     }
 
     /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
@@ -840,6 +874,36 @@ where
     /// See `FlatSamples::min_length`. This method will always succeed.
     pub fn min_length(&self) -> usize {
         self.inner.min_length().unwrap()
+    }
+
+    /// Get a reference to a selected subpixel.
+    ///
+    /// This method will return `None` when the sample is out-of-bounds. All errors that could
+    /// occur due to overflow have been eliminated while construction the `View`.
+    pub fn get_sample(&self, channel: u8, x: u32, y: u32) -> Option<&P::Subpixel>
+        where Buffer: AsRef<[P::Subpixel]>
+    {
+        if !self.inner.in_bounds(channel, x, y) {
+            return None
+        }
+
+        let index = self.inner.in_bounds_index(channel, x, y);
+        // Should always be `Some(_)` but checking is more costly.
+        self.samples().as_ref().get(index)
+    }
+
+    /// Get a mutable reference to a selected sample.
+    ///
+    /// This method will return `None` when the sample is out-of-bounds. All errors that could
+    /// occur due to overflow have been eliminated while construction the `View`.
+    pub fn get_mut_sample(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut P::Subpixel> {
+        if !self.inner.in_bounds(channel, x, y) {
+            return None
+        }
+
+        let index = self.inner.in_bounds_index(channel, x, y);
+        // Should always be `Some(_)` but checking is more costly.
+        self.inner.samples.as_mut().get_mut(index)
     }
 
     /// Return the portion of the buffer that holds sample values.

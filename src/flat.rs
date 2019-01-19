@@ -1038,7 +1038,9 @@ where
     ///
     /// The new dimensions will be the minimum of the previous dimensions. Since the set of
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
-    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+    /// Note that you can not change the number of channels as an intrinsic property of `P`.
+    pub fn shrink_to(&mut self, width: u32, height: u32) {
+        let channels = self.inner.layout.channels;
         self.inner.shrink_to(channels, width, height)
     }
 
@@ -1159,7 +1161,9 @@ where
     ///
     /// The new dimensions will be the minimum of the previous dimensions. Since the set of
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
-    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+    /// Note that you can not change the number of channels as an intrinsic property of `P`.
+    pub fn shrink_to(&mut self, width: u32, height: u32) {
+        let channels = self.inner.layout.channels;
         self.inner.shrink_to(channels, width, height)
     }
 }

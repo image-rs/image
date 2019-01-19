@@ -482,6 +482,69 @@ impl<Buffer> FlatSamples<Buffer> {
         }
     }
 
+    /// Get a reference to a single sample.
+    ///
+    /// This more restrictive than the method based on `std::ops::Index` but guarantees to properly
+    /// check all bounds and not panic as long as `Buffer::as_ref` does not do so.
+    ///
+    /// ```
+    /// # use image::{RgbImage};
+    /// let flat = RgbImage::new(480, 640).into_flat_samples(); 
+    ///
+    /// // Get the blue channel at (10, 10).
+    /// assert!(flat.get_sample(1, 10, 10).is_some());
+    ///
+    /// // There is no alpha channel.
+    /// assert!(flat.get_sample(3, 10, 10).is_none());
+    /// ```
+    ///
+    /// For cases where a special buffer does not provide `AsRef<[T]>`, consider encapsulating
+    /// bounds checks with `min_length` in a type similar to `View`. Then you may use
+    /// `in_bounds_index` as a small speedup over the index calculation of this method which relies
+    /// on `index_ignoring_bounds` since it can not have a-priori knowledge that the sample
+    /// coordinate is in fact backed by any memory buffer.
+    pub fn get_sample<T>(&self, channel: u8, x: u32, y: u32) -> Option<&T>
+        where Buffer: AsRef<[T]>, 
+    {
+        self.index(channel, x, y).and_then(|idx| self.samples.as_ref().get(idx))
+    }
+
+
+    /// Get a mutable reference to a single sample.
+    ///
+    /// This more restrictive than the method based on `std::ops::IndexMut` but guarantees to
+    /// properly check all bounds and not panic as long as `Buffer::as_ref` does not do so.
+    /// Contrary to conversion to `ViewMut`, this does not require that samples are packed since it
+    /// does not need to convert samples to a color representation.
+    ///
+    /// **WARNING**: Note that of course samples may alias, so that the mutable reference returned
+    /// here can in fact modify more than the coordinate in the argument.
+    ///
+    /// ```
+    /// # use image::{RgbImage};
+    /// let mut flat = RgbImage::new(480, 640).into_flat_samples(); 
+    ///
+    /// // Assign some new color to the blue channel at (10, 10).
+    /// *flat.get_mut_sample(1, 10, 10).unwrap() = 255;
+    ///
+    /// // There is no alpha channel.
+    /// assert!(flat.get_mut_sample(3, 10, 10).is_none());
+    /// ```
+    ///
+    /// For cases where a special buffer does not provide `AsRef<[T]>`, consider encapsulating
+    /// bounds checks with `min_length` in a type similar to `View`. Then you may use
+    /// `in_bounds_index` as a small speedup over the index calculation of this method which relies
+    /// on `index_ignoring_bounds` since it can not have a-priori knowledge that the sample
+    /// coordinate is in fact backed by any memory buffer.
+    pub fn get_mut_sample<T>(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut T>
+        where Buffer: AsMut<[T]>,
+    {
+        match self.index(channel, x, y) {
+            None => return None,
+            Some(idx) => self.samples.as_mut().get_mut(idx),
+        }
+    }
+
     /// View this buffer as an image over some type of pixel.
     ///
     /// This first ensures that all in-bounds coordinates refer to valid indices in the sample
@@ -503,6 +566,43 @@ impl<Buffer> FlatSamples<Buffer> {
         Ok(View {
             inner: FlatSamples {
                 samples: as_ref,
+                layout: self.layout,
+                color_hint: self.color_hint,
+            },
+            phantom: PhantomData,
+        })
+    }
+
+    /// View this buffer but keep mutability at a sample level.
+    ///
+    /// This is similar to `as_view` but subtly different from `as_view_mut`. The resulting type
+    /// can be used as a `GenericImage` with the same prior invariants needed as for `as_view`.
+    /// It can not be used as a mutable `GenericImage` but does not need channels to be packed in
+    /// their pixel representation.
+    ///
+    /// This first ensures that all in-bounds coordinates refer to valid indices in the sample
+    /// buffer. It also checks that the specified pixel format expects the same number of channels
+    /// that are present in this buffer. Neither are larger nor a smaller number will be accepted.
+    /// There is no automatic conversion.
+    ///
+    /// **WARNING**: Note that of course samples may alias, so that the mutable reference returned
+    /// for one sample can in fact modify other samples as well. Sometimes exactly this is
+    /// intended.
+    pub fn as_view_with_mut_samples<P>(&mut self) -> Result<View<&mut [P::Subpixel], P>, Error>
+        where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
+    {
+        if self.layout.channels != P::channel_count() {
+            return Err(Error::WrongColor(P::color_type()))
+        }
+
+        let as_mut = self.samples.as_mut();
+        if !self.layout.fits(as_mut.len()) {
+            return Err(Error::TooLarge)
+        }
+
+        Ok(View {
+            inner: FlatSamples {
+                samples: as_mut,
                 layout: self.layout,
                 color_hint: self.color_hint,
             },
@@ -887,6 +987,26 @@ where
         self.samples().as_ref().get(index)
     }
 
+    /// Get a mutable reference to a selected subpixel if it is in-bounds.
+    ///
+    /// This is relevant only when constructed with `FlatSamples::as_view_with_mut_samples`.  This
+    /// method will return `None` when the sample is out-of-bounds. All errors that could occur due
+    /// to overflow have been eliminated while construction the `View`.
+    ///
+    /// **WARNING**: Note that of course samples may alias, so that the mutable reference returned
+    /// here can in fact modify more than the coordinate in the argument.
+    pub fn get_mut_sample(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut P::Subpixel> 
+        where Buffer: AsMut<[P::Subpixel]>
+    {
+        if !self.inner.in_bounds(channel, x, y) {
+            return None
+        }
+
+        let index = self.inner.in_bounds_index(channel, x, y);
+        // Should always be `Some(_)` but checking is more costly.
+        self.inner.samples.as_mut().get_mut(index)
+    }
+
     /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
     ///
     /// See `FlatSamples::min_length`. This method will always succeed.
@@ -902,12 +1022,55 @@ where
         &self.samples().as_ref()[..self.min_length()]
     }
 
+    /// Return the mutable portion of the buffer that holds sample values.
+    ///
+    /// This is relevant only when constructed with `FlatSamples::as_view_with_mut_samples`. While
+    /// this can not fail–the validity of all coordinates has been validated during the conversion
+    /// from `FlatSamples`–the resulting slice may still contain holes.
+    pub fn image_mut_slice(&mut self) -> &mut [P::Subpixel] 
+        where Buffer: AsMut<[P::Subpixel]>
+    {
+        let min_length = self.min_length();
+        &mut self.inner.samples.as_mut()[..min_length]
+    }
+
     /// Shrink the inner image.
     ///
     /// The new dimensions will be the minimum of the previous dimensions. Since the set of
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
     pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
         self.inner.shrink_to(channels, width, height)
+    }
+
+    /// Try to convert this into an image with mutable pixels.
+    ///
+    /// The resulting image implements `GenericImage` in addition to `GenericImageView`. While this
+    /// has mutable samples, it does not enforce that pixel can not alias and that samples are
+    /// packed enough for a mutable pixel reference. This is slightly cheaper than the chain
+    /// `self.into_inner().as_view_mut()` and keeps the `View` alive on failure.
+    ///
+    /// ```
+    /// # use image::{Rgb, RgbImage};
+    /// let mut buffer = RgbImage::new(480, 640).into_flat_samples();
+    /// let view = buffer.as_view_with_mut_samples::<Rgb<u8>>().unwrap();
+    ///
+    /// // Inspect some pixels, …
+    ///
+    /// // Doesn't fail because it was originally an `RgbImage`.
+    /// let view_mut = view.try_upgrade().unwrap();
+    /// ```
+    pub fn try_upgrade(self) -> Result<ViewMut<Buffer, P>, (Error, Self)> 
+        where Buffer: AsMut<[P::Subpixel]>
+    {
+        if !self.inner.is_normal(NormalForm::PixelPacked) {
+            return Err((Error::NormalFormRequired(NormalForm::PixelPacked), self))
+        }
+
+        // No length check or channel count check required, all the same.
+        Ok(ViewMut {
+            inner: self.inner,
+            phantom: PhantomData,
+        })
     }
 }
 

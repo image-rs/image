@@ -408,6 +408,7 @@ where
         FlatSamples {
             samples: self.data,
             format,
+            color_hint: Some(P::color_type()),
         }
     }
 
@@ -421,6 +422,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             format,
+            color_hint: Some(P::color_type()),
         }
     }
 }

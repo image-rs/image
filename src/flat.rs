@@ -26,6 +26,7 @@
 //!     let buffer = FlatSamples {
 //!         samples,
 //!         format,
+//!         color_hint: None,
 //!     };
 //!
 //!     let view = match buffer.as_view::<Rgb<u8>>() {
@@ -67,6 +68,14 @@ pub struct FlatSamples<Buffer> {
 
     /// A `repr(C)` description of the buffer format.
     pub format: MatrixFormat,
+
+    /// Supplementary color information.
+    ///
+    /// You may keep this as `None` in most cases. This is NOT checked in `View` or other
+    /// converters. It is intended mainly as a way for types that convert to this buffer type to
+    /// attach their otherwise static color information. A dynamic image representation could
+    /// however use this to resolve representational ambiguities such as the order of RGB channels.
+    pub color_hint: Option<ColorType>,
 }
 
 /// A ffi compatible description of a sample buffer.
@@ -391,6 +400,7 @@ impl<Buffer> FlatSamples<Buffer> {
         FlatSamples {
             samples: self.samples.as_ref(),
             format: self.format,
+            color_hint: self.color_hint,
         }
     }
 
@@ -399,6 +409,7 @@ impl<Buffer> FlatSamples<Buffer> {
         FlatSamples {
             samples: self.samples.as_mut(),
             format: self.format,
+            color_hint: self.color_hint,
         }
     }
 
@@ -409,6 +420,7 @@ impl<Buffer> FlatSamples<Buffer> {
         FlatSamples {
             samples: self.samples.as_ref().to_vec(),
             format: self.format,
+            color_hint: self.color_hint,
         }
     }
 
@@ -434,6 +446,7 @@ impl<Buffer> FlatSamples<Buffer> {
             inner: FlatSamples {
                 samples: as_ref,
                 format: self.format,
+                color_hint: self.color_hint,
             },
             phantom: PhantomData,
         })
@@ -470,6 +483,7 @@ impl<Buffer> FlatSamples<Buffer> {
             inner: FlatSamples {
                 samples: as_mut,
                 format: self.format,
+                color_hint: self.color_hint,
             },
             phantom: PhantomData,
         })
@@ -1169,6 +1183,7 @@ mod tests {
                height: 100,
                height_stride: 0,
            },
+           color_hint: None,
        };
 
        let view = buffer.as_view::<Rgb<usize>>()
@@ -1190,7 +1205,8 @@ mod tests {
                 width_stride: 2,
                 height: 3,
                 height_stride: 6,
-            }
+            },
+            color_hint: None,
         };
 
         {
@@ -1221,6 +1237,7 @@ mod tests {
                 height: 3,
                 height_stride: 28,
             },
+            color_hint: None,
         }.is_normal(NormalForm::PixelPacked));
 
         assert!(FlatSamples {
@@ -1233,6 +1250,7 @@ mod tests {
                 height: 2,
                 height_stride: 4,
             },
+            color_hint: None,
         }.is_normal(NormalForm::ImagePacked));
 
         assert!(FlatSamples {
@@ -1244,7 +1262,8 @@ mod tests {
                 width_stride: 2,
                 height: 2,
                 height_stride: 8,
-            }
+            },
+            color_hint: None,
         }.is_normal(NormalForm::RowMajorPacked));
 
         assert!(FlatSamples {
@@ -1257,6 +1276,7 @@ mod tests {
                 height: 2,
                 height_stride: 2,
             },
+            color_hint: None,
         }.is_normal(NormalForm::ColumnMajorPacked));
     }
 
@@ -1272,6 +1292,7 @@ mod tests {
                 height: 2,
                 height_stride: 8,
             },
+            color_hint: None,
         };
 
         let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)|

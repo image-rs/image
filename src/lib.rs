@@ -55,6 +55,8 @@ pub use buffer::{ConvertBuffer,
                  RgbImage,
                  RgbaImage};
 
+pub use flat::{FlatSamples};
+
 // Traits
 pub use traits::Primitive;
 
@@ -71,6 +73,9 @@ pub mod math;
 
 // Image processing functions
 pub mod imageops;
+
+// Buffer representations for ffi.
+pub mod flat;
 
 // Image codecs
 #[cfg(feature = "bmp")]

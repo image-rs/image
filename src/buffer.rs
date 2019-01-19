@@ -6,6 +6,7 @@ use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use flat::{FlatSamples, SampleLayout};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
 use traits::Primitive;
@@ -411,6 +412,44 @@ where
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
         min_index..min_index+no_channels
+    }
+
+    /// Get the format of the buffer when viewed as a matrix of samples.
+    pub fn sample_layout(&self) -> SampleLayout {
+        // None of these can overflow, as all our memory is addressable.
+        SampleLayout::row_major_packed(<P as Pixel>::channel_count(), self.width, self.height)
+    }
+
+    /// Return the raw sample buffer with its stride an dimension information.
+    ///
+    /// The returned buffer is guaranteed to be well formed in all cases. It is layed out by
+    /// colors, width then height, meaning `channel_stride <= width_stride <= height_stride`. All
+    /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
+    /// also byte strides.
+    pub fn into_flat_samples(self) -> FlatSamples<Container>
+        where Container: AsRef<[P::Subpixel]> 
+    {
+        // None of these can overflow, as all our memory is addressable.
+        let layout = self.sample_layout();
+        FlatSamples {
+            samples: self.data,
+            layout,
+            color_hint: Some(P::color_type()),
+        }
+    }
+
+    /// Return a view on the raw sample buffer.
+    ///
+    /// See `flattened` for more details.
+    pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
+        where Container: AsRef<[P::Subpixel]> 
+    {
+        let layout = self.sample_layout();
+        FlatSamples {
+            samples: self.data.as_ref(),
+            layout,
+            color_hint: Some(P::color_type()),
+        }
     }
 }
 

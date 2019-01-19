@@ -26,6 +26,7 @@ use tiff;
 use webp;
 
 use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage, BgrImage, BgraImage};
+use flat::FlatSamples;
 use color;
 use image;
 use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
@@ -281,6 +282,11 @@ impl DynamicImage {
     /// Return this image's pixels as a byte vector.
     pub fn raw_pixels(&self) -> Vec<u8> {
         image_to_bytes(self)
+    }
+
+    /// Return a view on the raw sample buffer.
+    pub fn as_flat_samples(&self) -> FlatSamples<&[u8]> {
+        dynamic_map!(*self, ref p -> p.as_flat_samples())
     }
 
     /// Return this image's color type.

@@ -10,13 +10,13 @@
 //! use std::ptr;
 //! use std::slice;
 //! use image::Rgb;
-//! use image::flat::{FlatSamples, MatrixFormat};
+//! use image::flat::{FlatSamples, SampleLayout};
 //! use image::imageops::thumbnail;
 //!
 //! #[no_mangle]
 //! pub extern "C" fn store_rgb8_compressed(
 //!     data: *const u8, len: usize,
-//!     format: *const MatrixFormat
+//!     format: *const SampleLayout
 //! )
 //!     -> bool
 //! {
@@ -67,7 +67,7 @@ pub struct FlatSamples<Buffer> {
     pub samples: Buffer,
 
     /// A `repr(C)` description of the buffer format.
-    pub format: MatrixFormat,
+    pub format: SampleLayout,
 
     /// Supplementary color information.
     ///
@@ -81,7 +81,7 @@ pub struct FlatSamples<Buffer> {
 /// A ffi compatible description of a sample buffer.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct MatrixFormat {
+pub struct SampleLayout {
     /// The number of channels in the color representation of the image.
     pub channels: u8,
 
@@ -105,7 +105,7 @@ pub struct MatrixFormat {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Dim(usize, usize);
 
-impl MatrixFormat {
+impl SampleLayout {
     /// Get the strides for indexing matrix-like [(c, w, h)].
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
@@ -1175,7 +1175,7 @@ mod tests {
     fn aliasing_view() {
        let buffer = FlatSamples {
            samples: &[42],
-           format: MatrixFormat {
+           format: SampleLayout {
                channels: 3,
                channel_stride: 0,
                width: 100,
@@ -1198,7 +1198,7 @@ mod tests {
     fn mutable_view() {
         let mut buffer = FlatSamples {
             samples: [0; 18],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 3,
@@ -1229,7 +1229,7 @@ mod tests {
     fn normal_forms() {
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 3,
@@ -1242,7 +1242,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 8,
                 width: 4,
@@ -1255,7 +1255,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 4,
@@ -1268,7 +1268,7 @@ mod tests {
 
         assert!(FlatSamples {
             samples: [0u8; 0],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 4,
@@ -1284,7 +1284,7 @@ mod tests {
     fn image_buffer_conversion() {
         let buffer = FlatSamples {
             samples: vec![0u8; 16],
-            format: MatrixFormat {
+            format: SampleLayout {
                 channels: 2,
                 channel_stride: 1,
                 width: 4,

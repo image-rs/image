@@ -6,7 +6,7 @@ use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
-use flat::{FlatSamples, MatrixFormat};
+use flat::{FlatSamples, SampleLayout};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
 use traits::Primitive;
@@ -378,13 +378,13 @@ where
     }
 
     /// Get the format of the buffer when viewed as a matrix of samples.
-    pub fn matrix_format(&self) -> MatrixFormat {
+    pub fn matrix_format(&self) -> SampleLayout {
         // None of these can overflow, as all our memory is addressable.
         let channel_stride = 1usize;
         let width_stride = <P as Pixel>::channel_count() as usize;
         let height_stride = width_stride*self.width as usize;
 
-        MatrixFormat {
+        SampleLayout {
             channels: P::channel_count(),
             channel_stride,
             width: self.width,

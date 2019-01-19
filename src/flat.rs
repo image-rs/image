@@ -97,21 +97,28 @@ pub struct MatrixFormat {
 struct Dim(usize, usize);
 
 impl MatrixFormat {
-    /// Get the strides for indexing matrix-like [(h, w, c)].
+    /// Get the strides for indexing matrix-like [(c, w, h)].
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
-    /// decreasing.
-    pub fn strides_hwc(&self) -> (usize, usize, usize) {
-        (self.height_stride, self.width_stride, self.channel_stride)
+    /// increasing.
+    pub fn strides_cwh(&self) -> (usize, usize, usize) {
+        (self.channel_stride, self.width_stride, self.height_stride)
     }
 
-    /// Get the dimensions (height, width, channels).
+    /// Get the dimensions (channels, width, height).
     ///
-    /// Warning: width and height are swapped compared to 2D size methods such
-    /// as `ImageBuffer::dimensions`. The interface is optimized for use with
-    /// `strides_hwc` instead.
+    /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
+    /// before width and height.
     pub fn extents(&self) -> (usize, usize, usize) {
-        (self.height as usize, self.width as usize, self.channels as usize)
+        (self.channels as usize, self.width as usize, self.height as usize)
+    }
+
+    /// Tuple of bounds in the order of coordinate inputs.
+    ///
+    /// This function should be used whenever working with image coordinates opposed to buffer
+    /// coordinates.
+    pub fn bounds(&self) -> (u8, u32, u32) {
+        (self.channels, self.width, self.height)
     }
 
     /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
@@ -170,7 +177,7 @@ impl MatrixFormat {
             return Some(0)
         }
 
-        self.index(self.width - 1, self.height - 1, self.channels - 1)
+        self.index(self.channels - 1, self.width - 1, self.height - 1)
             .and_then(|idx| idx.checked_add(1))
     }
 
@@ -281,26 +288,26 @@ impl MatrixFormat {
     }
 
     /// Check that the pixel and the channel index are in bounds.
-    pub fn in_bounds(&self, x: u32, y: u32, channel: u8) -> bool {
-        return x < self.width && y < self.height && channel < self.channels
+    pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
+        return channel < self.channels && x < self.width && y < self.height
     }
 
     /// Resolve the index of a particular sample.
     ///
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
-    pub fn index(&self, x: u32, y: u32, channel: u8) -> Option<usize> {
-        if !self.in_bounds(x, y, channel) {
+    pub fn index(&self, channel: u8, x: u32, y: u32) -> Option<usize> {
+        if !self.in_bounds(channel, x, y) {
             return None
         }
 
-        self.index_ignoring_bounds(x as usize, y as usize, channel as usize)
+        self.index_ignoring_bounds(channel as usize, x as usize, y as usize)
     }
 
-    /// Get the theoretical position of sample (x, y, channel).
+    /// Get the theoretical position of sample (channel, x, y).
     ///
     /// The 'check' is for overflow during index calculation, not that it is contained in the
     /// image.
-    pub fn index_ignoring_bounds(&self, x: usize, y: usize, channel: usize) -> Option<usize> {
+    pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
         let idx_c = (channel as usize).checked_mul(self.channel_stride);
         let idx_x = (x as usize).checked_mul(self.width_stride);
         let idx_y = (y as usize).checked_mul(self.height_stride);
@@ -319,8 +326,8 @@ impl MatrixFormat {
     /// Get an index provided it is inbouds.
     ///
     /// The computation can not overflow as we could represent the maximum coordinate.
-    pub fn in_bounds_index(&self, x: u32, y: u32, c: u8) -> usize {
-        let (y_stride, x_stride, c_stride) = self.strides_hwc();
+    pub fn in_bounds_index(&self, c: u8, x: u32, y: u32) -> usize {
+        let (c_stride, x_stride, y_stride) = self.strides_cwh();
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
     }
 
@@ -330,10 +337,10 @@ impl MatrixFormat {
     /// This does not modify the strides, so that the resulting sample buffer may have holes
     /// created by the shrinking operation. Shrinking could also lead to an non-aliasing image when
     /// samples had aliased each other before.
-    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
+    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+        self.channels = self.channels.min(channels);
         self.width = self.width.min(width);
         self.height = self.height.min(height);
-        self.channels = self.channels.min(channels);
     }
 }
 
@@ -353,21 +360,28 @@ impl Dim {
 }
 
 impl<Buffer> FlatSamples<Buffer> {
-    /// Get the strides for indexing matrix-like [(h, w, c)].
+    /// Get the strides for indexing matrix-like [(c, w, h)].
     ///
     /// For a row-major layout with grouped samples, this tuple is strictly
-    /// decreasing.
-    pub fn strides_hwc(&self) -> (usize, usize, usize) {
-        self.format.strides_hwc()
+    /// increasing.
+    pub fn strides_cwh(&self) -> (usize, usize, usize) {
+        self.format.strides_cwh()
     }
 
-    /// Get the dimensions (height, width, channels).
+    /// Get the dimensions (channels, width, height).
     ///
-    /// Warning: width and height are swapped compared to 2D size methods such
-    /// as `ImageBuffer::dimensions`. The interface is optimized for use with
-    /// `strides_hwc` instead.
+    /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
+    /// before width and height.
     pub fn extents(&self) -> (usize, usize, usize) {
         self.format.extents()
+    }
+
+    /// Tuple of bounds in the order of coordinate inputs.
+    ///
+    /// This function should be used whenever working with image coordinates opposed to buffer
+    /// coordinates.
+    pub fn bounds(&self) -> (u8, u32, u32) {
+        self.format.bounds()
     }
 
     /// Get a reference based version.
@@ -618,31 +632,31 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 
     /// Check that the pixel and the channel index are in bounds.
-    pub fn in_bounds(&self, x: u32, y: u32, channel: u8) -> bool {
-        self.format.in_bounds(x, y, channel)
+    pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
+        self.format.in_bounds(channel, x, y)
     }
 
     /// Resolve the index of a particular sample.
     ///
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
-    pub fn index(&self, x: u32, y: u32, channel: u8) -> Option<usize> {
-        self.format.index(x, y, channel)
+    pub fn index(&self, channel: u8, x: u32, y: u32) -> Option<usize> {
+        self.format.index(channel, x, y)
     }
 
     /// Get the theoretical position of sample (x, y, channel).
     ///
     /// The 'check' is for overflow during index calculation, not that it is contained in the
     /// image.
-    pub fn index_ignoring_bounds(&self, x: usize, y: usize, channel: usize) -> Option<usize> {
-        self.format.index_ignoring_bounds(x, y, channel)
+    pub fn index_ignoring_bounds(&self, channel: usize, x: usize, y: usize) -> Option<usize> {
+        self.format.index_ignoring_bounds(channel, x, y)
     }
 
     /// Get an index provided it is inbouds.
     ///
     /// The computation is assumed to not overflow. It is unspecified what the result is if this is
     /// happens or if the index is actually not in bounds.
-    pub fn in_bounds_index(&self, x: u32, y: u32, c: u8) -> usize {
-        self.format.in_bounds_index(x, y, c)
+    pub fn in_bounds_index(&self, channel: u8, x: u32, y: u32) -> usize {
+        self.format.in_bounds_index(channel, x, y)
     }
 
     /// Shrink the image to the minimum of current and given extents.
@@ -650,8 +664,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// This does not modify the strides, so that the resulting sample buffer may have holes
     /// created by the shrinking operation. Shrinking could also lead to an non-aliasing image when
     /// samples had aliased each other before.
-    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
-        self.format.shrink_to(width, height, channels)
+    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+        self.format.shrink_to(channels, width, height)
     }
 }
 
@@ -795,8 +809,8 @@ where
     ///
     /// The new dimensions will be the minimum of the previous dimensions. Since the set of
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
-    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
-        self.inner.shrink_to(width, height, channels)
+    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+        self.inner.shrink_to(channels, width, height)
     }
 }
 
@@ -846,12 +860,34 @@ where
     ///
     /// The new dimensions will be the minimum of the previous dimensions. Since the set of
     /// in-bounds pixels afterwards is a subset of the current ones, this is allowed on a `View`.
-    pub fn shrink_to(&mut self, width: u32, height: u32, channels: u8) {
-        self.inner.shrink_to(width, height, channels)
+    pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
+        self.inner.shrink_to(channels, width, height)
     }
 }
 
-impl<Buffer> Index<(u32, u32, u8)> for FlatSamples<Buffer>
+
+// The out-of-bounds panic for single sample access similar to `slice::index`.
+#[inline(never)]
+#[cold]
+fn panic_cwh_out_of_bounds(
+    (c, x, y): (u8, u32, u32),
+    bounds: (u8, u32, u32),
+    strides: (usize, usize, usize)) -> !
+{
+    panic!("Sample coordinates {:?} out of sample matrix bounds {:?} with strides {:?}", (c, x, y), bounds, strides)
+}
+
+// The out-of-bounds panic for pixel access similar to `slice::index`.
+#[inline(never)]
+#[cold]
+fn panic_pixel_out_of_bounds(
+    (x, y): (u32, u32),
+    bounds: (u32, u32)) -> !
+{
+    panic!("Image index {:?} out of bounds {:?}", (x, y), bounds)
+}
+
+impl<Buffer> Index<(u8, u32, u32)> for FlatSamples<Buffer>
     where Buffer: Index<usize>
 {
     type Output = Buffer::Output;
@@ -861,18 +897,16 @@ impl<Buffer> Index<(u32, u32, u8)> for FlatSamples<Buffer>
     /// # Panics
     ///
     /// When the coordinates are out of bounds or the index calculation fails.
-    fn index(&self, (x, y, c): (u32, u32, u8)) -> &Self::Output {
-        let index = self.index(x, y, c).unwrap_or_else(|| {
-            panic!("Sample coordinates {:?} out of bounds {:?} with strides {:?}",
-                (y, x, c),
-                self.extents(),
-                self.strides_hwc())
-        });
+    fn index(&self, (c, x, y): (u8, u32, u32)) -> &Self::Output {
+        let bounds = self.bounds();
+        let strides = self.strides_cwh();
+        let index = self.index(c, x, y).unwrap_or_else(||
+            panic_cwh_out_of_bounds((c, x, y), bounds, strides));
         &self.samples[index]
     }
 }
 
-impl<Buffer> IndexMut<(u32, u32, u8)> for FlatSamples<Buffer>
+impl<Buffer> IndexMut<(u8, u32, u32)> for FlatSamples<Buffer>
     where Buffer: IndexMut<usize>
 {
 
@@ -881,13 +915,11 @@ impl<Buffer> IndexMut<(u32, u32, u8)> for FlatSamples<Buffer>
     /// # Panics
     ///
     /// When the coordinates are out of bounds or the index calculation fails.
-    fn index_mut(&mut self, (x, y, c): (u32, u32, u8)) -> &mut Self::Output {
-        let extents = self.extents();
-        let strides = self.strides_hwc();
-        let index = self.index(x, y, c).unwrap_or_else(|| {
-            panic!("Sample coordinates {:?} out of bounds {:?} with strides {:?}",
-                (y, x, c), extents, strides)
-        });
+    fn index_mut(&mut self, (c, x, y): (u8, u32, u32)) -> &mut Self::Output {
+        let bounds = self.bounds();
+        let strides = self.strides_cwh();
+        let index = self.index(c, x, y).unwrap_or_else(||
+            panic_cwh_out_of_bounds((c, x, y), bounds, strides));
         &mut self.samples[index]
     }
 }
@@ -915,12 +947,12 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
-        if !self.inner.in_bounds(x, y, 0) {
-            panic!("Image index {:?} out of bounds {:?}", (x, y), self.dimensions())
+        if !self.inner.in_bounds(0, x, y) {
+            panic_pixel_out_of_bounds((x, y), self.dimensions())
         }
 
         let image = self.inner.samples.as_ref();
-        let base_index = self.inner.in_bounds_index(x, y, 0);
+        let base_index = self.inner.in_bounds_index(0, x, y);
         let channels = P::channel_count() as usize;
 
         let mut buffer = [Zero::zero(); 256];
@@ -960,12 +992,12 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
-        if !self.inner.in_bounds(x, y, 0) {
-            panic!("Image index {:?} out of bounds {:?}", (x, y), self.dimensions())
+        if !self.inner.in_bounds(0, x, y) {
+            panic_pixel_out_of_bounds((x, y), self.dimensions())
         }
 
         let image = self.inner.samples.as_ref();
-        let base_index = self.inner.in_bounds_index(x, y, 0);
+        let base_index = self.inner.in_bounds_index(0, x, y);
         let channels = P::channel_count() as usize;
 
         let mut buffer = [Zero::zero(); 256];
@@ -988,11 +1020,11 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
     type InnerImage = Self;
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
-        if !self.inner.in_bounds(x, y, 0) {
-            panic!("Image index {:?} out of bounds {:?}", (x, y), self.dimensions())
+        if !self.inner.in_bounds(0, x, y) {
+            panic_pixel_out_of_bounds((x, y), self.dimensions())
         }
 
-        let base_index = self.inner.in_bounds_index(x, y, 0);
+        let base_index = self.inner.in_bounds_index(0, x, y);
         let channel_count = <P as Pixel>::channel_count() as usize;
         let pixel_range = base_index..base_index + channel_count;
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])

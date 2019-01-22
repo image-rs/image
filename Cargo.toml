@@ -11,7 +11,7 @@ exclude = [
 
 [dependencies]
 inflate = "0.4.2"
-deflate = { version = "0.7.2", optional = true }
+deflate = { version = "0.7.12", optional = true }
 num-iter = "0.1.32"
 bitflags = "1.0"
 

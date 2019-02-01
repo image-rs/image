@@ -59,7 +59,7 @@ mod utils;
 pub use crate::common::*;
 pub use crate::decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError, Limits};
 #[cfg(feature = "png-encoding")]
-pub use crate::encoder::{Encoder, Writer, EncodingError};
+pub use crate::encoder::{Encoder, Writer, StreamWriter, EncodingError};
 pub use crate::filter::FilterType;
 
 pub use crate::traits::{Parameter, HasParameters};

@@ -103,8 +103,8 @@ extern crate image;
 
 use image::{GenericImage, ImageBuffer};
 
-// Construct a new ImageBuffer with the specified width and height.
-let img = ImageBuffer::new(512, 512);
+// Construct a new RGB ImageBuffer with the specified width and height.
+let img :  image::RgbImage = ImageBuffer::new(512, 512);
 
 // Construct a new by repeated calls to the supplied closure.
 let img = ImageBuffer::from_fn(512, 512, |x, y| {
@@ -125,7 +125,7 @@ let pixel = img[(100, 100)];
 let pixel = img.get_pixel(100, 100);
 
 // Put a pixel at coordinate (100, 100).
-img.put_pixel(100, 100, pixel);
+img.put_pixel(100, 100, *pixel);
 
 // Iterate over all pixels in the image.
 for pixel in img.pixels() {

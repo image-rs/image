@@ -10,6 +10,7 @@ extern crate png;
 
 use self::png::HasParameters;
 
+use std;
 use std::io::{self, Read, Write};
 
 use color::ColorType;
@@ -99,7 +100,10 @@ pub struct PNGDecoder<R: Read> {
 impl<R: Read> PNGDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PNGDecoder<R>> {
-        let decoder = png::Decoder::new(r);
+        let limits = png::Limits {
+            pixels: std::u64::MAX,
+        };
+        let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
         let colortype = reader.output_color_type().into();
 

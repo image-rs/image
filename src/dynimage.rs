@@ -293,11 +293,11 @@ impl DynamicImage {
     pub fn color(&self) -> color::ColorType {
         match *self {
             DynamicImage::ImageLuma8(_) => color::ColorType::Gray(8),
-            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA(8),
-            DynamicImage::ImageRgb8(_) => color::ColorType::RGB(8),
-            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA(8),
-            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA(8),
-            DynamicImage::ImageBgr8(_) => color::ColorType::BGR(8),
+            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA,
+            DynamicImage::ImageRgb8(_) => color::ColorType::RGB,
+            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA,
+            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA,
+            DynamicImage::ImageBgr8(_) => color::ColorType::BGR,
         }
     }
 
@@ -483,11 +483,11 @@ impl DynamicImage {
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
+                        color=color::ColorType::RGBA;
                     },
                     DynamicImage::ImageBgr8(_) => {
                         bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
+                        color=color::ColorType::RGB;
                     },
                     _ => {},
                 }
@@ -500,11 +500,11 @@ impl DynamicImage {
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
+                        color=color::ColorType::RGBA;
                     },
                     DynamicImage::ImageBgr8(_) => {
                         bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
+                        color=color::ColorType::RGB;
                     },
                     _ => {},
                 }
@@ -636,19 +636,19 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
-        color::ColorType::RGB(8) => {
+        color::ColorType::RGB => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
-        color::ColorType::RGBA(8) => {
+        color::ColorType::RGBA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
-        color::ColorType::BGR(8) => {
+        color::ColorType::BGR => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8)
         }
 
-        color::ColorType::BGRA(8) => {
+        color::ColorType::BGRA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
         }
 
@@ -656,7 +656,7 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
-        color::ColorType::GrayA(8) => {
+        color::ColorType::GrayA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
         color::ColorType::Gray(bit_depth)

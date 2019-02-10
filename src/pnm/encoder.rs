@@ -169,11 +169,10 @@ impl<W: Write> PNMEncoder<W> {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
-            ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
             ColorType::Gray(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::RGB),
-            ColorType::RGBA(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
+            ColorType::GrayA => ((1 << 8) - 1, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::RGB => ((1 << 8) - 1, ArbitraryTuplType::RGB),
+            ColorType::RGBA => ((1 << 8) - 1, ArbitraryTuplType::RGBAlpha),
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -209,7 +208,7 @@ impl<W: Write> PNMEncoder<W> {
             (PNMSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
             }
-            (PNMSubtype::Pixmap(encoding), ColorType::RGB(8)) => PNMHeader {
+            (PNMSubtype::Pixmap(encoding), ColorType::RGB) => PNMHeader {
                 decoded: HeaderRecord::Pixmap(PixmapHeader {
                     encoding,
                     width,
@@ -328,9 +327,9 @@ impl<'a> CheckedDimensions<'a> {
     fn check_header_color(self, color: ColorType) -> io::Result<CheckedHeaderColor<'a>> {
         let components = match color {
             ColorType::Gray(_) => 1,
-            ColorType::GrayA(_) => 2,
-            ColorType::Palette(_) | ColorType::RGB(_) | ColorType::BGR(_)=> 3,
-            ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
+            ColorType::GrayA => 2,
+            ColorType::Palette(_) | ColorType::RGB | ColorType::BGR => 3,
+            ColorType::RGBA | ColorType::BGRA => 4,
         };
 
         match *self.unchecked.header {
@@ -362,7 +361,7 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
-                ColorType::RGB(_) => (),
+                ColorType::RGB => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -380,13 +379,13 @@ impl<'a> CheckedDimensions<'a> {
                 ..
             } => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA(_)) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA) => (),
 
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA(_)) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA) => (),
 
-                (&Some(ArbitraryTuplType::RGB), ColorType::RGB(_)) => (),
-                (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA(_)) => (),
+                (&Some(ArbitraryTuplType::RGB), ColorType::RGB) => (),
+                (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA) => (),
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
@@ -425,12 +424,7 @@ impl<'a> CheckedHeaderColor<'a> {
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
             ColorType::Gray(n)
-            | ColorType::GrayA(n)
-            | ColorType::Palette(n)
-            | ColorType::RGB(n)
-            | ColorType::RGBA(n)
-            | ColorType::BGR(n)
-            | ColorType::BGRA(n) if n > 16 =>
+            | ColorType::Palette(n) if n > 16 =>
             {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -438,12 +432,14 @@ impl<'a> CheckedHeaderColor<'a> {
                 ))
             }
             ColorType::Gray(n)
-            | ColorType::GrayA(n)
             | ColorType::Palette(n)
-            | ColorType::RGB(n)
-            | ColorType::RGBA(n)
-            | ColorType::BGR(n)
-            | ColorType::BGRA(n) => (1 << n) - 1,
+                => (1 << n) - 1,
+            ColorType::GrayA
+            | ColorType::RGB
+            | ColorType::RGBA
+            | ColorType::BGR
+            | ColorType::BGRA
+                => (1 << 8) - 1,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

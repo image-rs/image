@@ -471,8 +471,8 @@ impl TupleType {
             BWBit => ColorType::Gray(1),
             GrayU8 => ColorType::Gray(8),
             GrayU16 => ColorType::Gray(16),
-            RGBU8 => ColorType::RGB(8),
-            RGBU16 => ColorType::GrayA(16),
+            RGBU8 => ColorType::RGB,
+            RGBU16 => unimplemented!(),//ColorType::GrayA(16),
         }
     }
 }
@@ -688,9 +688,9 @@ impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
             None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::GrayA(8))),
+            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::GrayA)),
             None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::RGBA(8))),
+            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::RGBA)),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)
@@ -719,14 +719,14 @@ impl DecodableImageHeader for ArbitraryHeader {
                 "Invalid depth for tuple type RGB".to_string(),
             )),
 
-            Some(ArbitraryTuplType::BlackAndWhiteAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::GrayA(1)))
-            }
+            Some(ArbitraryTuplType::BlackAndWhiteAlpha) => Err(ImageError::FormatError(
+                "Unsupported colortype: BlackAndWhiteAlpha".to_string()
+            )),
             Some(ArbitraryTuplType::GrayscaleAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::GrayA(8)))
+                Err(ImageError::UnsupportedColor(ColorType::GrayA))
             }
             Some(ArbitraryTuplType::RGBAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::RGBA(8)))
+                Err(ImageError::UnsupportedColor(ColorType::RGBA))
             }
             _ => Err(ImageError::FormatError(
                 "Tuple type not recognized".to_string(),
@@ -831,7 +831,7 @@ HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::RGB(8));
+        assert_eq!(decoder.colortype(), ColorType::RGB);
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 

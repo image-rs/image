@@ -11,23 +11,23 @@ pub enum ColorType {
     /// Pixel is grayscale
     Gray(u8),
 
-    /// Pixel contains R, G and B channels
-    RGB(u8),
-
     /// Pixel is an index into a color palette
     Palette(u8),
 
-    /// Pixel is grayscale with an alpha channel
-    GrayA(u8),
+    /// Pixel contains 8-bit R, G and B channels
+    RGB,
 
-    /// Pixel is RGB with an alpha channel
-    RGBA(u8),
+    /// Pixel is 8-bit grayscale with an alpha channel
+    GrayA,
 
-    /// Pixel contains B, G and R channels
-    BGR(u8),
+    /// Pixel is 8-bit RGB with an alpha channel
+    RGBA,
 
-    /// Pixel is BGR with an alpha channel
-    BGRA(u8),
+    /// Pixel contains 8-bit B, G and R channels
+    BGR,
+
+    /// Pixel is 8-bit BGR with an alpha channel
+    BGRA,
 
 }
 
@@ -35,9 +35,10 @@ pub enum ColorType {
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
         ColorType::Gray(n) => n as usize,
-        ColorType::GrayA(n) => 2 * n as usize,
-        ColorType::RGB(n) | ColorType::Palette(n)| ColorType::BGR(n) => 3 * n as usize,
-        ColorType::RGBA(n) | ColorType::BGRA(n) => 4 * n as usize,
+        ColorType::Palette(n) => 3 * n as usize,
+        ColorType::GrayA => 16,
+        ColorType::RGB | ColorType::BGR => 24,
+        ColorType::RGBA | ColorType::BGRA => 32,
     }
 }
 
@@ -45,9 +46,9 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::Gray(_) => 1,
-        ColorType::GrayA(_) => 2,
-        ColorType::RGB(_) | ColorType::Palette(_) | ColorType::BGR(_)=> 3,
-        ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
+        ColorType::GrayA => 2,
+        ColorType::RGB | ColorType::Palette(_) | ColorType::BGR => 3,
+        ColorType::RGBA | ColorType::BGRA => 4,
 
     }
 }
@@ -58,7 +59,7 @@ macro_rules! define_colors {
         $channels: expr,
         $alphas: expr,
         $interpretation: expr,
-        $color_type: ident,
+        $color_type: expr,
         #[$doc:meta];
     )*} => {
 
@@ -87,7 +88,13 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         $interpretation
     }
     fn color_type() -> ColorType {
-        ColorType::$color_type(mem::size_of::<T>() as u8 * 8)
+        if mem::size_of::<T>() == 1 {
+            $color_type
+        } else if $color_type == ColorType::Gray(8) {
+            ColorType::Gray(mem::size_of::<T>() as u8 * 8)
+        } else {
+            unimplemented!()
+        }
     }
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -225,12 +232,12 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", Gray, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", RGBA, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", GrayA, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", ColorType::RGB, #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::BGR, #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", ColorType::Gray(8), #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", ColorType::RGBA, #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::BGRA, #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::GrayA, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

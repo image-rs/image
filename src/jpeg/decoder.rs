@@ -90,7 +90,7 @@ impl From<jpeg_decoder::PixelFormat> for ColorType {
         use self::jpeg_decoder::PixelFormat::*;
         match pixel_format {
             L8 => ColorType::Gray(8),
-            RGB24 => ColorType::RGB(8),
+            RGB24 => ColorType::RGB,
             CMYK32 => panic!(),
         }
     }

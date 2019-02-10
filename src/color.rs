@@ -11,9 +11,6 @@ pub enum ColorType {
     /// Pixel is grayscale
     Gray(u8),
 
-    /// Pixel is an index into a color palette
-    Palette(u8),
-
     /// Pixel contains 8-bit R, G and B channels
     RGB,
 
@@ -35,7 +32,6 @@ pub enum ColorType {
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
         ColorType::Gray(n) => n as usize,
-        ColorType::Palette(n) => 3 * n as usize,
         ColorType::GrayA => 16,
         ColorType::RGB | ColorType::BGR => 24,
         ColorType::RGBA | ColorType::BGRA => 32,
@@ -47,7 +43,7 @@ pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::Gray(_) => 1,
         ColorType::GrayA => 2,
-        ColorType::RGB | ColorType::Palette(_) | ColorType::BGR => 3,
+        ColorType::RGB | ColorType::BGR => 3,
         ColorType::RGBA | ColorType::BGRA => 4,
 
     }

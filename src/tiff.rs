@@ -56,12 +56,16 @@ impl From<tiff::TiffError> for ImageError {
 impl From<tiff::ColorType> for ColorType {
     fn from(ct: tiff::ColorType) -> ColorType {
         match ct {
-            tiff::ColorType::Gray(depth) => ColorType::Gray(depth),
-            tiff::ColorType::RGB(depth) => ColorType::RGB(depth),
             tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
-            tiff::ColorType::GrayA(depth) => ColorType::GrayA(depth),
-            tiff::ColorType::RGBA(depth) => ColorType::RGBA(depth),
-            tiff::ColorType::CMYK(_) => unimplemented!()
+            tiff::ColorType::Gray(1) => ColorType::L1,
+            tiff::ColorType::Gray(8) => ColorType::L8,
+            tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::GrayA(8) => ColorType::LA,
+            tiff::ColorType::GrayA(16) => ColorType::LA16,
+            tiff::ColorType::RGB(8) => ColorType::RGB,
+            tiff::ColorType::RGBA(8) => ColorType::RGBA,
+            tiff::ColorType::CMYK(_) => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 }
@@ -125,9 +129,9 @@ impl<W: Write + Seek> TiffEncoder<W> {
         // TODO: 16bit support
         let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;
         match color {
-            ColorType::Gray(8) => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
-            ColorType::RGB(8) => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
-            ColorType::RGBA(8) => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
+            ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
+            ColorType::RGB => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
+            ColorType::RGBA => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
             _ => return Err(ImageError::UnsupportedColor(color))
         }
 

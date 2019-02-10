@@ -119,20 +119,20 @@ mod tests {
             255, 255, 255,
             255, 255, 255,
         ];
-        execute_roundtrip_default(&buf, 3, 3, ColorType::RGB(8));
-        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB(8), PNMSubtype::ArbitraryMap);
+        execute_roundtrip_default(&buf, 3, 3, ColorType::RGB);
+        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::RGB, PNMSubtype::ArbitraryMap);
         execute_roundtrip_with_subtype(
             &buf,
             3,
             3,
-            ColorType::RGB(8),
+            ColorType::RGB,
             PNMSubtype::Pixmap(SampleEncoding::Binary),
         );
         execute_roundtrip_with_subtype(
             &buf,
             3,
             3,
-            ColorType::RGB(8),
+            ColorType::RGB,
             PNMSubtype::Pixmap(SampleEncoding::Ascii),
         );
     }
@@ -141,6 +141,6 @@ mod tests {
     fn roundtrip_u16() {
         let buf: [u16; 6] = [0, 1, 0xFFFF, 0x1234, 0x3412, 0xBEAF];
 
-        execute_roundtrip_u16(&buf, 6, 1, ColorType::Gray(16));
+        execute_roundtrip_u16(&buf, 6, 1, ColorType::L16);
     }
 }

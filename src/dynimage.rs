@@ -293,12 +293,12 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::Gray(8),
-            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA(8),
-            DynamicImage::ImageRgb8(_) => color::ColorType::RGB(8),
-            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA(8),
-            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA(8),
-            DynamicImage::ImageBgr8(_) => color::ColorType::BGR(8),
+            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
+            DynamicImage::ImageLumaA8(_) => color::ColorType::LA,
+            DynamicImage::ImageRgb8(_) => color::ColorType::RGB,
+            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA,
+            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA,
+            DynamicImage::ImageBgr8(_) => color::ColorType::BGR,
         }
     }
 
@@ -484,11 +484,11 @@ impl DynamicImage {
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
+                        color=color::ColorType::RGBA;
                     },
                     DynamicImage::ImageBgr8(_) => {
                         bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
+                        color=color::ColorType::RGB;
                     },
                     _ => {},
                 }
@@ -501,11 +501,11 @@ impl DynamicImage {
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
+                        color=color::ColorType::RGBA;
                     },
                     DynamicImage::ImageBgr8(_) => {
                         bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
+                        color=color::ColorType::RGB;
                     },
                     _ => {},
                 }
@@ -637,33 +637,31 @@ pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<Dynami
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
-        color::ColorType::RGB(8) => {
+        color::ColorType::RGB => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
-        color::ColorType::RGBA(8) => {
+        color::ColorType::RGBA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
-        color::ColorType::BGR(8) => {
+        color::ColorType::BGR => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8)
         }
 
-        color::ColorType::BGRA(8) => {
+        color::ColorType::BGRA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
         }
 
-        color::ColorType::Gray(8) => {
+        color::ColorType::L8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
-        color::ColorType::GrayA(8) => {
+        color::ColorType::LA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        color::ColorType::Gray(bit_depth)
-            if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
-        {
-            gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
+        color::ColorType::L1 => {
+            gray_to_luma8(1, w, h, &buf).map(DynamicImage::ImageLuma8)
         }
         _ => return Err(image::ImageError::UnsupportedColor(color)),
     };

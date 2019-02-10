@@ -443,16 +443,16 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         try!(self.writer.write_segment(SOS, Some(&buf)));
 
         match c {
-            color::ColorType::RGB(8) => {
+            color::ColorType::RGB => {
                 try!(self.encode_rgb(image, width as usize, height as usize, 3))
             }
-            color::ColorType::RGBA(8) => {
+            color::ColorType::RGBA => {
                 try!(self.encode_rgb(image, width as usize, height as usize, 4))
             }
-            color::ColorType::Gray(8) => {
+            color::ColorType::L8 => {
                 try!(self.encode_gray(image, width as usize, height as usize, 1))
             }
-            color::ColorType::GrayA(8) => {
+            color::ColorType::LA => {
                 try!(self.encode_gray(image, width as usize, height as usize, 2))
             }
             _ => {
@@ -772,7 +772,7 @@ mod tests {
         {
             let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 1, 1, ColorType::RGB(8))
+                .encode(&img, 1, 1, ColorType::RGB)
                 .expect("Could not encode image");
         }
 
@@ -800,7 +800,7 @@ mod tests {
         {
             let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 2, 2, ColorType::Gray(8))
+                .encode(&img, 2, 2, ColorType::L8)
                 .expect("Could not encode image");
         }
 

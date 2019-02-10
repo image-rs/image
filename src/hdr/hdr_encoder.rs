@@ -226,7 +226,7 @@ fn write_rgbe8<W: Write>(w: &mut W, v: RGBE8Pixel) -> Result<()> {
 
 /// Converts ```Rgb<f32>``` into ```RGBE8Pixel```
 pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
-    let pix = pix.data;
+    let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
     if mx <= 0.0 {
         RGBE8Pixel { c: [0, 0, 0], e: 0 }
@@ -274,13 +274,13 @@ fn to_rgbe8_test() {
     }
     fn relative_dist(a: Rgb<f32>, b: Rgb<f32>) -> f32 {
         // maximal difference divided by maximal value
-        let max_diff = a.data
+        let max_diff = a.0
             .iter()
-            .zip(b.data.iter())
+            .zip(b.0.iter())
             .fold(0.0, |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
-        let max_val = a.data
+        let max_val = a.0
             .iter()
-            .chain(b.data.iter())
+            .chain(b.0.iter())
             .fold(0.0, |maxv, &a| f32::max(maxv, a));
         if max_val == 0.0 {
             0.0

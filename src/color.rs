@@ -7,9 +7,6 @@ use traits::Primitive;
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
-    /// Pixel is an index into a color palette
-    Palette(u8),
-
     /// Pixel is 1-bit luminance
     L1,
 
@@ -35,6 +32,11 @@ pub enum ColorType {
     BGR,
     /// Pixel is 8-bit BGR with an alpha channel
     BGRA,
+
+    /// Pixel is of unknown color type with the specified bit depth. This can apply to pixels which
+    /// are associated with an external palette. In that case, the pixel value is an index into the
+    /// palette.
+    Unknown(u8),
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
@@ -43,21 +45,21 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
         ColorType::L1 => 1,
         ColorType::L8 => 8,
         ColorType::L16 => 16,
-        ColorType::Palette(n) => 3 * n as usize,
         ColorType::LA => 16,
         ColorType::RGB | ColorType::BGR => 24,
         ColorType::RGBA | ColorType::BGRA | ColorType::LA16 => 32,
         ColorType::RGB16 => 48,
         ColorType::RGBA16 => 64,
+        ColorType::Unknown(n) => n as usize,
     }
 }
 
 /// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> usize {
     match c {
-        ColorType::L1 | ColorType::L8 | ColorType::L16 => 1,
+        ColorType::Unknown(_) | ColorType::L1 | ColorType::L8 | ColorType::L16 => 1,
         ColorType::LA | ColorType::LA16 => 2,
-        ColorType::RGB | ColorType::RGB16 | ColorType::Palette(_) | ColorType::BGR => 3,
+        ColorType::RGB | ColorType::RGB16| ColorType::BGR => 3,
         ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
     }
 }

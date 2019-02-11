@@ -424,13 +424,13 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
-            ColorType::Palette(n) if n > 16 => {
+            ColorType::Unknown(n) if n > 16 => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Encoding colors with a bit depth greater 16 not supported",
                 ))
             }
-            ColorType::Palette(n) => (1 << n) - 1,
+            ColorType::Unknown(n) => (1 << n) - 1,
             ColorType::L1 => 1,
             ColorType::L8
             | ColorType::LA
@@ -636,9 +636,9 @@ mod tests {
         let data: [u8; 12] = [0, 0, 0, 1, 1, 1, 255, 255, 255, 0, 0, 0];
 
         let header = ArbitraryHeader {
-            width: 2,
-            height: 2,
-            depth: 3,
+            width: 3,
+            height: 4,
+            depth: 1,
             maxval: 255,
             tupltype: Some(ArbitraryTuplType::Custom("Palette".to_string())),
         };
@@ -647,7 +647,7 @@ mod tests {
 
         PNMEncoder::new(&mut output)
             .with_header(header.into())
-            .encode(&data[..], 2, 2, ColorType::Palette(8))
+            .encode(&data[..], 3, 4, ColorType::Unknown(8))
             .expect("Failed encoding custom color value");
     }
 }

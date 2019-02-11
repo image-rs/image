@@ -53,11 +53,14 @@ impl From<tiff::TiffError> for ImageError {
 impl From<tiff::ColorType> for ColorType {
     fn from(ct: tiff::ColorType) -> ColorType {
         match ct {
-            tiff::ColorType::Gray(depth) => ColorType::L(depth),
             tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
-            tiff::ColorType::RGB(8) => ColorType::RGB,
-            tiff::ColorType::RGBA(8) => ColorType::RGBA,
+            tiff::ColorType::Gray(depth) => ColorType::L(depth),
             tiff::ColorType::GrayA(8) => ColorType::LA,
+            tiff::ColorType::GrayA(16) => ColorType::LA16,
+            tiff::ColorType::RGB(8) => ColorType::RGB,
+            tiff::ColorType::RGB(16) => ColorType::RGB16,
+            tiff::ColorType::RGBA(8) => ColorType::RGBA,
+            tiff::ColorType::RGBA(16) => ColorType::RGBA16,
             tiff::ColorType::CMYK(_) => unimplemented!(),
             _ => unimplemented!(),
         }

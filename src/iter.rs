@@ -114,7 +114,7 @@ impl<'a, I: GenericImage + ?Sized + 'a> PixelsMut<'a, I> {
     /// `simultaneous_pixels_mut_unchecked`. If your custom implementation has to use this method
     /// but you feel like it provides a generalizable pattern, feel free to request an additional
     /// internal stack based variant for it to avoid the allocation.
-    pub fn boxed(iterator: Box<dyn Iterator<Item=(u32, u32, &'a mut I::Pixel)> + 'a>) -> Self {
+    pub fn boxed(iterator: Box<Iterator<Item=(u32, u32, &'a mut I::Pixel)> + 'a>) -> Self {
         PixelsMut {
             inner: PixelsMutImpl::Boxed(iterator.into()),
         }
@@ -136,9 +136,9 @@ impl<'a, I: GenericImage + ?Sized + 'a> Iterator for PixelsMut<'a, I>
 
     fn next(&mut self) -> Option<(u32, u32, &'a mut I::Pixel)> {
         match &mut self.inner {
-            PixelsMutImpl::Unsafe(inner) => inner.next(),
-            PixelsMutImpl::Buffer(buffer) => buffer.next(),
-            PixelsMutImpl::Boxed(boxed) => boxed.next(),
+            &mut PixelsMutImpl::Unsafe(ref mut inner) => inner.next(),
+            &mut PixelsMutImpl::Buffer(ref mut buffer) => buffer.next(),
+            &mut PixelsMutImpl::Boxed(ref mut boxed) => boxed.next(),
         }
     }
 }

@@ -54,11 +54,11 @@ impl From<tiff::ColorType> for ColorType {
     fn from(ct: tiff::ColorType) -> ColorType {
         match ct {
             tiff::ColorType::Gray(depth) => ColorType::Gray(depth),
+            tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
             tiff::ColorType::RGB(8) => ColorType::RGB,
             tiff::ColorType::RGBA(8) => ColorType::RGBA,
             tiff::ColorType::GrayA(8) => ColorType::GrayA,
             tiff::ColorType::CMYK(_) => unimplemented!(),
-            tiff::ColorType::Palette(_) => unreachable!(),
             _ => unimplemented!(),
         }
     }

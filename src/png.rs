@@ -83,10 +83,10 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
         use self::png::ColorType::*;
         match (ct, bits as u8) {
             (Grayscale, bits) => ColorType::Gray(bits),
+            (Indexed, bits) => ColorType::Palette(bits),
             (RGB,8) => ColorType::RGB,
             (GrayscaleAlpha, 8) => ColorType::GrayA,
             (RGBA, 8) => ColorType::RGBA,
-            (Indexed, _) => unreachable!(),
             (_, _) => unimplemented!(),
         }
     }
@@ -97,6 +97,7 @@ impl From<ColorType> for (png::ColorType, png::BitDepth) {
         use self::png::ColorType::*;
         let (ct, bits) = match ct {
             ColorType::Gray(bits) => (Grayscale, bits),
+            ColorType::Palette(bits) => (Indexed, bits),
             ColorType::RGB => (RGB, 8),
             ColorType::GrayA => (GrayscaleAlpha, 8),
             ColorType::RGBA => (RGBA, 8),

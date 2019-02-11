@@ -328,7 +328,7 @@ impl<'a> CheckedDimensions<'a> {
         let components = match color {
             ColorType::Gray(_) => 1,
             ColorType::GrayA => 2,
-            ColorType::RGB | ColorType::BGR => 3,
+            ColorType::Palette(_) | ColorType::RGB | ColorType::BGR => 3,
             ColorType::RGBA | ColorType::BGRA => 4,
         };
 
@@ -423,14 +423,17 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
-            ColorType::Gray(n) if n > 16 =>
+            ColorType::Gray(n)
+            | ColorType::Palette(n) if n > 16 =>
             {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Encoding colors with a bit depth greater 16 not supported",
                 ))
             }
-            ColorType::Gray(n) => (1 << n) - 1,
+            ColorType::Gray(n)
+            | ColorType::Palette(n)
+                => (1 << n) - 1,
             ColorType::GrayA
             | ColorType::RGB
             | ColorType::RGBA
@@ -640,7 +643,7 @@ mod tests {
 
         PNMEncoder::new(&mut output)
             .with_header(header.into())
-            .encode(&data[..], 2, 2, ColorType::RGB)
+            .encode(&data[..], 2, 2, ColorType::Palette(8))
             .expect("Failed encoding custom color value");
     }
 }

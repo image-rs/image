@@ -63,7 +63,9 @@ impl From<tiff::ColorType> for ColorType {
             tiff::ColorType::GrayA(8) => ColorType::LA,
             tiff::ColorType::GrayA(16) => ColorType::LA16,
             tiff::ColorType::RGB(8) => ColorType::RGB,
+            tiff::ColorType::RGB(16) => ColorType::RGB16,
             tiff::ColorType::RGBA(8) => ColorType::RGBA,
+            tiff::ColorType::RGBA(16) => ColorType::RGBA16,
             tiff::ColorType::CMYK(_) => unimplemented!(),
             _ => unimplemented!(),
         }

@@ -5,30 +5,34 @@ use std::ops::{Index, IndexMut};
 use buffer::Pixel;
 use traits::Primitive;
 
-/// An enumeration over supported color types and their bit depths
+/// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
-    /// Pixel is grayscale
-    L(u8),
-
     /// Pixel is an index into a color palette
     Palette(u8),
 
-    /// Pixel contains 8-bit R, G and B channels
-    RGB,
-
+    /// Pixel is grayscale
+    L(u8),
     /// Pixel is 8-bit grayscale with an alpha channel
     LA,
-
+    /// Pixel contains 8-bit R, G and B channels
+    RGB,
     /// Pixel is 8-bit RGB with an alpha channel
     RGBA,
 
+    // /// Pixel is 16-bit luminance
+    // L16,
+    /// Pixel is 16-bit luminance with an alpha channel
+    LA16,
+    /// Pixel is 16-bit RGB.
+    RGB16,
+    /// Pixel is 16-bit RGBA.
+    RGBA16,
+
     /// Pixel contains 8-bit B, G and R channels
     BGR,
-
     /// Pixel is 8-bit BGR with an alpha channel
     BGRA,
-
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
@@ -38,7 +42,9 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
         ColorType::Palette(n) => 3 * n as usize,
         ColorType::LA => 16,
         ColorType::RGB | ColorType::BGR => 24,
-        ColorType::RGBA | ColorType::BGRA => 32,
+        ColorType::RGBA | ColorType::BGRA | ColorType::LA16 => 32,
+        ColorType::RGB16 => 48,
+        ColorType::RGBA16 => 64,
     }
 }
 
@@ -46,10 +52,9 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::L(_) => 1,
-        ColorType::LA => 2,
-        ColorType::RGB | ColorType::Palette(_) | ColorType::BGR => 3,
-        ColorType::RGBA | ColorType::BGRA => 4,
-
+        ColorType::LA | ColorType::LA16 => 2,
+        ColorType::RGB | ColorType::RGB16 | ColorType::Palette(_) | ColorType::BGR => 3,
+        ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
     }
 }
 

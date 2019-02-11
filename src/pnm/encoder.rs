@@ -325,12 +325,7 @@ impl<'a> CheckedDimensions<'a> {
     // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ColorType) -> io::Result<CheckedHeaderColor<'a>> {
-        let components = match color {
-            ColorType::L(_) => 1,
-            ColorType::LA => 2,
-            ColorType::Palette(_) | ColorType::RGB | ColorType::BGR => 3,
-            ColorType::RGBA | ColorType::BGRA => 4,
-        };
+        let components = num_components(color) as u32;
 
         match *self.unchecked.header {
             PNMHeader {
@@ -439,7 +434,11 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::RGBA
             | ColorType::BGR
             | ColorType::BGRA
-                => (1 << 8) - 1,
+                => 0xff,
+            ColorType::LA16
+            | ColorType::RGB16
+            | ColorType::RGBA16
+                => 0xffff,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

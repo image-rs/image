@@ -472,7 +472,7 @@ impl TupleType {
             GrayU8 => ColorType::L(8),
             GrayU16 => ColorType::L(16),
             RGBU8 => ColorType::RGB,
-            RGBU16 => unimplemented!(),//ColorType::LA(16),
+            RGBU16 => ColorType::RGB16,
         }
     }
 }

@@ -49,7 +49,7 @@ use num_traits::Zero;
 
 use buffer::{ImageBuffer, Pixel};
 use color::ColorType;
-use image::{GenericImage, GenericImageView, ImageError};
+use image::{GenericImage, GenericImageView, ImageError, PixelsMut};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -1367,6 +1367,11 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 
     fn inner_mut(&mut self) -> &mut Self {
         self
+    }
+
+    fn pixels_mut(&mut self) -> PixelsMut<Self> {
+        // TODO: Create an iterator similar to `buffer::PixelsMut`.
+        unimplemented!("No decision on whether an allocation is actually fine here.")
     }
 }
 

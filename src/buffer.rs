@@ -8,7 +8,7 @@ use std::slice::{Chunks, ChunksMut};
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::save_buffer;
-use image::{GenericImage, GenericImageView};
+use image::{GenericImage, GenericImageView, PixelsMut as GenericPixelsMut};
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -643,6 +643,10 @@ where
         let indices = self.unsafe_pixel_indices(x, y);
         let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
         *p = pixel
+    }
+
+    fn pixels_mut(&mut self) -> GenericPixelsMut<Self> {
+        GenericPixelsMut::from_buffer(ImageBuffer::enumerate_pixels_mut(self))
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels

@@ -30,7 +30,7 @@ use flat::FlatSamples;
 use color;
 use image;
 use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
-            ImageResult};
+            ImageResult, PixelsMut};
 use imageops;
 
 /// A Dynamic Image
@@ -616,7 +616,12 @@ impl GenericImage for DynamicImage {
 
     /// DEPRECATED: Do not use is function: It is unimplemented!
     fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
-        unimplemented!()
+        panic!("Dynamic image can not provide mutable references to its pixels.")
+    }
+
+    /// DEPRECATED: Do not use is function: It is unimplemented!
+    fn pixels_mut(&mut self) -> PixelsMut<Self> {
+        panic!("Dynamic image can not provide mutable references to its pixels.")
     }
 
     fn inner_mut(&mut self) -> &mut Self::InnerImage {

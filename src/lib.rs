@@ -35,7 +35,7 @@ pub use image::{AnimationDecoder,
                 ImageDecoderExt,
                 ImageError,
                 ImageResult,
-                MutPixels,
+                PixelsMut,
                 // Iterators
                 Pixels,
                 SubImage};
@@ -106,6 +106,7 @@ mod buffer;
 mod color;
 mod dynimage;
 mod image;
+mod iter;
 mod traits;
 mod utils;
 

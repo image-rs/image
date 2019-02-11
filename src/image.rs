@@ -919,7 +919,7 @@ mod tests {
         impl ImageDecoder for MockDecoder {
             type Reader = Box<::std::io::Read>;
             fn dimensions(&self) -> (u64, u64) {(5, 5)}
-            fn colortype(&self) -> ColorType {  ColorType::Gray(8) }
+            fn colortype(&self) -> ColorType {  ColorType::L(8) }
             fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
             fn scanline_bytes(&self) -> u64 { self.scanline_bytes }
         }

@@ -66,7 +66,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             color::ColorType::RGB | color::ColorType::RGBA => {
                 try!(self.encode_rgb(image, width, height, row_pad_size, raw_pixel_size))
             }
-            color::ColorType::Gray(8) | color::ColorType::GrayA => {
+            color::ColorType::L(8) | color::ColorType::LA => {
                 try!(self.encode_gray(image, width, height, row_pad_size, raw_pixel_size))
             }
             _ => {
@@ -169,8 +169,8 @@ fn get_pixel_info(c: color::ColorType) -> io::Result<(u32, u32, u32)> {
     let sizes = match c {
         color::ColorType::RGB => (3, 3, 0),
         color::ColorType::RGBA => (4, 3, 0),
-        color::ColorType::Gray(8) => (1, 1, 256),
-        color::ColorType::GrayA => (2, 1, 256),
+        color::ColorType::L(8) => (1, 1, 256),
+        color::ColorType::LA => (2, 1, 256),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn round_trip_gray() {
         let image = [0u8, 1, 2]; // 3 pixels
-        let decoded = round_trip_image(&image, 3, 1, ColorType::Gray(8));
+        let decoded = round_trip_image(&image, 3, 1, ColorType::L(8));
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn round_trip_graya() {
         let image = [0u8, 0, 1, 0, 2, 0]; // 3 pixels, each with an alpha channel
-        let decoded = round_trip_image(&image, 1, 3, ColorType::GrayA);
+        let decoded = round_trip_image(&image, 1, 3, ColorType::LA);
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);

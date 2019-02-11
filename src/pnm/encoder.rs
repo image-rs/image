@@ -168,9 +168,9 @@ impl<W: Write> PNMEncoder<W> {
     ) -> io::Result<()> {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
-            ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
-            ColorType::Gray(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA => ((1 << 8) - 1, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::L(1) => (1, ArbitraryTuplType::BlackAndWhite),
+            ColorType::L(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
+            ColorType::LA => ((1 << 8) - 1, ArbitraryTuplType::GrayscaleAlpha),
             ColorType::RGB => ((1 << 8) - 1, ArbitraryTuplType::RGB),
             ColorType::RGBA => ((1 << 8) - 1, ArbitraryTuplType::RGBAlpha),
             _ => {
@@ -217,7 +217,7 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Graymap(encoding), ColorType::Gray(8)) => PNMHeader {
+            (PNMSubtype::Graymap(encoding), ColorType::L(8)) => PNMHeader {
                 decoded: HeaderRecord::Graymap(GraymapHeader {
                     encoding,
                     width,
@@ -226,8 +226,8 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Bitmap(encoding), ColorType::Gray(8))
-            | (PNMSubtype::Bitmap(encoding), ColorType::Gray(1)) => PNMHeader {
+            (PNMSubtype::Bitmap(encoding), ColorType::L(8))
+            | (PNMSubtype::Bitmap(encoding), ColorType::L(1)) => PNMHeader {
                 decoded: HeaderRecord::Bitmap(BitmapHeader {
                     encoding,
                     width,
@@ -326,8 +326,8 @@ impl<'a> CheckedDimensions<'a> {
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ColorType) -> io::Result<CheckedHeaderColor<'a>> {
         let components = match color {
-            ColorType::Gray(_) => 1,
-            ColorType::GrayA => 2,
+            ColorType::L(_) => 1,
+            ColorType::LA => 2,
             ColorType::Palette(_) | ColorType::RGB | ColorType::BGR => 3,
             ColorType::RGBA | ColorType::BGRA => 4,
         };
@@ -337,11 +337,11 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Bitmap(_),
                 ..
             } => match color {
-                ColorType::Gray(_) => (),
+                ColorType::L(_) => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PBM format only support ColorType::Gray",
+                        "PBM format only support ColorType::L",
                     ))
                 }
             },
@@ -349,11 +349,11 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
-                ColorType::Gray(_) => (),
+                ColorType::L(_) => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PGM format only support ColorType::Gray",
+                        "PGM format only support ColorType::L",
                     ))
                 }
             },
@@ -378,11 +378,11 @@ impl<'a> CheckedDimensions<'a> {
                     }),
                 ..
             } => match (tupltype, color) {
-                (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::L(_)) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::LA) => (),
 
-                (&Some(ArbitraryTuplType::Grayscale), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ColorType::L(_)) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::LA) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ColorType::RGB) => (),
                 (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA) => (),
@@ -423,7 +423,7 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
-            ColorType::Gray(n)
+            ColorType::L(n)
             | ColorType::Palette(n) if n > 16 =>
             {
                 return Err(io::Error::new(
@@ -431,10 +431,10 @@ impl<'a> CheckedHeaderColor<'a> {
                     "Encoding colors with a bit depth greater 16 not supported",
                 ))
             }
-            ColorType::Gray(n)
+            ColorType::L(n)
             | ColorType::Palette(n)
                 => (1 << n) - 1,
-            ColorType::GrayA
+            ColorType::LA
             | ColorType::RGB
             | ColorType::RGBA
             | ColorType::BGR

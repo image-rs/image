@@ -9,7 +9,7 @@ use traits::Primitive;
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
     /// Pixel is grayscale
-    Gray(u8),
+    L(u8),
 
     /// Pixel is an index into a color palette
     Palette(u8),
@@ -18,7 +18,7 @@ pub enum ColorType {
     RGB,
 
     /// Pixel is 8-bit grayscale with an alpha channel
-    GrayA,
+    LA,
 
     /// Pixel is 8-bit RGB with an alpha channel
     RGBA,
@@ -34,9 +34,9 @@ pub enum ColorType {
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
-        ColorType::Gray(n) => n as usize,
+        ColorType::L(n) => n as usize,
         ColorType::Palette(n) => 3 * n as usize,
-        ColorType::GrayA => 16,
+        ColorType::LA => 16,
         ColorType::RGB | ColorType::BGR => 24,
         ColorType::RGBA | ColorType::BGRA => 32,
     }
@@ -45,8 +45,8 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 /// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> usize {
     match c {
-        ColorType::Gray(_) => 1,
-        ColorType::GrayA => 2,
+        ColorType::L(_) => 1,
+        ColorType::LA => 2,
         ColorType::RGB | ColorType::Palette(_) | ColorType::BGR => 3,
         ColorType::RGBA | ColorType::BGRA => 4,
 
@@ -90,8 +90,8 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     fn color_type() -> ColorType {
         if mem::size_of::<T>() == 1 {
             $color_type
-        } else if $color_type == ColorType::Gray(8) {
-            ColorType::Gray(mem::size_of::<T>() as u8 * 8)
+        } else if $color_type == ColorType::L(8) {
+            ColorType::L(mem::size_of::<T>() as u8 * 8)
         } else {
             unimplemented!()
         }
@@ -234,10 +234,10 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 define_colors! {
     Rgb, 3, 0, "RGB", ColorType::RGB, #[doc = "RGB colors"];
     Bgr, 3, 0, "BGR", ColorType::BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ColorType::Gray(8), #[doc = "Grayscale colors"];
+    Luma, 1, 0, "Y", ColorType::L(8), #[doc = "Grayscale colors"];
     Rgba, 4, 1, "RGBA", ColorType::RGBA, #[doc = "RGB colors + alpha channel"];
     Bgra, 4, 1, "BGRA", ColorType::BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ColorType::GrayA, #[doc = "Grayscale colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::LA, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

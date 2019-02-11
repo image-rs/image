@@ -141,6 +141,6 @@ mod tests {
     fn roundtrip_u16() {
         let buf: [u16; 6] = [0, 1, 0xFFFF, 0x1234, 0x3412, 0xBEAF];
 
-        execute_roundtrip_u16(&buf, 6, 1, ColorType::Gray(16));
+        execute_roundtrip_u16(&buf, 6, 1, ColorType::L(16));
     }
 }

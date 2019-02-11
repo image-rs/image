@@ -292,8 +292,8 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::Gray(8),
-            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA,
+            DynamicImage::ImageLuma8(_) => color::ColorType::L(8),
+            DynamicImage::ImageLumaA8(_) => color::ColorType::LA,
             DynamicImage::ImageRgb8(_) => color::ColorType::RGB,
             DynamicImage::ImageRgba8(_) => color::ColorType::RGBA,
             DynamicImage::ImageBgra8(_) => color::ColorType::BGRA,
@@ -652,14 +652,14 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
         }
 
-        color::ColorType::Gray(8) => {
+        color::ColorType::L(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
-        color::ColorType::GrayA => {
+        color::ColorType::LA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        color::ColorType::Gray(bit_depth)
+        color::ColorType::L(bit_depth)
             if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
         {
             gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)

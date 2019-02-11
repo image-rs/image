@@ -105,7 +105,7 @@ impl<R: Read> ImageDecoder for WebpDecoder<R> {
     }
 
     fn colortype(&self) -> color::ColorType {
-        color::ColorType::L(8)
+        color::ColorType::L8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

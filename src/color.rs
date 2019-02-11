@@ -1,5 +1,4 @@
 use num_traits::{NumCast, Zero};
-use std::mem;
 use std::ops::{Index, IndexMut};
 
 use buffer::Pixel;
@@ -11,22 +10,25 @@ pub enum ColorType {
     /// Pixel is an index into a color palette
     Palette(u8),
 
-    /// Pixel is grayscale
-    L(u8),
-    /// Pixel is 8-bit grayscale with an alpha channel
+    /// Pixel is 1-bit luminance
+    L1,
+
+    /// Pixel is 8-bit luminance
+    L8,
+    /// Pixel is 8-bit luminance with an alpha channel
     LA,
     /// Pixel contains 8-bit R, G and B channels
     RGB,
     /// Pixel is 8-bit RGB with an alpha channel
     RGBA,
 
-    // /// Pixel is 16-bit luminance
-    // L16,
+    /// Pixel is 16-bit luminance
+    L16,
     /// Pixel is 16-bit luminance with an alpha channel
     LA16,
-    /// Pixel is 16-bit RGB.
+    /// Pixel is 16-bit RGB
     RGB16,
-    /// Pixel is 16-bit RGBA.
+    /// Pixel is 16-bit RGBA
     RGBA16,
 
     /// Pixel contains 8-bit B, G and R channels
@@ -38,7 +40,9 @@ pub enum ColorType {
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
 pub fn bits_per_pixel(c: ColorType) -> usize {
     match c {
-        ColorType::L(n) => n as usize,
+        ColorType::L1 => 1,
+        ColorType::L8 => 8,
+        ColorType::L16 => 16,
         ColorType::Palette(n) => 3 * n as usize,
         ColorType::LA => 16,
         ColorType::RGB | ColorType::BGR => 24,
@@ -51,7 +55,7 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 /// Returns the number of color channels that make up this pixel
 pub fn num_components(c: ColorType) -> usize {
     match c {
-        ColorType::L(_) => 1,
+        ColorType::L1 | ColorType::L8 | ColorType::L16 => 1,
         ColorType::LA | ColorType::LA16 => 2,
         ColorType::RGB | ColorType::RGB16 | ColorType::Palette(_) | ColorType::BGR => 3,
         ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
@@ -83,7 +87,6 @@ pub fn $ident<T: Primitive>(data: [T; $channels]) -> $ident<T> {
 }
 
 impl<T: Primitive + 'static> Pixel for $ident<T> {
-
     type Subpixel = T;
 
     fn channel_count() -> u8 {
@@ -93,13 +96,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         $interpretation
     }
     fn color_type() -> ColorType {
-        if mem::size_of::<T>() == 1 {
-            $color_type
-        } else if $color_type == ColorType::L(8) {
-            ColorType::L(mem::size_of::<T>() as u8 * 8)
-        } else {
-            unimplemented!()
-        }
+        $color_type
     }
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -239,7 +236,7 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 define_colors! {
     Rgb, 3, 0, "RGB", ColorType::RGB, #[doc = "RGB colors"];
     Bgr, 3, 0, "BGR", ColorType::BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ColorType::L(8), #[doc = "Grayscale colors"];
+    Luma, 1, 0, "Y", ColorType::L8, #[doc = "Grayscale colors"];
     Rgba, 4, 1, "RGBA", ColorType::RGBA, #[doc = "RGB colors + alpha channel"];
     Bgra, 4, 1, "BGRA", ColorType::BGRA, #[doc = "BGR colors + alpha channel"];
     LumaA, 2, 1, "YA", ColorType::LA, #[doc = "Grayscale colors + alpha channel"];

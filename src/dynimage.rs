@@ -292,7 +292,7 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::L(8),
+            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
             DynamicImage::ImageLumaA8(_) => color::ColorType::LA,
             DynamicImage::ImageRgb8(_) => color::ColorType::RGB,
             DynamicImage::ImageRgba8(_) => color::ColorType::RGBA,
@@ -652,17 +652,15 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
         }
 
-        color::ColorType::L(8) => {
+        color::ColorType::L8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::LA => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        color::ColorType::L(bit_depth)
-            if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
-        {
-            gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
+        color::ColorType::L1 => {
+            gray_to_luma8(1, w, h, &buf).map(DynamicImage::ImageLuma8)
         }
         _ => return Err(image::ImageError::UnsupportedColor(color)),
     };

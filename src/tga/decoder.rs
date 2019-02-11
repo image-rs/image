@@ -184,7 +184,7 @@ impl<R: Read + Seek> TGADecoder<R> {
             has_loaded_metadata: false,
 
             image_type: ImageType::Unknown,
-            color_type: ColorType::L(1),
+            color_type: ColorType::L1,
 
             header: Header::new(),
             color_map: None,
@@ -255,7 +255,7 @@ impl<R: Read + Seek> TGADecoder<R> {
             (8, 24, true) => self.color_type = ColorType::RGBA,
             (0, 24, true) => self.color_type = ColorType::RGB,
             (8, 8, false) => self.color_type = ColorType::LA,
-            (0, 8, false) => self.color_type = ColorType::L(8),
+            (0, 8, false) => self.color_type = ColorType::L8,
             _ => {
                 return Err(ImageError::UnsupportedError(
                     format!(

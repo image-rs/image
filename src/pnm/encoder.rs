@@ -168,11 +168,15 @@ impl<W: Write> PNMEncoder<W> {
     ) -> io::Result<()> {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
-            ColorType::L(1) => (1, ArbitraryTuplType::BlackAndWhite),
-            ColorType::L(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::LA => ((1 << 8) - 1, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB => ((1 << 8) - 1, ArbitraryTuplType::RGB),
-            ColorType::RGBA => ((1 << 8) - 1, ArbitraryTuplType::RGBAlpha),
+            ColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
+            ColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
+            ColorType::L16 => (0xffff, ArbitraryTuplType::Grayscale),
+            ColorType::LA => (0xff, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::LA16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::RGB => (0xff, ArbitraryTuplType::RGB),
+            ColorType::RGB16 => (0xffff, ArbitraryTuplType::RGB),
+            ColorType::RGBA => (0xff, ArbitraryTuplType::RGBAlpha),
+            ColorType::RGBA16 => (0xffff, ArbitraryTuplType::RGBAlpha),
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -217,7 +221,7 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Graymap(encoding), ColorType::L(8)) => PNMHeader {
+            (PNMSubtype::Graymap(encoding), ColorType::L8) => PNMHeader {
                 decoded: HeaderRecord::Graymap(GraymapHeader {
                     encoding,
                     width,
@@ -226,8 +230,8 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Bitmap(encoding), ColorType::L(8))
-            | (PNMSubtype::Bitmap(encoding), ColorType::L(1)) => PNMHeader {
+            (PNMSubtype::Bitmap(encoding), ColorType::L8)
+            | (PNMSubtype::Bitmap(encoding), ColorType::L1) => PNMHeader {
                 decoded: HeaderRecord::Bitmap(BitmapHeader {
                     encoding,
                     width,
@@ -332,7 +336,7 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Bitmap(_),
                 ..
             } => match color {
-                ColorType::L(_) => (),
+                ColorType::L1 | ColorType::L8 | ColorType::L16 => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -344,7 +348,7 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
-                ColorType::L(_) => (),
+                ColorType::L1 | ColorType::L8 | ColorType::L16 => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -373,10 +377,12 @@ impl<'a> CheckedDimensions<'a> {
                     }),
                 ..
             } => match (tupltype, color) {
-                (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::L(_)) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::L1) => (),
                 (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::LA) => (),
 
-                (&Some(ArbitraryTuplType::Grayscale), ColorType::L(_)) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ColorType::L1) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ColorType::L8) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ColorType::L16) => (),
                 (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::LA) => (),
 
                 (&Some(ArbitraryTuplType::RGB), ColorType::RGB) => (),
@@ -418,24 +424,23 @@ impl<'a> CheckedHeaderColor<'a> {
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
             // Protects against overflows from shifting and gives a better error.
-            ColorType::L(n)
-            | ColorType::Palette(n) if n > 16 =>
-            {
+            ColorType::Palette(n) if n > 16 => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Encoding colors with a bit depth greater 16 not supported",
                 ))
             }
-            ColorType::L(n)
-            | ColorType::Palette(n)
-                => (1 << n) - 1,
-            ColorType::LA
+            ColorType::Palette(n) => (1 << n) - 1,
+            ColorType::L1 => 1,
+            ColorType::L8
+            | ColorType::LA
             | ColorType::RGB
             | ColorType::RGBA
             | ColorType::BGR
             | ColorType::BGRA
                 => 0xff,
-            ColorType::LA16
+            ColorType::L16
+            | ColorType::LA16
             | ColorType::RGB16
             | ColorType::RGBA16
                 => 0xffff,

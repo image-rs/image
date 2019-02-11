@@ -449,7 +449,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
             color::ColorType::RGBA => {
                 try!(self.encode_rgb(image, width as usize, height as usize, 4))
             }
-            color::ColorType::L(8) => {
+            color::ColorType::L8 => {
                 try!(self.encode_gray(image, width as usize, height as usize, 1))
             }
             color::ColorType::LA => {
@@ -800,7 +800,7 @@ mod tests {
         {
             let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 2, 2, ColorType::L(8))
+                .encode(&img, 2, 2, ColorType::L8)
                 .expect("Could not encode image");
         }
 

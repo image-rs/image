@@ -54,7 +54,9 @@ impl From<tiff::ColorType> for ColorType {
     fn from(ct: tiff::ColorType) -> ColorType {
         match ct {
             tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
-            tiff::ColorType::Gray(depth) => ColorType::L(depth),
+            tiff::ColorType::Gray(1) => ColorType::L1,
+            tiff::ColorType::Gray(8) => ColorType::L8,
+            tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::LA,
             tiff::ColorType::GrayA(16) => ColorType::LA16,
             tiff::ColorType::RGB(8) => ColorType::RGB,

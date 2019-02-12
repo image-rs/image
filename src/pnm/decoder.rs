@@ -281,7 +281,12 @@ trait HeaderReader: BufRead {
         let mut tupltype: Option<String> = None;
         loop {
             line.truncate(0);
-            self.read_line(&mut line).map_err(ImageError::IoError)?;
+            let len = self.read_line(&mut line).map_err(ImageError::IoError)?;
+            if len == 0 {
+                return Err(ImageError::FormatError(
+                    format!("Unexpected end of pnm header"),
+                ))
+            }
             if line.as_bytes()[0] == b'#' {
                 continue;
             }

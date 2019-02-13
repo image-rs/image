@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use color::{CoreColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
@@ -33,7 +33,7 @@ pub trait Pixel: Copy + Clone {
     fn color_model() -> &'static str;
 
     /// Returns the ColorType for this pixel format
-    fn color_type() -> ColorType;
+    fn color_type() -> CoreColorType;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -520,7 +520,7 @@ where
             self,
             self.width(),
             self.height(),
-            <P as Pixel>::color_type(),
+            <P as Pixel>::color_type().into(),
         )
     }
 }

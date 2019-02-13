@@ -444,6 +444,7 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::RGB16
             | ColorType::RGBA16
                 => 0xffff,
+            _ => unimplemented!(),
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.

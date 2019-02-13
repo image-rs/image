@@ -48,7 +48,7 @@ use std::marker::PhantomData;
 use num_traits::Zero;
 
 use buffer::{ImageBuffer, Pixel};
-use color::ColorType;
+use color::CoreColorType;
 use image::{GenericImage, GenericImageView, ImageError};
 
 /// A flat buffer over a (multi channel) image.
@@ -75,7 +75,7 @@ pub struct FlatSamples<Buffer> {
     /// converters. It is intended mainly as a way for types that convert to this buffer type to
     /// attach their otherwise static color information. A dynamic image representation could
     /// however use this to resolve representational ambiguities such as the order of RGB channels.
-    pub color_hint: Option<ColorType>,
+    pub color_hint: Option<CoreColorType>,
 }
 
 /// A ffi compatible description of a sample buffer.
@@ -927,7 +927,7 @@ pub enum Error {
     /// directly memory unsafe although that will likely alias pixels. One scenario is when you
     /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
     /// care about the value of the alpha channel even though you need `Rgba`.
-    WrongColor(ColorType),
+    WrongColor(CoreColorType),
 }
 
 /// Different normal forms of buffers.
@@ -1374,7 +1374,7 @@ impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
         match error {
             Error::TooLarge => ImageError::DimensionError,
-            Error::WrongColor(color) => ImageError::UnsupportedColor(color),
+            Error::WrongColor(color) => ImageError::UnsupportedColor(color.into()),
             Error::NormalFormRequired(form) => ImageError::FormatError(
                 format!("Required sample buffer in normal form {:?}", form)),
         }

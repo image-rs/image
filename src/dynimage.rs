@@ -290,14 +290,14 @@ impl DynamicImage {
     }
 
     /// Return this image's color type.
-    pub fn color(&self) -> color::ColorType {
+    pub fn color(&self) -> color::CoreColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
-            DynamicImage::ImageLumaA8(_) => color::ColorType::LA,
-            DynamicImage::ImageRgb8(_) => color::ColorType::RGB,
-            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA,
-            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA,
-            DynamicImage::ImageBgr8(_) => color::ColorType::BGR,
+            DynamicImage::ImageLuma8(_) => color::CoreColorType::L,
+            DynamicImage::ImageLumaA8(_) => color::CoreColorType::LA,
+            DynamicImage::ImageRgb8(_) => color::CoreColorType::RGB,
+            DynamicImage::ImageRgba8(_) => color::CoreColorType::RGBA,
+            DynamicImage::ImageBgra8(_) => color::CoreColorType::BGRA,
+            DynamicImage::ImageBgr8(_) => color::CoreColorType::BGR,
         }
     }
 
@@ -472,7 +472,7 @@ impl DynamicImage {
     ) -> ImageResult<()> {
         let mut bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
-        let mut color = self.color();
+        let mut color = self.color().into();
         let format = format.into();
 
         #[allow(deprecated)]

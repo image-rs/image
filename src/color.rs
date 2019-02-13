@@ -4,6 +4,24 @@ use std::ops::{Index, IndexMut};
 use buffer::Pixel;
 use traits::Primitive;
 
+
+/// An enumeration over core color types.
+#[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+pub enum CoreColorType {
+    /// Pixel is 8-bit luminance
+    L,
+    /// Pixel is 8-bit luminance with an alpha channel
+    LA,
+    /// Pixel contains 8-bit R, G and B channels
+    RGB,
+    /// Pixel is 8-bit RGB with an alpha channel
+    RGBA,
+    /// Pixel contains 8-bit B, G and R channels
+    BGR,
+    /// Pixel is 8-bit BGR with an alpha channel
+    BGRA,
+}
+
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
@@ -37,6 +55,44 @@ pub enum ColorType {
     /// are associated with an external palette. In that case, the pixel value is an index into the
     /// palette.
     Unknown(u8),
+
+    #[doc(hidden)]
+    __Nonexhaustive,
+}
+impl ColorType {
+    /// Convert to the associated CoreColorType or return None if this is not currently one of the
+    /// core types.
+    pub fn as_core(&self) -> Option<CoreColorType> {
+        match *self {
+            ColorType::L8 => Some(CoreColorType::L),
+            ColorType::LA => Some(CoreColorType::LA),
+            ColorType::RGB => Some(CoreColorType::RGB),
+            ColorType::RGBA => Some(CoreColorType::RGBA),
+            ColorType::BGR => Some(CoreColorType::BGR),
+            ColorType::BGRA => Some(CoreColorType::BGRA),
+
+            ColorType::L1 |
+            ColorType::L16 |
+            ColorType::LA16 |
+            ColorType::RGB16 |
+            ColorType::RGBA16 |
+            ColorType::Unknown(_) |
+            ColorType::__Nonexhaustive => None,
+        }
+    }
+}
+
+impl From<CoreColorType> for ColorType {
+    fn from(other: CoreColorType) -> Self {
+        match other {
+            CoreColorType::L => ColorType::L8,
+            CoreColorType::LA => ColorType::LA,
+            CoreColorType::RGB => ColorType::RGB,
+            CoreColorType::RGBA => ColorType::RGBA,
+            CoreColorType::BGR => ColorType::BGR,
+            CoreColorType::BGRA => ColorType::BGRA,
+        }
+    }
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
@@ -51,6 +107,7 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
         ColorType::RGB16 => 48,
         ColorType::RGBA16 => 64,
         ColorType::Unknown(n) => n as usize,
+        ColorType::__Nonexhaustive => unreachable!(),
     }
 }
 
@@ -61,6 +118,7 @@ pub fn num_components(c: ColorType) -> usize {
         ColorType::LA | ColorType::LA16 => 2,
         ColorType::RGB | ColorType::RGB16| ColorType::BGR => 3,
         ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
+        ColorType::__Nonexhaustive => unreachable!(),
     }
 }
 
@@ -97,7 +155,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     fn color_model() -> &'static str {
         $interpretation
     }
-    fn color_type() -> ColorType {
+    fn color_type() -> CoreColorType {
         $color_type
     }
     #[inline(always)]
@@ -236,12 +294,12 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", ColorType::RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", ColorType::BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ColorType::L8, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", ColorType::RGBA, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", ColorType::BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ColorType::LA, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", CoreColorType::RGB, #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", CoreColorType::BGR, #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", CoreColorType::L, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", CoreColorType::RGBA, #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", CoreColorType::BGRA, #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", CoreColorType::LA, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

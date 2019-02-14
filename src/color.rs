@@ -37,6 +37,9 @@ pub enum ColorType {
     /// are associated with an external palette. In that case, the pixel value is an index into the
     /// palette.
     Unknown(u8),
+
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
@@ -51,6 +54,7 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
         ColorType::RGB16 => 48,
         ColorType::RGBA16 => 64,
         ColorType::Unknown(n) => n as usize,
+        ColorType::__Nonexhaustive => unreachable!(),
     }
 }
 
@@ -61,6 +65,7 @@ pub fn num_components(c: ColorType) -> usize {
         ColorType::LA | ColorType::LA16 => 2,
         ColorType::RGB | ColorType::RGB16| ColorType::BGR => 3,
         ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
+        ColorType::__Nonexhaustive => unreachable!(),
     }
 }
 

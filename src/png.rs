@@ -198,6 +198,7 @@ impl From<ColorType> for (png::ColorType, png::BitDepth) {
             ColorType::RGBA16 => (RGBA, 16),
             ColorType::BGR => (RGB, 8),
             ColorType::BGRA => (RGBA, 8),
+            _ => unimplemented!(),
         };
         (ct, png::BitDepth::from_u8(bits).unwrap())
     }

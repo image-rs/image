@@ -1,8 +1,10 @@
 language: rust
-rust:
-  - stable
-  - nightly
+matrix:
+  include:
+    - rust: stable
+    - rust: nightly
+    - rust: nightly
+      env: FLAGS="-Z minimal-versions"
 script:
-  - cargo build -v
-  - cargo doc -v
-
+  - cargo build -v $FLAGS
+  - cargo doc -v $FLAGS

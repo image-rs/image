@@ -101,10 +101,10 @@ An image parameterised by its Pixel types, represented by a width and height and
 ```rust
 extern crate image;
 
-use image::{GenericImage, ImageBuffer};
+use image::{GenericImage, ImageBuffer, RgbImage};
 
 // Construct a new RGB ImageBuffer with the specified width and height.
-let img :  image::RgbImage = ImageBuffer::new(512, 512);
+let img: RgbImage = ImageBuffer::new(512, 512);
 
 // Construct a new by repeated calls to the supplied closure.
 let img = ImageBuffer::from_fn(512, 512, |x, y| {

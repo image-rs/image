@@ -1,6 +1,7 @@
 use super::scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
+use std::mem;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
@@ -49,7 +50,7 @@ impl<R: BufRead> HDRAdapter<R> {
             Some(decoder) => {
                 let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
 
-                let len = img.len() * std::mem::size_of::<Rgb<u8>>(); // length in bytes
+                let len = img.len() * mem::size_of::<Rgb<u8>>(); // length in bytes
                 let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
                 target.clear();
 

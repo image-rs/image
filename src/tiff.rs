@@ -10,7 +10,6 @@ extern crate tiff;
 
 use color::ColorType;
 use image::{ImageDecoder, ImageResult, ImageError};
-use safe_transmute;
 
 use std::io::{Cursor, Read, Seek};
 
@@ -82,7 +81,10 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
         match self.inner.read_image()? {
             tiff::decoder::DecodingResult::U8(v) => Ok(v),
             tiff::decoder::DecodingResult::U16(v) => {
-                Ok(safe_transmute::guarded_transmute_to_bytes_pod_vec(v))
+                Ok(v.into_iter().flat_map(|u| {
+                    let [a, b] = u.to_ne_bytes();
+                    std::iter::once(a).chain(std::iter::once(b))
+                }).collect())
             }
         }
     }

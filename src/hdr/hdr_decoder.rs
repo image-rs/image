@@ -5,7 +5,7 @@ use num_traits::identities::Zero;
 use std::borrow::Cow;
 use std::error::Error;
 use std::io::{self, BufRead, Cursor, Seek};
-use std::iter::Iterator;
+use std::iter::{once, Iterator};
 use std::path::Path;
 use Primitive;
 
@@ -47,17 +47,17 @@ impl<R: BufRead> HDRAdapter<R> {
     fn read_image_data(&mut self) -> ImageResult<()> {
         match self.inner.take() {
             Some(decoder) => {
-                let elem_len = ::std::mem::size_of::<Rgb<u8>>();
-                let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                // let's transform Vec<Rgb<u8>> into Vec<u8>
-                let p = img.as_mut_ptr() as *mut u8;
-                let len = img.len() * elem_len; // length in bytes
-                let cap = img.capacity() * elem_len; //
-                ::std::mem::forget(img);
+                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
 
-                unsafe {
-                    self.data = Some(Vec::from_raw_parts(p, len, cap));
-                }
+                let len = img.len() * std::mem::size_of::<Rgb<u8>>(); // length in bytes
+                let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
+                target.clear();
+
+                target.extend(img.into_iter().flat_map(|rgb| {
+                    let [a, b, c] = rgb.data;
+                    once(a).chain(once(b)).chain(once(c))
+                }));
+
                 Ok(())
             }
             None => Err(ImageError::ImageEnd),

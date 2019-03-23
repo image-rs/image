@@ -5,7 +5,7 @@ use num_traits::identities::Zero;
 use std::borrow::Cow;
 use std::error::Error;
 use std::io::{self, BufRead, Cursor, Seek};
-use std::iter::{once, Iterator};
+use std::iter::Iterator;
 use std::path::Path;
 use Primitive;
 

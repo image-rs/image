@@ -1,6 +1,7 @@
 //!  Utilities
 
 use num_iter::range_step;
+use std::{mem, slice};
 use std::iter::repeat;
 
 #[inline(always)]
@@ -30,4 +31,23 @@ where
         let pixel = (buf[i] & (mask << shift)) >> shift;
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
     }
+}
+
+pub fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
+    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
+    vec_u16_copy_u8(&vec)
+}
+
+pub fn vec_u16_copy_u8(vec: &Vec<u16>) -> Vec<u8> {
+    let original_slice = vec.as_slice();
+    let ptr = original_slice.as_ptr() as *const u8;
+    let len = original_slice.len() * mem::size_of::<u16>();
+
+    // Note: The original pointer points to `len` bytes and all bytes are initialized thus it is
+    // valid for this slice and for the lifetime of the method. Also, the alignment of `u8` is
+    // smaller than that of `u16` as per the assert. The `ptr` is non-null because it originates
+    // from a slice itself.
+    assert!(mem::align_of::<u8>() <= mem::align_of::<u16>());
+    let byte_slice = unsafe { slice::from_raw_parts(ptr, len) };
+    byte_slice.to_owned()
 }

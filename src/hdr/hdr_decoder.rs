@@ -53,10 +53,9 @@ impl<R: BufRead> HDRAdapter<R> {
                 let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
                 target.clear();
 
-                target.extend(img.into_iter().flat_map(|rgb| {
-                    let [a, b, c] = rgb.data;
-                    once(a).chain(once(b)).chain(once(c))
-                }));
+                for Rgb { data } in img {
+                    target.extend_from_slice(&data);
+                }
 
                 Ok(())
             }

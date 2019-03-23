@@ -51,6 +51,10 @@ impl<R: BufRead> HDRAdapter<R> {
                 let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
                 // let's transform Vec<Rgb<u8>> into Vec<u8>
                 let p = img.as_mut_ptr() as *mut u8;
+                // NOTE: These multiplications cannot overflow because,
+                // if they did, that would imply that the original
+                // vector's length (in bytes) was larger than the max
+                // usize value.
                 let len = img.len() * elem_len; // length in bytes
                 let cap = img.capacity() * elem_len; //
                 ::std::mem::forget(img);

@@ -8,11 +8,11 @@
 
 extern crate tiff;
 
+use std::io::{Cursor, Read, Seek};
+
 use color::ColorType;
 use image::{ImageDecoder, ImageResult, ImageError};
-use safe_transmute;
-
-use std::io::{Cursor, Read, Seek};
+use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
 pub struct TIFFDecoder<R>
@@ -81,9 +81,7 @@ impl<R: Read + Seek> ImageDecoder for TIFFDecoder<R> {
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
         match self.inner.read_image()? {
             tiff::decoder::DecodingResult::U8(v) => Ok(v),
-            tiff::decoder::DecodingResult::U16(v) => {
-                Ok(safe_transmute::guarded_transmute_to_bytes_pod_vec(v))
-            }
+            tiff::decoder::DecodingResult::U16(v) => Ok(vec_u16_into_u8(v)),
         }
     }
 }

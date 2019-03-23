@@ -34,7 +34,6 @@ num-iter = "0.1.32"
 num-rational = { version = "0.2.1", default-features = false }
 num-traits = "0.2.0"
 lzw = "0.10.0"
-safe-transmute = "0.10.1"
 
 [dependencies.gif]
 version = "0.10.0"

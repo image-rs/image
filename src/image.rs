@@ -539,14 +539,6 @@ pub trait GenericImageView {
     /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
-    /// Returns the pixel located at (x, y)
-    ///
-    /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over get_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
-    unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
-        self.get_pixel(x, y)
-    }
-
     /// Returns an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with their value
@@ -591,14 +583,6 @@ pub trait GenericImage: GenericImageView {
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
-
-    /// Puts a pixel at location (x, y)
-    ///
-    /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over put_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
-    unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        self.put_pixel(x, y, pixel);
-    }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
     ///

@@ -686,10 +686,8 @@ pub trait GenericImage: GenericImageView {
 
         for i in 0..other.width() {
             for k in 0..other.height() {
-                unsafe {
-                    let p = other.unsafe_get_pixel(i, k);
-                    self.unsafe_put_pixel(i + x, k + y, p);
-                }
+                let p = other.get_pixel(i, k);
+                self.put_pixel(i + x, k + y, p);
             }
         }
         true

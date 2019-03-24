@@ -330,57 +330,48 @@ impl<R: BufRead> HDRDecoder<R> {
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(RGBE8Pixel) -> T>(
         mut self,
         f: F,
-    ) -> ImageResult<Vec<T>> {
+        output_slice: &mut [T],
+    ) -> ImageResult<()> {
+        assert_eq!(output_slice.len(), self.width as usize * self.height as usize);
+
         // Don't read anything if image is empty
         if self.width == 0 || self.height == 0 {
-            return Ok(vec![]);
+            return Ok(());
         }
-        // expression self.width > 0 && self.height > 0 is true from now to the end of this method
-        // scanline buffer
-        let uszwidth = self.width as usize;
 
-        let pixel_count = self.width as usize * self.height as usize;
-        let mut ret = Vec::with_capacity(pixel_count);
-        unsafe {
-            // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
-            ret.set_len(pixel_count);
-        } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
+        let chunks_iter = output_slice.chunks_mut(self.width as usize);
+        let mut pool = Pool::new(8); //
 
-        {
-            let chunks_iter = ret.chunks_mut(uszwidth);
-            let mut pool = Pool::new(8); //
-
-            try!(pool.scoped(|scope| {
-                for chunk in chunks_iter {
-                    let mut buf = Vec::<RGBE8Pixel>::with_capacity(uszwidth);
-                    unsafe {
-                        buf.set_len(uszwidth);
+        try!(pool.scoped(|scope| {
+            for chunk in chunks_iter {
+                let mut buf = vec![Default::default(); self.width as usize];
+                try!(read_scanline(&mut self.r, &mut buf[..]));
+                let f = &f;
+                scope.execute(move || {
+                    for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
+                        *dst = f(pix);
                     }
-                    try!(read_scanline(&mut self.r, &mut buf[..]));
-                    let f = &f;
-                    scope.execute(move || {
-                        for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                            *dst = f(pix);
-                        }
-                    });
-                }
-                Ok(())
-            }) as Result<(), ImageError>);
-        }
-
-        Ok(ret)
+                });
+            }
+            Ok(())
+        }) as Result<(), ImageError>);
+        Ok(())
     }
 
     /// Consumes decoder and returns a vector of Rgb<u8> pixels.
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
-        self.read_image_transform(|pix| pix.to_ldr())
+        let mut ret = vec![Rgb([0,0,0]); self.width as usize * self.height as usize];
+        self.read_image_transform(|pix| pix.to_ldr(), &mut ret[..])?;
+        Ok(ret)
     }
 
     /// Consumes decoder and returns a vector of Rgb<f32> pixels.
     ///
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
-        self.read_image_transform(|pix| pix.to_hdr())
+        let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
+        self.read_image_transform(|pix| pix.to_hdr(), &mut ret[..])?;
+        Ok(ret)
     }
 }
 

@@ -273,6 +273,10 @@ bitflags! {
     }
 }
 
+/// Mod to encapsulate the converters depending on the `deflate` crate.
+///
+/// Since this only contains trait impls, there is no need to make this public, they are simply
+/// available when the mod is compiled as well.
 #[cfg(feature = "png-encoding")]
 mod deflate_convert {
     extern crate deflate;

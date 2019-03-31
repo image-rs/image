@@ -1,5 +1,4 @@
 //! Common types shared between the encoder and decoder
-extern crate deflate;
 use filter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,28 +139,6 @@ pub enum Compression {
     Rle,
 }
 
-impl From<deflate::Compression> for Compression {
-    fn from(c: deflate::Compression) -> Self {
-        match c {
-            deflate::Compression::Default => Compression::Default,
-            deflate::Compression::Fast => Compression::Fast,
-            deflate::Compression::Best => Compression::Best,
-        }
-    }
-}
-
-impl From<Compression> for deflate::CompressionOptions {
-    fn from(c: Compression) -> Self {
-        match c {
-            Compression::Default => deflate::CompressionOptions::default(),
-            Compression::Fast => deflate::CompressionOptions::fast(),
-            Compression::Best => deflate::CompressionOptions::high(),
-            Compression::Huffman => deflate::CompressionOptions::huffman_only(),
-            Compression::Rle => deflate::CompressionOptions::rle(),
-        }
-    }
-}
-
 /// PNG info struct
 #[derive(Debug)]
 pub struct Info {
@@ -194,7 +171,7 @@ impl Default for Info {
             animation_control: None,
             // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub` 
             // to maintain backward compatible output. 
-            compression: deflate::Compression::Fast.into(),
+            compression: Compression::Fast,
             filter: filter::FilterType::Sub,
         }
     }
@@ -293,6 +270,34 @@ bitflags! {
         const GRAY_TO_RGB         = 0x2000; // read only */
         const EXPAND_16           = 0x4000; // read only */
         const SCALE_16            = 0x8000; // read only */
+    }
+}
+
+#[cfg(feature = "png-encoding")]
+mod deflate_convert {
+    extern crate deflate;
+    use super::Compression;
+
+    impl From<deflate::Compression> for Compression {
+        fn from(c: deflate::Compression) -> Self {
+            match c {
+                deflate::Compression::Default => Compression::Default,
+                deflate::Compression::Fast => Compression::Fast,
+                deflate::Compression::Best => Compression::Best,
+            }
+        }
+    }
+
+    impl From<Compression> for deflate::CompressionOptions {
+        fn from(c: Compression) -> Self {
+            match c {
+                Compression::Default => deflate::CompressionOptions::default(),
+                Compression::Fast => deflate::CompressionOptions::fast(),
+                Compression::Best => deflate::CompressionOptions::high(),
+                Compression::Huffman => deflate::CompressionOptions::huffman_only(),
+                Compression::Rle => deflate::CompressionOptions::rle(),
+            }
+        }
     }
 }
 

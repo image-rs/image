@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
 use std::path::Path;
+use std::u32;
 
 #[cfg(feature = "bmp")]
 use bmp;
@@ -779,37 +780,38 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
-    match &ext[..] {
+    let (w, h) = match &ext[..] {
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => Ok(jpeg::JPEGDecoder::new(fin)?.dimensions()),
+        "jpg" | "jpeg" => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        "png" => Ok(png::PNGDecoder::new(fin)?.dimensions()),
+        "png" => png::PNGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "gif_codec")]
-        "gif" => Ok(gif::Decoder::new(fin)?.dimensions()),
+        "gif" => gif::Decoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        "webp" => Ok(webp::WebpDecoder::new(fin)?.dimensions()),
+        "webp" => webp::WebpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => Ok(tiff::TIFFDecoder::new(fin)?.dimensions()),
+        "tif" | "tiff" => tiff::TIFFDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
-        "tga" => Ok(tga::TGADecoder::new(fin)?.dimensions()),
+        "tga" => tga::TGADecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
-        "bmp" => Ok(bmp::BMPDecoder::new(fin)?.dimensions()),
+        "bmp" => bmp::BMPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
-        "ico" => Ok(ico::ICODecoder::new(fin)?.dimensions()),
+        "ico" => ico::ICODecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
-        "hdr" => Ok(hdr::HDRAdapter::new(fin)?.dimensions()),
+        "hdr" => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
         "pbm" | "pam" | "ppm" | "pgm" => {
-            Ok(pnm::PNMDecoder::new(fin)?.dimensions())
+            pnm::PNMDecoder::new(fin)?.dimensions()
         }
-        format => Err(image::ImageError::UnsupportedError(format!(
+        format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
         ))),
+    };
+    if w >= u32::MAX as u64 || h >= u32::MAX as u64 {
+        return Err(image::ImageError::DimensionError);
     }
-     // TODO possible overflow here, though not probable since it would
-     // require an extremely large image.
-    .map(|(w, h)| (w as u32, h as u32))
+    Ok((w as u32, h as u32))
 }
 
 

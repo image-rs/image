@@ -15,8 +15,8 @@ authors = [
 ]
 readme = "README.md"
 documentation = "https://docs.rs/image"
-repository = "https://github.com/PistonDevelopers/image.git"
-homepage = "https://github.com/PistonDevelopers/image"
+repository = "https://github.com/image-rs/image.git"
+homepage = "https://github.com/image-rs/image"
 categories = ["multimedia::images", "multimedia::encoding"]
 exclude = [
     "src/png/testdata/*",

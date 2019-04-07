@@ -1,4 +1,4 @@
-# Image [![Build Status](https://travis-ci.org/PistonDevelopers/image.svg?branch=master)](https://travis-ci.org/PistonDevelopers/image)
+# Image [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image)
 
 Maintainers: @nwin, @ccgn
 

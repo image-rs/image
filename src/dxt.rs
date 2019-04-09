@@ -83,9 +83,6 @@ impl<R: Read> DXTDecoder<R> {
         }
         let width_blocks = width / 4;
         let height_blocks = height / 4;
-        if width.count_ones() != 1 || height.count_ones() != 1 {
-            return Err(ImageError::DimensionError);
-        }
         Ok(DXTDecoder {
             inner: r,
             width_blocks,
@@ -216,9 +213,6 @@ impl<W: Write> DXTEncoder<W> {
         }
         let width_blocks = width / 4;
         let height_blocks = height / 4;
-        if width.count_ones() != 1 || height.count_ones() != 1 {
-            return Err(ImageError::DimensionError);
-        }
 
         let stride = variant.decoded_bytes_per_block();
 

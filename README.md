@@ -69,6 +69,7 @@ All pixels are parameterised by their component type.
 A trait that provides functions for manipulating images, parameterised over the image's pixel type.
 
 ```rust
+# use image::{Pixel, Pixels};
 pub trait GenericImage {
     /// The pixel type.
     type Pixel: Pixel;
@@ -101,13 +102,13 @@ An image parameterised by its Pixel types, represented by a width and height and
 ```rust
 extern crate image;
 
-use image::{GenericImage, ImageBuffer, RgbImage};
+use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
 
 // Construct a new RGB ImageBuffer with the specified width and height.
 let img: RgbImage = ImageBuffer::new(512, 512);
 
 // Construct a new by repeated calls to the supplied closure.
-let img = ImageBuffer::from_fn(512, 512, |x, y| {
+let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
     if x % 2 == 0 {
         image::Luma([0u8])
     } else {
@@ -122,10 +123,10 @@ let (width, height) = img.dimensions();
 let pixel = img[(100, 100)];
 
 // Or use the ```get_pixel``` method from the ```GenericImage``` trait.
-let pixel = img.get_pixel(100, 100);
+let pixel = *img.get_pixel(100, 100);
 
 // Put a pixel at coordinate (100, 100).
-img.put_pixel(100, 100, *pixel);
+img.put_pixel(100, 100, pixel);
 
 // Iterate over all pixels in the image.
 for pixel in img.pixels() {
@@ -147,10 +148,10 @@ This is used to perform image processing functions on a subregion of an image.
 ```rust
 extern crate image;
 
-use image::{GenericImage, ImageBuffer, imageops};
+use image::{GenericImageView, ImageBuffer, RgbImage, imageops};
 
-let ref mut img = ImageBuffer::new(512, 512);
-let subimg = imageops::crop(img, 0, 0, 100, 100);
+let mut img: RgbImage = ImageBuffer::new(512, 512);
+let subimg = imageops::crop(&mut img, 0, 0, 100, 100);
 
 assert!(subimg.dimensions() == (100, 100));
 ```
@@ -180,7 +181,7 @@ These are the functions defined in the ```imageops``` module. All functions oper
 
 The image format is determined from the path's file extension.
 
-```rust
+```rust,no_run
 extern crate image;
 
 use image::GenericImageView;
@@ -188,7 +189,7 @@ use image::GenericImageView;
 fn main() {
     // Use the open function to load an image from a Path.
     // ```open``` returns a `DynamicImage` on success.
-    let img = image::open("test.jpg").unwrap();
+    let img = image::open("tests/images/jpg/progressive/cat.jpg").unwrap();
 
     // The dimensions method returns the images width and height.
     println!("dimensions {:?}", img.dimensions());
@@ -257,12 +258,12 @@ Example output:
 ### 6.3 Writing raw buffers
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
 
-```rust
+```rust,no_run
 extern crate image;
 
 fn main() {
 
-    let buffer: &[u8] = ...; // Generate the image data
+    let buffer: &[u8] = unimplemented!(); // Generate the image data
 
     // Save the buffer as "image.png"
     image::save_buffer("image.png", buffer, 800, 600, image::RGB(8)).unwrap()

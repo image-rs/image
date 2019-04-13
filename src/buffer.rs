@@ -304,6 +304,9 @@ pub struct ImageBuffer<P: Pixel, Container> {
 }
 
 // generic implementation, shared along all image buffers
+//
+// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?  Remember to remove
+// the bounds on `imageops` in case this changes!
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + 'static,

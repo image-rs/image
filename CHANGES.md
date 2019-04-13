@@ -8,6 +8,15 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.21.1
+
+- A fairly important bugfix backport
+- Fixed a potentially memory safety issue in the hdr and tiff decoders, see #885
+- See [the full advisory](docs/2019-04-23-memory-unsafety.md) for an analysis
+- Fixes `ImageBuffer` index calculation for very, very large images
+- Fix some crashes while parsing specific incomplete pnm images
+- Added comprehensive fuzzing for the pam image types
+
 ### Version 0.21
 
 - Updated README to use `GenericImageView`

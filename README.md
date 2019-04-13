@@ -203,7 +203,7 @@ fn main() {
 ```
 
 ### 6.2 Generating Fractals
-```rust
+```rust,no_run
 //! An example of generating julia fractals.
 extern crate image;
 extern crate num_complex;

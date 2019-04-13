@@ -2,7 +2,7 @@
 
 Maintainers: @nwin, @ccgn
 
-[How to contribute](https://github.com/PistonDevelopers/piston/blob/master/CONTRIBUTING.md)
+[How to contribute](https://github.com/image-rs/organization/blob/master/CONTRIBUTING.md)
 
 ## An Image Processing Library
 

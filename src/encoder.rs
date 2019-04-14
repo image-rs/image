@@ -7,11 +7,11 @@ use std::io::{self, Write};
 use std::mem;
 use std::result;
 
-use chunk;
-use crc::Crc32;
-use common::{Info, ColorType, BitDepth, Compression};
-use filter::{FilterType, filter};
-use traits::{WriteBytesExt, HasParameters, Parameter};
+use crate::chunk;
+use crate::crc::Crc32;
+use crate::common::{Info, ColorType, BitDepth, Compression};
+use crate::filter::{FilterType, filter};
+use crate::traits::{WriteBytesExt, HasParameters, Parameter};
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -109,25 +109,25 @@ impl<W: Write> Writer<W> {
     }
 
     fn init(mut self) -> Result<Self> {
-        try!(self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10]));
+        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
         let mut data = [0; 13];
-        try!((&mut data[..]).write_be(self.info.width));
-        try!((&mut data[4..]).write_be(self.info.height));
+        (&mut data[..]).write_be(self.info.width)?;
+        (&mut data[4..]).write_be(self.info.height)?;
         data[8] = self.info.bit_depth as u8;
         data[9] = self.info.color_type as u8;
         data[12] = if self.info.interlaced { 1 } else { 0 };
-        try!(self.write_chunk(chunk::IHDR, &data));
+        self.write_chunk(chunk::IHDR, &data)?;
         Ok(self)
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
-        try!(self.w.write_be(data.len() as u32));
-        try!(self.w.write_all(&name));
-        try!(self.w.write_all(data));
+        self.w.write_be(data.len() as u32)?;
+        self.w.write_all(&name)?;
+        self.w.write_all(data)?;
         let mut crc = Crc32::new();
         crc.update(&name);
         crc.update(data);
-        try!(self.w.write_be(crc.checksum()));
+        self.w.write_be(crc.checksum())?;
         Ok(())
     }
 
@@ -146,12 +146,12 @@ impl<W: Write> Writer<W> {
         let filter_method = self.info.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
-            try!(zlib.write_all(&[filter_method as u8]));
+            zlib.write_all(&[filter_method as u8])?;
             filter(filter_method, bpp, &prev, &mut current);
-            try!(zlib.write_all(&current));
+            zlib.write_all(&current)?;
             mem::swap(&mut prev, &mut current);
         }
-        self.write_chunk(chunk::IDAT, &try!(zlib.finish()))
+        self.write_chunk(chunk::IDAT, &zlib.finish()?)
     }
 }
 
@@ -183,7 +183,7 @@ mod tests {
                     continue;
                 }
                 // Decode image
-                let decoder = ::Decoder::new(File::open(path).unwrap());
+                let decoder = crate::Decoder::new(File::open(path).unwrap());
                 let (info, mut reader) = decoder.read_info().unwrap();
                 if info.line_size != 32 {
                     // TODO encoding only works with line size 32?
@@ -203,7 +203,7 @@ mod tests {
                     encoder.write_image_data(&buf).unwrap();
                 }
                 // Decode encoded decoded image
-                let decoder = ::Decoder::new(&*out);
+                let decoder = crate::Decoder::new(&*out);
                 let (info, mut reader) = decoder.read_info().unwrap();
                 let mut buf2 = vec![0; info.buffer_size()];
                 reader.next_frame(&mut buf2).unwrap();

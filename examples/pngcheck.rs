@@ -75,15 +75,15 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     // TODO improve performance by resusing allocations from decoder
     use png::Decoded::*;
-    let mut t = try!(term::stdout().ok_or(io::Error::new(
+    let mut t = term::stdout().ok_or(io::Error::new(
         io::ErrorKind::Other,
         "could not open terminal"
-    )));
+    ))?;
     let mut data = vec![0; 10*1024];
     let data_p = data.as_mut_ptr();
-    let mut reader = io::BufReader::new(try!(File::open(&fname)));
+    let mut reader = io::BufReader::new(File::open(&fname)?);
     let fname = fname.as_ref().to_string_lossy();
-    let n = try!(reader.read(&mut data));
+    let n = reader.read(&mut data)?;
     let mut buf = &data[..n];
     let mut pos = 0;
     let mut decoder = png::StreamingDecoder::new();
@@ -107,18 +107,18 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         });
     );
     let display_error = |err| -> Result<_, io::Error> {
-        let mut t = try!(term::stdout().ok_or(io::Error::new(
+        let mut t = term::stdout().ok_or(io::Error::new(
             io::ErrorKind::Other,
             "could not open terminal"
-        )));
+        ))?;
         if c.verbose {
             if c.color {
                 print!(": ");
-                try!(t.fg(color::RED));
-                try!(writeln!(t, "{}", err));
-                try!(t.attr(Attr::Bold));
-                try!(write!(t, "ERRORS DETECTED"));
-                try!(t.reset());
+                t.fg(color::RED)?;
+                writeln!(t, "{}", err)?;
+                t.attr(Attr::Bold)?;
+                write!(t, "ERRORS DETECTED")?;
+                t.reset()?;
             } else {
                 println!(": {}", err);
                 print!("ERRORS DETECTED")
@@ -126,22 +126,22 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             println!(" in {}", fname);
         } else {
             if !c.quiet { if c.color {
-                try!(t.fg(color::RED));
-                try!(t.attr(Attr::Bold));
-                try!(write!(t, "ERROR"));
-                try!(t.reset());
-                try!(write!(t, ": "));
-                try!(t.fg(color::YELLOW));
-                try!(writeln!(t, "{}", fname));
-                try!(t.reset());
+                t.fg(color::RED)?;
+                t.attr(Attr::Bold)?;
+                write!(t, "ERROR")?;
+                t.reset()?;
+                write!(t, ": ")?;
+                t.fg(color::YELLOW)?;
+                writeln!(t, "{}", fname)?;
+                t.reset()?;
             } else {
                 println!("ERROR: {}", fname)
             }}
             print!("{}: ", fname);
             if c.color {
-                try!(t.fg(color::RED));
-                try!(writeln!(t, "{}", err));
-                try!(t.reset());
+                t.fg(color::RED)?;
+                writeln!(t, "{}", err)?;
+                t.reset()?;
             } else {
                 println!("{}", err);
             }
@@ -153,9 +153,9 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     if c.verbose {
         print!("File: ");
         if c.color {
-            try!(t.attr(Attr::Bold));
-            try!(write!(t, "{}", fname));
-            try!(t.reset());
+            t.attr(Attr::Bold)?;
+            write!(t, "{}", fname)?;
+            t.reset()?;
         } else {
             print!("{}", fname);
         }
@@ -165,27 +165,27 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     loop {
         if buf.len() == 0 {
             // circumvent borrow checker
-            let n = try!(reader.read(unsafe {
+            let n = reader.read(unsafe {
                 ::std::slice::from_raw_parts_mut(data_p, data.len())
-            }));
+            })?;
             buf = &data[..n];
         }
         match decoder.update(buf, &mut Vec::new()) {
             Ok((_, ImageEnd)) => {
                 if !have_idat {
-                    try!(display_error(png::DecodingError::Format("IDAT chunk missing".into())));
+                    display_error(png::DecodingError::Format("IDAT chunk missing".into()))?;
                     break;
                 }
                 if !c.verbose && !c.quiet {
                     if c.color {
-                        try!(t.fg(color::GREEN));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "OK"));
-                        try!(t.reset());
-                        try!(write!(t, ": "));
-                        try!(t.fg(color::YELLOW));
-                        try!(write!(t, "{}", fname));
-                        try!(t.reset());
+                        t.fg(color::GREEN)?;
+                        t.attr(Attr::Bold)?;
+                        write!(t, "OK")?;
+                        t.reset()?;
+                        write!(t, ": ")?;
+                        t.fg(color::YELLOW)?;
+                        write!(t, "{}", fname)?;
+                        t.reset()?;
                     } else {
                         print!("OK: {}", fname)
                     }
@@ -201,10 +201,10 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                 } else if !c.quiet {
                     println!("");
                     if c.color {
-                        try!(t.fg(color::GREEN));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "No errors detected "));
-                        try!(t.reset());
+                        t.fg(color::GREEN)?;
+                        t.attr(Attr::Bold)?;
+                        write!(t, "No errors detected ")?;
+                        t.reset()?;
                     } else {
                         print!("No errors detected ");
                     }
@@ -236,9 +236,9 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             println!("");
                             print!("  chunk ");
                             if c.color {
-                                try!(t.fg(color::YELLOW));
-                                try!(write!(t, "{}", chunk));
-                                try!(t.reset());
+                                t.fg(color::YELLOW)?;
+                                write!(t, "{}", chunk)?;
+                                t.reset()?;
                             } else {
                                 print!("{}", chunk)
                             }
@@ -332,12 +332,12 @@ fn main() {
         for file in m.free {
             match if file.contains("*") {
                 (|| -> io::Result<_> {
-                    for entry in try!(glob::glob(&file).map_err(|err| {
+                    for entry in glob::glob(&file).map_err(|err| {
                         io::Error::new(io::ErrorKind::Other, err.msg)
-                    })) {
-                        try!(check_image(config, try!(entry.map_err(|_| {
+                    })? {
+                        check_image(config, entry.map_err(|_| {
                             io::Error::new(io::ErrorKind::Other, "glob error")
-                        }))))
+                        })))?
                     }
                     Ok(())
                 })()

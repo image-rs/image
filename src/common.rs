@@ -1,5 +1,5 @@
 //! Common types shared between the encoder and decoder
-use filter;
+use crate::filter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]

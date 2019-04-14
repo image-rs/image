@@ -109,25 +109,25 @@ impl<W: Write> Writer<W> {
     }
 
     fn init(mut self) -> Result<Self> {
-        r#try!(self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10]));
+        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
         let mut data = [0; 13];
-        r#try!((&mut data[..]).write_be(self.info.width));
-        r#try!((&mut data[4..]).write_be(self.info.height));
+        (&mut data[..]).write_be(self.info.width)?;
+        (&mut data[4..]).write_be(self.info.height)?;
         data[8] = self.info.bit_depth as u8;
         data[9] = self.info.color_type as u8;
         data[12] = if self.info.interlaced { 1 } else { 0 };
-        r#try!(self.write_chunk(chunk::IHDR, &data));
+        self.write_chunk(chunk::IHDR, &data)?;
         Ok(self)
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
-        r#try!(self.w.write_be(data.len() as u32));
-        r#try!(self.w.write_all(&name));
-        r#try!(self.w.write_all(data));
+        self.w.write_be(data.len() as u32)?;
+        self.w.write_all(&name)?;
+        self.w.write_all(data)?;
         let mut crc = Crc32::new();
         crc.update(&name);
         crc.update(data);
-        r#try!(self.w.write_be(crc.checksum()));
+        self.w.write_be(crc.checksum())?;
         Ok(())
     }
 
@@ -146,12 +146,12 @@ impl<W: Write> Writer<W> {
         let filter_method = self.info.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
-            r#try!(zlib.write_all(&[filter_method as u8]));
+            zlib.write_all(&[filter_method as u8])?;
             filter(filter_method, bpp, &prev, &mut current);
-            r#try!(zlib.write_all(&current));
+            zlib.write_all(&current)?;
             mem::swap(&mut prev, &mut current);
         }
-        self.write_chunk(chunk::IDAT, &r#try!(zlib.finish()))
+        self.write_chunk(chunk::IDAT, &zlib.finish()?)
     }
 }
 

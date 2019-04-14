@@ -113,7 +113,7 @@ impl<R: Read> Decoder<R> {
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
         let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform);
-        r#try!(r.init());
+        r.init()?;
         let (ct, bits) = r.output_color_type();
         let info = {
             let info = r.info();
@@ -149,13 +149,13 @@ impl<R: Read> ReadDecoder<R> {
     fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Option<Decoded>, DecodingError> {
         while !self.at_eof {
             let (consumed, result) = {
-                let buf = r#try!(self.reader.fill_buf());
+                let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
                     return Err(DecodingError::Format(
                         "unexpected EOF".into()
                     ))
                 }
-                r#try!(self.decoder.update(buf, image_data))
+                self.decoder.update(buf, image_data)?
             };
             self.reader.consume(consumed);
             match result {
@@ -222,7 +222,7 @@ impl<R: Read> Reader<R> {
             Ok(())
         } else {
             loop {
-                match r#try!(self.decoder.decode_next(&mut Vec::new())) {
+                match self.decoder.decode_next(&mut Vec::new())? {
                     Some(ChunkBegin(_, IDAT)) => break,
                     None => return Err(DecodingError::Format(
                         "IDAT chunk missing".into()
@@ -264,15 +264,15 @@ impl<R: Read> Reader<R> {
             ))
         }
         if get_info!(self).interlaced {
-             while let Some((row, adam7)) = r#try!(self.next_interlaced_row()) {
+             while let Some((row, adam7)) = self.next_interlaced_row()? {
                  let (pass, line, _) = adam7.unwrap();
                  let bytes = color_type.samples() as u8;
                  utils::expand_pass(buf, width * bytes as u32, row, pass, line, bytes);
              }
         } else {
             let mut len = 0;
-            while let Some(row) = r#try!(self.next_row()) {
-                len += r#try!((&mut buf[len..]).write(row));
+            while let Some(row) = self.next_row()? {
+                len += (&mut buf[len..]).write(row)?;
             }
         }
         Ok(())
@@ -292,8 +292,8 @@ impl<R: Read> Reader<R> {
         } else {
             // swap buffer to circumvent borrow issues
             let mut buffer = mem::replace(&mut self.processed, Vec::new());
-            let (got_next, adam7) = if let Some((row, adam7)) = r#try!(self.next_raw_interlaced_row()) {
-                r#try!((&mut buffer[..]).write(row));
+            let (got_next, adam7) = if let Some((row, adam7)) = self.next_raw_interlaced_row()? {
+                (&mut buffer[..]).write(row)?;
                 (true, adam7)
             } else {
                 (false, None)
@@ -473,7 +473,7 @@ impl<R: Read> Reader<R> {
                     ))
                 }
             } else {
-                let val = r#try!(self.decoder.decode_next(&mut self.current));
+                let val = self.decoder.decode_next(&mut self.current)?;
                 match val {
                     Some(Decoded::ImageData) => {}
                     None => {

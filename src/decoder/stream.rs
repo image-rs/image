@@ -279,7 +279,7 @@ impl StreamingDecoder {
                     chunk::fdAT => {
                         if let Some(seq_no) = self.current_seq_no {
                             let mut buf = &self.current_chunk.2[..];
-                            let next_seq_no = r#try!(buf.read_be());
+                            let next_seq_no = buf.read_be()?;
                             if next_seq_no != seq_no + 1 {
                                 return Err(DecodingError::Format(format!(
                                     "Sequence is not in order, expected #{} got #{}.",
@@ -300,7 +300,7 @@ impl StreamingDecoder {
                     // Handle other chunks
                     _ => {
                         if self.current_chunk.1 == 0 { // complete chunk
-                            Ok((0, r#try!(self.parse_chunk(type_str))))
+                            Ok((0, self.parse_chunk(type_str)?))
                         } else {
                             goto!(
                                 0, ReadChunk(type_str, true),
@@ -341,7 +341,7 @@ impl StreamingDecoder {
             }
             DecodeData(type_str, mut n) => {
                 let chunk_len = self.current_chunk.2.len();
-                let (c, data) = r#try!(self.inflater.update(&self.current_chunk.2[n..]));
+                let (c, data) = self.inflater.update(&self.current_chunk.2[n..])?;
                 image_data.extend_from_slice(data);
                 n += c;
                 if n == chunk_len && data.len() == 0 && c == 0 {
@@ -408,7 +408,7 @@ impl StreamingDecoder {
     fn parse_fctl(&mut self)
     -> Result<Decoded, DecodingError> {
         let mut buf = &self.current_chunk.2[..];
-        let next_seq_no = r#try!(buf.read_be());
+        let next_seq_no = buf.read_be()?;
 
         // Asuming that fcTL is required before *every* fdAT-sequence
         self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
@@ -433,14 +433,14 @@ impl StreamingDecoder {
         self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
         let fc = FrameControl {
             sequence_number: next_seq_no,
-            width: r#try!(buf.read_be()),
-            height: r#try!(buf.read_be()),
-            x_offset: r#try!(buf.read_be()),
-            y_offset: r#try!(buf.read_be()),
-            delay_num: r#try!(buf.read_be()),
-            delay_den: r#try!(buf.read_be()),
-            dispose_op: r#try!(buf.read_be()),
-            blend_op : r#try!(buf.read_be()),
+            width: buf.read_be()?,
+            height: buf.read_be()?,
+            x_offset: buf.read_be()?,
+            y_offset: buf.read_be()?,
+            delay_num: buf.read_be()?,
+            delay_den: buf.read_be()?,
+            dispose_op: buf.read_be()?,
+            blend_op : buf.read_be()?,
         };
         self.info.as_mut().unwrap().frame_control = Some(fc.clone());
         Ok(Decoded::FrameControl(fc))
@@ -455,8 +455,8 @@ impl StreamingDecoder {
         } else {
             let mut buf = &self.current_chunk.2[..];
             let actl = AnimationControl {
-                num_frames: r#try!(buf.read_be()),
-                num_plays: r#try!(buf.read_be())
+                num_frames: buf.read_be()?,
+                num_plays: buf.read_be()?
             };
             self.info.as_mut().unwrap().animation_control = Some(actl);
             Ok(Decoded::AnimationControl(actl))
@@ -477,7 +477,7 @@ impl StreamingDecoder {
     -> Result<Decoded, DecodingError> {
         use crate::common::ColorType::*;
         let (color_type, bit_depth) = {
-            let info = r#try!(self.get_info_or_err());
+            let info = self.get_info_or_err()?;
             (info.color_type, info.bit_depth as u8)
         };
         let mut vec = Vec::new();
@@ -539,9 +539,9 @@ impl StreamingDecoder {
             ))
         } else {
             let mut buf = &self.current_chunk.2[..];
-            let xppu = r#try!(buf.read_be());
-            let yppu = r#try!(buf.read_be());
-            let unit = r#try!(buf.read_be());
+            let xppu = buf.read_be()?;
+            let yppu = buf.read_be()?;
+            let unit = buf.read_be()?;
             let unit = match Unit::from_u8(unit) {
                 Some(unit) => unit,
                 None => return Err(DecodingError::Format(
@@ -562,35 +562,35 @@ impl StreamingDecoder {
     -> Result<Decoded, DecodingError> {
         // TODO: check if color/bit depths combination is valid
         let mut buf = &self.current_chunk.2[..];
-        let width = r#try!(buf.read_be());
-        let height = r#try!(buf.read_be());
-        let bit_depth = r#try!(buf.read_be());
+        let width = buf.read_be()?;
+        let height = buf.read_be()?;
+        let bit_depth = buf.read_be()?;
         let bit_depth = match BitDepth::from_u8(bit_depth) {
             Some(bits) => bits,
             None => return Err(DecodingError::Format(
                 format!("invalid bit depth ({})", bit_depth).into()
             ))
         };
-        let color_type = r#try!(buf.read_be());
+        let color_type = buf.read_be()?;
         let color_type = match ColorType::from_u8(color_type) {
             Some(color_type) => color_type,
             None => return Err(DecodingError::Format(
                 format!("invalid color type ({})", color_type).into()
             ))
         };
-        match r#try!(buf.read_be()) { // compression method
+        match buf.read_be()? { // compression method
             0u8 => (),
             n => return Err(DecodingError::Format(
                 format!("unknown compression method ({})", n).into()
             ))
         }
-        match r#try!(buf.read_be()) { // filter method
+        match buf.read_be()? { // filter method
             0u8 => (),
             n => return Err(DecodingError::Format(
                 format!("unknown filter method ({})", n).into()
             ))
         }
-        let interlaced = match r#try!(buf.read_be()) {
+        let interlaced = match buf.read_be()? {
             0u8 => false,
             1 => {
                 true

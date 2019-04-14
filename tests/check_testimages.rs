@@ -61,10 +61,10 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
 #[test]
 fn render_images() {
     process_images(|path| {
-        let decoder = png::Decoder::new(r#try!(File::open(path)));
-        let (info, mut reader) = r#try!(decoder.read_info());
+        let decoder = png::Decoder::new(File::open(path)?);
+        let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
-        r#try!(reader.next_frame(&mut img_data));
+        reader.next_frame(&mut img_data)?;
         // First sanity check:
         assert_eq!(
             img_data.len(), 

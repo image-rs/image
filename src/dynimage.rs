@@ -935,142 +935,50 @@ fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: b
 }
 
 enum DynamicDecoder<R: Read + Seek> {
-    Bmp(bmp::BMPDecoder<R>),
-    Gif(gif::Decoder<R>),
-    Hdr(hdr::HDRAdapter<BufReader<R>>),
-    Ico(ico::ICODecoder<R>),
-    Jpeg(jpeg::JPEGDecoder<R>),
-    Png(png::PNGDecoder<R>),
-    Pnm(pnm::PNMDecoder<R>),
-    Tga(tga::TGADecoder<R>),
-    Tiff(tiff::TIFFDecoder<R>),
-    Webp(webp::WebpDecoder<R>),
+    #[cfg(feature = "bmp")] Bmp(bmp::BMPDecoder<R>),
+    #[cfg(feature = "gif_codec")] Gif(gif::Decoder<R>),
+    #[cfg(feature = "hdr")] Hdr(hdr::HDRAdapter<BufReader<R>>),
+    #[cfg(feature = "ico")] Ico(ico::ICODecoder<R>),
+    #[cfg(feature = "jpeg")] Jpeg(jpeg::JPEGDecoder<R>),
+    #[cfg(feature = "png_codec")] Png(png::PNGDecoder<R>),
+    #[cfg(feature = "pnm")] Pnm(pnm::PNMDecoder<R>),
+    #[cfg(feature = "tga")] Tga(tga::TGADecoder<R>),
+    #[cfg(feature = "tiff")] Tiff(tiff::TIFFDecoder<R>),
+    #[cfg(feature = "webp")] Webp(webp::WebpDecoder<R>),
+}
+macro_rules! dynamic_decoder_map {
+    ($m: expr, $($ref: ident )*, $action: expr) => (
+        match $m {
+            #[cfg(feature = "bmp")] DynamicDecoder::Bmp($($ref)*) => $action,
+            #[cfg(feature = "gif_codec")] DynamicDecoder::Gif($($ref)*) => $action,
+            #[cfg(feature = "hdr")] DynamicDecoder::Hdr($($ref)*) => $action,
+            #[cfg(feature = "ico")] DynamicDecoder::Ico($($ref)*) => $action,
+            #[cfg(feature = "jpeg")] DynamicDecoder::Jpeg($($ref)*) => $action,
+            #[cfg(feature = "png_codec")] DynamicDecoder::Png($($ref)*) => $action,
+            #[cfg(feature = "pnm")] DynamicDecoder::Pnm($($ref)*) => $action,
+            #[cfg(feature = "tga")] DynamicDecoder::Tga($($ref)*) => $action,
+            #[cfg(feature = "tiff")] DynamicDecoder::Tiff($($ref)*) => $action,
+            #[cfg(feature = "webp")] DynamicDecoder::Webp($($ref)*) => $action,
+        }
+    );
 }
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for DynamicDecoder<R> {
     type Reader = Box<dyn Read + 'a>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        use self::DynamicDecoder::*;
-        match *self {
-            #[cfg(feature = "bmp")] Bmp(ref d) => d.dimensions(),
-            #[cfg(feature = "gif_codec")] Gif(ref d) => d.dimensions(),
-            #[cfg(feature = "hdr")] Hdr(ref d) => d.dimensions(),
-            #[cfg(feature = "ico")] Ico(ref d) => d.dimensions(),
-            #[cfg(feature = "jpeg")] Jpeg(ref d) => d.dimensions(),
-            #[cfg(feature = "png_codec")] Png(ref d) => d.dimensions(),
-            #[cfg(feature = "pnm")] Pnm(ref d) => d.dimensions(),
-            #[cfg(feature = "tga")] Tga(ref d) => d.dimensions(),
-            #[cfg(feature = "tiff")] Tiff(ref d) => d.dimensions(),
-            #[cfg(feature = "webp")] Webp(ref d) => d.dimensions(),
-        }
-    }
-    fn colortype(&self) -> color::ColorType {
-        use self::DynamicDecoder::*;
-        match *self {
-            #[cfg(feature = "bmp")] Bmp(ref d) => d.colortype(),
-            #[cfg(feature = "gif_codec")] Gif(ref d) => d.colortype(),
-            #[cfg(feature = "hdr")] Hdr(ref d) => d.colortype(),
-            #[cfg(feature = "ico")] Ico(ref d) => d.colortype(),
-            #[cfg(feature = "jpeg")] Jpeg(ref d) => d.colortype(),
-            #[cfg(feature = "png_codec")] Png(ref d) => d.colortype(),
-            #[cfg(feature = "pnm")] Pnm(ref d) => d.colortype(),
-            #[cfg(feature = "tga")] Tga(ref d) => d.colortype(),
-            #[cfg(feature = "tiff")] Tiff(ref d) => d.colortype(),
-            #[cfg(feature = "webp")] Webp(ref d) => d.colortype(),
-        }
-    }
+    fn dimensions(&self) -> (u64, u64) { dynamic_decoder_map!(*self, ref d, d.dimensions()) }
+    fn colortype(&self) -> color::ColorType { dynamic_decoder_map!(*self, ref d, d.colortype()) }
     fn into_reader(self) -> ImageResult<Box<Read + 'a>> {
-        use self::DynamicDecoder::*;
-        match self {
-            #[cfg(feature = "bmp")] Bmp(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "gif_codec")] Gif(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "hdr")] Hdr(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "ico")] Ico(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "jpeg")] Jpeg(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "png_codec")] Png(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "pnm")] Pnm(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "tga")] Tga(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "tiff")] Tiff(d) => Ok(Box::new(d.into_reader()?)),
-            #[cfg(feature = "webp")] Webp(d) => Ok(Box::new(d.into_reader()?)),
-        }
+        dynamic_decoder_map!(self, d, Ok(Box::new(d.into_reader()?)))
     }
-    fn row_bytes(&self) -> u64 {
-        use self::DynamicDecoder::*;
-        match *self {
-            #[cfg(feature = "bmp")] Bmp(ref d) => d.row_bytes(),
-            #[cfg(feature = "gif_codec")] Gif(ref d) => d.row_bytes(),
-            #[cfg(feature = "hdr")] Hdr(ref d) => d.row_bytes(),
-            #[cfg(feature = "ico")] Ico(ref d) => d.row_bytes(),
-            #[cfg(feature = "jpeg")] Jpeg(ref d) => d.row_bytes(),
-            #[cfg(feature = "png_codec")] Png(ref d) => d.row_bytes(),
-            #[cfg(feature = "pnm")] Pnm(ref d) => d.row_bytes(),
-            #[cfg(feature = "tga")] Tga(ref d) => d.row_bytes(),
-            #[cfg(feature = "tiff")] Tiff(ref d) => d.row_bytes(),
-            #[cfg(feature = "webp")] Webp(ref d) => d.row_bytes(),
-        }
-    }
-    fn total_bytes(&self) -> u64 {
-        use self::DynamicDecoder::*;
-        match *self {
-            #[cfg(feature = "bmp")] Bmp(ref d) => d.total_bytes(),
-            #[cfg(feature = "gif_codec")] Gif(ref d) => d.total_bytes(),
-            #[cfg(feature = "hdr")] Hdr(ref d) => d.total_bytes(),
-            #[cfg(feature = "ico")] Ico(ref d) => d.total_bytes(),
-            #[cfg(feature = "jpeg")] Jpeg(ref d) => d.total_bytes(),
-            #[cfg(feature = "png_codec")] Png(ref d) => d.total_bytes(),
-            #[cfg(feature = "pnm")] Pnm(ref d) => d.total_bytes(),
-            #[cfg(feature = "tga")] Tga(ref d) => d.total_bytes(),
-            #[cfg(feature = "tiff")] Tiff(ref d) => d.total_bytes(),
-            #[cfg(feature = "webp")] Webp(ref d) => d.total_bytes(),
-        }
-    }
-    fn scanline_bytes(&self) -> u64 {
-        use self::DynamicDecoder::*;
-        match *self {
-            #[cfg(feature = "bmp")] Bmp(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "gif_codec")] Gif(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "hdr")] Hdr(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "ico")] Ico(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "jpeg")] Jpeg(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "png_codec")] Png(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "pnm")] Pnm(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "tga")] Tga(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "tiff")] Tiff(ref d) => d.scanline_bytes(),
-            #[cfg(feature = "webp")] Webp(ref d) => d.scanline_bytes(),
-        }
-    }
-    fn read_image(self) -> ImageResult<Vec<u8>> {
-        use self::DynamicDecoder::*;
-        match self {
-            #[cfg(feature = "bmp")] Bmp(d) => d.read_image(),
-            #[cfg(feature = "gif_codec")] Gif(d) => d.read_image(),
-            #[cfg(feature = "hdr")] Hdr(d) => d.read_image(),
-            #[cfg(feature = "ico")] Ico(d) => d.read_image(),
-            #[cfg(feature = "jpeg")] Jpeg(d) => d.read_image(),
-            #[cfg(feature = "png_codec")] Png(d) => d.read_image(),
-            #[cfg(feature = "pnm")] Pnm(d) => d.read_image(),
-            #[cfg(feature = "tga")] Tga(d) => d.read_image(),
-            #[cfg(feature = "tiff")] Tiff(d) => d.read_image(),
-            #[cfg(feature = "webp")] Webp(d) => d.read_image(),
-        }
-    }
+    fn row_bytes(&self) -> u64 { dynamic_decoder_map!(*self, ref d, d.row_bytes()) }
+    fn total_bytes(&self) -> u64 { dynamic_decoder_map!(*self, ref d, d.total_bytes()) }
+    fn scanline_bytes(&self) -> u64 { dynamic_decoder_map!(*self, ref d, d.scanline_bytes()) }
+    fn read_image(self) -> ImageResult<Vec<u8>> { dynamic_decoder_map!(self, d, d.read_image()) }
     fn read_image_with_progress<F: Fn(Progress)>(
         self,
         progress_callback: F,
     ) -> ImageResult<Vec<u8>> {
-        use self::DynamicDecoder::*;
-        match self {
-            #[cfg(feature = "bmp")] Bmp(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "gif_codec")] Gif(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "hdr")] Hdr(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "ico")] Ico(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "jpeg")] Jpeg(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "png_codec")] Png(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "pnm")] Pnm(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "tga")] Tga(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "tiff")] Tiff(d) => d.read_image_with_progress(progress_callback),
-            #[cfg(feature = "webp")] Webp(d) => d.read_image_with_progress(progress_callback),
-        }
+        dynamic_decoder_map!(self, d, d.read_image_with_progress(progress_callback))
     }
 }
 

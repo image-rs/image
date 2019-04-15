@@ -110,7 +110,7 @@ impl<R: Read> DXTDecoder<R> {
 
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
-impl<R: Read> ImageDecoder for DXTDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
     type Reader = DXTReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -149,7 +149,7 @@ impl<R: Read> ImageDecoder for DXTDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoderExt for DXTDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DXTDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,

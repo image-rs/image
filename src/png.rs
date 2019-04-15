@@ -111,7 +111,7 @@ impl<R: Read> PNGDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for PNGDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
     type Reader = PNGReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {

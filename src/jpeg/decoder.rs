@@ -31,7 +31,7 @@ impl<R: Read> JPEGDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for JPEGDecoder<R> {
+impl<'a, R: Read> ImageDecoder<'a> for JPEGDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {

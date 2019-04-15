@@ -264,12 +264,12 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-pub(crate) fn load_rect<D, F, F1, F2>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
-                                      progress_callback: F,
-                                      decoder: &mut D,
-                                      mut seek_scanline: F1,
-                                      mut read_scanline: F2) -> ImageResult<()>
-    where D: ImageDecoder,
+pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
+                                          progress_callback: F,
+                                          decoder: &mut D,
+                                          mut seek_scanline: F1,
+                                          mut read_scanline: F2) -> ImageResult<()>
+    where D: ImageDecoder<'a>,
           F: Fn(Progress),
           F1: FnMut(&mut D, u64) -> io::Result<()>,
           F2: FnMut(&mut D, &mut [u8]) -> io::Result<usize>
@@ -359,9 +359,9 @@ pub struct Progress {
 }
 
 /// The trait that all decoders implement
-pub trait ImageDecoder: Sized {
+pub trait ImageDecoder<'a>: Sized {
     /// The type of reader produced by `into_reader`.
-    type Reader: Read;
+    type Reader: Read + 'a;
 
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&self) -> (u64, u64);
@@ -435,7 +435,7 @@ pub trait ImageDecoder: Sized {
 }
 
 /// ImageDecoderExt trait
-pub trait ImageDecoderExt: ImageDecoder + Sized {
+pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
     /// Read a rectangular section of the image.
     fn read_rect(
         &mut self,
@@ -914,7 +914,7 @@ mod tests {
         use super::*;
 
         struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
-        impl ImageDecoder for MockDecoder {
+        impl<'a> ImageDecoder<'a> for MockDecoder {
             type Reader = Box<::std::io::Read>;
             fn dimensions(&self) -> (u64, u64) {(5, 5)}
             fn colortype(&self) -> ColorType {  ColorType::Gray(8) }

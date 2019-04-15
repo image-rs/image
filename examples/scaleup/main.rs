@@ -1,6 +1,6 @@
 extern crate image;
 
-use image::{FilterType, PNG};
+use image::{FilterType, ImageOutputFormat::PNG};
 use std::fmt;
 use std::fs::File;
 use std::time::{Duration, Instant};

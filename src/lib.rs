@@ -10,6 +10,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(many_single_char_names))]
 
 extern crate byteorder;
+#[macro_use]
+extern crate lazy_static;
 extern crate lzw;
 extern crate num_iter;
 extern crate num_rational;
@@ -42,8 +44,6 @@ pub use image::{AnimationDecoder,
                 SubImage};
 
 pub use imageops::FilterType::{self, CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
-
-pub use image::ImageFormat::{self, BMP, GIF, ICO, JPEG, PNG, PNM, WEBP};
 
 pub use image::ImageOutputFormat;
 

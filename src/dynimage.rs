@@ -31,7 +31,7 @@ use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbIm
 use flat::FlatSamples;
 use color;
 use image;
-use image::{GenericImage, GenericImageView, ImageError, ImageDecoder, ImageFormat,
+use image::{GenericImage, GenericImageView, ImageError, ImageDecoder,
             ImageOutputFormat, ImageResult, Progress};
 use imageops;
 
@@ -838,30 +838,31 @@ fn save_buffer_impl(
 }
 
 /// Create a new image from a Reader
-pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    decoder_to_image(decoder_from_mime(format.mime(), r)?)
+pub fn load<R: BufRead + Seek>(r: R, mime: Mime) -> ImageResult<DynamicImage> {
+    decoder_to_image(decoder_from_mime(mime, r)?)
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
-    (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
-    (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
-    (b"GIF89a", ImageFormat::GIF),
-    (b"GIF87a", ImageFormat::GIF),
-    (b"WEBP", ImageFormat::WEBP),
-    (b"MM.*", ImageFormat::TIFF),
-    (b"II*.", ImageFormat::TIFF),
-    (b"BM", ImageFormat::BMP),
-    (&[0, 0, 1, 0], ImageFormat::ICO),
-    (b"#?RADIANCE", ImageFormat::HDR),
-    (b"P1", ImageFormat::PNM),
-    (b"P2", ImageFormat::PNM),
-    (b"P3", ImageFormat::PNM),
-    (b"P4", ImageFormat::PNM),
-    (b"P5", ImageFormat::PNM),
-    (b"P6", ImageFormat::PNM),
-    (b"P7", ImageFormat::PNM),
-];
-
+lazy_static! {
+    static ref MAGIC_BYTES: [(&'static [u8], Mime); 17] = [
+        (b"\x89PNG\r\n\x1a\n", "image/png".parse().unwrap()),
+        (&[0xff, 0xd8, 0xff], "image/jpeg".parse().unwrap()),
+        (b"GIF89a", "image/gif".parse().unwrap()),
+        (b"GIF87a", "image/gif".parse().unwrap()),
+        (b"WEBP", "image/webp".parse().unwrap()),
+        (b"MM.*", "image/tiff".parse().unwrap()),
+        (b"II*.", "image/tiff".parse().unwrap()),
+        (b"BM", "image/bmp".parse().unwrap()),
+        (&[0, 0, 1, 0], "image/x-icon".parse().unwrap()),
+        (b"#?RADIANCE", "image/vnd.radiancer".parse().unwrap()),
+        (b"P1", "image/x-portable-anymap".parse().unwrap()),
+        (b"P2", "image/x-portable-anymap".parse().unwrap()),
+        (b"P3", "image/x-portable-anymap".parse().unwrap()),
+        (b"P4", "image/x-portable-anymap".parse().unwrap()),
+        (b"P5", "image/x-portable-anymap".parse().unwrap()),
+        (b"P6", "image/x-portable-anymap".parse().unwrap()),
+        (b"P7", "image/x-portable-anymap".parse().unwrap()),
+    ];
+}
 /// Create a new image from a byte slice
 ///
 /// Makes an educated guess about the image format.
@@ -872,9 +873,9 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 
 /// Create a new image from a byte slice
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load_from_memory_with_format(buf: &[u8], mime: Mime) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);
-    load(b, format)
+    load(b, mime)
 }
 
 /// Guess image format from memory block
@@ -882,10 +883,10 @@ pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageRes
 /// Makes an educated guess about the image format based on the Magic Bytes at the beginning.
 /// TGA is not supported by this function.
 /// This is not to be trusted on the validity of the whole memory block
-pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
-    for &(signature, format) in &MAGIC_BYTES {
+pub fn guess_format(buffer: &[u8]) -> ImageResult<Mime> {
+    for &(signature, ref mime) in &*MAGIC_BYTES {
         if buffer.starts_with(signature) {
-            return Ok(format);
+            return Ok(mime.clone());
         }
     }
     Err(image::ImageError::UnsupportedError(

@@ -11,8 +11,6 @@ use color::ColorType;
 
 use animation::Frames;
 
-use mime::Mime;
-
 #[cfg(feature = "pnm")]
 use pnm::PNMSubtype;
 
@@ -109,59 +107,6 @@ impl From<io::Error> for ImageError {
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 
-/// An enumeration of supported image formats.
-/// Not all formats support both encoding and decoding.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ImageFormat {
-    /// An Image in PNG Format
-    PNG,
-
-    /// An Image in JPEG Format
-    JPEG,
-
-    /// An Image in GIF Format
-    GIF,
-
-    /// An Image in WEBP Format
-    WEBP,
-
-    /// An Image in general PNM Format
-    PNM,
-
-    /// An Image in TIFF Format
-    TIFF,
-
-    /// An Image in TGA Format
-    TGA,
-
-    /// An Image in BMP Format
-    BMP,
-
-    /// An Image in ICO Format
-    ICO,
-
-    /// An Image in Radiance HDR Format
-    HDR,
-}
-impl ImageFormat {
-    /// Get the MIME type associated with this image format.
-    pub(crate) fn mime(&self) -> Mime {
-        match *self {
-            ImageFormat::PNG => "image/png",
-            ImageFormat::JPEG => "image/jepg",
-            ImageFormat::GIF => "image/gif",
-            ImageFormat::WEBP => "image/webp",
-            ImageFormat::PNM => "image/x-portable-anymap",
-            ImageFormat::TIFF => "image/tiff",
-            ImageFormat::TGA => "image/x-tga",
-            ImageFormat::BMP => "image/bmp",
-            ImageFormat::ICO => "image/x-icon",
-            ImageFormat::HDR => "image/vnd.radiancer",
-        }.parse().unwrap()
-    }
-}
-
-
 /// An enumeration of supported image formats for encoding.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ImageOutputFormat {
@@ -193,30 +138,6 @@ pub enum ImageOutputFormat {
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
     Unsupported(String),
-}
-
-impl From<ImageFormat> for ImageOutputFormat {
-    fn from(fmt: ImageFormat) -> Self {
-        match fmt {
-            #[cfg(feature = "png_codec")]
-            ImageFormat::PNG => ImageOutputFormat::PNG,
-            #[cfg(feature = "jpeg")]
-            ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
-            #[cfg(feature = "pnm")]
-            ImageFormat::PNM => ImageOutputFormat::PNM(PNMSubtype::ArbitraryMap),
-            #[cfg(feature = "gif_codec")]
-            ImageFormat::GIF => ImageOutputFormat::GIF,
-            #[cfg(feature = "ico")]
-            ImageFormat::ICO => ImageOutputFormat::ICO,
-            #[cfg(feature = "bmp")]
-            ImageFormat::BMP => ImageOutputFormat::BMP,
-
-            f => ImageOutputFormat::Unsupported(format!(
-                "Image format {:?} not supported for encoding.",
-                f
-            )),
-        }
-    }
 }
 
 // This struct manages buffering associated with implementing `Read` and `Seek` on decoders that can

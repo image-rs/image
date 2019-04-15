@@ -2,14 +2,14 @@
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
 extern crate image;
 
-use image::{ImageOutputFormat, JPEG};
+use image::ImageOutputFormat;
 
 #[test]
 fn jqeg_qualitys() {
     let img = image::open("tests/images/tiff/testsuite/lenna.tiff").unwrap();
 
     let mut default = vec![];
-    img.write_to(&mut default, JPEG).unwrap();
+    img.write_to(&mut default, ImageOutputFormat::JPEG(75)).unwrap();
     assert_eq!(&[255, 216], &default[..2]);
 
     let mut small = vec![];

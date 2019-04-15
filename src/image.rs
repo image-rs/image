@@ -11,6 +11,8 @@ use color::ColorType;
 
 use animation::Frames;
 
+use mime::Mime;
+
 #[cfg(feature = "pnm")]
 use pnm::PNMSubtype;
 
@@ -141,6 +143,24 @@ pub enum ImageFormat {
     /// An Image in Radiance HDR Format
     HDR,
 }
+impl ImageFormat {
+    /// Get the MIME type associated with this image format.
+    pub(crate) fn mime(&self) -> Mime {
+        match *self {
+            ImageFormat::PNG => "image/png",
+            ImageFormat::JPEG => "image/jepg",
+            ImageFormat::GIF => "image/gif",
+            ImageFormat::WEBP => "image/webp",
+            ImageFormat::PNM => "image/x-portable-anymap",
+            ImageFormat::TIFF => "image/tiff",
+            ImageFormat::TGA => "image/x-tga",
+            ImageFormat::BMP => "image/bmp",
+            ImageFormat::ICO => "image/x-icon",
+            ImageFormat::HDR => "image/vnd.radiancer",
+        }.parse().unwrap()
+    }
+}
+
 
 /// An enumeration of supported image formats for encoding.
 #[derive(Clone, PartialEq, Eq, Debug)]

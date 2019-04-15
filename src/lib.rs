@@ -14,6 +14,8 @@ extern crate lzw;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
+extern crate mime;
+extern crate mime_guess;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 

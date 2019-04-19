@@ -14,7 +14,7 @@ use std::env;
 use getopts::{Matches, Options, ParsingStyle};
 use term::{color, Attr};
 
-fn parse_args() -> Option<Matches> {
+fn parse_args() -> Matches {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
     opts.optflag("c", "", "colorize output (for ANSI terminals)")
@@ -24,12 +24,12 @@ fn parse_args() -> Option<Matches> {
         .parsing_style(ParsingStyle::StopAtFirstFree);
     if args.len() > 1 {
         match opts.parse(&args[1..]) {
-            Ok(matches) => return Some(matches),
+            Ok(matches) => return matches,
             Err(err) => println!("{}", err)
         }
     }
     println!("{}", opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]")));
-    None
+    std::process::exit(0);
 }
 
 #[derive(Clone, Copy)]
@@ -323,34 +323,32 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
 }
 
 fn main() {
-    if let Some(m) = parse_args() {
-        let config = Config {
-            quiet: m.opt_present("q"),
-            verbose: m.opt_present("v"),
-            color: m.opt_present("c")
+    let m = parse_args();
+
+    let config = Config {
+        quiet: m.opt_present("q"),
+        verbose: m.opt_present("v"),
+        color: m.opt_present("c")
+    };
+
+    for file in m.free {
+        let result = if file.contains("*") {
+            glob::glob(&file).map_err(|err| {
+                io::Error::new(io::ErrorKind::Other, err)
+            }).and_then(|mut glob| glob.try_for_each(|entry| {
+                entry.map_err(|err| {
+                    io::Error::new(io::ErrorKind::Other, err)
+                }).and_then(|file| {
+                    check_image(config, file)
+                })
+            }))
+        } else {
+            check_image(config, &file)
         };
-        for file in m.free {
-            match if file.contains("*") {
-                (|| -> io::Result<_> {
-                    for entry in glob::glob(&file).map_err(|err| {
-                        io::Error::new(io::ErrorKind::Other, err.msg)
-                    })? {
-                        check_image(config, entry.map_err(|_| {
-                            io::Error::new(io::ErrorKind::Other, "glob error")
-                        })))?
-                    }
-                    Ok(())
-                })()
-            } else {
-                check_image(config, &file)
-            } {
-                Ok(_) => (),
-                Err(err) => {
-                    println!("{}: {}", file, err);
-                    break
-                }
-            }
-            
-        }
+
+        result.unwrap_or_else(|err| {
+            println!("{}: {}", file, err);
+            std::process::exit(1)
+        });
     }
 }

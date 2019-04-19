@@ -10,3 +10,4 @@ matrix:
 script:
   - cargo build -v $FLAGS
   - cargo doc -v $FLAGS
+  - cargo test -v $FLAGS

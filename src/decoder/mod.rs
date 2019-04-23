@@ -54,15 +54,16 @@ impl OutputInfo {
 }
 
 #[derive(Clone, Copy, Debug)]
+/// Limits on the resources the `Decoder` is allowed too use
 pub struct Limits {
-    /// max number of pixels: `width * height` (default: 67M = 2<sup>26</sup>)
-    pub pixels: u64,
+    /// maximum number of bytes the decoder is allowed to allocate, default is 64Mib
+    pub bytes: usize,
 }
 
 impl Default for Limits {
     fn default() -> Limits {
         Limits {
-            pixels: 1 << 26,
+            bytes: 1024*1024*64,
         }
     }
 }
@@ -73,7 +74,7 @@ pub struct Decoder<R: Read> {
     r: R,
     /// Output transformations
     transform: Transformations,
-    /// Images that are considered too big
+    /// Limits on resources the Decoder is allowed to use
     limits: Limits,
 }
 
@@ -90,19 +91,19 @@ impl<R: Read> Decoder<R> {
         }
     }
 
-    /// Images that are considered too big
+    /// Limit resource usage
     ///
     /// ```
     /// use std::fs::File;
     /// use png::{Decoder, Limits};
-    /// // This image is 32x32 pixels, so it's more than four pixels in size.
+    /// // This image is 32x32 pixels, so the deocder will allocate more than four bytes
     /// let mut limits = Limits::default();
-    /// limits.pixels = 4;
+    /// limits.bytes = 4;
     /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);
     /// assert!(decoder.read_info().is_err());
-    /// // This image is 32x32 pixels, so it's exactly 1024 pixels in size.
+    /// // This image is 32x32 pixels, so the decoder will allocate less than 10Kib
     /// let mut limits = Limits::default();
-    /// limits.pixels = 1024;
+    /// limits.bytes = 10*1024;
     /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);
     /// assert!(decoder.read_info().is_ok());
     /// ```
@@ -112,7 +113,7 @@ impl<R: Read> Decoder<R> {
 
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
-        let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform);
+        let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
         r.init()?;
         let (ct, bits) = r.output_color_type();
         let info = {
@@ -125,12 +126,6 @@ impl<R: Read> Decoder<R> {
                 line_size: r.output_line_size(info.width),
             }
         };
-        let (width, height, pixels) = (info.width as u64, info.height as u64, self.limits.pixels);
-        if width.checked_mul(height).map(|p| p > pixels).unwrap_or(true) {
-            // DecodingError::Other is used for backwards compatibility.
-            // In the next major version, add a variant for this.
-            return Err(DecodingError::Other(borrow::Cow::Borrowed("pixels limit exceeded")));
-        }
         Ok((info, r))
     }
 }
@@ -187,7 +182,8 @@ pub struct Reader<R: Read> {
     /// Output transformations
     transform: Transformations,
     /// Processed line
-    processed: Vec<u8>
+    processed: Vec<u8>,
+    limits: Limits,
 }
 
 macro_rules! get_info(
@@ -198,7 +194,7 @@ macro_rules! get_info(
 
 impl<R: Read> Reader<R> {
     /// Creates a new PNG reader
-    fn new(r: R, d: StreamingDecoder, t: Transformations) -> Reader<R> {
+    fn new(r: R, d: StreamingDecoder, t: Transformations, limits: Limits) -> Reader<R> {
         Reader {
             decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
@@ -211,7 +207,8 @@ impl<R: Read> Reader<R> {
             prev: Vec::new(),
             current: Vec::new(),
             transform: t,
-            processed: Vec::new()
+            processed: Vec::new(),
+            limits,
         }
     }
 
@@ -243,7 +240,7 @@ impl<R: Read> Reader<R> {
                     self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height))
                 }
             }
-            self.allocate_out_buf();
+            self.allocate_out_buf()?;
             self.prev = vec![0; self.rowlen];
             Ok(())
         }
@@ -425,9 +422,14 @@ impl<R: Read> Reader<R> {
         len + match extra { 0 => 0, _ => 1 }
     }
 
-    fn allocate_out_buf(&mut self) {
+    fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
         let width = get_info!(self).width;
-        self.processed = vec![0; self.line_size(width)]
+        let bytes = self.limits.bytes;
+        if bytes < self.line_size(width) {
+            return Err(DecodingError::LimitsExceeded);
+        }
+        self.processed = vec![0; self.line_size(width)];
+        Ok(())
     }
 
     /// Returns the next raw row of the image

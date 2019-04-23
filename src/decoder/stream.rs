@@ -69,7 +69,8 @@ pub enum DecodingError {
         chunk: ChunkType
     },
     Other(Cow<'static, str>),
-    CorruptFlateStream
+    CorruptFlateStream,
+    LimitsExceeded,
 }
 
 impl error::Error for DecodingError {
@@ -80,7 +81,8 @@ impl error::Error for DecodingError {
             Format(ref desc) | Other(ref desc) => &desc,
             InvalidSignature => "invalid signature",
             CrcMismatch { .. } => "CRC error",
-            CorruptFlateStream => "compressed data stream corrupted"
+            CorruptFlateStream => "compressed data stream corrupted",
+            LimitsExceeded => "limits are exceeded"
         }
     }
 }

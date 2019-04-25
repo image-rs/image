@@ -12,7 +12,8 @@ use color;
 use super::vp8::Frame;
 use super::vp8::VP8Decoder;
 
-/// A Representation of a Webp Image format decoder.
+/// Webp Image format decoder. Currently only supportes the luma channel (meaning that decoded
+/// images will be grayscale).
 pub struct WebpDecoder<R> {
     r: R,
     frame: Frame,

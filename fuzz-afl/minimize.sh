@@ -29,3 +29,7 @@ do
 	cargo +nightly afl tmin -i "$cmin_dir/$file" -o "$tmin_dir/$file" -- "$test_bin"
 done
 
+find "$tmin_dir" -type f -print0 | # List all files
+	sed -z '{p; y/:/_/}' | # In names, print name and again but all ':' replaced by '_'
+	uniq -zu | # Only consider actually renamed files
+	xargs --null -r -L2 mv  # For each actual pair, invoke mv

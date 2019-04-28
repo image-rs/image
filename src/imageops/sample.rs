@@ -13,7 +13,7 @@ use math::utils::clamp;
 use traits::{Enlargeable, Primitive};
 
 /// Available Sampling Filters
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum FilterType {
     /// Nearest Neighbor
     Nearest,

@@ -1,10 +1,15 @@
 language: rust
+os:
+  - linux
+  - osx
+  - windows
+rust:
+  - stable
+  - nightly
 matrix:
   include:
     - rust: stable
-    - rust: stable
       env: FLAGS="--no-default-features"
-    - rust: nightly
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
 script:

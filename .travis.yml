@@ -5,6 +5,7 @@ notifications:
 os:
     - linux
     - osx
+    - windows
 rust:
     - 1.24.1
     - stable

@@ -14,7 +14,7 @@
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::default::Default;
-use std::io;
+use std::{cmp, io};
 use std::io::Read;
 
 use super::transform;
@@ -895,7 +895,7 @@ impl<R: Read> VP8Decoder<R> {
             );
 
             for (i, s) in sizes.chunks(3).enumerate() {
-                let size = u32::from(s[0]) + ((u32::from(s[1])) << 8) + ((u32::from(s[2])) << 8);
+                let size = u32::from(s[0]) + ((u32::from(s[1])) << 8) + ((u32::from(s[2])) << 16);
                 let mut buf = Vec::with_capacity(size as usize);
                 try!(self.r.by_ref().take(u64::from(size)).read_to_end(&mut buf));
 
@@ -1246,17 +1246,9 @@ impl<R: Read> VP8Decoder<R> {
             self.left_border[i + 1] = ws[(i + 1) * stride + 16];
         }
 
-        let ylength = if mby < self.mbheight as usize - 1 || self.frame.height % 16 == 0 {
-            16usize
-        } else {
-            (16 - (self.frame.height as usize & 15)) % 16
-        };
-
-        let xlength = if mbx < self.mbwidth as usize - 1 || self.frame.width % 16 == 0 {
-            16usize
-        } else {
-            (16 - (self.frame.width as usize & 15)) % 16
-        };
+        // Length is the remainder to the border, but maximally the current chunk.
+        let ylength = cmp::min(self.frame.height as usize - mby*16, 16);
+        let xlength = cmp::min(self.frame.width as usize - mbx*16, 16);
 
         for y in 0usize..ylength {
             for x in 0usize..xlength {

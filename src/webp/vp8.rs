@@ -1115,11 +1115,8 @@ impl<R: Read> VP8Decoder<R> {
             self.left_border = vec![129u8; 1 + 16];
         }
 
-        let mut buf = Vec::with_capacity(first_partition_size as usize);
-        self.r
-            .by_ref()
-            .take(u64::from(first_partition_size))
-            .read_to_end(&mut buf)?;
+        let mut buf = vec![0; first_partition_size as usize];
+        self.r.read_exact(&mut buf)?;
 
         // initialise binary decoder
         self.b.init(buf)?;

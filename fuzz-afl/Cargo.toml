@@ -17,3 +17,7 @@ members = ["."]
 [[bin]]
 name = "fuzzer_script_pnm"
 path = "fuzzers/fuzzer_script_pnm.rs"
+
+[[bin]]
+name = "fuzzer_script_webp"
+path = "fuzzers/fuzzer_script_webp.rs"

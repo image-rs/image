@@ -18,6 +18,7 @@ use std::{cmp, io};
 use std::io::Read;
 
 use super::transform;
+use ::{ImageError, ImageResult};
 
 use math::utils::clamp;
 
@@ -41,6 +42,57 @@ const B_VR_PRED: i8 = 6;
 const B_VL_PRED: i8 = 7;
 const B_HD_PRED: i8 = 8;
 const B_HU_PRED: i8 = 9;
+
+// Prediction mode enum
+#[repr(i8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LumaMode {
+    /// Predict DC using row above and column to the left.
+    DC = DC_PRED,
+
+    /// Predict rows using row above.
+    V = V_PRED,
+
+    /// Predict columns using column to the left.
+    H = H_PRED,
+
+    /// Propagate second differences.
+    TM = TM_PRED,
+
+    /// Each Y subblock is independently predicted.
+    B = B_PRED,
+}
+
+#[repr(i8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ChromaMode {
+    /// Predict DC using row above and column to the left.
+    DC = DC_PRED,
+
+    /// Predict rows using row above.
+    V = V_PRED,
+
+    /// Predict columns using column to the left.
+    H = H_PRED,
+
+    /// Propagate second differences.
+    TM = TM_PRED,
+}
+
+#[repr(i8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IntraMode {
+    DC = B_DC_PRED,
+    TM = B_TM_PRED,
+    VE = B_VE_PRED,
+    HE = B_HE_PRED,
+    LD = B_LD_PRED,
+    RD = B_RD_PRED,
+    VR = B_VR_PRED,
+    VL = B_VL_PRED,
+    HD = B_HD_PRED,
+    HU = B_HU_PRED,
+}
 
 type Prob = u8;
 
@@ -643,17 +695,17 @@ impl BoolReader {
         self.bit_count = 0;
     }
 
-    pub fn read_bool(&mut self, probability: u8) -> u8 {
+    pub fn read_bool(&mut self, probability: u8) -> bool {
         let split = 1 + (((self.range - 1) * u32::from(probability)) >> 8);
         let bigsplit = split << 8;
 
         let retval = if self.value >= bigsplit {
             self.range -= split;
             self.value -= bigsplit;
-            1
+            true
         } else {
             self.range = split;
-            0
+            false
         };
 
         while self.range < 128 {
@@ -676,7 +728,7 @@ impl BoolReader {
         let mut n = n;
 
         while n != 0 {
-            v = (v << 1) + self.read_bool(128u8);
+            v = (v << 1) + self.read_bool(128u8) as u8;
             n -= 1;
         }
 
@@ -715,25 +767,13 @@ impl BoolReader {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 struct MacroBlock {
-    bpred: [i8; 16],
+    bpred: [IntraMode; 16],
     complexity: [u8; 9],
-    luma_mode: i8,
-    chroma_mode: i8,
+    luma_mode: LumaMode,
+    chroma_mode: ChromaMode,
     segmentid: u8,
-}
-
-impl MacroBlock {
-    fn new() -> MacroBlock {
-        MacroBlock {
-            bpred: [0i8; 16],
-            complexity: [0u8; 9],
-            luma_mode: 0,
-            chroma_mode: 0,
-            segmentid: 0,
-        }
-    }
 }
 
 /// A Representation of the last decoded video frame
@@ -823,9 +863,9 @@ impl<R: Read> VP8Decoder<R> {
     /// Create a new decoder.
     /// The reader must present a raw vp8 bitstream to the decoder
     pub fn new(r: R) -> VP8Decoder<R> {
-        let f: Frame = Default::default();
-        let s: Segment = Default::default();
-        let m = MacroBlock::new();
+        let f = Frame::default();
+        let s = Segment::default();
+        let m = MacroBlock::default();
 
         VP8Decoder {
             r,
@@ -874,7 +914,7 @@ impl<R: Read> VP8Decoder<R> {
             for (j, js) in is.iter().enumerate() {
                 for (k, ks) in js.iter().enumerate() {
                     for (t, prob) in ks.iter().enumerate().take(NUM_DCT_TOKENS - 1) {
-                        if self.b.read_bool(*prob) != 0 {
+                        if self.b.read_bool(*prob) {
                             let v = self.b.read_literal(8);
                             self.token_probs[i][j][k][t] = v;
                         }
@@ -887,24 +927,25 @@ impl<R: Read> VP8Decoder<R> {
     fn init_partitions(&mut self, n: usize) -> io::Result<()> {
         if n > 1 {
             let mut sizes = Vec::with_capacity(3 * n - 3);
-            try!(
-                self.r
-                    .by_ref()
-                    .take(3 * n as u64 - 3)
-                    .read_to_end(&mut sizes)
-            );
+            self.r
+                .by_ref()
+                .take(3 * n as u64 - 3)
+                .read_to_end(&mut sizes)?;
 
             for (i, s) in sizes.chunks(3).enumerate() {
                 let size = u32::from(s[0]) + ((u32::from(s[1])) << 8) + ((u32::from(s[2])) << 16);
                 let mut buf = Vec::with_capacity(size as usize);
-                try!(self.r.by_ref().take(u64::from(size)).read_to_end(&mut buf));
+                self.r
+                    .by_ref()
+                    .take(u64::from(size))
+                    .read_to_end(&mut buf)?;
 
                 self.partitions[i].init(buf);
             }
         }
 
         let mut buf = Vec::new();
-        try!(self.r.read_to_end(&mut buf));
+        self.r.read_to_end(&mut buf)?;
         self.partitions[n - 1].init(buf);
 
         Ok(())
@@ -1039,23 +1080,26 @@ impl<R: Read> VP8Decoder<R> {
         }
     }
 
-    fn read_frame_header(&mut self) -> io::Result<()> {
-        let mut tag = [0u8; 3];
-        try!(self.r.read_exact(&mut tag));
+    fn read_frame_header(&mut self) -> ImageResult<()> {
+        let tag = self.r.read_u24::<LittleEndian>()?;
 
-        self.frame.keyframe = tag[0] & 1 == 0;
-        self.frame.version = (tag[0] >> 1) & 7;
-        self.frame.for_display = (tag[0] >> 4) & 1 != 0;
+        self.frame.keyframe = tag & 1 == 0;
+        self.frame.version = ((tag >> 1) & 7) as u8;
+        self.frame.for_display = (tag >> 4) & 1 != 0;
 
-        let first_partition_size =
-            ((u32::from(tag[2]) << 16) | (u32::from(tag[1]) << 8) | u32::from(tag[0])) >> 5;
+        let first_partition_size = tag >> 5;
 
         if self.frame.keyframe {
-            try!(self.r.read_exact(&mut tag));
-            assert_eq!(tag, [0x9d, 0x01, 0x2a]);
+            let mut tag = [0u8; 3];
+            self.r.read_exact(&mut tag)?;
 
-            let w = try!(self.r.read_u16::<LittleEndian>());
-            let h = try!(self.r.read_u16::<LittleEndian>());
+            if tag != [0x9d, 0x01, 0x2a] {
+                return Err(ImageError::FormatError(
+                    format!("Invalid magic bytes {:?} for vp8", tag)))
+            }
+
+            let w = self.r.read_u16::<LittleEndian>()?;
+            let h = self.r.read_u16::<LittleEndian>()?;
 
             self.frame.width = w & 0x3FFF;
             self.frame.height = h & 0x3FFF;
@@ -1073,19 +1117,22 @@ impl<R: Read> VP8Decoder<R> {
         }
 
         let mut buf = Vec::with_capacity(first_partition_size as usize);
-        try!(
-            self.r
-                .by_ref()
-                .take(u64::from(first_partition_size))
-                .read_to_end(&mut buf)
-        );
+        self.r
+            .by_ref()
+            .take(u64::from(first_partition_size))
+            .read_to_end(&mut buf)?;
+
         // initialise binary decoder
         self.b.init(buf);
 
         if self.frame.keyframe {
             let color_space = self.b.read_literal(1);
             self.frame.pixel_type = self.b.read_literal(1);
-            assert_eq!(color_space, 0);
+
+            if color_space != 0 {
+                return Err(ImageError::FormatError(
+                    format!("Only YUV color space is specified.")))
+            }
         }
 
         self.segments_enabled = self.b.read_flag();
@@ -1104,13 +1151,15 @@ impl<R: Read> VP8Decoder<R> {
 
         self.num_partitions = (1usize << self.b.read_literal(2) as usize) as u8;
         let num_partitions = self.num_partitions as usize;
-        try!(self.init_partitions(num_partitions));
+        self.init_partitions(num_partitions)?;
 
         self.read_quantization_indices();
 
         if !self.frame.keyframe {
             // 9.7 refresh golden frame and altref frame
-            panic!("unimplemented")
+            return Err(ImageError::UnsupportedError(
+                "Frames that are not keyframes are not supported".into()))
+            // FIXME: support this?
         } else {
             // Refresh entropy probs ?????
             let _ = self.b.read_literal(1);
@@ -1129,7 +1178,9 @@ impl<R: Read> VP8Decoder<R> {
             // 9.10 remaining frame data
             self.prob_intra = 0;
 
-            panic!("unimplemented")
+            return Err(ImageError::UnsupportedError(
+                "Frames that are not keyframes are not supported".into()))
+            // FIXME: support this?
         } else {
             // Reset motion vectors
         }
@@ -1137,8 +1188,8 @@ impl<R: Read> VP8Decoder<R> {
         Ok(())
     }
 
-    fn read_macroblock_header(&mut self, mbx: usize) -> (bool, MacroBlock) {
-        let mut mb = MacroBlock::new();
+    fn read_macroblock_header(&mut self, mbx: usize) -> ImageResult<(bool, MacroBlock)> {
+        let mut mb = MacroBlock::default();
 
         mb.segmentid = if self.segments_enabled && self.segments_update_map {
             self.b
@@ -1148,67 +1199,75 @@ impl<R: Read> VP8Decoder<R> {
         };
 
         let skip_coeff = if self.prob_skip_false.is_some() {
-            1 == self.b.read_bool(*self.prob_skip_false.as_ref().unwrap())
+            self.b.read_bool(*self.prob_skip_false.as_ref().unwrap())
         } else {
             false
         };
 
         let inter_predicted = if !self.frame.keyframe {
-            1 == self.b.read_bool(self.prob_intra)
+            self.b.read_bool(self.prob_intra)
         } else {
             false
         };
 
         if inter_predicted {
-            panic!("inter prediction not implemented");
+            return Err(ImageError::UnsupportedError(
+                "VP8 inter prediction is not implemented yet".into()));
         }
 
         if self.frame.keyframe {
             // intra prediction
-            mb.luma_mode = self.b
+            let luma = self.b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
+            mb.luma_mode = LumaMode::from_i8(luma)
+                .ok_or_else(|| ImageError::FormatError(
+                    format!("Invalid luma prediction mode {}", luma))
+                )?;
 
-            if mb.luma_mode == B_PRED {
-                for y in 0usize..4 {
-                    for x in 0usize..4 {
-                        let top = self.top[mbx].bpred[12 + x];
-                        let left = self.left.bpred[y];
-                        let bmode = self.b.read_with_tree(
-                            &KEYFRAME_BPRED_MODE_TREE,
-                            &KEYFRAME_BPRED_MODE_PROBS[top as usize][left as usize],
-                            0,
-                        );
-                        mb.bpred[x + y * 4] = bmode;
+            match mb.luma_mode.into_intra() {
+                // `LumaMode::B` - This is predicted individually
+                None => {
+                    for y in 0usize..4 {
+                        for x in 0usize..4 {
+                            let top = self.top[mbx].bpred[12 + x];
+                            let left = self.left.bpred[y];
+                            let intra = self.b.read_with_tree(
+                                &KEYFRAME_BPRED_MODE_TREE,
+                                &KEYFRAME_BPRED_MODE_PROBS[top as usize][left as usize],
+                                0,
+                            );
+                            let bmode = IntraMode::from_i8(intra)
+                                .ok_or_else(|| ImageError::FormatError(
+                                    format!("Invalid intra prediction mode {}", intra))
+                                )?;
+                            mb.bpred[x + y * 4] = bmode;
 
-                        self.top[mbx].bpred[12 + x] = bmode;
-                        self.left.bpred[y] = bmode;
+                            self.top[mbx].bpred[12 + x] = bmode;
+                            self.left.bpred[y] = bmode;
+                        }
                     }
-                }
-            } else {
-                for i in 0usize..4 {
-                    let mode = match mb.luma_mode {
-                        DC_PRED => B_DC_PRED,
-                        V_PRED => B_VE_PRED,
-                        H_PRED => B_HE_PRED,
-                        TM_PRED => B_TM_PRED,
-                        _ => panic!("unreachable"),
-                    };
-
-                    mb.bpred[12 + i] = mode;
-                    self.left.bpred[i] = mode;
+                },
+                Some(mode) =>  {
+                    for i in 0usize..4 {
+                        mb.bpred[12 + i] = mode;
+                        self.left.bpred[i] = mode;
+                    }
                 }
             }
 
-            mb.chroma_mode =
-                self.b
-                    .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
+            let chroma = self.b
+                .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
+            mb.chroma_mode = ChromaMode::from_i8(chroma)
+                .ok_or_else(|| ImageError::FormatError(
+                    format!("Invalid chroma prediction mode {}", chroma))
+                )?;
         }
 
         self.top[mbx].chroma_mode = mb.chroma_mode;
         self.top[mbx].luma_mode = mb.luma_mode;
         self.top[mbx].bpred = mb.bpred;
 
-        (skip_coeff, mb)
+        Ok((skip_coeff, mb))
     }
 
     fn intra_predict(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
@@ -1218,15 +1277,14 @@ impl<R: Read> VP8Decoder<R> {
         let mut ws = create_border(mbx, mby, mw, &self.top_border, &self.left_border);
 
         match mb.luma_mode {
-            V_PRED => predict_vpred(&mut ws, 16, 1, 1, stride),
-            H_PRED => predict_hpred(&mut ws, 16, 1, 1, stride),
-            TM_PRED => predict_tmpred(&mut ws, 16, 1, 1, stride),
-            DC_PRED => predict_dcpred(&mut ws, 16, stride, mby != 0, mbx != 0),
-            B_PRED => predict_4x4(&mut ws, stride, &mb.bpred, resdata),
-            _ => panic!("unknown luma intra prediction mode"),
+            LumaMode::V => predict_vpred(&mut ws, 16, 1, 1, stride),
+            LumaMode::H => predict_hpred(&mut ws, 16, 1, 1, stride),
+            LumaMode::TM => predict_tmpred(&mut ws, 16, 1, 1, stride),
+            LumaMode::DC => predict_dcpred(&mut ws, 16, stride, mby != 0, mbx != 0),
+            LumaMode::B => predict_4x4(&mut ws, stride, &mb.bpred, resdata),
         }
 
-        if mb.luma_mode != B_PRED {
+        if mb.luma_mode != LumaMode::B {
             for y in 0usize..4 {
                 for x in 0usize..4 {
                     let i = x + y * 4;
@@ -1302,7 +1360,7 @@ impl<R: Read> VP8Decoder<R> {
                     let mut j = 0;
 
                     while t[j] > 0 {
-                        extra = extra + extra + i16::from(self.partitions[p].read_bool(t[j]));
+                        extra = extra + extra + self.partitions[p].read_bool(t[j]) as i16;
                         j += 1;
                     }
 
@@ -1322,7 +1380,7 @@ impl<R: Read> VP8Decoder<R> {
                 2
             };
 
-            if self.partitions[p].read_bool(128) == 1 {
+            if self.partitions[p].read_bool(128) {
                 abs_value = -abs_value;
             }
 
@@ -1338,7 +1396,7 @@ impl<R: Read> VP8Decoder<R> {
     fn read_residual_data(&mut self, mb: &MacroBlock, mbx: usize, p: usize) -> [i32; 384] {
         let sindex = mb.segmentid as usize;
         let mut blocks = [0i32; 384];
-        let mut plane = if mb.luma_mode == B_PRED { 3 } else { 1 };
+        let mut plane = if mb.luma_mode == LumaMode::B { 3 } else { 1 };
 
         if plane == 1 {
             let complexity = self.top[mbx].complexity[0] + self.left.complexity[0];
@@ -1413,19 +1471,19 @@ impl<R: Read> VP8Decoder<R> {
     }
 
     /// Decodes the current frame and returns a reference to it
-    pub fn decode_frame(&mut self) -> io::Result<&Frame> {
-        try!(self.read_frame_header());
+    pub fn decode_frame(&mut self) -> ImageResult<&Frame> {
+        self.read_frame_header()?;
 
         for mby in 0..self.mbheight as usize {
             let p = mby % self.num_partitions as usize;
-            self.left = MacroBlock::new();
+            self.left = MacroBlock::default();
 
             for mbx in 0..self.mbwidth as usize {
-                let (skip, mb) = self.read_macroblock_header(mbx);
+                let (skip, mb) = self.read_macroblock_header(mbx)?;
                 let blocks = if !skip {
                     self.read_residual_data(&mb, mbx, p)
                 } else {
-                    if mb.luma_mode != B_PRED {
+                    if mb.luma_mode != LumaMode::B {
                         self.left.complexity[0] = 0;
                         self.top[mbx].complexity[0] = 0;
                     }
@@ -1448,17 +1506,88 @@ impl<R: Read> VP8Decoder<R> {
     }
 }
 
+impl LumaMode {
+    fn from_i8(val: i8) -> Option<Self> {
+        Some(match val {
+            DC_PRED => LumaMode::DC,
+            V_PRED => LumaMode::V,
+            H_PRED => LumaMode::H,
+            TM_PRED => LumaMode::TM,
+            B_PRED => LumaMode::B,
+            _ => return None,
+        })
+    }
+
+    fn into_intra(self) -> Option<IntraMode> {
+        Some(match self {
+            LumaMode::DC => IntraMode::DC,
+            LumaMode::V => IntraMode::VE,
+            LumaMode::H => IntraMode::HE,
+            LumaMode::TM => IntraMode::TM,
+            LumaMode::B => return None,
+        })
+    }
+}
+
+impl Default for LumaMode {
+    fn default() -> Self {
+        LumaMode::DC
+    }
+}
+
+impl ChromaMode {
+    fn from_i8(val: i8) -> Option<Self> {
+        Some(match val {
+            DC_PRED => ChromaMode::DC,
+            V_PRED => ChromaMode::V,
+            H_PRED => ChromaMode::H,
+            TM_PRED => ChromaMode::TM,
+            _ => return None,
+        })
+    }
+}
+
+impl Default for ChromaMode {
+    fn default() -> Self {
+        ChromaMode::DC
+    }
+}
+
+impl IntraMode {
+    fn from_i8(val: i8) -> Option<Self> {
+        Some(match val {
+            B_DC_PRED => IntraMode::DC,
+            B_TM_PRED => IntraMode::TM,
+            B_VE_PRED => IntraMode::VE,
+            B_HE_PRED => IntraMode::HE,
+            B_LD_PRED => IntraMode::LD,
+            B_RD_PRED => IntraMode::RD,
+            B_VR_PRED => IntraMode::VR,
+            B_VL_PRED => IntraMode::VL,
+            B_HD_PRED => IntraMode::HD,
+            B_HU_PRED => IntraMode::HU,
+            _ => return None,
+        })
+    }
+}
+
+impl Default for IntraMode {
+    fn default() -> Self {
+        IntraMode::DC
+    }
+}
+
 fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
     let mb_width = (width + 15) / 16;
 
     let mb = MacroBlock {
         // Section 11.3 #3
-        bpred: [B_DC_PRED; 16],
-        luma_mode: DC_PRED,
-        ..MacroBlock::new()
+        bpred: [IntraMode::DC; 16],
+        luma_mode: LumaMode::DC,
+        .. MacroBlock::default()
     };
 
-    (0..mb_width).map(|_| mb).collect()
+    vec![mb; mb_width]
 }
 
 fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) -> [u8; 357] {
@@ -1539,7 +1668,7 @@ fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: 
     }
 }
 
-fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[i8], resdata: &[i32]) {
+fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32]) {
     for sby in 0usize..4 {
         for sbx in 0usize..4 {
             let i = sbx + sby * 4;
@@ -1548,17 +1677,16 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[i8], resdata: &[i32]) {
             let rb = &resdata[i * 16..i * 16 + 16];
 
             match modes[i] {
-                B_TM_PRED => predict_tmpred(ws, 4, x0, y0, stride),
-                B_VE_PRED => predict_bvepred(ws, x0, y0, stride),
-                B_HE_PRED => predict_bhepred(ws, x0, y0, stride),
-                B_DC_PRED => predict_bdcpred(ws, x0, y0, stride),
-                B_LD_PRED => predict_bldpred(ws, x0, y0, stride),
-                B_RD_PRED => predict_brdpred(ws, x0, y0, stride),
-                B_VR_PRED => predict_bvrpred(ws, x0, y0, stride),
-                B_VL_PRED => predict_bvlpred(ws, x0, y0, stride),
-                B_HD_PRED => predict_bhdpred(ws, x0, y0, stride),
-                B_HU_PRED => predict_bhupred(ws, x0, y0, stride),
-                _ => panic!("unknown intra bmode"),
+                IntraMode::TM => predict_tmpred(ws, 4, x0, y0, stride),
+                IntraMode::VE => predict_bvepred(ws, x0, y0, stride),
+                IntraMode::HE => predict_bhepred(ws, x0, y0, stride),
+                IntraMode::DC => predict_bdcpred(ws, x0, y0, stride),
+                IntraMode::LD => predict_bldpred(ws, x0, y0, stride),
+                IntraMode::RD => predict_brdpred(ws, x0, y0, stride),
+                IntraMode::VR => predict_bvrpred(ws, x0, y0, stride),
+                IntraMode::VL => predict_bvlpred(ws, x0, y0, stride),
+                IntraMode::HD => predict_bhdpred(ws, x0, y0, stride),
+                IntraMode::HU => predict_bhupred(ws, x0, y0, stride),
             }
 
             add_residue(ws, rb, y0, x0, stride);

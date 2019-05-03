@@ -8,7 +8,7 @@
 
 extern crate tiff;
 
-use std::io::{self, Cursor, Read, Seek};
+use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -48,6 +48,7 @@ impl From<tiff::TiffError> for ImageError {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
             tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
             tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
+            tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
         }
     }
 }
@@ -101,5 +102,35 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
             tiff::decoder::DecodingResult::U8(v) => Ok(v),
             tiff::decoder::DecodingResult::U16(v) => Ok(vec_u16_into_u8(v)),
         }
+    }
+}
+
+/// Encoder for tiff images
+pub struct TiffEncoder<W> {
+    w: W,
+}
+
+impl<W: Write + Seek> TiffEncoder<W> {
+    /// Create a new encoder that writes its output to `w`
+    pub fn new(w: W) -> TiffEncoder<W> {
+        TiffEncoder { w }
+    }
+
+    /// Encodes the image `image`
+    /// that has dimensions `width` and `height`
+    /// and `ColorType` `c`.
+    ///
+    /// 16-bit colortypes are not yet supported.
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        // TODO: 16bit support
+        let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;
+        match color {
+            ColorType::Gray(8) => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
+            ColorType::RGB(8) => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
+            ColorType::RGBA(8) => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
+            _ => return Err(ImageError::UnsupportedColor(color))
+        }
+
+        Ok(())
     }
 }

@@ -821,7 +821,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
 /// the correct format according to the specified color type.
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg and png files are supported.
+/// jpeg, png, ico, pnm, bmp and tiff files are supported.
 pub fn save_buffer<P>(
     path: P,
     buf: &[u8],
@@ -871,6 +871,9 @@ fn save_buffer_impl(
         "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "tiff")]
+        "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],

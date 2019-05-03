@@ -718,8 +718,13 @@ impl BoolReader {
 
             if self.bit_count == 8 {
                 self.bit_count = 0;
-                self.value |= u32::from(self.buf[self.index]);
-                self.index += 1;
+
+                // If no more bits are available, just don't do anything.
+                // This strategy is suggested in the reference implementation of RFC6386 (p.135)
+                if self.index < self.buf.len() {
+                    self.value |= u32::from(self.buf[self.index]);
+                    self.index += 1;
+                }
             }
         }
 

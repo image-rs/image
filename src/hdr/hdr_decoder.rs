@@ -54,7 +54,7 @@ impl<R: BufRead> HDRAdapter<R> {
                 let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
                 target.clear();
 
-                for Rgb { data } in img {
+                for Rgb(data) in img {
                     target.extend_from_slice(&data);
                 }
 
@@ -180,7 +180,7 @@ impl RGBE8Pixel {
     /// Panics when scale or gamma is NaN
     #[inline]
     pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
-        let Rgb { data } = self.to_hdr();
+        let Rgb(data) = self.to_hdr();
         let (r, g, b) = (data[0], data[1], data[2]);
         #[inline]
         fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {

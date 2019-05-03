@@ -926,19 +926,15 @@ impl<R: Read> VP8Decoder<R> {
 
     fn init_partitions(&mut self, n: usize) -> io::Result<()> {
         if n > 1 {
-            let mut sizes = Vec::with_capacity(3 * n - 3);
-            self.r
-                .by_ref()
-                .take(3 * n as u64 - 3)
-                .read_to_end(&mut sizes)?;
+            let mut sizes = vec![0; 3 * n - 3];
+            self.r.read_exact(sizes.as_mut_slice())?;
 
             for (i, s) in sizes.chunks(3).enumerate() {
-                let size = u32::from(s[0]) + ((u32::from(s[1])) << 8) + ((u32::from(s[2])) << 16);
-                let mut buf = Vec::with_capacity(size as usize);
-                self.r
-                    .by_ref()
-                    .take(u64::from(size))
-                    .read_to_end(&mut buf)?;
+                let size = {s}.read_u24::<LittleEndian>()
+                    .expect("Reading from &[u8] can't fail and the chunk is complete");
+
+                let mut buf = vec![0; size as usize];
+                self.r.read_exact(buf.as_mut_slice())?;
 
                 self.partitions[i].init(buf);
             }

@@ -14,7 +14,7 @@
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::default::Default;
-use std::{cmp, io};
+use std::cmp;
 use std::io::Read;
 
 use super::transform;
@@ -682,17 +682,20 @@ impl BoolReader {
         }
     }
 
-    pub fn init(&mut self, buf: Vec<u8>) {
-        self.buf = buf;
-        self.value = 0;
-
-        for _ in 0usize..2 {
-            self.value = (self.value << 8) | u32::from(self.buf[self.index]);
-            self.index += 1;
+    pub fn init(&mut self, buf: Vec<u8>) -> ImageResult<()> {
+        if buf.len() < 2 {
+            return Err(ImageError::FormatError(
+                "Expected at least 2 bytes of decoder initialization data".into()));
         }
 
+        self.buf = buf;
+        // Direct access safe, since length has just been validated.
+        self.value = (u32::from(self.buf[0]) << 8) | u32::from(self.buf[1]);
+        self.index = 2;
         self.range = 255;
         self.bit_count = 0;
+
+        Ok(())
     }
 
     pub fn read_bool(&mut self, probability: u8) -> bool {
@@ -924,7 +927,7 @@ impl<R: Read> VP8Decoder<R> {
         }
     }
 
-    fn init_partitions(&mut self, n: usize) -> io::Result<()> {
+    fn init_partitions(&mut self, n: usize) -> ImageResult<()> {
         if n > 1 {
             let mut sizes = vec![0; 3 * n - 3];
             self.r.read_exact(sizes.as_mut_slice())?;
@@ -936,13 +939,13 @@ impl<R: Read> VP8Decoder<R> {
                 let mut buf = vec![0; size as usize];
                 self.r.read_exact(buf.as_mut_slice())?;
 
-                self.partitions[i].init(buf);
+                self.partitions[i].init(buf)?;
             }
         }
 
         let mut buf = Vec::new();
         self.r.read_to_end(&mut buf)?;
-        self.partitions[n - 1].init(buf);
+        self.partitions[n - 1].init(buf)?;
 
         Ok(())
     }
@@ -1119,7 +1122,7 @@ impl<R: Read> VP8Decoder<R> {
             .read_to_end(&mut buf)?;
 
         // initialise binary decoder
-        self.b.init(buf);
+        self.b.init(buf)?;
 
         if self.frame.keyframe {
             let color_space = self.b.read_literal(1);

@@ -956,6 +956,14 @@ impl<R: Read> VP8Decoder<R> {
     }
 
     fn read_quantization_indices(&mut self) {
+        fn dc_quant(index: i32) -> i16 {
+            DC_QUANT[clamp(index, 0, 127) as usize]
+        }
+
+        fn ac_quant(index: i32) -> i16 {
+            AC_QUANT[clamp(index, 0, 127) as usize]
+        }
+
         let yac_abs = self.b.read_literal(7);
         let ydc_delta = if self.b.read_flag() {
             self.b.read_magnitude_and_sign(4)
@@ -999,14 +1007,15 @@ impl<R: Read> VP8Decoder<R> {
                 i16::from(self.segment[i].quantizer_level) + i16::from(yac_abs)
             });
 
-            self.segment[i].ydc = DC_QUANT[clamp(base + ydc_delta, 0, 127) as usize];
-            self.segment[i].yac = AC_QUANT[clamp(base, 0, 127) as usize];
+            self.segment[i].ydc = dc_quant(base + ydc_delta);
+            self.segment[i].yac = ac_quant(base);
 
-            self.segment[i].y2dc = DC_QUANT[clamp(base + y2dc_delta, 0, 127) as usize] * 2;
-            self.segment[i].y2ac = AC_QUANT[clamp(base + y2ac_delta, 0, 127) as usize] * 155 / 100;
+            self.segment[i].y2dc = dc_quant(base + y2dc_delta) * 2;
+            // The intermediate result (max`284*155`) can be larger than the `i16` range.
+            self.segment[i].y2ac = (i32::from(ac_quant(base + y2ac_delta)) * 155 / 100) as i16;
 
-            self.segment[i].uvdc = DC_QUANT[clamp(base + uvdc_delta, 0, 127) as usize];
-            self.segment[i].uvac = AC_QUANT[clamp(base + uvac_delta, 0, 127) as usize];
+            self.segment[i].uvdc = dc_quant(base + uvdc_delta);
+            self.segment[i].uvac = ac_quant(base + uvac_delta);
 
             if self.segment[i].y2ac < 8 {
                 self.segment[i].y2ac = 8;

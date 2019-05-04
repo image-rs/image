@@ -767,11 +767,6 @@ pub fn open_magic<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_magic_impl
-    open_magic_impl(path.as_ref())
-}
-
-fn open_magic_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
         Ok(f) => f,
         Err(err) => return Err(image::ImageError::IoError(err)),
@@ -933,11 +928,9 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
 
 fn load_guess<R: BufRead + Seek>(mut r: R) -> ImageResult<DynamicImage> {
     let mut buffer: [u8; 16] = [0u8; 16];
-    r.read(&mut buffer[..])?;
+    r.read_exact(&mut buffer[..])?;
     r.seek(SeekFrom::Start(0))?;
-
-    let format = guess_format(&buffer)?;
-    load(r, format)
+    load(r, guess_format(&buffer)?)
 }
 
 static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [

@@ -31,16 +31,16 @@ pub use crate::color::{ColorType, ExtendedColorType};
 
 pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
+pub use crate::error::{ImageError, ImageResult};
+
 pub use crate::image::{AnimationDecoder,
                 GenericImage,
                 GenericImageView,
                 ImageDecoder,
                 ImageDecoderExt,
                 ImageEncoder,
-                ImageError,
                 ImageFormat,
                 ImageOutputFormat,
-                ImageResult,
                 Progress,
                 // Iterators
                 Pixels,
@@ -106,6 +106,7 @@ pub mod tiff;
 #[cfg(feature = "webp")]
 pub mod webp;
 
+mod error;
 mod animation;
 mod buffer;
 mod color;

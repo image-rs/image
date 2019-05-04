@@ -7,7 +7,8 @@ use std::slice::{Chunks, ChunksMut};
 use crate::color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::dynimage::{save_buffer, save_buffer_with_format};
-use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
+use crate::error::ImageResult;
+use crate::image::{GenericImage, GenericImageView, ImageFormat};
 use crate::traits::{EncodableLayout, Primitive};
 use crate::utils::expand_packed;
 

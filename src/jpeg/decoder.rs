@@ -6,7 +6,8 @@ use std::marker::PhantomData;
 use std::mem;
 
 use crate::color::ColorType;
-use crate::image::{ImageDecoder, ImageError, ImageResult};
+use crate::image::ImageDecoder;
+use crate::error::{ImageError, ImageResult};
 
 /// JPEG decoder
 pub struct JpegDecoder<R> {

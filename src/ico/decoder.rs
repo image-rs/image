@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use std::mem;
 
 use crate::color::ColorType;
-use crate::image::{self, ImageDecoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder};
 
 use self::InnerDecoder::*;
 use crate::bmp::BmpDecoder;

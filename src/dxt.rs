@@ -11,7 +11,8 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ColorType;
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageReadBuffer, ImageResult, Progress};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progress};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're

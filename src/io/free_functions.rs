@@ -28,7 +28,8 @@ use crate::webp;
 use crate::color;
 use crate::image;
 use crate::dynimage::DynamicImage;
-use crate::image::{ImageDecoder, ImageEncoder, ImageFormat, ImageResult, ImageError};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {
@@ -41,7 +42,7 @@ pub(crate) enum PathError {
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
         Ok(f) => f,
-        Err(err) => return Err(image::ImageError::IoError(err)),
+        Err(err) => return Err(ImageError::IoError(err)),
     };
     let fin = BufReader::new(fin);
 
@@ -77,7 +78,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
-        _ => Err(image::ImageError::UnsupportedError(format!(
+        _ => Err(ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format
         ))),
@@ -121,7 +122,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         image::ImageFormat::Pnm => {
             pnm::PnmDecoder::new(fin)?.dimensions()
         }
-        format => return Err(image::ImageError::UnsupportedError(format!(
+        format => return Err(ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
         ))),
@@ -257,7 +258,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
 pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
     match guess_format_impl(buffer) {
         Some(format) => Ok(format),
-        None => Err(image::ImageError::UnsupportedError(
+        None => Err(ImageError::UnsupportedError(
             "Unsupported image format".to_string(),
         )),
     }

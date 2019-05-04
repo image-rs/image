@@ -9,7 +9,8 @@ use std::cmp::Ordering;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, Progress};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

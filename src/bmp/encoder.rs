@@ -2,7 +2,8 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use crate::color;
-use crate::image::{ImageEncoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::ImageEncoder;
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

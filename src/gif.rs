@@ -43,7 +43,8 @@ pub use self::gif::{DisposalMethod, Frame};
 use crate::animation;
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::{self, Rgba};
-use crate::image::{self, AnimationDecoder, ImageDecoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, AnimationDecoder, ImageDecoder};
 use num_rational::Ratio;
 
 /// GIF decoder

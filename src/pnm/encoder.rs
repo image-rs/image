@@ -8,7 +8,8 @@ use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
-use crate::image::{ImageEncoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::ImageEncoder;
 
 use byteorder::{BigEndian, WriteBytesExt};
 

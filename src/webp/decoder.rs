@@ -5,9 +5,8 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::image;
 use crate::image::ImageDecoder;
-use crate::image::ImageResult;
+use crate::error::{ImageError, ImageResult};
 
 use crate::color;
 
@@ -45,13 +44,13 @@ impl<R: Read> WebPDecoder<R> {
         self.r.by_ref().take(4).read_to_end(&mut webp)?;
 
         if &*riff != b"RIFF" {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid RIFF signature.".to_string(),
             ));
         }
 
         if &*webp != b"WEBP" {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid WEBP signature.".to_string(),
             ));
         }
@@ -64,7 +63,7 @@ impl<R: Read> WebPDecoder<R> {
         self.r.by_ref().take(4).read_to_end(&mut vp8)?;
 
         if &*vp8 != b"VP8 " {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid VP8 signature.".to_string(),
             ));
         }

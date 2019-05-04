@@ -22,11 +22,10 @@ use crate::buffer::{
     RgbaImage, Rgba16Image,
 };
 use crate::color::{self, IntoColor};
+use crate::error::{ImageError, ImageResult};
 use crate::flat::FlatSamples;
 use crate::image;
-use crate::image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageOutputFormat, ImageResult,
-};
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
 use crate::io::free_functions;
 use crate::imageops;
 
@@ -688,7 +687,7 @@ impl DynamicImage {
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {
-                Err(image::ImageError::UnsupportedError(msg))
+                Err(ImageError::UnsupportedError(msg))
             }
         }
     }
@@ -836,7 +835,6 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
-
         color::ColorType::La16 => {
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)

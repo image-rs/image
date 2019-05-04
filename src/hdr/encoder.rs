@@ -1,7 +1,7 @@
 use crate::color::Rgb;
+use crate::error::ImageResult;
 use crate::hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
 use std::io::{Result, Write};
-use crate::image::ImageResult;
 use std::cmp::Ordering;
 
 /// Radiance HDR encoder

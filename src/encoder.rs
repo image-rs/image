@@ -1,3 +1,4 @@
+extern crate crc32fast;
 extern crate deflate;
 
 use std::borrow::Cow;
@@ -7,8 +8,9 @@ use std::io::{self, Read, Write};
 use std::mem;
 use std::result;
 
+use crc32fast::Hasher as Crc32;
+
 use crate::chunk;
-use crate::crc::Crc32;
 use crate::common::{Info, ColorType, BitDepth, Compression};
 use crate::filter::{FilterType, filter};
 use crate::traits::{WriteBytesExt, HasParameters, Parameter};
@@ -127,7 +129,7 @@ impl<W: Write> Writer<W> {
         let mut crc = Crc32::new();
         crc.update(&name);
         crc.update(data);
-        self.w.write_be(crc.checksum())?;
+        self.w.write_be(crc.finalize())?;
         Ok(())
     }
 

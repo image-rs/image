@@ -1,3 +1,6 @@
+extern crate crc32fast;
+extern crate inflate;
+
 use std::borrow::Cow;
 use std::default::Default;
 use std::error;
@@ -6,10 +9,9 @@ use std::io;
 use std::cmp::min;
 use std::convert::From;
 
-extern crate inflate;
+use crc32fast::Hasher as Crc32;
 
 use self::inflate::InflateStream;
-use crate::crc::Crc32;
 use crate::traits::ReadBytesExt;
 use crate::common::{ColorType, BitDepth, Info, Unit, PixelDimensions, AnimationControl, FrameControl};
 use crate::chunk::{self, ChunkType, IHDR, IDAT, IEND};
@@ -239,7 +241,8 @@ impl StreamingDecoder {
                         )
                     },
                     Crc(type_str) => {
-                        if cfg!(fuzzing) || val == self.current_chunk.0.checksum() {
+                        let sum = self.current_chunk.0.clone().finalize();
+                        if cfg!(fuzzing) || val == sum {
                             goto!(
                                 State::U32(U32Value::Length),
                                 emit if type_str == IEND {
@@ -252,7 +255,7 @@ impl StreamingDecoder {
                             Err(DecodingError::CrcMismatch {
                                 recover: 1,
                                 crc_val: val,
-                                crc_sum: self.current_chunk.0.checksum(),
+                                crc_sum: sum,
                                 chunk: type_str
                             })
                         }

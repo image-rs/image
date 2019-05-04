@@ -47,7 +47,6 @@
 extern crate num_iter;
 
 pub mod chunk;
-mod crc;
 mod decoder;
 #[cfg(feature = "png-encoding")]
 mod encoder;

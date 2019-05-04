@@ -23,7 +23,7 @@ where
         let mut path = base.clone();
         path.push(dir);
         path.push(decoder);
-        path.push("*");
+        path.push("**");
         path.push(
             "*.".to_string() + match input_decoder {
                 Some(val) => val,
@@ -41,12 +41,16 @@ where
 #[test]
 fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
+        println!("render_images {}", path.display());
         let img = match image::open(&path) {
             Ok(img) => img.to_rgba(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(image::ImageError::UnsupportedError(e)) => {
+                println!("UNSUPPORTED {}: {}", path.display(), e);
+                return;
+            }
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
         };
         let mut crc = Crc32::new();

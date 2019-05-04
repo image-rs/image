@@ -293,6 +293,37 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     true
 }
 
+fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
+    pixel_iter: &mut ChunksMut<u8>,
+    palette: &[(u8, u8, u8)],
+    indices: T,
+    mut n_pixels: usize,
+) -> bool {
+    for idx in indices {
+        macro_rules! set_pixel {
+            ($i:expr) => {
+                if n_pixels == 0 {
+                    break;
+                }
+                if let Some(pixel) = pixel_iter.next() {
+                    let (r, g, b) = palette[$i as usize];
+                    pixel[0] = r;
+                    pixel[1] = g;
+                    pixel[2] = b;
+                } else {
+                    return false;
+                }
+                n_pixels -= 1;
+            };
+        }
+        set_pixel!((idx >> 6) & 0x3u8);
+        set_pixel!((idx >> 4) & 0x3u8);
+        set_pixel!((idx >> 2) & 0x3u8);
+        set_pixel!( idx       & 0x3u8);
+    }
+    true
+}
+
 fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
     palette: &[(u8, u8, u8)],
@@ -641,7 +672,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         }
         self.image_type = match image_type_u32 {
             0 => match self.bit_count {
-                1 | 4 | 8 => ImageType::Palette,
+                1 | 2 | 4 | 8 => ImageType::Palette,
                 16 => ImageType::RGB16,
                 24 => ImageType::RGB24,
                 32 => if self.add_alpha_channel {
@@ -919,6 +950,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 match bit_count {
                     1 => {
                         set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter());
+                    }
+                    2 => {
+                        set_2bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
                     }
                     4 => {
                         set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);

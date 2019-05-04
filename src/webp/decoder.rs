@@ -3,9 +3,8 @@ use std::default::Default;
 use std::io;
 use std::io::{Cursor, Read};
 
-use image;
 use image::ImageDecoder;
-use image::ImageResult;
+use error::{ImageError, ImageResult};
 
 use color;
 
@@ -43,13 +42,13 @@ impl<R: Read> WebpDecoder<R> {
         try!(self.r.by_ref().take(4).read_to_end(&mut webp));
 
         if &*riff != b"RIFF" {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid RIFF signature.".to_string(),
             ));
         }
 
         if &*webp != b"WEBP" {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid WEBP signature.".to_string(),
             ));
         }
@@ -62,7 +61,7 @@ impl<R: Read> WebpDecoder<R> {
         try!(self.r.by_ref().take(4).read_to_end(&mut vp8));
 
         if &*vp8 != b"VP8 " {
-            return Err(image::ImageError::FormatError(
+            return Err(ImageError::FormatError(
                 "Invalid VP8 signature.".to_string(),
             ));
         }

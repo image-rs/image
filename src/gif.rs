@@ -39,7 +39,8 @@ use animation;
 use buffer::{ImageBuffer, Pixel};
 use color;
 use color::Rgba;
-use image::{AnimationDecoder, ImageDecoder, ImageError, ImageResult};
+use image::{AnimationDecoder, ImageDecoder};
+use error::{ImageError, ImageResult};
 use num_rational::Ratio;
 
 /// GIF decoder

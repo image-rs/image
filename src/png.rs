@@ -14,7 +14,8 @@ use std;
 use std::io::{self, Read, Write};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::ImageDecoder;
+use error::{ImageError, ImageResult};
 
 /// PNG Reader
 ///

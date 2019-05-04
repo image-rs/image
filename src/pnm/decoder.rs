@@ -5,7 +5,8 @@ use std::fmt::Display;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::ImageDecoder;
+use error::{ImageError, ImageResult};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 

@@ -7,7 +7,8 @@ use std::slice::ChunksMut;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use color::ColorType;
-use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use image::{self, ImageDecoder, ImageDecoderExt, Progress};
+use error::{ImageError, ImageResult};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

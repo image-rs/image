@@ -30,8 +30,8 @@ use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbIm
 use flat::FlatSamples;
 use color;
 use image;
-use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
-            ImageResult};
+use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
+use error::{ImageError, ImageResult};
 use imageops;
 
 /// A Dynamic Image
@@ -548,7 +548,7 @@ impl DynamicImage {
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {
-                Err(image::ImageError::UnsupportedError(msg))
+                Err(ImageError::UnsupportedError(msg))
             }
         }
     }
@@ -665,11 +665,11 @@ pub fn decoder_to_image<I: ImageDecoder>(codec: I) -> ImageResult<DynamicImage> 
         {
             gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
         }
-        _ => return Err(image::ImageError::UnsupportedColor(color)),
+        _ => return Err(ImageError::UnsupportedColor(color)),
     };
     match image {
         Some(image) => Ok(image),
-        None => Err(image::ImageError::DimensionError),
+        None => Err(ImageError::DimensionError),
     }
 }
 
@@ -731,7 +731,7 @@ where
 fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
         Ok(f) => f,
-        Err(err) => return Err(image::ImageError::IoError(err)),
+        Err(err) => return Err(ImageError::IoError(err)),
     };
     let fin = BufReader::new(fin);
 
@@ -751,7 +751,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "hdr" => image::ImageFormat::HDR,
         "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
         format => {
-            return Err(image::ImageError::UnsupportedError(format!(
+            return Err(ImageError::UnsupportedError(format!(
                 "Image format image/{:?} is not supported.",
                 format
             )))
@@ -803,13 +803,13 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         "pbm" | "pam" | "ppm" | "pgm" => {
             pnm::PNMDecoder::new(fin)?.dimensions()
         }
-        format => return Err(image::ImageError::UnsupportedError(format!(
+        format => return Err(ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
         ))),
     };
     if w >= u32::MAX as u64 || h >= u32::MAX as u64 {
-        return Err(image::ImageError::DimensionError);
+        return Err(ImageError::DimensionError);
     }
     Ok((w as u32, h as u32))
 }
@@ -903,7 +903,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
-        _ => Err(image::ImageError::UnsupportedError(format!(
+        _ => Err(ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format
         ))),
@@ -956,7 +956,7 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
             return Ok(format);
         }
     }
-    Err(image::ImageError::UnsupportedError(
+    Err(ImageError::UnsupportedError(
         "Unsupported image format".to_string(),
     ))
 }

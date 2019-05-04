@@ -3,7 +3,8 @@ use std::io;
 use std::io::{Read, Seek};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageReadBuffer, ImageResult};
+use image::{ImageDecoder, ImageReadBuffer};
+use error::{ImageError, ImageResult};
 
 enum ImageType {
     NoImageData = 0,

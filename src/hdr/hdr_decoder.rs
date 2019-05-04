@@ -11,7 +11,8 @@ use std::path::Path;
 use Primitive;
 
 use color::{ColorType, Rgb};
-use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use image::{self, ImageDecoder, ImageDecoderExt, Progress};
+use error::{ImageError, ImageResult};
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]

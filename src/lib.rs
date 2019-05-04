@@ -23,6 +23,8 @@ extern crate quickcheck;
 
 use std::io::Write;
 
+pub use error::{ImageError, ImageResult};
+
 pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA, BGR, BGRA};
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
@@ -32,8 +34,6 @@ pub use image::{AnimationDecoder,
                 GenericImageView,
                 ImageDecoder,
                 ImageDecoderExt,
-                ImageError,
-                ImageResult,
                 MutPixels,
                 // Iterators
                 Pixels,
@@ -100,6 +100,7 @@ pub mod tiff;
 #[cfg(feature = "webp")]
 pub mod webp;
 
+mod error;
 mod animation;
 mod buffer;
 mod color;

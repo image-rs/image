@@ -11,7 +11,8 @@ extern crate tiff;
 use std::io::{Cursor, Read, Seek};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageResult, ImageError};
+use image::ImageDecoder;
+use error::{ImageError, ImageResult};
 use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.

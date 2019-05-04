@@ -2,7 +2,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::ImageDecoder;
+use error::{ImageError, ImageResult};
 
 use self::InnerDecoder::*;
 use bmp::BMPDecoder;

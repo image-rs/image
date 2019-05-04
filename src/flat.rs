@@ -49,7 +49,8 @@ use num_traits::Zero;
 
 use buffer::{ImageBuffer, Pixel};
 use color::ColorType;
-use image::{GenericImage, GenericImageView, ImageError};
+use image::{GenericImage, GenericImageView};
+use error::ImageError;
 
 /// A flat buffer over a (multi channel) image.
 ///

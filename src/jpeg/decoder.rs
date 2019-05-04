@@ -3,7 +3,8 @@ extern crate jpeg_decoder;
 use std::io::{Cursor, Read};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::ImageDecoder;
+use error::{ImageError, ImageResult};
 
 /// JPEG decoder
 pub struct JPEGDecoder<R> {

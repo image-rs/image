@@ -3,7 +3,7 @@ use std::iter::Iterator;
 use num_rational::Ratio;
 
 use buffer::RgbaImage;
-use image::ImageResult;
+use error::ImageResult;
 
 /// An implementation dependent iterator, reading the frames as requested
 pub struct Frames<'a> {

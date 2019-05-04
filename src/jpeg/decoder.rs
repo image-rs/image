@@ -102,9 +102,9 @@ impl From<jpeg_decoder::Error> for ImageError {
         use self::jpeg_decoder::Error::*;
         match err {
             Format(desc) => ImageError::FormatError(desc),
-            Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),
+            Unsupported(desc) => ImageError::UnsupportedFeature(::ImageFormat::JPEG, format!("{:?}", desc)),
             Io(err) => ImageError::IoError(err),
-            Internal(err) => ImageError::FormatError(err.description().to_owned()),
+            Internal(err) => ImageError::FormatError(err.to_string()),
         }
     }
 }

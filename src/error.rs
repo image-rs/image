@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 use color::ColorType;
+use image::ImageFormat;
 
 /// An enumeration of Image errors
 #[derive(Debug)]
@@ -12,11 +13,14 @@ pub enum ImageError {
     /// The Image's dimensions are either too small or too large
     DimensionError,
 
-    /// The Decoder does not support this image format
-    UnsupportedError(String),
+    /// This image format is not supported
+    UnsupportedFormat(String),
 
     /// The Decoder does not support this color type
     UnsupportedColor(ColorType),
+
+    /// Unsupported feature in a image format
+    UnsupportedFeature(ImageFormat, String),
 
     /// Not enough data was provided to the Decoder
     /// to decode the image
@@ -41,10 +45,9 @@ impl fmt::Display for ImageError {
                 "The Image's dimensions are either too \
                  small or too large"
             ),
-            ImageError::UnsupportedError(ref f) => write!(
+            ImageError::UnsupportedFormat(ref f) => write!(
                 fmt,
-                "The Decoder does not support the \
-                 image format `{}`",
+                "The format `{}` is not supported",
                 f
             ),
             ImageError::UnsupportedColor(ref c) => write!(
@@ -52,6 +55,12 @@ impl fmt::Display for ImageError {
                 "The decoder does not support \
                  the color type `{:?}`",
                 c
+            ),
+            ImageError::UnsupportedFeature(ref fo, ref fe) => write!(
+                fmt,
+                "Unsupported `{}` in the format {:?}",
+                fe,
+                fo
             ),
             ImageError::NotEnoughData => write!(
                 fmt,
@@ -70,8 +79,9 @@ impl Error for ImageError {
         match *self {
             ImageError::FormatError(..) => "Format error",
             ImageError::DimensionError => "Dimension error",
-            ImageError::UnsupportedError(..) => "Unsupported error",
+            ImageError::UnsupportedFormat(..) => "Unsupported format",
             ImageError::UnsupportedColor(..) => "Unsupported color",
+            ImageError::UnsupportedFeature(..) => "Unsupported feature",
             ImageError::NotEnoughData => "Not enough data",
             ImageError::IoError(..) => "IO error",
             ImageError::ImageEnd => "Image end",

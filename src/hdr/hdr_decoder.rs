@@ -673,7 +673,7 @@ impl HDRMetadata {
             Some(("FORMAT", val)) => {
                 if val.trim() != "32-bit_rle_rgbe" {
                     // XYZE isn't supported yet
-                    return Err(ImageError::UnsupportedError(limit_string_len(val, 20)));
+                    return Err(ImageError::UnsupportedFeature(::ImageFormat::HDR, format!("Format {}", limit_string_len(val, 20))));
                 }
             }
             Some(("EXPOSURE", val)) => {

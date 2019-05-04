@@ -679,8 +679,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
             },
             // PNG and JPEG not implemented yet.
             _ => {
-                return Err(ImageError::UnsupportedError(
-                    "Unsupported image type".to_string(),
+                return Err(ImageError::UnsupportedFeature(
+                    ::ImageFormat::BMP,
+                    "Image type".to_string(),
                 ))
             }
         };
@@ -746,8 +747,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 BITMAPV4HEADER_SIZE => BMPHeaderType::V4,
                 BITMAPV5HEADER_SIZE => BMPHeaderType::V5,
                 _ => {
-                    return Err(ImageError::UnsupportedError(
-                        "Unsupported Bitmap Header".to_string(),
+                    return Err(ImageError::UnsupportedFeature(
+                        ::ImageFormat::BMP,
+                        "Bitmap Header".to_string(),
                     ))
                 }
             };

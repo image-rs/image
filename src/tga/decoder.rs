@@ -223,12 +223,12 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// by 8 and are less than 32.
     fn read_color_information(&mut self) -> ImageResult<()> {
         if self.header.pixel_depth % 8 != 0 {
-            return Err(ImageError::UnsupportedError(
+            return Err(ImageError::FormatError(
                 "Bit depth must be divisible by 8".to_string(),
             ));
         }
         if self.header.pixel_depth > 32 {
-            return Err(ImageError::UnsupportedError(
+            return Err(ImageError::FormatError(
                 "Bit depth must be less than 32".to_string(),
             ));
         }
@@ -239,8 +239,9 @@ impl<R: Read + Seek> TGADecoder<R> {
             self.header.map_entry_size
         } else {
             if num_alpha_bits > self.header.pixel_depth {
-                return Err(ImageError::UnsupportedError(
-                    format!("Color format not supported. Alpha bits: {}", num_alpha_bits)
+                return Err(ImageError::UnsupportedFeature(
+                    ::ImageFormat::TGA,
+                    format!("Color format with {} alpha bits", num_alpha_bits)
                         .to_string(),
                 ));
             }
@@ -258,9 +259,10 @@ impl<R: Read + Seek> TGADecoder<R> {
             (8, 8, false) => self.color_type = ColorType::GrayA(8),
             (0, 8, false) => self.color_type = ColorType::Gray(8),
             _ => {
-                return Err(ImageError::UnsupportedError(
+                return Err(ImageError::UnsupportedFeature(
+                    ::ImageFormat::TGA,
                     format!(
-                        "Color format not supported. Bit depth: {}, Alpha bits: {}",
+                        "Color format with bit depth: {} and alpha bits: {}",
                         other_channel_bits, num_alpha_bits
                     ).to_string(),
                 ))

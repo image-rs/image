@@ -186,7 +186,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // create the image buffer from the raw frame
         let mut image_buffer = match ImageBuffer::from_raw(self.width, self.height, vec) {
             Some(buffer) => buffer,
-            None => return Some(Err(ImageError::UnsupportedError(
+            None => return Some(Err(ImageError::FormatError(
                 "Unknown error occured while reading gif frame".into()
             ))),
         };

@@ -548,7 +548,7 @@ impl DynamicImage {
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {
-                Err(ImageError::UnsupportedError(msg))
+                Err(ImageError::UnsupportedFormat(msg))
             }
         }
     }
@@ -750,12 +750,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
         "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
-        format => {
-            return Err(ImageError::UnsupportedError(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            )))
-        }
+        format => return Err(ImageError::UnsupportedFormat(format.to_owned())),
     };
 
     load(fin, format)
@@ -803,10 +798,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         "pbm" | "pam" | "ppm" | "pgm" => {
             pnm::PNMDecoder::new(fin)?.dimensions()
         }
-        format => return Err(ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        ))),
+        format => return Err(ImageError::UnsupportedFormat(format.to_owned()))
     };
     if w >= u32::MAX as u64 || h >= u32::MAX as u64 {
         return Err(ImageError::DimensionError);
@@ -903,10 +895,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
-        _ => Err(ImageError::UnsupportedError(format!(
-            "A decoder for {:?} is not available.",
-            format
-        ))),
+        _ => Err(ImageError::UnsupportedFormat(format!("{:?}", format))),
     }
 }
 
@@ -956,9 +945,7 @@ pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
             return Ok(format);
         }
     }
-    Err(ImageError::UnsupportedError(
-        "Unsupported image format".to_string(),
-    ))
+    Err(ImageError::UnsupportedFormat("unknown".to_owned()))
 }
 
 /// Calculates the width and height an image should be resized to.

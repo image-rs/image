@@ -46,6 +46,7 @@ fn render_images() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedFormat(..)) => return,
             Err(image::ImageError::UnsupportedFeature(..)) => return,
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
         };
@@ -80,6 +81,7 @@ fn check_references() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedFormat(..)) => return,
             Err(image::ImageError::UnsupportedFeature(..)) => return,
             Err(err) => panic!(format!("{}", err)),
         };
@@ -117,6 +119,7 @@ fn check_references() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
+            Err(image::ImageError::UnsupportedFormat(..)) => return,
             Err(image::ImageError::UnsupportedFeature(..)) => return,
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
         };

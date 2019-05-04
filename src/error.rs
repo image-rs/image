@@ -16,7 +16,7 @@ pub enum ImageError {
     /// This image format is not supported
     UnsupportedFormat(String),
 
-    /// The Decoder does not support this color type
+    /// This color type is not supported
     UnsupportedColor(ColorType),
 
     /// Unsupported feature in a image format
@@ -52,8 +52,7 @@ impl fmt::Display for ImageError {
             ),
             ImageError::UnsupportedColor(ref c) => write!(
                 fmt,
-                "The decoder does not support \
-                 the color type `{:?}`",
+                "The color type {:?} is not supported",
                 c
             ),
             ImageError::UnsupportedFeature(ref fo, ref fe) => write!(

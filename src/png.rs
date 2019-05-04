@@ -155,12 +155,13 @@ impl<W: Write> PNGEncoder<W> {
     /// Encodes the image ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = color.into();
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set(ct).set(bits);
         let mut writer = try!(encoder.write_header());
-        writer.write_image_data(data).map_err(|e| e.into())
+        writer.write_image_data(data)?;
+        Ok(())
     }
 }
 
@@ -206,6 +207,15 @@ impl From<png::DecodingError> for ImageError {
             CorruptFlateStream => {
                 ImageError::FormatError("compressed data stream corrupted".into())
             }
+        }
+    }
+}
+
+impl From<png::EncodingError> for ImageError {
+    fn from(err: png::EncodingError) -> ImageError {
+        match err {
+            png::EncodingError::IoError(err) => ImageError::IoError(err),
+            png::EncodingError::Format(desc) => ImageError::FormatError(desc.into_owned())
         }
     }
 }

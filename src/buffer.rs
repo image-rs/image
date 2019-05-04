@@ -1,5 +1,4 @@
 use num_traits::Zero;
-use std::io;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
@@ -9,6 +8,7 @@ use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::save_buffer;
 use image::{GenericImage, GenericImageView};
+use error::ImageResult;
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -511,7 +511,7 @@ where
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {

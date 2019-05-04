@@ -556,7 +556,7 @@ impl DynamicImage {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
@@ -820,7 +820,7 @@ pub fn save_buffer<P>(
     width: u32,
     height: u32,
     color: color::ColorType,
-) -> io::Result<()>
+) -> ImageResult<()>
 where
     P: AsRef<Path>,
 {
@@ -834,7 +834,7 @@ fn save_buffer_impl(
     width: u32,
     height: u32,
     color: color::ColorType,
-) -> io::Result<()> {
+) -> ImageResult<()> {
     let fout = &mut BufWriter::new(try!(File::create(path)));
     let ext = path.extension()
         .and_then(|s| s.to_str())
@@ -842,32 +842,31 @@ fn save_buffer_impl(
 
     match &*ext {
         #[cfg(feature = "ico")]
-        "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
+        "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color)?,
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color)?,
         #[cfg(feature = "png_codec")]
-        "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color)?,
         #[cfg(feature = "pnm")]
         "pbm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .encode(buf, width, height, color)?,
         #[cfg(feature = "pnm")]
         "pgm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .encode(buf, width, height, color)?,
         #[cfg(feature = "pnm")]
         "ppm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .encode(buf, width, height, color)?,
         #[cfg(feature = "pnm")]
-        "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color),
+        "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color)?,
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
-        format => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
-    }
+        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color)?,
+        format => return Err(ImageError::UnsupportedFormat(format.to_owned()))
+    };
+
+    Ok(())
 }
 
 /// Create a new image from a Reader

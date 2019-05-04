@@ -1,6 +1,5 @@
 //! Encoding of PNM Images
 use std::fmt;
-use std::io;
 
 use std::io::Write;
 
@@ -8,6 +7,7 @@ use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use color::{num_components, ColorType};
+use error::{ImageError, ImageResult};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
@@ -140,7 +140,7 @@ impl<W: Write> PNMEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()>
+    ) -> ImageResult<()>
     where
         S: Into<FlatSamples<'s>>,
     {
@@ -165,7 +165,7 @@ impl<W: Write> PNMEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let depth = num_components(color) as u32;
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
@@ -175,10 +175,7 @@ impl<W: Write> PNMEncoder<W> {
             ColorType::RGB(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::RGB),
             ColorType::RGBA(n @ 1...16) => ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    &format!("Encoding colour type {:?} is not supported", color)[..],
-                ))
+                return Err(ImageError::UnsupportedFeature(::ImageFormat::PNM, format!("{:?}", color)))
             }
         };
 
@@ -204,7 +201,7 @@ impl<W: Write> PNMEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let header = match (subtype, color) {
             (PNMSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
@@ -237,9 +234,8 @@ impl<W: Write> PNMEncoder<W> {
                 encoded: None,
             },
             (_, _) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Color type can not be represented in the chosen format",
+                return Err(ImageError::FormatError(
+                    "Color type can not be represented in the chosen format".to_owned()
                 ))
             }
         };
@@ -257,7 +253,7 @@ impl<W: Write> PNMEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let unchecked = UncheckedHeader { header };
 
         unchecked
@@ -275,7 +271,7 @@ impl<'a> CheckedImageBuffer<'a> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<CheckedImageBuffer<'a>> {
+    ) -> ImageResult<CheckedImageBuffer<'a>> {
         let components = num_components(color);
         let uwidth = width as usize;
         let uheight = height as usize;
@@ -283,33 +279,25 @@ impl<'a> CheckedImageBuffer<'a> {
             .and_then(|v| v.checked_mul(uwidth))
             .and_then(|v| v.checked_mul(uheight))
         {
-            None => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &format!(
-                    "Image dimensions invalid: {}×{}×{} (w×h×d)",
-                    width, height, components
-                )[..],
-            )),
+            None => Err(ImageError::DimensionError),
             Some(v) if v == image.len() => Ok(CheckedImageBuffer {
                 _image: image,
                 _width: width,
                 _height: height,
                 _color: color,
             }),
-            Some(_) => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &"Image buffer does not correspond to size and colour".to_string()[..],
+            Some(_) => Err(ImageError::FormatError(
+                "Image buffer does not correspond to size and colour".to_owned()
             )),
         }
     }
 }
 
 impl<'a> UncheckedHeader<'a> {
-    fn check_header_dimensions(self, width: u32, height: u32) -> io::Result<CheckedDimensions<'a>> {
+    fn check_header_dimensions(self, width: u32, height: u32) -> ImageResult<CheckedDimensions<'a>> {
         if self.header.width() != width || self.header.height() != height {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Chosen header does not match Image dimensions",
+            return Err(ImageError::FormatError(
+                "Chosen header does not match Image dimensions".to_owned()
             ));
         }
 
@@ -325,7 +313,7 @@ impl<'a> CheckedDimensions<'a> {
     // Check color compatibility with the header. This will only error when we are certain that
     // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
-    fn check_header_color(self, color: ColorType) -> io::Result<CheckedHeaderColor<'a>> {
+    fn check_header_color(self, color: ColorType) -> ImageResult<CheckedHeaderColor<'a>> {
         let components = match color {
             ColorType::Gray(_) => 1,
             ColorType::GrayA(_) => 2,
@@ -339,36 +327,21 @@ impl<'a> CheckedDimensions<'a> {
                 ..
             } => match color {
                 ColorType::Gray(_) => (),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PBM format only support ColorType::Gray",
-                    ))
-                }
+                _ => return Err(ImageError::UnsupportedFeature(::ImageFormat::PNM, "Colortype".to_owned())),
             },
             PNMHeader {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
                 ColorType::Gray(_) => (),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PGM format only support ColorType::Gray",
-                    ))
-                }
+                _ => return Err(ImageError::UnsupportedFeature(::ImageFormat::PNM, "Colortype".to_owned())),
             },
             PNMHeader {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
                 ColorType::RGB(_) => (),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PPM format only support ColorType::RGB",
-                    ))
-                }
+                _ => return Err(ImageError::UnsupportedFeature(::ImageFormat::PNM, "Colortype".to_owned())),
             },
             PNMHeader {
                 decoded:
@@ -391,15 +364,13 @@ impl<'a> CheckedDimensions<'a> {
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
                 _ if depth != components => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("Depth mismatch: header {} vs. color {}", depth, components),
+                    return Err(ImageError::FormatError(
+                        format!("Depth mismatch: header {} vs. color {}", depth, components)
                     ))
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Invalid color type for selected PAM color type",
+                    return Err(ImageError::FormatError(
+                        "Invalid color type for selected PAM color type".to_owned()
                     ))
                 }
             },
@@ -413,7 +384,7 @@ impl<'a> CheckedDimensions<'a> {
 }
 
 impl<'a> CheckedHeaderColor<'a> {
-    fn check_sample_values(self, image: FlatSamples<'a>) -> io::Result<CheckedHeader<'a>> {
+    fn check_sample_values(self, image: FlatSamples<'a>) -> ImageResult<CheckedHeader<'a>> {
         let header_maxval = match self.dimensions.unchecked.header.decoded {
             HeaderRecord::Bitmap(_) => 1,
             HeaderRecord::Graymap(GraymapHeader { maxwhite, .. }) => maxwhite,
@@ -432,9 +403,9 @@ impl<'a> CheckedHeaderColor<'a> {
             | ColorType::BGR(n)
             | ColorType::BGRA(n) if n > 16 =>
             {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Encoding colors with a bit depth greater 16 not supported",
+                return Err(ImageError::UnsupportedFeature(
+                    ::ImageFormat::PNM,
+                    "Encoding colors with a bit depth greater than 16".to_owned()
                 ))
             }
             ColorType::Gray(n)
@@ -448,9 +419,8 @@ impl<'a> CheckedHeaderColor<'a> {
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
         if header_maxval < max_sample && !image.all_smaller(header_maxval) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Sample value greater than allowed for chosen header",
+            return Err(ImageError::FormatError(
+                "Sample value greater than allowed for chosen header".to_owned()
             ));
         }
 
@@ -472,7 +442,7 @@ impl<'a> CheckedHeaderColor<'a> {
 }
 
 impl<'a> CheckedHeader<'a> {
-    fn write_header(self, writer: &mut Write) -> io::Result<TupleEncoding<'a>> {
+    fn write_header(self, writer: &mut Write) -> ImageResult<TupleEncoding<'a>> {
         self.header().write(writer)?;
         Ok(self.encoding)
     }
@@ -485,7 +455,7 @@ impl<'a> CheckedHeader<'a> {
 struct SampleWriter<'a>(&'a mut Write);
 
 impl<'a> SampleWriter<'a> {
-    fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
+    fn write_samples_ascii<V>(self, samples: V) -> ImageResult<()>
     where
         V: Iterator,
         V::Item: fmt::Display,
@@ -494,10 +464,11 @@ impl<'a> SampleWriter<'a> {
         for value in samples {
             write!(auto_break_writer, "{} ", value)?;
         }
-        auto_break_writer.flush()
+        auto_break_writer.flush()?;
+        Ok(())
     }
 
-    fn write_pbm_bits<V>(self, samples: &[V], width: u32) -> io::Result<()>
+    fn write_pbm_bits<V>(self, samples: &[V], width: u32) -> ImageResult<()>
     /* Default gives 0 for all primitives. TODO: replace this with `Zeroable` once it hits stable */
     where
         V: Default + Eq + Copy,
@@ -525,7 +496,8 @@ impl<'a> SampleWriter<'a> {
             line_buffer.clear();
         }
 
-        self.0.flush()
+        self.0.flush()?;
+        Ok(())
     }
 }
 
@@ -596,34 +568,35 @@ impl<'a> From<&'a [u16]> for FlatSamples<'a> {
 }
 
 impl<'a> TupleEncoding<'a> {
-    fn write_image(&self, writer: &mut Write) -> io::Result<()> {
+    fn write_image(&self, writer: &mut Write) -> ImageResult<()> {
         match *self {
             TupleEncoding::PbmBits {
                 samples: FlatSamples::U8(samples),
                 width,
-            } => SampleWriter(writer).write_pbm_bits(samples, width),
+            } => SampleWriter(writer).write_pbm_bits(samples, width)?,
             TupleEncoding::PbmBits {
                 samples: FlatSamples::U16(samples),
                 width,
-            } => SampleWriter(writer).write_pbm_bits(samples, width),
+            } => SampleWriter(writer).write_pbm_bits(samples, width)?,
 
             TupleEncoding::Bytes {
                 samples: FlatSamples::U8(samples),
-            } => writer.write_all(samples),
+            } => writer.write_all(samples)?,
             TupleEncoding::Bytes {
                 samples: FlatSamples::U16(samples),
             } => samples
                 .iter()
                 .map(|&sample| writer.write_u16::<BigEndian>(sample))
-                .collect(),
+                .collect::<Result<_, _>>()?,
 
             TupleEncoding::Ascii {
                 samples: FlatSamples::U8(samples),
-            } => SampleWriter(writer).write_samples_ascii(samples.iter()),
+            } => SampleWriter(writer).write_samples_ascii(samples.iter())?,
             TupleEncoding::Ascii {
                 samples: FlatSamples::U16(samples),
-            } => SampleWriter(writer).write_samples_ascii(samples.iter()),
-        }
+            } => SampleWriter(writer).write_samples_ascii(samples.iter())?,
+        };
+        Ok(())
     }
 }
 

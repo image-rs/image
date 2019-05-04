@@ -767,19 +767,6 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     load(BufReader::new(&fin), format)
 }
 
-/// Open the image located at the path specified.
-/// The image's format is determined from the file header magic bytes.
-pub fn open_magic<P>(path: P) -> ImageResult<DynamicImage>
-where
-    P: AsRef<Path>,
-{
-    let fin = match File::open(path) {
-        Ok(f) => f,
-        Err(err) => return Err(image::ImageError::IoError(err)),
-    };
-    load_guess(BufReader::new(fin))
-}
-
 /// Read the dimensions of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>

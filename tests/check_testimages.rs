@@ -3,7 +3,7 @@ extern crate glob;
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use std::io::BufReader;
 use std::io::prelude::*;
@@ -20,12 +20,13 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
         let mut path = base.clone();
         path.push(suite);
         path.push("*.png");
+
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-            print!("{:?}: ", path.clone());
+            print!("{}: ", path.display());
             match func(path.clone()) {
                 Ok(crc) => {
-                    results.insert(format!("{:?}", path), format!("{}", crc));
+                    results.insert(format!("{}", path.display()), format!("{}", crc));
                     println!("{}", crc)
                 },
                 Err(_) if path.file_name().unwrap().to_str().unwrap().starts_with("x") => {
@@ -46,13 +47,14 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
         if parts[1] == "Expected failure" {
             failures += 1;
         } else {
-            ref_results.insert(parts[0].to_string(), parts[1].to_string());
+            let current_path = format!("{}", normalize_path(Path::new(&parts[0])).display());
+            ref_results.insert(current_path, parts[1].to_string());
         }
     }
     assert_eq!(expected_failures, failures);
     for (path, crc) in results.iter() {
         assert_eq!(
-            ref_results.get(path).expect(&format!("reference for {:?} is missing", path)), 
+            ref_results.get(path).expect(&format!("reference for {} is missing", path)), 
             crc
         )
     }
@@ -79,6 +81,33 @@ fn render_images() {
     })
 }
 
+// until rust standardizes path normalization, see https://github.com/rust-lang/rfcs/issues/2208
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
+}
 
 const CRC_TABLE: [u32; 256] = [
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419,

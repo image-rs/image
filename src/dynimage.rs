@@ -733,7 +733,13 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         Ok(f) => f,
         Err(err) => return Err(image::ImageError::IoError(err)),
     };
-    let fin = BufReader::new(fin);
+
+    match load_guess(BufReader::new(&fin)) {
+        Ok(im) => return Ok(im),
+        Err(_e) => {
+            // println!("load_guess failed loading {}: {} - failling back to extension format matching", path.display(), e);
+        }
+    };
 
     let ext = path.extension()
         .and_then(|s| s.to_str())
@@ -758,7 +764,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         }
     };
 
-    load(fin, format)
+    load(BufReader::new(&fin), format)
 }
 
 /// Open the image located at the path specified.

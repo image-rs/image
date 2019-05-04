@@ -607,7 +607,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // Number of planes (format specifies that this should be 1).
         if try!(self.r.read_u16::<LittleEndian>()) != 1 {
             return Err(ImageError::FormatError(
-                "Invalid number of planes.".to_string(),
+                "More than one plane".to_string(),
             ));
         }
 
@@ -657,7 +657,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // Number of planes (format specifies that this should be 1).
         if try!(self.r.read_u16::<LittleEndian>()) != 1 {
             return Err(ImageError::FormatError(
-                "Invalid number of planes.".to_string(),
+                "More than one plane".to_string(),
             ));
         }
 
@@ -680,7 +680,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 } else {
                     ImageType::RGB32
                 },
-                _ => return Err(ImageError::FormatError("Invalid RGB bit count".to_string())),
+                _ => return Err(ImageError::FormatError(format!("Invalid RGB bit count {}", self.bit_count).to_string())),
             },
             1 => match self.bit_count {
                 8 => ImageType::RLE8,

@@ -180,24 +180,18 @@ fn check_hdr_references() {
 /// The images are postfixed with `bad_bmp` to not be loaded by the other test.
 #[test]
 fn bad_bmps() {
-    let base_path: PathBuf = BASE_PATH
+    let path: PathBuf = BASE_PATH
         .iter()
         .collect::<PathBuf>()
         .join(IMAGE_DIR)
-        .join("bmp/images");
+        .join("bmp/images")
+        .join("*.bad_bmp");
 
-    assert!(
-        image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(),
-        "Image with absurdly large number of colors loaded."
-    );
-    assert!(
-        image::open(base_path.join("Bad_width.bad_bmp")).is_err(),
-        "Image with absurdly large width loaded."
-    );
-    assert!(
-        image::open(base_path.join("Bad_height.bad_bmp")).is_err(),
-        "Image with absurdly large height loaded."
-    );
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        let im = image::open(path);
+        assert!(im.is_err());
+    }
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]

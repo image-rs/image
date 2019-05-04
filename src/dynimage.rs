@@ -736,8 +736,14 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 
     match load_guess(BufReader::new(&fin)) {
         Ok(im) => return Ok(im),
-        Err(_e) => {
-            // println!("load_guess failed loading {}: {} - failling back to extension format matching", path.display(), e);
+        Err(e) => {
+            match e {
+                image::ImageError::UnsupportedError(_) => {
+                    // fall-thru to extension based detection (should only happen for TGA images)
+                    // println!("load_guess failed loading {}: {}", path.display(), e);
+                }
+                _ => return Err(e),
+            };
         }
     };
 
@@ -1112,13 +1118,5 @@ mod test {
         let im_path = "./tests/images/jpg/progressive/cat.jpg";
         let dims = super::image_dimensions(im_path).unwrap();
         assert_eq!(dims, (320, 240));
-    }
-
-    #[cfg(feature = "jpeg")]
-    #[test]
-    fn open_magic() {
-        let im_path = "./tests/images/jpg/progressive/cat.jpg";
-        let im = super::open_magic(im_path).unwrap();
-        assert_eq!(im.raw_pixels().len(), 230400);
     }
 }

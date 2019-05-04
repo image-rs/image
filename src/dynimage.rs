@@ -1,7 +1,7 @@
 use num_iter;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::u32;
 
@@ -761,13 +761,37 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     load(fin, format)
 }
 
+/// Open the image located at the path specified.
+/// The image's format is determined from the file header magic bytes.
+pub fn open_magic<P>(path: P) -> ImageResult<DynamicImage>
+where
+    P: AsRef<Path>,
+{
+    // thin wrapper function to strip generics before calling open_magic_impl
+    open_magic_impl(path.as_ref())
+}
+
+fn open_magic_impl(path: &Path) -> ImageResult<DynamicImage> {
+    let fin = match File::open(path) {
+        Ok(f) => f,
+        Err(err) => return Err(image::ImageError::IoError(err)),
+    };
+    let mut fin = BufReader::new(fin);
+
+    let mut buffer: [u8; 16] = [0u8; 16];
+    fin.read(&mut buffer[..])?;
+    fin.seek(SeekFrom::Start(0))?;
+
+    load(fin, guess_format(&buffer)?)
+}
+
 /// Read the dimensions of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>
 {
-    // thin wrapper function to strip generics before calling open_impl
+    // thin wrapper function to strip generics before calling image_dimensions_impl
     image_dimensions_impl(path.as_ref())
 }
 
@@ -1098,5 +1122,13 @@ mod test {
         let im_path = "./tests/images/jpg/progressive/cat.jpg";
         let dims = super::image_dimensions(im_path).unwrap();
         assert_eq!(dims, (320, 240));
+    }
+
+    #[cfg(feature = "jpeg")]
+    #[test]
+    fn open_magic() {
+        let im_path = "./tests/images/jpg/progressive/cat.jpg";
+        let im = super::open_magic(im_path).unwrap();
+        assert_eq!(im.raw_pixels().len(), 230400);
     }
 }

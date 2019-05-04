@@ -1,7 +1,7 @@
 use num_iter;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::u32;
 
@@ -776,13 +776,7 @@ fn open_magic_impl(path: &Path) -> ImageResult<DynamicImage> {
         Ok(f) => f,
         Err(err) => return Err(image::ImageError::IoError(err)),
     };
-    let mut fin = BufReader::new(fin);
-
-    let mut buffer: [u8; 16] = [0u8; 16];
-    fin.read(&mut buffer[..])?;
-    fin.seek(SeekFrom::Start(0))?;
-
-    load(fin, guess_format(&buffer)?)
+    load_guess(BufReader::new(fin))
 }
 
 /// Read the dimensions of the image located at the specified path.
@@ -937,6 +931,15 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     }
 }
 
+fn load_guess<R: BufRead + Seek>(mut r: R) -> ImageResult<DynamicImage> {
+    let mut buffer: [u8; 16] = [0u8; 16];
+    r.read(&mut buffer[..])?;
+    r.seek(SeekFrom::Start(0))?;
+
+    let format = guess_format(&buffer)?;
+    load(r, format)
+}
+
 static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
@@ -962,7 +965,8 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    load_from_memory_with_format(buffer, try!(guess_format(buffer)))
+    let b = io::Cursor::new(buffer);
+    load_guess(b)
 }
 
 /// Create a new image from a byte slice

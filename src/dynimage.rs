@@ -1,7 +1,7 @@
 use num_iter;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::u32;
 
@@ -901,7 +901,7 @@ fn save_buffer_impl(
 }
 
 /// Create a new image from a Reader
-pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Read + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
@@ -932,7 +932,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     }
 }
 
-fn load_guess<R: BufRead + Seek>(mut r: R) -> ImageResult<DynamicImage> {
+fn load_guess<R: Read + Seek>(mut r: R) -> ImageResult<DynamicImage> {
     let mut buffer: [u8; 16] = [0u8; 16];
     r.read_exact(&mut buffer[..])?;
     r.seek(SeekFrom::Start(0))?;

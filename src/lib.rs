@@ -41,7 +41,7 @@ pub use image::{AnimationDecoder,
 
 pub use imageops::FilterType::{self, CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
 
-pub use image::ImageFormat::{self, BMP, GIF, ICO, JPEG, PNG, PNM, WEBP};
+pub use image::ImageFormat::{self, BMP, GIF, ICO, JPEG, PNG, PNM, WEBP, FLIF};
 
 pub use image::ImageOutputFormat;
 
@@ -99,6 +99,8 @@ pub mod tga;
 pub mod tiff;
 #[cfg(feature = "webp")]
 pub mod webp;
+#[cfg(feature = "flif")]
+pub mod flif;
 
 mod animation;
 mod buffer;

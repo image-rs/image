@@ -56,13 +56,17 @@ optional = true
 version = "0.2.0"
 optional = true
 
+[dependencies.flif]
+version = "0.4"
+optional = true
+
 [dev-dependencies]
 num-complex = "0.2.0"
 glob = "0.2.10"
 quickcheck = "0.6.2"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
+default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon", "flif"]
 
 gif_codec = ["gif"]
 ico = ["bmp", "png_codec"]

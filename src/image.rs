@@ -108,7 +108,7 @@ impl From<io::Error> for ImageError {
 pub type ImageResult<T> = Result<T, ImageError>;
 
 /// An enumeration of supported image formats.
-/// Not all formats support both encoding and decoding.
+/// Not all formats support encoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ImageFormat {
     /// An Image in PNG Format
@@ -140,6 +140,9 @@ pub enum ImageFormat {
 
     /// An Image in Radiance HDR Format
     HDR,
+
+    /// An Image in FLIF Format
+    FLIF,
 }
 
 /// An enumeration of supported image formats for encoding.

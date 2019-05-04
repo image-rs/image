@@ -25,6 +25,8 @@ use tga;
 use tiff;
 #[cfg(feature = "webp")]
 use webp;
+#[cfg(feature = "flif")]
+use flif;
 
 use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage, BgrImage, BgraImage};
 use flat::FlatSamples;
@@ -750,6 +752,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
         "ico" => image::ImageFormat::ICO,
         "hdr" => image::ImageFormat::HDR,
         "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
+        "flif" => image::ImageFormat::FLIF,
         format => {
             return Err(image::ImageError::UnsupportedError(format!(
                 "Image format image/{:?} is not supported.",
@@ -803,6 +806,8 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         "pbm" | "pam" | "ppm" | "pgm" => {
             pnm::PNMDecoder::new(fin)?.dimensions()
         }
+        #[cfg(feature = "flif")]
+        "flif" => flif::FLIFDecoder::new(fin)?.dimensions(),
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
@@ -903,6 +908,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
         #[cfg(feature = "pnm")]
         image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
+        #[cfg(feature = "flif")]
+        image::ImageFormat::FLIF => decoder_to_image(flif::FLIFDecoder::new(BufReader::new(r))?),
         _ => Err(image::ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format

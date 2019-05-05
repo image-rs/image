@@ -1,4 +1,4 @@
-use super::scoped_threadpool::Pool;
+use scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
 use std::mem;

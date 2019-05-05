@@ -4,7 +4,5 @@ version = "0.2.0"
 authors = ["Sergey Davidoff <shnatsel@gmail.com>", "Paul Grandperrin <paul.grandperrin@gmail.com>"]
 
 [dependencies]
-afl = "0.4.0"
-png = {path = "../"}
-
-
+afl = "0.4.3"
+png = { path = "../" }

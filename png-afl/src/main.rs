@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate afl;
 extern crate png;
 
@@ -25,8 +26,7 @@ fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
 }
 
 fn main() {
-    afl::fuzz(|data| {
-    //afl::read_stdio_bytes(|data| {
-        png_decode(&data);
+    fuzz!(|data: &[u8]| {
+        let _ = png_decode(&data);
     });
 }

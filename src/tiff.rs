@@ -8,7 +8,8 @@
 
 extern crate tiff;
 
-use std::io::{Cursor, Read, Seek};
+use std::io::{self, Cursor, Read, Seek};
+use std::mem;
 
 use color::ColorType;
 use image::{ImageDecoder, ImageResult, ImageError};
@@ -63,8 +64,24 @@ impl From<tiff::ColorType> for ColorType {
     }
 }
 
+/// Wrapper struct around a `Cursor<Vec<u8>>`
+pub struct TiffReader(Cursor<Vec<u8>>);
+impl Read for TiffReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        if self.0.position() == 0 && buf.is_empty() {
+            mem::swap(buf, self.0.get_mut());
+            Ok(buf.len())
+        } else {
+            self.0.read_to_end(buf)
+        }
+    }
+}
+
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
-    type Reader = Cursor<Vec<u8>>;
+    type Reader = TiffReader;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.dimensions.0 as u64, self.dimensions.1 as u64)
@@ -75,7 +92,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(self.read_image()?))
+        Ok(TiffReader(Cursor::new(self.read_image()?)))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

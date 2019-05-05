@@ -5,7 +5,7 @@ use std::mem;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{self, BufRead, Cursor, Seek};
+use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
 use std::path::Path;
 use Primitive;
@@ -66,8 +66,24 @@ impl<R: BufRead> HDRAdapter<R> {
 
 }
 
+/// Wrapper struct around a `Cursor<Vec<u8>>`
+pub struct HdrReader(Cursor<Vec<u8>>);
+impl Read for HdrReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        if self.0.position() == 0 && buf.is_empty() {
+            mem::swap(buf, self.0.get_mut());
+            Ok(buf.len())
+        } else {
+            self.0.read_to_end(buf)
+        }
+    }
+}
+
 impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
-    type Reader = Cursor<Vec<u8>>;
+    type Reader = HdrReader;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.meta.width as u64, self.meta.height as u64)
@@ -78,7 +94,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(self.read_image()?))
+        Ok(HdrReader(Cursor::new(self.read_image()?)))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

@@ -406,7 +406,7 @@ trait HeaderReader: BufRead {
 
 impl<R: Read> HeaderReader for BufReader<R> {}
 
-impl<R: Read> ImageDecoder for PNMDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {

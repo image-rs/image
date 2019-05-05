@@ -158,7 +158,7 @@ impl DirEntry {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {

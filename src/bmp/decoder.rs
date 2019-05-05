@@ -1255,7 +1255,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -1279,7 +1279,7 @@ impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoderExt for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,

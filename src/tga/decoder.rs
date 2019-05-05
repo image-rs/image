@@ -498,7 +498,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for TGADecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
     type Reader = TGAReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {

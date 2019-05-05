@@ -98,7 +98,7 @@ impl<R: Read> WebpDecoder<R> {
     }
 }
 
-impl<R: Read> ImageDecoder for WebpDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {

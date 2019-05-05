@@ -8,6 +8,10 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22 (unreleased)
+
+- Support loading 2-bit BMP images
+
 ### Version 0.21
 
 - Updated README to use `GenericImageView`

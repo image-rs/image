@@ -32,3 +32,4 @@ default-features = false
 png-encoding = ["deflate"]
 default = ["png-encoding"]
 unstable = []
+benchmarks = []

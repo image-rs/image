@@ -548,32 +548,3 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
         })
     }
 }
-/*
-#[cfg(test)]
-mod test {
-    extern crate test;
-
-    use std::fs::File;
-    use std::io::Read;
-
-    use super::Decoder;
-    use HasParameters;
-
-    #[bench]
-    fn bench_big(b: &mut test::Bencher) {
-        let mut data = Vec::new();
-        File::open("tests/pngsuite/PngSuite.png").unwrap().read_to_end(&mut data).unwrap();
-        let mut decoder = Decoder::new(&*data);
-        decoder.set(::Transformations::IDENTITY);
-        let (info, _) = decoder.read_info().unwrap();
-        let mut image = vec![0; info.buffer_size()];
-        b.iter(|| {
-            let mut decoder = Decoder::new(&*data);
-            decoder.set(::Transformations::IDENTITY);
-            let (_, mut decoder) = decoder.read_info().unwrap();
-            test::black_box(decoder.next_frame(&mut image)).unwrap();
-        });
-        b.bytes = info.buffer_size() as u64
-    }
-}
-*/

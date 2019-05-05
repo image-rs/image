@@ -19,6 +19,20 @@ use crate::chunk::{self, ChunkType, IHDR, IDAT, IEND};
 /// TODO check if these size are reasonable
 pub const CHUNCK_BUFFER_SIZE: usize = 32*1024;
 
+/// Determines if checksum checks should be disabled globally.
+///
+/// This is used only in fuzzing. `afl` automatically adds `--cfg fuzzing` to RUSTFLAGS which can
+/// be used to detect that build.
+const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
+
+fn zlib_stream() -> InflateStream {
+    if CHECKSUM_DISABLED {
+        InflateStream::from_zlib_no_checksum()
+    } else {
+        InflateStream::from_zlib()
+    }
+}
+
 #[derive(Debug)]
 enum U32Value {
     // CHUNKS
@@ -138,7 +152,7 @@ impl StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: (Crc32::new(), 0, Vec::with_capacity(CHUNCK_BUFFER_SIZE)),
-            inflater: if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()},
+            inflater: zlib_stream(),
             info: None,
             current_seq_no: None,
             have_idat: false
@@ -151,7 +165,7 @@ impl StreamingDecoder {
         self.current_chunk.0 = Crc32::new();
         self.current_chunk.1 = 0;
         self.current_chunk.2.clear();
-        self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
+        self.inflater = zlib_stream();
         self.info = None;
         self.current_seq_no = None;
         self.have_idat = false;
@@ -242,7 +256,7 @@ impl StreamingDecoder {
                     },
                     Crc(type_str) => {
                         let sum = self.current_chunk.0.clone().finalize();
-                        if cfg!(fuzzing) || val == sum {
+                        if CHECKSUM_DISABLED || val == sum {
                             goto!(
                                 State::U32(U32Value::Length),
                                 emit if type_str == IEND {
@@ -435,7 +449,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = if cfg!(fuzzing) {InflateStream::from_zlib_no_checksum()} else {InflateStream::from_zlib()};
+        self.inflater = zlib_stream();
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,

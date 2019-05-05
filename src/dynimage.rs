@@ -927,8 +927,9 @@ pub fn load<R: Read + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicIma
 
 fn load_guess<R: Read + Seek>(mut r: R) -> ImageResult<DynamicImage> {
     let mut buffer: [u8; 16] = [0u8; 16];
+    let cur = r.seek(SeekFrom::Current(0))?;
     r.read_exact(&mut buffer[..])?;
-    r.seek(SeekFrom::Start(0))?;
+    r.seek(SeekFrom::Start(cur))?;
     load(r, guess_format(&buffer)?)
 }
 

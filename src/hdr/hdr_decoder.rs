@@ -66,7 +66,7 @@ impl<R: BufRead> HDRAdapter<R> {
 
 }
 
-impl<'a, R: BufRead> ImageDecoder<'a> for HDRAdapter<R> {
+impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -91,7 +91,7 @@ impl<'a, R: BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 }
 
-impl<'a, R: BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,

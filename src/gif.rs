@@ -59,7 +59,7 @@ impl<R: Read> Decoder<R> {
     }
 }
 
-impl<'a, R: Read> ImageDecoder<'a> for Decoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u64, u64) {

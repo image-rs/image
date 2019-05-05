@@ -618,7 +618,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8]) {
             swap(&mut color0, &mut color1);
             // Indexes are packed 2 bits wide, swap index 0/1 but preserve 2/3.
             let filter = (chosen_indices & 0xAAAA_AAAA) >> 1;
-            chosen_indices ^= filter ^ 0x555_5555;
+            chosen_indices ^= filter ^ 0x5555_5555;
         }
     } else if !chosen_use_0 {
         swap(&mut color0, &mut color1);

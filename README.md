@@ -1,4 +1,4 @@
-# Image [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+# Image [![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image) [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 Maintainers: @nwin, @ccgn
 
@@ -9,23 +9,6 @@ Maintainers: @nwin, @ccgn
 This crate provides basic imaging processing functions and methods for converting to and from image formats.
 
 All image processing functions provided operate on types that implement the ```GenericImage``` trait and return an ```ImageBuffer```.
-
-### Usage
-
-Add the following to the Cargo.toml in your project:
-
-```toml
-[dependencies]
-image = "*"
-```
-
-and import using ```extern crate```:
-
-```rust
-extern crate image;
-
-// use image::
-```
 
 ## 1. Documentation
 

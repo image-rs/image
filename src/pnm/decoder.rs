@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::str::{self, FromStr};
 use std::fmt::Display;
+use std::marker::PhantomData;
 use std::mem;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
@@ -408,8 +409,8 @@ trait HeaderReader: BufRead {
 impl<R: Read> HeaderReader for BufReader<R> {}
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct PnmReader(Cursor<Vec<u8>>);
-impl Read for PnmReader {
+pub struct PnmReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for PnmReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -424,7 +425,7 @@ impl Read for PnmReader {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
-    type Reader = PnmReader;
+    type Reader = PnmReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.header.width() as u64, self.header.height() as u64)
@@ -435,7 +436,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(PnmReader(Cursor::new(self.read_image()?)))
+        Ok(PnmReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

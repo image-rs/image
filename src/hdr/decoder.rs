@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
+use std::marker::PhantomData;
 use std::path::Path;
 use Primitive;
 
@@ -67,8 +68,8 @@ impl<R: BufRead> HDRAdapter<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct HdrReader(Cursor<Vec<u8>>);
-impl Read for HdrReader {
+pub struct HdrReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for HdrReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -83,7 +84,7 @@ impl Read for HdrReader {
 }
 
 impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
-    type Reader = HdrReader;
+    type Reader = HdrReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.meta.width as u64, self.meta.height as u64)
@@ -94,7 +95,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(HdrReader(Cursor::new(self.read_image()?)))
+        Ok(HdrReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

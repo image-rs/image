@@ -1,6 +1,7 @@
 use std::{cmp, mem};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
+use std::marker::PhantomData;
 use std::slice::ChunksMut;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -1255,8 +1256,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct BmpReader(Cursor<Vec<u8>>);
-impl Read for BmpReader {
+pub struct BmpReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for BmpReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -1271,7 +1272,7 @@ impl Read for BmpReader {
 }
 
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
-    type Reader = BmpReader;
+    type Reader = BmpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.width as u64, self.height as u64)
@@ -1286,7 +1287,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(Cursor::new(self.read_image()?)))
+        Ok(BmpReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

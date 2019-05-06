@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::default::Default;
 use std::io::{self, Cursor, Read};
+use std::marker::PhantomData;
 use std::mem;
 
 use image;
@@ -99,8 +100,8 @@ impl<R: Read> WebpDecoder<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct WebpReader(Cursor<Vec<u8>>);
-impl Read for WebpReader {
+pub struct WebpReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for WebpReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -115,7 +116,7 @@ impl Read for WebpReader {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
-    type Reader = WebpReader;
+    type Reader = WebpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.frame.width as u64, self.frame.height as u64)
@@ -126,7 +127,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(WebpReader(Cursor::new(self.frame.ybuf)))
+        Ok(WebpReader(Cursor::new(self.frame.ybuf), PhantomData))
     }
 
     fn read_image(self) -> ImageResult<Vec<u8>> {

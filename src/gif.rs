@@ -31,6 +31,7 @@ extern crate num_rational;
 
 use std::clone::Clone;
 use std::io::{self, Cursor, Read, Write};
+use std::marker::PhantomData;
 use std::mem;
 
 use self::gif::{ColorOutput, SetParameter};
@@ -61,8 +62,8 @@ impl<R: Read> Decoder<R> {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct GifReader(Cursor<Vec<u8>>);
-impl Read for GifReader {
+pub struct GifReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for GifReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -77,7 +78,7 @@ impl Read for GifReader {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
-    type Reader = GifReader;
+    type Reader = GifReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.reader.width() as u64, self.reader.height() as u64)
@@ -88,7 +89,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(GifReader(Cursor::new(self.read_image()?)))
+        Ok(GifReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

@@ -9,6 +9,7 @@
 extern crate tiff;
 
 use std::io::{self, Cursor, Read, Seek};
+use std::marker::PhantomData;
 use std::mem;
 
 use color::ColorType;
@@ -65,8 +66,8 @@ impl From<tiff::ColorType> for ColorType {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct TiffReader(Cursor<Vec<u8>>);
-impl Read for TiffReader {
+pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for TiffReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -81,7 +82,7 @@ impl Read for TiffReader {
 }
 
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
-    type Reader = TiffReader;
+    type Reader = TiffReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.dimensions.0 as u64, self.dimensions.1 as u64)
@@ -92,7 +93,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(TiffReader(Cursor::new(self.read_image()?)))
+        Ok(TiffReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {

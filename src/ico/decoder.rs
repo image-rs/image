@@ -1,5 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::marker::PhantomData;
 use std::mem;
 
 use color::ColorType;
@@ -160,8 +161,8 @@ impl DirEntry {
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct IcoReader(Cursor<Vec<u8>>);
-impl Read for IcoReader {
+pub struct IcoReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for IcoReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -176,7 +177,7 @@ impl Read for IcoReader {
 }
 
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
-    type Reader = IcoReader;
+    type Reader = IcoReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         match self.inner_decoder {
@@ -193,7 +194,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(IcoReader(Cursor::new(self.read_image()?)))
+        Ok(IcoReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(self) -> ImageResult<Vec<u8>> {

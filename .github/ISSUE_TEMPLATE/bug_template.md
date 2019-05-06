@@ -1,8 +1,11 @@
-----
-labels: bug
+---
 name: Bug report
 about: Reporting a bug
-----
+labels: bug
+title: ''
+assignees: ''
+
+---
 
 This happens in ,...
 

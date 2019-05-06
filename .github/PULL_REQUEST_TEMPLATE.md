@@ -1,7 +1,3 @@
------
-name: Pull request
-about: Default template with contributor agreement
------
 <!-- 
 If you are a new contributor, consent to licensing by including this text:
 

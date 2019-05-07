@@ -534,7 +534,7 @@ where
         Rows {
             chunks: self
                 .data
-                .chunks((<P as Pixel>::channel_count() as u32 * self.width) as usize),
+                .chunks(<P as Pixel>::channel_count() as usize * self.width as usize),
         }
     }
 
@@ -665,7 +665,7 @@ where
         RowsMut {
             chunks: self
                 .data
-                .chunks_mut((<P as Pixel>::channel_count() as u32 * self.width) as usize),
+                .chunks_mut(<P as Pixel>::channel_count() as usize * self.width as usize),
         }
     }
 

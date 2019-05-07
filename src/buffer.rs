@@ -323,10 +323,7 @@ where
         }
         let (x, y) = (self.x, self.y);
         self.x += 1;
-        match self.pixels.next() {
-            None => None,
-            Some(p) => Some((x, y, p)),
-        }
+        self.pixels.next().map(|p| (x, y, p))
     }
 }
 
@@ -359,9 +356,8 @@ where
     fn next(&mut self) -> Option<(u32, EnumeratePixels<'a, P>)> {
         let y = self.y;
         self.y += 1;
-        match self.rows.next() {
-            None => None,
-            Some(r) => Some((
+        self.rows.next().map(|r| {
+            (
                 y,
                 EnumeratePixels {
                     x: 0,
@@ -369,8 +365,8 @@ where
                     width: self.width,
                     pixels: r,
                 },
-            )),
-        }
+            )
+        })
     }
 }
 
@@ -408,10 +404,7 @@ where
         }
         let (x, y) = (self.x, self.y);
         self.x += 1;
-        match self.pixels.next() {
-            None => None,
-            Some(p) => Some((x, y, p)),
-        }
+        self.pixels.next().map(|p| (x, y, p))
     }
 }
 
@@ -444,9 +437,8 @@ where
     fn next(&mut self) -> Option<(u32, EnumeratePixelsMut<'a, P>)> {
         let y = self.y;
         self.y += 1;
-        match self.rows.next() {
-            None => None,
-            Some(r) => Some((
+        self.rows.next().map(|r| {
+            (
                 y,
                 EnumeratePixelsMut {
                     x: 0,
@@ -454,8 +446,8 @@ where
                     width: self.width,
                     pixels: r,
                 },
-            )),
-        }
+            )
+        })
     }
 }
 

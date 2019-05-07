@@ -59,7 +59,7 @@ optional = true
 [dev-dependencies]
 crc32fast = "1.2.0"
 num-complex = "0.2.0"
-glob = "0.2.10"
+glob = "0.3"
 quickcheck = "0.6.2"
 
 [features]

@@ -32,7 +32,9 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns a string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
+    #[deprecated(note="please use COLOR_MODEL associated constant")]
     fn color_model() -> &'static str;
+    const COLOR_MODEL: &'static str;
 
     /// Returns the ColorType for this pixel format
     fn color_type() -> ColorType;
@@ -410,13 +412,8 @@ where
     }
 
     #[inline(always)]
-<<<<<<< HEAD
-    unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> Range<usize> {
-        let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-=======
     fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
-        let no_channels = <P as Pixel>::channel_count() as usize;
->>>>>>> 29215547a36e0dc99d3555a8c37972294b9bef80
+        let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
         min_index..min_index+no_channels

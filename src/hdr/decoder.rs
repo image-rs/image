@@ -1,11 +1,13 @@
-use super::scoped_threadpool::Pool;
+use scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
+use std::mem;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
-use std::io::{self, BufRead, Cursor, Seek};
+use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
+use std::marker::PhantomData;
 use std::path::Path;
 use Primitive;
 
@@ -47,17 +49,16 @@ impl<R: BufRead> HDRAdapter<R> {
     fn read_image_data(&mut self) -> ImageResult<()> {
         match self.inner.take() {
             Some(decoder) => {
-                let elem_len = ::std::mem::size_of::<Rgb<u8>>();
-                let mut img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                // let's transform Vec<Rgb<u8>> into Vec<u8>
-                let p = img.as_mut_ptr() as *mut u8;
-                let len = img.len() * elem_len; // length in bytes
-                let cap = img.capacity() * elem_len; //
-                ::std::mem::forget(img);
+                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
 
-                unsafe {
-                    self.data = Some(Vec::from_raw_parts(p, len, cap));
+                let len = img.len() * mem::size_of::<Rgb<u8>>(); // length in bytes
+                let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
+                target.clear();
+
+                for Rgb(data) in img {
+                    target.extend_from_slice(&data);
                 }
+
                 Ok(())
             }
             None => Err(ImageError::ImageEnd),
@@ -66,8 +67,24 @@ impl<R: BufRead> HDRAdapter<R> {
 
 }
 
-impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
-    type Reader = Cursor<Vec<u8>>;
+/// Wrapper struct around a `Cursor<Vec<u8>>`
+pub struct HdrReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for HdrReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        if self.0.position() == 0 && buf.is_empty() {
+            mem::swap(buf, self.0.get_mut());
+            Ok(buf.len())
+        } else {
+            self.0.read_to_end(buf)
+        }
+    }
+}
+
+impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
+    type Reader = HdrReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.meta.width as u64, self.meta.height as u64)
@@ -78,7 +95,7 @@ impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(self.read_image()?))
+        Ok(HdrReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
@@ -91,7 +108,7 @@ impl<R: BufRead> ImageDecoder for HDRAdapter<R> {
     }
 }
 
-impl<R: BufRead + Seek> ImageDecoderExt for HDRAdapter<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,
@@ -128,7 +145,7 @@ pub struct HDRDecoder<R> {
 
 /// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RGBE8Pixel {
     /// Color components
     pub c: [u8; 3],
@@ -180,7 +197,7 @@ impl RGBE8Pixel {
     /// Panics when scale or gamma is NaN
     #[inline]
     pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
-        let Rgb { data } = self.to_hdr();
+        let Rgb(data) = self.to_hdr();
         let (r, g, b) = (data[0], data[1], data[2]);
         #[inline]
         fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {
@@ -302,11 +319,7 @@ impl<R: BufRead> HDRDecoder<R> {
         }
         // expression self.width > 0 && self.height > 0 is true from now to the end of this method
         let pixel_count = self.width as usize * self.height as usize;
-        let mut ret = Vec::<RGBE8Pixel>::with_capacity(pixel_count);
-        unsafe {
-            // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
-            ret.set_len(pixel_count);
-        } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
+        let mut ret = vec![Default::default(); pixel_count];
         for chunk in ret.chunks_mut(self.width as usize) {
             try!(read_scanline(&mut self.r, chunk));
         }
@@ -376,17 +389,10 @@ impl<R: BufRead> IntoIterator for HDRDecoder<R> {
     type IntoIter = HDRImageDecoderIterator<R>;
 
     fn into_iter(self) -> Self::IntoIter {
-        // scanline buffer
-        let mut buf = Vec::with_capacity(self.width as usize);
-        unsafe {
-            // dropping half-initialized vector of RGBE8Pixel is safe
-            // and I took care to hide half-initialized vector from a user
-            buf.set_len(self.width as usize);
-        }
         HDRImageDecoderIterator {
             r: self.r,
             scanline_cnt: self.height as usize,
-            buf,
+            buf: vec![Default::default(); self.width as usize],
             col: 0,
             scanline: 0,
             trouble: true, // make first call to `next()` read scanline

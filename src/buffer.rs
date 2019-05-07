@@ -306,6 +306,9 @@ pub struct ImageBuffer<P: Pixel, Container> {
 }
 
 // generic implementation, shared along all image buffers
+//
+// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?  Remember to remove
+// the bounds on `imageops` in case this changes!
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + 'static,
@@ -403,14 +406,17 @@ where
             return None
         }
 
-        Some(unsafe {
-            self.unsafe_pixel_indices(x, y)
-        })
+        Some(self.pixel_indices_unchecked(x, y))
     }
 
     #[inline(always)]
+<<<<<<< HEAD
     unsafe fn unsafe_pixel_indices(&self, x: u32, y: u32) -> Range<usize> {
         let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+=======
+    fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
+        let no_channels = <P as Pixel>::channel_count() as usize;
+>>>>>>> 29215547a36e0dc99d3555a8c37972294b9bef80
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
         min_index..min_index+no_channels
@@ -614,7 +620,7 @@ where
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
-        let indices = self.unsafe_pixel_indices(x, y);
+        let indices = self.pixel_indices_unchecked(x, y);
         *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
 
@@ -642,7 +648,7 @@ where
     /// Puts a pixel at location (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        let indices = self.unsafe_pixel_indices(x, y);
+        let indices = self.pixel_indices_unchecked(x, y);
         let p = <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices));
         *p = pixel
     }
@@ -755,9 +761,7 @@ impl GrayImage {
         let (width, height) = self.dimensions();
         let mut data = self.into_raw();
         let entries = data.len();
-        data.reserve_exact(entries.checked_mul(3).unwrap()); // 3 additional channels
-                                                             // set_len is save since type is u8 an the data never read
-        unsafe { data.set_len(entries.checked_mul(4).unwrap()) }; // 4 channels in total
+        data.resize(entries.checked_mul(4).unwrap(), 0);
         let mut buffer = ImageBuffer::from_vec(width, height, data).unwrap();
         expand_packed(&mut buffer, 4, 8, |idx, pixel| {
             let (r, g, b) = palette[idx as usize];

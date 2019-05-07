@@ -15,8 +15,8 @@ authors = [
 ]
 readme = "README.md"
 documentation = "https://docs.rs/image"
-repository = "https://github.com/PistonDevelopers/image.git"
-homepage = "https://github.com/PistonDevelopers/image"
+repository = "https://github.com/image-rs/image.git"
+homepage = "https://github.com/image-rs/image"
 categories = ["multimedia::images", "multimedia::encoding"]
 exclude = [
     "src/png/testdata/*",
@@ -34,7 +34,6 @@ num-iter = "0.1.32"
 num-rational = { version = "0.2.1", default-features = false }
 num-traits = "0.2.0"
 lzw = "0.10.0"
-safe-transmute = "0.10.1"
 
 [dependencies.gif]
 version = "0.10.0"
@@ -58,8 +57,9 @@ version = "0.2.0"
 optional = true
 
 [dev-dependencies]
+crc32fast = "1.2.0"
 num-complex = "0.2.0"
-glob = "0.2.10"
+glob = "0.3"
 quickcheck = "0.6.2"
 
 [features]

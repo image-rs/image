@@ -35,7 +35,7 @@ fn main() {
             }
 
             let pixel = imgbuf.get_pixel_mut(x, y);
-            let data = (*pixel as image::Rgb<u8>).data;
+            let data = (*pixel as image::Rgb<u8>).0;
             *pixel = image::Rgb([data[0], i as u8, data[2]]);
         }
     }

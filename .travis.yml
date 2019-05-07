@@ -4,7 +4,6 @@ notifications:
     irc: "irc.mozilla.org#piston-internals"
 os:
     - linux
-    - osx
 rust:
     - 1.24.1
     - stable
@@ -23,6 +22,20 @@ env:
       - FEATURES='tiff'
       - FEATURES='webp'
       - FEATURES='hdr'
+matrix:
+    include:
+        - os: osx
+          rust: 1.24.1
+        - os: windows
+          rust: 1.24.1
+        - os: osx
+          rust: stable
+        - os: windows
+          rust: stable
+        - os: osx
+          rust: nightly
+        - os: windows
+          rust: nightly
 script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v &&

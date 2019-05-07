@@ -1,0 +1,23 @@
+[package]
+name = "image-fuzz-afl"
+version = "0.0.1"
+authors = ["HeroicKatora"]
+publish = false
+
+[dependencies.image]
+path = ".."
+
+[dependencies.afl]
+version = "0.4.3"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzzer_script_pnm"
+path = "fuzzers/fuzzer_script_pnm.rs"
+
+[[bin]]
+name = "fuzzer_script_webp"
+path = "fuzzers/fuzzer_script_webp.rs"

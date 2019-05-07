@@ -1,6 +1,8 @@
 //!  Utilities
 
+use byteorder::{NativeEndian, ByteOrder};
 use num_iter::range_step;
+use std::mem;
 use std::iter::repeat;
 
 #[inline(always)]
@@ -30,4 +32,15 @@ where
         let pixel = (buf[i] & (mask << shift)) >> shift;
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
     }
+}
+
+pub fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
+    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
+    vec_u16_copy_u8(&vec)
+}
+
+pub fn vec_u16_copy_u8(vec: &Vec<u16>) -> Vec<u8> {
+    let mut new = vec![0; vec.len() * mem::size_of::<u16>()];
+    NativeEndian::write_u16_into(&vec[..], &mut new[..]);
+    new
 }

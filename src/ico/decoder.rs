@@ -1,5 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::marker::PhantomData;
+use std::mem;
 
 use color::ColorType;
 use image::{ImageDecoder, ImageError, ImageResult};
@@ -158,8 +160,24 @@ impl DirEntry {
     }
 }
 
-impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
-    type Reader = Cursor<Vec<u8>>;
+/// Wrapper struct around a `Cursor<Vec<u8>>`
+pub struct IcoReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
+impl<R> Read for IcoReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        if self.0.position() == 0 && buf.is_empty() {
+            mem::swap(buf, self.0.get_mut());
+            Ok(buf.len())
+        } else {
+            self.0.read_to_end(buf)
+        }
+    }
+}
+
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
+    type Reader = IcoReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         match self.inner_decoder {
@@ -176,7 +194,7 @@ impl<R: Read + Seek> ImageDecoder for ICODecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(self.read_image()?))
+        Ok(IcoReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(self) -> ImageResult<Vec<u8>> {

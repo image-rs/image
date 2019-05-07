@@ -123,14 +123,27 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
     }
 
     fn colortype(&self) -> color::ColorType {
-        color::ColorType::Gray(8)
+        color::ColorType::RGB(8)
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(WebpReader(Cursor::new(self.frame.ybuf), PhantomData))
+        Ok(WebpReader(Cursor::new(self.read_image()?), PhantomData))
     }
 
     fn read_image(self) -> ImageResult<Vec<u8>> {
-        Ok(self.frame.ybuf)
+        let mut res = Vec::with_capacity(self.frame.ybuf.len() * 3);
+        for i in 0..self.frame.ybuf.len() {
+            let y = self.frame.ybuf[i] as f32;
+            let u = self.frame.ubuf[i] as f32;
+            let v = self.frame.vbuf[i] as f32;
+
+            let r = 298.082 * y / 256. + 408.583 * u / 256. - 222.291;
+            let g = 298.082 * y / 256. - 100.291* v / 256. - 208.120 * u / 256. + 135.576;
+            let b = 298.082 * y / 256. + 516.412 * v / 256. - 276.836;
+            res.push(::math::utils::clamp(r as i32, 0, 255) as u8);
+            res.push(::math::utils::clamp(g as i32, 0, 255) as u8);
+            res.push(::math::utils::clamp(b as i32, 0, 255) as u8);
+        }
+        Ok(res)
     }
 }

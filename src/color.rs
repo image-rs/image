@@ -83,6 +83,9 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     fn channel_count() -> u8 {
         $channels
     }
+    
+    const CHANNEL_COUNT: u8 = $channels;
+
     fn color_model() -> &'static str {
         $interpretation
     }

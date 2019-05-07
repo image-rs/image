@@ -559,7 +559,7 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error> 
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
     {
-        if self.layout.channels != P::channel_count() {
+        if self.layout.channels != P::CHANNEL_COUNT {
             return Err(Error::WrongColor(P::color_type()))
         }
 
@@ -596,7 +596,7 @@ impl<Buffer> FlatSamples<Buffer> {
     pub fn as_view_with_mut_samples<P>(&mut self) -> Result<View<&mut [P::Subpixel], P>, Error>
         where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
     {
-        if self.layout.channels != P::channel_count() {
+        if self.layout.channels != P::CHANNEL_COUNT {
             return Err(Error::WrongColor(P::color_type()))
         }
 
@@ -633,7 +633,7 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err(Error::NormalFormRequired(NormalForm::PixelPacked))
         }
 
-        if self.layout.channels != P::channel_count() {
+        if self.layout.channels != P::CHANNEL_COUNT {
             return Err(Error::WrongColor(P::color_type()))
         }
 
@@ -717,7 +717,7 @@ impl<Buffer> FlatSamples<Buffer> {
             return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self))
         }
 
-        if self.layout.channels != P::channel_count() {
+        if self.layout.channels != P::CHANNEL_COUNT {
             return Err((Error::WrongColor(P::color_type()), self))
         }
 
@@ -1280,7 +1280,7 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
 
         let image = self.inner.samples.as_ref();
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channels = P::channel_count() as usize;
+        let channels = P::CHANNEL_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
         buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
@@ -1325,7 +1325,7 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
 
         let image = self.inner.samples.as_ref();
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channels = P::channel_count() as usize;
+        let channels = P::CHANNEL_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
         buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
@@ -1352,7 +1352,7 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
         }
 
         let base_index = self.inner.in_bounds_index(0, x, y);
-        let channel_count = <P as Pixel>::channel_count() as usize;
+        let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }

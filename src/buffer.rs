@@ -22,6 +22,7 @@ pub trait Pixel: Copy + Clone {
     /// Returns the number of channels of this pixel type.
     #[deprecated(note="please use CHANNEL_COUNT associated constant")]
     fn channel_count() -> u8;
+    /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
 
     /// Returns the components as a slice.
@@ -34,10 +35,15 @@ pub trait Pixel: Copy + Clone {
     /// See [gimp babl](http://gegl.org/babl/).
     #[deprecated(note="please use COLOR_MODEL associated constant")]
     fn color_model() -> &'static str;
+    /// A string that can help to interpret the meaning each channel
+    /// See [gimp babl](http://gegl.org/babl/).
     const COLOR_MODEL: &'static str;
 
     /// Returns the ColorType for this pixel format
+    #[deprecated(note="please use COLOR_TYPE associated constant")]
     fn color_type() -> ColorType;
+    /// ColorType for this pixel format
+    const COLOR_TYPE: ColorType;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -439,7 +445,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 
@@ -453,7 +459,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 }
@@ -525,7 +531,7 @@ where
             self,
             self.width(),
             self.height(),
-            <P as Pixel>::color_type(),
+            <P as Pixel>::COLOR_TYPE,
         )
     }
 }

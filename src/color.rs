@@ -87,6 +87,8 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     fn color_type() -> ColorType {
         ColorType::$color_type(mem::size_of::<T>() as u8 * 8)
     }
+    const COLOR_TYPE: ColorType = ColorType::$color_type(mem::size_of::<T>() as u8 * 8); 
+
     #[inline(always)]
     fn channels(&self) -> &[T] {
         &self.0

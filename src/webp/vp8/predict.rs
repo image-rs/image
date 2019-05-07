@@ -37,7 +37,12 @@ pub fn chroma_dc(a: &[u8], l: &[u8], has_a: bool, has_l: bool) -> [[u8; 8]; 8] {
 
     let shf = 2 + if has_a { 1 } else { 0 } + if has_l { 1 } else { 0 };
 
-    let dc_value = ((sum + (1 << (shf-1))) >> shf) as u8;
+    let dc_value = if has_a || has_l {
+        ((sum + (1 << (shf-1))) >> shf) as u8
+    }
+    else {
+        128 
+    };
     
     [[dc_value; 8]; 8]
 } 
@@ -60,6 +65,17 @@ pub fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stri
             let b = pblock[(y0 + y) * stride + x0 + x];
             let c = clamp(a + i32::from(b), 0, 255) as u8;
             pblock[(y0 + y) * stride + x0 + x] = c;
+        }
+    }
+}
+
+pub fn add_residue_chroma(pblock: &mut [[u8; 8]; 8], rblock: &[i32], y0: usize, x0: usize) {
+    for y in 0usize..4 {
+        for x in 0usize..4 {
+            let a = rblock[x + y * 4];
+            let b = pblock[y0 + y][x0 + x];
+            let c = clamp(a + i32::from(b), 0, 255) as u8;
+            pblock[y0 + y][x0 + x] = c;
         }
     }
 }

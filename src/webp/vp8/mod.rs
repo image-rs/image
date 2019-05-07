@@ -174,6 +174,10 @@ pub struct Frame {
     /// The luma plane of the frame
     pub ybuf: Vec<u8>,
 
+    pub ubuf: Vec<u8>,
+
+    pub vbuf: Vec<u8>,
+
     /// Indicates whether this frame is a keyframe
     pub keyframe: bool,
 
@@ -241,8 +245,8 @@ pub struct VP8Decoder<R> {
     top: Vec<MacroBlock>,
     left: MacroBlock,
 
-    top_border: Vec<u8>,
-    left_border: Vec<u8>,
+    top_border: [Vec<u8>; 3],
+    left_border: [Vec<u8>; 3],
 }
 
 impl<R: Read> VP8Decoder<R> {
@@ -290,8 +294,8 @@ impl<R: Read> VP8Decoder<R> {
             top: Vec::new(),
             left: m,
 
-            top_border: Vec::new(),
-            left_border: Vec::new(),
+            top_border: [Vec::new(), Vec::new(), Vec::new()],
+            left_border: [Vec::new(), Vec::new(), Vec::new()],
         }
     }
 
@@ -504,9 +508,20 @@ impl<R: Read> VP8Decoder<R> {
             self.mbheight = (self.frame.height + 15) / 16;
 
             self.frame.ybuf = vec![0u8; self.frame.width as usize * self.frame.height as usize];
+            self.frame.ubuf = vec![0u8; self.frame.width as usize * self.frame.height as usize];
+            self.frame.vbuf = vec![0u8; self.frame.width as usize * self.frame.height as usize];
 
-            self.top_border = vec![127u8; self.frame.width as usize + 4 + 16];
-            self.left_border = vec![129u8; 1 + 16];
+            self.top_border = [
+                vec![127u8; self.frame.width as usize + 4 + 16],
+                vec![127u8; self.frame.width as usize / 2 + 8],
+                vec![127u8; self.frame.width as usize / 2 + 8],
+            ];
+
+            self.left_border = [
+                vec![129u8; 1 + 16],
+                vec![129u8; 1 + 8],
+                vec![129u8; 1 + 8],
+            ];
         }
 
         let mut buf = vec![0; first_partition_size as usize];
@@ -664,7 +679,7 @@ impl<R: Read> VP8Decoder<R> {
         let stride = 1usize + 16 + 4;
         let w = self.frame.width as usize;
         let mw = self.mbwidth as usize;
-        let mut ws = create_border(mbx, mby, mw, &self.top_border, &self.left_border);
+        let mut ws = create_border(mbx, mby, mw, &self.top_border[0], &self.left_border[0]);
 
         match mb.luma_mode {
             LumaMode::V => predict::vpred(&mut ws, 16, 1, 1, stride),
@@ -687,12 +702,34 @@ impl<R: Read> VP8Decoder<R> {
             }
         }
 
-        self.left_border[0] = ws[16];
+        self.left_border[0][0] = ws[16];
 
         for i in 0usize..16 {
-            self.top_border[mbx * 16 + i] = ws[16 * stride + 1 + i];
-            self.left_border[i + 1] = ws[(i + 1) * stride + 16];
+            self.top_border[0][mbx * 16 + i] = ws[16 * stride + 1 + i];
+            self.left_border[0][i + 1] = ws[(i + 1) * stride + 16];
         }
+
+        let v_a = &self.top_border[1][mbx/2..mbx/2+8];
+        let v_l = &self.left_border[1][1..9];
+        let v_p = self.left_border[1][0];
+
+        let mut v_x = match mb.chroma_mode {
+            ChromaMode::V => predict::chroma_v(v_a),
+            ChromaMode::H => predict::chroma_h(v_l),
+            ChromaMode::DC => predict::chroma_dc(v_a, v_l, mby != 0, mbx != 0),
+            ChromaMode::TM => predict::chroma_tm(v_a, v_l, v_p),
+        };
+
+        let u_a = &self.top_border[2][mbx/2..mbx/2+8];
+        let u_l = &self.left_border[2][1..9];
+        let u_p = self.left_border[2][0];
+
+        let mut u_x = match mb.chroma_mode {
+            ChromaMode::V => predict::chroma_v(u_a),
+            ChromaMode::H => predict::chroma_h(u_l),
+            ChromaMode::DC => predict::chroma_dc(u_a, u_l, mby != 0, mbx != 0),
+            ChromaMode::TM => predict::chroma_tm(u_a, u_l, u_p),
+        };
 
         // Length is the remainder to the border, but maximally the current chunk.
         let ylength = cmp::min(self.frame.height as usize - mby*16, 16);
@@ -701,6 +738,8 @@ impl<R: Read> VP8Decoder<R> {
         for y in 0usize..ylength {
             for x in 0usize..xlength {
                 self.frame.ybuf[(mby * 16 + y) * w + mbx * 16 + x] = ws[(1 + y) * stride + 1 + x];
+                self.frame.ubuf[(mby * 16 + y) * w + mbx * 16 + x] = v_x[y/2][x/2];
+                self.frame.vbuf[(mby * 16 + y) * w + mbx * 16 + x] = u_x[y/2][x/2];
             }
         }
     }
@@ -889,7 +928,11 @@ impl<R: Read> VP8Decoder<R> {
                 self.intra_predict(mbx, mby, &mb, &blocks);
             }
 
-            self.left_border = vec![129u8; 1 + 16];
+            self.left_border = [
+                vec![129u8; 1 + 16],
+                vec![129u8; 1 + 8],
+                vec![129u8; 1 + 8],
+            ];
         }
 
         Ok(&self.frame)

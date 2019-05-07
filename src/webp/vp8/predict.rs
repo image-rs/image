@@ -10,6 +10,49 @@ fn avg2(this: u8, right: u8) -> u8 {
     avg as u8
 }
 
+pub fn chroma_v(a: &[u8]) -> [[u8; 8]; 8] {
+    let mut res = [[0; 8]; 8];
+    for r in 0..8 {
+        for c in 0..8 {
+            res[r][c] = a[c];
+        }
+    }
+    res
+}
+
+pub fn chroma_h(l: &[u8]) -> [[u8; 8]; 8] {
+    let mut res = [[0; 8]; 8];
+    for r in 0..8 {
+        for c in 0..8 {
+            res[r][c] = l[r];
+        }
+    }
+    res
+}
+
+pub fn chroma_dc(a: &[u8], l: &[u8], has_a: bool, has_l: bool) -> [[u8; 8]; 8] {
+    let mut sum = 0i32;
+    if has_a { sum += a.iter().map(|x| i32::from(*x)).sum::<i32>(); }
+    if has_l { sum += l.iter().map(|x| i32::from(*x)).sum::<i32>(); }
+
+    let shf = 2 + if has_a { 1 } else { 0 } + if has_l { 1 } else { 0 };
+
+    let dc_value = ((sum + (1 << (shf-1))) >> shf) as u8;
+    
+    [[dc_value; 8]; 8]
+} 
+
+pub fn chroma_tm(a: &[u8], l: &[u8], p: u8) -> [[u8; 8]; 8] {
+    let mut res = [[0; 8]; 8];
+    for r in 0..8 {
+        for c in 0..8 {
+            let pred = i32::from(l[r]) + i32::from(a[c]) - i32::from(p);
+            res[r][c] = clamp(pred, 0, 255) as u8;
+        }
+    }
+    res
+}
+
 pub fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: usize) {
     for y in 0usize..4 {
         for x in 0usize..4 {
@@ -95,6 +138,7 @@ pub fn dcpred(a: &mut [u8], size: usize, stride: usize, above: bool, left: bool)
         }
     }
 }
+
 
 pub fn tmpred(a: &mut [u8], size: usize, x0: usize, y0: usize, stride: usize) {
     for y in 0usize..size {

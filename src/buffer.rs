@@ -19,11 +19,13 @@ pub trait Pixel: Copy + Clone {
     /// The underlying subpixel type.
     type Subpixel: Primitive;
 
-    /// Returns the number of channels of this pixel type.
-    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
-    fn channel_count() -> u8;
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
+    /// Returns the number of channels of this pixel type.
+    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
+    fn channel_count() -> u8 {
+        Self::CHANNEL_COUNT
+    }
 
     /// Returns the components as a slice.
     fn channels(&self) -> &[Self::Subpixel];
@@ -31,19 +33,23 @@ pub trait Pixel: Copy + Clone {
     /// Returns the components as a mutable slice
     fn channels_mut(&mut self) -> &mut [Self::Subpixel];
 
-    /// Returns a string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
-    #[deprecated(note="please use COLOR_MODEL associated constant")]
-    fn color_model() -> &'static str;
     /// A string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
     const COLOR_MODEL: &'static str;
+    /// Returns a string that can help to interpret the meaning each channel
+    /// See [gimp babl](http://gegl.org/babl/).
+    #[deprecated(note="please use COLOR_MODEL associated constant")]
+    fn color_model() -> &'static str {
+        Self::COLOR_MODEL
+    }
 
-    /// Returns the ColorType for this pixel format
-    #[deprecated(note="please use COLOR_TYPE associated constant")]
-    fn color_type() -> ColorType;
     /// ColorType for this pixel format
     const COLOR_TYPE: ColorType;
+    /// Returns the ColorType for this pixel format
+    #[deprecated(note="please use COLOR_TYPE associated constant")]
+    fn color_type() -> ColorType {
+        Self::COLOR_TYPE
+    }
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value

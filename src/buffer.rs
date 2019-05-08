@@ -212,6 +212,92 @@ where
     }
 }
 
+/// Iterate over rows of an image
+pub struct Rows<'a, P: Pixel + 'a>
+where
+    <P as Pixel>::Subpixel: 'a,
+{
+    chunks: Chunks<'a, P::Subpixel>,
+}
+
+impl<'a, P: Pixel + 'a> Iterator for Rows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    type Item = Pixels<'a, P>;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Pixels<'a, P>> {
+        self.chunks.next().map(|row| Pixels {
+            chunks: row.chunks(<P as Pixel>::channel_count() as usize),
+        })
+    }
+}
+
+impl<'a, P: Pixel + 'a> ExactSizeIterator for Rows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn len(&self) -> usize {
+        self.chunks.len()
+    }
+}
+
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for Rows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    #[inline(always)]
+    fn next_back(&mut self) -> Option<Pixels<'a, P>> {
+        self.chunks.next_back().map(|row| Pixels {
+            chunks: row.chunks(<P as Pixel>::channel_count() as usize),
+        })
+    }
+}
+
+/// Iterate over mutable rows of an image
+pub struct RowsMut<'a, P: Pixel + 'a>
+where
+    <P as Pixel>::Subpixel: 'a,
+{
+    chunks: ChunksMut<'a, P::Subpixel>,
+}
+
+impl<'a, P: Pixel + 'a> Iterator for RowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    type Item = PixelsMut<'a, P>;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<PixelsMut<'a, P>> {
+        self.chunks.next().map(|row| PixelsMut {
+            chunks: row.chunks_mut(<P as Pixel>::channel_count() as usize),
+        })
+    }
+}
+
+impl<'a, P: Pixel + 'a> ExactSizeIterator for RowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn len(&self) -> usize {
+        self.chunks.len()
+    }
+}
+
+impl<'a, P: Pixel + 'a> DoubleEndedIterator for RowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    #[inline(always)]
+    fn next_back(&mut self) -> Option<PixelsMut<'a, P>> {
+        self.chunks.next_back().map(|row| PixelsMut {
+            chunks: row.chunks_mut(<P as Pixel>::channel_count() as usize),
+        })
+    }
+}
+
 /// Enumerate the pixels of an image.
 pub struct EnumeratePixels<'a, P: Pixel + 'a>
 where
@@ -237,10 +323,7 @@ where
         }
         let (x, y) = (self.x, self.y);
         self.x += 1;
-        match self.pixels.next() {
-            None => None,
-            Some(p) => Some((x, y, p)),
-        }
+        self.pixels.next().map(|p| (x, y, p))
     }
 }
 
@@ -250,6 +333,49 @@ where
 {
     fn len(&self) -> usize {
         self.pixels.len()
+    }
+}
+
+/// Enumerate the rows of an image.
+pub struct EnumerateRows<'a, P: Pixel + 'a>
+where
+    <P as Pixel>::Subpixel: 'a,
+{
+    rows: Rows<'a, P>,
+    y: u32,
+    width: u32,
+}
+
+impl<'a, P: Pixel + 'a> Iterator for EnumerateRows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    type Item = (u32, EnumeratePixels<'a, P>);
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<(u32, EnumeratePixels<'a, P>)> {
+        let y = self.y;
+        self.y += 1;
+        self.rows.next().map(|r| {
+            (
+                y,
+                EnumeratePixels {
+                    x: 0,
+                    y,
+                    width: self.width,
+                    pixels: r,
+                },
+            )
+        })
+    }
+}
+
+impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumerateRows<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn len(&self) -> usize {
+        self.rows.len()
     }
 }
 
@@ -278,10 +404,7 @@ where
         }
         let (x, y) = (self.x, self.y);
         self.x += 1;
-        match self.pixels.next() {
-            None => None,
-            Some(p) => Some((x, y, p)),
-        }
+        self.pixels.next().map(|p| (x, y, p))
     }
 }
 
@@ -291,6 +414,49 @@ where
 {
     fn len(&self) -> usize {
         self.pixels.len()
+    }
+}
+
+/// Enumerate the rows of an image.
+pub struct EnumerateRowsMut<'a, P: Pixel + 'a>
+where
+    <P as Pixel>::Subpixel: 'a,
+{
+    rows: RowsMut<'a, P>,
+    y: u32,
+    width: u32,
+}
+
+impl<'a, P: Pixel + 'a> Iterator for EnumerateRowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    type Item = (u32, EnumeratePixelsMut<'a, P>);
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<(u32, EnumeratePixelsMut<'a, P>)> {
+        let y = self.y;
+        self.y += 1;
+        self.rows.next().map(|r| {
+            (
+                y,
+                EnumeratePixelsMut {
+                    x: 0,
+                    y,
+                    width: self.width,
+                    pixels: r,
+                },
+            )
+        })
+    }
+}
+
+impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumerateRowsMut<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn len(&self) -> usize {
+        self.rows.len()
     }
 }
 
@@ -358,6 +524,15 @@ where
         }
     }
 
+    /// Returns an iterator over the rows of this image.
+    pub fn rows(&self) -> Rows<P> {
+        Rows {
+            chunks: self
+                .data
+                .chunks(<P as Pixel>::channel_count() as usize * self.width as usize),
+        }
+    }
+
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
@@ -365,6 +540,17 @@ where
         EnumeratePixels {
             pixels: self.pixels(),
             x: 0,
+            y: 0,
+            width: self.width,
+        }
+    }
+
+    /// Enumerates over the rows of the image.
+    /// The iterator yields the y-coordinate of each row
+    /// along with a reference to them.
+    pub fn enumerate_rows(&self) -> EnumerateRows<P> {
+        EnumerateRows {
+            rows: self.rows(),
             y: 0,
             width: self.width,
         }
@@ -467,6 +653,15 @@ where
         }
     }
 
+    /// Returns an iterator over the mutable rows of this image.
+    pub fn rows_mut(&mut self) -> RowsMut<P> {
+        RowsMut {
+            chunks: self
+                .data
+                .chunks_mut(<P as Pixel>::channel_count() as usize * self.width as usize),
+        }
+    }
+
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a mutable reference to them.
@@ -475,6 +670,18 @@ where
         EnumeratePixelsMut {
             pixels: self.pixels_mut(),
             x: 0,
+            y: 0,
+            width,
+        }
+    }
+
+    /// Enumerates over the rows of the image.
+    /// The iterator yields the y-coordinate of each row
+    /// along with a mutable reference to them.
+    pub fn enumerate_rows_mut(&mut self) -> EnumerateRowsMut<P> {
+        let width = self.width;
+        EnumerateRowsMut {
+            rows: self.rows_mut(),
             y: 0,
             width,
         }

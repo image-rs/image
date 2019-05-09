@@ -179,7 +179,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
     {
         let mut this = (*self).clone();
-        this.apply_without_alpha(f);
+        this.apply_with_alpha(f, |x| x);
         this
     }
 

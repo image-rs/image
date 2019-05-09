@@ -74,15 +74,12 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     type Subpixel = T;
 
-    fn channel_count() -> u8 {
-        $channels
-    }
-    fn color_model() -> &'static str {
-        $interpretation
-    }
-    fn color_type() -> ColorType {
-        ColorType::$color_type(mem::size_of::<T>() as u8 * 8)
-    }
+    const CHANNEL_COUNT: u8 = $channels;
+
+    const COLOR_MODEL: &'static str = $interpretation;
+
+    const COLOR_TYPE: ColorType = ColorType::$color_type(mem::size_of::<T>() as u8 * 8); 
+
     #[inline(always)]
     fn channels(&self) -> &[T] {
         &self.0

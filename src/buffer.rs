@@ -19,8 +19,13 @@ pub trait Pixel: Copy + Clone {
     /// The underlying subpixel type.
     type Subpixel: Primitive;
 
+    /// The number of channels of this pixel type.
+    const CHANNEL_COUNT: u8;
     /// Returns the number of channels of this pixel type.
-    fn channel_count() -> u8;
+    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
+    fn channel_count() -> u8 {
+        Self::CHANNEL_COUNT
+    }
 
     /// Returns the components as a slice.
     fn channels(&self) -> &[Self::Subpixel];
@@ -28,12 +33,23 @@ pub trait Pixel: Copy + Clone {
     /// Returns the components as a mutable slice
     fn channels_mut(&mut self) -> &mut [Self::Subpixel];
 
+    /// A string that can help to interpret the meaning each channel
+    /// See [gimp babl](http://gegl.org/babl/).
+    const COLOR_MODEL: &'static str;
     /// Returns a string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
-    fn color_model() -> &'static str;
+    #[deprecated(note="please use COLOR_MODEL associated constant")]
+    fn color_model() -> &'static str {
+        Self::COLOR_MODEL
+    }
 
+    /// ColorType for this pixel format
+    const COLOR_TYPE: ColorType;
     /// Returns the ColorType for this pixel format
-    fn color_type() -> ColorType;
+    #[deprecated(note="please use COLOR_TYPE associated constant")]
+    fn color_type() -> ColorType {
+        Self::COLOR_TYPE
+    }
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -520,7 +536,7 @@ where
     /// Returns an iterator over the pixels of this image.
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
-            chunks: self.data.chunks(<P as Pixel>::channel_count() as usize),
+            chunks: self.data.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -579,7 +595,7 @@ where
     }
 
     fn image_buffer_len(width: u32, height: u32) -> Option<usize> {
-        Some(<P as Pixel>::channel_count() as usize)
+        Some(<P as Pixel>::CHANNEL_COUNT as usize)
             .and_then(|size| size.checked_mul(width as usize))
             .and_then(|size| size.checked_mul(height as usize))
     }
@@ -595,7 +611,7 @@ where
 
     #[inline(always)]
     fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
-        let no_channels = <P as Pixel>::channel_count() as usize;
+        let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
         let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
         min_index..min_index+no_channels
@@ -604,7 +620,7 @@ where
     /// Get the format of the buffer when viewed as a matrix of samples.
     pub fn sample_layout(&self) -> SampleLayout {
         // None of these can overflow, as all our memory is addressable.
-        SampleLayout::row_major_packed(<P as Pixel>::channel_count(), self.width, self.height)
+        SampleLayout::row_major_packed(<P as Pixel>::CHANNEL_COUNT, self.width, self.height)
     }
 
     /// Return the raw sample buffer with its stride an dimension information.
@@ -621,7 +637,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 
@@ -635,7 +651,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 }
@@ -649,7 +665,7 @@ where
     /// Returns an iterator over the mutable pixels of this image.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.data.chunks_mut(<P as Pixel>::channel_count() as usize),
+            chunks: self.data.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -728,7 +744,7 @@ where
             self,
             self.width(),
             self.height(),
-            <P as Pixel>::color_type(),
+            <P as Pixel>::COLOR_TYPE,
         )
     }
 }

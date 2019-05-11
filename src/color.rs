@@ -924,5 +924,57 @@ mod tests {
         let b = Rgba([255 as u8, 255, 255, 0]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
+    }    
+
+    #[test]
+    fn test_apply_without_alpha_rgba() {
+        let mut rgba = Rgba([0, 0, 0, 0]);
+        rgba.apply_without_alpha(|s| s + 1);
+        assert_eq!(rgba, Rgba([1, 1, 1, 0]));
+    }
+
+    #[test]
+    fn test_apply_without_alpha_bgra() {
+        let mut bgra = Bgra([0, 0, 0, 0]);
+        bgra.apply_without_alpha(|s| s + 1);
+        assert_eq!(bgra, Bgra([1, 1, 1, 0]));
+    }
+
+    #[test]
+    fn test_apply_without_alpha_rgb() {
+        let mut rgb = Rgb([0, 0, 0]);
+        rgb.apply_without_alpha(|s| s + 1);
+        assert_eq!(rgb, Rgb([1, 1, 1]));
+    }
+
+    #[test]
+    fn test_apply_without_alpha_bgr() {
+        let mut bgr = Bgr([0, 0, 0]);
+        bgr.apply_without_alpha(|s| s + 1);
+        assert_eq!(bgr, Bgr([1, 1, 1]));
+    }
+
+    #[test]
+    fn test_map_without_alpha_rgba() {
+        let rgba = Rgba([0, 0, 0, 0]).map_without_alpha(|s| s + 1);
+        assert_eq!(rgba, Rgba([1, 1, 1, 0]));
+    }
+
+    #[test]
+    fn test_map_without_alpha_rgb() {
+        let rgb = Rgb([0, 0, 0]).map_without_alpha(|s| s + 1);
+        assert_eq!(rgb, Rgb([1, 1, 1]));
+    }
+
+    #[test]
+    fn test_map_without_alpha_bgr() {
+        let bgr = Bgr([0, 0, 0]).map_without_alpha(|s| s + 1);
+        assert_eq!(bgr, Bgr([1, 1, 1]));
+    }
+
+    #[test]
+    fn test_map_without_alpha_bgra() {
+        let bgra = Bgra([0, 0, 0, 0]).map_without_alpha(|s| s + 1);
+        assert_eq!(bgra, Bgra([1, 1, 1, 0]));
     }
 }

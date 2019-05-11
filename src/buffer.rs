@@ -130,15 +130,23 @@ pub trait Pixel: Copy + Clone {
         G: FnMut(Self::Subpixel) -> Self::Subpixel;
     
     /// Apply the function ```f``` to each channel except the alpha channel. 
-    fn map_without_alpha<F>(&mut self, f: F) -> Self 
+    fn map_without_alpha<F>(&self, f: F) -> Self 
     where 
-        F: FnMut(Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel) -> Self::Subpixel,
+    {
+        let mut this = *self;
+        this.apply_with_alpha(f, |x| x);
+        this
+    }
 
     /// Apply the function ```f``` to each channel except the alpha channel. 
     /// Works in place.
     fn apply_without_alpha<F>(&mut self, f: F) 
     where 
-        F: FnMut(Self::Subpixel) -> Self::Subpixel;
+        F: FnMut(Self::Subpixel) -> Self::Subpixel,
+    {
+        self.apply_with_alpha(f, |x| x);
+    }
 
     /// Apply the function ```f``` to each channel of this pixel and
     /// ```other``` pairwise.

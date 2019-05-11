@@ -174,22 +174,6 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         }
     }
 
-    fn map_without_alpha<F>(&mut self, f: F) -> Self 
-    where 
-        F: FnMut(Self::Subpixel) -> Self::Subpixel,
-    {
-        let mut this = (*self).clone();
-        this.apply_with_alpha(f, |x| x);
-        this
-    }
-
-    fn apply_without_alpha<F>(&mut self, f: F) 
-    where 
-        F: FnMut(Self::Subpixel) -> Self::Subpixel,
-    {
-        self.apply_with_alpha(f, |x| x);
-    }
-
     fn map2<F>(&self, other: &Self, f: F) -> $ident<T> where F: FnMut(T, T) -> T {
         let mut this = (*self).clone();
         this.apply2(other, f);

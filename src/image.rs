@@ -666,31 +666,66 @@ pub trait GenericImage: GenericImageView {
 
     /// Copies all of the pixels from another image into this image.
     ///
-    /// The other image is copied with the top-left corner of the
-    /// other image placed at (x, y).
-    ///
     /// In order to copy only a piece of the other image, use `sub_image`.
     ///
-    /// # Returns
-    /// `true` if the copy was successful, `false` if the image could not
-    /// be copied due to size constraints.
-    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> bool
+    /// # Panics
+    ///
+    /// This function will panic if the two images have different dimensions.
+    ///
+    /// # Examples
+    ///
+    /// Using an image as a stencil to set pixels in another:
+    ///
+    /// ```
+    /// use image::{GenericImage, Rgb, RgbImage};
+    /// let mut img = RgbImage::new(100, 100);
+    /// let stencil = RgbImage::new(40, 40);
+    ///
+    /// img.sub_image(0, 0, 40, 40).copy_from(&stencil);
+    /// img.sub_image(20, 20, 40, 40).copy_from(&stencil);
+    /// img.sub_image(40, 40, 40, 40).copy_from(&stencil);
+    /// ```
+    ///
+    /// Filling parts of an image with a uniform color:
+    ///
+    /// ```
+    /// use image::flat::{FlatSamples, SampleLayout};
+    /// use image::{GenericImage, Rgb, RgbImage};
+    ///
+    /// let mut img = RgbImage::new(20, 20);
+    ///
+    /// // Describes a read-only buffer where all pixels alias each other.
+    /// let red = FlatSamples {
+    ///     samples: &[255, 0, 0],
+    ///     layout: SampleLayout {
+    ///         channels: 3,
+    ///         channel_stride: 1,
+    ///         width: 10,
+    ///         width_stride: 0,
+    ///         height: 10,
+    ///         height_stride: 0,
+    ///     },
+    ///     color_hint: None,
+    /// };
+    ///
+    /// img
+    ///     // Select 10x10 region starting at coordinate (5, 5)
+    ///     .sub_image(5, 5, 10, 10)
+    ///     .copy_from(&red.as_view().unwrap());
+    /// ```
+    fn copy_from<O>(&mut self, other: &O)
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
-        // Do bounds checking here so we can use the non-bounds-checking
-        // functions to copy pixels.
-        if self.width() < other.width() + x || self.height() < other.height() + y {
-            return false;
-        }
+        assert!(self.dimensions() == other.dimensions(),
+            "destination and source image have different dimensions");
 
-        for i in 0..other.width() {
-            for k in 0..other.height() {
-                let p = other.get_pixel(i, k);
-                self.put_pixel(i + x, k + y, p);
+        for x in 0..self.width() {
+            for y in 0..self.height() {
+                let p = other.get_pixel(x, y);
+                self.put_pixel(x, y, p);
             }
         }
-        true
     }
 
     /// Returns a mutable reference to the underlying image.

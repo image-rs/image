@@ -116,7 +116,13 @@ pub fn overlay_bounds(
     (x_range, y_range)
 }
 
-/// Overlay an image at a given coordinate (x, y)
+/// Overlay an image at a given coordinate (x, y).
+///
+/// This uses pixel blending to merge pixels from the bottom and upper image.
+///
+/// In high-level concepts, this selects a `sub_image` from both and then uses `copy_from` to
+/// overwrite the pixels in the bottom one. It will make sure that the dimensions of selected sub
+/// images are always same so that `GenericImage::copy_from` will never panic.
 pub fn overlay<I, J>(bottom: &mut I, top: &J, x: u32, y: u32)
 where
     I: GenericImage,
@@ -139,7 +145,11 @@ where
     }
 }
 
-/// Replace the contents of an image at a given coordinate (x, y)
+/// Replace the contents of an image at a given coordinate (x, y).
+///
+/// In high-level concepts, this selects a `sub_image` from both and then uses `copy_from` to
+/// overwrite the pixels in the bottom one. It will make sure that the dimensions of selected sub
+/// images are always same so that `GenericImage::copy_from` will never panic.
 pub fn replace<I, J>(bottom: &mut I, top: &J, x: u32, y: u32)
 where
     I: GenericImage,
@@ -151,24 +161,22 @@ where
     // Crop our top image if we're going out of bounds
     let (range_width, range_height) = overlay_bounds(bottom_dims, top_dims, x, y);
 
-    for top_y in 0..range_height {
-        for top_x in 0..range_width {
-            let p = top.get_pixel(top_x, top_y);
-            bottom.put_pixel(x + top_x, y + top_y, p);
-        }
-    }
+    let top_view = top
+        .view(0, 0, range_width, range_height);
+    bottom
+        .sub_image(x, y, range_width, range_height)
+        .copy_from(&top_view);
 }
 
 #[cfg(test)]
 mod tests {
-
-    use super::overlay;
+    use super::{replace, overlay};
     use buffer::ImageBuffer;
     use color::Rgb;
 
     #[test]
     /// Test that images written into other images works
-    fn test_image_in_image() {
+    fn overlay_image_in_image() {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 0, 0);
@@ -181,7 +189,7 @@ mod tests {
 
     #[test]
     /// Test that images written outside of a frame doesn't blow up
-    fn test_image_in_image_outside_of_bounds() {
+    fn overlay_image_in_image_outside_of_bounds() {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 1, 1);
@@ -193,7 +201,7 @@ mod tests {
     #[test]
     /// Test that images written to coordinates out of the frame doesn't blow up
     /// (issue came up in #848)
-    fn test_image_outside_image_no_wrap_around() {
+    fn overlay_image_outside_image_no_wrap_around() {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 33, 33);
@@ -204,7 +212,7 @@ mod tests {
 
     #[test]
     /// Test that images written to coordinates with overflow works
-    fn test_image_coordinate_overflow() {
+    fn overlay_image_coordinate_overflow() {
         let mut target = ImageBuffer::new(16, 16);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         // Overflows to 'sane' coordinates but top is larger than bot.
@@ -212,5 +220,18 @@ mod tests {
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
+    }
+
+    #[test]
+    /// Test that images written into other images works
+    fn replace_image_in_image() {
+        let mut target = ImageBuffer::new(32, 32);
+        let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
+        replace(&mut target, &source, 0, 0);
+        assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(16, 0) == Rgb([0u8, 0, 0]));
+        assert!(*target.get_pixel(0, 15) == Rgb([255u8, 0, 0]));
+        assert!(*target.get_pixel(0, 16) == Rgb([0u8, 0, 0]));
     }
 }

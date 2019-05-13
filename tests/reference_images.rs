@@ -26,7 +26,7 @@ where
         let mut path = base.clone();
         path.push(dir);
         path.push(decoder);
-        path.push("*");
+        path.push("**");
         path.push(
             "*.".to_string() + match input_decoder {
                 Some(val) => val,
@@ -44,12 +44,16 @@ where
 #[test]
 fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
+        println!("render_images {}", path.display());
         let img = match image::open(&path) {
             Ok(img) => img.to_rgba(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(image::ImageError::UnsupportedError(e)) => {
+                println!("UNSUPPORTED {}: {}", path.display(), e);
+                return;
+            }
             Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
         };
         let mut crc = Crc32::new();
@@ -179,22 +183,16 @@ fn check_hdr_references() {
 /// The images are postfixed with `bad_bmp` to not be loaded by the other test.
 #[test]
 fn bad_bmps() {
-    let base_path: PathBuf = BASE_PATH
+    let path: PathBuf = BASE_PATH
         .iter()
         .collect::<PathBuf>()
         .join(IMAGE_DIR)
-        .join("bmp/images");
+        .join("bmp/images")
+        .join("*.bad_bmp");
 
-    assert!(
-        image::open(base_path.join("Bad_clrsUsed.bad_bmp")).is_err(),
-        "Image with absurdly large number of colors loaded."
-    );
-    assert!(
-        image::open(base_path.join("Bad_width.bad_bmp")).is_err(),
-        "Image with absurdly large width loaded."
-    );
-    assert!(
-        image::open(base_path.join("Bad_height.bad_bmp")).is_err(),
-        "Image with absurdly large height loaded."
-    );
+    let pattern = &*format!("{}", path.display());
+    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
+        let im = image::open(path);
+        assert!(im.is_err());
+    }
 }

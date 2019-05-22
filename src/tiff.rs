@@ -48,6 +48,7 @@ impl From<tiff::TiffError> for ImageError {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
             tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
             tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
+            tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
         }
     }
 }

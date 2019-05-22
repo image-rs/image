@@ -118,7 +118,7 @@ pub struct Writer<W: Write> {
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
 
-fn write_chunk<W: Write>(w: &mut W, name: [u8; 4], data: &[u8]) -> Result<()> {
+fn write_chunk<W: Write>(mut w: W, name: [u8; 4], data: &[u8]) -> Result<()> {
     w.write_be(data.len() as u32)?;
     w.write_all(&name)?;
     w.write_all(data)?;

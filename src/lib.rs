@@ -36,7 +36,6 @@ pub use image::{AnimationDecoder,
                 ImageDecoderExt,
                 ImageError,
                 ImageResult,
-                MutPixels,
                 // Iterators
                 Pixels,
                 SubImage};

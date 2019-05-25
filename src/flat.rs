@@ -1444,37 +1444,6 @@ mod tests {
     }
 
     #[test]
-    fn mutable_view() {
-        let mut buffer = FlatSamples {
-            samples: [0; 18],
-            layout: SampleLayout {
-                channels: 2,
-                channel_stride: 1,
-                width: 3,
-                width_stride: 2,
-                height: 3,
-                height_stride: 6,
-            },
-            color_hint: None,
-        };
-
-        {
-            let mut view = buffer.as_view_mut::<LumaA<usize>>()
-                .expect("This should be a valid mutable buffer");
-            #[allow(deprecated)]
-            let pixel_count = view.pixels_mut()
-                .enumerate()
-                .map(|(idx, (_, _, pixel))| *pixel = LumaA([2*idx, 2*idx + 1]))
-                .count();
-            assert_eq!(pixel_count, 9);
-        }
-
-        buffer.samples.iter()
-            .enumerate()
-            .for_each(|(idx, sample)| assert_eq!(idx, *sample));
-    }
-
-    #[test]
     fn normal_forms() {
         assert!(FlatSamples {
             samples: [0u8; 0],

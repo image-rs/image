@@ -497,48 +497,6 @@ impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
     }
 }
 
-/// Mutable pixel iterator
-///
-/// DEPRECATED: It is currently not possible to create a safe iterator for this in Rust. You have to use an iterator over the image buffer instead.
-pub struct MutPixels<'a, I: ?Sized + 'a> {
-    image: &'a mut I,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-}
-
-impl<'a, I: GenericImage + 'a> Iterator for MutPixels<'a, I>
-where
-    I::Pixel: 'a,
-    <I::Pixel as Pixel>::Subpixel: 'a,
-{
-    type Item = (u32, u32, &'a mut I::Pixel);
-
-    fn next(&mut self) -> Option<(u32, u32, &'a mut I::Pixel)> {
-        if self.x >= self.width {
-            self.x = 0;
-            self.y += 1;
-        }
-
-        if self.y >= self.height {
-            None
-        } else {
-            let tmp = self.image.get_pixel_mut(self.x, self.y);
-
-            // NOTE: This is potentially dangerous. It would require the signature fn next(&'a mut self) to be safe.
-            // error: lifetime of `self` is too short to guarantee its contents can be safely reborrowed...
-            let ptr = unsafe { mem::transmute(tmp) };
-
-            let p = (self.x, self.y, ptr);
-
-            self.x += 1;
-
-            Some(p)
-        }
-    }
-}
-
 /// Trait to inspect an image.
 pub trait GenericImageView {
     /// The type of pixel.
@@ -645,24 +603,6 @@ pub trait GenericImage: GenericImageView {
     ///
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
-
-    /// Returns an Iterator over mutable pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with a mutable reference to them.
-    #[deprecated(
-        note = "This cannot be implemented safely in Rust. Please use the image buffer directly."
-    )]
-    fn pixels_mut(&mut self) -> MutPixels<Self> {
-        let (width, height) = self.dimensions();
-
-        MutPixels {
-            image: self,
-            x: 0,
-            y: 0,
-            width,
-            height,
-        }
-    }
 
     /// Copies all of the pixels from another image into this image.
     ///

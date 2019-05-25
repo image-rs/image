@@ -264,7 +264,7 @@ where
     #[inline(always)]
     fn next(&mut self) -> Option<Pixels<'a, P>> {
         self.chunks.next().map(|row| Pixels {
-            chunks: row.chunks(<P as Pixel>::channel_count() as usize),
+            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -285,7 +285,7 @@ where
     #[inline(always)]
     fn next_back(&mut self) -> Option<Pixels<'a, P>> {
         self.chunks.next_back().map(|row| Pixels {
-            chunks: row.chunks(<P as Pixel>::channel_count() as usize),
+            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -307,7 +307,7 @@ where
     #[inline(always)]
     fn next(&mut self) -> Option<PixelsMut<'a, P>> {
         self.chunks.next().map(|row| PixelsMut {
-            chunks: row.chunks_mut(<P as Pixel>::channel_count() as usize),
+            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -328,7 +328,7 @@ where
     #[inline(always)]
     fn next_back(&mut self) -> Option<PixelsMut<'a, P>> {
         self.chunks.next_back().map(|row| PixelsMut {
-            chunks: row.chunks_mut(<P as Pixel>::channel_count() as usize),
+            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -564,7 +564,7 @@ where
         Rows {
             chunks: self
                 .data
-                .chunks(<P as Pixel>::channel_count() as usize * self.width as usize),
+                .chunks(<P as Pixel>::CHANNEL_COUNT as usize * self.width as usize),
         }
     }
 
@@ -693,7 +693,7 @@ where
         RowsMut {
             chunks: self
                 .data
-                .chunks_mut(<P as Pixel>::channel_count() as usize * self.width as usize),
+                .chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize * self.width as usize),
         }
     }
 

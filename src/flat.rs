@@ -1418,7 +1418,7 @@ impl PartialOrd for NormalForm {
 mod tests {
     use super::*;
     use buffer::GrayAlphaImage;
-    use color::{LumaA, Rgb};
+    use color::Rgb;
 
     #[test]
     fn aliasing_view() {

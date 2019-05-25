@@ -2,7 +2,6 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 use std::io::Read;
-use std::mem;
 use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};

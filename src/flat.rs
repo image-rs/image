@@ -1418,7 +1418,7 @@ impl PartialOrd for NormalForm {
 mod tests {
     use super::*;
     use buffer::GrayAlphaImage;
-    use color::Rgb;
+    use color::{LumaA, Rgb};
 
     #[test]
     fn aliasing_view() {
@@ -1441,6 +1441,35 @@ mod tests {
            .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
            .count();
        assert_eq!(pixel_count, 100*100);
+    }
+
+    #[test]
+    fn mutable_view() {
+        let mut buffer = FlatSamples {
+            samples: [0; 18],
+            layout: SampleLayout {
+                channels: 2,
+                channel_stride: 1,
+                width: 3,
+                width_stride: 2,
+                height: 3,
+                height_stride: 6,
+            },
+            color_hint: None,
+        };
+
+        {
+            let mut view = buffer.as_view_mut::<LumaA<usize>>()
+                .expect("This should be a valid mutable buffer");
+            assert_eq!(view.dimensions(), (3, 3));
+            for i in 0..9 {
+                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as usize, 2 * i as usize + 1]);
+            }
+        }
+
+        buffer.samples.iter()
+            .enumerate()
+            .for_each(|(idx, sample)| assert_eq!(idx, *sample));
     }
 
     #[test]

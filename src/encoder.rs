@@ -13,7 +13,7 @@ use crc32fast::Hasher as Crc32;
 use crate::chunk;
 use crate::common::{Info, ColorType, BitDepth, Compression};
 use crate::filter::{FilterType, filter};
-use crate::traits::{WriteBytesExt, HasParameters, Parameter};
+use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -67,34 +67,39 @@ impl<W: Write> Encoder<W> {
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info).init()
     }
-}
 
-impl<W: Write> HasParameters for Encoder<W> {}
-
-impl<W: Write> Parameter<Encoder<W>> for ColorType {
-    fn set_param(self, this: &mut Encoder<W>) {
-        this.info.color_type = self
+    /// Set the color of the encoded image.
+    ///
+    /// These correspond to the color types in the png IHDR data that will be written. The length
+    /// of the image data that is later supplied must match the color type, otherwise an error will
+    /// be emitted.
+    pub fn set_color(&mut self, color: ColorType) {
+        self.info.color_type = color;
     }
-}
 
-impl<W: Write> Parameter<Encoder<W>> for BitDepth {
-    fn set_param(self, this: &mut Encoder<W>) {
-        this.info.bit_depth = self
+    /// Set the indicated depth of the image data.
+    pub fn set_depth(&mut self, depth: BitDepth) {
+        self.info.bit_depth = depth;
     }
-}
 
-/// Set compression param for a ```Compression``` or any type that can transform 
-/// into a ```Compression```, notably ```deflate::Compression``` and 
-/// ```deflate::CompressionOptions``` which "just work".
-impl<W: Write, C: Into<Compression>> Parameter<Encoder<W>> for C {
-    fn set_param(self, this: &mut Encoder<W>) {
-        this.info.compression = self.into()
+    /// Set compression parameters.
+    ///
+    /// Accepts a `Compression` or any type that can transform into a `Compression`. Notably `deflate::Compression` and
+    /// `deflate::CompressionOptions` which "just work".
+    pub fn set_compression<C: Into<Compression>>(&mut self, compression: C) {
+        self.info.compression = compression.into();
     }
-}
 
-impl <W: Write> Parameter<Encoder<W>> for FilterType {
-    fn set_param(self, this: &mut Encoder<W>) {
-        this.info.filter = self
+    /// Set the used filter type.
+    ///
+    /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
+    /// sample values based on the previous. For a potentially better compression ratio, at the
+    /// cost of more complex processing, try out [`FilterType::Paeth`].
+    ///
+    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
+    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
+    pub fn set_filter(&mut self, filter: FilterType) {
+        self.info.filter = filter;
     }
 }
 
@@ -409,8 +414,8 @@ mod tests {
         let output = vec![0u8; 1024];
         let writer = Cursor::new(output);
         let mut encoder = Encoder::new(writer, width as u32, height as u32);
-        encoder.set(BitDepth::Eight);
-        encoder.set(ColorType::RGB);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::RGB);
         let mut png_writer = encoder.write_header()?;
 
         let correct_image_size = width * height * 3;

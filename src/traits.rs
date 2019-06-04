@@ -1,19 +1,5 @@
 use std::io;
 
-/// Configuration parameter trait
-pub trait Parameter<Object> {
-    fn set_param(self, _: &mut Object);
-}
-
-/// Object has parameters
-pub trait HasParameters: Sized {
-    fn set<T: Parameter<Self>>(&mut self, value: T) -> &mut Self {
-        value.set_param(self);
-        self
-    }
-}
-
-
 // Will be replaced by stdlib solution
 fn read_all<R: io::Read + ?Sized>(this: &mut R, buf: &mut [u8]) -> io::Result<()> {
     let mut total = 0;

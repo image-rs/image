@@ -60,5 +60,3 @@ pub use crate::decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded,
 #[cfg(feature = "png-encoding")]
 pub use crate::encoder::{Encoder, Writer, StreamWriter, EncodingError};
 pub use crate::filter::FilterType;
-
-pub use crate::traits::{Parameter, HasParameters};

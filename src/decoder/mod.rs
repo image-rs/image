@@ -7,7 +7,6 @@ use std::mem;
 use std::borrow;
 use std::io::{Read, Write, BufReader, BufRead};
 
-use crate::traits::{HasParameters, Parameter};
 use crate::common::{ColorType, BitDepth, Info, Transformations};
 use crate::filter::{unfilter, FilterType};
 use crate::chunk::IDAT;
@@ -22,20 +21,7 @@ pub enum InterlaceHandling {
     /// Only fill the needed pixels
     Sparkle
 }
-
-impl Parameter<Reader> for InterlaceHandling {
-    fn set_param(self, this: &mut Reader) {
-        this.color_output = self
-    }
-}*/
-
-
-impl<R: Read> Parameter<Decoder<R>> for Transformations {
-    fn set_param(self, this: &mut Decoder<R>) {
-        this.transform = self
-    }
-}
-
+*/
 
 /// Output info
 pub struct OutputInfo {
@@ -128,9 +114,15 @@ impl<R: Read> Decoder<R> {
         };
         Ok((info, r))
     }
-}
 
-impl<R: Read> HasParameters for Decoder<R> {}
+    /// Set the allowed and performed transformations.
+    ///
+    /// A transformation is a pre-processing on the raw image data modifying content or encoding.
+    /// Many options have an impact on memory or CPU usage during decoding.
+    pub fn set_transformations(&mut self, transform: Transformations) {
+        self.transform = transform;
+    }
+}
 
 struct ReadDecoder<R: Read> {
     reader: BufReader<R>,

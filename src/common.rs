@@ -1,6 +1,8 @@
 //! Common types shared between the encoder and decoder
 use crate::filter;
 
+use std::fmt;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ColorType {
@@ -91,8 +93,67 @@ impl Unit {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum DisposeOp {
+    None       = 0,
+    Background = 1,
+    Previous   = 2,
+}
+
+impl DisposeOp {
+    /// u8 -> Self. Using enum_primitive or transmute is probably the right thing but this will do for now.
+    pub fn from_u8(n: u8) -> Option<DisposeOp> {
+        match n {
+            0 => Some(DisposeOp::None),
+            1 => Some(DisposeOp::Background),
+            2 => Some(DisposeOp::Previous),
+            _ => None
+        }
+    }
+}
+
+impl fmt::Display for DisposeOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = match *self {
+            DisposeOp::None => "DISPOSE_OP_NONE",
+            DisposeOp::Background => "DISPOSE_OP_BACKGROUND",
+            DisposeOp::Previous => "DISPOSE_OP_PREVIOUS",
+        };
+        write!(f, "{}", name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BlendOp {
+    Source = 0,
+    Over   = 1,
+}
+
+impl BlendOp {
+    /// u8 -> Self. Using enum_primitive or transmute is probably the right thing but this will do for now.
+    pub fn from_u8(n: u8) -> Option<BlendOp> {
+        match n {
+            0 => Some(BlendOp::Source),
+            1 => Some(BlendOp::Over),
+            _ => None
+        }
+    }
+}
+
+impl fmt::Display for BlendOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = match *self {
+            BlendOp::Source => "BLEND_OP_SOURCE",
+            BlendOp::Over => "BLEND_OP_OVER",
+        };
+        write!(f, "{}", name)
+    }
+}
+
 /// Frame control information
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct FrameControl {
     /// Sequence number of the animation chunk, starting from 0
     pub sequence_number: u32,
@@ -109,9 +170,36 @@ pub struct FrameControl {
     /// Frame delay fraction denominator
     pub delay_den: u16,
     /// Type of frame area disposal to be done after rendering this frame
-    pub dispose_op: u8,
+    pub dispose_op: DisposeOp,
     /// Type of frame area rendering for this frame
-    pub blend_op: u8,
+    pub blend_op: BlendOp,
+}
+
+impl Default for FrameControl {
+    fn default() -> FrameControl {
+        FrameControl {
+            sequence_number: 0,
+            width: 0,
+            height: 0,
+            x_offset: 0,
+            y_offset: 0,
+            delay_num: 1,
+            delay_den: 30,
+            dispose_op: DisposeOp::None,
+            blend_op: BlendOp::Source,
+        }
+    }
+}
+
+impl FrameControl {
+    pub fn set_seq_num(&mut self, s: u32) {
+        self.sequence_number = s;
+    }
+
+    pub fn inc_seq_num(&mut self, i: u32) {
+        self.sequence_number += i;
+    }
+
 }
 
 /// Animation control information

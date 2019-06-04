@@ -13,7 +13,7 @@ use crc32fast::Hasher as Crc32;
 
 use self::inflate::InflateStream;
 use crate::traits::ReadBytesExt;
-use crate::common::{ColorType, BitDepth, Info, Unit, PixelDimensions, AnimationControl, FrameControl};
+use crate::common::{BitDepth, BlendOp, ColorType, DisposeOp, Info, Unit, PixelDimensions, AnimationControl, FrameControl};
 use crate::chunk::{self, ChunkType, IHDR, IDAT, IEND};
 
 /// TODO check if these size are reasonable
@@ -458,8 +458,14 @@ impl StreamingDecoder {
             y_offset: buf.read_be()?,
             delay_num: buf.read_be()?,
             delay_den: buf.read_be()?,
-            dispose_op: buf.read_be()?,
-            blend_op : buf.read_be()?,
+            dispose_op: match DisposeOp::from_u8(buf.read_be()?) {
+                Some(dispose_op) => dispose_op,
+                None => return Err(DecodingError::Format("invalid dispose operation".into()))
+            },
+            blend_op : match BlendOp::from_u8(buf.read_be()?) {
+                Some(blend_op) => blend_op,
+                None => return Err(DecodingError::Format("invalid blend operation".into()))
+            },
         };
         self.info.as_mut().unwrap().frame_control = Some(fc.clone());
         Ok(Decoded::FrameControl(fc))

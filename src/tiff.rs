@@ -60,14 +60,17 @@ impl From<tiff::ColorType> for ColorType {
             tiff::ColorType::Gray(1) => ColorType::L1,
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::Gray(n) => ColorType::Unknown(n),
             tiff::ColorType::GrayA(8) => ColorType::LA,
             tiff::ColorType::GrayA(16) => ColorType::LA16,
+            tiff::ColorType::GrayA(n) => ColorType::Unknown(n*2),
             tiff::ColorType::RGB(8) => ColorType::RGB,
             tiff::ColorType::RGB(16) => ColorType::RGB16,
+            tiff::ColorType::RGB(n) => ColorType::Unknown(n*3),
             tiff::ColorType::RGBA(8) => ColorType::RGBA,
             tiff::ColorType::RGBA(16) => ColorType::RGBA16,
-            tiff::ColorType::CMYK(_) => unimplemented!(),
-            _ => unimplemented!(),
+            tiff::ColorType::RGBA(n) => ColorType::Unknown(n*4),
+            tiff::ColorType::CMYK(n) => ColorType::Unknown(n*4),
         }
     }
 }

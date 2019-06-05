@@ -170,14 +170,17 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
             (Grayscale, 1) => ColorType::L1,
             (Grayscale, 8) => ColorType::L8,
             (Grayscale, 16) => ColorType::L16,
+            (Grayscale, n) => ColorType::Unknown(n),
             (GrayscaleAlpha, 8) => ColorType::LA,
             (GrayscaleAlpha, 16) => ColorType::LA16,
+            (GrayscaleAlpha, n) => ColorType::Unknown(n*2),
             (RGB, 8) => ColorType::RGB,
             (RGB, 16) => ColorType::RGB16,
+            (RGB, n) => ColorType::Unknown(n*3),
             (RGBA, 8) => ColorType::RGBA,
             (RGBA, 16) => ColorType::RGBA16,
+            (RGBA, n) => ColorType::Unknown(n*4),
             (Indexed, bits) => ColorType::Unknown(bits),
-            (_, _) => unimplemented!(),
         }
     }
 }
@@ -198,7 +201,7 @@ impl From<ColorType> for (png::ColorType, png::BitDepth) {
             ColorType::RGBA16 => (RGBA, 16),
             ColorType::BGR => (RGB, 8),
             ColorType::BGRA => (RGBA, 8),
-            _ => unimplemented!(),
+            ColorType::__Nonexhaustive => unreachable!(),
         };
         (ct, png::BitDepth::from_u8(bits).unwrap())
     }

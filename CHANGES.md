@@ -8,6 +8,16 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.21.2
+
+- Fixed a variety of crashes and opaque errors in webp
+- Updated the png limits to be less restrictive
+- Reworked even more `unsafe` operations into safe alternatives
+- Derived Debug on FilterType and Deref on Pixel
+- Removed a restriction on DXT to always require power of two dimensions
+- Change the encoding of RGBA in bmp using bitfields
+- Corrected various urls
+
 ### Version 0.21.1
 
 - A fairly important bugfix backport

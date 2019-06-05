@@ -1,4 +1,4 @@
-# Image [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+# Image [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=version-0.21)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 Maintainers: @nwin, @ccgn
 

@@ -1461,12 +1461,10 @@ mod tests {
         {
             let mut view = buffer.as_view_mut::<LumaA<usize>>()
                 .expect("This should be a valid mutable buffer");
-            #[allow(deprecated)]
-            let pixel_count = view.pixels_mut()
-                .enumerate()
-                .map(|(idx, (_, _, pixel))| *pixel = LumaA([2*idx, 2*idx + 1]))
-                .count();
-            assert_eq!(pixel_count, 9);
+            assert_eq!(view.dimensions(), (3, 3));
+            for i in 0..9 {
+                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as usize, 2 * i as usize + 1]);
+            }
         }
 
         buffer.samples.iter()

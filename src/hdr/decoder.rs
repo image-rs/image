@@ -1,4 +1,4 @@
-use super::scoped_threadpool::Pool;
+use scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
 use std::mem;
@@ -128,7 +128,7 @@ pub struct HDRDecoder<R> {
 
 /// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RGBE8Pixel {
     /// Color components
     pub c: [u8; 3],
@@ -302,11 +302,7 @@ impl<R: BufRead> HDRDecoder<R> {
         }
         // expression self.width > 0 && self.height > 0 is true from now to the end of this method
         let pixel_count = self.width as usize * self.height as usize;
-        let mut ret = Vec::<RGBE8Pixel>::with_capacity(pixel_count);
-        unsafe {
-            // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
-            ret.set_len(pixel_count);
-        } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
+        let mut ret = vec![Default::default(); pixel_count];
         for chunk in ret.chunks_mut(self.width as usize) {
             try!(read_scanline(&mut self.r, chunk));
         }
@@ -376,17 +372,10 @@ impl<R: BufRead> IntoIterator for HDRDecoder<R> {
     type IntoIter = HDRImageDecoderIterator<R>;
 
     fn into_iter(self) -> Self::IntoIter {
-        // scanline buffer
-        let mut buf = Vec::with_capacity(self.width as usize);
-        unsafe {
-            // dropping half-initialized vector of RGBE8Pixel is safe
-            // and I took care to hide half-initialized vector from a user
-            buf.set_len(self.width as usize);
-        }
         HDRImageDecoderIterator {
             r: self.r,
             scanline_cnt: self.height as usize,
-            buf,
+            buf: vec![Default::default(); self.width as usize],
             col: 0,
             scanline: 0,
             trouble: true, // make first call to `next()` read scanline

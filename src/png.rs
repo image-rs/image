@@ -155,7 +155,22 @@ impl<W: Write> PNGEncoder<W> {
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
-        let (ct, bits) = color.into();
+        let (ct, bits) = match color {
+            ColorType::L1 => (png::ColorType::Grayscale, png::BitDepth::One),
+            ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
+            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::LA => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
+            ColorType::LA16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::RGB => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::RGB16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
+            ColorType::RGBA => (png::ColorType::RGBA, png::BitDepth::Eight),
+            ColorType::RGBA16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::BGR => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::BGRA => (png::ColorType::RGBA, png::BitDepth::Eight),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                           "Unsupported color type".to_owned())),
+        };
+
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set(ct).set(bits);
         let mut writer = try!(encoder.write_header());
@@ -182,28 +197,6 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
             (RGBA, n) => ColorType::Unknown(n*4),
             (Indexed, bits) => ColorType::Unknown(bits),
         }
-    }
-}
-
-impl From<ColorType> for (png::ColorType, png::BitDepth) {
-    fn from(ct: ColorType) -> (png::ColorType, png::BitDepth) {
-        use self::png::ColorType::*;
-        let (ct, bits) = match ct {
-            ColorType::L1 => (Grayscale, 1),
-            ColorType::L8 => (Grayscale, 8),
-            ColorType::L16 => (Grayscale, 16),
-            ColorType::LA => (GrayscaleAlpha, 8),
-            ColorType::LA16 => (GrayscaleAlpha, 16),
-            ColorType::RGB => (RGB, 8),
-            ColorType::RGB16 => (RGB, 16),
-            ColorType::RGBA => (RGBA, 8),
-            ColorType::RGBA16 => (RGBA, 16),
-            ColorType::BGR => (RGB, 8),
-            ColorType::BGRA => (RGBA, 8),
-            ColorType::Unknown(_) => unimplemented!(),
-            ColorType::__Nonexhaustive => unreachable!(),
-        };
-        (ct, png::BitDepth::from_u8(bits).unwrap())
     }
 }
 

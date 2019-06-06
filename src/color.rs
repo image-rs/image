@@ -33,9 +33,9 @@ pub enum ColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     BGRA,
 
-    /// Pixel is of unknown color type with the specified bit depth. This can apply to pixels which
-    /// are associated with an external palette. In that case, the pixel value is an index into the
-    /// palette.
+    /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
+    /// which are associated with an external palette. In that case, the pixel value is an index
+    /// into the palette.
     Unknown(u8),
 
     #[doc(hidden)]

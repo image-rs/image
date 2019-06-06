@@ -340,7 +340,7 @@ impl<'a> CheckedDimensions<'a> {
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PBM format only support ColorType::L",
+                        "PBM format only support luma color types",
                     ))
                 }
             },
@@ -352,7 +352,7 @@ impl<'a> CheckedDimensions<'a> {
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PGM format only support ColorType::L",
+                        "PGM format only support luma color types",
                     ))
                 }
             },

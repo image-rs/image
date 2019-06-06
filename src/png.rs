@@ -189,7 +189,6 @@ impl From<ColorType> for (png::ColorType, png::BitDepth) {
     fn from(ct: ColorType) -> (png::ColorType, png::BitDepth) {
         use self::png::ColorType::*;
         let (ct, bits) = match ct {
-            ColorType::Unknown(bits) => (Indexed, bits),
             ColorType::L1 => (Grayscale, 1),
             ColorType::L8 => (Grayscale, 8),
             ColorType::L16 => (Grayscale, 16),
@@ -201,6 +200,7 @@ impl From<ColorType> for (png::ColorType, png::BitDepth) {
             ColorType::RGBA16 => (RGBA, 16),
             ColorType::BGR => (RGB, 8),
             ColorType::BGRA => (RGBA, 8),
+            ColorType::Unknown(_) => unimplemented!(),
             ColorType::__Nonexhaustive => unreachable!(),
         };
         (ct, png::BitDepth::from_u8(bits).unwrap())

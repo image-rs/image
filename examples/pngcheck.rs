@@ -165,9 +165,16 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     loop {
         if buf.len() == 0 {
             // circumvent borrow checker
+            assert!(!data.is_empty());
             let n = reader.read(unsafe {
                 ::std::slice::from_raw_parts_mut(data_p, data.len())
             })?;
+
+            // EOF
+            if n == 0 {
+                println!("ERROR: premature end of file {}", fname);
+                break;
+            }
             buf = &data[..n];
         }
         match decoder.update(buf, &mut Vec::new()) {

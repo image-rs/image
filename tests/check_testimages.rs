@@ -57,7 +57,8 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
     for (path, crc) in results.iter() {
         assert_eq!(
             ref_results.get(path).expect(&format!("reference for {} is missing", path)), 
-            crc
+            crc,
+            "{}", path
         )
     }
 }

@@ -152,7 +152,8 @@ fn subbyte_pixel(pixel_idx: usize, bits_pp: usize, scanline: &[u8]) -> u8 {
 
     let bit_idx = pixel_idx * bits_pp;
     let byte_idx = bit_idx / 8;
-    let rem = bit_idx % 8;
+    // sub-byte samples start in the high-order bits
+    let rem = 8 - bit_idx % 8 - bits_pp;
 
     match bits_pp {
         // evenly divides bytes
@@ -220,7 +221,7 @@ fn test_subbyte_pixel() {
     let bytes = [0b10101010u8];
 
     for idx in 0 .. 8 {
-        assert_eq!(subbyte_pixel(idx, 1, &bytes), (idx % 2) as u8);
+        assert_eq!(subbyte_pixel(idx, 1, &bytes), 1 - (idx % 2) as u8);
     }
 
     for idx in 0 .. 4 {
@@ -238,37 +239,37 @@ fn test_expand_pass_subbyte() {
     let width = 8;
     let bits_pp = 1;
 
-    expand_pass(&mut img, width, &[0b1], 1, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b10000000], 1, 0, bits_pp);
     assert_eq!([1u8, 0, 0, 0, 0, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b1], 2, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b10000000], 2, 0, bits_pp);
     assert_eq!([0b10001u8, 0, 0, 0, 0, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b11], 3, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], 3, 0, bits_pp);
     assert_eq!([0b10001u8, 0, 0, 0, 0b10001, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b11], 4, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], 4, 0, bits_pp);
     assert_eq!([0b1010101u8, 0, 0, 0, 0b10001, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b11], 4, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11000000], 4, 1, bits_pp);
     assert_eq!([0b1010101u8, 0, 0, 0, 0b1010101, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 5, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 5, 0, bits_pp);
     assert_eq!([0b01010101u8, 0, 0b01010101, 0, 0b01010101, 0, 0, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 5, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 5, 1, bits_pp);
     assert_eq!([0b01010101u8, 0, 0b01010101, 0, 0b01010101, 0, 0b01010101, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 6, 0, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 6, 0, bits_pp);
     assert_eq!([0b11111111u8, 0, 0b01010101, 0, 0b01010101, 0, 0b01010101, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 6, 1, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 6, 1, bits_pp);
     assert_eq!([0b11111111u8, 0, 0b11111111, 0, 0b01010101, 0, 0b01010101, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 6, 2, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 6, 2, bits_pp);
     assert_eq!([0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b01010101, 0], img);
 
-    expand_pass(&mut img, width, &[0b1111], 6, 3, bits_pp);
+    expand_pass(&mut img, width, &[0b11110000], 6, 3, bits_pp);
     assert_eq!([0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b11111111, 0], img);
 
     expand_pass(&mut img, width, &[0b11111111], 7, 0, bits_pp);

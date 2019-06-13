@@ -84,22 +84,24 @@ fn render_images() {
     })
 }
 
-//#[test]
+#[test]
 fn render_images_identity() {
     process_images("results_identity.txt", |path| {
-        let mut decoder = png::Decoder::new(File::open(path)?);
+        let mut decoder = png::Decoder::new(File::open(&path)?);
         decoder.set_transformations(png::Transformations::IDENTITY);
 
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
         reader.next_frame(&mut img_data)?;
-        // First sanity check:
-        assert_eq!(
-            img_data.len(),
-            info.width as usize
+		let bits = info.width as usize
                 * info.height as usize
                 * info.color_type.samples()
-                * info.bit_depth as usize/8
+                * info.bit_depth as usize;
+        // First sanity check:
+        assert_eq!(
+            img_data.len() * 8,
+            bits + 7 & !7,
+			"path: {} info: {:?} bits: {}", path.display(), info, bits
         );
         let mut crc = Crc32::new();
         crc.update(&img_data);

@@ -84,7 +84,7 @@ fn render_images() {
     })
 }
 
-#[test]
+//#[test]
 fn render_images_identity() {
     process_images("results_identity.txt", |path| {
         let mut decoder = png::Decoder::new(File::open(path)?);

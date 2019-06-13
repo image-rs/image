@@ -149,8 +149,8 @@ impl Iterator for Adam7Iterator {
     }
 }
 
-fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
-    (0..scanline.len() * 8 / bits_pp).map(move |bit_idx| {
+fn subbyte_pixels<'a>(scanline: &'a [u8], width: usize, bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
+    (0..width * bits_pp).step_by(bits_pp).map(move |bit_idx| {
         let byte_idx = bit_idx / 8;
         // sub-byte samples start in the high-order bits
         let rem = 8 - bit_idx % 8 - bits_pp;
@@ -192,9 +192,10 @@ fn expand_adam7(pass: u8, width: u32, line_no: u32) -> RangeStep<usize> {
 pub fn expand_pass(
     img: &mut [u8], width: u32, scanline: &[u8],
     pass: u8, line_no: u32, bits_pp: u8) {
-    fn inner(img: &mut [u8], scanline: &[u8], bits_pp: usize, pos_range: RangeStep<usize>) {
+    fn inner(img: &mut [u8], scanline: &[u8], width: usize, bits_pp: usize, pos_range: RangeStep<usize>) {
         if bits_pp < 8 {
-            for (pos, px) in pos_range.zip(subbyte_pixels(scanline, bits_pp)) {
+            for (pos, px) in pos_range.zip(subbyte_pixels(scanline, width, bits_pp)) {
+				let pos = pos * bits_pp;
                 let rem = 8 - pos % 8 - bits_pp;
                 img[pos / 8] |= px << rem as u8;
             }
@@ -204,7 +205,8 @@ pub fn expand_pass(
 
         for (pixel, pos) in scanline.chunks(bits_pp / 8).zip(pos_range) {
             for (offset, val) in pixel.iter().enumerate() {
-                img[pos + offset] = *val
+                let pos = pos * bits_pp / 8;
+                img[pos + offset] = *val;
             }
         }
     }
@@ -213,7 +215,7 @@ pub fn expand_pass(
     if pass == 0 || pass == 8 { return; }
 
     let pos_range = expand_adam7(pass, width, line_no);
-    inner(img, scanline, bits_pp as usize, pos_range);
+    inner(img, scanline, width as usize, bits_pp as usize, pos_range);
 }
 
 #[test]
@@ -232,8 +234,9 @@ fn test_adam7() {
 #[test]
 fn test_subbyte_pixels() {
     let scanline = &[0b10101010, 0b10101010];
-    let pixels = subbyte_pixels(scanline, 1).collect::<Vec<_>>();
 
+
+    let pixels = subbyte_pixels(scanline, 16, 1).collect::<Vec<_>>();
     assert_eq!(pixels.len(), 16);
     assert_eq!(pixels, [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]);
 }
@@ -247,9 +250,11 @@ fn test_expand_adam7() {
     for line_no in 0u32..8 {
         let start = 8 * line_no as usize * width as usize;
 
+		let expected_ = expected(start, 8, 4);
+
         assert_eq!(
             expand_adam7(1, width, line_no).collect::<Vec<_>>(),
-            expected(start, 8, 4)
+            expected_
         );
 
         let start = start + 4;

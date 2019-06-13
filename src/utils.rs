@@ -1,5 +1,6 @@
 //! Utility functions
 use std::iter::repeat;
+use num_iter::{range_step, RangeStep};
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -123,6 +124,7 @@ impl Adam7Iterator {
         self.lines = lines.ceil() as u32;
         self.line = 0;
     }
+    
     /// The current pass#.
     pub fn current_pass(&self) -> u8 {
         self.current_pass
@@ -147,62 +149,71 @@ impl Iterator for Adam7Iterator {
     }
 }
 
-fn subbyte_pixel(pixel_idx: usize, bits_pp: usize, scanline: &[u8]) -> u8 {
-    assert!(bits_pp < 8);
+fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
+    (0..scanline.len() * 8 / bits_pp).map(move |bit_idx| {
+        let byte_idx = bit_idx / 8;
+        // sub-byte samples start in the high-order bits
+        let rem = 8 - bit_idx % 8 - bits_pp;
 
-    let bit_idx = pixel_idx * bits_pp;
-    let byte_idx = bit_idx / 8;
-    // sub-byte samples start in the high-order bits
-    let rem = 8 - bit_idx % 8 - bits_pp;
+        match bits_pp {
+            // evenly divides bytes
+            1 => (scanline[byte_idx] >> rem) & 1,
+            2 => (scanline[byte_idx] >> rem) & 3,
+            4 => (scanline[byte_idx] >> rem) & 15,
+            _ => unreachable!(),
+        }
+    })
+}
 
-    match bits_pp {
-        // evenly divides bytes
-        1 => (scanline[byte_idx] >> rem) & 1,
-        2 => (scanline[byte_idx] >> rem) & 3,
-        4 => (scanline[byte_idx] >> rem) & 15,
-        _ => unreachable!(),
-    }
+/// Given pass, image width, and line number, produce an iterator of pixel positions to extract
+/// from the current scanline.
+fn expand_adam7(pass: u8, width: u32, line_no: u32) -> RangeStep<usize> {
+    let line_no = line_no as usize;
+    let width = width as usize;
+
+    let (line_mul, line_off, samp_mul, samp_off) = match pass {
+        1 => (8, 0, 8, 0),
+        2 => (8, 0, 8, 4),
+        3 => (8, 4, 4, 0),
+        4 => (4, 0, 4, 2),
+        5 => (4, 2, 2, 0),
+        6 => (2, 0, 2, 1),
+        7 => (2, 1, 1, 0),
+        _ => panic!("Adam7 pass out of range: {}", pass)
+    };
+
+    let start = (line_mul * line_no + line_off) * width + samp_off;
+    let stop = width * ((line_mul * line_no + line_off) + 1);
+
+    range_step(start, stop, samp_mul)
 }
 
 /// Expands an Adam 7 pass
 pub fn expand_pass(
     img: &mut [u8], width: u32, scanline: &[u8],
     pass: u8, line_no: u32, bits_pp: u8) {
-    let line_no = line_no as usize;
-    let width = width as usize;
-    let bits_pp = bits_pp as usize;
-
-    fn inner(img: &mut [u8], scanline: &[u8], bits_pp: usize, pos_fn: impl Fn(usize) -> usize) {
+    fn inner(img: &mut [u8], scanline: &[u8], bits_pp: usize, pos_range: RangeStep<usize>) {
         if bits_pp < 8 {
-            for i in 0 .. scanline.len() * 8 / bits_pp {
-                let pos = pos_fn(i);
+            for (pos, px) in pos_range.zip(subbyte_pixels(scanline, bits_pp)) {
                 let rem = 8 - pos % 8 - bits_pp;
-                img[pos / 8] |= subbyte_pixel(i, bits_pp, scanline) << rem as u8;
+                img[pos / 8] |= px << rem as u8;
             }
 
             return;
         }
 
-        for (j, pixel) in scanline.chunks(bits_pp / 8).enumerate() {
+        for (pixel, pos) in scanline.chunks(bits_pp / 8).zip(pos_range) {
             for (offset, val) in pixel.iter().enumerate() {
-                let pos = pos_fn(j);
                 img[pos + offset] = *val
             }
         }
     }
 
-    let px_width = if bits_pp >= 8 { bits_pp / 8 } else { bits_pp };
+    // pass is out of range but don't blow up
+    if pass == 0 || pass == 8 { return; }
 
-    match pass {
-        1 => inner(img, scanline, bits_pp,  |j|  8*line_no    * width + px_width *  j*8     ),
-        2 => inner(img, scanline, bits_pp,  |j|  8*line_no    * width + px_width * (j*8 + 4)),
-        3 => inner(img, scanline, bits_pp,  |j| (8*line_no+4) * width + px_width *  j*4     ),
-        4 => inner(img, scanline, bits_pp,  |j|  4*line_no    * width + px_width * (j*4 + 2)),
-        5 => inner(img, scanline, bits_pp,  |j| (4*line_no+2) * width + px_width *  j*2     ),
-        6 => inner(img, scanline, bits_pp,  |j|  2*line_no    * width + px_width * (j*2+1)  ),
-        7 => inner(img, scanline, bits_pp,  |j| (2*line_no+1) * width + px_width *  j       ),
-        _ => {}
-    }
+    let pos_range = expand_adam7(pass, width, line_no);
+    inner(img, scanline, bits_pp as usize, pos_range);
 }
 
 #[test]
@@ -219,19 +230,74 @@ fn test_adam7() {
 }
 
 #[test]
-fn test_subbyte_pixel() {
-    let bytes = [0b10101010u8];
+fn test_subbyte_pixels() {
+    let scanline = &[0b10101010, 0b10101010];
+    let pixels = subbyte_pixels(scanline, 1).collect::<Vec<_>>();
 
-    for idx in 0 .. 8 {
-        assert_eq!(subbyte_pixel(idx, 1, &bytes), 1 - (idx % 2) as u8);
+    assert_eq!(pixels.len(), 16);
+    assert_eq!(pixels, [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]);
+}
+
+#[test]
+fn test_expand_adam7() {
+    let width = 32;
+
+    let expected = |offset: usize, step: usize, count: usize| (0 .. count).map(move |i| step * i + offset).collect::<Vec<_>>();
+
+    for line_no in 0u32..8 {
+        let start = 8 * line_no as usize * width as usize;
+
+        assert_eq!(
+            expand_adam7(1, width, line_no).collect::<Vec<_>>(),
+            expected(start, 8, 4)
+        );
+
+        let start = start + 4;
+
+        assert_eq!(
+            expand_adam7(2, width, line_no).collect::<Vec<_>>(),
+            expected(start, 8, 4)
+        );
+
+        let start = (8 * line_no + 4) as usize * width as usize;
+
+        assert_eq!(
+            expand_adam7(3, width, line_no).collect::<Vec<_>>(),
+            expected(start, 4, 8)
+        );
     }
 
-    for idx in 0 .. 4 {
-        assert_eq!(subbyte_pixel(idx, 2, &bytes), 0b10);
+    for line_no in 0u32 .. 16 {
+        let start = 4 * line_no as usize * width as usize + 2;
+
+        assert_eq!(
+            expand_adam7(4, width, line_no).collect::<Vec<_>>(),
+            expected(start, 4, 8)
+        );
+
+        let start = (4 * line_no + 2) as usize * width as usize;
+
+        assert_eq!(
+            expand_adam7(5, width, line_no).collect::<Vec<_>>(),
+            expected(start, 2, 16)
+        )
     }
 
-    for idx in 0 .. 2 {
-        assert_eq!(subbyte_pixel(idx, 4, &bytes), 0b1010);
+    for line_no in 0u32 .. 32 {
+        let start = 2 * line_no as usize * width as usize + 1;
+
+        assert_eq!(
+            expand_adam7(6, width, line_no).collect::<Vec<_>>(),
+            expected(start, 2, 16),
+            "line_no: {}", line_no
+        );
+
+        let start = (2 * line_no + 1) as usize * width as usize;
+
+        assert_eq!(
+            expand_adam7(7, width, line_no).collect::<Vec<_>>(),
+            expected(start, 1, 32)
+        );
     }
 }
 

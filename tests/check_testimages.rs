@@ -2,7 +2,7 @@ extern crate crc32fast;
 extern crate glob;
 extern crate png;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 use std::io::BufReader;
@@ -12,11 +12,11 @@ use crc32fast::Hasher as Crc32;
 
 const BASE_PATH: [&'static str; 2] = [".", "tests"];
 
-fn process_images<F>(func: F)
+fn process_images<F>(results_path: &str, func: F)
 where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
     let base: PathBuf = BASE_PATH.iter().collect();
     let test_suites = &["pngsuite", "pngsuite-extra", "bugfixes"];
-    let mut results = HashMap::new();
+    let mut results = BTreeMap::new();
     let mut expected_failures = 0;
     for suite in test_suites {
         let mut path = base.clone();
@@ -40,8 +40,8 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
         }
     }
     let mut path = base.clone();
-    path.push("results.txt");
-    let mut ref_results = HashMap::new();
+    path.push(results_path);
+    let mut ref_results = BTreeMap::new();
     let mut failures = 0;
     for line in BufReader::new(File::open(path).unwrap()).lines() {
         let line = line.unwrap();
@@ -65,7 +65,7 @@ where F: Fn(PathBuf) -> Result<u32, png::DecodingError> {
 
 #[test]
 fn render_images() {
-    process_images(|path| {
+    process_images("results.txt",|path| {
         let decoder = png::Decoder::new(File::open(path)?);
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
@@ -82,6 +82,29 @@ fn render_images() {
         crc.update(&img_data);
         Ok(crc.finalize())
     })
+}
+
+#[test]
+fn render_images_identity() {
+    process_images("results_identity.txt", |path| {
+        let mut decoder = png::Decoder::new(File::open(path)?);
+        decoder.set_transformations(png::Transformations::IDENTITY);
+
+        let (info, mut reader) = decoder.read_info()?;
+        let mut img_data = vec![0; info.buffer_size()];
+        reader.next_frame(&mut img_data)?;
+        // First sanity check:
+        assert_eq!(
+            img_data.len(),
+            info.width as usize
+                * info.height as usize
+                * info.color_type.samples()
+                * info.bit_depth as usize/8
+        );
+        let mut crc = Crc32::new();
+        crc.update(&img_data);
+        Ok(crc.finalize())
+    });
 }
 
 // until rust standardizes path normalization, see https://github.com/rust-lang/rfcs/issues/2208

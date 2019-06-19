@@ -291,7 +291,6 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()?;
         if self.index > 0 {
-            dbg!(self.index);
             let message = format!("wrong data size, got {} bytes too many", self.index);
             return Err(EncodingError::Format(message.into()).into());
         }

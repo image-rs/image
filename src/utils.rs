@@ -1,6 +1,6 @@
 //! Utility functions
 use std::iter::repeat;
-use num_iter::{range_step, RangeStep};
+use num_iter::{range_step, RangeStep, range_step_inclusive, RangeStepInclusive};
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -149,9 +149,10 @@ impl Iterator for Adam7Iterator {
     }
 }
 
-fn subbyte_pixels<'a>(scanline: &'a [u8], width: usize, bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
-    (0..width * bits_pp).step_by(bits_pp).map(move |bit_idx| {
+fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
+    (0..scanline.len() * 8).step_by(bits_pp).map(move |bit_idx| {
         let byte_idx = bit_idx / 8;
+
         // sub-byte samples start in the high-order bits
         let rem = 8 - bit_idx % 8 - bits_pp;
 
@@ -165,12 +166,9 @@ fn subbyte_pixels<'a>(scanline: &'a [u8], width: usize, bits_pp: usize) -> impl 
     })
 }
 
-/// Given pass, image width, and line number, produce an iterator of pixel positions to extract
-/// from the current scanline.
-fn expand_adam7(pass: u8, width: u32, line_no: u32) -> RangeStep<usize> {
-    let line_no = line_no as usize;
-    let width = width as usize;
-
+/// Given pass, image width, and line number, produce an iterator of bit positions of pixels to copy
+/// from the input scanline to the image buffer.
+fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> RangeStep<usize> {
     let (line_mul, line_off, samp_mul, samp_off) = match pass {
         1 => (8, 0, 8, 0),
         2 => (8, 0, 8, 4),
@@ -182,40 +180,45 @@ fn expand_adam7(pass: u8, width: u32, line_no: u32) -> RangeStep<usize> {
         _ => panic!("Adam7 pass out of range: {}", pass)
     };
 
-    let start = (line_mul * line_no + line_off) * width + samp_off;
-    let stop = width * ((line_mul * line_no + line_off) + 1);
+    // the equivalent line number in progressive scan
+    let prog_line = line_mul * line_no + line_off;
+    // line width is rounded up to the next byte
+    let line_width = width * bits_pp + 7 & !7;
+    let line_start = prog_line * line_width;
+    let start = line_start + (samp_off * bits_pp);
+    let stop = line_start + (width * bits_pp);
 
-    range_step(start, stop, samp_mul)
+    range_step(start, stop, bits_pp * samp_mul)
 }
 
 /// Expands an Adam 7 pass
 pub fn expand_pass(
     img: &mut [u8], width: u32, scanline: &[u8],
     pass: u8, line_no: u32, bits_pp: u8) {
-    fn inner(img: &mut [u8], scanline: &[u8], width: usize, bits_pp: usize, pos_range: RangeStep<usize>) {
-        if bits_pp < 8 {
-            for (pos, px) in pos_range.zip(subbyte_pixels(scanline, width, bits_pp)) {
-				let pos = pos * bits_pp;
-                let rem = 8 - pos % 8 - bits_pp;
-                img[pos / 8] |= px << rem as u8;
-            }
 
-            return;
+    let width = width as usize;
+    let line_no = line_no as usize;
+    let bits_pp = bits_pp as usize;
+
+	// pass is out of range but don't blow up
+    if pass == 0 || pass > 7 { return; }
+
+    let bit_indices = expand_adam7_bits(pass, width, line_no, bits_pp);
+
+    if bits_pp < 8 {
+        for (pos, px) in bit_indices.zip(subbyte_pixels(scanline, bits_pp)) {
+            let rem = 8 - pos % 8 - bits_pp;
+            img[pos / 8] |= px << rem as u8;
         }
+    } else {
+		let bytes_pp = bits_pp / 8;
 
-        for (pixel, pos) in scanline.chunks(bits_pp / 8).zip(pos_range) {
-            for (offset, val) in pixel.iter().enumerate() {
-                let pos = pos * bits_pp / 8;
-                img[pos + offset] = *val;
-            }
-        }
-    }
-
-    // pass is out of range but don't blow up
-    if pass == 0 || pass == 8 { return; }
-
-    let pos_range = expand_adam7(pass, width, line_no);
-    inner(img, scanline, width as usize, bits_pp as usize, pos_range);
+		for (bitpos, px) in bit_indices.zip(scanline.chunks(bytes_pp)) {
+			for (offset, val) in px.iter().enumerate() {
+				img[bitpos / 8 + offset] = *val;
+			}
+		}
+	}
 }
 
 #[test]

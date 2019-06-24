@@ -1,6 +1,6 @@
 //! Utility functions
 use std::iter::repeat;
-use num_iter::{range_step, RangeStep, range_step_inclusive, RangeStepInclusive};
+use num_iter::{range_step, RangeStep};
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -239,71 +239,70 @@ fn test_subbyte_pixels() {
     let scanline = &[0b10101010, 0b10101010];
 
 
-    let pixels = subbyte_pixels(scanline, 16, 1).collect::<Vec<_>>();
+    let pixels = subbyte_pixels(scanline, 1).collect::<Vec<_>>();
     assert_eq!(pixels.len(), 16);
     assert_eq!(pixels, [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]);
 }
 
 #[test]
-fn test_expand_adam7() {
+fn test_expand_adam7_bits() {
     let width = 32;
+    let bits_pp = 1;
 
     let expected = |offset: usize, step: usize, count: usize| (0 .. count).map(move |i| step * i + offset).collect::<Vec<_>>();
 
-    for line_no in 0u32..8 {
-        let start = 8 * line_no as usize * width as usize;
-
-		let expected_ = expected(start, 8, 4);
+    for line_no in 0..8 {
+        let start = 8 * line_no * width;
 
         assert_eq!(
-            expand_adam7(1, width, line_no).collect::<Vec<_>>(),
-            expected_
+            expand_adam7_bits(1, width, line_no, bits_pp).collect::<Vec<_>>(),
+            expected(start, 8, 4)
         );
 
         let start = start + 4;
 
         assert_eq!(
-            expand_adam7(2, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(2, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 8, 4)
         );
 
         let start = (8 * line_no + 4) as usize * width as usize;
 
         assert_eq!(
-            expand_adam7(3, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(3, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 4, 8)
         );
     }
 
-    for line_no in 0u32 .. 16 {
-        let start = 4 * line_no as usize * width as usize + 2;
+    for line_no in 0 .. 16 {
+        let start = 4 * line_no * width + 2;
 
         assert_eq!(
-            expand_adam7(4, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(4, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 4, 8)
         );
 
-        let start = (4 * line_no + 2) as usize * width as usize;
+        let start = (4 * line_no + 2) * width;
 
         assert_eq!(
-            expand_adam7(5, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(5, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 2, 16)
         )
     }
 
-    for line_no in 0u32 .. 32 {
-        let start = 2 * line_no as usize * width as usize + 1;
+    for line_no in 0 .. 32 {
+        let start = 2 * line_no * width + 1;
 
         assert_eq!(
-            expand_adam7(6, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(6, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 2, 16),
             "line_no: {}", line_no
         );
 
-        let start = (2 * line_no + 1) as usize * width as usize;
+        let start = (2 * line_no + 1) * width;
 
         assert_eq!(
-            expand_adam7(7, width, line_no).collect::<Vec<_>>(),
+            expand_adam7_bits(7, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 1, 32)
         );
     }

@@ -35,7 +35,7 @@ impl error::Error for EncodingError {
 
 impl fmt::Display for EncodingError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
-        write!(fmt, "{}", (self as &error::Error).description())
+        write!(fmt, "{}", (self as &dyn error::Error).description())
     }
 }
 
@@ -46,7 +46,7 @@ impl From<io::Error> for EncodingError {
 }
 impl From<EncodingError> for io::Error {
     fn from(err: EncodingError) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, (&err as &error::Error).description())
+        io::Error::new(io::ErrorKind::Other, (&err as &dyn error::Error).description())
     }
 }
 

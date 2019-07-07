@@ -1,6 +1,5 @@
 //! Utility functions
 use std::iter::repeat;
-use num_iter::range_step;
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -21,13 +20,11 @@ where F: Fn(u8, &mut[u8]) {
         .rev() // reverse iterator
         .flat_map(|idx|
             // this has to be reversed too
-            range_step(0, 8, bit_depth)
+            (0..8).step_by(bit_depth.into())
             .zip(repeat(idx))
         )
         .skip(skip);
-    let channels = channels as isize;
-    let j = range_step(buf.len() as isize - channels, -channels, -channels);
-    //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;
+    let j = (0..=buf.len() - channels).rev().step_by(channels);
     for ((shift, i), j) in i.zip(j) {
         let pixel = (buf[i] & (mask << shift)) >> shift;
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
@@ -35,10 +32,8 @@ where F: Fn(u8, &mut[u8]) {
 }
 
 pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
-    let channels = channels as isize;
-    let i = range_step(buf.len() as isize / (channels+1) * channels - channels, -channels, -channels);
-    let j = range_step(buf.len() as isize - (channels+1), -(channels+1), -(channels+1));
-    let channels = channels as usize;
+    let i = (0..=buf.len() / (channels+1) * channels - channels).rev().step_by(channels);
+    let j = (0..=buf.len() - (channels+1)).rev().step_by(channels+1);
     for (i, j) in i.zip(j) {
         let i_pixel = i as usize;
         let j_chunk = j as usize;
@@ -54,11 +49,9 @@ pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
 }
 
 pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
-    let channels = channels as isize;
     let c2 = 2 * channels;
-    let i = range_step(buf.len() as isize / (c2+2) * c2 - c2, -c2, -c2);
-    let j = range_step(buf.len() as isize - (c2+2), -(c2+2), -(c2+2));
-    let c2 = c2 as usize;
+    let i = (0..=buf.len() / (c2+2) * c2 - c2).rev().step_by(c2);
+    let j = (0..=buf.len() - (c2+2)).rev().step_by(c2+2);
     for (i, j) in i.zip(j) {
         let i_pixel = i as usize;
         let j_chunk = j as usize;
@@ -130,7 +123,6 @@ impl Adam7Iterator {
         self.lines = lines.ceil() as u32;
         self.line = 0;
     }
-    
     /// The current pass#.
     pub fn current_pass(&self) -> u8 {
         self.current_pass

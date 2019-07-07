@@ -5,7 +5,7 @@ notifications:
 os:
     - linux
 rust:
-    - 1.24.1
+    - 1.34.2
     - stable
     - beta
     - nightly
@@ -25,9 +25,9 @@ env:
 matrix:
     include:
         - os: osx
-          rust: 1.24.1
+          rust: 1.34.2
         - os: windows
-          rust: 1.24.1
+          rust: 1.34.2
         - os: osx
           rust: stable
         - os: windows

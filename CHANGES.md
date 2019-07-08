@@ -10,7 +10,22 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Version 0.22
 
+- The required Rust version is now `1.34.2`.
+- `PixelMut` now only on `ImageBuffer` and removed from `GenericImage`
+  interface. Prefer iterating manually in the generic case.
+- Replaced an unsafe interface in the hdr decoder with a safe variant.
 - Support loading 2-bit BMP images
+- Update tiff to `0.3` with a writer
+- Always use custom struct for ImageDecoder::Reader
+- Added apply_without_alpha and map_without_alpha to Pixel trait
+- Pixel information now with associated constants instead of static methods
+- Changed color structs to tuple types with single component. Improves
+  ergonomics of destructuring assignment and construction.
+- Add lifetime bound on `ImageDecoder` trait.
+- Remove unecessary 'static bounds on affine operations
+- Add function to retrieve image dimensions without loading full image
+- Allow different image types in overlay and replace
+- Iterators over rows of `ImageBuffer`, mutable variants
 
 ### Version 0.21.2
 

@@ -44,8 +44,6 @@
 
 #[macro_use] extern crate bitflags;
 
-extern crate num_iter;
-
 pub mod chunk;
 mod decoder;
 #[cfg(feature = "png-encoding")]

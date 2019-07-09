@@ -12,7 +12,11 @@ matrix:
       env: FLAGS="--no-default-features"
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
+  allow_failures:
+    - rust: nightly
+      env: FLAGS="-Z minimal-versions"
+
 script:
   - cargo build -v $FLAGS
   - cargo doc -v $FLAGS
-  - if [ "$FLAGS" != "-Z minimal-versions" ]; then cargo test -v $FLAGS; fi
+  - cargo test -v $FLAGS

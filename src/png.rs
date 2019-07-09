@@ -8,9 +8,6 @@
 
 extern crate png;
 
-use self::png::HasParameters;
-
-use std;
 use std::io::{self, Read, Write};
 
 use color::ColorType;
@@ -101,7 +98,7 @@ impl<R: Read> PNGDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PNGDecoder<R>> {
         let limits = png::Limits {
-            pixels: std::u64::MAX,
+            bytes: usize::max_value(),
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
@@ -157,7 +154,8 @@ impl<W: Write> PNGEncoder<W> {
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
         let (ct, bits) = color.into();
         let mut encoder = png::Encoder::new(self.w, width, height);
-        encoder.set(ct).set(bits);
+        encoder.set_color(ct);
+        encoder.set_depth(bits);
         let mut writer = try!(encoder.write_header());
         writer.write_image_data(data).map_err(|e| e.into())
     }
@@ -205,6 +203,7 @@ impl From<png::DecodingError> for ImageError {
             CorruptFlateStream => {
                 ImageError::FormatError("compressed data stream corrupted".into())
             }
+            LimitsExceeded => ImageError::InsufficientMemory,
         }
     }
 }

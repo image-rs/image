@@ -62,7 +62,7 @@ pub use traits::Primitive;
 
 // Opening and loading images
 pub use dynimage::{guess_format, load, load_from_memory, load_from_memory_with_format, open,
-                   save_buffer, image_dimensions};
+                   save_buffer, save_buffer_with_format, image_dimensions};
 
 pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8, ImageBgr8, ImageBgra8};
 

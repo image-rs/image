@@ -775,6 +775,9 @@ where
 {
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
+    ///
+    /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
+    /// supported types.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
     where
         Q: AsRef<Path>,

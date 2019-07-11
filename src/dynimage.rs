@@ -567,6 +567,9 @@ impl DynamicImage {
 
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
+    ///
+    /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
+    /// supported types.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
     where
         Q: AsRef<Path>,
@@ -898,7 +901,7 @@ fn save_buffer_impl(
 /// The buffer is assumed to have the correct format according
 /// to the specified color type.
 /// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, pnm, bmp and
+/// malformed data. Currently only jpeg, png, ico, bmp and
 /// tiff files are supported.
 pub fn save_buffer_with_format<P>(
     path: P,

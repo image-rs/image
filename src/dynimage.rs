@@ -564,6 +564,17 @@ impl DynamicImage {
             p.save(path)
         })
     }
+
+    /// Saves the buffer to a file at the path specified in
+    /// the specified format.
+    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
+    where
+        Q: AsRef<Path>,
+    {
+        dynamic_map!(*self, ref p -> {
+            p.save_with_format(path, format)
+        })
+    }
 }
 
 #[allow(deprecated)]
@@ -875,6 +886,59 @@ fn save_buffer_impl(
         "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
         format => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            &format!("Unsupported image format image/{:?}", format)[..],
+        )),
+    }
+}
+
+/// Saves the supplied buffer to a file at the path specified
+/// in the specified format.
+///
+/// The buffer is assumed to have the correct format according
+/// to the specified color type.
+/// This will lead to corrupted files if the buffer contains
+/// malformed data. Currently only jpeg, png, ico, pnm, bmp and
+/// tiff files are supported.
+pub fn save_buffer_with_format<P>(
+    path: P,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: ImageFormat,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+{
+    // thin wrapper function to strip generics
+    save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
+}
+
+fn save_buffer_with_format_impl(
+    path: &Path,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: ImageFormat,
+) -> io::Result<()> {
+    let fout = &mut BufWriter::new(File::create(path)?);
+
+    match format {
+        #[cfg(feature = "ico")]
+        image::ImageFormat::ICO => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "jpeg")]
+        image::ImageFormat::JPEG => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "png_codec")]
+        image::ImageFormat::PNG => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "bmp")]
+        image::ImageFormat::BMP => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "tiff")]
+        image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout)
+            .encode(buf, width, height, color)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
+        _ => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],
         )),

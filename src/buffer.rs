@@ -773,7 +773,7 @@ where
     P: Pixel<Subpixel = u8> + 'static,
     Container: Deref<Target = [u8]>,
 {
-    /// Saves the buffer to a file at the path specified in
+    /// Saves the buffer to a file at the specified path in
     /// the specified format.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
     where

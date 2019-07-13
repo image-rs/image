@@ -3,6 +3,7 @@ use crate::filter;
 
 use std::fmt;
 
+/// Describes the layout of samples in a pixel
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ColorType {
@@ -93,11 +94,15 @@ impl Unit {
     }
 }
 
+/// How to reset buffer of an animated png (APNG) at the end of a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum DisposeOp {
+    /// Leave the buffer unchanged.
     None       = 0,
+    /// Clear buffer with the background color.
     Background = 1,
+    /// Reset the buffer to the state before the current frame.
     Previous   = 2,
 }
 
@@ -124,10 +129,13 @@ impl fmt::Display for DisposeOp {
     }
 }
 
+/// How pixels are written into the buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BlendOp {
+    /// Pixels overwrite the value at their position.
     Source = 0,
+    /// The new pixels are blended into the current state based on alpha.
     Over   = 1,
 }
 
@@ -211,6 +219,7 @@ pub struct AnimationControl {
     pub num_plays: u32,
 }
 
+/// The type and strength of applied compression.
 #[derive(Debug, Clone)]
 pub enum Compression {
     /// Default level  

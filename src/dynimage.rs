@@ -4,6 +4,7 @@ use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
 use std::path::Path;
 use std::u32;
+use byteorder::{BigEndian, WriteBytesExt};
 
 #[cfg(feature = "bmp")]
 use bmp;
@@ -894,6 +895,53 @@ fn save_buffer_impl(
         )),
     }
 }
+
+
+pub fn save_buffer_u16<P>(
+    path: P,
+    buf: &[u16],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+{
+    save_buffer_u16_impl(path.as_ref(), buf, width, height, color)
+}
+
+fn save_buffer_u16_impl(
+    path: &Path,
+    buf: &[u16],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+) -> io::Result<()> {
+    let fout = &mut BufWriter::new(File::create(path)?);
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map_or("".to_string(), |s| s.to_ascii_lowercase());
+
+    // PNG should be big endian.
+    // Iterate over the image. That's not really efficient. Can we do it before?
+    let final_size: usize = (2 * width * height) as usize;
+    let mut data_u8: Vec<u8> = Vec::with_capacity(final_size);
+    for b in buf {
+        data_u8.write_u16::<BigEndian>(*b)?;
+    }
+
+    match &*ext {
+        #[cfg(feature = "png_codec")]
+        "png" => png::PNGEncoder::new(fout).encode(&data_u8, width, height, color),
+        format => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            &format!("Unsupported image format image/{:?}", format)[..],
+        )),
+    }
+}
+
+
 
 /// Saves the supplied buffer to a file at the path specified
 /// in the specified format.

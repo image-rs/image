@@ -7,7 +7,7 @@ use std::slice::{Chunks, ChunksMut};
 
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
-use dynimage::{save_buffer, save_buffer_with_format};
+use dynimage::{save_buffer, save_buffer_u16, save_buffer_with_format};
 use image::{GenericImage, GenericImageView, ImageFormat};
 use traits::Primitive;
 use utils::expand_packed;
@@ -759,6 +759,28 @@ where
     {
         // This is valid as the subpixel is u8.
         save_buffer(
+            path,
+            self,
+            self.width(),
+            self.height(),
+            <P as Pixel>::COLOR_TYPE,
+        )
+    }
+}
+
+impl<P, Container> ImageBuffer<P, Container>
+where
+    P: Pixel<Subpixel = u16> + 'static,
+    Container: Deref<Target = [u16]>,
+{
+    /// Saves the buffer to a file at the path specified
+    ///
+    ///
+    pub fn saveu16<Q>(&self, path: Q) -> io::Result<()>
+    where
+        Q: AsRef<Path>,
+    {
+        save_buffer_u16(
             path,
             self,
             self.width(),

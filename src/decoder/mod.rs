@@ -24,6 +24,7 @@ pub enum InterlaceHandling {
 */
 
 /// Output info
+#[derive(Debug)]
 pub struct OutputInfo {
     pub width: u32,
     pub height: u32,
@@ -245,7 +246,7 @@ impl<R: Read> Reader<R> {
     /// Decodes the next frame into `buf`
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
         // TODO 16 bit
-        let (color_type, _) = self.output_color_type();
+        let (color_type, bit_depth) = self.output_color_type();
         let width = get_info!(self).width;
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Other(
@@ -255,8 +256,8 @@ impl<R: Read> Reader<R> {
         if get_info!(self).interlaced {
              while let Some((row, adam7)) = self.next_interlaced_row()? {
                  let (pass, line, _) = adam7.unwrap();
-                 let bytes = color_type.samples() as u8;
-                 utils::expand_pass(buf, width * bytes as u32, row, pass, line, bytes);
+                 let samples = color_type.samples() as u8;
+                 utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
              }
         } else {
             let mut len = 0;

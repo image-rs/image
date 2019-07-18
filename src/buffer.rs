@@ -744,63 +744,63 @@ where
     }
 }
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
-{
-    /// Saves the buffer to a file at the path specified.
-    ///
-    /// The image format is derived from the file extension.
-    /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
-    where
-        Q: AsRef<Path>,
-    {
-        // This is valid as the subpixel is u8.
-        save_buffer(
-            path,
-            self,
-            self.width(),
-            self.height(),
-            <P as Pixel>::COLOR_TYPE,
-        )
-    }
+
+pub trait Save {
+    fn save_buffer<Q>(&self, path: Q) -> io::Result<()> where Q: AsRef<Path>;
+    fn save_buffer_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()> where Q: AsRef<Path>;
+
 }
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel<Subpixel = u16> + 'static,
-    Container: Deref<Target = [u16]>,
-{
+    P: Pixel + 'static,
+    P::Subpixel: 'static,
+    Container: Deref<Target = [P::Subpixel]>,
+    Self: Save, {
+
     /// Saves the buffer to a file at the path specified
     ///
     ///
-    pub fn saveu16<Q>(&self, path: Q) -> io::Result<()>
-    where
-        Q: AsRef<Path>,
-    {
-        save_buffer_u16(
-            path,
-            self,
-            self.width(),
-            self.height(),
-            <P as Pixel>::COLOR_TYPE,
-        )
+    pub fn save<Q>(&self, path: Q) -> io::Result<()> where Q: AsRef<Path> {
+        self.save_buffer(path)
     }
-}
 
-impl<P, Container> ImageBuffer<P, Container>
-where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
-{
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
+    ///
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
+    where
+        Q: AsRef<Path> {
+        self.save_buffer_with_format(path, format)
+    }
+}
+
+macro_rules! impl_save_u8 {
+    ($( $pixel:ident, )*) => {
+    
+
+// Start implementation to save ImageBuffer for u8 pixels.
+$(
+
+impl<P> Save for ImageBuffer<$pixel<u8>, P> 
+where P: Deref<Target=[u8]> {
+    fn save_buffer<Q>(&self, path: Q) -> io::Result<()>
+        where
+            Q: AsRef<Path>,
+    {
+        save_buffer(
+            path,
+            self,
+            self.width(),
+            self.height(),
+            $pixel::<u8>::COLOR_TYPE,
+        )
+    }
+    
+    fn save_buffer_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
     where
         Q: AsRef<Path>,
     {
@@ -810,9 +810,47 @@ where
             self,
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            $pixel::<u8>::COLOR_TYPE,
             format,
         )
+    }
+
+}
+
+)*
+
+    }
+}
+
+impl_save_u8! {
+    Rgb,
+    Bgr,
+    Luma, 
+    Rgba,
+    Bgra,
+    LumaA,
+}
+
+impl<P> Save for ImageBuffer<Luma<u16>, P>
+    where P: Deref<Target = [u16]>
+{
+    fn save_buffer<Q>(&self, path: Q) -> io::Result<()>
+    where
+        Q: AsRef<Path>,
+    {
+        save_buffer_u16(
+            path,
+            self,
+            self.width(),
+            self.height(),
+            Luma::<u16>::COLOR_TYPE,
+        )
+    }
+
+    fn save_buffer_with_format<Q>(&self, _path: Q, _format: ImageFormat) -> io::Result<()>
+    where
+        Q: AsRef<Path> {
+        unimplemented!()   
     }
 }
 

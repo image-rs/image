@@ -100,7 +100,11 @@ impl<R: Read> PNGDecoder<R> {
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
-        let decoder = png::Decoder::new_with_limits(r, limits);
+        let mut decoder = png::Decoder::new_with_limits(r, limits);
+        // override defaut transformations. by default, SCALE_16 and STRIP_16 would
+        // convert 16-bits to 8-bits images. Here we keep EXPAND that will
+        // convert 4-bits image to 8-bits image
+        decoder.set(png::Transformations::EXPAND);
         let (_, mut reader) = decoder.read_info()?;
         let colortype = reader.output_color_type().into();
 

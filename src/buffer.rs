@@ -8,7 +8,7 @@ use std::slice::{Chunks, ChunksMut};
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_u16, save_buffer_with_format, save_buffer_u16_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat};
+use image::{GenericImage, GenericImageView, ImageFormat, ImageError, ImageResult, ImageDecoder};
 use traits::Primitive;
 use utils::expand_packed;
 

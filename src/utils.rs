@@ -1,6 +1,6 @@
 //! Utility functions
-use std::iter::repeat;
-use num_iter::{range_step, RangeStep};
+use std::iter::{repeat, StepBy};
+use std::ops::Range;
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
@@ -168,7 +168,7 @@ fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item=
 
 /// Given pass, image width, and line number, produce an iterator of bit positions of pixels to copy
 /// from the input scanline to the image buffer.
-fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> RangeStep<usize> {
+fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> StepBy<Range<usize>> {
     let (line_mul, line_off, samp_mul, samp_off) = match pass {
         1 => (8, 0, 8, 0),
         2 => (8, 0, 8, 4),
@@ -188,7 +188,7 @@ fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> 
     let start = line_start + (samp_off * bits_pp);
     let stop = line_start + (width * bits_pp);
 
-    range_step(start, stop, bits_pp * samp_mul)
+    (start .. stop).step_by(bits_pp * samp_mul)
 }
 
 /// Expands an Adam 7 pass

@@ -224,7 +224,7 @@ fn main() {
             }
 
             let pixel = imgbuf.get_pixel_mut(x, y);
-            let image::Rgb(data) = *pixel;
+            let data = *pixel;
             *pixel = image::Rgb([data[0], i as u8, data[2]]);
         }
     }

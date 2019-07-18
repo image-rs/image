@@ -1,10 +1,13 @@
 [package]
 name = "png"
-version = "0.14.1"
-license = "MIT/Apache-2.0"
+version = "0.15.0"
+license = "MIT OR Apache-2.0"
+
 description = "PNG decoding and encoding library in pure Rust"
+categories = ["multimedia::images"]
 authors = ["nwin <nwin@users.noreply.github.com>"]
 repository = "https://github.com/image-rs/image-png.git"
+
 edition = "2018"
 exclude = [
     "tests/*",

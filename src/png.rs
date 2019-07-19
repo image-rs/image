@@ -11,7 +11,8 @@ extern crate png;
 use std::io::{self, Read, Write};
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{ImageDecoder, Image16bitsDecoder, ImageError, ImageResult};
+use byteorder::{ReadBytesExt, BigEndian};
 
 /// PNG Reader
 ///
@@ -138,6 +139,21 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
     fn scanline_bytes(&self) -> u64 {
         let width = self.reader.info().width;
         self.reader.output_line_size(width) as u64
+    }
+}
+
+impl<'a, R: 'a + Read> Image16bitsDecoder<'a> for PNGDecoder<R> {
+
+    fn read_16bits_image(self) -> ImageResult<Vec<u16>> {
+        let (w, h) = self.dimensions();
+        let size = (w as usize) * (h as usize);
+        let buf = self.read_image()?;
+        
+        let mut buf16 = vec![0; size];
+        let mut rdr = std::io::Cursor::new(buf);
+        rdr.read_u16_into::<BigEndian>(&mut buf16).unwrap();
+
+        Ok(buf16)
     }
 }
 

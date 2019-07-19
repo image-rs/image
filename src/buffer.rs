@@ -8,7 +8,8 @@ use std::slice::{Chunks, ChunksMut};
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_u16, save_buffer_with_format, save_buffer_u16_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat, ImageError, ImageResult, ImageDecoder};
+use image::{GenericImage, GenericImageView, ImageFormat, ImageError, ImageResult, ImageDecoder, Image16bitsDecoder};
+use byteorder::{ReadBytesExt, BigEndian};
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -1111,6 +1112,20 @@ impl GrayImage {
     }
 }
 
+impl Gray16Image {
+    
+    /// Load grayscale 16bits image from a decoder.
+    pub fn from_decoder<'a, I: Image16bitsDecoder<'a>>(codec: I) -> ImageResult<Self> {
+        let (w, h) = codec.dimensions();
+        let size = (w as usize) * (h as usize);
+        let buf16 = codec.read_16bits_image()?;
+        let (w, h) = (w as u32, h as u32);
+
+        ImageBuffer::from_raw(w, h, buf16).ok_or(ImageError::DimensionError)
+    }
+
+}
+
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
@@ -1138,6 +1153,8 @@ pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// Sendable grayscale image buffer
 pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
+/// Sendable grayscale 16-bits image buffer
+pub type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable Bgr image buffer

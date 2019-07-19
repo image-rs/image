@@ -1,4 +1,4 @@
-//! Decoding and Encoding of TIFF Images
+//! Decodig and Encoding of TIFF Images
 //!
 //! TIFF (Tagged Image File Format) is a versatile image format that supports
 //! lossless and lossy compression.
@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use color::ColorType;
-use image::{ImageDecoder, ImageResult, ImageError};
+use image::{ImageDecoder, Image16bitsDecoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
@@ -105,6 +105,18 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
     }
 }
 
+impl<'a, R: 'a + Read + Seek> Image16bitsDecoder<'a> for TIFFDecoder<R> {
+    
+    fn read_16bits_image(mut self) -> ImageResult<Vec<u16>> {
+        match self.inner.read_image()? {
+            tiff::decoder::DecodingResult::U16(v) => Ok(v),
+            // TODO find better error
+            _ => Err(ImageError::UnsupportedError("16bits only".to_string())),
+        }
+    }
+
+}
+
 /// Encoder for tiff images
 pub struct TiffEncoder<W> {
     w: W,
@@ -128,6 +140,17 @@ impl<W: Write + Seek> TiffEncoder<W> {
             ColorType::Gray(8) => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
             ColorType::RGB(8) => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
             ColorType::RGBA(8) => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
+            _ => return Err(ImageError::UnsupportedColor(color))
+        }
+
+        Ok(())
+    }
+
+
+    pub fn encode_16bits(self, data: &[u16], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;
+        match color {
+            ColorType::Gray(16) => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, data)?,
             _ => return Err(ImageError::UnsupportedColor(color))
         }
 

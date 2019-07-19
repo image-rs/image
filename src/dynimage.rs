@@ -924,6 +924,8 @@ fn save_buffer_u16_impl(
     match &*ext {
         #[cfg(feature = "png_codec")]
         "png" => save_buffer_u16_with_format_impl(path, buf, width, height, color, ImageFormat::PNG),
+        #[cfg(feature = "tiff")]
+        "tiff" => save_buffer_u16_with_format_impl(path, buf, width, height, color, ImageFormat::TIFF),
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],
@@ -963,6 +965,8 @@ fn save_buffer_u16_with_format_impl(
        
             png::PNGEncoder::new(fout).encode(&data_u8, width, height, color)
         }
+        #[cfg(feature = "tiff")]
+        image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout).encode_16bits(buf, width, height, color).map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             &format!("Unsupported image format image/{:?}", format)[..],

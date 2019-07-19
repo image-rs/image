@@ -49,6 +49,7 @@ pub use image::ImageOutputFormat;
 pub use buffer::{ConvertBuffer,
                  GrayAlphaImage,
                  GrayImage,
+                 Gray16Image,
                  // Image types
                  ImageBuffer,
                  Pixel,

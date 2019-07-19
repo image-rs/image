@@ -433,6 +433,11 @@ pub trait ImageDecoder<'a>: Sized {
     }
 }
 
+/// Trait to read image as 16 bits.
+pub trait Image16bitsDecoder<'a>: ImageDecoder<'a> {
+    fn read_16bits_image(self) -> ImageResult<Vec<u16>>;
+}
+
 /// ImageDecoderExt trait
 pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
     /// Read a rectangular section of the image.

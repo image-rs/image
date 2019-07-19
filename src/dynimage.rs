@@ -4,7 +4,6 @@ use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
 use std::path::Path;
 use std::u32;
-use byteorder::{BigEndian, WriteBytesExt};
 
 #[cfg(feature = "bmp")]
 use bmp;
@@ -799,7 +798,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         #[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        "png" => png::PNGDecoder::new(fin)?.dimensions(),
+        "png" => png::PNGDecoder::with_strip_16(fin)?.dimensions(),
         #[cfg(feature = "gif_codec")]
         "gif" => gif::Decoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
@@ -954,17 +953,7 @@ fn save_buffer_u16_with_format_impl(
     let fout = &mut BufWriter::new(File::create(path)?);
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => {
-            // PNG should be big endian.
-            // Iterate over the image. That's not really efficient. Can we do it before?
-            let final_size: usize = (2 * width * height) as usize;
-            let mut data_u8: Vec<u8> = Vec::with_capacity(final_size);
-            for b in buf {
-                data_u8.write_u16::<BigEndian>(*b)?;
-            }
-       
-            png::PNGEncoder::new(fout).encode(&data_u8, width, height, color)
-        }
+        image::ImageFormat::PNG => png::PNGEncoder::new(fout).encode_16bits(&buf, width, height, color),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout).encode_16bits(buf, width, height, color).map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
         _ => Err(io::Error::new(
@@ -1036,7 +1025,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::new(r)?),
+        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::with_strip_16(r)?),
         #[cfg(feature = "gif_codec")]
         image::ImageFormat::GIF => decoder_to_image(gif::Decoder::new(r)?),
         #[cfg(feature = "jpeg")]

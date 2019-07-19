@@ -30,6 +30,5 @@ fn main() {
     println!("dimensions {:?}", im.dimensions());
 
     let thumbnail = thumbnail(&im, 200, 200);
-    println!("SAVING TIFF");
     thumbnail.save("somewhereelse.tiff").unwrap();
 }

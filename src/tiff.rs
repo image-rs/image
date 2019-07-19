@@ -146,7 +146,9 @@ impl<W: Write + Seek> TiffEncoder<W> {
         Ok(())
     }
 
-
+    /// Encodes the image `image`
+    /// that has dimensions `width` and `height`
+    /// and `ColorType` `c`.
     pub fn encode_16bits(self, data: &[u16], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;
         match color {

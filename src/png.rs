@@ -12,7 +12,7 @@ use std::io::{self, Read, Write};
 
 use color::ColorType;
 use image::{ImageDecoder, Image16bitsDecoder, ImageError, ImageResult};
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 /// PNG Reader
 ///
@@ -104,8 +104,23 @@ impl<R: Read> PNGDecoder<R> {
         let mut decoder = png::Decoder::new_with_limits(r, limits);
         // override defaut transformations. by default, SCALE_16 and STRIP_16 would
         // convert 16-bits to 8-bits images. Here we keep EXPAND that will
-        // convert 4-bits image to 8-bits image
+        // convert 4-bits image to 8-bits image.
         decoder.set(png::Transformations::EXPAND);
+        let (_, mut reader) = decoder.read_info()?;
+        let colortype = reader.output_color_type().into();
+
+        Ok(PNGDecoder { colortype, reader })
+    }
+
+    /// Create a decoder that will decode PNG to 8-bits image. This is the default
+    /// behavior of ```png::Decoder`` but does not allow to read 16bits image.
+    ///
+    /// Keep for compatibility with previous version
+    pub fn with_strip_16(r: R) -> ImageResult<PNGDecoder<R>> {
+        let limits = png::Limits {
+            pixels: std::u64::MAX,
+        };
+        let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
         let colortype = reader.output_color_type().into();
 
@@ -178,6 +193,19 @@ impl<W: Write> PNGEncoder<W> {
         encoder.set_depth(bits);
         let mut writer = try!(encoder.write_header());
         writer.write_image_data(data).map_err(|e| e.into())
+    }
+
+    /// Encodes the image ```image``` that has dimensions ```width``` and ```height```
+    /// and ```ColorType``` ```color```. ```data``` is a 16-bits buffer.
+    pub fn encode_16bits(self, data: &[u16], width: u32, height: u32, color: ColorType) -> io::Result<()> {
+         // PNG should be big endian.
+         // Iterate over the image. That's not really efficient. Can we do it before?
+         let final_size: usize = (2 * width * height) as usize;
+         let mut data_u8 = vec![0u8; final_size];
+         for b in data {
+            data_u8.write_u16::<BigEndian>(*b)?;
+         }
+         self.encode(&data_u8, width, height, color)
     }
 }
 

@@ -153,7 +153,7 @@ impl DirEntry {
         try!(self.seek_to_start(&mut r));
 
         if is_png {
-            Ok(PNG(PNGDecoder::new(r)?))
+            Ok(PNG(PNGDecoder::with_strip_16(r)?))
         } else {
             Ok(BMP(BMPDecoder::new_with_ico_format(r)?))
         }

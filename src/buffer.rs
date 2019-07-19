@@ -8,8 +8,7 @@ use std::slice::{Chunks, ChunksMut};
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_u16, save_buffer_with_format, save_buffer_u16_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat, ImageError, ImageResult, ImageDecoder, Image16bitsDecoder};
-use byteorder::{ReadBytesExt, BigEndian};
+use image::{GenericImage, GenericImageView, ImageFormat, ImageError, ImageResult, Image16bitsDecoder};
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -1117,7 +1116,6 @@ impl Gray16Image {
     /// Load grayscale 16bits image from a decoder.
     pub fn from_decoder<'a, I: Image16bitsDecoder<'a>>(codec: I) -> ImageResult<Self> {
         let (w, h) = codec.dimensions();
-        let size = (w as usize) * (h as usize);
         let buf16 = codec.read_16bits_image()?;
         let (w, h) = (w as u32, h as u32);
 

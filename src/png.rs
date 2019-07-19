@@ -201,7 +201,7 @@ impl<W: Write> PNGEncoder<W> {
          // PNG should be big endian.
          // Iterate over the image. That's not really efficient. Can we do it before?
          let final_size: usize = (2 * width * height) as usize;
-         let mut data_u8 = vec![0u8; final_size];
+         let mut data_u8 = Vec::with_capacity(final_size);
          for b in data {
             data_u8.write_u16::<BigEndian>(*b)?;
          }

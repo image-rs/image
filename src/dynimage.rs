@@ -492,7 +492,7 @@ impl DynamicImage {
                     },
                     _ => {},
                 }
-                try!(p.encode(&bytes, width, height, color));
+                p.encode(&bytes, width, height, color)?;
                 Ok(())
             }
             #[cfg(feature = "pnm")]
@@ -509,14 +509,14 @@ impl DynamicImage {
                     },
                     _ => {},
                 }
-                try!(p.encode(&bytes[..], width, height, color));
+                p.encode(&bytes[..], width, height, color)?;
                 Ok(())
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::JPEG(quality) => {
                 let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
 
-                try!(j.encode(&bytes, width, height, color));
+                j.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -536,14 +536,14 @@ impl DynamicImage {
             image::ImageOutputFormat::ICO => {
                 let i = ico::ICOEncoder::new(w);
 
-                try!(i.encode(&bytes, width, height, color));
+                i.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "bmp")]
             image::ImageOutputFormat::BMP => {
                 let mut b = bmp::BMPEncoder::new(w);
-                try!(b.encode(&bytes, width, height, color));
+                b.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -643,7 +643,7 @@ impl GenericImage for DynamicImage {
 pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
     let color = codec.colortype();
     let (w, h) = codec.dimensions();
-    let buf = try!(codec.read_image());
+    let buf = codec.read_image()?;
 
     // TODO: Avoid this cast by having ImageBuffer use u64's
     assert!(w <= u32::max_value() as u64);
@@ -857,7 +857,7 @@ fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> io::Result<()> {
-    let fout = &mut BufWriter::new(try!(File::create(path)));
+    let fout = &mut BufWriter::new(File::create(path)?);
     let ext = path.extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());

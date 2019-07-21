@@ -280,7 +280,7 @@ impl<W: Write> Encoder<W> {
             result = encoder.write_frame(frame).map_err(|err| err.into());
         } else {
             let writer = self.w.take().unwrap();
-            let mut encoder = try!(gif::Encoder::new(writer, frame.width, frame.height, &[]));
+            let mut encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])?;
             result = encoder.write_frame(&frame).map_err(|err| err.into());
             self.gif_encoder = Some(encoder);
         }

@@ -25,7 +25,7 @@ pub struct HDRAdapter<R: BufRead> {
 impl<R: BufRead> HDRAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = try!(HDRDecoder::new(r));
+        let decoder = HDRDecoder::new(r)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -36,7 +36,7 @@ impl<R: BufRead> HDRAdapter<R> {
 
     /// Allows reading old Radiance HDR images
     pub fn new_nonstrict(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = try!(HDRDecoder::with_strictness(r, false));
+        let decoder = HDRDecoder::with_strictness(r, false)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -246,21 +246,21 @@ impl<R: BufRead> HDRDecoder<R> {
             let r = &mut reader;
             if strict {
                 let mut signature = [0; SIGNATURE_LENGTH];
-                try!(r.read_exact(&mut signature));
+                r.read_exact(&mut signature)?;
                 if signature != SIGNATURE {
                     return Err(ImageError::FormatError(
                         "Radiance HDR signature not found".to_string(),
                     ));
                 } // no else
                   // skip signature line ending
-                try!(read_line_u8(r));
+                read_line_u8(r)?;
             } else {
                 // Old Radiance HDR files (*.pic) don't use signature
                 // Let them be parsed in non-strict mode
             }
             // read header data until empty line
             loop {
-                match try!(read_line_u8(r)) {
+                match read_line_u8(r)? {
                     None => {
                         // EOF before end of header
                         return Err(ImageError::FormatError("EOF in header".into()));
@@ -276,20 +276,20 @@ impl<R: BufRead> HDRDecoder<R> {
                         } // no else
                           // process attribute line
                         let line = String::from_utf8_lossy(&line[..]);
-                        try!(attributes.update_header_info(&line, strict));
+                        attributes.update_header_info(&line, strict)?;
                     } // <= Some(line)
                 } // match read_line_u8()
             } // loop
         } // scope to end borrow of reader
           // parse dimensions
-        let (width, height) = match try!(read_line_u8(&mut reader)) {
+        let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions
                 return Err(ImageError::FormatError("EOF in dimensions line".into()));
             }
             Some(dimensions) => {
                 let dimensions = String::from_utf8_lossy(&dimensions[..]);
-                try!(parse_dimensions_line(&dimensions, strict))
+                parse_dimensions_line(&dimensions, strict)?
             }
         };
 
@@ -321,7 +321,7 @@ impl<R: BufRead> HDRDecoder<R> {
         let pixel_count = self.width as usize * self.height as usize;
         let mut ret = vec![Default::default(); pixel_count];
         for chunk in ret.chunks_mut(self.width as usize) {
-            try!(read_scanline(&mut self.r, chunk));
+            read_scanline(&mut self.r, chunk)?;
         }
         Ok(ret)
     }
@@ -345,7 +345,7 @@ impl<R: BufRead> HDRDecoder<R> {
         try!(pool.scoped(|scope| {
             for chunk in chunks_iter {
                 let mut buf = vec![Default::default(); self.width as usize];
-                try!(read_scanline(&mut self.r, &mut buf[..]));
+                read_scanline(&mut self.r, &mut buf[..])?;
                 let f = &f;
                 scope.execute(move || {
                     for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
@@ -472,18 +472,18 @@ fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<(
     assert!(!buf.is_empty());
     let width = buf.len();
     // first 4 bytes in scanline allow to determine compression method
-    let fb = try!(read_rgbe(r));
+    let fb = read_rgbe(r)?;
     if fb.c[0] == 2 && fb.c[1] == 2 && fb.c[2] < 128 {
         // denormalized pixel value (2,2,<128,_) indicates new per component RLE method
         // decode_component guarantees that offset is within 0 .. width
         // therefore we can skip bounds checking here, but we will not
-        try!(decode_component(r, width, |offset, value| buf[offset].c[0] = value));
-        try!(decode_component(r, width, |offset, value| buf[offset].c[1] = value));
-        try!(decode_component(r, width, |offset, value| buf[offset].c[2] = value));
-        try!(decode_component(r, width, |offset, value| buf[offset].e = value));
+        decode_component(r, width, |offset, value| buf[offset].c[0] = value)?;
+        decode_component(r, width, |offset, value| buf[offset].c[1] = value)?;
+        decode_component(r, width, |offset, value| buf[offset].c[2] = value)?;
+        decode_component(r, width, |offset, value| buf[offset].e = value)?;
     } else {
         // old RLE method (it was considered old around 1991, should it be here?)
-        try!(decode_old_rle(r, fb, buf));
+        decode_old_rle(r, fb, buf)?;
     }
     Ok(())
 }
@@ -491,7 +491,7 @@ fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [RGBE8Pixel]) -> ImageResult<(
 #[inline(always)]
 fn read_byte<R: BufRead>(r: &mut R) -> io::Result<u8> {
     let mut buf = [0u8];
-    try!(r.read_exact(&mut buf[..]));
+    r.read_exact(&mut buf[..])?;
     Ok(buf[0])
 }
 
@@ -507,7 +507,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
     while pos < width {
         // increment position by a number of decompressed values
         pos += {
-            let rl = try!(read_byte(r));
+            let rl = read_byte(r)?;
             if rl <= 128 {
                 // sanity check
                 if pos + rl as usize > width {
@@ -516,7 +516,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
                     ));
                 }
                 // read values
-                try!(r.read_exact(&mut buf[0..rl as usize]));
+                r.read_exact(&mut buf[0..rl as usize])?;
                 for (offset, &value) in buf[0..rl as usize].iter().enumerate() {
                     set_component(pos + offset, value);
                 }
@@ -531,7 +531,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
                     ));
                 }
                 // fill with same value
-                let value = try!(read_byte(r));
+                let value = read_byte(r)?;
                 for offset in 0..rl as usize {
                     set_component(pos + offset, value);
                 }
@@ -580,7 +580,7 @@ fn decode_old_rle<R: BufRead>(
     let mut rl_mult = 1; // current run length multiplier
     let mut prev_pixel = fb;
     while x_off < width {
-        let pix = try!(read_rgbe(r));
+        let pix = read_rgbe(r)?;
         // it's harder to forget to increase x_off if I write this this way.
         x_off += {
             if let Some(rl) = rl_marker(pix) {
@@ -616,7 +616,7 @@ fn decode_old_rle<R: BufRead>(
 
 fn read_rgbe<R: BufRead>(r: &mut R) -> io::Result<RGBE8Pixel> {
     let mut buf = [0u8; 4];
-    try!(r.read_exact(&mut buf[..]));
+    r.read_exact(&mut buf[..])?;
     Ok(RGBE8Pixel {c: [buf[0], buf[1], buf[2]], e: buf[3] })
 }
 
@@ -805,8 +805,8 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
         ("-Y", "+X") => {
             // Common orientation (left-right, top-down)
             // c1_str is height, c2_str is width
-            let height = try!(c1_str.parse::<u32>().into_image_error(err));
-            let width = try!(c2_str.parse::<u32>().into_image_error(err));
+            let height = c1_str.parse::<u32>().into_image_error(err)?;
+            let width = c2_str.parse::<u32>().into_image_error(err)?;
             Ok((width, height))
         }
         _ => Err(ImageError::FormatError(format!(
@@ -917,17 +917,17 @@ pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>
     use std::fs::File;
     use std::io::BufReader;
 
-    let mut r = BufReader::new(try!(File::open(path)));
-    let w = try!(r.read_u32::<LE>()) as usize;
-    let h = try!(r.read_u32::<LE>()) as usize;
-    let c = try!(r.read_u32::<LE>()) as usize;
+    let mut r = BufReader::new(File::open(path)?);
+    let w = r.read_u32::<LE>()? as usize;
+    let h = r.read_u32::<LE>()? as usize;
+    let c = r.read_u32::<LE>()? as usize;
     assert_eq!(c, 3);
     let cnt = w * h;
     let mut ret = Vec::with_capacity(cnt);
     for _ in 0..cnt {
-        let cr = try!(r.read_f32::<LE>());
-        let cg = try!(r.read_f32::<LE>());
-        let cb = try!(r.read_f32::<LE>());
+        let cr = r.read_f32::<LE>()?;
+        let cg = r.read_f32::<LE>()?;
+        let cb = r.read_f32::<LE>()?;
         ret.push(Rgb([cr, cg, cb]));
     }
     Ok(ret)

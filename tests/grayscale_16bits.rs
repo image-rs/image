@@ -6,7 +6,10 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+
+#[cfg(feature = "png")]
 use image::png::PNGDecoder;
+
 use image::{ImageBuffer, Gray16Image, ImageResult};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];

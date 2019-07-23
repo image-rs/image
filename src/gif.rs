@@ -85,7 +85,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
     }
 
     fn colortype(&self) -> color::ColorType {
-        color::ColorType::RGBA(8)
+        color::ColorType::RGBA
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -212,7 +212,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // frame need to be used
         for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
             let previous_img_buffer = &self.non_disposed_frame;
-            let mut adjusted_pixel: &mut Rgba<u8> = pixel;
+            let adjusted_pixel: &mut Rgba<u8> = pixel;
             let previous_pixel: &Rgba<u8> = previous_img_buffer.get_pixel(x, y);
 
             let pixel_alpha = adjusted_pixel.channels()[3];

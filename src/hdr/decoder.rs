@@ -91,7 +91,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn colortype(&self) -> ColorType {
-        ColorType::RGB(8)
+        ColorType::RGB
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

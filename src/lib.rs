@@ -25,7 +25,7 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use color::ColorType::{self, Gray, GrayA, Palette, RGB, RGBA, BGR, BGRA};
+pub use color::ColorType;
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 

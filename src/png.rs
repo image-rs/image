@@ -152,7 +152,22 @@ impl<W: Write> PNGEncoder<W> {
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
-        let (ct, bits) = color.into();
+        let (ct, bits) = match color {
+            ColorType::L1 => (png::ColorType::Grayscale, png::BitDepth::One),
+            ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
+            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::LA => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
+            ColorType::LA16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::RGB => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::RGB16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
+            ColorType::RGBA => (png::ColorType::RGBA, png::BitDepth::Eight),
+            ColorType::RGBA16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::BGR => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::BGRA => (png::ColorType::RGBA, png::BitDepth::Eight),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                           "Unsupported color type".to_owned())),
+        };
+
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
@@ -164,30 +179,22 @@ impl<W: Write> PNGEncoder<W> {
 impl From<(png::ColorType, png::BitDepth)> for ColorType {
     fn from((ct, bits): (png::ColorType, png::BitDepth)) -> ColorType {
         use self::png::ColorType::*;
-        let bits = bits as u8;
-        match ct {
-            Grayscale => ColorType::Gray(bits),
-            RGB => ColorType::RGB(bits),
-            Indexed => ColorType::Palette(bits),
-            GrayscaleAlpha => ColorType::GrayA(bits),
-            RGBA => ColorType::RGBA(bits),
+        match (ct, bits as u8) {
+            (Grayscale, 1) => ColorType::L1,
+            (Grayscale, 8) => ColorType::L8,
+            (Grayscale, 16) => ColorType::L16,
+            (Grayscale, n) => ColorType::Unknown(n),
+            (GrayscaleAlpha, 8) => ColorType::LA,
+            (GrayscaleAlpha, 16) => ColorType::LA16,
+            (GrayscaleAlpha, n) => ColorType::Unknown(n*2),
+            (RGB, 8) => ColorType::RGB,
+            (RGB, 16) => ColorType::RGB16,
+            (RGB, n) => ColorType::Unknown(n*3),
+            (RGBA, 8) => ColorType::RGBA,
+            (RGBA, 16) => ColorType::RGBA16,
+            (RGBA, n) => ColorType::Unknown(n*4),
+            (Indexed, bits) => ColorType::Unknown(bits),
         }
-    }
-}
-
-impl From<ColorType> for (png::ColorType, png::BitDepth) {
-    fn from(ct: ColorType) -> (png::ColorType, png::BitDepth) {
-        use self::png::ColorType::*;
-        let (ct, bits) = match ct {
-            ColorType::Gray(bits) => (Grayscale, bits),
-            ColorType::RGB(bits) => (RGB, bits),
-            ColorType::Palette(bits) => (Indexed, bits),
-            ColorType::GrayA(bits) => (GrayscaleAlpha, bits),
-            ColorType::RGBA(bits) => (RGBA, bits),
-            ColorType::BGRA(bits) => (RGBA, bits),
-            ColorType::BGR(bits) => (RGB, bits),
-        };
-        (ct, png::BitDepth::from_u8(bits).unwrap())
     }
 }
 

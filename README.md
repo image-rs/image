@@ -249,7 +249,7 @@ fn main() {
     let buffer: &[u8] = unimplemented!(); // Generate the image data
 
     // Save the buffer as "image.png"
-    image::save_buffer("image.png", buffer, 800, 600, image::RGB(8)).unwrap()
+    image::save_buffer("image.png", buffer, 800, 600, image::ColorType::RGB).unwrap()
 }
 
 ```

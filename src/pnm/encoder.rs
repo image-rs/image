@@ -171,12 +171,12 @@ impl<W: Write> PNMEncoder<W> {
             ColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
             ColorType::L16 => (0xffff, ArbitraryTuplType::Grayscale),
-            ColorType::LA => (0xff, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::LA16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB => (0xff, ArbitraryTuplType::RGB),
-            ColorType::RGB16 => (0xffff, ArbitraryTuplType::RGB),
-            ColorType::RGBA => (0xff, ArbitraryTuplType::RGBAlpha),
-            ColorType::RGBA16 => (0xffff, ArbitraryTuplType::RGBAlpha),
+            ColorType::La8 => (0xff, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::La16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::Rgb8 => (0xff, ArbitraryTuplType::RGB),
+            ColorType::Rgb16 => (0xffff, ArbitraryTuplType::RGB),
+            ColorType::Rgba8 => (0xff, ArbitraryTuplType::RGBAlpha),
+            ColorType::Rgba16 => (0xffff, ArbitraryTuplType::RGBAlpha),
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -212,7 +212,7 @@ impl<W: Write> PNMEncoder<W> {
             (PNMSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
             }
-            (PNMSubtype::Pixmap(encoding), ColorType::RGB) => PNMHeader {
+            (PNMSubtype::Pixmap(encoding), ColorType::Rgb8) => PNMHeader {
                 decoded: HeaderRecord::Pixmap(PixmapHeader {
                     encoding,
                     width,
@@ -360,11 +360,11 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
-                ColorType::RGB => (),
+                ColorType::Rgb8 => (),
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PPM format only support ColorType::RGB",
+                        "PPM format only support ColorType::Rgb8",
                     ))
                 }
             },
@@ -378,15 +378,15 @@ impl<'a> CheckedDimensions<'a> {
                 ..
             } => match (tupltype, color) {
                 (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::L1) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::LA) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::La8) => (),
 
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::L1) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::L8) => (),
                 (&Some(ArbitraryTuplType::Grayscale), ColorType::L16) => (),
-                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::LA) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::La8) => (),
 
-                (&Some(ArbitraryTuplType::RGB), ColorType::RGB) => (),
-                (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA) => (),
+                (&Some(ArbitraryTuplType::RGB), ColorType::Rgb8) => (),
+                (&Some(ArbitraryTuplType::RGBAlpha), ColorType::Rgba8) => (),
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
@@ -433,16 +433,16 @@ impl<'a> CheckedHeaderColor<'a> {
             ColorType::Unknown(n) => (1 << n) - 1,
             ColorType::L1 => 1,
             ColorType::L8
-            | ColorType::LA
-            | ColorType::RGB
-            | ColorType::RGBA
-            | ColorType::BGR
-            | ColorType::BGRA
+            | ColorType::La8
+            | ColorType::Rgb8
+            | ColorType::Rgba8
+            | ColorType::Bgr8
+            | ColorType::Bgra8
                 => 0xff,
             ColorType::L16
-            | ColorType::LA16
-            | ColorType::RGB16
-            | ColorType::RGBA16
+            | ColorType::La16
+            | ColorType::Rgb16
+            | ColorType::Rgba16
                 => 0xffff,
             ColorType::__Nonexhaustive => unreachable!(),
         };

@@ -13,25 +13,25 @@ pub enum ColorType {
     /// Pixel is 8-bit luminance
     L8,
     /// Pixel is 8-bit luminance with an alpha channel
-    LA,
+    La8,
     /// Pixel contains 8-bit R, G and B channels
-    RGB,
+    Rgb8,
     /// Pixel is 8-bit RGB with an alpha channel
-    RGBA,
+    Rgba8,
 
     /// Pixel is 16-bit luminance
     L16,
     /// Pixel is 16-bit luminance with an alpha channel
-    LA16,
+    La16,
     /// Pixel is 16-bit RGB
-    RGB16,
+    Rgb16,
     /// Pixel is 16-bit RGBA
-    RGBA16,
+    Rgba16,
 
     /// Pixel contains 8-bit B, G and R channels
-    BGR,
+    Bgr8,
     /// Pixel is 8-bit BGR with an alpha channel
-    BGRA,
+    Bgra8,
 
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
@@ -48,11 +48,11 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
         ColorType::L1 => 1,
         ColorType::L8 => 8,
         ColorType::L16 => 16,
-        ColorType::LA => 16,
-        ColorType::RGB | ColorType::BGR => 24,
-        ColorType::RGBA | ColorType::BGRA | ColorType::LA16 => 32,
-        ColorType::RGB16 => 48,
-        ColorType::RGBA16 => 64,
+        ColorType::La8 => 16,
+        ColorType::Rgb8 | ColorType::Bgr8 => 24,
+        ColorType::Rgba8 | ColorType::Bgra8 | ColorType::La16 => 32,
+        ColorType::Rgb16 => 48,
+        ColorType::Rgba16 => 64,
         ColorType::Unknown(n) => n as usize,
         ColorType::__Nonexhaustive => unreachable!(),
     }
@@ -62,9 +62,9 @@ pub fn bits_per_pixel(c: ColorType) -> usize {
 pub fn num_components(c: ColorType) -> usize {
     match c {
         ColorType::Unknown(_) | ColorType::L1 | ColorType::L8 | ColorType::L16 => 1,
-        ColorType::LA | ColorType::LA16 => 2,
-        ColorType::RGB | ColorType::RGB16| ColorType::BGR => 3,
-        ColorType::RGBA | ColorType::RGBA16 | ColorType::BGRA => 4,
+        ColorType::La8 | ColorType::La16 => 2,
+        ColorType::Rgb8 | ColorType::Rgb16| ColorType::Bgr8 => 3,
+        ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Bgra8 => 4,
         ColorType::__Nonexhaustive => unreachable!(),
     }
 }
@@ -232,12 +232,12 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", ColorType::RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", ColorType::BGR, #[doc = "BGR colors"];
+    Rgb, 3, 0, "RGB", ColorType::Rgb8, #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::Bgr8, #[doc = "BGR colors"];
     Luma, 1, 0, "Y", ColorType::L8, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", ColorType::RGBA, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", ColorType::BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ColorType::LA, #[doc = "Grayscale colors + alpha channel"];
+    Rgba, 4, 1, "RGBA", ColorType::Rgba8, #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::Bgra8, #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::La8, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

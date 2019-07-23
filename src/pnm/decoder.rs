@@ -494,8 +494,8 @@ impl TupleType {
             BWBit => ColorType::L1,
             GrayU8 => ColorType::L8,
             GrayU16 => ColorType::L16,
-            RGBU8 => ColorType::RGB,
-            RGBU16 => ColorType::RGB16,
+            RGBU8 => ColorType::Rgb8,
+            RGBU16 => ColorType::Rgb16,
         }
     }
 }
@@ -711,9 +711,9 @@ impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
             None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::LA)),
+            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::La8)),
             None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::RGBA)),
+            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::Rgba8)),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)
@@ -746,10 +746,10 @@ impl DecodableImageHeader for ArbitraryHeader {
                 "Unsupported colortype: BlackAndWhiteAlpha".to_string()
             )),
             Some(ArbitraryTuplType::GrayscaleAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::LA))
+                Err(ImageError::UnsupportedColor(ColorType::La8))
             }
             Some(ArbitraryTuplType::RGBAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::RGBA))
+                Err(ImageError::UnsupportedColor(ColorType::Rgba8))
             }
             _ => Err(ImageError::FormatError(
                 "Tuple type not recognized".to_string(),
@@ -854,7 +854,7 @@ HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::RGB);
+        assert_eq!(decoder.colortype(), ColorType::Rgb8);
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 

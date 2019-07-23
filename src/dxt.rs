@@ -49,8 +49,8 @@ impl DXTVariant {
     /// Returns the colortype that is stored in this DXT variant
     pub fn colortype(self) -> ColorType {
         match self {
-            DXTVariant::DXT1 => ColorType::RGB,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::RGBA,
+            DXTVariant::DXT1 => ColorType::Rgb8,
+            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
         }
     }
 }

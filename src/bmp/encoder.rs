@@ -83,16 +83,16 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::RGB => {
+            color::ColorType::Rgb8 => {
                 try!(self.encode_rgb(image, width, height, row_pad_size, 3))
             }
-            color::ColorType::RGBA => {
+            color::ColorType::Rgba8 => {
                 try!(self.encode_rgba(image, width, height, row_pad_size, 4))
             }
             color::ColorType::L8 => {
                 try!(self.encode_gray(image, width, height, row_pad_size, 1))
             }
-            color::ColorType::LA => {
+            color::ColorType::La8 => {
                 try!(self.encode_gray(image, width, height, row_pad_size, 2))
             }
             _ => {
@@ -225,10 +225,10 @@ fn get_unsupported_error_message(c: color::ColorType) -> String {
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).
 fn get_pixel_info(c: color::ColorType) -> io::Result<(u32, u32, u32)> {
     let sizes = match c {
-        color::ColorType::RGB => (BITMAPINFOHEADER_SIZE, 3, 0),
-        color::ColorType::RGBA => (BITMAPV4HEADER_SIZE, 4, 0),
+        color::ColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
+        color::ColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
         color::ColorType::L8 => (BITMAPINFOHEADER_SIZE, 1, 256),
-        color::ColorType::LA => (BITMAPINFOHEADER_SIZE, 1, 256),
+        color::ColorType::La8 => (BITMAPINFOHEADER_SIZE, 1, 256),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn round_trip_single_pixel_rgb() {
         let image = [255u8, 0, 0]; // single red pixel
-        let decoded = round_trip_image(&image, 1, 1, ColorType::RGB);
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgb8);
         assert_eq!(3, decoded.len());
         assert_eq!(255, decoded[0]);
         assert_eq!(0, decoded[1]);
@@ -274,14 +274,14 @@ mod tests {
     #[test]
     fn round_trip_single_pixel_rgba() {
         let image = [1, 2, 3, 4];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::RGBA);
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgba8);
         assert_eq!(&decoded[..], &image[..]);
     }
 
     #[test]
     fn round_trip_3px_rgb() {
         let image = [0u8; 3 * 3 * 3]; // 3x3 pixels, 3 bytes per pixel
-        let _decoded = round_trip_image(&image, 3, 3, ColorType::RGB);
+        let _decoded = round_trip_image(&image, 3, 3, ColorType::Rgb8);
     }
 
     #[test]
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn round_trip_graya() {
         let image = [0u8, 0, 1, 0, 2, 0]; // 3 pixels, each with an alpha channel
-        let decoded = round_trip_image(&image, 1, 3, ColorType::LA);
+        let decoded = round_trip_image(&image, 1, 3, ColorType::La8);
         // should be read back as 3 RGB pixels
         assert_eq!(9, decoded.len());
         assert_eq!(0, decoded[0]);

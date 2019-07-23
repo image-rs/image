@@ -184,7 +184,7 @@ impl<R: Read + Seek> TGADecoder<R> {
             has_loaded_metadata: false,
 
             image_type: ImageType::Unknown,
-            color_type: ColorType::L1,
+            color_type: ColorType::L8,
 
             header: Header::new(),
             color_map: None,

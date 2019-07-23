@@ -153,7 +153,6 @@ impl<W: Write> PNGEncoder<W> {
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
         let (ct, bits) = match color {
-            ColorType::L1 => (png::ColorType::Grayscale, png::BitDepth::One),
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
@@ -180,7 +179,6 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
     fn from((ct, bits): (png::ColorType, png::BitDepth)) -> ColorType {
         use self::png::ColorType::*;
         match (ct, bits as u8) {
-            (Grayscale, 1) => ColorType::L1,
             (Grayscale, 8) => ColorType::L8,
             (Grayscale, 16) => ColorType::L16,
             (Grayscale, n) => ColorType::Unknown(n),

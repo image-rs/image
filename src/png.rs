@@ -103,9 +103,8 @@ impl<R: Read> PNGDecoder<R> {
         };
         let mut decoder = png::Decoder::new_with_limits(r, limits);
         // override defaut transformations. by default, SCALE_16 and STRIP_16 would
-        // convert 16-bits to 8-bits images. Here we keep EXPAND that will
-        // convert 4-bits image to 8-bits image.
-        decoder.set_transformations(png::Transformations::EXPAND);
+        // convert 16-bits to 8-bits images. 
+        decoder.set_transformations(png::Transformations::IDENTITY);
         let (_, mut reader) = decoder.read_info()?;
         let colortype = reader.output_color_type().into();
 
@@ -163,10 +162,10 @@ impl<'a, R: 'a + Read> Image16bitsDecoder<'a> for PNGDecoder<R> {
         let (w, h) = self.dimensions();
         let size = (w as usize) * (h as usize);
         let buf = self.read_image()?;
-        
+
         let mut buf16 = vec![0; size];
         let mut rdr = std::io::Cursor::new(buf);
-        rdr.read_u16_into::<BigEndian>(&mut buf16).unwrap();
+        rdr.read_u16_into::<BigEndian>(&mut buf16)?;
 
         Ok(buf16)
     }

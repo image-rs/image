@@ -101,7 +101,7 @@ impl Header {
     }
 
     /// Load the header with values from the reader
-    fn from_reader(r: &mut Read) -> ImageResult<Header> {
+    fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
         Ok(Header {
             id_length: r.read_u8()?,
             map_type: r.read_u8()?,
@@ -128,7 +128,7 @@ struct ColorMap {
 
 impl ColorMap {
     pub fn from_reader(
-        r: &mut Read,
+        r: &mut dyn Read,
         start_offset: u16,
         num_entries: u16,
         bits_per_entry: u8,

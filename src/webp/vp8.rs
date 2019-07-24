@@ -1363,9 +1363,9 @@ impl<R: Read> VP8Decoder<R> {
                     continue;
                 }
 
-                literal @ DCT_1...DCT_4 => i16::from(literal),
+                literal @ DCT_1..=DCT_4 => i16::from(literal),
 
-                category @ DCT_CAT1...DCT_CAT6 => {
+                category @ DCT_CAT1..=DCT_CAT6 => {
                     let t = PROB_DCT_CAT[(category - DCT_CAT1) as usize];
 
                     let mut extra = 0i16;

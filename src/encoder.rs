@@ -232,8 +232,8 @@ impl<'a, W: Write> Drop for ChunkWriter<'a, W> {
 
 /// Streaming png writer
 ///
-/// This may may silently fail in the destructor so it is a good idea to call
-/// `finish` or `flush` before droping. 
+/// This may silently fail in the destructor, so it is a good idea to call
+/// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping. 
 pub struct StreamWriter<'a, W: Write> {
     writer: deflate::write::ZlibEncoder<ChunkWriter<'a, W>>,
     prev_buf: Vec<u8>,

@@ -212,7 +212,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // frame need to be used
         for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
             let previous_img_buffer = &self.non_disposed_frame;
-            let mut adjusted_pixel: &mut Rgba<u8> = pixel;
+            let adjusted_pixel: &mut Rgba<u8> = pixel;
             let previous_pixel: &Rgba<u8> = previous_img_buffer.get_pixel(x, y);
 
             let pixel_alpha = adjusted_pixel.channels()[3];
@@ -280,7 +280,7 @@ impl<W: Write> Encoder<W> {
             result = encoder.write_frame(frame).map_err(|err| err.into());
         } else {
             let writer = self.w.take().unwrap();
-            let mut encoder = try!(gif::Encoder::new(writer, frame.width, frame.height, &[]));
+            let mut encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])?;
             result = encoder.write_frame(&frame).map_err(|err| err.into());
             self.gif_encoder = Some(encoder);
         }

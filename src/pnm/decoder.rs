@@ -29,7 +29,7 @@ trait Sample {
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32)
         -> ImageResult<Vec<u8>>;
 
-    fn from_ascii(reader: &mut Read, width: u32, height: u32, samples: u32)
+    fn from_ascii(reader: &mut dyn Read, width: u32, height: u32, samples: u32)
         -> ImageResult<Vec<u8>>;
 }
 
@@ -500,7 +500,7 @@ impl TupleType {
     }
 }
 
-fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
+fn read_separated_ascii<T: FromStr>(reader: &mut dyn Read) -> ImageResult<T>
     where T::Err: Display
 {
     let is_separator = |v: &u8| match *v {
@@ -547,7 +547,7 @@ impl Sample for U8 {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -580,7 +580,7 @@ impl Sample for U16 {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -614,7 +614,7 @@ impl Sample for PbmBit {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -668,7 +668,7 @@ impl Sample for BWBit {
     }
 
     fn from_ascii(
-        _reader: &mut Read,
+        _reader: &mut dyn Read,
         _width: u32,
         _height: u32,
         _samples: u32,

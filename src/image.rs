@@ -89,7 +89,7 @@ impl Error for ImageError {
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match *self {
             ImageError::IoError(ref e) => Some(e),
             _ => None,
@@ -778,8 +778,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::io;
 
-    use super::{GenericImage, GenericImageView};
+    use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect};
     use buffer::ImageBuffer;
     use color::Rgba;
 
@@ -852,11 +853,9 @@ mod tests {
 
     #[test]
     fn test_load_rect() {
-        use super::*;
-
         struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
         impl<'a> ImageDecoder<'a> for MockDecoder {
-            type Reader = Box<::std::io::Read>;
+            type Reader = Box<dyn io::Read>;
             fn dimensions(&self) -> (u64, u64) {(5, 5)}
             fn colortype(&self) -> ColorType {  ColorType::Gray(8) }
             fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}

@@ -640,7 +640,7 @@ impl GenericImage for DynamicImage {
 
 /// Decodes an image and stores it into a dynamic image
 pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
-    let color = codec.colortype();
+    let color = codec.color_type();
     let (w, h) = codec.dimensions();
     let buf = try!(codec.read_image());
 

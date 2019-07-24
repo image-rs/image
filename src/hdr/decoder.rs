@@ -90,7 +90,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
         (self.meta.width as u64, self.meta.height as u64)
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         ColorType::Rgb8
     }
 

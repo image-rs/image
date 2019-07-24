@@ -46,8 +46,8 @@ impl DXTVariant {
         }
     }
 
-    /// Returns the colortype that is stored in this DXT variant
-    pub fn colortype(self) -> ColorType {
+    /// Returns the color type that is stored in this DXT variant
+    pub fn color_type(self) -> ColorType {
         match self {
             DXTVariant::DXT1 => ColorType::Rgb8,
             DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
@@ -117,8 +117,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
         (self.width_blocks as u64 * 4, self.height_blocks as u64 * 4)
     }
 
-    fn colortype(&self) -> ColorType {
-        self.variant.colortype()
+    fn color_type(&self) -> ColorType {
+        self.variant.color_type()
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -200,7 +200,7 @@ impl<W: Write> DXTEncoder<W> {
     /// Encodes the image data ```data```
     /// that has dimensions ```width``` and ```height```
     /// in ```DXTVariant``` ```variant```
-    /// data is assumed to be in variant.colortype()
+    /// data is assumed to be in variant.color_type()
     pub fn encode(
         mut self,
         data: &[u8],

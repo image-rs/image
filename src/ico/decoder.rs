@@ -186,10 +186,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
         }
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         match self.inner_decoder {
-            BMP(ref decoder) => decoder.colortype(),
-            PNG(ref decoder) => decoder.colortype(),
+            BMP(ref decoder) => decoder.color_type(),
+            PNG(ref decoder) => decoder.color_type(),
         }
     }
 
@@ -216,7 +216,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                let color_type = decoder.colortype();
+                let color_type = decoder.color_type();
                 if let ColorType::Rgba8 = color_type {
                 } else {
                     return Err(ImageError::FormatError(
@@ -235,7 +235,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if decoder.colortype() != ColorType::Rgba8 {
+                if decoder.color_type() != ColorType::Rgba8 {
                     return Err(ImageError::UnsupportedError(
                         "Unsupported color type".to_string(),
                     ));

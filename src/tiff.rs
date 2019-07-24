@@ -21,7 +21,7 @@ pub struct TIFFDecoder<R>
     where R: Read + Seek
 {
     dimensions: (u32, u32),
-    colortype: ColorType,
+    color_type: ColorType,
     inner: tiff::decoder::Decoder<R>,
 }
 
@@ -32,11 +32,11 @@ impl<R> TIFFDecoder<R>
     pub fn new(r: R) -> Result<TIFFDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r)?;
         let dimensions = inner.dimensions()?;
-        let colortype = inner.colortype()?.into();
+        let color_type = inner.colortype()?.into();
 
         Ok(TIFFDecoder {
             dimensions,
-            colortype,
+            color_type,
             inner,
         })
     }
@@ -97,8 +97,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
         (self.dimensions.0 as u64, self.dimensions.1 as u64)
     }
 
-    fn colortype(&self) -> ColorType {
-        self.colortype
+    fn color_type(&self) -> ColorType {
+        self.color_type
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -128,7 +128,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
     /// that has dimensions `width` and `height`
     /// and `ColorType` `c`.
     ///
-    /// 16-bit colortypes are not yet supported.
+    /// 16-bit color types are not yet supported.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         // TODO: 16bit support
         let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;

@@ -32,7 +32,7 @@ https://docs.rs/image
 ### 2.2 The ```ImageDecoder``` Trait
 All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
 + **dimensions**: Return a tuple containing the width and height of the image
-+ **colortype**: Return the color type of the image.
++ **color_type**: Return the color type of the image.
 + **row_len**: Returns the length in bytes of one decoded row of the image
 + **read_scanline**: Read one row from the image into buf Returns the row index
 + **read_image**: Decode the entire image and return it as a Vector

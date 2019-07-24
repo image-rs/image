@@ -84,7 +84,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
         (self.reader.width() as u64, self.reader.height() as u64)
     }
 
-    fn colortype(&self) -> color::ColorType {
+    fn color_type(&self) -> color::ColorType {
         color::ColorType::Rgba8
     }
 

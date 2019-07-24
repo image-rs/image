@@ -276,7 +276,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
     let dimensions = decoder.dimensions();
     let row_bytes = decoder.row_bytes();
     let scanline_bytes = decoder.scanline_bytes();
-    let bits_per_pixel = color::bits_per_pixel(decoder.colortype()) as u64;
+    let bits_per_pixel = color::bits_per_pixel(decoder.color_type()) as u64;
     let total_bits = width * height * bits_per_pixel;
 
     let mut bits_read = 0u64;
@@ -366,11 +366,11 @@ pub trait ImageDecoder<'a>: Sized {
     fn dimensions(&self) -> (u64, u64);
 
     /// Returns the color type of the image data produced by this decoder
-    fn colortype(&self) -> ColorType;
+    fn color_type(&self) -> ColorType;
 
     /// Retuns the color type of the image file before decoding
-    fn original_colortype(&self) -> ExtendedColorType {
-        self.colortype().into()
+    fn original_color_type(&self) -> ExtendedColorType {
+        self.color_type().into()
     }
 
     /// Returns a reader that can be used to obtain the bytes of the image. For the best
@@ -381,7 +381,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns the number of bytes in a single row of the image. All decoders will pad image rows
     /// to a byte boundary.
     fn row_bytes(&self) -> u64 {
-        (self.dimensions().0 * color::bits_per_pixel(self.colortype()) as u64 + 7) / 8
+        (self.dimensions().0 * color::bits_per_pixel(self.color_type()) as u64 + 7) / 8
     }
 
     /// Returns the total number of bytes in the image.
@@ -863,7 +863,7 @@ mod tests {
         impl<'a> ImageDecoder<'a> for MockDecoder {
             type Reader = Box<::std::io::Read>;
             fn dimensions(&self) -> (u64, u64) {(5, 5)}
-            fn colortype(&self) -> ColorType {  ColorType::L8 }
+            fn color_type(&self) -> ColorType {  ColorType::L8 }
             fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
             fn scanline_bytes(&self) -> u64 { self.scanline_bytes }
         }

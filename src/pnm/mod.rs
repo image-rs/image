@@ -35,10 +35,10 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype();
+            let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
             let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, colortype, image)
+            (header, color_type, image)
         };
 
         assert_eq!(header.width(), width);
@@ -65,10 +65,10 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype();
+            let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
             let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, colortype, image)
+            (header, color_type, image)
         };
 
         assert_eq!(header.width(), width);
@@ -90,10 +90,10 @@ mod tests {
 
         let (header, loaded_color, loaded_image) = {
             let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
-            let colortype = decoder.colortype();
+            let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
             let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
-            (header, colortype, image)
+            (header, color_type, image)
         };
 
         let mut buffer_u8 = vec![0; buffer.len() * 2];

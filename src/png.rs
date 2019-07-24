@@ -90,7 +90,7 @@ impl<R: Read> Read for PNGReader<R> {
 
 /// PNG decoder
 pub struct PNGDecoder<R: Read> {
-    colortype: ColorType,
+    color_type: ColorType,
     reader: png::Reader<R>,
 }
 
@@ -102,9 +102,9 @@ impl<R: Read> PNGDecoder<R> {
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
-        let colortype = reader.output_color_type().into();
+        let color_type = reader.output_color_type().into();
 
-        Ok(PNGDecoder { colortype, reader })
+        Ok(PNGDecoder { color_type, reader })
     }
 }
 
@@ -116,8 +116,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
         (w as u64, h as u64)
     }
 
-    fn colortype(&self) -> ColorType {
-        self.colortype
+    fn color_type(&self) -> ColorType {
+        self.color_type
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

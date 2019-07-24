@@ -122,7 +122,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
         (self.frame.width as u64, self.frame.height as u64)
     }
 
-    fn colortype(&self) -> color::ColorType {
+    fn color_type(&self) -> color::ColorType {
         color::ColorType::L8
     }
 

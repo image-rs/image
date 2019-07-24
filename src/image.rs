@@ -26,7 +26,7 @@ pub enum ImageError {
     UnsupportedError(String),
 
     /// The Decoder does not support this color type
-    UnsupportedColor(ColorType),
+    UnsupportedColor(ExtendedColorType),
 
     /// Not enough data was provided to the Decoder
     /// to decode the image
@@ -274,52 +274,48 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
           F2: FnMut(&mut D, &mut [u8]) -> io::Result<usize>
 {
     let dimensions = decoder.dimensions();
-    let row_bytes = decoder.row_bytes();
+    let bytes_per_pixel = decoder.color_type().bytes_per_pixel() as u64;
+    let row_bytes = bytes_per_pixel * dimensions.0;
     let scanline_bytes = decoder.scanline_bytes();
-    let bits_per_pixel = color::bits_per_pixel(decoder.color_type()) as u64;
-    let total_bits = width * height * bits_per_pixel;
+    let total_bytes = width * height * bytes_per_pixel;
 
-    let mut bits_read = 0u64;
+    let mut bytes_read = 0u64;
     let mut current_scanline = 0;
     let mut tmp = Vec::new();
 
     {
-        // Read a range of the image starting from bit number `start` and continuing until bit
-        // number `end`. Updates `current_scanline` and `bits_read` appropiately.
+        // Read a range of the image starting from byte number `start` and continuing until byte
+        // number `end`. Updates `current_scanline` and `bytes_read` appropiately.
         let mut read_image_range = |start: u64, end: u64| -> ImageResult<()> {
-            let target_scanline = start / (scanline_bytes * 8);
+            let target_scanline = start / scanline_bytes;
             if target_scanline != current_scanline {
                 seek_scanline(decoder, target_scanline)?;
                 current_scanline = target_scanline;
             }
 
-            let mut position = current_scanline * scanline_bytes * 8;
+            let mut position = current_scanline * scanline_bytes;
             while position < end {
-                if position >= start && end - position >= scanline_bytes * 8 && bits_read % 8 == 0 {
-                    read_scanline(decoder, &mut buf[((bits_read/8) as usize)..]
+                if position >= start && end - position >= scanline_bytes {
+                    read_scanline(decoder, &mut buf[(bytes_read as usize)..]
                                                    [..(scanline_bytes as usize)])?;
-                    bits_read += scanline_bytes * 8;
+                    bytes_read += scanline_bytes;
                 } else {
                     tmp.resize(scanline_bytes as usize, 0u8);
                     read_scanline(decoder, &mut tmp)?;
 
                     let offset = start.saturating_sub(position);
                     let len = (end - start)
-                        .min(scanline_bytes * 8 - offset)
+                        .min(scanline_bytes - offset)
                         .min(end - position);
-                    if bits_read % 8 == 0 && offset % 8 == 0 && len % 8 == 0 {
-                        let o = (offset / 8) as usize;
-                        let l = (len / 8) as usize;
-                        buf[((bits_read/8) as usize)..][..l].copy_from_slice(&tmp[o..][..l]);
-                        bits_read += len;
-                    } else {
-                        unimplemented!("Target rectangle not aligned on byte boundaries")
-                    }
+
+                    buf[(bytes_read as usize)..][..len as usize]
+                        .copy_from_slice(&tmp[offset as usize..][..len as usize]);
+                    bytes_read += len;
                 }
 
                 current_scanline += 1;
-                position += scanline_bytes * 8;
-                progress_callback(Progress {current: bits_read, total: total_bits});
+                position += scanline_bytes;
+                progress_callback(Progress {current: bytes_read, total: total_bytes});
             }
             Ok(())
         };
@@ -332,15 +328,15 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
             return Err(ImageError::InsufficientMemory);
         }
 
-        progress_callback(Progress {current: 0, total: total_bits});
+        progress_callback(Progress {current: 0, total: total_bytes});
         if x == 0 && width == dimensions.0 {
-            let start = x * bits_per_pixel + y * row_bytes * 8;
-            let end = (x + width) * bits_per_pixel + (y + height - 1) * row_bytes * 8;
+            let start = x * bytes_per_pixel + y * row_bytes;
+            let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
             read_image_range(start, end)?;
         } else {
             for row in y..(y+height) {
-                let start = x * bits_per_pixel + row * row_bytes * 8;
-                let end = (x + width) * bits_per_pixel + row * row_bytes * 8;
+                let start = x * bytes_per_pixel + row * row_bytes;
+                let end = (x + width) * bytes_per_pixel + row * row_bytes;
                 read_image_range(start, end)?;
             }
         }
@@ -378,15 +374,9 @@ pub trait ImageDecoder<'a>: Sized {
     /// fewer bytes will cause the reader to perform internal buffering.
     fn into_reader(self) -> ImageResult<Self::Reader>;
 
-    /// Returns the number of bytes in a single row of the image. All decoders will pad image rows
-    /// to a byte boundary.
-    fn row_bytes(&self) -> u64 {
-        (self.dimensions().0 * color::bits_per_pixel(self.color_type()) as u64 + 7) / 8
-    }
-
-    /// Returns the total number of bytes in the image.
+    /// Returns the total number of bytes in the decoded image.
     fn total_bytes(&self) -> u64 {
-        self.dimensions().1 * self.row_bytes()
+        self.dimensions().0 * self.dimensions().1 * self.color_type().bytes_per_pixel() as u64
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may

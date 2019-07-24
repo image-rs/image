@@ -510,7 +510,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
-        self.row_bytes()
+        self.color_type.bytes_per_pixel() as u64 * self.width as u64
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

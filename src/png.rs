@@ -10,7 +10,7 @@ extern crate png;
 
 use std::io::{self, Read, Write};
 
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageError, ImageResult};
 
 /// PNG Reader
@@ -102,7 +102,47 @@ impl<R: Read> PNGDecoder<R> {
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
-        let color_type = reader.output_color_type().into();
+        let (color_type, bits) = reader.output_color_type();
+        let color_type = match (color_type, bits) {
+            (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
+            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ColorType::La8,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ColorType::La16,
+            (png::ColorType::RGB, png::BitDepth::Eight) => ColorType::Rgb8,
+            (png::ColorType::RGB, png::BitDepth::Sixteen) => ColorType::Rgb16,
+            (png::ColorType::RGBA, png::BitDepth::Eight) => ColorType::Rgba8,
+            (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
+
+            (png::ColorType::Grayscale, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L1)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La1)),
+            (png::ColorType::RGB, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb1)),
+            (png::ColorType::RGBA, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba1)),
+
+            (png::ColorType::Grayscale, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L2)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La2)),
+            (png::ColorType::RGB, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb2)),
+            (png::ColorType::RGBA, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba2)),
+
+            (png::ColorType::Grayscale, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L4)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La4)),
+            (png::ColorType::RGB, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb4)),
+            (png::ColorType::RGBA, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba4)),
+
+            (png::ColorType::Indexed, bits) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(bits as u8))),
+        };
 
         Ok(PNGDecoder { color_type, reader })
     }
@@ -172,27 +212,6 @@ impl<W: Write> PNGEncoder<W> {
         encoder.set_depth(bits);
         let mut writer = try!(encoder.write_header());
         writer.write_image_data(data).map_err(|e| e.into())
-    }
-}
-
-impl From<(png::ColorType, png::BitDepth)> for ColorType {
-    fn from((ct, bits): (png::ColorType, png::BitDepth)) -> ColorType {
-        use self::png::ColorType::*;
-        match (ct, bits as u8) {
-            (Grayscale, 8) => ColorType::L8,
-            (Grayscale, 16) => ColorType::L16,
-            (Grayscale, n) => ColorType::Unknown(n),
-            (GrayscaleAlpha, 8) => ColorType::La8,
-            (GrayscaleAlpha, 16) => ColorType::La16,
-            (GrayscaleAlpha, n) => ColorType::Unknown(n*2),
-            (RGB, 8) => ColorType::Rgb8,
-            (RGB, 16) => ColorType::Rgb16,
-            (RGB, n) => ColorType::Unknown(n*3),
-            (RGBA, 8) => ColorType::Rgba8,
-            (RGBA, 16) => ColorType::Rgba16,
-            (RGBA, n) => ColorType::Unknown(n*4),
-            (Indexed, bits) => ColorType::Unknown(bits),
-        }
     }
 }
 

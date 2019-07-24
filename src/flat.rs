@@ -1374,7 +1374,7 @@ impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
         match error {
             Error::TooLarge => ImageError::DimensionError,
-            Error::WrongColor(color) => ImageError::UnsupportedColor(color),
+            Error::WrongColor(color) => ImageError::UnsupportedColor(color.into()),
             Error::NormalFormRequired(form) => ImageError::FormatError(
                 format!("Required sample buffer in normal form {:?}", form)),
         }

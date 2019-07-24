@@ -12,7 +12,7 @@ use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
 
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
 
@@ -32,7 +32,25 @@ impl<R> TIFFDecoder<R>
     pub fn new(r: R) -> Result<TIFFDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r)?;
         let dimensions = inner.dimensions()?;
-        let color_type = inner.colortype()?.into();
+        let color_type = match inner.colortype()?.into() {
+            tiff::ColorType::Gray(8) => ColorType::L8,
+            tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::GrayA(8) => ColorType::La8,
+            tiff::ColorType::GrayA(16) => ColorType::La16,
+            tiff::ColorType::RGB(8) => ColorType::Rgb8,
+            tiff::ColorType::RGB(16) => ColorType::Rgb16,
+            tiff::ColorType::RGBA(8) => ColorType::Rgba8,
+            tiff::ColorType::RGBA(16) => ColorType::Rgba16,
+
+            tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n))),
+            tiff::ColorType::GrayA(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*2))),
+            tiff::ColorType::RGB(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*3))),
+            tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*4))),
+        };
 
         Ok(TIFFDecoder {
             dimensions,
@@ -53,26 +71,26 @@ impl From<tiff::TiffError> for ImageError {
     }
 }
 
-impl From<tiff::ColorType> for ColorType {
-    fn from(ct: tiff::ColorType) -> ColorType {
-        match ct {
-            tiff::ColorType::Palette(depth) => ColorType::Unknown(depth),
-            tiff::ColorType::Gray(8) => ColorType::L8,
-            tiff::ColorType::Gray(16) => ColorType::L16,
-            tiff::ColorType::Gray(n) => ColorType::Unknown(n),
-            tiff::ColorType::GrayA(8) => ColorType::La8,
-            tiff::ColorType::GrayA(16) => ColorType::La16,
-            tiff::ColorType::GrayA(n) => ColorType::Unknown(n*2),
-            tiff::ColorType::RGB(8) => ColorType::Rgb8,
-            tiff::ColorType::RGB(16) => ColorType::Rgb16,
-            tiff::ColorType::RGB(n) => ColorType::Unknown(n*3),
-            tiff::ColorType::RGBA(8) => ColorType::Rgba8,
-            tiff::ColorType::RGBA(16) => ColorType::Rgba16,
-            tiff::ColorType::RGBA(n) => ColorType::Unknown(n*4),
-            tiff::ColorType::CMYK(n) => ColorType::Unknown(n*4),
-        }
-    }
-}
+// impl From<tiff::ColorType> for ColorType {
+//     fn from(ct: tiff::ColorType) -> ColorType {
+//         match ct {
+//             tiff::ColorType::Palette(depth) => ColorType::Unknown(depth),
+//             tiff::ColorType::Gray(8) => ColorType::L8,
+//             tiff::ColorType::Gray(16) => ColorType::L16,
+//             tiff::ColorType::Gray(n) => ColorType::Unknown(n),
+//             tiff::ColorType::GrayA(8) => ColorType::La8,
+//             tiff::ColorType::GrayA(16) => ColorType::La16,
+//             tiff::ColorType::GrayA(n) => ColorType::Unknown(n*2),
+//             tiff::ColorType::RGB(8) => ColorType::Rgb8,
+//             tiff::ColorType::RGB(16) => ColorType::Rgb16,
+//             tiff::ColorType::RGB(n) => ColorType::Unknown(n*3),
+//             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
+//             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
+//             tiff::ColorType::RGBA(n) => ColorType::Unknown(n*4),
+//             tiff::ColorType::CMYK(n) => ColorType::Unknown(n*4),
+//         }
+//     }
+// }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
@@ -136,7 +154,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
             ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
             ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
             ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
-            _ => return Err(ImageError::UnsupportedColor(color))
+            _ => return Err(ImageError::UnsupportedColor(color.into()))
         }
 
         Ok(())

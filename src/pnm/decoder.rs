@@ -722,9 +722,9 @@ impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
             None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::La8)),
+            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ExtendedColorType::La8)),
             None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::Rgba8)),
+            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba8)),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)
@@ -757,10 +757,10 @@ impl DecodableImageHeader for ArbitraryHeader {
                 "Unsupported color type: BlackAndWhiteAlpha".to_string()
             )),
             Some(ArbitraryTuplType::GrayscaleAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::La8))
+                Err(ImageError::UnsupportedColor(ExtendedColorType::La8))
             }
             Some(ArbitraryTuplType::RGBAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::Rgba8))
+                Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba8))
             }
             _ => Err(ImageError::FormatError(
                 "Tuple type not recognized".to_string(),

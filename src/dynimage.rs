@@ -673,7 +673,7 @@ pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<Dynami
         color::ColorType::La8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        _ => return Err(image::ImageError::UnsupportedColor(color)),
+        _ => return Err(image::ImageError::UnsupportedColor(color.into())),
     };
     match image {
         Some(image) => Ok(image),

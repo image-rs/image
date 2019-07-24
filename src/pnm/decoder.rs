@@ -6,8 +6,9 @@ use std::mem;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageError, ImageResult};
+use utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
@@ -432,7 +433,25 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     }
 
     fn colortype(&self) -> ColorType {
-        self.tuple.color()
+        match self.tuple {
+            TupleType::PbmBit => ColorType::L8,
+            TupleType::BWBit => ColorType::L8,
+            TupleType::GrayU8 => ColorType::L8,
+            TupleType::GrayU16 => ColorType::L16,
+            TupleType::RGBU8 => ColorType::Rgb8,
+            TupleType::RGBU16 => ColorType::Rgb16,
+        }
+    }
+
+    fn original_colortype(&self) -> ExtendedColorType {
+        match self.tuple {
+            TupleType::PbmBit => ExtendedColorType::L1,
+            TupleType::BWBit => ExtendedColorType::L1,
+            TupleType::GrayU8 => ExtendedColorType::L8,
+            TupleType::GrayU16 => ExtendedColorType::L16,
+            TupleType::RGBU8 => ExtendedColorType::Rgb8,
+            TupleType::RGBU16 => ExtendedColorType::Rgb16,
+        }
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -486,20 +505,6 @@ impl<R: Read> PNMDecoder<R> {
     }
 }
 
-impl TupleType {
-    fn color(self) -> ColorType {
-        use self::TupleType::*;
-        match self {
-            PbmBit => ColorType::L1,
-            BWBit => ColorType::L1,
-            GrayU8 => ColorType::L8,
-            GrayU16 => ColorType::L16,
-            RGBU8 => ColorType::RGB,
-            RGBU16 => ColorType::RGB16,
-        }
-    }
-}
-
 fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
     where T::Err: Display
 {
@@ -536,14 +541,12 @@ impl Sample for U8 {
 
     fn from_bytes(
         bytes: &[u8],
-        _width: u32,
-        _height: u32,
-        _samples: u32,
+        width: u32,
+        height: u32,
+        samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        let mut buffer = Vec::new();
-        buffer.resize(bytes.len(), 0 as u8);
-        buffer.copy_from_slice(bytes);
-        Ok(buffer)
+        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
+        Ok(bytes.to_vec())
     }
 
     fn from_ascii(
@@ -569,7 +572,7 @@ impl Sample for U16 {
         height: u32,
         samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        assert_eq!(bytes.len(), (width*height*samples*2) as usize);
+        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
 
         let mut buffer = bytes.to_vec();
         for chunk in buffer.chunks_mut(2) {
@@ -606,11 +609,17 @@ impl Sample for PbmBit {
 
     fn from_bytes(
         bytes: &[u8],
-        _width: u32,
-        _height: u32,
-        _samples: u32,
+        width: u32,
+        height: u32,
+        samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        Ok(bytes.iter().map(|pixel| !pixel).collect())
+        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
+
+        let mut expanded = utils::expand_bits(1, width * samples, bytes);
+        for b in expanded.iter_mut() {
+            *b = !*b;
+        }
+        Ok(expanded)
     }
 
     fn from_ascii(
@@ -658,6 +667,8 @@ impl Sample for BWBit {
         height: u32,
         samples: u32,
     ) -> ImageResult<Vec<u8>> {
+        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
+
         let values = U8::from_bytes(bytes, width, height, samples)?;
         if let Some(val) = values.iter().find(|&val| *val > 1) {
             return Err(ImageError::FormatError(
@@ -711,9 +722,9 @@ impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
             None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::LA)),
+            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ColorType::La8)),
             None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::RGBA)),
+            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ColorType::Rgba8)),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)
@@ -746,10 +757,10 @@ impl DecodableImageHeader for ArbitraryHeader {
                 "Unsupported colortype: BlackAndWhiteAlpha".to_string()
             )),
             Some(ArbitraryTuplType::GrayscaleAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::LA))
+                Err(ImageError::UnsupportedColor(ColorType::La8))
             }
             Some(ArbitraryTuplType::RGBAlpha) => {
-                Err(ImageError::UnsupportedColor(ColorType::RGBA))
+                Err(ImageError::UnsupportedColor(ColorType::Rgba8))
             }
             _ => Err(ImageError::FormatError(
                 "Tuple type not recognized".to_string(),
@@ -773,7 +784,8 @@ TUPLTYPE BLACKANDWHITE
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
         let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::L1);
+        assert_eq!(decoder.colortype(), ColorType::L8);
+        assert_eq!(decoder.original_colortype(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
@@ -854,7 +866,7 @@ HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::RGB);
+        assert_eq!(decoder.colortype(), ColorType::Rgb8);
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
@@ -885,13 +897,14 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100 as u8, 0b10110111]].concat();
         let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::L1);
+        assert_eq!(decoder.colortype(), ColorType::L8);
+        assert_eq!(decoder.original_colortype(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(
             decoder.subtype(),
             PNMSubtype::Bitmap(SampleEncoding::Binary)
         );
-        assert_eq!(decoder.read_image().unwrap(), vec![0b10010011, 0b01001000]);
+        assert_eq!(decoder.read_image().unwrap(), vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -940,7 +953,8 @@ ENDHDR
         // whitespace characters that should be allowed (the 6 characters according to POSIX).
         let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0\t\n\x0b\x0c\r1";
         let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::L1);
+        assert_eq!(decoder.colortype(), ColorType::L8);
+        assert_eq!(decoder.original_colortype(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
         assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
@@ -968,7 +982,8 @@ ENDHDR
         // whitespace for the pbm format or any mix.
         let pbmbinary = b"P1 6 2\n011011101101";
         let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
-        assert_eq!(decoder.colortype(), ColorType::L1);
+        assert_eq!(decoder.colortype(), ColorType::L8);
+        assert_eq!(decoder.original_colortype(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
         assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);

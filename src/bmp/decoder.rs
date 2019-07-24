@@ -1314,9 +1314,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
 
     fn colortype(&self) -> ColorType {
         if self.add_alpha_channel {
-            ColorType::RGBA
+            ColorType::Rgba8
         } else {
-            ColorType::RGB
+            ColorType::Rgb8
         }
     }
 

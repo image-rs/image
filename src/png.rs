@@ -153,17 +153,16 @@ impl<W: Write> PNGEncoder<W> {
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
         let (ct, bits) = match color {
-            ColorType::L1 => (png::ColorType::Grayscale, png::BitDepth::One),
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
-            ColorType::LA => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
-            ColorType::LA16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
-            ColorType::RGB => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::RGB16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
-            ColorType::RGBA => (png::ColorType::RGBA, png::BitDepth::Eight),
-            ColorType::RGBA16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
-            ColorType::BGR => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::BGRA => (png::ColorType::RGBA, png::BitDepth::Eight),
+            ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
+            ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
+            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::Bgr8 => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::Bgra8 => (png::ColorType::RGBA, png::BitDepth::Eight),
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
                                            "Unsupported color type".to_owned())),
         };
@@ -180,18 +179,17 @@ impl From<(png::ColorType, png::BitDepth)> for ColorType {
     fn from((ct, bits): (png::ColorType, png::BitDepth)) -> ColorType {
         use self::png::ColorType::*;
         match (ct, bits as u8) {
-            (Grayscale, 1) => ColorType::L1,
             (Grayscale, 8) => ColorType::L8,
             (Grayscale, 16) => ColorType::L16,
             (Grayscale, n) => ColorType::Unknown(n),
-            (GrayscaleAlpha, 8) => ColorType::LA,
-            (GrayscaleAlpha, 16) => ColorType::LA16,
+            (GrayscaleAlpha, 8) => ColorType::La8,
+            (GrayscaleAlpha, 16) => ColorType::La16,
             (GrayscaleAlpha, n) => ColorType::Unknown(n*2),
-            (RGB, 8) => ColorType::RGB,
-            (RGB, 16) => ColorType::RGB16,
+            (RGB, 8) => ColorType::Rgb8,
+            (RGB, 16) => ColorType::Rgb16,
             (RGB, n) => ColorType::Unknown(n*3),
-            (RGBA, 8) => ColorType::RGBA,
-            (RGBA, 16) => ColorType::RGBA16,
+            (RGBA, 8) => ColorType::Rgba8,
+            (RGBA, 16) => ColorType::Rgba16,
             (RGBA, n) => ColorType::Unknown(n*4),
             (Indexed, bits) => ColorType::Unknown(bits),
         }

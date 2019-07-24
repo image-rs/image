@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};
 use color;
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 
 use animation::Frames;
 
@@ -365,8 +365,13 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&self) -> (u64, u64);
 
-    /// Returns the color type of the image e.g. RGB(8) (8bit RGB)
+    /// Returns the color type of the image data produced by this decoder
     fn colortype(&self) -> ColorType;
+
+    /// Retuns the color type of the image file before decoding
+    fn original_colortype(&self) -> ExtendedColorType {
+        self.colortype().into()
+    }
 
     /// Returns a reader that can be used to obtain the bytes of the image. For the best
     /// performance, always try to read at least `scanline_bytes` from the reader at a time. Reading

@@ -1035,13 +1035,8 @@ pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
 #[cfg(test)]
 mod test {
-
-    use super::{GrayImage, ImageBuffer, RgbImage};
-    use crate::image::GenericImage;
+    use super::{ImageBuffer, RgbImage};
     use crate::color;
-    use crate::math::Rect;
-    #[cfg(feature = "benchmarks")]
-    use test;
 
     #[test]
     /// Tests if image buffers from slices work
@@ -1052,7 +1047,7 @@ mod test {
     }
 
     #[test]
-    fn test_get_pixel() {
+    fn get_pixel() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let b = a.get_mut(3 * 10).unwrap();
@@ -1062,7 +1057,7 @@ mod test {
     }
 
     #[test]
-    fn test_mut_iter() {
+    fn mut_iter() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
@@ -1070,11 +1065,130 @@ mod test {
         }
         assert_eq!(a.data[0], 42)
     }
+}
+
+#[cfg(test)]
+mod tests_zero_width_zero_height {
+    use super::{ImageBuffer, RgbaImage};
+
+    fn test_image() -> RgbaImage {
+        ImageBuffer::new(0, 0)
+    }
+
+    #[test]
+    fn rows_mut() {
+        let mut image = test_image();
+        let rows = image.rows_mut();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn pixels_mut() {
+        let mut image = test_image();
+        let rows = image.pixels_mut();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn rows() {
+        let image = test_image();
+        let rows = image.rows();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn pixels() {
+        let image = test_image();
+        let rows = image.pixels();
+        assert_eq!(rows.count(), 0);
+    }
+}
+
+#[cfg(test)]
+mod tests_zero_width_nonzero_height {
+    use super::{ImageBuffer, RgbaImage};
+
+    fn test_image() -> RgbaImage {
+        ImageBuffer::new(0, 2)
+    }
+
+    #[test]
+    fn rows_mut() {
+        let mut image = test_image();
+        let rows = image.rows_mut();
+        assert_eq!(rows.count(), 2);
+    }
+
+    #[test]
+    fn pixels_mut() {
+        let mut image = test_image();
+        let rows = image.pixels_mut();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn rows() {
+        let image = test_image();
+        let rows = image.rows();
+        assert_eq!(rows.count(), 2);
+    }
+
+    #[test]
+    fn pixels() {
+        let image = test_image();
+        let rows = image.pixels();
+        assert_eq!(rows.count(), 0);
+    }
+}
+
+
+#[cfg(test)]
+mod tests_nonzero_width_zero_height {
+    use super::{ImageBuffer, RgbaImage};
+
+    fn test_image() -> RgbaImage {
+        ImageBuffer::new(2, 0)
+    }
+
+    #[test]
+    fn rows_mut() {
+        let mut image = test_image();
+        let rows = image.rows_mut();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn pixels_mut() {
+        let mut image = test_image();
+        let rows = image.pixels_mut();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn rows() {
+        let image = test_image();
+        let rows = image.rows();
+        assert_eq!(rows.count(), 0);
+    }
+
+    #[test]
+    fn pixels() {
+        let image = test_image();
+        let rows = image.pixels();
+        assert_eq!(rows.count(), 0);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "benchmarks")]
+mod benchmarks {
+    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use crate::GenericImage;
+    use crate::math::Rect;
+    use test;
 
     #[bench]
-    #[cfg(feature = "benchmarks")]
-    fn bench_conversion(b: &mut test::Bencher) {
-        use crate::buffer::{ConvertBuffer, GrayImage, Pixel};
+    fn conversion(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
@@ -1093,10 +1207,7 @@ mod test {
     }
 
     #[bench]
-    #[cfg(feature = "benchmarks")]
-    fn bench_image_access_row_by_row(b: &mut test::Bencher) {
-        use crate::buffer::{ImageBuffer, Pixel};
-
+    fn image_access_row_by_row(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
@@ -1123,10 +1234,7 @@ mod test {
     }
 
     #[bench]
-    #[cfg(feature = "benchmarks")]
-    fn bench_image_access_col_by_col(b: &mut test::Bencher) {
-        use crate::buffer::{ImageBuffer, Pixel};
-
+    fn image_access_col_by_col(b: &mut test::Bencher) {
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();

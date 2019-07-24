@@ -78,3 +78,21 @@ dxt = []
 jpeg_rayon = ["jpeg-decoder/rayon"]
 
 benchmarks = []
+
+[[example]]
+name = "grayscale_16bits"
+required-features = ["png"]
+
+[[example]]
+name = "fractal"
+
+[[example]]
+name = "opening"
+
+[[example]]
+name = "scaleup"
+path = "examples/scaleup/main.rs"
+
+[[example]]
+name = "scaledown"
+path = "examples/scaledown/main.rs"

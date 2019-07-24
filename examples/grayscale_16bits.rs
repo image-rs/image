@@ -1,22 +1,18 @@
 //! An example of opening an image 16-bits.
-extern crate image;
 extern crate byteorder;
+extern crate image;
 
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
 
-use image::ImageBuffer;
-use image::Gray16Image;
 use image::imageops::thumbnail;
+use image::Gray16Image;
+use image::ImageBuffer;
 
+use image::png::PNGDecoder;
 
-#[cfg(feature = "png")]
-mod main {
-    use image::png::PNGDecoder;
-    use super::*;
-
-    pub fn process() {
+pub fn main() {
     let file = if env::args().count() == 2 {
         env::args().nth(1).unwrap()
     } else {
@@ -37,11 +33,3 @@ mod main {
     let thumbnail = thumbnail(&im, 200, 200);
     thumbnail.save("somewhereelse.tiff").unwrap();
 }
-}
-#[cfg(not(feature = "png"))]
-mod main {
-pub fn process() {
-    println!("Only available for png feature");
-}
-}
-fn main() { main::process(); }

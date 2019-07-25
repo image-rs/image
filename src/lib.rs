@@ -20,7 +20,7 @@
 //!     reader.next_frame(&mut buf).unwrap();
 //! ## Encoder
 //! ### Using the encoder
-//! ```no_run
+//! ```ignore
 //! // For reading and opening files
 //! use std::path::Path;
 //! use std::fs::File;

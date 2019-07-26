@@ -20,7 +20,8 @@
 //!     reader.next_frame(&mut buf).unwrap();
 //! ## Encoder
 //! ### Using the encoder
-//! ```ignore
+//! ```no_run
+//! # #[cfg(feature = "png-encoding")] {
 //! // For reading and opening files
 //! use std::path::Path;
 //! use std::fs::File;
@@ -37,6 +38,7 @@
 //!
 //! let data = [255, 0, 0, 255, 0, 0, 0, 255]; // An array containing a RGBA sequence. First pixel is red and second pixel is black.
 //! writer.write_image_data(&data).unwrap(); // Save
+//! # }
 //! ```
 //!
 //#![cfg_attr(test, feature(test))]

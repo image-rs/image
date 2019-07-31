@@ -794,7 +794,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
-    let (w, h) = match &ext[..] {
+    let (w, h): (u64, u64) = match &ext[..] {
         #[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]

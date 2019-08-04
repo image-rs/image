@@ -7,7 +7,7 @@ use std::io::Write;
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
-use color::{num_components, ColorType};
+use color::{channel_count, ColorType};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
@@ -166,7 +166,7 @@ impl<W: Write> PNMEncoder<W> {
         height: u32,
         color: ColorType,
     ) -> io::Result<()> {
-        let depth = num_components(color) as u32;
+        let depth = channel_count(color).into();
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
@@ -276,7 +276,7 @@ impl<'a> CheckedImageBuffer<'a> {
         height: u32,
         color: ColorType,
     ) -> io::Result<CheckedImageBuffer<'a>> {
-        let components = num_components(color);
+        let components = channel_count(color) as usize;
         let uwidth = width as usize;
         let uheight = height as usize;
         match Some(components)

@@ -31,24 +31,35 @@ pub enum ColorType {
 
 }
 
+impl ColorType {
+    /// Returns the number of bits contained in a pixel of this `ColorType`
+    pub fn bits_per_pixel(&self) -> u16 {
+        bits_per_pixel(*self)
+    }
+
+    /// Returns the number of color channels that make up this pixel
+    pub fn channel_count(&self) -> u8 {
+        channel_count(*self)
+    }
+}
+
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
-pub fn bits_per_pixel(c: ColorType) -> usize {
+pub fn bits_per_pixel(c: ColorType) -> u16 {
     match c {
-        ColorType::Gray(n) => n as usize,
-        ColorType::GrayA(n) => 2 * n as usize,
-        ColorType::RGB(n) | ColorType::Palette(n)| ColorType::BGR(n) => 3 * n as usize,
-        ColorType::RGBA(n) | ColorType::BGRA(n) => 4 * n as usize,
+        ColorType::Gray(n) => n as u16,
+        ColorType::GrayA(n) => 2 * n as u16,
+        ColorType::RGB(n) | ColorType::Palette(n)| ColorType::BGR(n) => 3 * n as u16,
+        ColorType::RGBA(n) | ColorType::BGRA(n) => 4 * n as u16,
     }
 }
 
 /// Returns the number of color channels that make up this pixel
-pub fn num_components(c: ColorType) -> usize {
+pub fn channel_count(c: ColorType) -> u8 {
     match c {
         ColorType::Gray(_) => 1,
         ColorType::GrayA(_) => 2,
         ColorType::RGB(_) | ColorType::Palette(_) | ColorType::BGR(_)=> 3,
         ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
-
     }
 }
 

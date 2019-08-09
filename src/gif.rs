@@ -169,13 +169,15 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
         // begin looping over each frame
-        let (left, top, delay, dispose);
+        let (left, top, delay, dispose, f_width, f_height);
 
         match self.reader.next_frame_info() {
             Ok(frame_info) => {
                 if let Some(frame) = frame_info {
                     left = u32::from(frame.left);
                     top = u32::from(frame.top);
+                    f_width = u32::from(frame.width);
+                    f_height = u32::from(frame.height);
 
                     // frame.delay is in units of 10ms so frame.delay*10 is in ms
                     delay = Ratio::new(frame.delay * 10, 1);
@@ -194,11 +196,26 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         // create the image buffer from the raw frame
-        let mut image_buffer = match ImageBuffer::from_raw(self.width, self.height, vec) {
-            Some(buffer) => buffer,
-            None => return Some(Err(ImageError::UnsupportedError(
-                "Unknown error occured while reading gif frame".into()
-            ))),
+        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, vec).unwrap();
+
+        // if `image_buffer_raw`'s frame exactly matches the entire image, then
+        // use it directly.
+        let mut image_buffer = if (left, top) == (0, 0) && (f_width, f_height) == (self.width, self.height) {
+            image_buffer_raw
+        } else {
+            // otherwise, `image_buffer_raw` represents a smaller image.
+            // create a new image of the target size and place
+            // `image_buffer_raw` within it. the outside region is filled with
+            // transparent pixels.
+            ImageBuffer::from_fn(self.width, self.height, |x, y| {
+                let x = x.wrapping_sub(left);
+                let y = y.wrapping_sub(top);
+                if x < f_width && y < f_height {
+                    *image_buffer_raw.get_pixel(x, y)
+                } else {
+                    Rgba([0, 0, 0, 0])
+                }
+            })
         };
 
         // loop over all pixels, checking if any pixels from the non disposed
@@ -217,7 +234,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         let frame = animation::Frame::from_parts(
-            image_buffer.clone(), left, top, delay
+            image_buffer.clone(), 0, 0, delay
         );
 
         match dispose {

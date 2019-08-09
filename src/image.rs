@@ -566,6 +566,7 @@ pub trait GenericImageView {
     fn inner(&self) -> &Self::InnerImageView;
 
     /// Returns an subimage that is an immutable view into this image.
+    /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
         SubImage::new(self.inner(), x, y, width, height)
     }
@@ -610,7 +611,7 @@ pub trait GenericImage: GenericImageView {
     /// The other image is copied with the top-left corner of the
     /// other image placed at (x, y).
     ///
-    /// In order to copy only a piece of the other image, use `sub_image`.
+    /// In order to copy only a piece of the other image, use [`GenericImageView::view`].
     ///
     /// # Returns
     /// `true` if the copy was successful, `false` if the image could not
@@ -637,7 +638,8 @@ pub trait GenericImage: GenericImageView {
     /// Returns a mutable reference to the underlying image.
     fn inner_mut(&mut self) -> &mut Self::InnerImage;
 
-    /// Returns a subimage that is a view into this image.
+    /// Returns a mutable subimage that is a view into this image.
+    /// If you want an immutable subimage instead, use [`GenericImageView::view`]
     fn sub_image(
         &mut self,
         x: u32,
@@ -650,6 +652,11 @@ pub trait GenericImage: GenericImageView {
 }
 
 /// A View into another image
+///
+/// Instances of this struct can be created using:
+///   - [`GenericImage::sub_image`] to create a mutable view,
+///   - [`GenericImageView::view`] to create an immutable view,
+///   - [`SubImage::new`] to instantiate the struct directly.
 pub struct SubImage<I> {
     image: I,
     xoffset: u32,

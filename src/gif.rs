@@ -109,7 +109,7 @@ struct GifFrameIterator<R: Read> {
     width: u32,
     height: u32,
 
-    background_img: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    background_color: Rgba<u8>,
     non_disposed_frame: ImageBuffer<Rgba<u8>, Vec<u8>>,
 }
 
@@ -147,17 +147,14 @@ impl<R: Read> GifFrameIterator<R> {
             }
         };
 
-        // create the background image to use later
-        let background_img = ImageBuffer::from_pixel(width, height, *background_pixel);
-
         // the background image is the first non disposed frame
-        let non_disposed_frame = background_img.clone();
+        let non_disposed_frame = ImageBuffer::from_pixel(width, height, *background_pixel);
 
         GifFrameIterator {
             reader: decoder.reader,
             width,
             height,
-            background_img,
+            background_color: *background_pixel,
             non_disposed_frame,
         }
     }
@@ -250,7 +247,11 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             DisposalMethod::Background => {
                 // restore to background color
                 // (background shows through transparent pixels in the next frame)
-                self.non_disposed_frame = self.background_img.clone();
+                for y in top..top + f_height {
+                    for x in left..left + f_width {
+                        self.non_disposed_frame.put_pixel(x, y, self.background_color);
+                    }
+                }
             }
             DisposalMethod::Previous => {
                 // restore to previous

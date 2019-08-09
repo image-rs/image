@@ -111,11 +111,6 @@ struct GifFrameIterator<R: Read> {
 
     background_img: ImageBuffer<Rgba<u8>, Vec<u8>>,
     non_disposed_frame: ImageBuffer<Rgba<u8>, Vec<u8>>,
-
-    left: u32,
-    top: u32,
-    delay: Ratio<u16>,
-    dispose: DisposalMethod,
 }
 
 
@@ -164,10 +159,6 @@ impl<R: Read> GifFrameIterator<R> {
             height,
             background_img,
             non_disposed_frame,
-            left: 0,
-            top: 0,
-            delay: Ratio::new(0, 1),
-            dispose: DisposalMethod::Any
         }
     }
 }
@@ -178,15 +169,17 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
         // begin looping over each frame
+        let (left, top, delay, dispose);
+
         match self.reader.next_frame_info() {
             Ok(frame_info) => {
                 if let Some(frame) = frame_info {
-                    self.left = u32::from(frame.left);
-                    self.top = u32::from(frame.top);
+                    left = u32::from(frame.left);
+                    top = u32::from(frame.top);
 
                     // frame.delay is in units of 10ms so frame.delay*10 is in ms
-                    self.delay = Ratio::new(frame.delay * 10, 1);
-                    self.dispose = frame.dispose;
+                    delay = Ratio::new(frame.delay * 10, 1);
+                    dispose = frame.dispose;
                 } else {
                     // no more frames
                     return None;
@@ -224,10 +217,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         let frame = animation::Frame::from_parts(
-            image_buffer.clone(), self.left, self.top, self.delay
+            image_buffer.clone(), left, top, delay
         );
 
-        match self.dispose {
+        match dispose {
             DisposalMethod::Any => {
                 // do nothing
                 // (completely replace this frame with the next)
@@ -290,7 +283,7 @@ impl<W: Write> Encoder<W> {
     /// Encodes Frames.
     /// Consider using `try_encode_frames` instead to encode an `animation::Frames` like iterator.
     pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
-    where 
+    where
         F: IntoIterator<Item = animation::Frame>
     {
         for img_frame in frames {

@@ -109,7 +109,6 @@ struct GifFrameIterator<R: Read> {
     width: u32,
     height: u32,
 
-    background_color: Rgba<u8>,
     non_disposed_frame: ImageBuffer<Rgba<u8>, Vec<u8>>,
 }
 
@@ -121,40 +120,15 @@ impl<R: Read> GifFrameIterator<R> {
         // TODO: Avoid this cast
         let (width, height) = (width as u32, height as u32);
 
-        // set the background color to be either the bg_color defined in the gif
-        // or a transparent pixel.
-        let background_color_option = decoder.reader.bg_color();
-        let mut background_color = vec![0; 4];
-        let background_pixel = {
-            let global_palette = decoder.reader.global_palette();
-            match background_color_option {
-                Some(index) => {
-                    // find the color by looking in the global palette
-                    match global_palette {
-                        // take the color from the palette that is at the index defined
-                        // by background_color_option
-                        Some(slice) => {
-                            background_color.clone_from_slice(&slice[index..(index + 4)]);
-                            Rgba::from_slice(&background_color)
-                        }
-                        // if there is no global palette, assign the background color to be
-                        // transparent
-                        None => Rgba::from_slice(&[0, 0, 0, 0]),
-                    }
-                }
-                // return a transparent background color
-                None => Rgba::from_slice(&[0, 0, 0, 0]),
-            }
-        };
+        // intentionally ignore the background color for web compatibility
 
-        // the background image is the first non disposed frame
-        let non_disposed_frame = ImageBuffer::from_pixel(width, height, *background_pixel);
+        // create the first non disposed frame
+        let non_disposed_frame = ImageBuffer::from_pixel(width, height, Rgba([0, 0, 0, 0]));
 
         GifFrameIterator {
             reader: decoder.reader,
             width,
             height,
-            background_color: *background_pixel,
             non_disposed_frame,
         }
     }
@@ -249,7 +223,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                 // (background shows through transparent pixels in the next frame)
                 for y in top..top + f_height {
                     for x in left..left + f_width {
-                        self.non_disposed_frame.put_pixel(x, y, self.background_color);
+                        self.non_disposed_frame.put_pixel(x, y, Rgba([0, 0, 0, 0]));
                     }
                 }
             }

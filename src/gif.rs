@@ -30,6 +30,7 @@ extern crate gif;
 extern crate num_rational;
 
 use std::clone::Clone;
+use std::cmp::min;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
@@ -221,8 +222,8 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             DisposalMethod::Background => {
                 // restore to background color
                 // (background shows through transparent pixels in the next frame)
-                for y in top..top + f_height {
-                    for x in left..left + f_width {
+                for y in top..min(top + f_height, self.height) {
+                    for x in left..min(left + f_width, self.width) {
                         self.non_disposed_frame.put_pixel(x, y, Rgba([0, 0, 0, 0]));
                     }
                 }

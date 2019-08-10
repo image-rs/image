@@ -94,13 +94,27 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
     }
 
     fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        if self.reader.next_frame_info()?.is_some() {
-            let mut buf = vec![0; self.reader.buffer_size()];
-            self.reader.read_into_buffer(&mut buf)?;
-            Ok(buf)
+        let (f_width, f_height, left, top);
+
+        if let Some(frame) = self.reader.next_frame_info()? {
+            left = u32::from(frame.left);
+            top = u32::from(frame.top);
+            f_width = u32::from(frame.width);
+            f_height = u32::from(frame.height);
         } else {
-            Err(ImageError::ImageEnd)
+            return Err(ImageError::ImageEnd);
         }
+
+        let mut buf = vec![0; self.reader.buffer_size()];
+        self.reader.read_into_buffer(&mut buf)?;
+
+        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).unwrap();
+
+        // Recover the full image
+        let (width, height) = (self.reader.width() as u32, self.reader.height() as u32);
+        let image_buffer = full_image_from_frame(width, height, image_buffer_raw, left, top);
+
+        Ok(image_buffer.into_raw())
     }
 }
 
@@ -172,23 +186,13 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 
         // if `image_buffer_raw`'s frame exactly matches the entire image, then
         // use it directly.
-        let mut image_buffer = if (left, top) == (0, 0) && (f_width, f_height) == (self.width, self.height) {
-            image_buffer_raw
-        } else {
-            // otherwise, `image_buffer_raw` represents a smaller image.
-            // create a new image of the target size and place
-            // `image_buffer_raw` within it. the outside region is filled with
-            // transparent pixels.
-            ImageBuffer::from_fn(self.width, self.height, |x, y| {
-                let x = x.wrapping_sub(left);
-                let y = y.wrapping_sub(top);
-                if x < f_width && y < f_height {
-                    *image_buffer_raw.get_pixel(x, y)
-                } else {
-                    Rgba([0, 0, 0, 0])
-                }
-            })
-        };
+        //
+        // otherwise, `image_buffer_raw` represents a smaller image.
+        // create a new image of the target size and place
+        // `image_buffer_raw` within it. the outside region is filled with
+        // transparent pixels.
+        let mut image_buffer =
+            full_image_from_frame(self.width, self.height, image_buffer_raw, left, top);
 
         // loop over all pixels, checking if any pixels from the non disposed
         // frame need to be used
@@ -238,6 +242,30 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
     }
 }
 
+/// Given a frame subimage, construct a full image of size
+/// `(screen_width, screen_height)` by placing it at the top-left coordinates
+/// `(left, top)`. The remaining portion is filled with transparent pixels.
+fn full_image_from_frame(
+    screen_width: u32,
+    screen_height: u32,
+    image: crate::RgbaImage,
+    left: u32,
+    top: u32,
+) -> crate::RgbaImage {
+    if (left, top) == (0, 0) && (screen_width, screen_height) == (image.width(), image.height()) {
+        image
+    } else {
+        ImageBuffer::from_fn(screen_width, screen_height, |x, y| {
+            let x = x.wrapping_sub(left);
+            let y = y.wrapping_sub(top);
+            if x < image.width() && y < image.height() {
+                *image.get_pixel(x, y)
+            } else {
+                Rgba([0, 0, 0, 0])
+            }
+        })
+    }
+}
 
 impl<'a, R: Read + 'a> AnimationDecoder<'a> for Decoder<R> {
     fn into_frames(self) -> animation::Frames<'a> {

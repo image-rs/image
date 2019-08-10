@@ -82,6 +82,8 @@ fn render_images() {
 #[test]
 fn check_references() {
     process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
+        println!("check_references {}", path.display());
+
         let ref_img = match image::open(&path) {
             Ok(img) => img.to_rgba(),
             // Do not fail on unsupported error
@@ -95,47 +97,124 @@ fn check_references() {
             let mut path: Vec<_> = path.components().collect();
             (path.pop().unwrap(), path.pop().unwrap())
         };
+
+        let mut filename_parts = filename
+            .as_os_str()
+            .to_str()
+            .unwrap()
+            .split('.')
+            .collect::<Vec<_>>();
+
+        // Ignore the file extension
+        filename_parts.pop().unwrap();
+
+        // The penultimate part of `filename_parts` represents the metadata.
+        let meta_str = filename_parts.pop().unwrap();
+        let mut meta = meta_str.split('_').collect::<Vec<_>>();
+        let ref_crc;
+        let anim_frame: Option<usize>;
+
+        if meta.len() == 1 {
+            // `CRC`
+            ref_crc = meta.pop().unwrap();
+            anim_frame = None;
+        } else if meta.len() == 3 && meta[0] == "anim" {
+            // `anim_FRAME_CRC`
+            ref_crc = meta.pop().unwrap();
+            let frame: usize = meta.pop().unwrap().parse().unwrap();
+            anim_frame = Some(frame.checked_sub(1).expect("frame number cannot be 0"));
+        } else {
+            panic!(
+                "unrecognized reference image metadata format: {:?}",
+                meta_str
+            );
+        }
+
+        // The remaining part represents the original file name
+        let orig_filename = filename_parts.join(".");
+
+        // Check the reference image's CRC
+        let ref_crc = u32::from_str_radix(ref_crc, 16).unwrap();
+
+        let ref_crc_actual = {
+            let mut hasher = Crc32::new();
+            hasher.update(&*ref_img);
+            hasher.finalize()
+        };
+
+        if ref_crc_actual != ref_crc {
+            panic!(
+                "Reference rendering hash check failed (expected = {:08x}, actual = {:08x}).",
+                ref_crc, ref_crc_actual
+            );
+        }
+
         let mut img_path = base.clone();
         img_path.push(IMAGE_DIR);
         img_path.push(decoder);
         img_path.push(testsuite.as_os_str());
-        img_path.push(
-            filename
-                .as_os_str()
-                .to_str()
-                .unwrap()
-                .split('.')
-                .take(2)
-                .collect::<Vec<_>>()
-                .join("."),
-        );
-        let ref_crc = u32::from_str_radix(
-            filename
-                .as_os_str()
-                .to_str()
-                .unwrap()
-                .split('.')
-                .nth(2)
-                .unwrap(),
-            16,
-        ).unwrap();
-        let test_img = match image::open(&img_path) {
-            Ok(img) => img.to_rgba(),
-            // Do not fail on unsupported error
-            // This might happen because the testsuite contains unsupported images
-            // or because a specific decoder included via a feature.
-            Err(image::ImageError::UnsupportedError(_)) => return,
-            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
-        };
-        let mut test_crc = Crc32::new();
-        test_crc.update(&*test_img);
-        if *ref_img != *test_img || test_crc.finalize() != ref_crc {
-            panic!(
-                "Reference rendering does not match for image at {:?}.",
-                img_path
-            )
+        img_path.push(orig_filename);
+
+        // Load the test image
+        let test_img;
+
+        if let Some(anim_frame) = anim_frame {
+            // Interpret the input file as an animation file and extract a
+            // single frame
+            use image::AnimationDecoder;
+            let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
+            let decoder = match image::gif::Decoder::new(stream) {
+                Ok(decoder) => decoder,
+                Err(image::ImageError::UnsupportedError(_)) => return,
+                Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
+            };
+
+            let mut frames = match decoder.into_frames().collect_frames() {
+                Ok(frames) => frames,
+                Err(image::ImageError::UnsupportedError(_)) => return,
+                Err(err) => panic!(format!(
+                    "collecting frames of {:?} failed with: {}",
+                    img_path, err
+                )),
+            };
+
+            let frame = frames.drain(anim_frame..).nth(0).unwrap();
+
+            // Convert the frame to a`RgbaImage`
+            test_img = frame.into_buffer();
+        } else {
+            // Read the input file as a single image
+            match image::open(&img_path) {
+                Ok(img) => test_img = img.to_rgba(),
+                // Do not fail on unsupported error
+                // This might happen because the testsuite contains unsupported images
+                // or because a specific decoder included via a feature.
+                Err(image::ImageError::UnsupportedError(_)) => return,
+                Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
+            };
+        }
+
+        let ref_img = coalesce_transparent_pixels(ref_img);
+        let test_img = coalesce_transparent_pixels(test_img);
+
+        //ref_img.save("/tmp/test-ref.png").unwrap();
+        //test_img.save("/tmp/test-in.png").unwrap();
+
+        if *ref_img != *test_img {
+            panic!("Reference rendering does not match.");
         }
     })
+}
+
+/// Replace transparent pixel values with a single value. This is useful for
+/// disregarding differences in the RGB values of completely transparent pixels.
+fn coalesce_transparent_pixels(mut img: image::RgbaImage) -> image::RgbaImage {
+    for p in img.pixels_mut() {
+        if p[3] == 0 {
+            *p = image::Rgba([0, 0, 0, 0]);
+        }
+    }
+    img
 }
 
 #[cfg(feature = "hdr")]

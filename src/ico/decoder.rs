@@ -253,7 +253,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
                 if mask_length > 0 {
                     // A mask row contains 1 bit per pixel, padded to 4 bytes.
                     let mask_row_bytes = ((width + 31) / 32) * 4;
-                    let expected_length = u64::from(mask_row_bytes * height);
+                    let expected_length = mask_row_bytes * height;
                     if mask_length < expected_length {
                         return Err(ImageError::ImageEnd);
                     }

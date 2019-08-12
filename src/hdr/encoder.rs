@@ -32,15 +32,11 @@ impl<W: Write> HDREncoder<W> {
             // new RLE marker contains scanline width
             let marker = rgbe8(2, 2, (width / 256) as u8, (width % 256) as u8);
             // buffers for encoded pixels
-            let mut bufr = Vec::with_capacity(width);
-            bufr.resize(width, 0);
-            let mut bufg = Vec::with_capacity(width);
-            bufg.resize(width, 0);
-            let mut bufb = Vec::with_capacity(width);
-            bufb.resize(width, 0);
-            let mut bufe = Vec::with_capacity(width);
-            bufe.resize(width, 0);
-            let mut rle_buf = Vec::with_capacity(width);
+            let mut bufr = vec![0; width];
+            let mut bufg = vec![0; width];
+            let mut bufb = vec![0; width];
+            let mut bufe = vec![0; width];
+            let mut rle_buf = vec![0; width];
             for scanline in data.chunks(width) {
                 for ((((r, g), b), e), &pix) in bufr.iter_mut()
                     .zip(bufg.iter_mut())

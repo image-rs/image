@@ -119,7 +119,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
     type Reader = WebpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.frame.width as u64, self.frame.height as u64)
+        (u64::from(self.frame.width), u64::from(self.frame.height))
     }
 
     fn colortype(&self) -> color::ColorType {

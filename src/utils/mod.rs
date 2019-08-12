@@ -39,7 +39,7 @@ pub fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
     vec_u16_copy_u8(&vec)
 }
 
-pub fn vec_u16_copy_u8(vec: &Vec<u16>) -> Vec<u8> {
+pub fn vec_u16_copy_u8(vec: &[u16]) -> Vec<u8> {
     let mut new = vec![0; vec.len() * mem::size_of::<u16>()];
     NativeEndian::write_u16_into(&vec[..], &mut new[..]);
     new

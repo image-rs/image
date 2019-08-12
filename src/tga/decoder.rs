@@ -535,7 +535,7 @@ pub struct TGAReader<R> {
 }
 impl<R: Read + Seek> Read for TGAReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ref mut decoder = &mut self.decoder;
+        let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
     }
 }

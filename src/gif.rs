@@ -24,7 +24,7 @@
 //! # Ok(())
 //! # }
 //! ```
-#![cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
+#![allow(clippy::while_let_loop)]
 
 extern crate gif;
 extern crate num_rational;
@@ -81,7 +81,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
     type Reader = GifReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.reader.width() as u64, self.reader.height() as u64)
+        (u64::from(self.reader.width()), u64::from(self.reader.height()))
     }
 
     fn colortype(&self) -> color::ColorType {

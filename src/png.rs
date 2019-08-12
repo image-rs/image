@@ -113,7 +113,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
 
     fn dimensions(&self) -> (u64, u64) {
         let (w, h) = self.reader.info().size();
-        (w as u64, h as u64)
+        (u64::from(w), u64::from(h))
     }
 
     fn colortype(&self) -> ColorType {

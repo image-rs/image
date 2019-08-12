@@ -286,7 +286,7 @@ trait HeaderReader: BufRead {
             let len = self.read_line(&mut line).map_err(ImageError::IoError)?;
             if len == 0 {
                 return Err(ImageError::FormatError(
-                    format!("Unexpected end of pnm header"),
+                    "Unexpected end of pnm header".to_string(),
                 ))
             }
             if line.as_bytes()[0] == b'#' {
@@ -428,7 +428,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     type Reader = PnmReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.header.width() as u64, self.header.height() as u64)
+        (u64::from(self.header.width()), u64::from(self.header.height()))
     }
 
     fn colortype(&self) -> ColorType {
@@ -467,11 +467,11 @@ impl<R: Read> PNMDecoder<R> {
                     .read_exact(&mut bytes)
                     .map_err(|_| ImageError::NotEnoughData)?;
                 let samples = S::from_bytes(&bytes, width, height, components)?;
-                Ok(samples.into())
+                Ok(samples)
             }
             SampleEncoding::Ascii => {
                 let samples = self.read_ascii::<S>(components)?;
-                Ok(samples.into())
+                Ok(samples)
             }
         }
     }

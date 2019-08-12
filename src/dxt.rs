@@ -181,7 +181,7 @@ pub struct DXTReader<R: Read> {
 }
 impl<R: Read> Read for DXTReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let decoder = &mut (&mut self.decoder);
+        let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
     }
 }

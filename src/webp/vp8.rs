@@ -620,7 +620,7 @@ static PROB_DCT_CAT: [[Prob; 12]; 6] = [
 static DCT_CAT_BASE: [u8; 6] = [5, 7, 11, 19, 35, 67];
 static COEFF_BANDS: [u8; 16] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static DC_QUANT: [i16; 128] = [
       4,   5,   6,   7,   8,   9,  10,  10,
      11,  12,  13,  14,  15,  16,  17,  17,
@@ -640,7 +640,7 @@ static DC_QUANT: [i16; 128] = [
     138, 140, 143, 145, 148, 151, 154, 157,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static AC_QUANT: [i16; 128] = [
       4,   5,   6,   7,   8,    9,  10,  11,
       12,  13,  14,  15,  16,  17,  18,  19,
@@ -1143,7 +1143,7 @@ impl<R: Read> VP8Decoder<R> {
 
             if color_space != 0 {
                 return Err(ImageError::FormatError(
-                    format!("Only YUV color space is specified.")))
+                    "Only YUV color space is specified.".to_string()))
             }
         }
 

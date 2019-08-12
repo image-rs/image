@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::error::Error;
 use std::fmt;
 use std::io;

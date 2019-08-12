@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn roundtrip_rgb() {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         let buf: [u8; 27] = [
               0,   0,   0,
               0,   0, 255,

@@ -646,8 +646,8 @@ pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<Dynami
     let buf = codec.read_image()?;
 
     // TODO: Avoid this cast by having ImageBuffer use u64's
-    assert!(w <= u32::max_value() as u64);
-    assert!(h <= u32::max_value() as u64);
+    assert!(w <= u64::from(u32::max_value()));
+    assert!(h <= u64::from(u32::max_value()));
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
@@ -822,7 +822,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
             format
         ))),
     };
-    if w >= u32::MAX as u64 || h >= u32::MAX as u64 {
+    if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
         return Err(image::ImageError::DimensionError);
     }
     Ok((w as u32, h as u32))

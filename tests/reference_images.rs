@@ -159,29 +159,38 @@ fn check_references() {
         let test_img;
 
         if let Some(anim_frame) = anim_frame {
-            // Interpret the input file as an animation file and extract a
-            // single frame
-            use image::AnimationDecoder;
-            let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-            let decoder = match image::gif::Decoder::new(stream) {
-                Ok(decoder) => decoder,
-                Err(image::ImageError::UnsupportedError(_)) => return,
-                Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
-            };
+            #[cfg(feature = "gif_codec")]
+            {
+                // Interpret the input file as an animation file and extract a
+                // single frame
+                use image::AnimationDecoder;
+                let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
+                let decoder = match image::gif::Decoder::new(stream) {
+                    Ok(decoder) => decoder,
+                    Err(image::ImageError::UnsupportedError(_)) => return,
+                    Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
+                };
 
-            let mut frames = match decoder.into_frames().collect_frames() {
-                Ok(frames) => frames,
-                Err(image::ImageError::UnsupportedError(_)) => return,
-                Err(err) => panic!(format!(
-                    "collecting frames of {:?} failed with: {}",
-                    img_path, err
-                )),
-            };
+                let mut frames = match decoder.into_frames().collect_frames() {
+                    Ok(frames) => frames,
+                    Err(image::ImageError::UnsupportedError(_)) => return,
+                    Err(err) => panic!(format!(
+                        "collecting frames of {:?} failed with: {}",
+                        img_path, err
+                    )),
+                };
 
-            let frame = frames.drain(anim_frame..).nth(0).unwrap();
+                let frame = frames.drain(anim_frame..).nth(0).unwrap();
 
-            // Convert the frame to a`RgbaImage`
-            test_img = frame.into_buffer();
+                // Convert the frame to a`RgbaImage`
+                test_img = frame.into_buffer();
+            }
+
+            #[cfg(not(feature = "gif_codec"))]
+            {
+                println!("Skipping - GIF codec is not enabled");
+                return;
+            }
         } else {
             // Read the input file as a single image
             match image::open(&img_path) {

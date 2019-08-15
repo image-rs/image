@@ -138,6 +138,13 @@ impl DynamicImage {
         DynamicImage::ImageBgr8(ImageBuffer::new(w, h))
     }
 
+    /// Decodes an encoded image into a dynamic image.
+    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>)
+        -> ImageResult<Self>
+    {
+        decoder_to_image(decoder)
+    }
+
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
@@ -640,8 +647,7 @@ impl GenericImage for DynamicImage {
     }
 }
 
-/// Decodes an image and stores it into a dynamic image
-pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
     let color = codec.colortype();
     let (w, h) = codec.dimensions();
     let buf = codec.read_image()?;

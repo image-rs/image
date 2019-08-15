@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
@@ -25,11 +26,19 @@ use tiff;
 #[cfg(feature = "webp")]
 use webp;
 
-// use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage, BgrImage, BgraImage};
 use color;
 use image;
 use dynimage::DynamicImage;
 use image::{ImageDecoder, ImageFormat, ImageResult};
+use ImageError;
+
+/// Internal error type for guessing format from path.
+pub(crate) enum PathError {
+    /// The extension did not fit a supported format.
+    UnknownExtension(OsString),
+    /// Extension could not be converted to `str`.
+    NoExtension,
+}
 
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
@@ -188,6 +197,38 @@ pub(crate) fn save_buffer_with_format_impl(
     }
 }
 
+/// Guess format from a path.
+/// If the path has no extension or it can not be convert to a `str` for comparison then this
+/// method will simply return `None`.
+pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, PathError> {
+    let exact_ext = path.extension();
+
+    let ext = exact_ext
+        .and_then(|s| s.to_str())
+        .map(str::to_ascii_lowercase);
+
+    let ext = ext.as_ref()
+        .map(String::as_str);
+
+    Ok(match ext {
+        Some("jpg") | Some("jpeg") => image::ImageFormat::JPEG,
+        Some("png") => image::ImageFormat::PNG,
+        Some("gif") => image::ImageFormat::GIF,
+        Some("webp") => image::ImageFormat::WEBP,
+        Some("tif") | Some("tiff") => image::ImageFormat::TIFF,
+        Some("tga") => image::ImageFormat::TGA,
+        Some("bmp") => image::ImageFormat::BMP,
+        Some("ico") => image::ImageFormat::ICO,
+        Some("hdr") => image::ImageFormat::HDR,
+        Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::PNM,
+        // The original extension is used, instead of _format
+        _format => return match exact_ext {
+            None => Err(PathError::NoExtension),
+            Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
+        },
+    })
+}
+
 static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
@@ -214,12 +255,31 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
 /// TGA is not supported by this function.
 /// This is not to be trusted on the validity of the whole memory block
 pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
+    match guess_format_impl(buffer) {
+        Some(format) => Ok(format),
+        None => Err(image::ImageError::UnsupportedError(
+            "Unsupported image format".to_string(),
+        )),
+    }
+}
+
+pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
     for &(signature, format) in &MAGIC_BYTES {
         if buffer.starts_with(signature) {
-            return Ok(format);
+            return Some(format);
         }
     }
-    Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string(),
-    ))
+
+    None
+}
+
+impl From<PathError> for ImageError {
+    fn from(path: PathError) -> Self {
+        match path {
+            PathError::NoExtension => ImageError::UnsupportedError(
+                "Image format could not be recognized: no extension present".into()),
+            PathError::UnknownExtension(ext) => ImageError::UnsupportedError(format!(
+                "Image format image/{} is not recognized.", Path::new(&ext).display()))
+        }
+    }
 }

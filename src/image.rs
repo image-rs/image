@@ -148,34 +148,8 @@ impl ImageFormat {
     /// Return the image format specified by the path's file extension.
     pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
         // thin wrapper function to strip generics before calling from_path_impl
-        Self::from_path_impl(path.as_ref())
-    }
-
-    fn from_path_impl(path: &Path) -> ImageResult<Self> {
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-        let format = match &ext[..] {
-            "jpg" | "jpeg" => ImageFormat::JPEG,
-            "png" => ImageFormat::PNG,
-            "gif" => ImageFormat::GIF,
-            "webp" => ImageFormat::WEBP,
-            "tif" | "tiff" => ImageFormat::TIFF,
-            "tga" => ImageFormat::TGA,
-            "bmp" => ImageFormat::BMP,
-            "ico" => ImageFormat::ICO,
-            "hdr" => ImageFormat::HDR,
-            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::PNM,
-            format => {
-                return Err(ImageError::UnsupportedError(format!(
-                            "Image format image/{:?} is not supported.",
-                            format
-                            )))
-            }
-        };
-        Ok(format)
+        ::io::free_functions::guess_format_from_path_impl(path.as_ref())
+            .map_err(Into::into)
     }
 }
 

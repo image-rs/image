@@ -1,9 +1,12 @@
-use std::io::{self, Read, Seek};
+use std::fs::File;
+use std::io::{self, BufReader, Read, Seek};
 use std::path::Path;
 
 use dynimage::DynamicImage;
 use image::ImageFormat;
 use ImageResult;
+
+use super::free_functions;
 
 /// A multi-format image reader.
 ///
@@ -31,11 +34,21 @@ impl<R: io::Read> Reader<R> {
             format: Some(format),
         }
     }
+}
 
+impl Reader<BufReader<File>> {
     /// Open a file to read. Format will be guessed.
     /// Note: Failure to guess is not an error. The `Err` is only for `File::open`.
-    pub fn from_file<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
-        unimplemented!()
+    pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
+        let path = path.as_ref();
+
+        let file = File::open(path)?;
+        let format = ImageFormat::from_path(path);
+
+        Ok(Reader {
+            inner: BufReader::new(file),
+            format: format.ok(),
+        })
     }
 }
 

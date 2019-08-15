@@ -544,7 +544,6 @@ pub trait GenericImageView {
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over get_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -598,7 +597,6 @@ pub trait GenericImage: GenericImageView {
     /// Puts a pixel at location (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over put_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }

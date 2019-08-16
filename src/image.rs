@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 use std::io::Read;
+use std::path::Path;
 use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};
@@ -141,6 +142,41 @@ pub enum ImageFormat {
 
     /// An Image in Radiance HDR Format
     HDR,
+}
+
+impl ImageFormat {
+    /// Return the image format specified by the path's file extension.
+    pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
+        // thin wrapper function to strip generics before calling from_path_impl
+        Self::from_path_impl(path.as_ref())
+    }
+
+    fn from_path_impl(path: &Path) -> ImageResult<Self> {
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map_or("".to_string(), |s| s.to_ascii_lowercase());
+
+        let format = match &ext[..] {
+            "jpg" | "jpeg" => ImageFormat::JPEG,
+            "png" => ImageFormat::PNG,
+            "gif" => ImageFormat::GIF,
+            "webp" => ImageFormat::WEBP,
+            "tif" | "tiff" => ImageFormat::TIFF,
+            "tga" => ImageFormat::TGA,
+            "bmp" => ImageFormat::BMP,
+            "ico" => ImageFormat::ICO,
+            "hdr" => ImageFormat::HDR,
+            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::PNM,
+            format => {
+                return Err(ImageError::UnsupportedError(format!(
+                            "Image format image/{:?} is not supported.",
+                            format
+                            )))
+            }
+        };
+        Ok(format)
+    }
 }
 
 /// An enumeration of supported image formats for encoding.
@@ -786,8 +822,9 @@ where
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::path::Path;
 
-    use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect};
+    use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
     use buffer::ImageBuffer;
     use color::Rgba;
 
@@ -918,5 +955,29 @@ mod tests {
             assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
 
         }
+    }
+
+    #[test]
+    fn test_image_format_from_path() {
+        fn from_path(s: &str) -> ImageResult<ImageFormat> {
+            ImageFormat::from_path(Path::new(s))
+        }
+        assert_eq!(from_path("./a.jpg").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.jpeg").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.png").unwrap(), ImageFormat::PNG);
+        assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::GIF);
+        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::WEBP);
+        assert_eq!(from_path("./a.tiff").unwrap(), ImageFormat::TIFF);
+        assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::TIFF);
+        assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::TGA);
+        assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::BMP);
+        assert_eq!(from_path("./a.ico").unwrap(), ImageFormat::ICO);
+        assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::HDR);
+        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.pam").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.ppm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::PNM);
+        assert!(from_path("./a.txt").is_err());
+        assert!(from_path("./a").is_err());
     }
 }

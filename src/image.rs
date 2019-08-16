@@ -964,18 +964,19 @@ mod tests {
         }
         assert_eq!(from_path("./a.jpg").unwrap(), ImageFormat::JPEG);
         assert_eq!(from_path("./a.jpeg").unwrap(), ImageFormat::JPEG);
-        assert_eq!(from_path("./a.png").unwrap(), ImageFormat::PNG);
+        assert_eq!(from_path("./a.JPEG").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.pNg").unwrap(), ImageFormat::PNG);
         assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::GIF);
         assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::WEBP);
-        assert_eq!(from_path("./a.tiff").unwrap(), ImageFormat::TIFF);
+        assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::TIFF);
         assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::TIFF);
         assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::TGA);
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::BMP);
-        assert_eq!(from_path("./a.ico").unwrap(), ImageFormat::ICO);
+        assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::ICO);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::HDR);
         assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::PNM);
-        assert_eq!(from_path("./a.pam").unwrap(), ImageFormat::PNM);
-        assert_eq!(from_path("./a.ppm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::PNM);
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::PNM);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());

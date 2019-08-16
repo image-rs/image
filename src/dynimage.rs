@@ -749,30 +749,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     };
     let fin = BufReader::new(fin);
 
-    let ext = path.extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    let format = match &ext[..] {
-        "jpg" | "jpeg" => image::ImageFormat::JPEG,
-        "png" => image::ImageFormat::PNG,
-        "gif" => image::ImageFormat::GIF,
-        "webp" => image::ImageFormat::WEBP,
-        "tif" | "tiff" => image::ImageFormat::TIFF,
-        "tga" => image::ImageFormat::TGA,
-        "bmp" => image::ImageFormat::BMP,
-        "ico" => image::ImageFormat::ICO,
-        "hdr" => image::ImageFormat::HDR,
-        "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
-        format => {
-            return Err(image::ImageError::UnsupportedError(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            )))
-        }
-    };
-
-    load(fin, format)
+    load(fin, ImageFormat::from_path(path)?)
 }
 
 /// Read the dimensions of the image located at the specified path.
@@ -789,32 +766,29 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     let fin = File::open(path)?;
     let fin = BufReader::new(fin);
 
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    let (w, h): (u64, u64) = match &ext[..] {
+    #[allow(unreachable_patterns)]
+    // Default is unreachable if all features are supported.
+    let (w, h): (u64, u64) = match image::ImageFormat::from_path(path)? {
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::JPEG => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        "png" => png::PNGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::PNG => png::PNGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "gif_codec")]
-        "gif" => gif::Decoder::new(fin)?.dimensions(),
+        image::ImageFormat::GIF => gif::Decoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        "webp" => webp::WebpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WEBP => webp::WebpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TIFFDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::TIFF => tiff::TIFFDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
-        "tga" => tga::TGADecoder::new(fin)?.dimensions(),
+        image::ImageFormat::TGA => tga::TGADecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::BMP => bmp::BMPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
-        "ico" => ico::ICODecoder::new(fin)?.dimensions(),
+        image::ImageFormat::ICO => ico::ICODecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
-        "hdr" => hdr::HDRAdapter::new(fin)?.dimensions(),
+        image::ImageFormat::HDR => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
-        "pbm" | "pam" | "ppm" | "pgm" => {
+        image::ImageFormat::PNM => {
             pnm::PNMDecoder::new(fin)?.dimensions()
         }
         format => return Err(image::ImageError::UnsupportedError(format!(

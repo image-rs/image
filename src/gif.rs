@@ -108,7 +108,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
         let mut buf = vec![0; self.reader.buffer_size()];
         self.reader.read_into_buffer(&mut buf)?;
 
-        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).unwrap();
+        // See the comments inside `<GifFrameIterator as Iterator>::next` about
+        // the error handling of `from_raw`.
+        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).ok_or(
+            ImageError::UnsupportedError("Image dimensions are too large".into()),
+        )?;
 
         // Recover the full image
         let (width, height) = (self.reader.width() as u32, self.reader.height() as u32);
@@ -181,8 +185,19 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             return Some(Err(err.into()));
         }
 
-        // create the image buffer from the raw frame
-        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, vec).unwrap();
+        // create the image buffer from the raw frame.
+        // `buffer_size` uses wrapping arithmetics, thus might not report the
+        // correct storage requirement if the result does not fit in `usize`.
+        // on the other hand, `ImageBuffer::from_raw` detects overflow and
+        // reports by returning `None`.
+        let image_buffer_raw = match ImageBuffer::from_raw(f_width, f_height, vec) {
+            Some(image_buffer_raw) => image_buffer_raw,
+            None => {
+                return Some(Err(ImageError::UnsupportedError(
+                    "Image dimensions are too large".into(),
+                )))
+            }
+        };
 
         // if `image_buffer_raw`'s frame exactly matches the entire image, then
         // use it directly.

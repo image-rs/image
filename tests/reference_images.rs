@@ -203,24 +203,10 @@ fn check_references() {
             };
         }
 
-        let ref_img = coalesce_transparent_pixels(ref_img);
-        let test_img = coalesce_transparent_pixels(test_img);
-
         if *ref_img != *test_img {
             panic!("Reference rendering does not match.");
         }
     })
-}
-
-/// Replace transparent pixel values with a single value. This is useful for
-/// disregarding differences in the RGB values of completely transparent pixels.
-fn coalesce_transparent_pixels(mut img: image::RgbaImage) -> image::RgbaImage {
-    for p in img.pixels_mut() {
-        if p[3] == 0 {
-            *p = image::Rgba([0, 0, 0, 0]);
-        }
-    }
-    img
 }
 
 #[cfg(feature = "hdr")]

@@ -206,9 +206,6 @@ fn check_references() {
         let ref_img = coalesce_transparent_pixels(ref_img);
         let test_img = coalesce_transparent_pixels(test_img);
 
-        //ref_img.save("/tmp/test-ref.png").unwrap();
-        //test_img.save("/tmp/test-in.png").unwrap();
-
         if *ref_img != *test_img {
             panic!("Reference rendering does not match.");
         }

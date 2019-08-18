@@ -30,7 +30,7 @@ trait Sample {
     fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32)
         -> ImageResult<Vec<u8>>;
 
-    fn from_ascii(reader: &mut Read, width: u32, height: u32, samples: u32)
+    fn from_ascii(reader: &mut dyn Read, width: u32, height: u32, samples: u32)
         -> ImageResult<Vec<u8>>;
 }
 
@@ -287,7 +287,7 @@ trait HeaderReader: BufRead {
             let len = self.read_line(&mut line).map_err(ImageError::IoError)?;
             if len == 0 {
                 return Err(ImageError::FormatError(
-                    format!("Unexpected end of pnm header"),
+                    "Unexpected end of pnm header".to_string(),
                 ))
             }
             if line.as_bytes()[0] == b'#' {
@@ -429,7 +429,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     type Reader = PnmReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.header.width() as u64, self.header.height() as u64)
+        (u64::from(self.header.width()), u64::from(self.header.height()))
     }
 
     fn color_type(&self) -> ColorType {
@@ -486,11 +486,11 @@ impl<R: Read> PNMDecoder<R> {
                     .read_exact(&mut bytes)
                     .map_err(|_| ImageError::NotEnoughData)?;
                 let samples = S::from_bytes(&bytes, width, height, components)?;
-                Ok(samples.into())
+                Ok(samples)
             }
             SampleEncoding::Ascii => {
                 let samples = self.read_ascii::<S>(components)?;
-                Ok(samples.into())
+                Ok(samples)
             }
         }
     }
@@ -505,7 +505,7 @@ impl<R: Read> PNMDecoder<R> {
     }
 }
 
-fn read_separated_ascii<T: FromStr>(reader: &mut Read) -> ImageResult<T>
+fn read_separated_ascii<T: FromStr>(reader: &mut dyn Read) -> ImageResult<T>
     where T::Err: Display
 {
     let is_separator = |v: &u8| match *v {
@@ -550,7 +550,7 @@ impl Sample for U8 {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -583,7 +583,7 @@ impl Sample for U16 {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -623,7 +623,7 @@ impl Sample for PbmBit {
     }
 
     fn from_ascii(
-        reader: &mut Read,
+        reader: &mut dyn Read,
         width: u32,
         height: u32,
         samples: u32,
@@ -679,7 +679,7 @@ impl Sample for BWBit {
     }
 
     fn from_ascii(
-        _reader: &mut Read,
+        _reader: &mut dyn Read,
         _width: u32,
         _height: u32,
         _samples: u32,

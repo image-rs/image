@@ -18,29 +18,25 @@ impl<W: Write> HDREncoder<W> {
     pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> Result<()> {
         assert!(data.len() >= width * height);
         let w = &mut self.w;
-        try!(w.write_all(SIGNATURE));
-        try!(w.write_all(b"\n"));
-        try!(w.write_all(b"# Rust HDR encoder\n"));
-        try!(w.write_all(b"FORMAT=32-bit_rle_rgbe\n\n"));
-        try!(w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes()));
+        w.write_all(SIGNATURE)?;
+        w.write_all(b"\n")?;
+        w.write_all(b"# Rust HDR encoder\n")?;
+        w.write_all(b"FORMAT=32-bit_rle_rgbe\n\n")?;
+        w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
 
         if width < 8 || width > 32_768 {
             for &pix in data {
-                try!(write_rgbe8(w, to_rgbe8(pix)));
+                write_rgbe8(w, to_rgbe8(pix))?;
             }
         } else {
             // new RLE marker contains scanline width
             let marker = rgbe8(2, 2, (width / 256) as u8, (width % 256) as u8);
             // buffers for encoded pixels
-            let mut bufr = Vec::with_capacity(width);
-            bufr.resize(width, 0);
-            let mut bufg = Vec::with_capacity(width);
-            bufg.resize(width, 0);
-            let mut bufb = Vec::with_capacity(width);
-            bufb.resize(width, 0);
-            let mut bufe = Vec::with_capacity(width);
-            bufe.resize(width, 0);
-            let mut rle_buf = Vec::with_capacity(width);
+            let mut bufr = vec![0; width];
+            let mut bufg = vec![0; width];
+            let mut bufb = vec![0; width];
+            let mut bufe = vec![0; width];
+            let mut rle_buf = vec![0; width];
             for scanline in data.chunks(width) {
                 for ((((r, g), b), e), &pix) in bufr.iter_mut()
                     .zip(bufg.iter_mut())
@@ -54,19 +50,19 @@ impl<W: Write> HDREncoder<W> {
                     *b = cp.c[2];
                     *e = cp.e;
                 }
-                try!(write_rgbe8(w, marker)); // New RLE encoding marker
+                write_rgbe8(w, marker)?; // New RLE encoding marker
                 rle_buf.clear();
                 rle_compress(&bufr[..], &mut rle_buf);
-                try!(w.write_all(&rle_buf[..]));
+                w.write_all(&rle_buf[..])?;
                 rle_buf.clear();
                 rle_compress(&bufg[..], &mut rle_buf);
-                try!(w.write_all(&rle_buf[..]));
+                w.write_all(&rle_buf[..])?;
                 rle_buf.clear();
                 rle_compress(&bufb[..], &mut rle_buf);
-                try!(w.write_all(&rle_buf[..]));
+                w.write_all(&rle_buf[..])?;
                 rle_buf.clear();
                 rle_compress(&bufe[..], &mut rle_buf);
-                try!(w.write_all(&rle_buf[..]));
+                w.write_all(&rle_buf[..])?;
             }
         }
         Ok(())

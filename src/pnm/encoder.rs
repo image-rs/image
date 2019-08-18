@@ -171,6 +171,7 @@ impl<W: Write> PNMEncoder<W> {
             ExtendedColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
             ExtendedColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
             ExtendedColorType::L16 => (0xffff, ArbitraryTuplType::Grayscale),
+            ExtendedColorType::La1 => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
             ExtendedColorType::La8 => (0xff, ArbitraryTuplType::GrayscaleAlpha),
             ExtendedColorType::La16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
             ExtendedColorType::Rgb8 => (0xff, ArbitraryTuplType::RGB),
@@ -254,7 +255,7 @@ impl<W: Write> PNMEncoder<W> {
     ///
     /// Returns how the body should be written if successful.
     fn write_with_header(
-        writer: &mut Write,
+        writer: &mut dyn Write,
         header: &PNMHeader,
         image: FlatSamples,
         width: u32,
@@ -472,7 +473,7 @@ impl<'a> CheckedHeaderColor<'a> {
 }
 
 impl<'a> CheckedHeader<'a> {
-    fn write_header(self, writer: &mut Write) -> io::Result<TupleEncoding<'a>> {
+    fn write_header(self, writer: &mut dyn Write) -> io::Result<TupleEncoding<'a>> {
         self.header().write(writer)?;
         Ok(self.encoding)
     }
@@ -482,7 +483,7 @@ impl<'a> CheckedHeader<'a> {
     }
 }
 
-struct SampleWriter<'a>(&'a mut Write);
+struct SampleWriter<'a>(&'a mut dyn Write);
 
 impl<'a> SampleWriter<'a> {
     fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
@@ -596,7 +597,7 @@ impl<'a> From<&'a [u16]> for FlatSamples<'a> {
 }
 
 impl<'a> TupleEncoding<'a> {
-    fn write_image(&self, writer: &mut Write) -> io::Result<()> {
+    fn write_image(&self, writer: &mut dyn Write) -> io::Result<()> {
         match *self {
             TupleEncoding::PbmBits {
                 samples: FlatSamples::U8(samples),

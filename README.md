@@ -1,6 +1,6 @@
 # Image [![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image) [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-Maintainers: @nwin, @ccgn
+Maintainers: @HeroicKatora, @fintelia
 
 [How to contribute](https://github.com/image-rs/organization/blob/master/CONTRIBUTING.md)
 

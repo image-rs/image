@@ -91,7 +91,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
     type Reader = TiffReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.dimensions.0 as u64, self.dimensions.1 as u64)
+        (u64::from(self.dimensions.0), u64::from(self.dimensions.1))
     }
 
     fn color_type(&self) -> ColorType {

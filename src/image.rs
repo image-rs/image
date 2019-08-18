@@ -1,7 +1,10 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::error::Error;
 use std::fmt;
 use std::io;
 use std::io::Read;
+use std::path::Path;
 use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};
@@ -88,7 +91,7 @@ impl Error for ImageError {
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match *self {
             ImageError::IoError(ref e) => Some(e),
             _ => None,
@@ -138,6 +141,41 @@ pub enum ImageFormat {
 
     /// An Image in Radiance HDR Format
     HDR,
+}
+
+impl ImageFormat {
+    /// Return the image format specified by the path's file extension.
+    pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
+        // thin wrapper function to strip generics before calling from_path_impl
+        Self::from_path_impl(path.as_ref())
+    }
+
+    fn from_path_impl(path: &Path) -> ImageResult<Self> {
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map_or("".to_string(), |s| s.to_ascii_lowercase());
+
+        let format = match &ext[..] {
+            "jpg" | "jpeg" => ImageFormat::JPEG,
+            "png" => ImageFormat::PNG,
+            "gif" => ImageFormat::GIF,
+            "webp" => ImageFormat::WEBP,
+            "tif" | "tiff" => ImageFormat::TIFF,
+            "tga" => ImageFormat::TGA,
+            "bmp" => ImageFormat::BMP,
+            "ico" => ImageFormat::ICO,
+            "hdr" => ImageFormat::HDR,
+            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::PNM,
+            format => {
+                return Err(ImageError::UnsupportedError(format!(
+                            "Image format image/{:?} is not supported.",
+                            format
+                            )))
+            }
+        };
+        Ok(format)
+    }
 }
 
 /// An enumeration of supported image formats for encoding.
@@ -536,7 +574,6 @@ pub trait GenericImageView {
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over get_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -560,6 +597,7 @@ pub trait GenericImageView {
     fn inner(&self) -> &Self::InnerImageView;
 
     /// Returns an subimage that is an immutable view into this image.
+    /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
         SubImage::new(self.inner(), x, y, width, height)
     }
@@ -589,7 +627,6 @@ pub trait GenericImage: GenericImageView {
     /// Puts a pixel at location (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[deprecated = "Generally offers little advantage over put_pixel. If you must, prefer dedicated methods or other realizations on the specific image type instead."]
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
@@ -604,7 +641,7 @@ pub trait GenericImage: GenericImageView {
     /// The other image is copied with the top-left corner of the
     /// other image placed at (x, y).
     ///
-    /// In order to copy only a piece of the other image, use `sub_image`.
+    /// In order to copy only a piece of the other image, use [`GenericImageView::view`].
     ///
     /// # Returns
     /// `true` if the copy was successful, `false` if the image could not
@@ -631,7 +668,8 @@ pub trait GenericImage: GenericImageView {
     /// Returns a mutable reference to the underlying image.
     fn inner_mut(&mut self) -> &mut Self::InnerImage;
 
-    /// Returns a subimage that is a view into this image.
+    /// Returns a mutable subimage that is a view into this image.
+    /// If you want an immutable subimage instead, use [`GenericImageView::view`]
     fn sub_image(
         &mut self,
         x: u32,
@@ -644,6 +682,11 @@ pub trait GenericImage: GenericImageView {
 }
 
 /// A View into another image
+///
+/// Instances of this struct can be created using:
+///   - [`GenericImage::sub_image`] to create a mutable view,
+///   - [`GenericImageView::view`] to create an immutable view,
+///   - [`SubImage::new`] to instantiate the struct directly.
 pub struct SubImage<I> {
     image: I,
     xoffset: u32,
@@ -772,8 +815,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+    use std::path::Path;
 
-    use super::{GenericImage, GenericImageView};
+    use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
     use buffer::ImageBuffer;
     use color::Rgba;
 
@@ -846,11 +891,9 @@ mod tests {
 
     #[test]
     fn test_load_rect() {
-        use super::*;
-
         struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
         impl<'a> ImageDecoder<'a> for MockDecoder {
-            type Reader = Box<::std::io::Read>;
+            type Reader = Box<dyn io::Read>;
             fn dimensions(&self) -> (u64, u64) {(5, 5)}
             fn color_type(&self) -> ColorType {  ColorType::L8 }
             fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
@@ -906,5 +949,30 @@ mod tests {
             assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
 
         }
+    }
+
+    #[test]
+    fn test_image_format_from_path() {
+        fn from_path(s: &str) -> ImageResult<ImageFormat> {
+            ImageFormat::from_path(Path::new(s))
+        }
+        assert_eq!(from_path("./a.jpg").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.jpeg").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.JPEG").unwrap(), ImageFormat::JPEG);
+        assert_eq!(from_path("./a.pNg").unwrap(), ImageFormat::PNG);
+        assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::GIF);
+        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::WEBP);
+        assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::TIFF);
+        assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::TIFF);
+        assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::TGA);
+        assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::BMP);
+        assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::ICO);
+        assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::HDR);
+        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::PNM);
+        assert!(from_path("./a.txt").is_err());
+        assert!(from_path("./a").is_err());
     }
 }

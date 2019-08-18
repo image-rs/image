@@ -38,10 +38,10 @@ impl<R: Read> WebpDecoder<R> {
 
     fn read_riff_header(&mut self) -> ImageResult<u32> {
         let mut riff = Vec::with_capacity(4);
-        try!(self.r.by_ref().take(4).read_to_end(&mut riff));
-        let size = try!(self.r.read_u32::<LittleEndian>());
+        self.r.by_ref().take(4).read_to_end(&mut riff)?;
+        let size = self.r.read_u32::<LittleEndian>()?;
         let mut webp = Vec::with_capacity(4);
-        try!(self.r.by_ref().take(4).read_to_end(&mut webp));
+        self.r.by_ref().take(4).read_to_end(&mut webp)?;
 
         if &*riff != b"RIFF" {
             return Err(image::ImageError::FormatError(
@@ -60,7 +60,7 @@ impl<R: Read> WebpDecoder<R> {
 
     fn read_vp8_header(&mut self) -> ImageResult<()> {
         let mut vp8 = Vec::with_capacity(4);
-        try!(self.r.by_ref().take(4).read_to_end(&mut vp8));
+        self.r.by_ref().take(4).read_to_end(&mut vp8)?;
 
         if &*vp8 != b"VP8 " {
             return Err(image::ImageError::FormatError(
@@ -68,18 +68,18 @@ impl<R: Read> WebpDecoder<R> {
             ));
         }
 
-        let _len = try!(self.r.read_u32::<LittleEndian>());
+        let _len = self.r.read_u32::<LittleEndian>()?;
 
         Ok(())
     }
 
     fn read_frame(&mut self) -> ImageResult<()> {
         let mut framedata = Vec::new();
-        try!(self.r.read_to_end(&mut framedata));
+        self.r.read_to_end(&mut framedata)?;
         let m = io::Cursor::new(framedata);
 
         let mut v = VP8Decoder::new(m);
-        let frame = try!(v.decode_frame());
+        let frame = v.decode_frame()?;
 
         self.frame = frame.clone();
 
@@ -88,9 +88,9 @@ impl<R: Read> WebpDecoder<R> {
 
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.have_frame {
-            try!(self.read_riff_header());
-            try!(self.read_vp8_header());
-            try!(self.read_frame());
+            self.read_riff_header()?;
+            self.read_vp8_header()?;
+            self.read_frame()?;
 
             self.have_frame = true;
         }
@@ -119,7 +119,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
     type Reader = WebpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.frame.width as u64, self.frame.height as u64)
+        (u64::from(self.frame.width), u64::from(self.frame.height))
     }
 
     fn color_type(&self) -> color::ColorType {

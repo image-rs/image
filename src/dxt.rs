@@ -114,7 +114,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
     type Reader = DXTReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.width_blocks as u64 * 4, self.height_blocks as u64 * 4)
+        (u64::from(self.width_blocks) * 4, u64::from(self.height_blocks) * 4)
     }
 
     fn color_type(&self) -> ColorType {
@@ -122,7 +122,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
-        self.variant.decoded_bytes_per_block() as u64 * self.width_blocks as u64
+        self.variant.decoded_bytes_per_block() as u64 * u64::from(self.width_blocks)
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -160,7 +160,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DXTDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let encoded_scanline_bytes = self.variant.encoded_bytes_per_block() as u64
-            * self.width_blocks as u64;
+            * u64::from(self.width_blocks);
 
         let start = self.inner.seek(SeekFrom::Current(0))?;
         image::load_rect(x, y, width, height, buf, progress_callback, self,
@@ -181,7 +181,7 @@ pub struct DXTReader<R: Read> {
 }
 impl<R: Read> Read for DXTReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ref mut decoder = &mut self.decoder;
+        let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
     }
 }

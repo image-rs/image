@@ -153,7 +153,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
 
     fn dimensions(&self) -> (u64, u64) {
         let (w, h) = self.reader.info().size();
-        (w as u64, h as u64)
+        (u64::from(w), u64::from(h))
     }
 
     fn color_type(&self) -> ColorType {
@@ -210,7 +210,7 @@ impl<W: Write> PNGEncoder<W> {
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
-        let mut writer = try!(encoder.write_header());
+        let mut writer = encoder.write_header()?;
         writer.write_image_data(data).map_err(|e| e.into())
     }
 }

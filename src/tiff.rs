@@ -71,27 +71,6 @@ impl From<tiff::TiffError> for ImageError {
     }
 }
 
-// impl From<tiff::ColorType> for ColorType {
-//     fn from(ct: tiff::ColorType) -> ColorType {
-//         match ct {
-//             tiff::ColorType::Palette(depth) => ColorType::Unknown(depth),
-//             tiff::ColorType::Gray(8) => ColorType::L8,
-//             tiff::ColorType::Gray(16) => ColorType::L16,
-//             tiff::ColorType::Gray(n) => ColorType::Unknown(n),
-//             tiff::ColorType::GrayA(8) => ColorType::La8,
-//             tiff::ColorType::GrayA(16) => ColorType::La16,
-//             tiff::ColorType::GrayA(n) => ColorType::Unknown(n*2),
-//             tiff::ColorType::RGB(8) => ColorType::Rgb8,
-//             tiff::ColorType::RGB(16) => ColorType::Rgb16,
-//             tiff::ColorType::RGB(n) => ColorType::Unknown(n*3),
-//             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
-//             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
-//             tiff::ColorType::RGBA(n) => ColorType::Unknown(n*4),
-//             tiff::ColorType::CMYK(n) => ColorType::Unknown(n*4),
-//         }
-//     }
-// }
-
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct TiffReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
 impl<R> Read for TiffReader<R> {
@@ -142,9 +121,7 @@ impl<W: Write + Seek> TiffEncoder<W> {
         TiffEncoder { w }
     }
 
-    /// Encodes the image `image`
-    /// that has dimensions `width` and `height`
-    /// and `ColorType` `c`.
+    /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
     ///
     /// 16-bit color types are not yet supported.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {

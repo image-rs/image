@@ -79,6 +79,78 @@ fn render_images() {
     })
 }
 
+/// Describes a single test case of `check_references`.
+struct ReferenceTestCase {
+    orig_filename: String,
+    crc: u32,
+    ty: ReferenceTestCaseType,
+}
+
+enum ReferenceTestCaseType {
+    /// The test image is loaded using `image::open`, and the result is compared
+    /// against the reference image.
+    SingleImage,
+
+    /// From the test image file, a single frame is extracted using
+    /// `image::gif::Decoder`, and the result is compared against the reference
+    /// image.
+    AnimatedGifFrame {
+        /// A zero-based frame number.
+        frame: usize,
+    },
+}
+
+impl std::str::FromStr for ReferenceTestCase {
+    type Err = &'static str;
+
+    /// Construct `ReferenceTestCase` from the file name of a reference
+    /// image.
+    fn from_str(filename: &str) -> Result<Self, Self::Err> {
+        let mut filename_parts = filename.rsplitn(3, '.');
+
+        // Ignore the file extension
+        filename_parts.next().unwrap();
+
+        // The penultimate part of `filename_parts` represents the metadata,
+        // describing the test type and other details.
+        let meta_str = filename_parts.next().ok_or("missing metadata part")?;
+        let meta = meta_str.split('_').collect::<Vec<_>>();
+        let (crc, ty);
+
+        if meta.len() == 1 {
+            // `CRC`
+            crc = parse_crc(&meta[0]).ok_or("malformed CRC")?;
+            ty = ReferenceTestCaseType::SingleImage;
+        } else if meta.len() == 3 && meta[0] == "anim" {
+            // `anim_FRAME_CRC`
+            crc = parse_crc(&meta[2]).ok_or("malformed CRC")?;
+            let frame: usize = meta[1].parse().map_err(|_| "malformed frame number")?;
+            ty = ReferenceTestCaseType::AnimatedGifFrame {
+                frame: frame.checked_sub(1).ok_or("frame number must be 1-based")?,
+            };
+        } else {
+            return Err("unrecognized reference image metadata format");
+        }
+
+        // The remaining part represents the original file name
+        let orig_filename = filename_parts
+            .next()
+            .ok_or("missing original file name")?
+            .to_owned();
+
+        Ok(Self {
+            orig_filename,
+            crc,
+            ty,
+        })
+    }
+}
+
+/// Parse the given string as a hexadecimal CRC hash, used by `check_references`.
+fn parse_crc(src: &str) -> Option<u32> {
+    u32::from_str_radix(src, 16).ok()
+}
+
 #[test]
 fn check_references() {
     process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
@@ -98,43 +170,12 @@ fn check_references() {
             (path.pop().unwrap(), path.pop().unwrap())
         };
 
-        let mut filename_parts = filename
-            .as_os_str()
-            .to_str()
-            .unwrap()
-            .split('.')
-            .collect::<Vec<_>>();
-
-        // Ignore the file extension
-        filename_parts.pop().unwrap();
-
-        // The penultimate part of `filename_parts` represents the metadata.
-        let meta_str = filename_parts.pop().unwrap();
-        let mut meta = meta_str.split('_').collect::<Vec<_>>();
-        let ref_crc;
-        let anim_frame: Option<usize>;
-
-        if meta.len() == 1 {
-            // `CRC`
-            ref_crc = meta.pop().unwrap();
-            anim_frame = None;
-        } else if meta.len() == 3 && meta[0] == "anim" {
-            // `anim_FRAME_CRC`
-            ref_crc = meta.pop().unwrap();
-            let frame: usize = meta.pop().unwrap().parse().unwrap();
-            anim_frame = Some(frame.checked_sub(1).expect("frame number cannot be 0"));
-        } else {
-            panic!(
-                "unrecognized reference image metadata format: {:?}",
-                meta_str
-            );
-        }
-
-        // The remaining part represents the original file name
-        let orig_filename = filename_parts.join(".");
+        // Parse the file name to obtain the test case information
+        let filename_str = filename.as_os_str().to_str().unwrap();
+        let case: ReferenceTestCase = filename_str.parse().unwrap();
 
         // Check the reference image's CRC
-        let ref_crc = u32::from_str_radix(ref_crc, 16).unwrap();
+        let ref_crc = case.crc;
 
         let ref_crc_actual = {
             let mut hasher = Crc32::new();
@@ -153,54 +194,60 @@ fn check_references() {
         img_path.push(IMAGE_DIR);
         img_path.push(decoder);
         img_path.push(testsuite.as_os_str());
-        img_path.push(orig_filename);
+        img_path.push(case.orig_filename);
 
         // Load the test image
         let test_img;
 
-        if let Some(anim_frame) = anim_frame {
-            #[cfg(feature = "gif_codec")]
-            {
-                // Interpret the input file as an animation file and extract a
-                // single frame
-                use image::AnimationDecoder;
-                let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                let decoder = match image::gif::Decoder::new(stream) {
-                    Ok(decoder) => decoder,
+        match case.ty {
+            ReferenceTestCaseType::AnimatedGifFrame { frame: frame_num } => {
+                #[cfg(feature = "gif_codec")]
+                {
+                    // Interpret the input file as an animation file
+                    use image::AnimationDecoder;
+                    let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
+                    let decoder = match image::gif::Decoder::new(stream) {
+                        Ok(decoder) => decoder,
+                        Err(image::ImageError::UnsupportedError(_)) => return,
+                        Err(err) => {
+                            panic!(format!("decoding of {:?} failed with: {}", img_path, err))
+                        }
+                    };
+
+                    let mut frames = match decoder.into_frames().collect_frames() {
+                        Ok(frames) => frames,
+                        Err(image::ImageError::UnsupportedError(_)) => return,
+                        Err(err) => panic!(format!(
+                            "collecting frames of {:?} failed with: {}",
+                            img_path, err
+                        )),
+                    };
+
+                    // Select a single frame
+                    let frame = frames.drain(frame_num..).nth(0).unwrap();
+
+                    // Convert the frame to a`RgbaImage`
+                    test_img = frame.into_buffer();
+                }
+
+                #[cfg(not(feature = "gif_codec"))]
+                {
+                    println!("Skipping - GIF codec is not enabled");
+                    return;
+                }
+            }
+
+            ReferenceTestCaseType::SingleImage => {
+                // Read the input file as a single image
+                match image::open(&img_path) {
+                    Ok(img) => test_img = img.to_rgba(),
+                    // Do not fail on unsupported error
+                    // This might happen because the testsuite contains unsupported images
+                    // or because a specific decoder included via a feature.
                     Err(image::ImageError::UnsupportedError(_)) => return,
                     Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
                 };
-
-                let mut frames = match decoder.into_frames().collect_frames() {
-                    Ok(frames) => frames,
-                    Err(image::ImageError::UnsupportedError(_)) => return,
-                    Err(err) => panic!(format!(
-                        "collecting frames of {:?} failed with: {}",
-                        img_path, err
-                    )),
-                };
-
-                let frame = frames.drain(anim_frame..).nth(0).unwrap();
-
-                // Convert the frame to a`RgbaImage`
-                test_img = frame.into_buffer();
             }
-
-            #[cfg(not(feature = "gif_codec"))]
-            {
-                println!("Skipping - GIF codec is not enabled");
-                return;
-            }
-        } else {
-            // Read the input file as a single image
-            match image::open(&img_path) {
-                Ok(img) => test_img = img.to_rgba(),
-                // Do not fail on unsupported error
-                // This might happen because the testsuite contains unsupported images
-                // or because a specific decoder included via a feature.
-                Err(image::ImageError::UnsupportedError(_)) => return,
-                Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
-            };
         }
 
         if *ref_img != *test_img {

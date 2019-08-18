@@ -78,7 +78,7 @@ fn write_direntry<W: Write>(
     // Color planes:
     try!(w.write_u16::<LittleEndian>(0));
     // Bits per pixel:
-    try!(w.write_u16::<LittleEndian>(8 * color.bytes_per_pixel() as u16));
+    try!(w.write_u16::<LittleEndian>(color.bits_per_pixel()));
     // Image data size, in bytes:
     try!(w.write_u32::<LittleEndian>(data_size));
     // Image data offset, in bytes:

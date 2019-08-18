@@ -35,8 +35,8 @@ pub enum ColorType {
 }
 
 impl ColorType {
-    /// Returns the number of bits contained in a pixel of `ColorType` ```c```
-    pub fn bytes_per_pixel(self) -> usize {
+    /// Returns the number of bytes contained in a pixel of `ColorType` ```c```
+    pub fn bytes_per_pixel(self) -> u8 {
         match self {
             ColorType::L8 => 1,
             ColorType::L16 | ColorType::La8 => 2,
@@ -46,6 +46,12 @@ impl ColorType {
             ColorType::Rgba16 => 8,
             ColorType::__Nonexhaustive => unreachable!(),
         }
+    }
+
+    /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
+    /// a multiple of 8).
+    pub fn bits_per_pixel(self) -> u16 {
+        <u16 as From<u8>>::from(self.bytes_per_pixel()) * 8
     }
 
     /// Returns the number of color channels that make up this pixel

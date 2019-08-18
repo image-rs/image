@@ -5,7 +5,6 @@ use std::io::Read;
 use std::ops::{Deref, DerefMut};
 
 use buffer::{ImageBuffer, Pixel};
-use color;
 use color::{ColorType, ExtendedColorType};
 
 use animation::Frames;

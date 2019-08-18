@@ -510,6 +510,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
+        // This cannot overflow because TGA has a maximum width of u16::MAX_VALUE and
+        // `bytes_per_pixel` is a u8.
         self.color_type.bytes_per_pixel() as u64 * self.width as u64
     }
 

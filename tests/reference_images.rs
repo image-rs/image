@@ -83,10 +83,10 @@ fn render_images() {
 struct ReferenceTestCase {
     orig_filename: String,
     crc: u32,
-    ty: ReferenceTestCaseType,
+    kind: ReferenceTestKind,
 }
 
-enum ReferenceTestCaseType {
+enum ReferenceTestKind {
     /// The test image is loaded using `image::open`, and the result is compared
     /// against the reference image.
     SingleImage,
@@ -115,17 +115,17 @@ impl std::str::FromStr for ReferenceTestCase {
         // describing the test type and other details.
         let meta_str = filename_parts.next().ok_or("missing metadata part")?;
         let meta = meta_str.split('_').collect::<Vec<_>>();
-        let (crc, ty);
+        let (crc, kind);
 
         if meta.len() == 1 {
             // `CRC`
             crc = parse_crc(&meta[0]).ok_or("malformed CRC")?;
-            ty = ReferenceTestCaseType::SingleImage;
+            kind = ReferenceTestKind::SingleImage;
         } else if meta.len() == 3 && meta[0] == "anim" {
             // `anim_FRAME_CRC`
             crc = parse_crc(&meta[2]).ok_or("malformed CRC")?;
             let frame: usize = meta[1].parse().map_err(|_| "malformed frame number")?;
-            ty = ReferenceTestCaseType::AnimatedGifFrame {
+            kind = ReferenceTestKind::AnimatedGifFrame {
                 frame: frame.checked_sub(1).ok_or("frame number must be 1-based")?,
             };
         } else {
@@ -141,7 +141,7 @@ impl std::str::FromStr for ReferenceTestCase {
         Ok(Self {
             orig_filename,
             crc,
-            ty,
+            kind,
         })
     }
 }
@@ -183,8 +183,8 @@ fn check_references() {
         // Load the test image
         let test_img;
 
-        match case.ty {
-            ReferenceTestCaseType::AnimatedGifFrame { frame: frame_num } => {
+        match case.kind {
+            ReferenceTestKind::AnimatedGifFrame { frame: frame_num } => {
                 #[cfg(feature = "gif_codec")]
                 {
                     // Interpret the input file as an animation file
@@ -221,7 +221,7 @@ fn check_references() {
                 }
             }
 
-            ReferenceTestCaseType::SingleImage => {
+            ReferenceTestKind::SingleImage => {
                 // Read the input file as a single image
                 match image::open(&img_path) {
                     Ok(img) => test_img = img.to_rgba(),

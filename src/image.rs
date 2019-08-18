@@ -311,7 +311,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
           F2: FnMut(&mut D, &mut [u8]) -> io::Result<usize>
 {
     let dimensions = decoder.dimensions();
-    let bytes_per_pixel = decoder.color_type().bytes_per_pixel() as u64;
+    let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
     let row_bytes = bytes_per_pixel * dimensions.0;
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
@@ -413,7 +413,7 @@ pub trait ImageDecoder<'a>: Sized {
 
     /// Returns the total number of bytes in the decoded image.
     fn total_bytes(&self) -> u64 {
-        self.dimensions().0 * self.dimensions().1 * self.color_type().bytes_per_pixel() as u64
+        self.dimensions().0 * self.dimensions().1 * u64::from(self.color_type().bytes_per_pixel())
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may

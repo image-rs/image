@@ -110,12 +110,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
 
         // See the comments inside `<GifFrameIterator as Iterator>::next` about
         // the error handling of `from_raw`.
-        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).ok_or(
-            ImageError::UnsupportedError("Image dimensions are too large".into()),
+        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).ok_or_else(
+            || ImageError::UnsupportedError("Image dimensions are too large".into())
         )?;
 
         // Recover the full image
-        let (width, height) = (self.reader.width() as u32, self.reader.height() as u32);
+        let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
         let image_buffer = full_image_from_frame(width, height, image_buffer_raw, left, top);
 
         Ok(image_buffer.into_raw())

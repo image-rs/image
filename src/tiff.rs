@@ -32,7 +32,7 @@ impl<R> TIFFDecoder<R>
     pub fn new(r: R) -> Result<TIFFDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r)?;
         let dimensions = inner.dimensions()?;
-        let color_type = match inner.colortype()?.into() {
+        let color_type = match inner.colortype()? {
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,

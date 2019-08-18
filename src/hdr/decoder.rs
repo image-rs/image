@@ -1,5 +1,4 @@
 use scoped_threadpool::Pool;
-use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
 use std::mem;
 #[cfg(test)]
@@ -87,7 +86,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     type Reader = HdrReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.meta.width as u64, self.meta.height as u64)
+        (u64::from(self.meta.width), u64::from(self.meta.height))
     }
 
     fn color_type(&self) -> ColorType {
@@ -203,7 +202,7 @@ impl RGBE8Pixel {
         fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {
             let t_max = T::max_value();
             // Disassembly shows that t_max_f32 is compiled into constant
-            let t_max_f32: f32 = NumCast::from(t_max)
+            let t_max_f32: f32 = num_traits::NumCast::from(t_max)
                 .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
             let fv = f32::powf(v * scale, gamma) * t_max_f32 + 0.5;
             if fv < 0.0 {
@@ -211,7 +210,7 @@ impl RGBE8Pixel {
             } else if fv > t_max_f32 {
                 t_max
             } else {
-                NumCast::from(fv)
+                num_traits::NumCast::from(fv)
                     .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
         }

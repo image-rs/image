@@ -174,22 +174,6 @@ fn check_references() {
         let filename_str = filename.as_os_str().to_str().unwrap();
         let case: ReferenceTestCase = filename_str.parse().unwrap();
 
-        // Check the reference image's CRC
-        let ref_crc = case.crc;
-
-        let ref_crc_actual = {
-            let mut hasher = Crc32::new();
-            hasher.update(&*ref_img);
-            hasher.finalize()
-        };
-
-        if ref_crc_actual != ref_crc {
-            panic!(
-                "Reference rendering hash check failed (expected = {:08x}, actual = {:08x}).",
-                ref_crc, ref_crc_actual
-            );
-        }
-
         let mut img_path = base.clone();
         img_path.push(IMAGE_DIR);
         img_path.push(decoder);
@@ -248,6 +232,19 @@ fn check_references() {
                     Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
                 };
             }
+        }
+
+        let test_crc_actual = {
+            let mut hasher = Crc32::new();
+            hasher.update(&*test_img);
+            hasher.finalize()
+        };
+
+        if test_crc_actual != case.crc {
+            panic!(
+                "The decoded image's hash does not match (expected = {:08x}, actual = {:08x}).",
+                case.crc, test_crc_actual
+            );
         }
 
         if *ref_img != *test_img {

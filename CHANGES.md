@@ -8,6 +8,13 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.21.3
+
+- Fixed an issue in `HdrDecoder::read_image_transform` that could drop
+  uninitialized instances of arbitrary types on panic or expose uninitialized
+  memory. The fix entails not dropping any value on error or panic, the method
+  should only be used to read to types without `Drop` implementations.
+
 ### Version 0.21.2
 
 - Fixed a variety of crashes and opaque errors in webp

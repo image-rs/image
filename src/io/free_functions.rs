@@ -83,12 +83,20 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
+    let format = image::ImageFormat::from_path(path)?;
+
     let fin = File::open(path)?;
     let fin = BufReader::new(fin);
 
+    image_dimensions_with_format_impl(fin, format)
+}
+
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
+    -> ImageResult<(u32, u32)>
+{
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
-    let (w, h): (u64, u64) = match image::ImageFormat::from_path(path)? {
+    let (w, h): (u64, u64) = match format {
         #[cfg(feature = "jpeg")]
         image::ImageFormat::JPEG => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]

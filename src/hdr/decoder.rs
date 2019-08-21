@@ -1,7 +1,7 @@
 use scoped_threadpool::Pool;
 use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
-use std::mem;
+use std::{mem, ptr};
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
@@ -310,6 +310,10 @@ impl<R: BufRead> HDRDecoder<R> {
     }
 
     /// Consumes decoder and returns a vector of transformed pixels
+    #[deprecated(
+        since = "0.21.3",
+        note = "For trivial types `T` this interface is less safe and less efficient than one taking\
+                an output slice. Consider upgrading to v0.22.")]
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(RGBE8Pixel) -> T>(
         mut self,
         f: F,
@@ -323,32 +327,58 @@ impl<R: BufRead> HDRDecoder<R> {
         let uszwidth = self.width as usize;
 
         let pixel_count = self.width as usize * self.height as usize;
+        // Did not overflow, all chunks are full sized.
+        assert!(pixel_count % uszwidth == 0);
+        assert!(pixel_count / uszwidth == self.height as usize);
+
         let mut ret = Vec::with_capacity(pixel_count);
-        unsafe {
-            // RGBE8Pixel doesn't implement Drop, so it's Ok to drop half-initialized ret
-            ret.set_len(pixel_count);
-        } // ret contains uninitialized data, so now it's my responsibility to return fully initialized ret
+
+        // A unique pointer to an uninitialized portion of a slice.  This emulates having sent a
+        // `&mut [T]`, which would be possible, but allows the target region to still be
+        // uninitialized.
+        struct UninitSlice<U: Send>(ptr::NonNull<U>, usize);
+
+        unsafe impl<U: Send> Send for UninitSlice<U> { }
 
         {
-            let chunks_iter = ret.chunks_mut(uszwidth);
+            let chunks_base: *mut T = ret.as_mut_ptr();
             let mut pool = Pool::new(8); //
 
             try!(pool.scoped(|scope| {
-                for chunk in chunks_iter {
-                    let mut buf = Vec::<RGBE8Pixel>::with_capacity(uszwidth);
-                    unsafe {
-                        buf.set_len(uszwidth);
-                    }
+                for chunk_index in 0..self.height as usize {
+                    let mut buf = vec![RGBE8Pixel{ c: [0, 0, 0], e: 0, }; uszwidth];
                     try!(read_scanline(&mut self.r, &mut buf[..]));
+
                     let f = &f;
+                    // Each chunk is a unique slice of exactly `uszwidth` uninitialized elements.
+                    let chunk = unsafe {
+                        // SAFETY: within the allocation as per `pixel_count` assertions.This is
+                        // in-bounds since the `Vec` has enough capacity and is never re-allocated.
+                        let start: *mut T = chunks_base.add(chunk_index * uszwidth);
+                        // INVARIANT: unique since all slices are spaced `uszwidth` elements and
+                        // also exactly as large.
+                        UninitSlice(ptr::NonNull::<T>::new_unchecked(start), uszwidth)
+                    };
+
                     scope.execute(move || {
-                        for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                            *dst = f(pix);
+                        let UninitSlice(base, len) = chunk;
+                        for (dst, &pix) in (0..len).zip(buf.iter()) {
+                            unsafe {
+                                // SAFETY:
+                                ptr::write(base.as_ptr().add(dst), f(pix))
+                            }
                         }
                     });
                 }
                 Ok(())
             }) as Result<(), ImageError>);
+        }
+
+        unsafe {
+            // The threads in the pool  have either initialized all pixels, or we returned an
+            // error. In the error case we do not drop any written `T`s but that is not memory
+            // unsafe.
+            ret.set_len(pixel_count);
         }
 
         Ok(ret)
@@ -357,12 +387,14 @@ impl<R: BufRead> HDRDecoder<R> {
     /// Consumes decoder and returns a vector of Rgb<u8> pixels.
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
+        #[allow(deprecated)] // internal use
         self.read_image_transform(|pix| pix.to_ldr())
     }
 
     /// Consumes decoder and returns a vector of Rgb<f32> pixels.
     ///
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
+        #[allow(deprecated)] // internal use
         self.read_image_transform(|pix| pix.to_hdr())
     }
 }

@@ -30,7 +30,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
     ) -> io::Result<()> {
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
-        let (dib_header_size, written_pixel_size, palette_color_count) = try!(get_pixel_info(c));
+        let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
 
         let image_size = width * height * written_pixel_size + (height * row_pad_size);
@@ -38,62 +38,62 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 
         // write BMP header
-        try!(self.writer.write_u8(b'B'));
-        try!(self.writer.write_u8(b'M'));
-        try!(self.writer.write_u32::<LittleEndian>(file_size)); // file size
-        try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 1
-        try!(self.writer.write_u16::<LittleEndian>(0)); // reserved 2
+        self.writer.write_u8(b'B')?;
+        self.writer.write_u8(b'M')?;
+        self.writer.write_u32::<LittleEndian>(file_size)?; // file size
+        self.writer.write_u16::<LittleEndian>(0)?; // reserved 1
+        self.writer.write_u16::<LittleEndian>(0)?; // reserved 2
         try!(
             self.writer
                 .write_u32::<LittleEndian>(bmp_header_size + dib_header_size + palette_size)
         ); // image data offset
 
         // write DIB header
-        try!(self.writer.write_u32::<LittleEndian>(dib_header_size));
-        try!(self.writer.write_i32::<LittleEndian>(width as i32));
-        try!(self.writer.write_i32::<LittleEndian>(height as i32));
-        try!(self.writer.write_u16::<LittleEndian>(1)); // color planes
+        self.writer.write_u32::<LittleEndian>(dib_header_size)?;
+        self.writer.write_i32::<LittleEndian>(width as i32)?;
+        self.writer.write_i32::<LittleEndian>(height as i32)?;
+        self.writer.write_u16::<LittleEndian>(1)?; // color planes
         try!(
             self.writer
                 .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)
         ); // bits per pixel
         if dib_header_size >= BITMAPV4HEADER_SIZE {
             // Assume BGRA32
-            try!(self.writer.write_u32::<LittleEndian>(3)); // compression method - bitfields
+            self.writer.write_u32::<LittleEndian>(3)?; // compression method - bitfields
         } else {
-            try!(self.writer.write_u32::<LittleEndian>(0)); // compression method - no compression
+            self.writer.write_u32::<LittleEndian>(0)?; // compression method - no compression
         }
-        try!(self.writer.write_u32::<LittleEndian>(image_size));
-        try!(self.writer.write_i32::<LittleEndian>(0)); // horizontal ppm
-        try!(self.writer.write_i32::<LittleEndian>(0)); // vertical ppm
-        try!(self.writer.write_u32::<LittleEndian>(palette_color_count));
-        try!(self.writer.write_u32::<LittleEndian>(0)); // all colors are important
+        self.writer.write_u32::<LittleEndian>(image_size)?;
+        self.writer.write_i32::<LittleEndian>(0)?; // horizontal ppm
+        self.writer.write_i32::<LittleEndian>(0)?; // vertical ppm
+        self.writer.write_u32::<LittleEndian>(palette_color_count)?;
+        self.writer.write_u32::<LittleEndian>(0)?; // all colors are important
         if dib_header_size >= BITMAPV4HEADER_SIZE {
             // Assume BGRA32
-            try!(self.writer.write_u32::<LittleEndian>(0xff << 16)); // red mask
-            try!(self.writer.write_u32::<LittleEndian>(0xff << 8)); // green mask
-            try!(self.writer.write_u32::<LittleEndian>(0xff << 0)); // blue mask
-            try!(self.writer.write_u32::<LittleEndian>(0xff << 24)); // alpha mask
-            try!(self.writer.write_u32::<LittleEndian>(0x73524742)); // colorspace - sRGB
+            self.writer.write_u32::<LittleEndian>(0xff << 16)?; // red mask
+            self.writer.write_u32::<LittleEndian>(0xff << 8)?; // green mask
+            self.writer.write_u32::<LittleEndian>(0xff << 0)?; // blue mask
+            self.writer.write_u32::<LittleEndian>(0xff << 24)?; // alpha mask
+            self.writer.write_u32::<LittleEndian>(0x73524742)?; // colorspace - sRGB
             // endpoints (3x3) and gamma (3)
             for _ in 0..12 {
-                try!(self.writer.write_u32::<LittleEndian>(0));
+                self.writer.write_u32::<LittleEndian>(0)?;
             }
         }
 
         // write image data
         match c {
             color::ColorType::Rgb8 => {
-                try!(self.encode_rgb(image, width, height, row_pad_size, 3))
+                self.encode_rgb(image, width, height, row_pad_size, 3)?
             }
             color::ColorType::Rgba8 => {
-                try!(self.encode_rgba(image, width, height, row_pad_size, 4))
+                self.encode_rgba(image, width, height, row_pad_size, 4)?
             }
             color::ColorType::L8 => {
-                try!(self.encode_gray(image, width, height, row_pad_size, 1))
+                self.encode_gray(image, width, height, row_pad_size, 1)?
             }
             color::ColorType::La8 => {
-                try!(self.encode_gray(image, width, height, row_pad_size, 2))
+                self.encode_gray(image, width, height, row_pad_size, 2)?
             }
             _ => {
                 return Err(io::Error::new(
@@ -125,13 +125,13 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
                 let g = image[pixel_start + 1];
                 let b = image[pixel_start + 2];
                 // written as BGR
-                try!(self.writer.write_u8(b));
-                try!(self.writer.write_u8(g));
-                try!(self.writer.write_u8(r));
+                self.writer.write_u8(b)?;
+                self.writer.write_u8(g)?;
+                self.writer.write_u8(r)?;
                 // alpha is never written as it's not widely supported
             }
 
-            try!(self.write_row_pad(row_pad_size));
+            self.write_row_pad(row_pad_size)?;
         }
 
         Ok(())
@@ -157,13 +157,13 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
                 let b = image[pixel_start + 2];
                 let a = image[pixel_start + 3];
                 // written as BGRA
-                try!(self.writer.write_u8(b));
-                try!(self.writer.write_u8(g));
-                try!(self.writer.write_u8(r));
-                try!(self.writer.write_u8(a));
+                self.writer.write_u8(b)?;
+                self.writer.write_u8(g)?;
+                self.writer.write_u8(r)?;
+                self.writer.write_u8(a)?;
             }
 
-            try!(self.write_row_pad(row_pad_size));
+            self.write_row_pad(row_pad_size)?;
         }
 
         Ok(())
@@ -181,10 +181,10 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         for val in 0..256 {
             // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
             let val = val as u8;
-            try!(self.writer.write_u8(val));
-            try!(self.writer.write_u8(val));
-            try!(self.writer.write_u8(val));
-            try!(self.writer.write_u8(0));
+            self.writer.write_u8(val)?;
+            self.writer.write_u8(val)?;
+            self.writer.write_u8(val)?;
+            self.writer.write_u8(0)?;
         }
 
         // write image data
@@ -196,11 +196,11 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             for col in 0..width {
                 let pixel_start = (row_start + (col * x_stride)) as usize;
                 // color value is equal to the palette index
-                try!(self.writer.write_u8(image[pixel_start]));
+                self.writer.write_u8(image[pixel_start])?;
                 // alpha is never written as it's not widely supported
             }
 
-            try!(self.write_row_pad(row_pad_size));
+            self.write_row_pad(row_pad_size)?;
         }
 
         Ok(())
@@ -208,7 +208,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
     fn write_row_pad(&mut self, row_pad_size: u32) -> io::Result<()> {
         for _ in 0..row_pad_size {
-            try!(self.writer.write_u8(0));
+            self.writer.write_u8(0)?;
         }
 
         Ok(())

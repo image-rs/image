@@ -1,6 +1,6 @@
 # Image [![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image) [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-Maintainers: @nwin, @ccgn
+Maintainers: @HeroicKatora, @fintelia
 
 [How to contribute](https://github.com/image-rs/organization/blob/master/CONTRIBUTING.md)
 
@@ -29,14 +29,17 @@ https://docs.rs/image
 | Webp   | Lossy(Luma channel only) | No |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 
-### 2.2 The ```ImageDecoder``` Trait
-All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
-+ **dimensions**: Return a tuple containing the width and height of the image
-+ **colortype**: Return the color type of the image.
-+ **row_len**: Returns the length in bytes of one decoded row of the image
-+ **read_scanline**: Read one row from the image into buf Returns the row index
-+ **read_image**: Decode the entire image and return it as a Vector
-+ **load_rect**: Decode a specific region of the image
+### 2.2 The ```ImageDecoder``` and ```ImageDecoderExt` Traits
+
+All image format decoders implement the ```ImageDecoder``` trait which provide
+basic methods for getting image metadata and decoding images. Some formats
+additionally provide ```ImageDecoderExt``` implementations which allow for
+decoding only part of an image at once.
+
+The most important methods for decoders are...
++ **dimensions**: Return a tuple containing the width and height of the image.
++ **color_type**: Return the color type of the image data produced by this decoder.
++ **read_image**: Decode the entire image and return it as a Vec of bytes.
 
 ## 3 Pixels
 ```image``` provides the following pixel types:

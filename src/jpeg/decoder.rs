@@ -53,10 +53,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JPEGDecoder<R> {
     type Reader = JpegReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.metadata.width as u64, self.metadata.height as u64)
+        (u64::from(self.metadata.width), u64::from(self.metadata.height))
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         self.metadata.pixel_format.into()
     }
 

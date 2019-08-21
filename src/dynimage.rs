@@ -491,7 +491,7 @@ impl DynamicImage {
                     },
                     _ => {},
                 }
-                try!(p.encode(&bytes, width, height, color));
+                p.encode(&bytes, width, height, color)?;
                 Ok(())
             }
             #[cfg(feature = "pnm")]
@@ -508,14 +508,14 @@ impl DynamicImage {
                     },
                     _ => {},
                 }
-                try!(p.encode(&bytes[..], width, height, color));
+                p.encode(&bytes[..], width, height, color)?;
                 Ok(())
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::JPEG(quality) => {
                 let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
 
-                try!(j.encode(&bytes, width, height, color));
+                j.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -535,14 +535,14 @@ impl DynamicImage {
             image::ImageOutputFormat::ICO => {
                 let i = ico::ICOEncoder::new(w);
 
-                try!(i.encode(&bytes, width, height, color));
+                i.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "bmp")]
             image::ImageOutputFormat::BMP => {
                 let mut b = bmp::BMPEncoder::new(w);
-                try!(b.encode(&bytes, width, height, color));
+                b.encode(&bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -640,13 +640,13 @@ impl GenericImage for DynamicImage {
 
 /// Decodes an image and stores it into a dynamic image
 pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
-    let color = codec.colortype();
+    let color = codec.color_type();
     let (w, h) = codec.dimensions();
-    let buf = try!(codec.read_image());
+    let buf = codec.read_image()?;
 
     // TODO: Avoid this cast by having ImageBuffer use u64's
-    assert!(w <= u32::max_value() as u64);
-    assert!(h <= u32::max_value() as u64);
+    assert!(w <= u64::from(u32::max_value()));
+    assert!(h <= u64::from(u32::max_value()));
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
@@ -673,7 +673,7 @@ pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<Dynami
         color::ColorType::La8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        _ => return Err(image::ImageError::UnsupportedColor(color)),
+        _ => return Err(image::ImageError::UnsupportedColor(color.into())),
     };
     match image {
         Some(image) => Ok(image),
@@ -716,30 +716,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     };
     let fin = BufReader::new(fin);
 
-    let ext = path.extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    let format = match &ext[..] {
-        "jpg" | "jpeg" => image::ImageFormat::JPEG,
-        "png" => image::ImageFormat::PNG,
-        "gif" => image::ImageFormat::GIF,
-        "webp" => image::ImageFormat::WEBP,
-        "tif" | "tiff" => image::ImageFormat::TIFF,
-        "tga" => image::ImageFormat::TGA,
-        "bmp" => image::ImageFormat::BMP,
-        "ico" => image::ImageFormat::ICO,
-        "hdr" => image::ImageFormat::HDR,
-        "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::PNM,
-        format => {
-            return Err(image::ImageError::UnsupportedError(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            )))
-        }
-    };
-
-    load(fin, format)
+    load(fin, ImageFormat::from_path(path)?)
 }
 
 /// Read the dimensions of the image located at the specified path.
@@ -756,32 +733,29 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     let fin = File::open(path)?;
     let fin = BufReader::new(fin);
 
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    let (w, h) = match &ext[..] {
+    #[allow(unreachable_patterns)]
+    // Default is unreachable if all features are supported.
+    let (w, h): (u64, u64) = match image::ImageFormat::from_path(path)? {
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::JPEG => jpeg::JPEGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        "png" => png::PNGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::PNG => png::PNGDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "gif_codec")]
-        "gif" => gif::Decoder::new(fin)?.dimensions(),
+        image::ImageFormat::GIF => gif::Decoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        "webp" => webp::WebpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WEBP => webp::WebpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TIFFDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::TIFF => tiff::TIFFDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
-        "tga" => tga::TGADecoder::new(fin)?.dimensions(),
+        image::ImageFormat::TGA => tga::TGADecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::BMP => bmp::BMPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
-        "ico" => ico::ICODecoder::new(fin)?.dimensions(),
+        image::ImageFormat::ICO => ico::ICODecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
-        "hdr" => hdr::HDRAdapter::new(fin)?.dimensions(),
+        image::ImageFormat::HDR => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
-        "pbm" | "pam" | "ppm" | "pgm" => {
+        image::ImageFormat::PNM => {
             pnm::PNMDecoder::new(fin)?.dimensions()
         }
         format => return Err(image::ImageError::UnsupportedError(format!(
@@ -789,7 +763,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
             format
         ))),
     };
-    if w >= u32::MAX as u64 || h >= u32::MAX as u64 {
+    if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
         return Err(image::ImageError::DimensionError);
     }
     Ok((w as u32, h as u32))
@@ -824,7 +798,7 @@ fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> io::Result<()> {
-    let fout = &mut BufWriter::new(try!(File::create(path)));
+    let fout = &mut BufWriter::new(File::create(path)?);
     let ext = path.extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());

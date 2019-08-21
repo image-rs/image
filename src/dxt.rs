@@ -46,8 +46,8 @@ impl DXTVariant {
         }
     }
 
-    /// Returns the colortype that is stored in this DXT variant
-    pub fn colortype(self) -> ColorType {
+    /// Returns the color type that is stored in this DXT variant
+    pub fn color_type(self) -> ColorType {
         match self {
             DXTVariant::DXT1 => ColorType::Rgb8,
             DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
@@ -114,15 +114,15 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
     type Reader = DXTReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.width_blocks as u64 * 4, self.height_blocks as u64 * 4)
+        (u64::from(self.width_blocks) * 4, u64::from(self.height_blocks) * 4)
     }
 
-    fn colortype(&self) -> ColorType {
-        self.variant.colortype()
+    fn color_type(&self) -> ColorType {
+        self.variant.color_type()
     }
 
     fn scanline_bytes(&self) -> u64 {
-        self.variant.decoded_bytes_per_block() as u64 * self.width_blocks as u64
+        self.variant.decoded_bytes_per_block() as u64 * u64::from(self.width_blocks)
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -160,7 +160,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DXTDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let encoded_scanline_bytes = self.variant.encoded_bytes_per_block() as u64
-            * self.width_blocks as u64;
+            * u64::from(self.width_blocks);
 
         let start = self.inner.seek(SeekFrom::Current(0))?;
         image::load_rect(x, y, width, height, buf, progress_callback, self,
@@ -181,7 +181,7 @@ pub struct DXTReader<R: Read> {
 }
 impl<R: Read> Read for DXTReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ref mut decoder = &mut self.decoder;
+        let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
     }
 }
@@ -200,7 +200,7 @@ impl<W: Write> DXTEncoder<W> {
     /// Encodes the image data ```data```
     /// that has dimensions ```width``` and ```height```
     /// in ```DXTVariant``` ```variant```
-    /// data is assumed to be in variant.colortype()
+    /// data is assumed to be in variant.color_type()
     pub fn encode(
         mut self,
         data: &[u8],

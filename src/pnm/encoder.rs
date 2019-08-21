@@ -166,11 +166,12 @@ impl<W: Write> PNMEncoder<W> {
         height: u32,
         color: ExtendedColorType,
     ) -> io::Result<()> {
-        let depth = color.num_components() as u32;
+        let depth = u32::from(color.num_components());
         let (maxval, tupltype) = match color {
             ExtendedColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
             ExtendedColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
             ExtendedColorType::L16 => (0xffff, ArbitraryTuplType::Grayscale),
+            ExtendedColorType::La1 => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
             ExtendedColorType::La8 => (0xff, ArbitraryTuplType::GrayscaleAlpha),
             ExtendedColorType::La16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
             ExtendedColorType::Rgb8 => (0xff, ArbitraryTuplType::RGB),
@@ -254,7 +255,7 @@ impl<W: Write> PNMEncoder<W> {
     ///
     /// Returns how the body should be written if successful.
     fn write_with_header(
-        writer: &mut Write,
+        writer: &mut dyn Write,
         header: &PNMHeader,
         image: FlatSamples,
         width: u32,
@@ -329,7 +330,7 @@ impl<'a> CheckedDimensions<'a> {
     // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ExtendedColorType) -> io::Result<CheckedHeaderColor<'a>> {
-        let components = color.num_components() as u32;
+        let components = u32::from(color.num_components());
 
         match *self.unchecked.header {
             PNMHeader {
@@ -472,7 +473,7 @@ impl<'a> CheckedHeaderColor<'a> {
 }
 
 impl<'a> CheckedHeader<'a> {
-    fn write_header(self, writer: &mut Write) -> io::Result<TupleEncoding<'a>> {
+    fn write_header(self, writer: &mut dyn Write) -> io::Result<TupleEncoding<'a>> {
         self.header().write(writer)?;
         Ok(self.encoding)
     }
@@ -482,7 +483,7 @@ impl<'a> CheckedHeader<'a> {
     }
 }
 
-struct SampleWriter<'a>(&'a mut Write);
+struct SampleWriter<'a>(&'a mut dyn Write);
 
 impl<'a> SampleWriter<'a> {
     fn write_samples_ascii<V>(self, samples: V) -> io::Result<()>
@@ -596,7 +597,7 @@ impl<'a> From<&'a [u16]> for FlatSamples<'a> {
 }
 
 impl<'a> TupleEncoding<'a> {
-    fn write_image(&self, writer: &mut Write) -> io::Result<()> {
+    fn write_image(&self, writer: &mut dyn Write) -> io::Result<()> {
         match *self {
             TupleEncoding::PbmBits {
                 samples: FlatSamples::U8(samples),
@@ -624,30 +625,5 @@ impl<'a> TupleEncoding<'a> {
                 samples: FlatSamples::U16(samples),
             } => SampleWriter(writer).write_samples_ascii(samples.iter()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn custom_header_and_color() {
-        let data: [u8; 12] = [0, 0, 0, 1, 1, 1, 255, 255, 255, 0, 0, 0];
-
-        let header = ArbitraryHeader {
-            width: 3,
-            height: 4,
-            depth: 1,
-            maxval: 255,
-            tupltype: Some(ArbitraryTuplType::Custom("Palette".to_string())),
-        };
-
-        let mut output = Vec::new();
-
-        PNMEncoder::new(&mut output)
-            .with_header(header.into())
-            .encode(&data[..], 3, 4, ColorType::Unknown(8))
-            .expect("Failed encoding custom color value");
     }
 }

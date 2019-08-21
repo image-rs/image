@@ -30,38 +30,34 @@ pub enum ColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
-    /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
-    /// which are associated with an external palette. In that case, the pixel value is an index
-    /// into the palette.
-    Unknown(u8),
-
     #[doc(hidden)]
     __Nonexhaustive,
 }
 
-/// Returns the number of bits contained in a pixel of `ColorType` ```c```
-pub fn bits_per_pixel(c: ColorType) -> usize {
-    match c {
-        ColorType::L8 => 8,
-        ColorType::L16 => 16,
-        ColorType::La8 => 16,
-        ColorType::Rgb8 | ColorType::Bgr8 => 24,
-        ColorType::Rgba8 | ColorType::Bgra8 | ColorType::La16 => 32,
-        ColorType::Rgb16 => 48,
-        ColorType::Rgba16 => 64,
-        ColorType::Unknown(n) => n as usize,
-        ColorType::__Nonexhaustive => unreachable!(),
+impl ColorType {
+    /// Returns the number of bytes contained in a pixel of `ColorType` ```c```
+    pub fn bytes_per_pixel(self) -> u8 {
+        match self {
+            ColorType::L8 => 1,
+            ColorType::L16 | ColorType::La8 => 2,
+            ColorType::Rgb8 | ColorType::Bgr8 => 3,
+            ColorType::Rgba8 | ColorType::Bgra8 | ColorType::La16 => 4,
+            ColorType::Rgb16 => 6,
+            ColorType::Rgba16 => 8,
+            ColorType::__Nonexhaustive => unreachable!(),
+        }
     }
-}
 
-/// Returns the number of color channels that make up this pixel
-pub fn num_components(c: ColorType) -> usize {
-    match c {
-        ColorType::Unknown(_) | ColorType::L8 | ColorType::L16 => 1,
-        ColorType::La8 | ColorType::La16 => 2,
-        ColorType::Rgb8 | ColorType::Rgb16| ColorType::Bgr8 => 3,
-        ColorType::Rgba8 | ColorType::Rgba16 | ColorType::Bgra8 => 4,
-        ColorType::__Nonexhaustive => unreachable!(),
+    /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
+    /// a multiple of 8).
+    pub fn bits_per_pixel(self) -> u16 {
+        <u16 as From<u8>>::from(self.bytes_per_pixel()) * 8
+    }
+
+    /// Returns the number of color channels that make up this pixel
+    pub fn num_components(self) -> u8 {
+        let e: ExtendedColorType = self.into();
+        e.num_components()
     }
 }
 
@@ -142,7 +138,6 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
             ColorType::Bgr8 => ExtendedColorType::Bgr8,
             ColorType::Bgra8 => ExtendedColorType::Bgra8,
-            ColorType::Unknown(s) => ExtendedColorType::Unknown(s),
             ColorType::__Nonexhaustive => unreachable!(),
         }
     }

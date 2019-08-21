@@ -329,18 +329,29 @@ impl<R: BufRead> HDRDecoder<R> {
         // expression self.width > 0 && self.height > 0 is true from now to the end of this method
         // scanline buffer
         let uszwidth = self.width as usize;
+        let uszheight = self.height as usize;
+        let pixel_count = uszwidth.checked_mul(uszheight);
 
-        let pixel_count = self.width as usize * self.height as usize;
+        if uszwidth as u32 != self.width || uszheight as u32 != self.height || pixel_count.is_none() {
+            return Err(ImageError::DimensionError)
+        }
+
+        let pixel_count = pixel_count.unwrap();
+
         // Did not overflow, all chunks are full sized.
+        assert!(uszheight > 0);
+        assert!(uszwidth > 0);
+        assert!(uszwidth <= pixel_count);
         assert!(pixel_count % uszwidth == 0);
-        assert!(pixel_count / uszwidth == self.height as usize);
+        assert!(pixel_count / uszwidth == uszheight);
+        assert!(pixel_count <= isize::max_value() as usize);
 
         let mut ret = Vec::with_capacity(pixel_count);
 
         // A unique pointer to an uninitialized portion of a slice.  This emulates having sent a
         // `&mut [T]`, which would be possible, but allows the target region to still be
         // uninitialized.
-        struct UninitSlice<U: Send>(ptr::NonNull<U>, usize);
+        struct UninitSlice<U: Send>(*mut U, isize);
 
         unsafe impl<U: Send> Send for UninitSlice<U> { }
 
@@ -349,27 +360,30 @@ impl<R: BufRead> HDRDecoder<R> {
             let mut pool = Pool::new(8); //
 
             try!(pool.scoped(|scope| {
-                for chunk_index in 0..self.height as usize {
+                for chunk_index in 0..uszheight {
                     let mut buf = vec![RGBE8Pixel{ c: [0, 0, 0], e: 0, }; uszwidth];
                     try!(read_scanline(&mut self.r, &mut buf[..]));
 
                     let f = &f;
                     // Each chunk is a unique slice of exactly `uszwidth` uninitialized elements.
                     let chunk = unsafe {
-                        // SAFETY: within the allocation as per `pixel_count` assertions.This is
+                        // SAFETY: within the allocation as per `pixel_count` assertions. This is
                         // in-bounds since the `Vec` has enough capacity and is never re-allocated.
-                        let start: *mut T = chunks_base.add(chunk_index * uszwidth);
+                        // Also, chunk_index * uszwidth <= pixel_count and thus does not overflow
+                        // and fits into isize.
+                        let start: *mut T = chunks_base.offset((chunk_index * uszwidth) as isize);
                         // INVARIANT: unique since all slices are spaced `uszwidth` elements and
                         // also exactly as large.
-                        UninitSlice(ptr::NonNull::<T>::new_unchecked(start), uszwidth)
+                        UninitSlice(start, uszwidth as isize)
                     };
 
                     scope.execute(move || {
                         let UninitSlice(base, len) = chunk;
                         for (dst, &pix) in (0..len).zip(buf.iter()) {
                             unsafe {
-                                // SAFETY:
-                                ptr::write(base.as_ptr().add(dst), f(pix))
+                                // SAFETY: Same as for `start`. But additionally, all chunks are
+                                // disjunct and this write is not a data race.
+                                ptr::write(base.offset(dst), f(pix))
                             }
                         }
                     });

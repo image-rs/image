@@ -23,6 +23,10 @@ env:
       - FEATURES='tiff'
       - FEATURES='webp'
       - FEATURES='hdr'
+matrix:
+    exclude:
+    - rust: 1.24.1
+      env: FEATURES=''
 script:
     - if [ -z "$FEATURES" ]; then
         cargo build -v &&

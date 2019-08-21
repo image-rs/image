@@ -309,11 +309,15 @@ impl<R: BufRead> HDRDecoder<R> {
         Ok(ret)
     }
 
-    /// Consumes decoder and returns a vector of transformed pixels
+    /// Consumes decoder and returns a vector of transformed pixels.
+    ///
+    /// **Note**: This method should not be called with a parameter `T` that has a `Drop` impl. In case of
+    /// error or panic, it will never call this `Drop` implementation even for pixels that have
+    /// already been successfully decoded.
     #[deprecated(
         since = "0.21.3",
         note = "For trivial types `T` this interface is less safe and less efficient than one taking\
-                an output slice. Consider upgrading to v0.22.")]
+                an output slice. Semantics may be confusing for non-trivial types. Consider upgrading to v0.22.")]
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(RGBE8Pixel) -> T>(
         mut self,
         f: F,

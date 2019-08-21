@@ -334,13 +334,14 @@ impl<R: BufRead> HDRDecoder<R> {
         // Did not overflow, all chunks are full sized.
         assert!(pixel_count % uszwidth == 0);
         assert!(pixel_count / uszwidth == self.height as usize);
+        assert!(pixel_count <= isize::max_value() as usize);
 
         let mut ret = Vec::with_capacity(pixel_count);
 
         // A unique pointer to an uninitialized portion of a slice.  This emulates having sent a
         // `&mut [T]`, which would be possible, but allows the target region to still be
         // uninitialized.
-        struct UninitSlice<U: Send>(ptr::NonNull<U>, usize);
+        struct UninitSlice<U: Send>(*mut U, isize);
 
         unsafe impl<U: Send> Send for UninitSlice<U> { }
 
@@ -358,10 +359,10 @@ impl<R: BufRead> HDRDecoder<R> {
                     let chunk = unsafe {
                         // SAFETY: within the allocation as per `pixel_count` assertions.This is
                         // in-bounds since the `Vec` has enough capacity and is never re-allocated.
-                        let start: *mut T = chunks_base.add(chunk_index * uszwidth);
+                        let start: *mut T = chunks_base.offset((chunk_index * uszwidth) as isize);
                         // INVARIANT: unique since all slices are spaced `uszwidth` elements and
                         // also exactly as large.
-                        UninitSlice(ptr::NonNull::<T>::new_unchecked(start), uszwidth)
+                        UninitSlice(start, uszwidth as isize)
                     };
 
                     scope.execute(move || {
@@ -369,7 +370,7 @@ impl<R: BufRead> HDRDecoder<R> {
                         for (dst, &pix) in (0..len).zip(buf.iter()) {
                             unsafe {
                                 // SAFETY:
-                                ptr::write(base.as_ptr().add(dst), f(pix))
+                                ptr::write(base.offset(dst), f(pix))
                             }
                         }
                     });

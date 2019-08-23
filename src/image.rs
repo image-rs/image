@@ -619,7 +619,7 @@ pub trait GenericImage: GenericImageView {
     ///
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
-    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> bool
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {

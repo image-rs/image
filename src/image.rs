@@ -644,16 +644,15 @@ pub trait GenericImage: GenericImageView {
     /// In order to copy only a piece of the other image, use [`GenericImageView::view`].
     ///
     /// # Returns
-    /// `true` if the copy was successful, `false` if the image could not
-    /// be copied due to size constraints.
-    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> bool
+    /// Returns an error if the image is too large to be copied at the given position
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,
     {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
-            return false;
+            return Err(ImageError::DimensionError);
         }
 
         for i in 0..other.width() {
@@ -662,7 +661,7 @@ pub trait GenericImage: GenericImageView {
                 self.put_pixel(i + x, k + y, p);
             }
         }
-        true
+        Ok(())
     }
 
     /// Returns a mutable reference to the underlying image.

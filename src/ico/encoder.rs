@@ -37,14 +37,14 @@ impl<W: Write> ICOEncoder<W> {
         PNGEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
         write_icondir(&mut self.w, 1)?;
-        try!(write_direntry(
+        write_direntry(
             &mut self.w,
             width,
             height,
             color,
             ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
             image_data.len() as u32
-        ));
+        )?;
         self.w.write_all(&image_data)?;
         Ok(())
     }

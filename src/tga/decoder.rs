@@ -273,21 +273,19 @@ impl<R: Read + Seek> TGADecoder<R> {
     /// We're not interested in this field, so this function skips it if it
     /// is present
     fn read_image_id(&mut self) -> ImageResult<()> {
-        try!(
-            self.r
-                .seek(io::SeekFrom::Current(i64::from(self.header.id_length)))
-        );
+        self.r
+            .seek(io::SeekFrom::Current(i64::from(self.header.id_length)))?;
         Ok(())
     }
 
     fn read_color_map(&mut self) -> ImageResult<()> {
         if self.header.map_type == 1 {
-            self.color_map = Some(try!(ColorMap::from_reader(
+            self.color_map = Some(ColorMap::from_reader(
                 &mut self.r,
                 self.header.map_origin,
                 self.header.map_length,
                 self.header.map_entry_size
-            )));
+            )?);
         }
         Ok(())
     }
@@ -322,7 +320,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
         // read the pixels from the data region
         let mut pixel_data = if self.image_type.is_encoded() {
-            try!(self.read_all_encoded_data())
+            self.read_all_encoded_data()?
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
             let mut buf = vec![0; num_raw_bytes];
@@ -356,24 +354,20 @@ impl<R: Read + Seek> TGADecoder<R> {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
                 let mut data = Vec::with_capacity(self.bytes_per_pixel);
-                try!(
-                    self.r
-                        .by_ref()
-                        .take(self.bytes_per_pixel as u64)
-                        .read_to_end(&mut data)
-                );
+                self.r
+                    .by_ref()
+                    .take(self.bytes_per_pixel as u64)
+                    .read_to_end(&mut data)?;
                 for _ in 0usize..repeat_count {
                     pixel_data.extend(data.iter().cloned());
                 }
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
-                try!(
-                    self.r
-                        .by_ref()
-                        .take(num_raw_bytes as u64)
-                        .read_to_end(&mut pixel_data)
-                );
+                self.r
+                    .by_ref()
+                    .take(num_raw_bytes as u64)
+                    .read_to_end(&mut pixel_data)?;
             }
         }
 

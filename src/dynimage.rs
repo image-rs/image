@@ -524,11 +524,11 @@ impl DynamicImage {
             image::ImageOutputFormat::GIF => {
                 let mut g = gif::Encoder::new(w);
 
-                try!(g.encode(&gif::Frame::from_rgba(
+                g.encode(&gif::Frame::from_rgba(
                     width as u16,
                     height as u16,
                     &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>()
-                )));
+                ))?;
                 Ok(())
             }
 
@@ -936,17 +936,17 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "webp")]
         image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
+        image::ImageFormat::TIFF => decoder_to_image(tiff::TIFFDecoder::new(r)?),
         #[cfg(feature = "tga")]
         image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)?),
         #[cfg(feature = "bmp")]
         image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
+        image::ImageFormat::ICO => decoder_to_image(ico::ICODecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
+        image::ImageFormat::HDR => decoder_to_image(hdr::HDRAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
+        image::ImageFormat::PNM => decoder_to_image(pnm::PNMDecoder::new(BufReader::new(r))?),
         _ => Err(image::ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format
@@ -979,7 +979,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    load_from_memory_with_format(buffer, try!(guess_format(buffer)))
+    load_from_memory_with_format(buffer, guess_format(buffer)?)
 }
 
 /// Create a new image from a byte slice

@@ -342,7 +342,7 @@ impl<R: BufRead> HDRDecoder<R> {
         let chunks_iter = output_slice.chunks_mut(self.width as usize);
         let mut pool = Pool::new(8); //
 
-        try!(pool.scoped(|scope| {
+        (pool.scoped(|scope| {
             for chunk in chunks_iter {
                 let mut buf = vec![Default::default(); self.width as usize];
                 read_scanline(&mut self.r, &mut buf[..])?;
@@ -354,7 +354,7 @@ impl<R: BufRead> HDRDecoder<R> {
                 });
             }
             Ok(())
-        }) as Result<(), ImageError>);
+        }) as Result<(), ImageError>)?;
         Ok(())
     }
 
@@ -775,26 +775,18 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
 fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
     let mut dim_parts = line.split_whitespace();
     let err = "Malformed dimensions line";
-    let c1_tag = try!(
-        dim_parts
+    let c1_tag = dim_parts
             .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c1_str = try!(
-        dim_parts
+            .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c1_str = dim_parts
             .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c2_tag = try!(
-        dim_parts
+            .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c2_tag = dim_parts
             .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c2_str = try!(
-        dim_parts
+            .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c2_str = dim_parts
             .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
+            .ok_or_else(|| ImageError::FormatError(err.into()))?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
         return Err(ImageError::FormatError(err.into()));

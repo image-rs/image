@@ -43,20 +43,16 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         self.writer.write_u32::<LittleEndian>(file_size)?; // file size
         self.writer.write_u16::<LittleEndian>(0)?; // reserved 1
         self.writer.write_u16::<LittleEndian>(0)?; // reserved 2
-        try!(
-            self.writer
-                .write_u32::<LittleEndian>(bmp_header_size + dib_header_size + palette_size)
-        ); // image data offset
+        self.writer
+            .write_u32::<LittleEndian>(bmp_header_size + dib_header_size + palette_size)?; // image data offset
 
         // write DIB header
         self.writer.write_u32::<LittleEndian>(dib_header_size)?;
         self.writer.write_i32::<LittleEndian>(width as i32)?;
         self.writer.write_i32::<LittleEndian>(height as i32)?;
         self.writer.write_u16::<LittleEndian>(1)?; // color planes
-        try!(
-            self.writer
-                .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)
-        ); // bits per pixel
+        self.writer
+            .write_u16::<LittleEndian>((written_pixel_size * 8) as u16)?; // bits per pixel
         if dib_header_size >= BITMAPV4HEADER_SIZE {
             // Assume BGRA32
             self.writer.write_u32::<LittleEndian>(3)?; // compression method - bitfields

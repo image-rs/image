@@ -598,14 +598,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
         self.width = i32::from(self.r.read_u16::<LittleEndian>()?);
         self.height = i32::from(self.r.read_u16::<LittleEndian>()?);
 
-        try!(check_for_overflow(
+        check_for_overflow(
             self.width,
             self.height,
             self.num_channels()
-        ));
+        )?;
 
         // Number of planes (format specifies that this should be 1).
-        if try!(self.r.read_u16::<LittleEndian>()) != 1 {
+        if self.r.read_u16::<LittleEndian>()? != 1 {
             return Err(ImageError::FormatError(
                 "More than one plane".to_string(),
             ));
@@ -648,14 +648,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
             self.top_down = true;
         }
 
-        try!(check_for_overflow(
+        check_for_overflow(
             self.width,
             self.height,
             self.num_channels()
-        ));
+        )?;
 
         // Number of planes (format specifies that this should be 1).
-        if try!(self.r.read_u16::<LittleEndian>()) != 1 {
+        if self.r.read_u16::<LittleEndian>()? != 1 {
             return Err(ImageError::FormatError(
                 "More than one plane".to_string(),
             ));
@@ -739,18 +739,18 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         let a_mask = match self.bmp_header_type {
             BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => {
-                try!(self.r.read_u32::<LittleEndian>())
+                self.r.read_u32::<LittleEndian>()?
             }
             _ => 0,
         };
 
         self.bitfields = match self.image_type {
-            ImageType::Bitfields16 => Some(try!(Bitfields::from_mask(
+            ImageType::Bitfields16 => Some(Bitfields::from_mask(
                 r_mask, g_mask, b_mask, a_mask, 16
-            ))),
-            ImageType::Bitfields32 => Some(try!(Bitfields::from_mask(
+            )?),
+            ImageType::Bitfields32 => Some(Bitfields::from_mask(
                 r_mask, g_mask, b_mask, a_mask, 32
-            ))),
+            )?),
             _ => None,
         };
 
@@ -938,7 +938,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
-        try!(with_rows(
+        with_rows(
             &mut pixel_data,
             self.width,
             self.height,
@@ -964,7 +964,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 };
                 Ok(())
             }
-        ));
+        )?;
 
         Ok(pixel_data)
     }
@@ -982,7 +982,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
-        try!(with_rows(
+        with_rows(
             &mut pixel_data,
             self.width,
             self.height,
@@ -1001,7 +1001,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 }
                 reader.read_exact(row_padding)
             }
-        ));
+        )?;
 
         Ok(pixel_data)
     }
@@ -1016,7 +1016,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let reader = &mut self.r;
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
-        try!(with_rows(
+        with_rows(
             &mut pixel_data,
             self.width,
             self.height,
@@ -1035,7 +1035,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 }
                 Ok(())
             }
-        ));
+        )?;
 
         Ok(pixel_data)
     }
@@ -1054,7 +1054,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         let reader = &mut self.r;
 
-        try!(with_rows(
+        with_rows(
             &mut pixel_data,
             self.width,
             self.height,
@@ -1083,7 +1083,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 }
                 reader.read_exact(row_padding)
             }
-        ));
+        )?;
 
         Ok(pixel_data)
     }
@@ -1092,11 +1092,10 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // Seek to the start of the actual image data.
         self.r.seek(SeekFrom::Start(self.data_offset))?;
 
-        let full_image_size = try!(
+        let full_image_size =
             num_bytes(self.width, self.height, self.num_channels()).ok_or_else(|| {
                 ImageError::FormatError("Image buffer would be too large!".to_owned())
-            })
-        );
+            })?;
         let mut pixel_data = self.create_pixel_data();
         let (skip_pixels, skip_rows, eof_hit) =
             self.read_rle_data_step(&mut pixel_data, image_type, 0, 0)?;

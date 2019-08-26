@@ -261,7 +261,8 @@ impl<R: Read + Seek> TGADecoder<R> {
                     format!(
                         "Color format not supported. Bit depth: {}, Alpha bits: {}",
                         other_channel_bits, num_alpha_bits
-                    ).to_string(),
+                    )
+                    .to_string(),
                 ))
             }
         }
@@ -284,7 +285,7 @@ impl<R: Read + Seek> TGADecoder<R> {
                 &mut self.r,
                 self.header.map_origin,
                 self.header.map_length,
-                self.header.map_entry_size
+                self.header.map_entry_size,
             )?);
         }
         Ok(())
@@ -513,7 +514,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
         }
 
         Ok(TGAReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
+            buffer: ImageReadBuffer::new(
+                self.scanline_bytes() as usize,
+                self.total_bytes() as usize,
+            ),
             decoder: self,
         })
     }
@@ -533,4 +537,3 @@ impl<R: Read + Seek> Read for TGAReader<R> {
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
     }
 }
-

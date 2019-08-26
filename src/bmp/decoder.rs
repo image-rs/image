@@ -1,8 +1,8 @@
-use std::{cmp, mem};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
 use std::slice::ChunksMut;
+use std::{cmp, mem};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -293,6 +293,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     true
 }
 
+#[rustfmt::skip]
 fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
     palette: &[(u8, u8, u8)],
@@ -598,17 +599,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
         self.width = i32::from(self.r.read_u16::<LittleEndian>()?);
         self.height = i32::from(self.r.read_u16::<LittleEndian>()?);
 
-        check_for_overflow(
-            self.width,
-            self.height,
-            self.num_channels()
-        )?;
+        check_for_overflow(self.width, self.height, self.num_channels())?;
 
         // Number of planes (format specifies that this should be 1).
         if self.r.read_u16::<LittleEndian>()? != 1 {
-            return Err(ImageError::FormatError(
-                "More than one plane".to_string(),
-            ));
+            return Err(ImageError::FormatError("More than one plane".to_string()));
         }
 
         self.bit_count = self.r.read_u16::<LittleEndian>()?;
@@ -648,17 +643,11 @@ impl<R: Read + Seek> BMPDecoder<R> {
             self.top_down = true;
         }
 
-        check_for_overflow(
-            self.width,
-            self.height,
-            self.num_channels()
-        )?;
+        check_for_overflow(self.width, self.height, self.num_channels())?;
 
         // Number of planes (format specifies that this should be 1).
         if self.r.read_u16::<LittleEndian>()? != 1 {
-            return Err(ImageError::FormatError(
-                "More than one plane".to_string(),
-            ));
+            return Err(ImageError::FormatError("More than one plane".to_string()));
         }
 
         self.bit_count = self.r.read_u16::<LittleEndian>()?;
@@ -675,12 +664,18 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 1 | 2 | 4 | 8 => ImageType::Palette,
                 16 => ImageType::RGB16,
                 24 => ImageType::RGB24,
-                32 => if self.add_alpha_channel {
-                    ImageType::RGBA32
-                } else {
-                    ImageType::RGB32
-                },
-                _ => return Err(ImageError::FormatError(format!("Invalid RGB bit count {}", self.bit_count).to_string())),
+                32 => {
+                    if self.add_alpha_channel {
+                        ImageType::RGBA32
+                    } else {
+                        ImageType::RGB32
+                    }
+                }
+                _ => {
+                    return Err(ImageError::FormatError(
+                        format!("Invalid RGB bit count {}", self.bit_count).to_string(),
+                    ))
+                }
             },
             1 => match self.bit_count {
                 8 => ImageType::RLE8,
@@ -745,12 +740,12 @@ impl<R: Read + Seek> BMPDecoder<R> {
         };
 
         self.bitfields = match self.image_type {
-            ImageType::Bitfields16 => Some(Bitfields::from_mask(
-                r_mask, g_mask, b_mask, a_mask, 16
-            )?),
-            ImageType::Bitfields32 => Some(Bitfields::from_mask(
-                r_mask, g_mask, b_mask, a_mask, 32
-            )?),
+            ImageType::Bitfields16 => {
+                Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 16)?)
+            }
+            ImageType::Bitfields32 => {
+                Some(Bitfields::from_mask(r_mask, g_mask, b_mask, a_mask, 32)?)
+            }
             _ => None,
         };
 
@@ -874,7 +869,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
             buf.resize(max_length, 0);
         } else if length > max_length {
             // Ignore any excess palette colors.
-            self.r.seek(SeekFrom::Current((length - max_length) as i64))?;
+            self.r
+                .seek(SeekFrom::Current((length - max_length) as i64))?;
         };
 
         let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE)
@@ -963,7 +959,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     _ => panic!(),
                 };
                 Ok(())
-            }
+            },
         )?;
 
         Ok(pixel_data)
@@ -1000,7 +996,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     }
                 }
                 reader.read_exact(row_padding)
-            }
+            },
         )?;
 
         Ok(pixel_data)
@@ -1034,7 +1030,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     }
                 }
                 Ok(())
-            }
+            },
         )?;
 
         Ok(pixel_data)
@@ -1082,7 +1078,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     }
                 }
                 reader.read_exact(row_padding)
-            }
+            },
         )?;
 
         Ok(pixel_data)
@@ -1344,8 +1340,20 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
 
         let data = data?;
 
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |_, buf| { buf.copy_from_slice(&data); Ok(buf.len()) })?;
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |_, _| unreachable!(),
+            |_, buf| {
+                buf.copy_from_slice(&data);
+                Ok(buf.len())
+            },
+        )?;
         Ok(())
     }
 }

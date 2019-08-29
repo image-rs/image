@@ -257,13 +257,10 @@ impl<R: Read + Seek> TGADecoder<R> {
             (8, 8, false) => self.color_type = ColorType::GrayA(8),
             (0, 8, false) => self.color_type = ColorType::Gray(8),
             _ => {
-                return Err(ImageError::UnsupportedError(
-                    format!(
-                        "Color format not supported. Bit depth: {}, Alpha bits: {}",
-                        other_channel_bits, num_alpha_bits
-                    )
-                    .to_string(),
-                ))
+                return Err(ImageError::UnsupportedError(format!(
+                    "Color format not supported. Bit depth: {}, Alpha bits: {}",
+                    other_channel_bits, num_alpha_bits
+                )))
             }
         }
         Ok(())

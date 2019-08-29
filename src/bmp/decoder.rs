@@ -664,17 +664,13 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 1 | 2 | 4 | 8 => ImageType::Palette,
                 16 => ImageType::RGB16,
                 24 => ImageType::RGB24,
-                32 => {
-                    if self.add_alpha_channel {
-                        ImageType::RGBA32
-                    } else {
-                        ImageType::RGB32
-                    }
-                }
+                32 if self.add_alpha_channel => ImageType::RGBA32,
+                32 => ImageType::RGB32,
                 _ => {
-                    return Err(ImageError::FormatError(
-                        format!("Invalid RGB bit count {}", self.bit_count).to_string(),
-                    ))
+                    return Err(ImageError::FormatError(format!(
+                        "Invalid RGB bit count {}",
+                        self.bit_count
+                    )))
                 }
             },
             1 => match self.bit_count {
@@ -1340,11 +1336,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
 
         let data = data?;
 
+        #[rustfmt::skip]
         image::load_rect(
-            x,
-            y,
-            width,
-            height,
+            x, y, width, height,
             buf,
             progress_callback,
             self,

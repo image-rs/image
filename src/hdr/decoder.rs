@@ -716,7 +716,8 @@ impl HDRMetadata {
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.0) * v); // all encountered exposure values should be multiplied
+                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.0) * v);
+                        // all encountered exposure values should be multiplied
                     }
                     Err(parse_error) => {
                         if strict {

@@ -783,7 +783,7 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
             return Err(image::ImageError::UnsupportedError(format!(
                 "Image format image/{:?} is not supported.",
                 format
-            )))
+            )));
         }
     };
     if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {

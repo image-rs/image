@@ -1,7 +1,12 @@
 language: rust
 sudo: false
 notifications:
-    irc: "irc.mozilla.org#piston-internals"
+    webhooks:
+        urls:
+            - https://webhooks.gitter.im/e/816755464e93a0defff0
+        on_success: change
+        on_failure: always
+        on_start: never
 os:
     - linux
 rust:

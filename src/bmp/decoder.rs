@@ -425,7 +425,7 @@ impl Bitfields {
 
 /// A bmp decoder
 pub struct BMPDecoder<R> {
-    r: R,
+    reader: R,
 
     bmp_header_type: BMPHeaderType,
 
@@ -511,9 +511,9 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
 
 impl<R: Read + Seek> BMPDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<BMPDecoder<R>> {
+    pub fn new(reader: R) -> ImageResult<BMPDecoder<R>> {
         let mut decoder = BMPDecoder {
-            r,
+            reader,
 
             bmp_header_type: BMPHeaderType::Info,
 
@@ -537,9 +537,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     #[cfg(feature = "ico")]
-    pub(crate) fn new_with_ico_format(r: R) -> ImageResult<BMPDecoder<R>> {
+    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BMPDecoder<R>> {
         let mut decoder = BMPDecoder {
-            r,
+            reader,
 
             bmp_header_type: BMPHeaderType::Info,
 
@@ -564,7 +564,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     #[cfg(feature = "ico")]
     pub(crate) fn reader(&mut self) -> &mut R {
-        &mut self.r
+        &mut self.reader
     }
 
     fn read_file_header(&mut self) -> ImageResult<()> {
@@ -572,7 +572,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             return Ok(());
         }
         let mut signature = [0; 2];
-        self.r.read_exact(&mut signature)?;
+        self.reader.read_exact(&mut signature)?;
 
         if signature != b"BM"[..] {
             return Err(ImageError::FormatError(
@@ -582,10 +582,10 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         // The next 8 bytes represent file size, followed the 4 reserved bytes
         // We're not interesting these values
-        self.r.read_u32::<LittleEndian>()?;
-        self.r.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
 
-        self.data_offset = u64::from(self.r.read_u32::<LittleEndian>()?);
+        self.data_offset = u64::from(self.reader.read_u32::<LittleEndian>()?);
 
         Ok(())
     }
@@ -596,17 +596,17 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_bitmap_core_header(&mut self) -> ImageResult<()> {
         // As height/width values in BMP files with core headers are only 16 bits long,
         // they won't be larger than `MAX_WIDTH_HEIGHT`.
-        self.width = i32::from(self.r.read_u16::<LittleEndian>()?);
-        self.height = i32::from(self.r.read_u16::<LittleEndian>()?);
+        self.width = i32::from(self.reader.read_u16::<LittleEndian>()?);
+        self.height = i32::from(self.reader.read_u16::<LittleEndian>()?);
 
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
         // Number of planes (format specifies that this should be 1).
-        if self.r.read_u16::<LittleEndian>()? != 1 {
+        if self.reader.read_u16::<LittleEndian>()? != 1 {
             return Err(ImageError::FormatError("More than one plane".to_string()));
         }
 
-        self.bit_count = self.r.read_u16::<LittleEndian>()?;
+        self.bit_count = self.reader.read_u16::<LittleEndian>()?;
         self.image_type = match self.bit_count {
             1 | 4 | 8 => ImageType::Palette,
             24 => ImageType::RGB24,
@@ -621,8 +621,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     ///
     /// returns Err if any of the values are invalid.
     fn read_bitmap_info_header(&mut self) -> ImageResult<()> {
-        self.width = self.r.read_i32::<LittleEndian>()?;
-        self.height = self.r.read_i32::<LittleEndian>()?;
+        self.width = self.reader.read_i32::<LittleEndian>()?;
+        self.height = self.reader.read_i32::<LittleEndian>()?;
 
         // Width can not be negative
         if self.width < 0 {
@@ -646,12 +646,12 @@ impl<R: Read + Seek> BMPDecoder<R> {
         check_for_overflow(self.width, self.height, self.num_channels())?;
 
         // Number of planes (format specifies that this should be 1).
-        if self.r.read_u16::<LittleEndian>()? != 1 {
+        if self.reader.read_u16::<LittleEndian>()? != 1 {
             return Err(ImageError::FormatError("More than one plane".to_string()));
         }
 
-        self.bit_count = self.r.read_u16::<LittleEndian>()?;
-        let image_type_u32 = self.r.read_u32::<LittleEndian>()?;
+        self.bit_count = self.reader.read_u16::<LittleEndian>()?;
+        let image_type_u32 = self.reader.read_u32::<LittleEndian>()?;
 
         // Top-down dibs can not be compressed.
         if self.top_down && image_type_u32 != 0 && image_type_u32 != 3 {
@@ -710,27 +710,27 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // followed the horizontal and vertical printing resolutions
         // We will calculate the pixel array size using width & height of image
         // We're not interesting the horz or vert printing resolutions
-        self.r.read_u32::<LittleEndian>()?;
-        self.r.read_u32::<LittleEndian>()?;
-        self.r.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
 
-        self.colors_used = self.r.read_u32::<LittleEndian>()?;
+        self.colors_used = self.reader.read_u32::<LittleEndian>()?;
 
         // The next 4 bytes represent number of "important" colors
         // We're not interested in this value, so we'll skip it
-        self.r.read_u32::<LittleEndian>()?;
+        self.reader.read_u32::<LittleEndian>()?;
 
         Ok(())
     }
 
     fn read_bitmasks(&mut self) -> ImageResult<()> {
-        let r_mask = self.r.read_u32::<LittleEndian>()?;
-        let g_mask = self.r.read_u32::<LittleEndian>()?;
-        let b_mask = self.r.read_u32::<LittleEndian>()?;
+        let r_mask = self.reader.read_u32::<LittleEndian>()?;
+        let g_mask = self.reader.read_u32::<LittleEndian>()?;
+        let b_mask = self.reader.read_u32::<LittleEndian>()?;
 
         let a_mask = match self.bmp_header_type {
             BMPHeaderType::V3 | BMPHeaderType::V4 | BMPHeaderType::V5 => {
-                self.r.read_u32::<LittleEndian>()?
+                self.reader.read_u32::<LittleEndian>()?
             }
             _ => 0,
         };
@@ -755,8 +755,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.has_loaded_metadata {
             self.read_file_header()?;
-            let bmp_header_offset = self.r.seek(SeekFrom::Current(0))?;
-            let bmp_header_size = self.r.read_u32::<LittleEndian>()?;
+            let bmp_header_offset = self.reader.seek(SeekFrom::Current(0))?;
+            let bmp_header_size = self.reader.read_u32::<LittleEndian>()?;
             let bmp_header_end = bmp_header_offset + u64::from(bmp_header_size);
 
             self.bmp_header_type = match bmp_header_size {
@@ -791,7 +791,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
                 _ => {}
             };
 
-            self.r.seek(SeekFrom::Start(bmp_header_end))?;
+            self.reader.seek(SeekFrom::Start(bmp_header_end))?;
 
             match self.image_type {
                 ImageType::Palette | ImageType::RLE4 | ImageType::RLE8 => self.read_palette()?,
@@ -800,7 +800,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
             if self.no_file_header {
                 // Use the offset of the end of metadata instead of reading a BMP file header.
-                self.data_offset = self.r.seek(SeekFrom::Current(0))?;
+                self.data_offset = self.reader.seek(SeekFrom::Current(0))?;
             }
 
             self.has_loaded_metadata = true;
@@ -857,7 +857,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         // We limit the buffer to at most 256 colours to avoid any oom issues as
         // 8-bit images can't reference more than 256 indexes anyhow.
         buf.resize(cmp::min(length, max_length), 0);
-        self.r.by_ref().read_exact(&mut buf)?;
+        self.reader.by_ref().read_exact(&mut buf)?;
 
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
@@ -865,7 +865,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             buf.resize(max_length, 0);
         } else if length > max_length {
             // Ignore any excess palette colors.
-            self.r
+            self.reader
                 .seek(SeekFrom::Current((length - max_length) as i64))?;
         };
 
@@ -925,7 +925,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
         let mut indices = vec![0; row_byte_length];
         let palette = self.palette.as_ref().unwrap();
         let bit_count = self.bit_count;
-        let reader = &mut self.r;
+        let reader = &mut self.reader;
         let width = self.width as usize;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
@@ -970,7 +970,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             Some(b) => b,
             None => self.bitfields.as_ref().unwrap(),
         };
-        let reader = &mut self.r;
+        let reader = &mut self.reader;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
@@ -1005,7 +1005,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         let bitfields = self.bitfields.as_ref().unwrap();
 
-        let reader = &mut self.r;
+        let reader = &mut self.reader;
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
         with_rows(
@@ -1042,9 +1042,9 @@ impl<R: Read + Seek> BMPDecoder<R> {
         };
         let row_padding = &mut [0; 4][..row_padding_len];
 
-        self.r.seek(SeekFrom::Start(self.data_offset))?;
+        self.reader.seek(SeekFrom::Start(self.data_offset))?;
 
-        let reader = &mut self.r;
+        let reader = &mut self.reader;
 
         with_rows(
             &mut pixel_data,
@@ -1082,7 +1082,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     fn read_rle_data(&mut self, image_type: ImageType) -> ImageResult<Vec<u8>> {
         // Seek to the start of the actual image data.
-        self.r.seek(SeekFrom::Start(self.data_offset))?;
+        self.reader.seek(SeekFrom::Start(self.data_offset))?;
 
         let full_image_size =
             num_bytes(self.width, self.height, self.num_channels()).ok_or_else(|| {
@@ -1127,7 +1127,7 @@ impl<R: Read + Seek> BMPDecoder<R> {
             // blank the rows that are to be skipped.
             blank_bytes((&mut row_iter).take(skip_rows.into()));
             let mut insns_iter = RLEInsnIterator {
-                r: &mut self.r,
+                r: &mut self.reader,
                 image_type,
             };
             let p = self.palette.as_ref().unwrap();
@@ -1330,9 +1330,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        let start = self.r.seek(SeekFrom::Current(0))?;
+        let start = self.reader.seek(SeekFrom::Current(0))?;
         let data = self.read_image_data();
-        self.r.seek(SeekFrom::Start(start))?;
+        self.reader.seek(SeekFrom::Start(start))?;
 
         let data = data?;
 

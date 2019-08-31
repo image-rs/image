@@ -1096,6 +1096,7 @@ mod test {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn gray_to_luma8_skip() {
         let check = |bit_depth, w, h, from, to| {
             assert_eq!(
@@ -1110,7 +1111,10 @@ mod test {
             2,
             &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
             vec![
-                255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255,
+                255, 255, 255, 255,   0,
+                  0,   0,   0, 255, 255,
+                  0,   0,   0,   0, 255,
+                255, 255, 255, 255, 255,
             ],
         );
         // Bit depth 2, skip is more than half a byte

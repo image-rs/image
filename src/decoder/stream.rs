@@ -179,7 +179,7 @@ impl StreamingDecoder {
     pub fn update(&mut self, mut buf: &[u8], image_data: &mut Vec<u8>)
     -> Result<(usize, Decoded), DecodingError> {
         let len = buf.len();
-        while buf.len() > 0 && self.state.is_some() {
+        while !buf.is_empty() && self.state.is_some() {
             match self.next_state(buf, image_data) {
                 Ok((bytes, Decoded::Nothing)) => {
                     buf = &buf[bytes..]
@@ -224,19 +224,17 @@ impl StreamingDecoder {
         //println!("state: {:?}", state);
 
         match state {
-            Signature(i, mut signature) => if i < 7 {
+            Signature(i, mut signature) if i < 7 => {
                 signature[i as usize] = current_byte;
                 goto!(Signature(i+1, signature))
-            } else {
-                if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 {
-                    goto!(U32(U32Value::Length))
-                } else {
-                    Err(DecodingError::InvalidSignature)
-                }
-            },
+            }
+            Signature(_, signature) if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 => {
+                goto!(U32(U32Value::Length))
+            }
+            Signature(..) => Err(DecodingError::InvalidSignature),
             U32Byte3(type_, mut val) => {
                 use self::U32Value::*;
-                val |= current_byte as u32;
+                val |= u32::from(current_byte);
                 match type_ {
                     Length => goto!(U32(Type(val))),
                     Type(length) => {
@@ -277,13 +275,13 @@ impl StreamingDecoder {
                 }
             },
             U32Byte2(type_, val) => {
-                goto!(U32Byte3(type_, val | (current_byte as u32) << 8))
+                goto!(U32Byte3(type_, val | u32::from(current_byte) << 8))
             },
             U32Byte1(type_, val) => {
-                goto!(U32Byte2(type_, val | (current_byte as u32) << 16))
+                goto!(U32Byte2(type_, val | u32::from(current_byte) << 16))
             },
             U32(type_) => {
-                goto!(U32Byte1(type_,       (current_byte as u32) << 24))
+                goto!(U32Byte1(type_,       u32::from(current_byte) << 24))
             },
             PartialChunk(type_str) => {
                 match type_str {
@@ -344,7 +342,7 @@ impl StreamingDecoder {
                     } else {
                         let buf = &buf[..n as usize];
                         crc.update(buf);
-                        c_buf.extend(buf.iter().map(|&v| v));
+                        c_buf.extend(buf.iter().copied());
                         *remaining -= n;
                         if *remaining == 0 {
                             goto!(n as usize, PartialChunk(type_str
@@ -363,7 +361,7 @@ impl StreamingDecoder {
                 let (c, data) = self.inflater.update(&self.current_chunk.2[n..])?;
                 image_data.extend_from_slice(data);
                 n += c;
-                if n == chunk_len && data.len() == 0 && c == 0 {
+                if n == chunk_len && data.is_empty() && c == 0 {
                     goto!(
                         0,
                         ReadChunk(type_str, true),
@@ -419,7 +417,7 @@ impl StreamingDecoder {
     }
 
     fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
-        self.info.as_ref().ok_or(DecodingError::Format(
+        self.info.as_ref().ok_or_else(|| DecodingError::Format(
             "IHDR chunk missing".into()
         ))
     }
@@ -467,7 +465,7 @@ impl StreamingDecoder {
                 None => return Err(DecodingError::Format("invalid blend operation".into()))
             },
         };
-        self.info.as_mut().unwrap().frame_control = Some(fc.clone());
+        self.info.as_mut().unwrap().frame_control = Some(fc);
         Ok(Decoded::FrameControl(fc))
     }
 
@@ -491,10 +489,10 @@ impl StreamingDecoder {
     fn parse_plte(&mut self)
     -> Result<Decoded, DecodingError> {
         let mut vec = Vec::new();
-        vec.extend(self.current_chunk.2.iter().map(|&v| v));
-        self.info.as_mut().map(
-            |info| info.palette = Some(vec)
-        );
+        vec.extend(self.current_chunk.2.iter().copied());
+        if let Some(info) = self.info.as_mut() {
+            info.palette = Some(vec)
+        }
         Ok(Decoded::Nothing)
     }
 
@@ -506,7 +504,7 @@ impl StreamingDecoder {
             (info.color_type, info.bit_depth as u8)
         };
         let mut vec = Vec::new();
-        vec.extend(self.current_chunk.2.iter().map(|&v| v));
+        vec.extend(self.current_chunk.2.iter().copied());
         let len = vec.len();
         let info = match self.info {
             Some(ref mut info) => info,
@@ -544,7 +542,7 @@ impl StreamingDecoder {
                 Ok(Decoded::Nothing)
             },
             Indexed => {
-                let _ = info.palette.as_ref().ok_or(DecodingError::Format(
+                let _ = info.palette.as_ref().ok_or_else(|| DecodingError::Format(
                     "tRNS chunk occured before PLTE chunk".into()
                 ));
                 Ok(Decoded::Nothing)
@@ -574,9 +572,9 @@ impl StreamingDecoder {
                 ))
             };
             let pixel_dims = PixelDimensions {
-                xppu: xppu,
-                yppu: yppu,
-                unit: unit,
+                xppu,
+                yppu,
+                unit,
             };
             self.info.as_mut().unwrap().pixel_dims = Some(pixel_dims);
             Ok(Decoded::PixelDimensions(pixel_dims))

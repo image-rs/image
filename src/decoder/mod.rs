@@ -70,11 +70,11 @@ impl<R: Read> Decoder<R> {
         Decoder::new_with_limits(r, Limits::default())
     }
     
-    pub fn new_with_limits(r: R, l: Limits) -> Decoder<R> {
+    pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
         Decoder {
-            r: r,
+            r,
             transform: crate::Transformations::EXPAND | crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
-            limits: l,
+            limits,
         }
     }
 
@@ -283,7 +283,7 @@ impl<R: Read> Reader<R> {
             // swap buffer to circumvent borrow issues
             let mut buffer = mem::replace(&mut self.processed, Vec::new());
             let (got_next, adam7) = if let Some((row, adam7)) = self.next_raw_interlaced_row()? {
-                (&mut buffer[..]).write(row)?;
+                (&mut buffer[..]).write_all(row)?;
                 (true, adam7)
             } else {
                 (false, None)
@@ -472,7 +472,7 @@ impl<R: Read> Reader<R> {
                 match val {
                     Some(Decoded::ImageData) => {}
                     None => {
-                        if self.current.len() > 0 {
+                        if !self.current.is_empty() {
                             return Err(DecodingError::Format(
                               "file truncated".into()
                             ))

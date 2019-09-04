@@ -307,10 +307,9 @@ impl<'a, W: Write> Drop for StreamWriter<'a, W> {
 mod tests {
     use super::*;
 
-    extern crate rand;
     extern crate glob;
 
-    use self::rand::Rng;
+    use rand::{thread_rng, Rng};
     use std::{io, cmp};
     use std::io::Write;
     use std::fs::File;
@@ -337,7 +336,7 @@ mod tests {
                 let mut out = Vec::new();
                 {
                     let mut wrapper = RandomChunkWriter {
-                        rng: self::rand::thread_rng(),
+                        rng: thread_rng(),
                         w: &mut out
                     };
 
@@ -377,7 +376,7 @@ mod tests {
                 let mut out = Vec::new();
                 {
                     let mut wrapper = RandomChunkWriter {
-                        rng: self::rand::thread_rng(),
+                        rng: thread_rng(),
                         w: &mut out
                     };
 
@@ -385,7 +384,7 @@ mod tests {
                     let mut stream_writer = encoder.stream_writer();
 
                     let mut outer_wrapper = RandomChunkWriter {
-                        rng: self::rand::thread_rng(),
+                        rng: thread_rng(),
                         w: &mut stream_writer
                     };
                     

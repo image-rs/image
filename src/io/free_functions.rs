@@ -210,8 +210,9 @@ pub(crate) fn save_buffer_with_format_impl(
 }
 
 /// Guess format from a path.
-/// If the path has no extension or it can not be convert to a `str` for comparison then this
-/// method will simply return `None`.
+///
+/// Returns `PathError::NoExtension` if the path has no extension or returns a
+/// `PathError::UnknownExtension` containing the extension if  it can not be convert to a `str`.
 pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, PathError> {
     let exact_ext = path.extension();
 

@@ -722,6 +722,11 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
@@ -732,6 +737,11 @@ where
 
 /// Read the dimensions of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path or manually supplying the format.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
@@ -788,12 +798,24 @@ where
 ///
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
 }
 
 /// Create a new image from a byte slice
+///
+/// This is just a simple wrapper that constructs an `std::io::Cursor` around the buffer and then
+/// calls `load` with that reader.
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`load`]: fn.load.html
+/// [`io::Reader`]: io/struct.Reader.html
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);

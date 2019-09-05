@@ -51,6 +51,10 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 }
 
 /// Create a new image from a Reader
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.

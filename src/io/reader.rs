@@ -11,7 +11,51 @@ use super::free_functions;
 /// A multi-format image reader.
 ///
 /// Wraps an input reader to facilitate automatic detection of an image's format, appropriate
-/// decoding method, and dispatches into the set of supported `ImageDecoder` implementations.
+/// decoding method, and dispatches into the set of supported [`ImageDecoder`] implementations.
+///
+/// ## Usage
+///
+/// Opening a file, deducing the format automatically, and trying to decode the image contained can
+/// be performed by constructing the reader and immediately consuming it. This guesses the format
+/// based on the file content and falls back to the file path.
+///
+/// ```no_run
+/// # use image::ImageError;
+/// # use image::io::Reader;
+/// # fn main() -> Result<(), ImageError> {
+/// let image = Reader::open("path/to/image.png")?
+///     .decode()?;
+/// # Ok(()) }
+/// ```
+///
+/// It is also make a guess based solely on the content. This is especially handy if the source is
+/// some blob in memory and you have constructed the reader in another way. Here is an example with
+/// a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
+///
+/// ```no_run
+/// # use image::ImageError;
+/// # use image::io::Reader;
+/// # fn main() -> Result<(), ImageError> {
+/// use std::io::Cursor;
+/// use image::ImageFormat;
+///
+/// let raw_data = b"P1 2 2\
+///     0 1\
+///     1 0";
+///
+/// let mut reader = Reader::new(Cursor::new(raw_data));
+/// reader.guess_format().expect("Cursor io never fails");
+/// assert_eq!(reader.format(), Some(ImageFormat::PNM));
+///
+/// let image = reader.decode()?;
+/// # Ok(()) }
+/// ```
+///
+/// As a final fallback or if only a specific format must be used, the reader always allows manual
+/// specification of the supposed image format with [`set_format`].
+///
+/// [`set_format`]: #method.set_format
+/// [`ImageDecoder`]: ../trait.ImageDecoder.html
 pub struct Reader<R: Read> {
     /// The reader.
     inner: R,
@@ -145,7 +189,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// Read the image dimensions.
     ///
     /// Uses the current format to construct the correct reader for the format.
-    pub fn image_dimensions(mut self) -> ImageResult<(u32, u32)> {
+    pub fn dimensions(mut self) -> ImageResult<(u32, u32)> {
         let format = self.require_format()?;
         free_functions::image_dimensions_with_format_impl(self.inner, format)
     }

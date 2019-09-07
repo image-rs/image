@@ -15,9 +15,8 @@ use super::free_functions;
 ///
 /// ## Usage
 ///
-/// Opening a file, deducing the format automatically, and trying to decode the image contained can
-/// be performed by constructing the reader and immediately consuming it. This guesses the format
-/// based on the file content and falls back to the file path.
+/// Opening a file, deducing the format based on the file path automatically, and trying to decode
+/// the image contained can be performed by constructing the reader and immediately consuming it.
 ///
 /// ```no_run
 /// # use image::ImageError;
@@ -28,9 +27,9 @@ use super::free_functions;
 /// # Ok(()) }
 /// ```
 ///
-/// It is also make a guess based solely on the content. This is especially handy if the source is
-/// some blob in memory and you have constructed the reader in another way. Here is an example with
-/// a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
+/// It is also possible to make a guess based on the content. This is especially handy if the
+/// source is some blob in memory and you have constructed the reader in another way. Here is an
+/// example with a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
 ///
 /// ```no_run
 /// # use image::ImageError;
@@ -111,53 +110,19 @@ impl<R: Read> Reader<R> {
 }
 
 impl Reader<BufReader<File>> {
-    /// Open a file to read, format will be guessed from content or path.
-    ///
-    /// This will automatically begin reading the start of the file to determine the format, then
-    /// fall back to the path. Use [`from_path`] to open a file but guess its format solely based
-    /// on the path and not perform any io on the file yet.
-    ///
-    /// It is always possible to redetect the current format with [`guess_format`].
-    ///
-    /// [`from_path`]: #method.from_path
-    /// [`guess_format`]: #method.guess_format
-    pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
-        Self::open_impl(path.as_ref())
-    }
-
     /// Open a file to read, format will be guessed from path.
     ///
     /// This will not attempt any io operation on the opened file.
     ///
     /// If you want to inspect the content for a better guess on the format, which does not depend
-    /// on file extensions, use [`open`] instead.
+    /// on file extensions, follow this call with a call to [`guess_format`].
     ///
-    /// [`open`]: #method.open
-    pub fn from_path<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
-        Self::from_path_impl(path.as_ref())
+    /// [`guess_format`]: #method.guess_format
+    pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
+        Self::open_impl(path.as_ref())
     }
 
     fn open_impl(path: &Path) -> io::Result<Self> {
-        let file = File::open(path)?;
-
-        let mut reader = Reader {
-            inner: BufReader::new(file),
-            format: None,
-        };
-
-        reader.guess_format()?;
-
-        if reader.format.is_none() {
-            // If content didn't success, maybe guess the format based on path.
-            if let Ok(format) = ImageFormat::from_path(path) {
-                reader.format = Some(format);
-            }
-        }
-
-        Ok(reader)
-    }
-
-    fn from_path_impl(path: &Path) -> io::Result<Self> {
         let file = File::open(path)?;
         Ok(Reader {
             inner: BufReader::new(file),
@@ -182,13 +147,17 @@ impl<R: BufRead + Seek> Reader<R> {
             &mut Cursor::new(&mut start[..]))?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
-        self.format = free_functions::guess_format(&start[..len as usize]).ok();
+        if let Ok(format) = free_functions::guess_format(&start[..len as usize]) {
+            self.format = Some(format);
+        }
         Ok(())
     }
 
     /// Read the image dimensions.
     ///
     /// Uses the current format to construct the correct reader for the format.
+    ///
+    /// If no format was determined, returns an `ImageError::UnsupportedError`.
     pub fn dimensions(mut self) -> ImageResult<(u32, u32)> {
         let format = self.require_format()?;
         free_functions::image_dimensions_with_format_impl(self.inner, format)
@@ -197,6 +166,8 @@ impl<R: BufRead + Seek> Reader<R> {
     /// Read the image (replaces `load`).
     ///
     /// Uses the current format to construct the correct reader for the format.
+    ///
+    /// If no format was determined, returns an `ImageError::UnsupportedError`.
     pub fn decode(mut self) -> ImageResult<DynamicImage> {
         let format = self.require_format()?;
         free_functions::load(self.inner, format)

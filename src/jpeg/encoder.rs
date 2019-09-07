@@ -374,7 +374,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         height: u32,
         c: color::ColorType,
     ) -> io::Result<()> {
-        let n = color::num_components(c);
+        let n = color::channel_count(c);
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_segment(SOI, None)?;

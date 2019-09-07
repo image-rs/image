@@ -88,7 +88,7 @@ enum Chunker<'a> {
     FromBottom(Rev<ChunksMut<'a, u8>>),
 }
 
-pub struct RowIterator<'a> {
+pub(crate) struct RowIterator<'a> {
     chunks: Chunker<'a>,
 }
 

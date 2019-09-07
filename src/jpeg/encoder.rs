@@ -157,7 +157,7 @@ struct Component {
     _dc_pred: i32,
 }
 
-pub struct BitWriter<'a, W: 'a> {
+pub(crate) struct BitWriter<'a, W: 'a> {
     w: &'a mut W,
     accumulator: u32,
     nbits: u8,

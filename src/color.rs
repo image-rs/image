@@ -44,7 +44,7 @@ impl ColorType {
 }
 
 /// Returns the number of bits contained in a pixel of `ColorType` ```c```
-pub fn bits_per_pixel(c: ColorType) -> u16 {
+pub(crate) fn bits_per_pixel(c: ColorType) -> u16 {
     match c {
         ColorType::Gray(n) => n as u16,
         ColorType::GrayA(n) => 2 * n as u16,
@@ -54,7 +54,7 @@ pub fn bits_per_pixel(c: ColorType) -> u16 {
 }
 
 /// Returns the number of color channels that make up this pixel
-pub fn channel_count(c: ColorType) -> u8 {
+pub(crate) fn channel_count(c: ColorType) -> u8 {
     match c {
         ColorType::Gray(_) => 1,
         ColorType::GrayA(_) => 2,
@@ -582,7 +582,7 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Bgr<T> {
 
 
 /// Blends a color inter another one
-pub trait Blend {
+pub(crate) trait Blend {
     /// Blends a color in-place.
     fn blend(&mut self, other: &Self);
 }
@@ -754,7 +754,7 @@ impl<T: Primitive> Blend for Bgr<T> {
 
 
 /// Invert a color
-pub trait Invert {
+pub(crate) trait Invert {
     /// Inverts a color in-place.
     fn invert(&mut self);
 }

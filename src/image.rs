@@ -247,7 +247,7 @@ pub(crate) struct ImageReadBuffer {
     offset: usize,
 }
 impl ImageReadBuffer {
-    pub fn new(scanline_bytes: usize, total_bytes: usize) -> Self {
+    pub(crate) fn new(scanline_bytes: usize, total_bytes: usize) -> Self {
         Self {
             scanline_bytes,
             buffer: Vec::new(),
@@ -256,7 +256,7 @@ impl ImageReadBuffer {
             offset: 0,
         }
     }
-    pub fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
     where
         F: FnMut(&mut [u8]) -> io::Result<usize>,
     {

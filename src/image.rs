@@ -314,7 +314,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
     let dimensions = decoder.dimensions();
     let row_bytes = decoder.row_bytes();
     let scanline_bytes = decoder.scanline_bytes();
-    let bits_per_pixel = color::bits_per_pixel(decoder.colortype()) as u64;
+    let bits_per_pixel = u64::from(color::bits_per_pixel(decoder.colortype()));
     let total_bits = width * height * bits_per_pixel;
 
     let mut bits_read = 0u64;
@@ -414,7 +414,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns the number of bytes in a single row of the image. All decoders will pad image rows
     /// to a byte boundary.
     fn row_bytes(&self) -> u64 {
-        (self.dimensions().0 * color::bits_per_pixel(self.colortype()) as u64 + 7) / 8
+        (self.dimensions().0 * u64::from(color::bits_per_pixel(self.colortype())) + 7) / 8
     }
 
     /// Returns the total number of bytes in the image.

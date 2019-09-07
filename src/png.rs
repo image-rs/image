@@ -56,7 +56,7 @@ impl<R: Read> Read for PNGReader<R> {
         let mut bytes = readed;
         self.index += readed;
     
-        while !(self.index < self.buffer.len()) {
+        while self.index >= self.buffer.len() {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer

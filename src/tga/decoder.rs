@@ -127,7 +127,7 @@ struct ColorMap {
 }
 
 impl ColorMap {
-    pub fn from_reader(
+    pub(crate) fn from_reader(
         r: &mut dyn Read,
         start_offset: u16,
         num_entries: u16,
@@ -146,7 +146,7 @@ impl ColorMap {
     }
 
     /// Get one entry from the color map
-    pub fn get(&self, index: usize) -> &[u8] {
+    pub(crate) fn get(&self, index: usize) -> &[u8] {
         let entry = self.start_offset + self.entry_size * index;
         &self.bytes[entry..entry + self.entry_size]
     }

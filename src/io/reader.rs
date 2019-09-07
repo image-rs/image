@@ -132,11 +132,32 @@ impl Reader<BufReader<File>> {
 }
 
 impl<R: BufRead + Seek> Reader<R> {
-    /// Replace the format with a guess based on the content.
+    /// Make a format guess based on the content, replacing it on success.
     ///
-    /// If the guess fails, the format is unchanged. Error is for seek, hence io::Error
-    /// and not ImageError.
-    pub fn guess_format(&mut self) -> io::Result<()> {
+    /// Returns `Ok` with the guess if no io error occurs. Additionally, replaces the current
+    /// format if the guess was successful. If the guess was not unable to determine a format then
+    /// the current format of the reader is unchanged.
+    ///
+    /// Returns an error if the underlying reader fails. The format is unchanged. The error is a
+    /// `std::io::Error` and not `ImageError` since the only error case is an error when the
+    /// underlying reader seeks.
+    ///
+    /// When an error occurs, the reader may not have been properly reset and it is potentially
+    /// hazardous to continue with more io.
+    ///
+    /// ## Usage
+    ///
+    /// ```
+    /// ```
+    pub fn with_guessed_format(mut self) -> io::Result<Self> {
+        let format = self.guess_format()?;
+        // Replace format if found, keep current state if not.
+        self.format = format.or(self.format);
+        Ok(self)
+    }
+
+    /// Guess the format based on read data.
+    pub fn guess_format(&mut self) -> io::Result<Option<ImageFormat>> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
@@ -147,10 +168,7 @@ impl<R: BufRead + Seek> Reader<R> {
             &mut Cursor::new(&mut start[..]))?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
-        if let Ok(format) = free_functions::guess_format(&start[..len as usize]) {
-            self.format = Some(format);
-        }
-        Ok(())
+        Ok(free_functions::guess_format_impl(&start[..len as usize]))
     }
 
     /// Read the image dimensions.
@@ -158,7 +176,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// Uses the current format to construct the correct reader for the format.
     ///
     /// If no format was determined, returns an `ImageError::UnsupportedError`.
-    pub fn dimensions(mut self) -> ImageResult<(u32, u32)> {
+    pub fn into_dimensions(mut self) -> ImageResult<(u32, u32)> {
         let format = self.require_format()?;
         free_functions::image_dimensions_with_format_impl(self.inner, format)
     }

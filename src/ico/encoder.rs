@@ -43,7 +43,7 @@ impl<W: Write> ICOEncoder<W> {
             height,
             color,
             ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
-            image_data.len() as u32
+            image_data.len() as u32,
         )?;
         self.w.write_all(&image_data)?;
         Ok(())

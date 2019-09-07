@@ -26,12 +26,16 @@ use tiff;
 #[cfg(feature = "webp")]
 use webp;
 
-use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage, BgrImage, BgraImage};
-use flat::FlatSamples;
+use buffer::{
+    BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage,
+    RgbaImage,
+};
 use color;
+use flat::FlatSamples;
 use image;
-use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
-            ImageResult};
+use image::{
+    GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat, ImageResult,
+};
 use imageops;
 
 /// A Dynamic Image
@@ -134,7 +138,6 @@ impl DynamicImage {
         DynamicImage::ImageBgr8(ImageBuffer::new(w, h))
     }
 
-
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
@@ -148,7 +151,6 @@ impl DynamicImage {
             p.convert()
         })
     }
-
 
     /// Returns a copy of this image as an BGR image.
     pub fn to_bgr(&self) -> BgrImage {
@@ -198,7 +200,6 @@ impl DynamicImage {
             _ => None,
         }
     }
-
 
     /// Return a reference to an 8bit BGR image
     pub fn as_bgr8(&self) -> Option<&BgrImage> {
@@ -483,14 +484,14 @@ impl DynamicImage {
                 let p = png::PNGEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
-                    },
+                        bytes = self.to_rgba().iter().cloned().collect();
+                        color = color::ColorType::RGBA(8);
+                    }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
-                    },
-                    _ => {},
+                        bytes = self.to_rgb().iter().cloned().collect();
+                        color = color::ColorType::RGB(8);
+                    }
+                    _ => {}
                 }
                 p.encode(&bytes, width, height, color)?;
                 Ok(())
@@ -500,14 +501,14 @@ impl DynamicImage {
                 let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::RGBA(8);
-                    },
+                        bytes = self.to_rgba().iter().cloned().collect();
+                        color = color::ColorType::RGBA(8);
+                    }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::RGB(8);
-                    },
-                    _ => {},
+                        bytes = self.to_rgb().iter().cloned().collect();
+                        color = color::ColorType::RGB(8);
+                    }
+                    _ => {}
                 }
                 p.encode(&bytes[..], width, height, color)?;
                 Ok(())
@@ -527,7 +528,7 @@ impl DynamicImage {
                 g.encode(&gif::Frame::from_rgba(
                     width as u16,
                     height as u16,
-                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>()
+                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>(),
                 ))?;
                 Ok(())
             }
@@ -651,32 +652,20 @@ pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<Dynami
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
-        color::ColorType::RGB(8) => {
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
-        }
+        color::ColorType::RGB(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8),
 
-        color::ColorType::RGBA(8) => {
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
-        }
+        color::ColorType::RGBA(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8),
 
-        color::ColorType::BGR(8) => {
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8)
-        }
+        color::ColorType::BGR(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8),
 
-        color::ColorType::BGRA(8) => {
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
-        }
+        color::ColorType::BGRA(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8),
 
-        color::ColorType::Gray(8) => {
-            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
-        }
+        color::ColorType::Gray(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8),
 
         color::ColorType::GrayA(8) => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        color::ColorType::Gray(bit_depth)
-            if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 =>
-        {
+        color::ColorType::Gray(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
             gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
         }
         _ => return Err(image::ImageError::UnsupportedColor(color)),
@@ -701,7 +690,8 @@ fn gray_to_luma8(bit_depth: u8, w: u32, h: u32, buf: &[u8]) -> Option<GrayImage>
     let mut p = Vec::new();
     let mut i = 0;
     for v in buf {
-        for shift in num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8)) {
+        for shift in num_iter::range_step_inclusive(8i8 - (bit_depth as i8), 0, -(bit_depth as i8))
+        {
             // skip the pixels that can be neglected because scanlines should
             // start at byte boundaries
             if i % (row_len as usize) < (w as usize) {
@@ -756,7 +746,7 @@ fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 /// This is faster than fully loading the image and then getting its dimensions.
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
-    P: AsRef<Path>
+    P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling open_impl
     image_dimensions_impl(path.as_ref())
@@ -788,20 +778,19 @@ fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
         #[cfg(feature = "hdr")]
         image::ImageFormat::HDR => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => {
-            pnm::PNMDecoder::new(fin)?.dimensions()
+        image::ImageFormat::PNM => pnm::PNMDecoder::new(fin)?.dimensions(),
+        format => {
+            return Err(image::ImageError::UnsupportedError(format!(
+                "Image format image/{:?} is not supported.",
+                format
+            )));
         }
-        format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        ))),
     };
     if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
         return Err(image::ImageError::DimensionError);
     }
     Ok((w as u32, h as u32))
 }
-
 
 /// Saves the supplied buffer to a file at the path specified.
 ///
@@ -832,7 +821,8 @@ fn save_buffer_impl(
     color: color::ColorType,
 ) -> io::Result<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
-    let ext = path.extension()
+    let ext = path
+        .extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
@@ -860,7 +850,8 @@ fn save_buffer_impl(
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
+        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
+            .encode(buf, width, height, color)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
         format => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -1105,32 +1096,45 @@ mod test {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn gray_to_luma8_skip() {
         let check = |bit_depth, w, h, from, to| {
             assert_eq!(
                 super::gray_to_luma8(bit_depth, w, h, from).map(super::GrayImage::into_raw),
-                Some(to));
+                Some(to)
+            );
         };
         // Bit depth 1, skip is more than half a byte
         check(
-            1, 10, 2,
+            1,
+            10,
+            2,
             &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255]);
+            vec![
+                255, 255, 255, 255,   0,
+                  0,   0,   0, 255, 255,
+                  0,   0,   0,   0, 255,
+                255, 255, 255, 255, 255,
+            ],
+        );
         // Bit depth 2, skip is more than half a byte
         check(
-            2, 5, 2,
+            2,
+            5,
+            2,
             &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255]);
+            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255],
+        );
         // Bit depth 2, skip is 0
         check(
-            2, 4, 2,
+            2,
+            4,
+            2,
             &[0b11110000, 0b00001111],
-            vec![255, 255, 0, 0, 0, 0, 255, 255]);
+            vec![255, 255, 0, 0, 0, 0, 255, 255],
+        );
         // Bit depth 4, skip is half a byte
-        check(
-            4, 1, 2,
-            &[0b11110011, 0b00001100],
-            vec![255, 0]);
+        check(4, 1, 2, &[0b11110011, 0b00001100], vec![255, 0]);
     }
 
     #[cfg(feature = "jpeg")]

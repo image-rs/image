@@ -30,6 +30,7 @@ extern crate gif;
 extern crate num_rational;
 
 use std::clone::Clone;
+use std::convert::TryInto;
 use std::cmp::min;
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write};
@@ -190,7 +191,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                     f_height = u32::from(frame.height);
 
                     // frame.delay is in units of 10ms so frame.delay*10 is in ms
-                    delay = Ratio::new(frame.delay * 10, 1);
+                    delay = Ratio::new(u32::from(frame.delay) * 10, 1);
                     dispose = frame.dispose;
                 } else {
                     // no more frames
@@ -363,13 +364,13 @@ impl<W: Write> Encoder<W> {
 
     fn encode_single_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
         // get the delay before converting img_frame
-        let frame_delay = img_frame.delay().to_integer();
+        let frame_delay = img_frame.delay_ms().to_integer();
         // convert img_frame into RgbaImage
         let rbga_frame = img_frame.into_buffer();
 
         // Create the gif::Frame from the animation::Frame
         let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
-        frame.delay = frame_delay;
+        frame.delay = (frame_delay / 10).try_into().map_err(|_|ImageError::DimensionError)?;
 
         // encode the gif::Frame
         self.encode(&frame)

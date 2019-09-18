@@ -5,6 +5,11 @@ use std::ops::Range;
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where F: Fn(u8, &mut[u8]) {
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < channels {
+        return;
+    }
+
     let bits = buf.len()/channels*bit_depth as usize;
     let extra_bits = bits % 8;
     let entries = bits / 8 + match extra_bits {
@@ -28,16 +33,21 @@ where F: Fn(u8, &mut[u8]) {
     let j = (0..=buf.len() - channels).rev().step_by(channels);
     for ((shift, i), j) in i.zip(j) {
         let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j as usize..(j + channels) as usize])
+        func(pixel, &mut buf[j..(j + channels)])
     }
 }
 
 pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < (channels+1) {
+        return;
+    }
+
     let i = (0..=buf.len() / (channels+1) * channels - channels).rev().step_by(channels);
     let j = (0..=buf.len() - (channels+1)).rev().step_by(channels+1);
     for (i, j) in i.zip(j) {
-        let i_pixel = i as usize;
-        let j_chunk = j as usize;
+        let i_pixel = i;
+        let j_chunk = j;
         if &buf[i_pixel..i_pixel+channels] == trns {
             buf[j_chunk+channels] = 0
         } else {
@@ -51,11 +61,16 @@ pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
 
 pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
     let c2 = 2 * channels;
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < (c2+2) {
+        return;
+    }
+
     let i = (0..=buf.len() / (c2+2) * c2 - c2).rev().step_by(c2);
     let j = (0..=buf.len() - (c2+2)).rev().step_by(c2+2);
     for (i, j) in i.zip(j) {
-        let i_pixel = i as usize;
-        let j_chunk = j as usize;
+        let i_pixel = i;
+        let j_chunk = j;
         if &buf[i_pixel..i_pixel+c2] == trns {
             buf[j_chunk+c2] = 0;
             buf[j_chunk+c2 + 1] = 0

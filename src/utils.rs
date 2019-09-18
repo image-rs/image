@@ -5,6 +5,11 @@ use std::ops::Range;
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where F: Fn(u8, &mut[u8]) {
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < channels {
+        return;
+    }
+
     let bits = buf.len()/channels*bit_depth as usize;
     let extra_bits = bits % 8;
     let entries = bits / 8 + match extra_bits {
@@ -33,6 +38,11 @@ where F: Fn(u8, &mut[u8]) {
 }
 
 pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < (channels+1) {
+        return;
+    }
+
     let i = (0..=buf.len() / (channels+1) * channels - channels).rev().step_by(channels);
     let j = (0..=buf.len() - (channels+1)).rev().step_by(channels+1);
     for (i, j) in i.zip(j) {
@@ -51,6 +61,11 @@ pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
 
 pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
     let c2 = 2 * channels;
+    // Return early if empty. This enables to subtract `channels` later without overflow.
+    if buf.len() < (c2+2) {
+        return;
+    }
+
     let i = (0..=buf.len() / (c2+2) * c2 - c2).rev().step_by(c2);
     let j = (0..=buf.len() - (c2+2)).rev().step_by(c2+2);
     for (i, j) in i.zip(j) {

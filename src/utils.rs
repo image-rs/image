@@ -33,7 +33,7 @@ where F: Fn(u8, &mut[u8]) {
     let j = (0..=buf.len() - channels).rev().step_by(channels);
     for ((shift, i), j) in i.zip(j) {
         let pixel = (buf[i] & (mask << shift)) >> shift;
-        func(pixel, &mut buf[j as usize..(j + channels) as usize])
+        func(pixel, &mut buf[j..(j + channels)])
     }
 }
 
@@ -46,8 +46,8 @@ pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
     let i = (0..=buf.len() / (channels+1) * channels - channels).rev().step_by(channels);
     let j = (0..=buf.len() - (channels+1)).rev().step_by(channels+1);
     for (i, j) in i.zip(j) {
-        let i_pixel = i as usize;
-        let j_chunk = j as usize;
+        let i_pixel = i;
+        let j_chunk = j;
         if &buf[i_pixel..i_pixel+channels] == trns {
             buf[j_chunk+channels] = 0
         } else {
@@ -69,8 +69,8 @@ pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
     let i = (0..=buf.len() / (c2+2) * c2 - c2).rev().step_by(c2);
     let j = (0..=buf.len() - (c2+2)).rev().step_by(c2+2);
     for (i, j) in i.zip(j) {
-        let i_pixel = i as usize;
-        let j_chunk = j as usize;
+        let i_pixel = i;
+        let j_chunk = j;
         if &buf[i_pixel..i_pixel+c2] == trns {
             buf[j_chunk+c2] = 0;
             buf[j_chunk+c2 + 1] = 0

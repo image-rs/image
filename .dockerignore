@@ -1,0 +1,7 @@
+target
+fuzz/artifacts
+fuzz/target
+png-afl/target
+png-afl/out
+Cargo.lock
+/.idea

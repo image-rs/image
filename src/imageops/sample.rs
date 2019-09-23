@@ -12,7 +12,72 @@ use image::GenericImageView;
 use math::utils::clamp;
 use traits::{Enlargeable, Primitive};
 
-/// Available Sampling Filters
+/// Available Sampling Filters.
+///
+/// ## Examples
+///
+/// To test the different sampling filters on a real example, you can find two
+/// examples called
+/// [`scaledown`](https://github.com/image-rs/image/tree/master/examples/scaledown)
+/// and
+/// [`scaleup`](https://github.com/image-rs/image/tree/master/examples/scaleup)
+/// in the `examples` directory of the crate source code.
+///
+/// Here is a 3.58 MiB
+/// [test image](https://github.com/image-rs/image/blob/master/examples/scaledown/test.jpg)
+/// that has been scaled down to 300x225 px:
+///
+/// <!-- NOTE: To test new test images locally, replace the GitHub path with `../../../docs/` -->
+/// <div style="display: flex; flex-wrap: wrap; align-items: flex-start;">
+///   <div style="margin: 0 8px 8px 0;">
+///     <img src="https://raw.githubusercontent.com/image-rs/image/master/examples/scaledown/scaledown-test-near.png" title="Nearest"><br>
+///     Nearest Neighbor
+///   </div>
+///   <div style="margin: 0 8px 8px 0;">
+///     <img src="https://raw.githubusercontent.com/image-rs/image/master/examples/scaledown/scaledown-test-tri.png" title="Triangle"><br>
+///     Linear: Triangle
+///   </div>
+///   <div style="margin: 0 8px 8px 0;">
+///     <img src="https://raw.githubusercontent.com/image-rs/image/master/examples/scaledown/scaledown-test-cmr.png" title="CatmullRom"><br>
+///     Cubic: Catmull-Rom
+///   </div>
+///   <div style="margin: 0 8px 8px 0;">
+///     <img src="https://raw.githubusercontent.com/image-rs/image/master/examples/scaledown/scaledown-test-gauss.png" title="Gaussian"><br>
+///     Gaussian
+///   </div>
+///   <div style="margin: 0 8px 8px 0;">
+///     <img src="https://raw.githubusercontent.com/image-rs/image/master/examples/scaledown/scaledown-test-lcz2.png" title="Lanczos3"><br>
+///     Lanczos with window 3
+///   </div>
+/// </div>
+///
+/// ## Speed
+///
+/// Time required to create each of the examples above, tested on an Intel
+/// i7-4770 CPU with Rust 1.37 in release mode:
+///
+/// <table style="width: auto;">
+///   <tr>
+///     <th>Nearest</th>
+///     <td>31 ms</td>
+///   </tr>
+///   <tr>
+///     <th>Triangle</th>
+///     <td>414 ms</td>
+///   </tr>
+///   <tr>
+///     <th>CatmullRom</th>
+///     <td>817 ms</td>
+///   </tr>
+///   <tr>
+///     <th>Gaussian</th>
+///     <td>1180 ms</td>
+///   </tr>
+///   <tr>
+///     <th>Lanczos3</th>
+///     <td>1170 ms</td>
+///   </tr>
+/// </table>
 #[derive(Clone, Copy, Debug)]
 pub enum FilterType {
     /// Nearest Neighbor

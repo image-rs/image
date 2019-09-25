@@ -42,8 +42,9 @@ use super::free_functions;
 ///     0 1\
 ///     1 0";
 ///
-/// let mut reader = Reader::new(Cursor::new(raw_data));
-/// reader.guess_format().expect("Cursor io never fails");
+/// let mut reader = Reader::new(Cursor::new(raw_data))
+///     .with_guessed_format()
+///     .expect("Cursor io never fails");
 /// assert_eq!(reader.format(), Some(ImageFormat::PNM));
 ///
 /// let image = reader.decode()?;
@@ -147,7 +148,18 @@ impl<R: BufRead + Seek> Reader<R> {
     ///
     /// ## Usage
     ///
-    /// ```
+    /// This supplements the path based type deduction from [`open`] with content based deduction.
+    /// This is more common in Linux and UNIX operating systems and also helpful if the path can
+    /// not be directly controlled.
+    ///
+    /// ```no_run
+    /// # use image::ImageError;
+    /// # use image::io::Reader;
+    /// # fn main() -> Result<(), ImageError> {
+    /// let image = Reader::open("image.unknown")?
+    ///     .with_guessed_format()?
+    ///     .decode()?;
+    /// # Ok(()) }
     /// ```
     pub fn with_guessed_format(mut self) -> io::Result<Self> {
         let format = self.guess_format()?;
@@ -156,8 +168,7 @@ impl<R: BufRead + Seek> Reader<R> {
         Ok(self)
     }
 
-    /// Guess the format based on read data.
-    pub fn guess_format(&mut self) -> io::Result<Option<ImageFormat>> {
+    fn guess_format(&mut self) -> io::Result<Option<ImageFormat>> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.

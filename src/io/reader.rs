@@ -31,7 +31,8 @@ use super::free_functions;
 /// source is some blob in memory and you have constructed the reader in another way. Here is an
 /// example with a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
 ///
-/// ```
+#[cfg_attr(feature = "pnm", doc = "```")]
+#[cfg_attr(not(feature = "pnm"), doc = "```no_run")]
 /// # use image::ImageError;
 /// # use image::io::Reader;
 /// # fn main() -> Result<(), ImageError> {

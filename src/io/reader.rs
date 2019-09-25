@@ -31,16 +31,16 @@ use super::free_functions;
 /// source is some blob in memory and you have constructed the reader in another way. Here is an
 /// example with a `pnm` black-and-white subformat that encodes its pixel matrix with ascii values.
 ///
-/// ```no_run
+/// ```
 /// # use image::ImageError;
 /// # use image::io::Reader;
 /// # fn main() -> Result<(), ImageError> {
 /// use std::io::Cursor;
 /// use image::ImageFormat;
 ///
-/// let raw_data = b"P1 2 2\
-///     0 1\
-///     1 0";
+/// let raw_data = b"P1 2 2\n\
+///     0 1\n\
+///     1 0\n";
 ///
 /// let mut reader = Reader::new(Cursor::new(raw_data))
 ///     .with_guessed_format()

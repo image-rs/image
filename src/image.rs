@@ -408,7 +408,11 @@ pub trait ImageDecoder<'a>: Sized {
     /// aligned to 2 or 4 byte boundries to the slice can be cast to a [u16] or [u32]. To accommodate
     /// such casts, the returned contents will always be in native endian.
     ///
-    /// For example, using the `zerocopy` crate:
+    /// # Panics
+    ///
+    /// This function panics if buf.len() != self.total_bytes().
+    ///
+    /// # Examples
     ///
     /// ```no_run
     /// use zerocopy::{AsBytes, FromBytes};

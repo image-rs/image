@@ -370,7 +370,7 @@ pub trait ImageDecoder<'a>: Sized {
     type Reader: Read + 'a;
 
     /// Returns a tuple containing the width and height of the image
-    fn dimensions(&self) -> (u64, u64);
+    fn dimensions(&self) -> (u32, u32);
 
     /// Returns the color type of the image data produced by this decoder
     fn color_type(&self) -> ColorType;
@@ -386,6 +386,11 @@ pub trait ImageDecoder<'a>: Sized {
     fn into_reader(self) -> ImageResult<Self::Reader>;
 
     /// Returns the total number of bytes in the decoded image.
+    ///
+    /// This is the size of the buffer that must be passed to `read_image` or
+    /// `read_image_with_progress`. It is possible that the returned value exceeds usize::MAX, in
+    /// which case it isn't actually possible to construct a buffer to decode all the image data
+    /// into.
     fn total_bytes(&self) -> u64 {
         self.dimensions().0 * self.dimensions().1 * u64::from(self.color_type().bytes_per_pixel())
     }
@@ -397,7 +402,22 @@ pub trait ImageDecoder<'a>: Sized {
     }
 
     /// Returns all the bytes in the image.
-    fn read_image(self) -> ImageResult<Vec<u8>> {
+    ///
+    /// This function takes a slices of bytes and writes the pixel data of the image into it.
+    /// Although not required, for certain color types callers may want to pass buffers which are
+    /// aligned to 2 or 4 byte boundries to the slice can be cast to a [u16] or [u32]. To accommodate
+    /// such casts, the returned contents will always be in native endian.
+    ///
+    /// For example, using the `zerocopy` crate:
+    ///
+    /// ```no_run
+    /// use zerocopy::{AsBytes, FromBytes};
+    /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<16> {
+    ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes()/2];
+    ///     decoder.read_image(buf.as_bytes());
+    ///     buf
+    /// }
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_with_progress(|_| {})
     }
 
@@ -405,8 +425,9 @@ pub trait ImageDecoder<'a>: Sized {
     /// progress.
     fn read_image_with_progress<F: Fn(Progress)>(
         self,
+        buf: &mut [u8],
         progress_callback: F,
-    ) -> ImageResult<Vec<u8>> {
+    ) -> ImageResult<()> {
         let total_bytes = self.total_bytes();
         if total_bytes > usize::max_value() as u64 {
             return Err(ImageError::InsufficientMemory);

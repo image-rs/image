@@ -8,6 +8,13 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22.3
+
+- Added a new module `io` containing a configurable `Reader`. It can replace
+  the bunch of free functions: `image::{load_*, open, image_dimensions}` while
+  enabling new combinations such as `open` but with format deduced from content
+  instead of file path.
+
 ### Version 0.22.2
 
 - Undeprecate `unsafe` trait accessors. Further evaluation showed that their

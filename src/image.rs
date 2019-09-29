@@ -403,9 +403,9 @@ pub trait ImageDecoder<'a>: Sized {
 
     /// Returns all the bytes in the image.
     ///
-    /// This function takes a slices of bytes and writes the pixel data of the image into it.
+    /// This function takes a slice of bytes and writes the pixel data of the image into it.
     /// Although not required, for certain color types callers may want to pass buffers which are
-    /// aligned to 2 or 4 byte boundries to the slice can be cast to a [u16] or [u32]. To accommodate
+    /// aligned to 2 or 4 byte boundaries to the slice can be cast to a [u16] or [u32]. To accommodate
     /// such casts, the returned contents will always be in native endian.
     ///
     /// # Panics

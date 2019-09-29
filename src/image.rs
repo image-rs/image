@@ -388,7 +388,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns the total number of bytes in the decoded image.
     ///
     /// This is the size of the buffer that must be passed to `read_image` or
-    /// `read_image_with_progress`. It is possible that the returned value exceeds usize::MAX, in
+    /// `read_image_with_progress`. The returned value may exceed usize::MAX, in
     /// which case it isn't actually possible to construct a buffer to decode all the image data
     /// into.
     fn total_bytes(&self) -> u64 {

@@ -52,11 +52,11 @@ matrix:
         - rustup component add clippy
         - cargo clippy
 script:
-  - if [ -n "$FEATURES" ]; then
+  - if [ -n "${FEATURES+exists}" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&
       cargo test -v --no-default-features --features "$FEATURES" &&
       cargo doc -v --no-default-features --features "$FEATURES";
     fi
-  - if [ -n "$DEFAULT_FEATURES" ]; then
+  - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
       cargo test -v;
     fi

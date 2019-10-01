@@ -27,9 +27,11 @@ env:
     - FEATURES='tiff'
     - FEATURES='webp'
     - FEATURES='hdr'
+    - DEFAULT_FEATURES='yes'
 matrix:
   allow_failures:
     - name: "Clippy"
+    - rust: nightly
   include:
     - os: osx
       rust: 1.34.2
@@ -50,13 +52,11 @@ matrix:
         - rustup component add clippy
         - cargo clippy
 script:
-  - if [ -z "$FEATURES" ]; then
-      cargo build -v &&
-      if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi &&
-      cargo doc -v;
-    else
+  - if [ -n "$FEATURES" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&
-      if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi &&
+      cargo test -v --no-default-features --features "$FEATURES" &&
       cargo doc -v --no-default-features --features "$FEATURES";
     fi
-  - cargo test --no-default-features
+  - if [ -n "$DEFAULT_FEATURES" ]; then
+      cargo test -v;
+    fi

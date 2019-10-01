@@ -18,6 +18,7 @@ env:
   global:
     - secure: "WI/r7hbDhenb7zPXht8J0mhcx5aUgY22cCrwYmNksMmgIK9hYfPjZ68XzaQ7+Ity8b12TlHM8lGRN9bIsyAZEiRIkxkZAArY9bXAOExJaAT+yOyxhEs/QdrGB6iRhC6FTxPwgUH82j0nFL1UI7HqBnOy3g3tv23jq1AlD9N3t0k="
   matrix:
+    - DEFAULT_FEATURES='yes'
     - FEATURES=''
     - FEATURES='gif_codec'
     - FEATURES='jpeg'
@@ -30,6 +31,7 @@ env:
 matrix:
   allow_failures:
     - name: "Clippy"
+    - rust: nightly
   include:
     - os: osx
       rust: 1.34.2
@@ -50,13 +52,11 @@ matrix:
         - rustup component add clippy
         - cargo clippy
 script:
-  - if [ -z "$FEATURES" ]; then
-      cargo build -v &&
-      if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v; fi &&
-      cargo doc -v;
-    else
+  - if [ -n "${FEATURES+exists}" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&
-      if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then cargo test -v --no-default-features --features "$FEATURES"; fi &&
+      cargo test -v --no-default-features --features "$FEATURES" &&
       cargo doc -v --no-default-features --features "$FEATURES";
     fi
-  - cargo test --no-default-features
+  - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
+      cargo test -v;
+    fi

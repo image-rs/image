@@ -3,6 +3,7 @@ use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
 use std::slice::ChunksMut;
 use std::{cmp, mem};
+use std::cmp::Ordering;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -861,13 +862,14 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
         // Allocate 256 entries even if palette_size is smaller, to prevent corrupt files from
         // causing an out-of-bounds array access.
-        if length < max_length {
-            buf.resize(max_length, 0);
-        } else if length > max_length {
-            // Ignore any excess palette colors.
-            self.reader
-                .seek(SeekFrom::Current((length - max_length) as i64))?;
-        };
+        match length.cmp(&max_length) {
+            Ordering::Greater => {
+                self.reader
+                    .seek(SeekFrom::Current((length - max_length) as i64))?;
+            }
+            Ordering::Less => buf.resize(max_length, 0),
+            Ordering::Equal => (),
+        }
 
         let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE)
             .map(|i| {

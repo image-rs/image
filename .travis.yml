@@ -18,6 +18,7 @@ env:
   global:
     - secure: "WI/r7hbDhenb7zPXht8J0mhcx5aUgY22cCrwYmNksMmgIK9hYfPjZ68XzaQ7+Ity8b12TlHM8lGRN9bIsyAZEiRIkxkZAArY9bXAOExJaAT+yOyxhEs/QdrGB6iRhC6FTxPwgUH82j0nFL1UI7HqBnOy3g3tv23jq1AlD9N3t0k="
   matrix:
+    - DEFAULT_FEATURES='yes'
     - FEATURES=''
     - FEATURES='gif_codec'
     - FEATURES='jpeg'
@@ -27,7 +28,6 @@ env:
     - FEATURES='tiff'
     - FEATURES='webp'
     - FEATURES='hdr'
-    - DEFAULT_FEATURES='yes'
 matrix:
   allow_failures:
     - name: "Clippy"

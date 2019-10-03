@@ -8,6 +8,15 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22.3
+
+- Added a new module `io` containing a configurable `Reader`. It can replace
+  the bunch of free functions: `image::{load_*, open, image_dimensions}` while
+  enabling new combinations such as `open` but with format deduced from content
+  instead of file path.
+- Fixed `const_err` lint in the macro expanded implementations of `Pixel`. This
+  can only affect your crate if `image` is used as a path dependency.
+
 ### Version 0.22.2
 
 - Undeprecate `unsafe` trait accessors. Further evaluation showed that their

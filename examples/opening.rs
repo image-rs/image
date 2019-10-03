@@ -5,7 +5,7 @@ use std::env;
 use std::fs::File;
 use std::path::Path;
 
-use image::GenericImageView;
+use image::{ImageFormat, GenericImageView};
 
 fn main() {
     let file = if env::args().count() == 2 {
@@ -27,5 +27,5 @@ fn main() {
     let fout = &mut File::create(&Path::new(&format!("{}.png", file))).unwrap();
 
     // Write the contents of this image to the Writer in PNG format.
-    im.write_to(fout, image::PNG).unwrap();
+    im.write_to(fout, ImageFormat::Png).unwrap();
 }

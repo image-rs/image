@@ -113,34 +113,34 @@ pub type ImageResult<T> = Result<T, ImageError>;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ImageFormat {
     /// An Image in PNG Format
-    PNG,
+    Png,
 
     /// An Image in JPEG Format
-    JPEG,
+    Jpeg,
 
     /// An Image in GIF Format
-    GIF,
+    Gif,
 
     /// An Image in WEBP Format
-    WEBP,
+    Webp,
 
     /// An Image in general PNM Format
-    PNM,
+    Pnm,
 
     /// An Image in TIFF Format
-    TIFF,
+    Tiff,
 
     /// An Image in TGA Format
-    TGA,
+    Tga,
 
     /// An Image in BMP Format
-    BMP,
+    Bmp,
 
     /// An Image in ICO Format
-    ICO,
+    Ico,
 
     /// An Image in Radiance HDR Format
-    HDR,
+    Hdr,
 }
 
 impl ImageFormat {
@@ -157,27 +157,27 @@ impl ImageFormat {
 pub enum ImageOutputFormat {
     #[cfg(feature = "png_codec")]
     /// An Image in PNG Format
-    PNG,
+    Png,
 
     #[cfg(feature = "jpeg")]
     /// An Image in JPEG Format with specified quality
-    JPEG(u8),
+    Jpeg(u8),
 
     #[cfg(feature = "pnm")]
     /// An Image in one of the PNM Formats
-    PNM(PNMSubtype),
+    Pnm(PNMSubtype),
 
     #[cfg(feature = "gif_codec")]
     /// An Image in GIF Format
-    GIF,
+    Gif,
 
     #[cfg(feature = "ico")]
     /// An Image in ICO Format
-    ICO,
+    Ico,
 
     #[cfg(feature = "bmp")]
     /// An Image in BMP Format
-    BMP,
+    Bmp,
 
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
@@ -189,17 +189,17 @@ impl From<ImageFormat> for ImageOutputFormat {
     fn from(fmt: ImageFormat) -> Self {
         match fmt {
             #[cfg(feature = "png_codec")]
-            ImageFormat::PNG => ImageOutputFormat::PNG,
+            ImageFormat::Png => ImageOutputFormat::Png,
             #[cfg(feature = "jpeg")]
-            ImageFormat::JPEG => ImageOutputFormat::JPEG(75),
+            ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
             #[cfg(feature = "pnm")]
-            ImageFormat::PNM => ImageOutputFormat::PNM(PNMSubtype::ArbitraryMap),
+            ImageFormat::Pnm => ImageOutputFormat::Pnm(PNMSubtype::ArbitraryMap),
             #[cfg(feature = "gif_codec")]
-            ImageFormat::GIF => ImageOutputFormat::GIF,
+            ImageFormat::Gif => ImageOutputFormat::Gif,
             #[cfg(feature = "ico")]
-            ImageFormat::ICO => ImageOutputFormat::ICO,
+            ImageFormat::Ico => ImageOutputFormat::Ico,
             #[cfg(feature = "bmp")]
-            ImageFormat::BMP => ImageOutputFormat::BMP,
+            ImageFormat::Bmp => ImageOutputFormat::Bmp,
 
             f => ImageOutputFormat::Unsupported(format!(
                 "Image format {:?} not supported for encoding.",
@@ -929,22 +929,22 @@ mod tests {
         fn from_path(s: &str) -> ImageResult<ImageFormat> {
             ImageFormat::from_path(Path::new(s))
         }
-        assert_eq!(from_path("./a.jpg").unwrap(), ImageFormat::JPEG);
-        assert_eq!(from_path("./a.jpeg").unwrap(), ImageFormat::JPEG);
-        assert_eq!(from_path("./a.JPEG").unwrap(), ImageFormat::JPEG);
-        assert_eq!(from_path("./a.pNg").unwrap(), ImageFormat::PNG);
-        assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::GIF);
-        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::WEBP);
-        assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::TIFF);
-        assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::TIFF);
-        assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::TGA);
-        assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::BMP);
-        assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::ICO);
-        assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::HDR);
-        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::PNM);
-        assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::PNM);
-        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::PNM);
-        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::PNM);
+        assert_eq!(from_path("./a.jpg").unwrap(), ImageFormat::Jpeg);
+        assert_eq!(from_path("./a.jpeg").unwrap(), ImageFormat::Jpeg);
+        assert_eq!(from_path("./a.JPEG").unwrap(), ImageFormat::Jpeg);
+        assert_eq!(from_path("./a.pNg").unwrap(), ImageFormat::Png);
+        assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::Gif);
+        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::Webp);
+        assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::Tiff);
+        assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::Tiff);
+        assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::Tga);
+        assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
+        assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
+        assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
+        assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
     }

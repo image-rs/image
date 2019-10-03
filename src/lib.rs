@@ -4,13 +4,14 @@
 
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
+#![deny(unreachable_pub)]
+#![deny(deprecated)]
 #![deny(missing_copy_implementations)]
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 // it's a bit of a pain otherwise
 #![allow(clippy::many_single_char_names)]
 
 extern crate byteorder;
-extern crate lzw;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
@@ -61,7 +62,8 @@ pub use flat::{FlatSamples};
 pub use traits::Primitive;
 
 // Opening and loading images
-pub use dynimage::{guess_format, load, load_from_memory, load_from_memory_with_format, open,
+pub use io::free_functions::{guess_format, load};
+pub use dynimage::{load_from_memory, load_from_memory_with_format, open,
                    save_buffer, save_buffer_with_format, image_dimensions};
 
 pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8, ImageBgr8, ImageBgra8};
@@ -73,6 +75,9 @@ pub mod math;
 
 // Image processing functions
 pub mod imageops;
+
+// Io bindings
+pub mod io;
 
 // Buffer representations for ffi.
 pub mod flat;
@@ -111,7 +116,7 @@ mod utils;
 
 // Can't use the macro-call itself within the `doc` attribute. So force it to eval it as part of
 // the macro invocation.
-// 
+//
 // The inspiration for the macro and implementation is from
 // <https://github.com/GuillaumeGomez/doc-comment>
 //

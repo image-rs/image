@@ -672,7 +672,7 @@ struct BoolReader {
 }
 
 impl BoolReader {
-    pub fn new() -> BoolReader {
+    pub(crate) fn new() -> BoolReader {
         BoolReader {
             buf: Vec::new(),
             range: 0,
@@ -682,7 +682,7 @@ impl BoolReader {
         }
     }
 
-    pub fn init(&mut self, buf: Vec<u8>) -> ImageResult<()> {
+    pub(crate) fn init(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         if buf.len() < 2 {
             return Err(ImageError::FormatError(
                 "Expected at least 2 bytes of decoder initialization data".into()));
@@ -698,7 +698,7 @@ impl BoolReader {
         Ok(())
     }
 
-    pub fn read_bool(&mut self, probability: u8) -> bool {
+    pub(crate) fn read_bool(&mut self, probability: u8) -> bool {
         let split = 1 + (((self.range - 1) * u32::from(probability)) >> 8);
         let bigsplit = split << 8;
 
@@ -731,7 +731,7 @@ impl BoolReader {
         retval
     }
 
-    pub fn read_literal(&mut self, n: u8) -> u8 {
+    pub(crate) fn read_literal(&mut self, n: u8) -> u8 {
         let mut v = 0u8;
         let mut n = n;
 
@@ -743,7 +743,7 @@ impl BoolReader {
         v
     }
 
-    pub fn read_magnitude_and_sign(&mut self, n: u8) -> i32 {
+    pub(crate) fn read_magnitude_and_sign(&mut self, n: u8) -> i32 {
         let magnitude = self.read_literal(n);
         let sign = self.read_literal(1);
 
@@ -754,7 +754,7 @@ impl BoolReader {
         }
     }
 
-    pub fn read_with_tree(&mut self, tree: &[i8], probs: &[Prob], start: isize) -> i8 {
+    pub(crate) fn read_with_tree(&mut self, tree: &[i8], probs: &[Prob], start: isize) -> i8 {
         let mut index = start;
 
         loop {
@@ -770,7 +770,7 @@ impl BoolReader {
         -index as i8
     }
 
-    pub fn read_flag(&mut self) -> bool {
+    pub(crate) fn read_flag(&mut self) -> bool {
         0 != self.read_literal(1)
     }
 }

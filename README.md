@@ -26,7 +26,7 @@ https://docs.rs/image
 | BMP    | Yes | RGB(8), RGBA(8), Gray(8), GrayA(8) |
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax support) + LZW + PackBits | RGB(8), RGBA(8), Gray(8) |
-| Webp   | Lossy(Luma channel only) | No |
+| WebP   | Lossy(Luma channel only) | No |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 
 ### 2.2 The ```ImageDecoder``` and ```ImageDecoderExt` Traits

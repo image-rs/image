@@ -147,34 +147,8 @@ impl ImageFormat {
     /// Return the image format specified by the path's file extension.
     pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
         // thin wrapper function to strip generics before calling from_path_impl
-        Self::from_path_impl(path.as_ref())
-    }
-
-    fn from_path_impl(path: &Path) -> ImageResult<Self> {
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-        let format = match &ext[..] {
-            "jpg" | "jpeg" => ImageFormat::JPEG,
-            "png" => ImageFormat::PNG,
-            "gif" => ImageFormat::GIF,
-            "webp" => ImageFormat::WEBP,
-            "tif" | "tiff" => ImageFormat::TIFF,
-            "tga" => ImageFormat::TGA,
-            "bmp" => ImageFormat::BMP,
-            "ico" => ImageFormat::ICO,
-            "hdr" => ImageFormat::HDR,
-            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::PNM,
-            format => {
-                return Err(ImageError::UnsupportedError(format!(
-                            "Image format image/{:?} is not supported.",
-                            format
-                            )))
-            }
-        };
-        Ok(format)
+        ::io::free_functions::guess_format_from_path_impl(path.as_ref())
+            .map_err(Into::into)
     }
 }
 
@@ -246,7 +220,7 @@ pub(crate) struct ImageReadBuffer {
     offset: usize,
 }
 impl ImageReadBuffer {
-    pub fn new(scanline_bytes: usize, total_bytes: usize) -> Self {
+    pub(crate) fn new(scanline_bytes: usize, total_bytes: usize) -> Self {
         Self {
             scanline_bytes,
             buffer: Vec::new(),
@@ -255,7 +229,7 @@ impl ImageReadBuffer {
             offset: 0,
         }
     }
-    pub fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
     where
         F: FnMut(&mut [u8]) -> io::Result<usize>,
     {

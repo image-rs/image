@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.22.1"
+version = "0.22.3"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = [
@@ -33,7 +33,6 @@ byteorder = "1.2.1"
 num-iter = "0.1.32"
 num-rational = { version = "0.2.1", default-features = false }
 num-traits = "0.2.0"
-lzw = "0.10.0"
 
 [dependencies.gif]
 version = "0.10.0"

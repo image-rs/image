@@ -56,7 +56,7 @@ impl<R: Read> Read for PNGReader<R> {
         let mut bytes = readed;
         self.index += readed;
     
-        while self.index + 1 >= self.buffer.len() {
+        while self.index >= self.buffer.len() {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
@@ -229,5 +229,35 @@ impl From<png::DecodingError> for ImageError {
             }
             LimitsExceeded => ImageError::InsufficientMemory,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use image::ImageDecoder;
+    use std::io::Read;
+    use super::*;
+
+    #[test]
+    fn ensure_no_decoder_off_by_one() {
+        let dec = PNGDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
+            .expect("Unable to read PNG file (does it exist?)");
+
+        assert_eq![(2000, 1000), dec.dimensions()];
+
+        assert_eq![
+            ColorType::Rgb8,
+            dec.color_type(),
+            "Image MUST have the Rgb8 format"
+        ];
+
+        let correct_bytes = dec
+            .into_reader()
+            .expect("Unable to read file")
+            .bytes()
+            .map(|x| x.expect("Unable to read byte"))
+            .collect::<Vec<u8>>();
+
+        assert_eq![6_000_000, correct_bytes.len()];
     }
 }

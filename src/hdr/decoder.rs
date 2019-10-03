@@ -1,12 +1,12 @@
-use scoped_threadpool::Pool;
 use num_traits::identities::Zero;
-use std::mem;
+use scoped_threadpool::Pool;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::error::Error;
 use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
 use std::marker::PhantomData;
+use std::mem;
 use std::path::Path;
 use Primitive;
 
@@ -63,7 +63,6 @@ impl<R: BufRead> HDRAdapter<R> {
             None => Err(ImageError::ImageEnd),
         }
     }
-
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
@@ -121,11 +120,20 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
             self.read_image_data()?;
         }
 
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| {
-                             buf.copy_from_slice(&*s.data.as_ref().unwrap());
-                             Ok(buf.len())
-                         })
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |_, _| unreachable!(),
+            |s, buf| {
+                buf.copy_from_slice(&*s.data.as_ref().unwrap());
+                Ok(buf.len())
+            },
+        )
     }
 }
 
@@ -331,7 +339,10 @@ impl<R: BufRead> HDRDecoder<R> {
         f: F,
         output_slice: &mut [T],
     ) -> ImageResult<()> {
-        assert_eq!(output_slice.len(), self.width as usize * self.height as usize);
+        assert_eq!(
+            output_slice.len(),
+            self.width as usize * self.height as usize
+        );
 
         // Don't read anything if image is empty
         if self.width == 0 || self.height == 0 {
@@ -341,7 +352,7 @@ impl<R: BufRead> HDRDecoder<R> {
         let chunks_iter = output_slice.chunks_mut(self.width as usize);
         let mut pool = Pool::new(8); //
 
-        try!(pool.scoped(|scope| {
+        (pool.scoped(|scope| {
             for chunk in chunks_iter {
                 let mut buf = vec![Default::default(); self.width as usize];
                 read_scanline(&mut self.r, &mut buf[..])?;
@@ -353,14 +364,14 @@ impl<R: BufRead> HDRDecoder<R> {
                 });
             }
             Ok(())
-        }) as Result<(), ImageError>);
+        }) as Result<(), ImageError>)?;
         Ok(())
     }
 
     /// Consumes decoder and returns a vector of Rgb<u8> pixels.
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
-        let mut ret = vec![Rgb([0,0,0]); self.width as usize * self.height as usize];
+        let mut ret = vec![Rgb([0, 0, 0]); self.width as usize * self.height as usize];
         self.read_image_transform(|pix| pix.to_ldr(), &mut ret[..])?;
         Ok(ret)
     }
@@ -616,7 +627,10 @@ fn decode_old_rle<R: BufRead>(
 fn read_rgbe<R: BufRead>(r: &mut R) -> io::Result<RGBE8Pixel> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf[..])?;
-    Ok(RGBE8Pixel {c: [buf[0], buf[1], buf[2]], e: buf[3] })
+    Ok(RGBE8Pixel {
+        c: [buf[0], buf[1], buf[2]],
+        e: buf[3],
+    })
 }
 
 /// Metadata for Radiance HDR image
@@ -670,7 +684,8 @@ impl HDRMetadata {
         let maybe_key_value = split_at_first(line, "=").map(|(key, value)| (key.trim(), value));
         // save all header lines in custom_attributes
         match maybe_key_value {
-            Some((key, val)) => self.custom_attributes
+            Some((key, val)) => self
+                .custom_attributes
                 .push((key.to_owned(), val.to_owned())),
             None => self.custom_attributes.push(("".into(), line.to_owned())),
         }
@@ -700,7 +715,8 @@ impl HDRMetadata {
             Some(("PIXASPECT", val)) => {
                 match val.trim().parse::<f32>() {
                     Ok(v) => {
-                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.0) * v); // all encountered exposure values should be multiplied
+                        self.pixel_aspect_ratio = Some(self.pixel_aspect_ratio.unwrap_or(1.0) * v);
+                        // all encountered exposure values should be multiplied
                     }
                     Err(parse_error) => {
                         if strict {
@@ -774,26 +790,18 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
 fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
     let mut dim_parts = line.split_whitespace();
     let err = "Malformed dimensions line";
-    let c1_tag = try!(
-        dim_parts
-            .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c1_str = try!(
-        dim_parts
-            .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c2_tag = try!(
-        dim_parts
-            .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
-    let c2_str = try!(
-        dim_parts
-            .next()
-            .ok_or_else(|| ImageError::FormatError(err.into()))
-    );
+    let c1_tag = dim_parts
+        .next()
+        .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c1_str = dim_parts
+        .next()
+        .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c2_tag = dim_parts
+        .next()
+        .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c2_str = dim_parts
+        .next()
+        .ok_or_else(|| ImageError::FormatError(err.into()))?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
         return Err(ImageError::FormatError(err.into()));

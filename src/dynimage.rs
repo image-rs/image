@@ -1,6 +1,5 @@
-use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
+use std::io::Write;
 use std::path::Path;
 use std::u32;
 
@@ -8,8 +7,6 @@ use std::u32;
 use bmp;
 #[cfg(feature = "gif_codec")]
 use gif;
-#[cfg(feature = "hdr")]
-use hdr;
 #[cfg(feature = "ico")]
 use ico;
 #[cfg(feature = "jpeg")]
@@ -18,19 +15,18 @@ use jpeg;
 use png;
 #[cfg(feature = "pnm")]
 use pnm;
-#[cfg(feature = "tga")]
-use tga;
-#[cfg(feature = "tiff")]
-use tiff;
-#[cfg(feature = "webp")]
-use webp;
 
-use buffer::{ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage, RgbaImage, BgrImage, BgraImage};
-use flat::FlatSamples;
+use buffer::{
+    BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayImage, ImageBuffer, Pixel, RgbImage,
+    RgbaImage,
+};
 use color;
+use flat::FlatSamples;
 use image;
-use image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat,
-            ImageResult};
+use image::{
+    GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat, ImageResult,
+};
+use io::free_functions;
 use imageops;
 
 /// A Dynamic Image
@@ -133,6 +129,12 @@ impl DynamicImage {
         DynamicImage::ImageBgr8(ImageBuffer::new(w, h))
     }
 
+    /// Decodes an encoded image into a dynamic image.
+    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>)
+        -> ImageResult<Self>
+    {
+        decoder_to_image(decoder)
+    }
 
     /// Returns a copy of this image as an RGB image.
     pub fn to_rgb(&self) -> RgbImage {
@@ -147,7 +149,6 @@ impl DynamicImage {
             p.convert()
         })
     }
-
 
     /// Returns a copy of this image as an BGR image.
     pub fn to_bgr(&self) -> BgrImage {
@@ -197,7 +198,6 @@ impl DynamicImage {
             _ => None,
         }
     }
-
 
     /// Return a reference to an 8bit BGR image
     pub fn as_bgr8(&self) -> Option<&BgrImage> {
@@ -482,14 +482,14 @@ impl DynamicImage {
                 let p = png::PNGEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::Rgba8;
-                    },
+                        bytes = self.to_rgba().iter().cloned().collect();
+                        color = color::ColorType::Rgba8;
+                    }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::Rgb8;
-                    },
-                    _ => {},
+                        bytes = self.to_rgb().iter().cloned().collect();
+                        color = color::ColorType::Rgb8;
+                    }
+                    _ => {}
                 }
                 p.encode(&bytes, width, height, color)?;
                 Ok(())
@@ -499,14 +499,14 @@ impl DynamicImage {
                 let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes=self.to_rgba().iter().cloned().collect();
-                        color=color::ColorType::Rgba8;
-                    },
+                        bytes = self.to_rgba().iter().cloned().collect();
+                        color = color::ColorType::Rgba8;
+                    }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes=self.to_rgb().iter().cloned().collect();
-                        color=color::ColorType::Rgb8;
-                    },
-                    _ => {},
+                        bytes = self.to_rgb().iter().cloned().collect();
+                        color = color::ColorType::Rgb8;
+                    }
+                    _ => {}
                 }
                 p.encode(&bytes[..], width, height, color)?;
                 Ok(())
@@ -523,11 +523,11 @@ impl DynamicImage {
             image::ImageOutputFormat::GIF => {
                 let mut g = gif::Encoder::new(w);
 
-                try!(g.encode(&gif::Frame::from_rgba(
+                g.encode(&gif::Frame::from_rgba(
                     width as u16,
                     height as u16,
-                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>()
-                )));
+                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>(),
+                ))?;
                 Ok(())
             }
 
@@ -639,7 +639,7 @@ impl GenericImage for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-pub fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
     let color = codec.color_type();
     let (w, h) = codec.dimensions();
     let buf = codec.read_image()?;
@@ -701,74 +701,33 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling open_impl
-    open_impl(path.as_ref())
-}
-
-fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match File::open(path) {
-        Ok(f) => f,
-        Err(err) => return Err(image::ImageError::IoError(err)),
-    };
-    let fin = BufReader::new(fin);
-
-    load(fin, ImageFormat::from_path(path)?)
+    free_functions::open_impl(path.as_ref())
 }
 
 /// Read the dimensions of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path or manually supplying the format.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
-    P: AsRef<Path>
+    P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling open_impl
-    image_dimensions_impl(path.as_ref())
+    free_functions::image_dimensions_impl(path.as_ref())
 }
-
-fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
-    let fin = File::open(path)?;
-    let fin = BufReader::new(fin);
-
-    #[allow(unreachable_patterns)]
-    // Default is unreachable if all features are supported.
-    let (w, h): (u64, u64) = match image::ImageFormat::from_path(path)? {
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => jpeg::JPEGDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => png::PNGDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => gif::Decoder::new(fin)?.dimensions(),
-        #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => webp::WebpDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => tiff::TIFFDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => tga::TGADecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => bmp::BMPDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => ico::ICODecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => hdr::HDRAdapter::new(fin)?.dimensions(),
-        #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => {
-            pnm::PNMDecoder::new(fin)?.dimensions()
-        }
-        format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        ))),
-    };
-    if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
-        return Err(image::ImageError::DimensionError);
-    }
-    Ok((w as u32, h as u32))
-}
-
 
 /// Saves the supplied buffer to a file at the path specified.
 ///
@@ -788,52 +747,7 @@ where
     P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling save_buffer_impl
-    save_buffer_impl(path.as_ref(), buf, width, height, color)
-}
-
-fn save_buffer_impl(
-    path: &Path,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: color::ColorType,
-) -> io::Result<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
-    let ext = path.extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    match &*ext {
-        #[cfg(feature = "ico")]
-        "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
-        "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pbm" => pnm::PNMEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pgm" => pnm::PNMEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "ppm" => pnm::PNMEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
-        format => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
-    }
+    free_functions::save_buffer_impl(path.as_ref(), buf, width, height, color)
 }
 
 /// Saves the supplied buffer to a file at the path specified
@@ -856,120 +770,35 @@ where
     P: AsRef<Path>,
 {
     // thin wrapper function to strip generics
-    save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
+    free_functions::save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
 }
-
-fn save_buffer_with_format_impl(
-    path: &Path,
-    buf: &[u8],
-    width: u32,
-    height: u32,
-    color: color::ColorType,
-    format: ImageFormat,
-) -> io::Result<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
-
-    match format {
-        #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => png::PNGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout)
-            .encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
-    }
-}
-
-/// Create a new image from a Reader
-pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    #[allow(deprecated, unreachable_patterns)]
-    // Default is unreachable if all features are supported.
-    match format {
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => decoder_to_image(png::PNGDecoder::new(r)?),
-        #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => decoder_to_image(gif::Decoder::new(r)?),
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(r)?),
-        #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(r)?),
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
-        #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => decoder_to_image(tga::TGADecoder::new(r)?),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => decoder_to_image(bmp::BMPDecoder::new(r)?),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => decoder_to_image(try!(ico::ICODecoder::new(r))),
-        #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => decoder_to_image(try!(hdr::HDRAdapter::new(BufReader::new(r)))),
-        #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => decoder_to_image(try!(pnm::PNMDecoder::new(BufReader::new(r)))),
-        _ => Err(image::ImageError::UnsupportedError(format!(
-            "A decoder for {:?} is not available.",
-            format
-        ))),
-    }
-}
-
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
-    (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
-    (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
-    (b"GIF89a", ImageFormat::GIF),
-    (b"GIF87a", ImageFormat::GIF),
-    (b"RIFF", ImageFormat::WEBP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
-    (b"MM.*", ImageFormat::TIFF),
-    (b"II*.", ImageFormat::TIFF),
-    (b"BM", ImageFormat::BMP),
-    (&[0, 0, 1, 0], ImageFormat::ICO),
-    (b"#?RADIANCE", ImageFormat::HDR),
-    (b"P1", ImageFormat::PNM),
-    (b"P2", ImageFormat::PNM),
-    (b"P3", ImageFormat::PNM),
-    (b"P4", ImageFormat::PNM),
-    (b"P5", ImageFormat::PNM),
-    (b"P6", ImageFormat::PNM),
-    (b"P7", ImageFormat::PNM),
-];
 
 /// Create a new image from a byte slice
 ///
 /// Makes an educated guess about the image format.
 /// TGA is not supported by this function.
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`io::Reader`]: io/struct.Reader.html
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    load_from_memory_with_format(buffer, try!(guess_format(buffer)))
+    let format = free_functions::guess_format(buffer)?;
+    load_from_memory_with_format(buffer, format)
 }
 
 /// Create a new image from a byte slice
+///
+/// This is just a simple wrapper that constructs an `std::io::Cursor` around the buffer and then
+/// calls `load` with that reader.
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`load`]: fn.load.html
+/// [`io::Reader`]: io/struct.Reader.html
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);
-    load(b, format)
-}
-
-/// Guess image format from memory block
-///
-/// Makes an educated guess about the image format based on the Magic Bytes at the beginning.
-/// TGA is not supported by this function.
-/// This is not to be trusted on the validity of the whole memory block
-pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
-    for &(signature, format) in &MAGIC_BYTES {
-        if buffer.starts_with(signature) {
-            return Ok(format);
-        }
-    }
-    Err(image::ImageError::UnsupportedError(
-        "Unsupported image format".to_string(),
-    ))
+    free_functions::load(b, format)
 }
 
 /// Calculates the width and height an image should be resized to.

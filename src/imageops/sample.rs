@@ -32,12 +32,12 @@ pub enum FilterType {
 }
 
 /// A Representation of a separable filter.
-pub struct Filter<'a> {
+pub(crate) struct Filter<'a> {
     /// The filter's filter function.
-    pub kernel: Box<dyn Fn(f32) -> f32 + 'a>,
+    pub(crate) kernel: Box<dyn Fn(f32) -> f32 + 'a>,
 
     /// The window on which this filter operates.
-    pub support: f32,
+    pub(crate) support: f32,
 }
 
 // sinc function: the ideal sampling filter.
@@ -80,30 +80,30 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
 
 /// The Gaussian Function.
 /// ```r``` is the standard deviation.
-pub fn gaussian(x: f32, r: f32) -> f32 {
+pub(crate) fn gaussian(x: f32, r: f32) -> f32 {
     ((2.0 * f32::consts::PI).sqrt() * r).recip() * (-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
 /// Calculate the lanczos kernel with a window of 3
-pub fn lanczos3_kernel(x: f32) -> f32 {
+pub(crate) fn lanczos3_kernel(x: f32) -> f32 {
     lanczos(x, 3.0)
 }
 
 /// Calculate the gaussian function with a
 /// standard deviation of 0.5
-pub fn gaussian_kernel(x: f32) -> f32 {
+pub(crate) fn gaussian_kernel(x: f32) -> f32 {
     gaussian(x, 0.5)
 }
 
 /// Calculate the Catmull-Rom cubic spline.
 /// Also known as a form of `BiCubic` sampling in two dimensions.
-pub fn catmullrom_kernel(x: f32) -> f32 {
+pub(crate) fn catmullrom_kernel(x: f32) -> f32 {
     bc_cubic_spline(x, 0.0, 0.5)
 }
 
 /// Calculate the triangle function.
 /// Also known as `BiLinear` sampling in two dimensions.
-pub fn triangle_kernel(x: f32) -> f32 {
+pub(crate) fn triangle_kernel(x: f32) -> f32 {
     if x.abs() < 1.0 {
         1.0 - x.abs()
     } else {
@@ -114,7 +114,7 @@ pub fn triangle_kernel(x: f32) -> f32 {
 /// Calculate the box kernel.
 /// Only pixels inside the box should be considered, and those
 /// contribute equally.  So this method simply returns 1.
-pub fn box_kernel(_x: f32) -> f32 {
+pub(crate) fn box_kernel(_x: f32) -> f32 {
     1.0
 }
 

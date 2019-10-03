@@ -100,15 +100,16 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         &mut self.0
     }
 
-    #[allow(trivial_casts)]
     fn channels4(&self) -> (T, T, T, T) {
+        const CHANNELS: usize = $channels;
         let mut channels = [T::max_value(); 4];
-        channels[0..$channels].copy_from_slice(&self.0);
+        channels[0..CHANNELS].copy_from_slice(&self.0);
         (channels[0], channels[1], channels[2], channels[3])
     }
 
     fn from_channels(a: T, b: T, c: T, d: T,) -> $ident<T> {
-        *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..$channels])
+        const CHANNELS: usize = $channels;
+        *<$ident<T> as Pixel>::from_slice(&[a, b, c, d][..CHANNELS])
     }
 
     fn from_slice(slice: &[T]) -> &$ident<T> {
@@ -174,13 +175,14 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         this
     }
 
-    #[allow(trivial_casts)]
     fn apply_with_alpha<F, G>(&mut self, mut f: F, mut g: G) where F: FnMut(T) -> T, G: FnMut(T) -> T {
-        for v in self.0[..$channels as usize-$alphas as usize].iter_mut() {
+        const ALPHA: usize = $channels - $alphas;
+        for v in self.0[..ALPHA].iter_mut() {
             *v = f(*v)
         }
-        if $alphas as usize != 0 {
-            let v = &mut self.0[$channels as usize-$alphas as usize];
+        // The branch of this match is `const`. This way ensures that no subexpression fails the
+        // `const_err` lint (the expression `self.0[ALPHA]` would).
+        if let Some(v) = self.0.get_mut(ALPHA) {
             *v = g(*v)
         }
     }

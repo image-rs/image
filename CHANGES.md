@@ -14,6 +14,8 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   the bunch of free functions: `image::{load_*, open, image_dimensions}` while
   enabling new combinations such as `open` but with format deduced from content
   instead of file path.
+- Fixed `const_err` lint in the macro expanded implementations of `Pixel`. This
+  can only affect your crate if `image` is used as a path dependency.
 
 ### Version 0.22.2
 

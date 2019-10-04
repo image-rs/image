@@ -52,26 +52,35 @@ impl<R> Read for JpegReader<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     type Reader = JpegReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.metadata.width), u64::from(self.metadata.height))
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.metadata.width), u32::from(self.metadata.height))
     }
 
     fn color_type(&self) -> ColorType {
         self.metadata.pixel_format.into()
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(JpegReader(Cursor::new(self.read_image()?), PhantomData))
-    }
-
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+    fn into_reader(mut self) -> ImageResult<Self::Reader> {
         let mut data = self.decoder.decode()?;
         data = match self.decoder.info().unwrap().pixel_format {
             jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
         };
 
-        Ok(data)
+        Ok(JpegReader(Cursor::new(data), PhantomData))
+    }
+
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert!(buf.len() as u64 == self.total_bytes());
+
+        let mut data = self.decoder.decode()?;
+        data = match self.decoder.info().unwrap().pixel_format {
+            jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
+            _ => data,
+        };
+
+        buf.copy_from_slice(&data);
+        Ok(())
     }
 }
 

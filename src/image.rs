@@ -274,7 +274,7 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
+pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
                                           progress_callback: F,
                                           decoder: &mut D,
                                           mut seek_scanline: F1,
@@ -282,11 +282,12 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
     where D: ImageDecoder<'a>,
           F: Fn(Progress),
           F1: FnMut(&mut D, u64) -> io::Result<()>,
-          F2: FnMut(&mut D, &mut [u8]) -> io::Result<usize>
+          F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
+          ImageError: From<E>,
 {
     let dimensions = decoder.dimensions();
     let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
-    let row_bytes = bytes_per_pixel * dimensions.0;
+    let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
 
@@ -331,7 +332,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
             Ok(())
         };
 
-        if x + width > dimensions.0 || y + height > dimensions.0
+        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.0)
             || width == 0 || height == 0 {
                 return Err(ImageError::DimensionError);
             }
@@ -340,7 +341,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2>(x: u64, y: u64, width: u64, height: u6
         }
 
         progress_callback(Progress {current: 0, total: total_bytes});
-        if x == 0 && width == dimensions.0 {
+        if x == 0 && width == u64::from(dimensions.0) {
             let start = x * bytes_per_pixel + y * row_bytes;
             let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
             read_image_range(start, end)?;
@@ -392,7 +393,8 @@ pub trait ImageDecoder<'a>: Sized {
     /// which case it isn't actually possible to construct a buffer to decode all the image data
     /// into.
     fn total_bytes(&self) -> u64 {
-        self.dimensions().0 * self.dimensions().1 * u64::from(self.color_type().bytes_per_pixel())
+        let dimensions = self.dimensions();
+        u64::from(dimensions.0) * u64::from(dimensions.1) * u64::from(self.color_type().bytes_per_pixel())
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
@@ -414,7 +416,7 @@ pub trait ImageDecoder<'a>: Sized {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```no_build
     /// use zerocopy::{AsBytes, FromBytes};
     /// fn read_16bit_image(decoder: impl ImageDecoder) -> Vec<16> {
     ///     let mut buf: Vec<u16> = vec![0; decoder.total_bytes()/2];
@@ -422,7 +424,7 @@ pub trait ImageDecoder<'a>: Sized {
     ///     buf
     /// }
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        self.read_image_with_progress(|_| {})
+        self.read_image_with_progress(buf, |_| {})
     }
 
     /// Same as `read_image` but periodically calls the provided callback to give updates on loading
@@ -448,10 +450,9 @@ pub trait ImageDecoder<'a>: Sized {
         let mut reader = self.into_reader()?;
 
         let mut bytes_read = 0;
-        let mut contents = vec![0; total_bytes];
         while bytes_read < total_bytes {
             let read_size = target_read_size.min(total_bytes - bytes_read);
-            reader.read_exact(&mut contents[bytes_read..][..read_size])?;
+            reader.read_exact(&mut buf[bytes_read..][..read_size])?;
             bytes_read += read_size;
 
             progress_callback(Progress {
@@ -460,7 +461,7 @@ pub trait ImageDecoder<'a>: Sized {
             });
         }
 
-        Ok(contents)
+        Ok(())
     }
 }
 
@@ -892,7 +893,7 @@ mod tests {
         struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
         impl<'a> ImageDecoder<'a> for MockDecoder {
             type Reader = Box<dyn io::Read>;
-            fn dimensions(&self) -> (u64, u64) {(5, 5)}
+            fn dimensions(&self) -> (u32, u32) {(5, 5)}
             fn color_type(&self) -> ColorType {  ColorType::L8 }
             fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
             fn scanline_bytes(&self) -> u64 { self.scanline_bytes }

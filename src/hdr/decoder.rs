@@ -17,7 +17,7 @@ use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progre
 #[derive(Debug)]
 pub struct HDRAdapter<R: BufRead> {
     inner: Option<HdrDecoder<R>>,
-    data: Option<Vec<u8>>,
+    // data: Option<Vec<u8>>,
     meta: HDRMetadata,
 }
 
@@ -28,7 +28,6 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
-            data: None,
             meta,
         })
     }
@@ -39,23 +38,17 @@ impl<R: BufRead> HDRAdapter<R> {
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
-            data: None,
             meta,
         })
     }
 
     /// Read the actual data of the image, and store it in Self::data.
-    fn read_image_data(&mut self) -> ImageResult<()> {
+    fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         match self.inner.take() {
             Some(decoder) => {
                 let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-
-                let len = img.len() * mem::size_of::<Rgb<u8>>(); // length in bytes
-                let target = self.data.get_or_insert_with(|| Vec::with_capacity(len));
-                target.clear();
-
-                for Rgb(data) in img {
-                    target.extend_from_slice(&data);
+                for (i, Rgb(data)) in img.into_iter().enumerate() {
+                    buf[(i*3)..][..3].copy_from_slice(&data);
                 }
 
                 Ok(())
@@ -84,8 +77,8 @@ impl<R> Read for HdrReader<R> {
 impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     type Reader = HdrReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.meta.width), u64::from(self.meta.height))
+    fn dimensions(&self) -> (u32, u32) {
+        (self.meta.width, self.meta.height)
     }
 
     fn color_type(&self) -> ColorType {
@@ -93,16 +86,18 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(HdrReader(Cursor::new(self.read_image()?), PhantomData))
-    }
-
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        if let Some(data) = self.data {
-            return Ok(data);
+        if self.total_bytes() > usize::max_value() as u64 {
+            return Err(ImageError::InsufficientMemory);
         }
 
-        self.read_image_data()?;
-        Ok(self.data.unwrap())
+        let mut buf = vec![0; self.total_bytes() as usize];
+        self.read_image(&mut buf)?;
+
+        Ok(HdrReader(Cursor::new(buf), PhantomData))
+    }
+
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        self.read_image_data(buf)
     }
 }
 
@@ -116,24 +111,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        if self.data.is_none() {
-            self.read_image_data()?;
-        }
-
-        image::load_rect(
-            x,
-            y,
-            width,
-            height,
-            buf,
-            progress_callback,
-            self,
-            |_, _| unreachable!(),
-            |s, buf| {
-                buf.copy_from_slice(&*s.data.as_ref().unwrap());
-                Ok(buf.len())
-            },
-        )
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+                         |s, buf| s.read_image_data(buf).map(|_| buf.len()))
     }
 }
 

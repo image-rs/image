@@ -118,8 +118,8 @@ impl<R> Read for WebpReader<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     type Reader = WebpReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.frame.width), u64::from(self.frame.height))
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.frame.width), u32::from(self.frame.height))
     }
 
     fn color_type(&self) -> color::ColorType {
@@ -130,7 +130,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
         Ok(WebpReader(Cursor::new(self.frame.ybuf), PhantomData))
     }
 
-    fn read_image(self) -> ImageResult<Vec<u8>> {
-        Ok(self.frame.ybuf)
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        buf.copy_from_slice(&self.frame.ybuf);
+        Ok(())
     }
 }

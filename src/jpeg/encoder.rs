@@ -762,6 +762,15 @@ mod tests {
     use image::ImageDecoder;
     use std::io::Cursor;
 
+    fn decode(encoded: &[u8]) -> Vec<u8> {
+        let decoder = JpegDecoder::new(Cursor::new(encoded))
+            .expect("Could not decode image");
+
+        let mut decoded = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut decoded).expect("Could not decode image");
+        decoded
+    }
+
     #[test]
     fn roundtrip_sanity_check() {
         // create a 1x1 8-bit image buffer containing a single red pixel
@@ -778,9 +787,7 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
-                .expect("Could not decode image");
-            let decoded = decoder.read_image().expect("Could not decode image");
+            let decoded = decode(&encoded_img);
             // note that, even with the encode quality set to 100, we do not get the same image
             // back. Therefore, we're going to assert that it's at least red-ish:
             assert_eq!(3, decoded.len());
@@ -806,9 +813,7 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
-                .expect("Could not decode image");
-            let decoded = decoder.read_image().expect("Could not decode image");
+            let decoded = decode(&encoded_img);
             // note that, even with the encode quality set to 100, we do not get the same image
             // back. Therefore, we're going to assert that the diagonal is at least white-ish:
             assert_eq!(4, decoded.len());

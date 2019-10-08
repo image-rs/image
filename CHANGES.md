@@ -8,6 +8,33 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22.3
+
+- Added a new module `io` containing a configurable `Reader`. It can replace
+  the bunch of free functions: `image::{load_*, open, image_dimensions}` while
+  enabling new combinations such as `open` but with format deduced from content
+  instead of file path.
+- Fixed `const_err` lint in the macro expanded implementations of `Pixel`. This
+  can only affect your crate if `image` is used as a path dependency.
+
+### Version 0.22.2
+
+- Undeprecate `unsafe` trait accessors. Further evaluation showed that their
+  deprecation should be delayed until trait `impl` specialization is available.
+- Fixed magic bytes used to detect `tiff` images.
+- Added `DynamicImage::from_decoder`.
+- Fixed a bug in the `PNGReader` that caused an infinite loop.
+- Added `ColorType::{bits_per_pixel, num_components}`.
+- Added `ImageFormat::from_path`, same format deduction as the `open` method.
+- Fixed a panic in the gif decoder.
+- Aligned background color handling of `gif` to web browser implementations.
+- Fixed handling of partial frames in animated `gif`.
+- Removed unused direct `lzw` dependency, an indirect dependency in `tiff`.
+
+### Version 0.22.1
+
+- Fixed build without no features enabled
+
 ### Version 0.22
 
 - The required Rust version is now `1.34.2`.

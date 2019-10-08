@@ -1074,9 +1074,9 @@ pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 /// Sendable Bgr image buffer
-pub type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
+pub(crate) type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
 /// Sendable Bgr + alpha channel image buffer
-pub type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
+pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
 
 #[cfg(test)]
 mod test {

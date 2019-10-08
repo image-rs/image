@@ -166,7 +166,7 @@ impl<W: Write> PNMEncoder<W> {
         height: u32,
         color: ExtendedColorType,
     ) -> io::Result<()> {
-        let depth = u32::from(color.num_components());
+        let depth = u32::from(color.channel_count());
         let (maxval, tupltype) = match color {
             ExtendedColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
             ExtendedColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
@@ -280,7 +280,7 @@ impl<'a> CheckedImageBuffer<'a> {
         height: u32,
         color: ExtendedColorType,
     ) -> io::Result<CheckedImageBuffer<'a>> {
-        let components = color.num_components() as usize;
+        let components = color.channel_count() as usize;
         let uwidth = width as usize;
         let uheight = height as usize;
         match Some(components)
@@ -330,7 +330,7 @@ impl<'a> CheckedDimensions<'a> {
     // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
     fn check_header_color(self, color: ExtendedColorType) -> io::Result<CheckedHeaderColor<'a>> {
-        let components = u32::from(color.num_components());
+        let components = u32::from(color.channel_count());
 
         match *self.unchecked.header {
             PNMHeader {

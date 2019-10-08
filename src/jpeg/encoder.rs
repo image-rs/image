@@ -157,7 +157,7 @@ struct Component {
     _dc_pred: i32,
 }
 
-pub struct BitWriter<'a, W: 'a> {
+pub(crate) struct BitWriter<'a, W: 'a> {
     w: &'a mut W,
     accumulator: u32,
     nbits: u8,
@@ -374,7 +374,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         height: u32,
         c: color::ColorType,
     ) -> io::Result<()> {
-        let n = c.num_components();
+        let n = c.channel_count();
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_segment(SOI, None)?;

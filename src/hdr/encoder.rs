@@ -1,6 +1,7 @@
 use color::Rgb;
 use hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
 use std::io::{Result, Write};
+use std::cmp::Ordering;
 
 /// Radiance HDR encoder
 pub struct HDREncoder<W: Write> {
@@ -144,17 +145,19 @@ impl<'a> Iterator for NorunCombineIterator<'a> {
                         Some(Norun(_, len1)) => {
                             // norun continues
                             let clen = len + len1; // combined length
-                            if clen == NORUN_MAX_LEN {
-                                return Some(Norun(idx, clen));
-                            } else if clen > NORUN_MAX_LEN {
-                                // combined norun exceeds maximum length. store extra part of norun
-                                self.prev = Some(Norun(idx + NORUN_MAX_LEN, clen - NORUN_MAX_LEN));
-                                // then return maximal norun
-                                return Some(Norun(idx, NORUN_MAX_LEN));
-                            } else {
-                                // len + len1 < NORUN_MAX_LEN
-                                self.prev = Some(Norun(idx, len + len1));
-                                // combine and continue loop
+                            match clen.cmp(&NORUN_MAX_LEN) {
+                                Ordering::Equal => return Some(Norun(idx, clen)),
+                                Ordering::Greater => {
+                                    // combined norun exceeds maximum length. store extra part of norun
+                                    self.prev = Some(Norun(idx + NORUN_MAX_LEN, clen - NORUN_MAX_LEN));
+                                    // then return maximal norun
+                                    return Some(Norun(idx, NORUN_MAX_LEN));
+                                }
+                                Ordering::Less => {
+                                    // len + len1 < NORUN_MAX_LEN
+                                    self.prev = Some(Norun(idx, len + len1));
+                                    // combine and continue loop
+                                }
                             }
                         }
                         Some(Run(c, len1)) => {

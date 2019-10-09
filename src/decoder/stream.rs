@@ -679,6 +679,12 @@ impl Info {
     }
 }
 
+impl Default for StreamingDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Default for ChunkState {
     fn default() -> Self {
         ChunkState {

@@ -342,7 +342,7 @@ impl StreamingDecoder {
                     } else {
                         let buf = &buf[..n as usize];
                         crc.update(buf);
-                        c_buf.extend(buf.iter().copied());
+                        c_buf.extend_from_slice(buf);
                         *remaining -= n;
                         if *remaining == 0 {
                             goto!(n as usize, PartialChunk(type_str
@@ -488,10 +488,8 @@ impl StreamingDecoder {
 
     fn parse_plte(&mut self)
     -> Result<Decoded, DecodingError> {
-        let mut vec = Vec::new();
-        vec.extend(self.current_chunk.2.iter().copied());
         if let Some(info) = self.info.as_mut() {
-            info.palette = Some(vec)
+            info.palette = Some(self.current_chunk.2.clone())
         }
         Ok(Decoded::Nothing)
     }
@@ -503,8 +501,7 @@ impl StreamingDecoder {
             let info = self.get_info_or_err()?;
             (info.color_type, info.bit_depth as u8)
         };
-        let mut vec = Vec::new();
-        vec.extend(self.current_chunk.2.iter().copied());
+        let vec = self.current_chunk.2.clone();
         let len = vec.len();
         let info = match self.info {
             Some(ref mut info) => info,

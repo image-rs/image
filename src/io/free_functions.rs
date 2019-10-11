@@ -66,7 +66,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JPEGDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::Webp => DynamicImage::from_decoder(webp::WebpDecoder::new(r)?),
+        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebpDecoder::new(r)?),
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TIFFDecoder::new(r)?),
         #[cfg(feature = "tga")]
@@ -108,7 +108,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "gif_codec")]
         image::ImageFormat::Gif => gif::Decoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        image::ImageFormat::Webp => webp::WebpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WebP => webp::WebpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => tiff::TIFFDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
@@ -227,7 +227,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
         Some("png") => image::ImageFormat::Png,
         Some("gif") => image::ImageFormat::Gif,
-        Some("webp") => image::ImageFormat::Webp,
+        Some("webp") => image::ImageFormat::WebP,
         Some("tif") | Some("tiff") => image::ImageFormat::Tiff,
         Some("tga") => image::ImageFormat::Tga,
         Some("bmp") => image::ImageFormat::Bmp,
@@ -247,7 +247,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
     (b"GIF87a", ImageFormat::Gif),
-    (b"RIFF", ImageFormat::Webp), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
+    (b"RIFF", ImageFormat::WebP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
     (b"MM\x00*", ImageFormat::Tiff),
     (b"II*\x00", ImageFormat::Tiff),
     (b"BM", ImageFormat::Bmp),

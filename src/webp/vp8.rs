@@ -4,7 +4,7 @@
 //! VP8 video format as defined in RFC-6386.
 //!
 //! It decodes Keyframes only sans Loop Filtering.
-//! VP8 is the underpinning of the Webp image format
+//! VP8 is the underpinning of the WebP image format
 //!
 //! # Related Links
 //! * [rfc-6386](http://tools.ietf.org/html/rfc6386) - The VP8 Data Format and Decoding Guide

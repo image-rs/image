@@ -122,7 +122,7 @@ pub enum ImageFormat {
     Gif,
 
     /// An Image in WEBP Format
-    Webp,
+    WebP,
 
     /// An Image in general PNM Format
     Pnm,
@@ -934,7 +934,7 @@ mod tests {
         assert_eq!(from_path("./a.JPEG").unwrap(), ImageFormat::Jpeg);
         assert_eq!(from_path("./a.pNg").unwrap(), ImageFormat::Png);
         assert_eq!(from_path("./a.gif").unwrap(), ImageFormat::Gif);
-        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::Webp);
+        assert_eq!(from_path("./a.webp").unwrap(), ImageFormat::WebP);
         assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::Tga);

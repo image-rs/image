@@ -43,7 +43,7 @@ pub use image::{AnimationDecoder,
 
 pub use imageops::FilterType::{self, CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
 
-pub use image::ImageFormat::{self, Bmp, Gif, Ico, Jpeg, Png, Pnm, Webp};
+pub use image::ImageFormat::{self, Bmp, Gif, Ico, Jpeg, Png, Pnm, WebP};
 
 pub use image::ImageOutputFormat;
 

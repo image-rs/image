@@ -478,7 +478,7 @@ impl DynamicImage {
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
-            image::ImageOutputFormat::PNG => {
+            image::ImageOutputFormat::Png => {
                 let p = png::PNGEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
@@ -495,7 +495,7 @@ impl DynamicImage {
                 Ok(())
             }
             #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::PNM(subtype) => {
+            image::ImageOutputFormat::Pnm(subtype) => {
                 let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
@@ -512,7 +512,7 @@ impl DynamicImage {
                 Ok(())
             }
             #[cfg(feature = "jpeg")]
-            image::ImageOutputFormat::JPEG(quality) => {
+            image::ImageOutputFormat::Jpeg(quality) => {
                 let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
 
                 j.encode(&bytes, width, height, color)?;
@@ -520,7 +520,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "gif_codec")]
-            image::ImageOutputFormat::GIF => {
+            image::ImageOutputFormat::Gif => {
                 let mut g = gif::Encoder::new(w);
 
                 g.encode(&gif::Frame::from_rgba(
@@ -532,7 +532,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "ico")]
-            image::ImageOutputFormat::ICO => {
+            image::ImageOutputFormat::Ico => {
                 let i = ico::ICOEncoder::new(w);
 
                 i.encode(&bytes, width, height, color)?;
@@ -540,7 +540,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "bmp")]
-            image::ImageOutputFormat::BMP => {
+            image::ImageOutputFormat::Bmp => {
                 let mut b = bmp::BMPEncoder::new(w);
                 b.encode(&bytes, width, height, color)?;
                 Ok(())

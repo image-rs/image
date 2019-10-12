@@ -1,4 +1,4 @@
-//! Decoding of Webp Images
+//! Decoding of WebP Images
 
 pub use self::decoder::WebpDecoder;
 

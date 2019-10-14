@@ -242,7 +242,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
     })
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 17] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
     (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
     (b"GIF89a", ImageFormat::GIF),

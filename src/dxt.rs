@@ -295,7 +295,7 @@ fn alpha_table_dxt5(alpha0: u8, alpha1: u8) -> [u8; 8] {
 
 /// decodes an 8-byte dxt color block into the RGB channels of a 16xRGB or 16xRGBA block.
 /// source should have a length of 8, dest a length of 48 (RGB) or 64 (RGBA)
-fn decode_dxt_colors(source: &[u8], dest: &mut [u8]) {
+fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     // sanity checks, also enable the compiler to elide all following bound checks
     assert!(source.len() == 8 && (dest.len() == 48 || dest.len() == 64));
     // calculate pitch to store RGB values in dest (3 for RGB, 4 for RGBA)
@@ -314,7 +314,7 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8]) {
     colors[1] = enc565_decode(color1);
 
     // determine color interpolation method
-    if color0 > color1 {
+    if color0 > color1 || !is_dxt1 {
         // linearly interpolate the other two color table entries
         for i in 0..3 {
             colors[2][i] = ((u16::from(colors[0][i]) * 2 + u16::from(colors[1][i]) + 1) / 3) as u8;
@@ -354,7 +354,7 @@ fn decode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     }
 
     // handle colors
-    decode_dxt_colors(&source[8..16], dest);
+    decode_dxt_colors(&source[8..16], dest, false);
 }
 
 /// Decodes a 16-byte bock of dxt3 data to a 16xRGBA block
@@ -373,16 +373,16 @@ fn decode_dxt3_block(source: &[u8], dest: &mut [u8]) {
     }
 
     // handle colors
-    decode_dxt_colors(&source[8..16], dest);
+    decode_dxt_colors(&source[8..16], dest, false);
 }
 
 /// Decodes a 8-byte bock of dxt5 data to a 16xRGB block
 fn decode_dxt1_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 8 && dest.len() == 48);
-    decode_dxt_colors(&source, dest);
+    decode_dxt_colors(&source, dest, true);
 }
 
-/// Decode a row of DXT1 data to four rows of RGBA data.
+/// Decode a row of DXT1 data to four rows of RGB data.
 /// source.len() should be a multiple of 8, otherwise this panics.
 fn decode_dxt1_row(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() % 8 == 0);

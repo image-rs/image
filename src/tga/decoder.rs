@@ -239,8 +239,7 @@ impl<R: Read + Seek> TGADecoder<R> {
         } else {
             if num_alpha_bits > self.header.pixel_depth {
                 return Err(ImageError::UnsupportedError(
-                    format!("Color format not supported. Alpha bits: {}", num_alpha_bits)
-                        .to_string(),
+                    format!("Color format not supported. Alpha bits: {}", num_alpha_bits),
                 ));
             }
 

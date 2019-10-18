@@ -7,13 +7,13 @@
 //!
 //! # Examples
 //! ```rust,no_run
-//! use image::gif::{Decoder, Encoder};
+//! use image::gif::{GifDecoder, Encoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
 //! # fn main() -> std::io::Result<()> {
 //! // Decode a gif into frames
 //! let file_in = File::open("foo.gif")?;
-//! let mut decoder = Decoder::new(file_in).unwrap();
+//! let mut decoder = GifDecoder::new(file_in).unwrap();
 //! let frames = decoder.into_frames();
 //! let frames = frames.collect_frames().expect("error decoding gif");
 //!
@@ -46,17 +46,17 @@ use image::{AnimationDecoder, ImageDecoder, ImageError, ImageResult};
 use num_rational::Ratio;
 
 /// GIF decoder
-pub struct Decoder<R: Read> {
+pub struct GifDecoder<R: Read> {
     reader: gif::Reader<R>,
 }
 
-impl<R: Read> Decoder<R> {
+impl<R: Read> GifDecoder<R> {
     /// Creates a new decoder that decodes the input steam ```r```
-    pub fn new(r: R) -> ImageResult<Decoder<R>> {
+    pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
         let mut decoder = gif::Decoder::new(r);
         decoder.set(ColorOutput::RGBA);
 
-        Ok(Decoder {
+        Ok(GifDecoder {
             reader: decoder.read_info()?,
         })
     }
@@ -78,7 +78,7 @@ impl<R> Read for GifReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for Decoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     type Reader = GifReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -133,7 +133,7 @@ struct GifFrameIterator<R: Read> {
 
 
 impl<R: Read> GifFrameIterator<R> {
-    fn new(decoder: Decoder<R>) -> GifFrameIterator<R> {
+    fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
 
         // TODO: Avoid this cast
@@ -282,7 +282,7 @@ fn full_image_from_frame(
     }
 }
 
-impl<'a, R: Read + 'a> AnimationDecoder<'a> for Decoder<R> {
+impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn into_frames(self) -> animation::Frames<'a> {
         animation::Frames::new(Box::new(GifFrameIterator::new(self)))
     }

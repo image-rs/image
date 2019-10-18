@@ -756,7 +756,7 @@ fn copy_blocks_gray(
 
 #[cfg(test)]
 mod tests {
-    use super::super::JPEGDecoder;
+    use super::super::JpegDecoder;
     use super::JPEGEncoder;
     use color::ColorType;
     use image::ImageDecoder;
@@ -778,7 +778,7 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
                 .expect("Could not decode image");
             let decoded = decoder.read_image().expect("Could not decode image");
             // note that, even with the encode quality set to 100, we do not get the same image
@@ -806,7 +806,7 @@ mod tests {
 
         // decode it from the memory buffer
         {
-            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
                 .expect("Could not decode image");
             let decoded = decoder.read_image().expect("Could not decode image");
             // note that, even with the encode quality set to 100, we do not get the same image

@@ -56,7 +56,7 @@ impl DXTVariant {
 }
 
 /// DXT decoder
-pub struct DXTDecoder<R: Read> {
+pub struct DxtDecoder<R: Read> {
     inner: R,
     width_blocks: u32,
     height_blocks: u32,
@@ -64,7 +64,7 @@ pub struct DXTDecoder<R: Read> {
     row: u32,
 }
 
-impl<R: Read> DXTDecoder<R> {
+impl<R: Read> DxtDecoder<R> {
     /// Create a new DXT decoder that decodes from the stream ```r```.
     /// As DXT is often stored as raw buffers with the width/height
     /// somewhere else the width and height of the image need
@@ -77,13 +77,13 @@ impl<R: Read> DXTDecoder<R> {
         width: u32,
         height: u32,
         variant: DXTVariant,
-    ) -> Result<DXTDecoder<R>, ImageError> {
+    ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             return Err(ImageError::DimensionError);
         }
         let width_blocks = width / 4;
         let height_blocks = height / 4;
-        Ok(DXTDecoder {
+        Ok(DxtDecoder {
             inner: r,
             width_blocks,
             height_blocks,
@@ -110,7 +110,7 @@ impl<R: Read> DXTDecoder<R> {
 
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
-impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     type Reader = DXTReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -149,7 +149,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DXTDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DXTDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,
@@ -177,7 +177,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DXTDecoder<R> {
 /// DXT reader
 pub struct DXTReader<R: Read> {
     buffer: ImageReadBuffer,
-    decoder: DXTDecoder<R>,
+    decoder: DxtDecoder<R>,
 }
 impl<R: Read> Read for DXTReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

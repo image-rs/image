@@ -239,7 +239,7 @@ fn get_pixel_info(c: color::ColorType) -> io::Result<(u32, u32, u32)> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::BMPDecoder;
+    use super::super::BmpDecoder;
     use super::BMPEncoder;
     use color::ColorType;
     use image::ImageDecoder;
@@ -254,7 +254,7 @@ mod tests {
                 .expect("could not encode image");
         }
 
-        let decoder = BMPDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+        let decoder = BmpDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
         decoder.read_image().expect("failed to decode")
     }
 

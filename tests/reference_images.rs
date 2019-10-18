@@ -190,7 +190,7 @@ fn check_references() {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                    let decoder = match image::gif::Decoder::new(stream) {
+                    let decoder = match image::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
                         Err(image::ImageError::UnsupportedError(_)) => return,
                         Err(err) => {
@@ -284,7 +284,7 @@ fn check_hdr_references() {
         ref_path.set_extension("raw");
         println!("{}", ref_path.display());
         println!("{}", path.display());
-        let decoder = image::hdr::HDRDecoder::new(io::BufReader::new(
+        let decoder = image::hdr::HdrDecoder::new(io::BufReader::new(
             fs::File::open(&path).unwrap(),
         )).unwrap();
         let decoded = decoder.read_image_hdr().unwrap();

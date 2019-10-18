@@ -60,25 +60,25 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PNGDecoder::new(r)?),
+        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::Decoder::new(r)?),
+        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JPEGDecoder::new(r)?),
+        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebpDecoder::new(r)?),
+        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TIFFDecoder::new(r)?),
+        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TGADecoder::new(r)?),
+        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BMPDecoder::new(r)?),
+        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::ICODecoder::new(r)?),
+        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PNMDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         _ => Err(image::ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format
@@ -102,26 +102,26 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
     // Default is unreachable if all features are supported.
     let (w, h): (u64, u64) = match format {
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JPEGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::Png => png::PNGDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::Gif => gif::Decoder::new(fin)?.dimensions(),
+        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => webp::WebpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TIFFDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TGADecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BMPDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::ICODecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
-            pnm::PNMDecoder::new(fin)?.dimensions()
+            pnm::PnmDecoder::new(fin)?.dimensions()
         }
         format => return Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",

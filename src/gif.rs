@@ -40,9 +40,8 @@ pub use self::gif::{DisposalMethod, Frame};
 
 use animation;
 use buffer::{ImageBuffer, Pixel};
-use color;
-use color::Rgba;
-use image::{AnimationDecoder, ImageDecoder, ImageError, ImageResult};
+use color::{self, Rgba};
+use image::{self, AnimationDecoder, ImageDecoder, ImageError, ImageResult};
 use num_rational::Ratio;
 
 /// GIF decoder
@@ -90,14 +89,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
-        let mut buf = vec![0; self.total_bytes() as usize];
-        self.read_image(&mut buf)?;
-
-        Ok(GifReader(Cursor::new(buf), PhantomData))
+        Ok(GifReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

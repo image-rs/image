@@ -86,14 +86,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
-        let mut buf = vec![0; self.total_bytes() as usize];
-        self.read_image(&mut buf)?;
-
-        Ok(HdrReader(Cursor::new(buf), PhantomData))
+        Ok(HdrReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

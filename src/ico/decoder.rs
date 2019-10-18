@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageError, ImageResult};
 
 use self::InnerDecoder::*;
 use bmp::BmpDecoder;
@@ -194,14 +194,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
-        let mut buf = vec![0; self.total_bytes() as usize];
-        self.read_image(&mut buf)?;
-
-        Ok(IcoReader(Cursor::new(buf), PhantomData))
+        Ok(IcoReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

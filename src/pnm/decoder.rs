@@ -7,7 +7,7 @@ use std::mem;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use color::{ColorType, ExtendedColorType};
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageError, ImageResult};
 use utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
@@ -455,14 +455,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
-        let mut buf = vec![0; self.total_bytes() as usize];
-        self.read_image(&mut buf)?;
-
-        Ok(PnmReader(Cursor::new(buf), PhantomData))
+        Ok(PnmReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

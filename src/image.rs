@@ -358,6 +358,19 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u64, y: u64, width: u64, height:
     Ok(seek_scanline(decoder, 0)?)
 }
 
+/// Reads all of the bytes of a decoder into a Vec<u8>. No particular alignment
+/// of the output buffer is guaranteed.
+pub(crate) fn decoder_to_vec<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<u8>> {
+    let total_bytes = decoder.total_bytes();
+    if total_bytes > isize::max_value() as u64 {
+        return Err(ImageError::InsufficientMemory);
+    }
+
+    let mut buf = vec![0; total_bytes as usize];
+    decoder.read_image(&mut buf)?;
+    Ok(buf)
+}
+
 /// Represents the progress of an image operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {

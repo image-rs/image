@@ -640,16 +640,9 @@ impl GenericImage for DynamicImage {
 
 /// Decodes an image and stores it into a dynamic image
 fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
-    let color_type = decoder.color_type();
     let (w, h) = decoder.dimensions();
-    let total_bytes = decoder.total_bytes();
-
-    if total_bytes > usize::max_value() as u64 {
-        return Err(ImageError::InsufficientMemory);
-    }
-
-    let mut buf = vec![0; total_bytes as usize];
-    decoder.read_image(&mut buf)?;
+    let color_type = decoder.color_type();
+    let buf = image::decoder_to_vec(decoder)?;
 
     let image = match color_type {
         color::ColorType::Rgb8 => {

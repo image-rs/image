@@ -41,9 +41,7 @@ pub use image::{AnimationDecoder,
                 Pixels,
                 SubImage};
 
-pub use imageops::FilterType::{self, CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
-
-pub use image::ImageFormat::{self, Bmp, Gif, Ico, Jpeg, Png, Pnm, WebP};
+pub use image::ImageFormat;
 
 pub use image::ImageOutputFormat;
 
@@ -56,7 +54,7 @@ pub use buffer::{ConvertBuffer,
                  RgbImage,
                  RgbaImage};
 
-pub use flat::{FlatSamples};
+pub use flat::FlatSamples;
 
 // Traits
 pub use traits::Primitive;
@@ -66,7 +64,7 @@ pub use io::free_functions::{guess_format, load};
 pub use dynimage::{load_from_memory, load_from_memory_with_format, open,
                    save_buffer, save_buffer_with_format, image_dimensions};
 
-pub use dynimage::DynamicImage::{self, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8, ImageBgr8, ImageBgra8};
+pub use dynimage::DynamicImage;
 
 pub use animation::{Frame, Frames};
 

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::str::{self, FromStr};
 use std::fmt::Display;
@@ -459,7 +460,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         buf.copy_from_slice(&match self.tuple {
             TupleType::PbmBit => self.read_samples::<PbmBit>(1),
             TupleType::BWBit => self.read_samples::<BWBit>(1),

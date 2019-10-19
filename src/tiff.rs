@@ -8,6 +8,7 @@
 
 extern crate tiff;
 
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
@@ -110,6 +111,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.read_image()? {
             tiff::decoder::DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);

@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -447,12 +448,9 @@ pub trait ImageDecoder<'a>: Sized {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        let total_bytes = self.total_bytes();
-        if total_bytes > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let total_bytes = total_bytes as usize;
+        let total_bytes = self.total_bytes() as usize;
         let scanline_bytes = self.scanline_bytes() as usize;
         let target_read_size = if scanline_bytes < 4096 {
             (4096 / scanline_bytes) * scanline_bytes

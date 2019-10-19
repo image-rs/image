@@ -7,6 +7,7 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
+use std::convert::TryFrom;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use color::ColorType;
@@ -93,7 +94,7 @@ impl<R: Read> DxtDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(buf.len() as u64, self.scanline_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.scanline_bytes()));
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -137,7 +138,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         for chunk in buf.chunks_mut(self.scanline_bytes() as usize) {
             self.read_scanline(chunk)?;

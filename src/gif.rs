@@ -31,6 +31,7 @@ extern crate num_rational;
 
 use std::clone::Clone;
 use std::cmp::min;
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
@@ -93,7 +94,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         let (f_width, f_height, left, top);
 

@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
 use std::io;
 use std::io::{Read, Seek};
 
@@ -496,7 +497,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         // read the pixels from the data region
         let len = if self.image_type.is_encoded() {

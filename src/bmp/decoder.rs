@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
@@ -1321,7 +1322,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.read_image_data(buf)
     }
 }

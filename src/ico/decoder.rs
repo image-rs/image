@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
 use std::mem;
@@ -198,6 +199,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner_decoder {
             PNG(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {

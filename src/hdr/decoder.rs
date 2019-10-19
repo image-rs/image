@@ -2,6 +2,7 @@ use num_traits::identities::Zero;
 use scoped_threadpool::Pool;
 #[cfg(test)]
 use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::error::Error;
 use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
@@ -44,6 +45,7 @@ impl<R: BufRead> HDRAdapter<R> {
 
     /// Read the actual data of the image, and store it in Self::data.
     fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.take() {
             Some(decoder) => {
                 let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;

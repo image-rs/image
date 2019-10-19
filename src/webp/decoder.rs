@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
 use std::default::Default;
 use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
@@ -131,6 +132,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         buf.copy_from_slice(&self.frame.ybuf);
         Ok(())
     }

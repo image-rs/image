@@ -8,6 +8,7 @@
 
 extern crate png;
 
+use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use color::{ColorType, ExtendedColorType};
@@ -164,7 +165,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert!(buf.len() as u64 == self.total_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.reader.next_frame(buf)?;
         Ok(())
     }

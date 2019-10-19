@@ -17,7 +17,7 @@ use image::{ImageDecoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
-pub struct TIFFDecoder<R>
+pub struct TiffDecoder<R>
     where R: Read + Seek
 {
     dimensions: (u32, u32),
@@ -25,11 +25,11 @@ pub struct TIFFDecoder<R>
     inner: tiff::decoder::Decoder<R>,
 }
 
-impl<R> TIFFDecoder<R>
+impl<R> TiffDecoder<R>
     where R: Read + Seek
 {
-    /// Create a new TIFFDecoder.
-    pub fn new(r: R) -> Result<TIFFDecoder<R>, ImageError> {
+    /// Create a new TiffDecoder.
+    pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r)?;
         let dimensions = inner.dimensions()?;
         let color_type = match inner.colortype()? {
@@ -52,7 +52,7 @@ impl<R> TIFFDecoder<R>
                 return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*4))),
         };
 
-        Ok(TIFFDecoder {
+        Ok(TiffDecoder {
             dimensions,
             color_type,
             inner,
@@ -87,7 +87,7 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     type Reader = TiffReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {

@@ -4,7 +4,7 @@
 //! `BLACKANDWHITE`, `GRAYSCALE` and `RGB` and explicitely recognizes but rejects their `_ALPHA`
 //! variants for now as alpha color types are unsupported.
 use self::autobreak::AutoBreak;
-pub use self::decoder::PNMDecoder;
+pub use self::decoder::PnmDecoder;
 pub use self::encoder::PNMEncoder;
 use self::header::HeaderRecord;
 pub use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader,
@@ -34,10 +34,10 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
+            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
+            let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };
 
@@ -64,10 +64,10 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
+            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
+            let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };
 
@@ -89,10 +89,10 @@ mod tests {
         }
 
         let (header, loaded_color, loaded_image) = {
-            let decoder = PNMDecoder::new(&encoded_buffer[..]).unwrap();
+            let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let image = decoder.read_image().expect("Failed to decode the image");
-            let (_, header) = PNMDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
+            let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };
 

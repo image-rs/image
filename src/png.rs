@@ -89,14 +89,14 @@ impl<R: Read> Read for PNGReader<R> {
 }
 
 /// PNG decoder
-pub struct PNGDecoder<R: Read> {
+pub struct PngDecoder<R: Read> {
     color_type: ColorType,
     reader: png::Reader<R>,
 }
 
-impl<R: Read> PNGDecoder<R> {
+impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<PNGDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
@@ -144,11 +144,11 @@ impl<R: Read> PNGDecoder<R> {
                 return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(bits as u8))),
         };
 
-        Ok(PNGDecoder { color_type, reader })
+        Ok(PngDecoder { color_type, reader })
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     type Reader = PNGReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PNGDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
+        let dec = PngDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
             .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];

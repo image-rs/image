@@ -16,7 +16,7 @@ use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progre
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
 pub struct HDRAdapter<R: BufRead> {
-    inner: Option<HDRDecoder<R>>,
+    inner: Option<HdrDecoder<R>>,
     data: Option<Vec<u8>>,
     meta: HDRMetadata,
 }
@@ -24,7 +24,7 @@ pub struct HDRAdapter<R: BufRead> {
 impl<R: BufRead> HDRAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = HDRDecoder::new(r)?;
+        let decoder = HdrDecoder::new(r)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -35,7 +35,7 @@ impl<R: BufRead> HDRAdapter<R> {
 
     /// Allows reading old Radiance HDR images
     pub fn new_nonstrict(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = HDRDecoder::with_strictness(r, false)?;
+        let decoder = HdrDecoder::with_strictness(r, false)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -143,7 +143,7 @@ const SIGNATURE_LENGTH: usize = 10;
 
 /// An Radiance HDR decoder
 #[derive(Debug)]
-pub struct HDRDecoder<R> {
+pub struct HdrDecoder<R> {
     r: R,
     width: u32,
     height: u32,
@@ -230,22 +230,22 @@ impl RGBE8Pixel {
     }
 }
 
-impl<R: BufRead> HDRDecoder<R> {
+impl<R: BufRead> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream ```r```
-    /// if the header is valid, creates HDRDecoder
+    /// if the header is valid, creates HdrDecoder
     /// strict mode is enabled
-    pub fn new(reader: R) -> ImageResult<HDRDecoder<R>> {
-        HDRDecoder::with_strictness(reader, true)
+    pub fn new(reader: R) -> ImageResult<HdrDecoder<R>> {
+        HdrDecoder::with_strictness(reader, true)
     }
 
     /// Reads Radiance HDR image header from stream ```reader```,
-    /// if the header is valid, creates ```HDRDecoder```.
+    /// if the header is valid, creates ```HdrDecoder```.
     ///
     /// strict enables strict mode
     ///
     /// Warning! Reading wrong file in non-strict mode
     ///   could consume file size worth of memory in the process.
-    pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HDRDecoder<R>> {
+    pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HDRMetadata::new();
 
         {
@@ -300,7 +300,7 @@ impl<R: BufRead> HDRDecoder<R> {
             }
         };
 
-        Ok(HDRDecoder {
+        Ok(HdrDecoder {
             r: reader,
 
             width,
@@ -385,7 +385,7 @@ impl<R: BufRead> HDRDecoder<R> {
     }
 }
 
-impl<R: BufRead> IntoIterator for HDRDecoder<R> {
+impl<R: BufRead> IntoIterator for HdrDecoder<R> {
     type Item = ImageResult<RGBE8Pixel>;
     type IntoIter = HDRImageDecoderIterator<R>;
 

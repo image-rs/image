@@ -44,15 +44,15 @@ trait DecodableImageHeader {
 }
 
 /// PNM decoder
-pub struct PNMDecoder<R> {
+pub struct PnmDecoder<R> {
     reader: BufReader<R>,
     header: PNMHeader,
     tuple: TupleType,
 }
 
-impl<R: Read> PNMDecoder<R> {
+impl<R: Read> PnmDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
-    pub fn new(read: R) -> ImageResult<PNMDecoder<R>> {
+    pub fn new(read: R) -> ImageResult<PnmDecoder<R>> {
         let mut buf = BufReader::new(read);
         let magic = buf.read_magic_constant()?;
         if magic[0] != b'P' {
@@ -77,10 +77,10 @@ impl<R: Read> PNMDecoder<R> {
         };
 
         match subtype {
-            PNMSubtype::Bitmap(enc) => PNMDecoder::read_bitmap_header(buf, enc),
-            PNMSubtype::Graymap(enc) => PNMDecoder::read_graymap_header(buf, enc),
-            PNMSubtype::Pixmap(enc) => PNMDecoder::read_pixmap_header(buf, enc),
-            PNMSubtype::ArbitraryMap => PNMDecoder::read_arbitrary_header(buf),
+            PNMSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
+            PNMSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
+            PNMSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
+            PNMSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
         }
     }
 
@@ -92,9 +92,9 @@ impl<R: Read> PNMDecoder<R> {
     fn read_bitmap_header(
         mut reader: BufReader<R>,
         encoding: SampleEncoding,
-    ) -> ImageResult<PNMDecoder<R>> {
+    ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_bitmap_header(encoding)?;
-        Ok(PNMDecoder {
+        Ok(PnmDecoder {
             reader,
             tuple: TupleType::PbmBit,
             header: PNMHeader {
@@ -107,10 +107,10 @@ impl<R: Read> PNMDecoder<R> {
     fn read_graymap_header(
         mut reader: BufReader<R>,
         encoding: SampleEncoding,
-    ) -> ImageResult<PNMDecoder<R>> {
+    ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_graymap_header(encoding)?;
         let tuple_type = header.tuple_type()?;
-        Ok(PNMDecoder {
+        Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
             header: PNMHeader {
@@ -123,10 +123,10 @@ impl<R: Read> PNMDecoder<R> {
     fn read_pixmap_header(
         mut reader: BufReader<R>,
         encoding: SampleEncoding,
-    ) -> ImageResult<PNMDecoder<R>> {
+    ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_pixmap_header(encoding)?;
         let tuple_type = header.tuple_type()?;
-        Ok(PNMDecoder {
+        Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
             header: PNMHeader {
@@ -136,10 +136,10 @@ impl<R: Read> PNMDecoder<R> {
         })
     }
 
-    fn read_arbitrary_header(mut reader: BufReader<R>) -> ImageResult<PNMDecoder<R>> {
+    fn read_arbitrary_header(mut reader: BufReader<R>) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_arbitrary_header()?;
         let tuple_type = header.tuple_type()?;
-        Ok(PNMDecoder {
+        Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
             header: PNMHeader {
@@ -425,7 +425,7 @@ impl<R> Read for PnmReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     type Reader = PnmReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -463,7 +463,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNMDecoder<R> {
     }
 }
 
-impl<R: Read> PNMDecoder<R> {
+impl<R: Read> PnmDecoder<R> {
     fn read(&mut self) -> ImageResult<Vec<u8>> {
         match self.tuple {
             TupleType::PbmBit => self.read_samples::<PbmBit>(1),
@@ -783,7 +783,7 @@ TUPLTYPE BLACKANDWHITE
 # Comment line
 ENDHDR
 \x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01\x01\x00\x00\x01";
-        let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (4, 4));
@@ -794,7 +794,7 @@ ENDHDR
             vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00,
                  0x00, 0x01]
         );
-        match PNMDecoder::new(&pamdata[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -825,7 +825,7 @@ TUPLTYPE GRAYSCALE
 # Comment line
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
-        let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
@@ -834,7 +834,7 @@ ENDHDR
             vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad,
                  0xbe, 0xef]
         );
-        match PNMDecoder::new(&pamdata[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -865,14 +865,14 @@ WIDTH 2
 HEIGHT 2
 ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
-        let decoder = PNMDecoder::new(&pamdata[..]).unwrap();
+        let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::Rgb8);
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
         assert_eq!(decoder.read_image().unwrap(),
                    vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]);
-        match PNMDecoder::new(&pamdata[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -896,7 +896,7 @@ ENDHDR
         // The data contains two rows of the image (each line is padded to the full byte). For
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = [&b"P4 6 2\n"[..], &[0b01101100 as u8, 0b10110111]].concat();
-        let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
@@ -905,7 +905,7 @@ ENDHDR
             PNMSubtype::Bitmap(SampleEncoding::Binary)
         );
         assert_eq!(decoder.read_image().unwrap(), vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
-        match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -942,7 +942,7 @@ ENDHDR
 
         let pbmbinary = FailRead(Cursor::new(b"P1 1 1\n"));
 
-        PNMDecoder::new(pbmbinary).unwrap()
+        PnmDecoder::new(pbmbinary).unwrap()
             .read_image().expect_err("Image is malformed");
     }
 
@@ -952,13 +952,13 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.  Tests all
         // whitespace characters that should be allowed (the 6 characters according to POSIX).
         let pbmbinary = b"P1 6 2\n 0 1 1 0 1 1\n1 0 1 1 0\t\n\x0b\x0c\r1";
-        let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
         assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
-        match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -981,13 +981,13 @@ ENDHDR
         // it is completely within specification for the ascii data not to contain separating
         // whitespace for the pbm format or any mix.
         let pbmbinary = b"P1 6 2\n011011101101";
-        let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
         assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
-        match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -1010,7 +1010,7 @@ ENDHDR
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let elements = (0..16).collect::<Vec<_>>();
         let pbmbinary = [&b"P5 4 4 255\n"[..], &elements].concat();
-        let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
@@ -1018,7 +1018,7 @@ ENDHDR
             PNMSubtype::Graymap(SampleEncoding::Binary)
         );
         assert_eq!(decoder.read_image().unwrap(), elements);
-        match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {
@@ -1041,7 +1041,7 @@ ENDHDR
         // The data contains two rows of the image (each line is padded to the full byte). For
         // comments on its format, see documentation of `impl SampleType for PbmBit`.
         let pbmbinary = b"P2 4 4 255\n 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15";
-        let decoder = PNMDecoder::new(&pbmbinary[..]).unwrap();
+        let decoder = PnmDecoder::new(&pbmbinary[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
@@ -1049,7 +1049,7 @@ ENDHDR
             PNMSubtype::Graymap(SampleEncoding::Ascii)
         );
         assert_eq!(decoder.read_image().unwrap(), (0..16).collect::<Vec<_>>());
-        match PNMDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
+        match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
                 PNMHeader {

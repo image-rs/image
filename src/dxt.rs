@@ -127,12 +127,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
         Ok(DXTReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
+            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
             decoder: self,
         })
     }

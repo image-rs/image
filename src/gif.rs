@@ -111,7 +111,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
         if (left, top) != (0, 0) || (width, height) != (f_width, f_height) {
-            // TODO: Avoid unnecessary allocation here.
+            // This is somewhat of an annoying case. The image we read into `buf` doesn't take up
+            // the whole buffer and now we need to properly insert borders. For simplicity this code
+            // currently takes advantage of the `ImageBuffer::from_fn` function to make a second
+            // ImageBuffer that is properly positioned, and then copies it back into `buf`.
+            //
+            // TODO: Implement this without any allocation.
 
             // See the comments inside `<GifFrameIterator as Iterator>::next` about
             // the error handling of `from_raw`.

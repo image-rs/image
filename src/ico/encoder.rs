@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use color::{bits_per_pixel, ColorType};
-
+use image::ImageResult;
 use png::PNGEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
@@ -32,7 +32,7 @@ impl<W: Write> ICOEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let mut image_data: Vec<u8> = Vec::new();
         PNGEncoder::new(&mut image_data).encode(data, width, height, color)?;
 

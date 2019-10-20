@@ -151,7 +151,7 @@ impl<W: Write> PNGEncoder<W> {
     /// Encodes the image ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = color.into();
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);

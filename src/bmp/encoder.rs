@@ -2,6 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use color;
+use image::{ImageError, ImageResult};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -27,7 +28,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         width: u32,
         height: u32,
         c: color::ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
         let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c)?;
@@ -87,10 +88,10 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
                 self.encode_gray(image, width, height, row_pad_size, 2)?
             }
             _ => {
-                return Err(io::Error::new(
+                return Err(ImageError::IoError(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     &get_unsupported_error_message(c)[..],
-                ))
+                )))
             }
         }
 

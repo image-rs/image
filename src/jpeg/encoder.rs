@@ -457,13 +457,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 self.encode_gray(image, width as usize, height as usize, 2)?
             }
             _ => {
-                return Err(ImageError::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    &format!(
-                    "Unsupported color type {:?}. Use 8 bit per channel RGB(A) or Gray(A) instead.",
-                    c
-                )[..],
-                )))
+                return Err(ImageError::UnsupportedColor(c))
             }
         };
 

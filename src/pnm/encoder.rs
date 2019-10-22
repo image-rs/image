@@ -176,10 +176,7 @@ impl<W: Write> PNMEncoder<W> {
             ColorType::RGB(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGB),
             ColorType::RGBA(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
             _ => {
-                return Err(ImageError::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    &format!("Encoding colour type {:?} is not supported", color)[..],
-                )))
+                return Err(ImageError::UnsupportedColor(color))
             }
         };
 
@@ -238,6 +235,7 @@ impl<W: Write> PNMEncoder<W> {
                 encoded: None,
             },
             (_, _) => {
+                // FIXME https://github.com/image-rs/image/issues/921
                 return Err(ImageError::IoError(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Color type can not be represented in the chosen format",
@@ -284,13 +282,7 @@ impl<'a> CheckedImageBuffer<'a> {
             .and_then(|v| v.checked_mul(uwidth))
             .and_then(|v| v.checked_mul(uheight))
         {
-            None => Err(ImageError::IoError(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &format!(
-                    "Image dimensions invalid: {}×{}×{} (w×h×d)",
-                    width, height, components
-                )[..],
-            ))),
+            None => Err(ImageError::DimensionError),
             Some(v) if v == image.len() => Ok(CheckedImageBuffer {
                 _image: image,
                 _width: width,
@@ -454,6 +446,8 @@ impl<'a> CheckedHeaderColor<'a> {
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
         if header_maxval < max_sample && !image.all_smaller(header_maxval) {
+            // FIXME https://github.com/image-rs/image/issues/921, No ImageError variant seems
+            // appropriate in this situation UnsupportedHeaderFormat maybe?
             return Err(ImageError::IoError(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Sample value greater than allowed for chosen header",

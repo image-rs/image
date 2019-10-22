@@ -1,6 +1,5 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
@@ -171,12 +170,8 @@ pub(crate) fn save_buffer_impl(
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "tiff")]
         "tif" | "tiff" => tiff::TiffEncoder::new(fout)
-            .encode(buf, width, height, color)
-            .map_err(|e| ImageError::IoError(io::Error::new(io::ErrorKind::Other, Box::new(e)))), // FIXME: see https://github.com/image-rs/image/issues/921
-        format => Err(ImageError::IoError(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        ))),
+            .encode(buf, width, height, color),
+        format => Err(ImageError::UnsupportedError(format!("Unsupported image format image/{:?}", format))),
     }
 }
 
@@ -201,12 +196,8 @@ pub(crate) fn save_buffer_with_format_impl(
         image::ImageFormat::BMP => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout)
-            .encode(buf, width, height, color)
-            .map_err(|e| ImageError::IoError(io::Error::new(io::ErrorKind::Other, Box::new(e)))),
-        _ => Err(ImageError::IoError(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        ))),
+            .encode(buf, width, height, color),
+        _ => Err(ImageError::UnsupportedError(format!("Unsupported image format image/{:?}", format))),
     }
 }
 

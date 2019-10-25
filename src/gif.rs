@@ -118,22 +118,24 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             //
             // TODO: Implement this without any allocation.
 
-            // See the comments inside `<GifFrameIterator as Iterator>::next` about
-            // the error handling of `from_raw`.
-            let image = ImageBuffer::from_raw(f_width, f_height, &mut *buf).ok_or_else(
-                || ImageError::UnsupportedError("Image dimensions are too large".into())
-            )?;
-
             // Recover the full image
-            let image_buffer = ImageBuffer::from_fn(width, height, |x, y| {
-                let x = x.wrapping_sub(left);
-                let y = y.wrapping_sub(top);
-                if x < image.width() && y < image.height() {
-                    *image.get_pixel(x, y)
-                } else {
-                    Rgba([0, 0, 0, 0])
-                }
-            });
+            let image_buffer = {
+                // See the comments inside `<GifFrameIterator as Iterator>::next` about
+                // the error handling of `from_raw`.
+                let image = ImageBuffer::from_raw(f_width, f_height, &mut *buf).ok_or_else(
+                    || ImageError::UnsupportedError("Image dimensions are too large".into())
+                )?;
+
+                ImageBuffer::from_fn(width, height, |x, y| {
+                    let x = x.wrapping_sub(left);
+                    let y = y.wrapping_sub(top);
+                    if x < image.width() && y < image.height() {
+                        *image.get_pixel(x, y)
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                })
+            };
             buf.copy_from_slice(&mut image_buffer.into_raw());
         }
         Ok(())

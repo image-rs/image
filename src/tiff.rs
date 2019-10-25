@@ -8,9 +8,12 @@
 
 extern crate tiff;
 
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
+
+use byteorder::{NativeEndian, ByteOrder};
 
 use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageResult, ImageError};
@@ -90,23 +93,34 @@ impl<R> Read for TiffReader<R> {
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     type Reader = TiffReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.dimensions.0), u64::from(self.dimensions.1))
+    fn dimensions(&self) -> (u32, u32) {
+        self.dimensions
     }
 
     fn color_type(&self) -> ColorType {
         self.color_type
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(TiffReader(Cursor::new(self.read_image()?), PhantomData))
+    fn into_reader(mut self) -> ImageResult<Self::Reader> {
+        let buf = match self.inner.read_image()? {
+            tiff::decoder::DecodingResult::U8(v) => v,
+            tiff::decoder::DecodingResult::U16(v) => vec_u16_into_u8(v),
+        };
+
+        Ok(TiffReader(Cursor::new(buf), PhantomData))
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.read_image()? {
-            tiff::decoder::DecodingResult::U8(v) => Ok(v),
-            tiff::decoder::DecodingResult::U16(v) => Ok(vec_u16_into_u8(v)),
+            tiff::decoder::DecodingResult::U8(v) => {
+                buf.copy_from_slice(&v);
+            }
+            tiff::decoder::DecodingResult::U16(v) => {
+                NativeEndian::write_u16_into(&v, buf);
+            }
         }
+        Ok(())
     }
 }
 

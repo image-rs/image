@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
 use std::io;
 use std::io::{Read, Seek};
 
@@ -302,10 +303,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
         let bytes_per_entry = (self.header.map_entry_size as usize + 7) / 8;
         let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
 
-        let color_map = match self.color_map {
-            Some(ref color_map) => color_map,
-            None => unreachable!(),
-        };
+        let color_map = self.color_map.as_ref().unwrap();
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
@@ -313,29 +311,6 @@ impl<R: Read + Seek> TgaDecoder<R> {
         }
 
         result
-    }
-
-    fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        // read the pixels from the data region
-        let mut pixel_data = if self.image_type.is_encoded() {
-            self.read_all_encoded_data()?
-        } else {
-            let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
-            let mut buf = vec![0; num_raw_bytes];
-            self.r.by_ref().read_exact(&mut buf)?;
-            buf
-        };
-
-        // expand the indices using the color map if necessary
-        if self.image_type.is_color_mapped() {
-            pixel_data = self.expand_color_map(&pixel_data)
-        }
-
-        self.reverse_encoding(&mut pixel_data);
-
-        self.flip_vertically(&mut pixel_data);
-
-        Ok(pixel_data)
     }
 
     /// Reads a run length encoded data for given number of bytes
@@ -493,8 +468,8 @@ impl<R: Read + Seek> TgaDecoder<R> {
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     type Reader = TGAReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (self.width as u64, self.height as u64)
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width as u32, self.height as u32)
     }
 
     fn color_type(&self) -> ColorType {
@@ -508,21 +483,37 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
         Ok(TGAReader {
-            buffer: ImageReadBuffer::new(
-                self.scanline_bytes() as usize,
-                self.total_bytes() as usize,
-            ),
+            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
             decoder: self,
         })
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        self.read_image_data()
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+
+        // read the pixels from the data region
+        let len = if self.image_type.is_encoded() {
+            let pixel_data = self.read_all_encoded_data()?;
+            buf[0..pixel_data.len()].copy_from_slice(&pixel_data);
+            pixel_data.len()
+        } else {
+            let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
+            self.r.by_ref().read_exact(&mut buf[0..num_raw_bytes])?;
+            num_raw_bytes
+        };
+
+        // expand the indices using the color map if necessary
+        if self.image_type.is_color_mapped() {
+            let pixel_data = self.expand_color_map(&buf[0..len]);
+            buf.copy_from_slice(&pixel_data);
+        }
+
+        self.reverse_encoding(buf);
+
+        self.flip_vertically(buf);
+
+        Ok(())
     }
 }
 

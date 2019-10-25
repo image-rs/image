@@ -1,10 +1,11 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
 use std::mem;
 
 use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageError, ImageResult};
 
 use self::InnerDecoder::*;
 use bmp::BmpDecoder;
@@ -129,8 +130,8 @@ impl DirEntry {
         }
     }
 
-    fn matches_dimensions(&self, width: u64, height: u64) -> bool {
-        u64::from(self.real_width()) == width && u64::from(self.real_height()) == height
+    fn matches_dimensions(&self, width: u32, height: u32) -> bool {
+        u32::from(self.real_width()) == width && u32::from(self.real_height()) == height
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {
@@ -179,7 +180,7 @@ impl<R> Read for IcoReader<R> {
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     type Reader = IcoReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
+    fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             BMP(ref decoder) => decoder.dimensions(),
             PNG(ref decoder) => decoder.dimensions(),
@@ -194,10 +195,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(IcoReader(Cursor::new(self.read_image()?), PhantomData))
+        Ok(IcoReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
-    fn read_image(self) -> ImageResult<Vec<u8>> {
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner_decoder {
             PNG(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
@@ -224,7 +226,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                     ));
                 }
 
-                decoder.read_image()
+                decoder.read_image(buf)
             }
             BMP(mut decoder) => {
                 let (width, height) = decoder.dimensions();
@@ -236,12 +238,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
                 if decoder.color_type() != ColorType::Rgba8 {
-                    return Err(ImageError::UnsupportedError(
-                        "Unsupported color type".to_string(),
-                    ));
+                    return Err(ImageError::UnsupportedColor(decoder.color_type().into()));
                 }
 
-                let mut pixel_data = decoder.read_image_data()?;
+                decoder.read_image_data(buf)?;
 
                 // If there's an AND mask following the image, read and apply it.
                 let r = decoder.reader();
@@ -253,7 +253,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                 if mask_length > 0 {
                     // A mask row contains 1 bit per pixel, padded to 4 bytes.
                     let mask_row_bytes = ((width + 31) / 32) * 4;
-                    let expected_length = mask_row_bytes * height;
+                    let expected_length = u64::from(mask_row_bytes) * u64::from(height);
                     if mask_length < expected_length {
                         return Err(ImageError::ImageEnd);
                     }
@@ -269,14 +269,14 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                                 }
                                 if mask_byte & (1 << bit) != 0 {
                                     // Set alpha channel to transparent.
-                                    pixel_data[((height - y - 1) * width + x) as usize * 4 + 3] = 0;
+                                    buf[((height - y - 1) * width + x) as usize * 4 + 3] = 0;
                                 }
                                 x += 1;
                             }
                         }
                     }
                 }
-                Ok(pixel_data)
+                Ok(())
             }
         }
     }

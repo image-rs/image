@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
@@ -1254,8 +1255,8 @@ impl<R: Read + Seek> BmpDecoder<R> {
 
     /// Read the actual data of the image. This function is deliberately not public because it
     /// cannot be called multiple times without seeking back the underlying reader in between.
-    pub(crate) fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        match self.image_type {
+    pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let data = match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
             ImageType::RGB24 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB24),
@@ -1278,7 +1279,10 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     "Missing 32-bit bitfield masks".to_string(),
                 )),
             },
-        }
+        }?;
+
+        buf.copy_from_slice(&data);
+        Ok(())
     }
 }
 
@@ -1301,8 +1305,8 @@ impl<R> Read for BmpReader<R> {
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     type Reader = BmpReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (self.width as u64, self.height as u64)
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width as u32, self.height as u32)
     }
 
     fn color_type(&self) -> ColorType {
@@ -1314,11 +1318,12 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(Cursor::new(self.read_image()?), PhantomData))
+        Ok(BmpReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        self.read_image_data()
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        self.read_image_data(buf)
     }
 }
 
@@ -1333,23 +1338,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
-        let data = self.read_image_data();
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+                         |s, buf| { s.read_image_data(buf).map(|_| buf.len()) })?;
         self.reader.seek(SeekFrom::Start(start))?;
-
-        let data = data?;
-
-        #[rustfmt::skip]
-        image::load_rect(
-            x, y, width, height,
-            buf,
-            progress_callback,
-            self,
-            |_, _| unreachable!(),
-            |_, buf| {
-                buf.copy_from_slice(&data);
-                Ok(buf.len())
-            },
-        )?;
         Ok(())
     }
 }

@@ -7,6 +7,7 @@
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
+use std::convert::TryFrom;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use color::ColorType;
@@ -93,7 +94,7 @@ impl<R: Read> DxtDecoder<R> {
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        assert_eq!(buf.len() as u64, self.scanline_bytes());
+        assert_eq!(u64::try_from(buf.len()), Ok(self.scanline_bytes()));
 
         let mut src =
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
@@ -113,8 +114,8 @@ impl<R: Read> DxtDecoder<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     type Reader = DXTReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.width_blocks) * 4, u64::from(self.height_blocks) * 4)
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width_blocks * 4, self.height_blocks * 4)
     }
 
     fn color_type(&self) -> ColorType {
@@ -126,26 +127,19 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
-
         Ok(DXTReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes() as usize, self.total_bytes() as usize),
+            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
             decoder: self,
         })
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        if self.total_bytes() > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
-        }
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let mut dest = vec![0u8; self.total_bytes() as usize];
-        for chunk in dest.chunks_mut(self.scanline_bytes() as usize) {
+        for chunk in buf.chunks_mut(self.scanline_bytes() as usize) {
             self.read_scanline(chunk)?;
         }
-        Ok(dest)
+        Ok(())
     }
 }
 

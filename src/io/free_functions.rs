@@ -100,7 +100,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
 {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
-    let (w, h): (u64, u64) = match format {
+    Ok(match format {
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
@@ -127,11 +127,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
             "Image format image/{:?} is not supported.",
             format
         ))),
-    };
-    if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
-        return Err(image::ImageError::DimensionError);
-    }
-    Ok((w as u32, h as u32))
+    })
 }
 
 pub(crate) fn save_buffer_impl(

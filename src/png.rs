@@ -8,6 +8,7 @@
 
 extern crate png;
 
+use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use color::{ColorType, ExtendedColorType};
@@ -151,9 +152,8 @@ impl<R: Read> PngDecoder<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     type Reader = PNGReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        let (w, h) = self.reader.info().size();
-        (u64::from(w), u64::from(h))
+    fn dimensions(&self) -> (u32, u32) {
+        self.reader.info().size()
     }
 
     fn color_type(&self) -> ColorType {
@@ -164,11 +164,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         PNGReader::new(self.reader)
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        // This should be slightly faster than the default implementation
-        let mut data = vec![0; self.reader.output_buffer_size()];
-        self.reader.next_frame(&mut data)?;
-        Ok(data)
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        self.reader.next_frame(buf)?;
+        Ok(())
     }
 
     fn scanline_bytes(&self) -> u64 {

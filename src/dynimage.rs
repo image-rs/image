@@ -24,7 +24,7 @@ use color;
 use flat::FlatSamples;
 use image;
 use image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat, ImageResult,
+    GenericImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageOutputFormat, ImageResult,
 };
 use io::free_functions;
 use imageops;
@@ -639,17 +639,12 @@ impl GenericImage for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
-    let color = codec.color_type();
-    let (w, h) = codec.dimensions();
-    let buf = codec.read_image()?;
+fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
+    let (w, h) = decoder.dimensions();
+    let color_type = decoder.color_type();
+    let buf = image::decoder_to_vec(decoder)?;
 
-    // TODO: Avoid this cast by having ImageBuffer use u64's
-    assert!(w <= u64::from(u32::max_value()));
-    assert!(h <= u64::from(u32::max_value()));
-    let (w, h) = (w as u32, h as u32);
-
-    let image = match color {
+    let image = match color_type {
         color::ColorType::Rgb8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
@@ -673,11 +668,11 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicIma
         color::ColorType::La8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        _ => return Err(image::ImageError::UnsupportedColor(color.into())),
+        _ => return Err(ImageError::UnsupportedColor(color_type.into())),
     };
     match image {
         Some(image) => Ok(image),
-        None => Err(image::ImageError::DimensionError),
+        None => Err(ImageError::DimensionError),
     }
 }
 

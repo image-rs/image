@@ -31,6 +31,7 @@ extern crate num_rational;
 
 use std::clone::Clone;
 use std::cmp::min;
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
@@ -40,9 +41,8 @@ pub use self::gif::{DisposalMethod, Frame};
 
 use animation;
 use buffer::{ImageBuffer, Pixel};
-use color;
-use color::Rgba;
-use image::{AnimationDecoder, ImageDecoder, ImageError, ImageResult};
+use color::{self, Rgba};
+use image::{self, AnimationDecoder, ImageDecoder, ImageError, ImageResult};
 use num_rational::Ratio;
 
 /// GIF decoder
@@ -81,8 +81,8 @@ impl<R> Read for GifReader<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     type Reader = GifReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.reader.width()), u64::from(self.reader.height()))
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.reader.width()), u32::from(self.reader.height()))
     }
 
     fn color_type(&self) -> color::ColorType {
@@ -90,10 +90,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(GifReader(Cursor::new(self.read_image()?), PhantomData))
+        Ok(GifReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+
         let (f_width, f_height, left, top);
 
         if let Some(frame) = self.reader.next_frame_info()? {
@@ -105,20 +107,38 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             return Err(ImageError::ImageEnd);
         }
 
-        let mut buf = vec![0; self.reader.buffer_size()];
-        self.reader.read_into_buffer(&mut buf)?;
+        self.reader.read_into_buffer(buf)?;
 
-        // See the comments inside `<GifFrameIterator as Iterator>::next` about
-        // the error handling of `from_raw`.
-        let image_buffer_raw = ImageBuffer::from_raw(f_width, f_height, buf).ok_or_else(
-            || ImageError::UnsupportedError("Image dimensions are too large".into())
-        )?;
-
-        // Recover the full image
         let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
-        let image_buffer = full_image_from_frame(width, height, image_buffer_raw, left, top);
+        if (left, top) != (0, 0) || (width, height) != (f_width, f_height) {
+            // This is somewhat of an annoying case. The image we read into `buf` doesn't take up
+            // the whole buffer and now we need to properly insert borders. For simplicity this code
+            // currently takes advantage of the `ImageBuffer::from_fn` function to make a second
+            // ImageBuffer that is properly positioned, and then copies it back into `buf`.
+            //
+            // TODO: Implement this without any allocation.
 
-        Ok(image_buffer.into_raw())
+            // Recover the full image
+            let image_buffer = {
+                // See the comments inside `<GifFrameIterator as Iterator>::next` about
+                // the error handling of `from_raw`.
+                let image = ImageBuffer::from_raw(f_width, f_height, &mut *buf).ok_or_else(
+                    || ImageError::UnsupportedError("Image dimensions are too large".into())
+                )?;
+
+                ImageBuffer::from_fn(width, height, |x, y| {
+                    let x = x.wrapping_sub(left);
+                    let y = y.wrapping_sub(top);
+                    if x < image.width() && y < image.height() {
+                        *image.get_pixel(x, y)
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                })
+            };
+            buf.copy_from_slice(&mut image_buffer.into_raw());
+        }
+        Ok(())
     }
 }
 

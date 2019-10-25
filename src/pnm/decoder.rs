@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::str::{self, FromStr};
 use std::fmt::Display;
@@ -7,7 +8,7 @@ use std::mem;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use color::{ColorType, ExtendedColorType};
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{self, ImageDecoder, ImageError, ImageResult};
 use utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
@@ -428,8 +429,8 @@ impl<R> Read for PnmReader<R> {
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     type Reader = PnmReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (u64::from(self.header.width()), u64::from(self.header.height()))
+    fn dimensions(&self) -> (u32, u32) {
+        (self.header.width(), self.header.height())
     }
 
     fn color_type(&self) -> ColorType {
@@ -455,26 +456,24 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(PnmReader(Cursor::new(self.read_image()?), PhantomData))
+        Ok(PnmReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        self.read()
-    }
-}
-
-impl<R: Read> PnmDecoder<R> {
-    fn read(&mut self) -> ImageResult<Vec<u8>> {
-        match self.tuple {
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        buf.copy_from_slice(&match self.tuple {
             TupleType::PbmBit => self.read_samples::<PbmBit>(1),
             TupleType::BWBit => self.read_samples::<BWBit>(1),
             TupleType::RGBU8 => self.read_samples::<U8>(3),
             TupleType::RGBU16 => self.read_samples::<U16>(3),
             TupleType::GrayU8 => self.read_samples::<U8>(1),
             TupleType::GrayU16 => self.read_samples::<U16>(1),
-        }
+        }?);
+        Ok(())
     }
+}
 
+impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
@@ -789,8 +788,10 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
         assert_eq!(
-            decoder.read_image().unwrap(),
+            image,
             vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00,
                  0x00, 0x01]
         );
@@ -829,8 +830,11 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
+
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
         assert_eq!(
-            decoder.read_image().unwrap(),
+            image,
             vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad,
                  0xbe, 0xef]
         );
@@ -870,7 +874,9 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (2, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
-        assert_eq!(decoder.read_image().unwrap(),
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image,
                    vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]);
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
@@ -904,7 +910,9 @@ ENDHDR
             decoder.subtype(),
             PNMSubtype::Bitmap(SampleEncoding::Binary)
         );
-        assert_eq!(decoder.read_image().unwrap(), vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -942,8 +950,9 @@ ENDHDR
 
         let pbmbinary = FailRead(Cursor::new(b"P1 1 1\n"));
 
-        PnmDecoder::new(pbmbinary).unwrap()
-            .read_image().expect_err("Image is malformed");
+        let decoder = PnmDecoder::new(pbmbinary).unwrap();
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).expect_err("Image is malformed");
     }
 
     #[test]
@@ -957,7 +966,10 @@ ENDHDR
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
-        assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
+
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -986,7 +998,10 @@ ENDHDR
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
-        assert_eq!(decoder.read_image().unwrap(), vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
+
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -1017,7 +1032,9 @@ ENDHDR
             decoder.subtype(),
             PNMSubtype::Graymap(SampleEncoding::Binary)
         );
-        assert_eq!(decoder.read_image().unwrap(), elements);
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image, elements);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -1048,7 +1065,9 @@ ENDHDR
             decoder.subtype(),
             PNMSubtype::Graymap(SampleEncoding::Ascii)
         );
-        assert_eq!(decoder.read_image().unwrap(), (0..16).collect::<Vec<_>>());
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut image).unwrap();
+        assert_eq!(image, (0..16).collect::<Vec<_>>());
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,

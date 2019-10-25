@@ -156,8 +156,8 @@ impl<W: Write> PNGEncoder<W> {
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(data).map_err(|e| e.into())
+        let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
+        writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
     }
 }
 

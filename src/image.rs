@@ -106,13 +106,6 @@ impl From<io::Error> for ImageError {
     }
 }
 
-#[cfg(feature = "png")]
-impl From<png::EncodingError> for ImageError {
-    fn from(err: png::EncodingError) -> ImageError {
-        ImageError::IoError(err.into())
-    }
-}
-
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 

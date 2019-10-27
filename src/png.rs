@@ -35,7 +35,7 @@ impl<R: Read> PNGReader<R> {
         // as most interlaced images should fit in memory.
         let buffer = if reader.info().interlaced {
             let mut buffer = vec![0; len];
-            reader.next_frame(&mut buffer)?;
+            reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
             buffer
         } else {
             Vec::new()
@@ -102,7 +102,7 @@ impl<R: Read> PngDecoder<R> {
             bytes: usize::max_value(),
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
-        let (_, mut reader) = decoder.read_info()?;
+        let (_, mut reader) = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
@@ -166,7 +166,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        self.reader.next_frame(buf)?;
+        self.reader.next_frame(buf).map_err(ImageError::from_png)?;
         Ok(())
     }
 
@@ -214,8 +214,8 @@ impl<W: Write> PNGEncoder<W> {
     }
 }
 
-impl From<png::DecodingError> for ImageError {
-    fn from(err: png::DecodingError) -> ImageError {
+impl ImageError {
+    fn from_png(err: png::DecodingError) -> ImageError {
         use self::png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),

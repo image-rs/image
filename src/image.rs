@@ -281,7 +281,7 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u64, y: u64, width: u64, height: u64, buf: &mut [u8],
+pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height: u32, buf: &mut [u8],
                                           progress_callback: F,
                                           decoder: &mut D,
                                           mut seek_scanline: F1,
@@ -292,6 +292,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u64, y: u64, width: u64, height:
           F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
           ImageError: From<E>,
 {
+    let (x, y, width, height) = (u64::from(x), u64::from(y), u64::from(width), u64::from(height));
     let dimensions = decoder.dimensions();
     let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
@@ -484,10 +485,10 @@ pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
     /// Read a rectangular section of the image.
     fn read_rect(
         &mut self,
-        x: u64,
-        y: u64,
-        width: u64,
-        height: u64,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
         buf: &mut [u8],
     ) -> ImageResult<()> {
         self.read_rect_with_progress(x, y, width, height, buf, |_|{})
@@ -496,10 +497,10 @@ pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
     /// Read a rectangular section of the image, periodically reporting progress.
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
-        x: u64,
-        y: u64,
-        width: u64,
-        height: u64,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()>;

@@ -146,10 +146,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
 impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
-        x: u64,
-        y: u64,
-        width: u64,
-        height: u64,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {

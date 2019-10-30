@@ -147,6 +147,9 @@ pub(crate) fn save_buffer_impl(
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
+        #[cfg(feature = "gif_codec")]
+        "gif" => gif::Encoder::new(fout).encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
         #[cfg(feature = "ico")]
         "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]
@@ -190,6 +193,10 @@ pub(crate) fn save_buffer_with_format_impl(
     let fout = &mut BufWriter::new(File::create(path)?);
 
     match format {
+        #[cfg(feature = "gif_codec")]
+        image::ImageFormat::GIF => gif::Encoder::new(fout)
+            .encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
         #[cfg(feature = "ico")]
         image::ImageFormat::ICO => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]

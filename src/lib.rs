@@ -19,6 +19,7 @@ extern crate num_traits;
 extern crate scoped_threadpool;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
+extern crate zerocopy;
 
 #[cfg(test)]
 #[macro_use]
@@ -51,7 +52,12 @@ pub use buffer::{ConvertBuffer,
                  ImageBuffer,
                  Pixel,
                  RgbImage,
-                 RgbaImage};
+                 RgbaImage,
+                 Rgb16Image,
+                 Rgba16Image,
+                 Gray16Image,
+                 GrayAlpha16Image,
+                 };
 
 pub use flat::FlatSamples;
 

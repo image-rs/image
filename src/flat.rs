@@ -560,7 +560,7 @@ impl<Buffer> FlatSamples<Buffer> {
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::color_type()))
         }
 
         let as_ref = self.samples.as_ref();
@@ -597,7 +597,7 @@ impl<Buffer> FlatSamples<Buffer> {
         where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::color_type()))
         }
 
         let as_mut = self.samples.as_mut();
@@ -634,7 +634,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::color_type()))
         }
 
         let as_mut = self.samples.as_mut();
@@ -718,7 +718,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((Error::WrongColor(P::COLOR_TYPE), self))
+            return Err((Error::WrongColor(P::color_type()), self))
         }
 
         if !self.fits(self.samples.deref().len()) {

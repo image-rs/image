@@ -101,7 +101,11 @@ impl<R: Read> PngDecoder<R> {
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
-        let decoder = png::Decoder::new_with_limits(r, limits);
+        let mut decoder = png::Decoder::new_with_limits(r, limits);
+        // By default the PNG decoder will scale 16 bpc to 8 bpc, so custom
+        // transformations must be set. EXPAND preserves the default behavior
+        // expanding bpc < 8 to 8 bpc.
+        decoder.set_transformations(png::Transformations::EXPAND);
         let (_, mut reader) = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
@@ -165,8 +169,18 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        use byteorder::{BigEndian, ByteOrder, NativeEndian};
+
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.reader.next_frame(buf).map_err(ImageError::from_png)?;
+        // PNG images are big endian. For 16 bit per channel and larger types,
+        // the buffer may need to be reordered to native endianness per the
+        // contract of `read_image`.
+        match self.color_type().bytes_per_channel() {
+            1 => (),  // No reodering necessary for u8
+            2 => buf.chunks_mut(2).for_each(|c| NativeEndian::write_u16(c, BigEndian::read_u16(c))),
+            _ => unreachable!(),
+        }
         Ok(())
     }
 

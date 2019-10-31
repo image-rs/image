@@ -4,12 +4,13 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use color::{ChannelsType, ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_with_format};
 use image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
 use traits::Primitive;
 use utils::expand_packed;
+use zerocopy::AsBytes;
 
 /// A generalized pixel.
 ///
@@ -42,13 +43,10 @@ pub trait Pixel: Copy + Clone {
         Self::COLOR_MODEL
     }
 
-    /// ColorType for this pixel format
-    const COLOR_TYPE: ColorType;
+    /// Channels for this pixel format
+    const CHANNELS_TYPE: ChannelsType;
     /// Returns the ColorType for this pixel format
-    #[deprecated(note="please use COLOR_TYPE associated constant")]
-    fn color_type() -> ColorType {
-        Self::COLOR_TYPE
-    }
+    fn color_type() -> ColorType;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -655,7 +653,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: Some(P::color_type()),
         }
     }
 
@@ -669,7 +667,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: Some(P::color_type()),
         }
     }
 }
@@ -745,8 +743,9 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
+    P: Pixel + 'static,
+    P::Subpixel: AsBytes,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the path specified.
     ///
@@ -759,18 +758,19 @@ where
         // This is valid as the subpixel is u8.
         save_buffer(
             path,
-            self,
+            self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as Pixel>::color_type(),
         )
     }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
+    P: Pixel + 'static,
+    P::Subpixel: AsBytes,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
@@ -784,10 +784,10 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self,
+            self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as Pixel>::color_type(),
             format,
         )
     }
@@ -1076,6 +1076,14 @@ pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 pub(crate) type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
 /// Sendable Bgr + alpha channel image buffer
 pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
+/// Sendable 16-bit Rgb image buffer
+pub type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
+/// Sendable 16-bit Rgb + alpha channel image buffer
+pub type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
+/// Sendable 16-bit grayscale image buffer
+pub type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+/// Sendable 16-bit grayscale + alpha channel image buffer
+pub type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
 #[cfg(test)]
 mod test {

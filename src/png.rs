@@ -161,6 +161,7 @@ impl<W: Write> PNGEncoder<W> {
             _ => None,
         }
         .and_then(|(ct, bits)| Some((ct, png::BitDepth::from_u8(bits)?)))
+        // FIXME: After #1066 lands, return the ImageError directly.
         .ok_or(io::Error::new(io::ErrorKind::InvalidInput, ImageError::UnsupportedColor(color)))?;
 
         let mut encoder = png::Encoder::new(self.w, width, height);

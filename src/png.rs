@@ -152,7 +152,18 @@ impl<W: Write> PNGEncoder<W> {
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
-        let (ct, bits) = color.into();
+        let (ct, bits) = match color {
+            ColorType::Gray(bits) => Some((png::ColorType::Grayscale, bits)),
+            ColorType::RGB(bits) => Some((png::ColorType::RGB, bits)),
+            ColorType::Palette(bits) => Some((png::ColorType::Indexed, bits)),
+            ColorType::GrayA(bits) => Some((png::ColorType::GrayscaleAlpha, bits)),
+            ColorType::RGBA(bits) => Some((png::ColorType::RGBA, bits)),
+            _ => None,
+        }
+        .and_then(|(ct, bits)| Some((ct, png::BitDepth::from_u8(bits)?)))
+        // FIXME: After #1066 lands, return the ImageError directly.
+        .ok_or(io::Error::new(io::ErrorKind::InvalidInput, ImageError::UnsupportedColor(color)))?;
+
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);

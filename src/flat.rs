@@ -1076,7 +1076,8 @@ where
     /// `self.into_inner().as_view_mut()` and keeps the `View` alive on failure.
     ///
     /// ```
-    /// # use image::{Rgb, RgbImage};
+    /// # use image::RgbImage;
+    /// # use image::Rgb;
     /// let mut buffer = RgbImage::new(480, 640).into_flat_samples();
     /// let view = buffer.as_view_with_mut_samples::<Rgb<u8>>().unwrap();
     ///

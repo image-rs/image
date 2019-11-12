@@ -139,6 +139,7 @@ impl<W: Write> Writer<W> {
 
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
+        const MAX_CHUNK_LEN: u32 = (1u32 << 31) - 1;
         let bpp = self.info.bytes_per_pixel();
         let in_len = self.info.raw_row_length() - 1;
         let mut prev = vec![0; in_len];
@@ -157,7 +158,11 @@ impl<W: Write> Writer<W> {
             zlib.write_all(&current)?;
             mem::swap(&mut prev, &mut current);
         }
-        self.write_chunk(chunk::IDAT, &zlib.finish()?)
+        let zlib_encoded = zlib.finish()?;
+        for chunk in zlib_encoded.chunks(MAX_CHUNK_LEN as usize) {
+            self.write_chunk(chunk::IDAT, &chunk)?;
+        }
+        Ok(())
     }
 
     /// Create an stream writer.

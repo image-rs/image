@@ -351,7 +351,7 @@ impl<R: Read> Reader<R> {
                 16 if t.intersects(
                     crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16
                 ) => 8,
-                _ if t.contains(crate::Transformations::EXPAND) => 8,
+                n if n < 8 && t.contains(crate::Transformations::EXPAND) => 8,
                 n => n
             };
             let color_type = if t.contains(crate::Transformations::EXPAND) {

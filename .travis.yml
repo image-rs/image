@@ -13,6 +13,10 @@ matrix:
       env: FLAGS="--no-default-features"
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
+    - rust: stable
+      env:
+        - FLAGS="--all-features"
+        - IMAGE_PNG_TEST=yes
     - rust: nightly
       env:
         - FUZZIT_TARGET="png-decoder"
@@ -26,5 +30,5 @@ matrix:
 script:
   - cargo build -v $FLAGS
   - cargo doc -v $FLAGS
-  - cargo test -v $FLAGS
+  - if [ -n "$IMAGE_PNG_TEST" ]; then cargo test -v $FLAGS; fi
   - if [ -n "$FUZZIT_TARGET" ]; then ./fuzzit.sh "$FUZZIT_TARGET" "$FUZZIT_BINARY"; fi

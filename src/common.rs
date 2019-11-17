@@ -16,9 +16,9 @@ pub enum ColorType {
 
 impl ColorType {
     /// Returns the number of samples used per pixel of `ColorType`
-    pub fn samples(self) -> usize {
+    pub fn samples(&self) -> usize {
         use self::ColorType::*;
-        match self {
+        match *self {
             Grayscale | Indexed => 1,
             RGB => 3,
             GrayscaleAlpha => 2,

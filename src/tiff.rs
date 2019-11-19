@@ -12,31 +12,49 @@ use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
 
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
-pub struct TIFFDecoder<R>
+pub struct TiffDecoder<R>
     where R: Read + Seek
 {
     dimensions: (u32, u32),
-    colortype: ColorType,
+    color_type: ColorType,
     inner: tiff::decoder::Decoder<R>,
 }
 
-impl<R> TIFFDecoder<R>
+impl<R> TiffDecoder<R>
     where R: Read + Seek
 {
-    /// Create a new TIFFDecoder.
-    pub fn new(r: R) -> Result<TIFFDecoder<R>, ImageError> {
+    /// Create a new TiffDecoder.
+    pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r)?;
         let dimensions = inner.dimensions()?;
-        let colortype = inner.colortype()?.into();
+        let color_type = match inner.colortype()? {
+            tiff::ColorType::Gray(8) => ColorType::L8,
+            tiff::ColorType::Gray(16) => ColorType::L16,
+            tiff::ColorType::GrayA(8) => ColorType::La8,
+            tiff::ColorType::GrayA(16) => ColorType::La16,
+            tiff::ColorType::RGB(8) => ColorType::Rgb8,
+            tiff::ColorType::RGB(16) => ColorType::Rgb16,
+            tiff::ColorType::RGBA(8) => ColorType::Rgba8,
+            tiff::ColorType::RGBA(16) => ColorType::Rgba16,
 
-        Ok(TIFFDecoder {
+            tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n))),
+            tiff::ColorType::GrayA(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*2))),
+            tiff::ColorType::RGB(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*3))),
+            tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*4))),
+        };
+
+        Ok(TiffDecoder {
             dimensions,
-            colortype,
+            color_type,
             inner,
         })
     }
@@ -49,19 +67,6 @@ impl From<tiff::TiffError> for ImageError {
             tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
             tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
             tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
-        }
-    }
-}
-
-impl From<tiff::ColorType> for ColorType {
-    fn from(ct: tiff::ColorType) -> ColorType {
-        match ct {
-            tiff::ColorType::Gray(depth) => ColorType::Gray(depth),
-            tiff::ColorType::RGB(depth) => ColorType::RGB(depth),
-            tiff::ColorType::Palette(depth) => ColorType::Palette(depth),
-            tiff::ColorType::GrayA(depth) => ColorType::GrayA(depth),
-            tiff::ColorType::RGBA(depth) => ColorType::RGBA(depth),
-            tiff::ColorType::CMYK(_) => unimplemented!()
         }
     }
 }
@@ -82,15 +87,15 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TIFFDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     type Reader = TiffReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (u64::from(self.dimensions.0), u64::from(self.dimensions.1))
     }
 
-    fn colortype(&self) -> ColorType {
-        self.colortype
+    fn color_type(&self) -> ColorType {
+        self.color_type
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -116,19 +121,17 @@ impl<W: Write + Seek> TiffEncoder<W> {
         TiffEncoder { w }
     }
 
-    /// Encodes the image `image`
-    /// that has dimensions `width` and `height`
-    /// and `ColorType` `c`.
+    /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
     ///
-    /// 16-bit colortypes are not yet supported.
+    /// 16-bit color types are not yet supported.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         // TODO: 16bit support
         let mut encoder = tiff::encoder::TiffEncoder::new(self.w)?;
         match color {
-            ColorType::Gray(8) => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
-            ColorType::RGB(8) => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
-            ColorType::RGBA(8) => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
-            _ => return Err(ImageError::UnsupportedColor(color))
+            ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)?,
+            ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)?,
+            ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)?,
+            _ => return Err(ImageError::UnsupportedColor(color.into()))
         }
 
         Ok(())

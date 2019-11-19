@@ -46,7 +46,7 @@ use super::free_functions;
 /// let mut reader = Reader::new(Cursor::new(raw_data))
 ///     .with_guessed_format()
 ///     .expect("Cursor io never fails");
-/// assert_eq!(reader.format(), Some(ImageFormat::PNM));
+/// assert_eq!(reader.format(), Some(ImageFormat::Pnm));
 ///
 /// let image = reader.decode()?;
 /// # Ok(()) }

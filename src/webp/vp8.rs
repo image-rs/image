@@ -4,7 +4,7 @@
 //! VP8 video format as defined in RFC-6386.
 //!
 //! It decodes Keyframes only sans Loop Filtering.
-//! VP8 is the underpinning of the Webp image format
+//! VP8 is the underpinning of the WebP image format
 //!
 //! # Related Links
 //! * [rfc-6386](http://tools.ietf.org/html/rfc6386) - The VP8 Data Format and Decoding Guide
@@ -835,7 +835,7 @@ struct Segment {
 /// VP8 Decoder
 ///
 /// Only decodes keyframes
-pub struct VP8Decoder<R> {
+pub struct Vp8Decoder<R> {
     r: R,
     b: BoolReader,
 
@@ -867,15 +867,15 @@ pub struct VP8Decoder<R> {
     left_border: Vec<u8>,
 }
 
-impl<R: Read> VP8Decoder<R> {
+impl<R: Read> Vp8Decoder<R> {
     /// Create a new decoder.
     /// The reader must present a raw vp8 bitstream to the decoder
-    pub fn new(r: R) -> VP8Decoder<R> {
+    pub fn new(r: R) -> Vp8Decoder<R> {
         let f = Frame::default();
         let s = Segment::default();
         let m = MacroBlock::default();
 
-        VP8Decoder {
+        Vp8Decoder {
             r,
             b: BoolReader::new(),
 

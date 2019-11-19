@@ -1,4 +1,3 @@
-use num_iter;
 use std::io;
 use std::io::Write;
 use std::path::Path;
@@ -293,12 +292,12 @@ impl DynamicImage {
     /// Return this image's color type.
     pub fn color(&self) -> color::ColorType {
         match *self {
-            DynamicImage::ImageLuma8(_) => color::ColorType::Gray(8),
-            DynamicImage::ImageLumaA8(_) => color::ColorType::GrayA(8),
-            DynamicImage::ImageRgb8(_) => color::ColorType::RGB(8),
-            DynamicImage::ImageRgba8(_) => color::ColorType::RGBA(8),
-            DynamicImage::ImageBgra8(_) => color::ColorType::BGRA(8),
-            DynamicImage::ImageBgr8(_) => color::ColorType::BGR(8),
+            DynamicImage::ImageLuma8(_) => color::ColorType::L8,
+            DynamicImage::ImageLumaA8(_) => color::ColorType::La8,
+            DynamicImage::ImageRgb8(_) => color::ColorType::Rgb8,
+            DynamicImage::ImageRgba8(_) => color::ColorType::Rgba8,
+            DynamicImage::ImageBgra8(_) => color::ColorType::Bgra8,
+            DynamicImage::ImageBgr8(_) => color::ColorType::Bgr8,
         }
     }
 
@@ -479,16 +478,16 @@ impl DynamicImage {
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png_codec")]
-            image::ImageOutputFormat::PNG => {
+            image::ImageOutputFormat::Png => {
                 let p = png::PNGEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
-                        color = color::ColorType::RGBA(8);
+                        color = color::ColorType::Rgba8;
                     }
                     DynamicImage::ImageBgr8(_) => {
                         bytes = self.to_rgb().iter().cloned().collect();
-                        color = color::ColorType::RGB(8);
+                        color = color::ColorType::Rgb8;
                     }
                     _ => {}
                 }
@@ -496,16 +495,16 @@ impl DynamicImage {
                 Ok(())
             }
             #[cfg(feature = "pnm")]
-            image::ImageOutputFormat::PNM(subtype) => {
+            image::ImageOutputFormat::Pnm(subtype) => {
                 let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
-                        color = color::ColorType::RGBA(8);
+                        color = color::ColorType::Rgba8;
                     }
                     DynamicImage::ImageBgr8(_) => {
                         bytes = self.to_rgb().iter().cloned().collect();
-                        color = color::ColorType::RGB(8);
+                        color = color::ColorType::Rgb8;
                     }
                     _ => {}
                 }
@@ -513,7 +512,7 @@ impl DynamicImage {
                 Ok(())
             }
             #[cfg(feature = "jpeg")]
-            image::ImageOutputFormat::JPEG(quality) => {
+            image::ImageOutputFormat::Jpeg(quality) => {
                 let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
 
                 j.encode(&bytes, width, height, color)?;
@@ -521,7 +520,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "gif_codec")]
-            image::ImageOutputFormat::GIF => {
+            image::ImageOutputFormat::Gif => {
                 let mut g = gif::Encoder::new(w);
 
                 g.encode(&gif::Frame::from_rgba(
@@ -533,7 +532,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "ico")]
-            image::ImageOutputFormat::ICO => {
+            image::ImageOutputFormat::Ico => {
                 let i = ico::ICOEncoder::new(w);
 
                 i.encode(&bytes, width, height, color)?;
@@ -541,7 +540,7 @@ impl DynamicImage {
             }
 
             #[cfg(feature = "bmp")]
-            image::ImageOutputFormat::BMP => {
+            image::ImageOutputFormat::Bmp => {
                 let mut b = bmp::BMPEncoder::new(w);
                 b.encode(&bytes, width, height, color)?;
                 Ok(())
@@ -639,8 +638,9 @@ impl GenericImage for DynamicImage {
     }
 }
 
+/// Decodes an image and stores it into a dynamic image
 fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicImage> {
-    let color = codec.colortype();
+    let color = codec.color_type();
     let (w, h) = codec.dimensions();
     let buf = codec.read_image()?;
 
@@ -650,56 +650,35 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(codec: I) -> ImageResult<DynamicIma
     let (w, h) = (w as u32, h as u32);
 
     let image = match color {
-        color::ColorType::RGB(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8),
+        color::ColorType::Rgb8 => {
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
+        }
 
-        color::ColorType::RGBA(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8),
+        color::ColorType::Rgba8 => {
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
+        }
 
-        color::ColorType::BGR(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8),
+        color::ColorType::Bgr8 => {
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgr8)
+        }
 
-        color::ColorType::BGRA(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8),
+        color::ColorType::Bgra8 => {
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageBgra8)
+        }
 
-        color::ColorType::Gray(8) => ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8),
+        color::ColorType::L8 => {
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
+        }
 
-        color::ColorType::GrayA(8) => {
+        color::ColorType::La8 => {
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
-        color::ColorType::Gray(bit_depth) if bit_depth == 1 || bit_depth == 2 || bit_depth == 4 => {
-            gray_to_luma8(bit_depth, w, h, &buf).map(DynamicImage::ImageLuma8)
-        }
-        _ => return Err(image::ImageError::UnsupportedColor(color)),
+        _ => return Err(image::ImageError::UnsupportedColor(color.into())),
     };
     match image {
         Some(image) => Ok(image),
         None => Err(image::ImageError::DimensionError),
     }
-}
-
-fn gray_to_luma8(bit_depth: u8, w: u32, h: u32, buf: &[u8]) -> Option<GrayImage> {
-    // Note: this conversion assumes that the scanlines begin on byte boundaries
-    let mask = (1u8 << bit_depth as usize) - 1;
-    let scaling_factor = 255 / ((1 << bit_depth as usize) - 1);
-    let bit_width = w * u32::from(bit_depth);
-    let skip = if bit_width % 8 == 0 {
-        0
-    } else {
-        (8 - bit_width % 8) / u32::from(bit_depth)
-    };
-    let row_len = w + skip;
-    let mut p = Vec::new();
-    let mut i = 0;
-    for v in buf {
-        for shift in num_iter::range_step_inclusive(8i8 - (bit_depth as i8), 0, -(bit_depth as i8))
-        {
-            // skip the pixels that can be neglected because scanlines should
-            // start at byte boundaries
-            if i % (row_len as usize) < (w as usize) {
-                let pixel = (v & mask << shift as usize) >> shift as usize;
-                p.push(pixel * scaling_factor);
-            }
-            i += 1;
-        }
-    }
-    ImageBuffer::from_raw(w, h, p)
 }
 
 #[allow(deprecated)]
@@ -919,48 +898,6 @@ mod test {
         let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
         assert!(result.0 == ::std::u32::MAX);
         assert!(result.1 == 100);
-    }
-
-    #[test]
-    #[rustfmt::skip]
-    fn gray_to_luma8_skip() {
-        let check = |bit_depth, w, h, from, to| {
-            assert_eq!(
-                super::gray_to_luma8(bit_depth, w, h, from).map(super::GrayImage::into_raw),
-                Some(to)
-            );
-        };
-        // Bit depth 1, skip is more than half a byte
-        check(
-            1,
-            10,
-            2,
-            &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![
-                255, 255, 255, 255,   0,
-                  0,   0,   0, 255, 255,
-                  0,   0,   0,   0, 255,
-                255, 255, 255, 255, 255,
-            ],
-        );
-        // Bit depth 2, skip is more than half a byte
-        check(
-            2,
-            5,
-            2,
-            &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255],
-        );
-        // Bit depth 2, skip is 0
-        check(
-            2,
-            4,
-            2,
-            &[0b11110000, 0b00001111],
-            vec![255, 255, 0, 0, 0, 0, 255, 255],
-        );
-        // Bit depth 4, skip is half a byte
-        check(4, 1, 2, &[0b11110011, 0b00001100], vec![255, 0]);
     }
 
     #[cfg(feature = "jpeg")]

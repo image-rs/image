@@ -10,7 +10,7 @@ extern crate png;
 
 use std::io::{self, Read, Write};
 
-use color::ColorType;
+use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageError, ImageResult};
 
 /// PNG Reader
@@ -89,26 +89,66 @@ impl<R: Read> Read for PNGReader<R> {
 }
 
 /// PNG decoder
-pub struct PNGDecoder<R: Read> {
-    colortype: ColorType,
+pub struct PngDecoder<R: Read> {
+    color_type: ColorType,
     reader: png::Reader<R>,
 }
 
-impl<R: Read> PNGDecoder<R> {
+impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<PNGDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info()?;
-        let colortype = reader.output_color_type().into();
+        let (color_type, bits) = reader.output_color_type();
+        let color_type = match (color_type, bits) {
+            (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
+            (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ColorType::La8,
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ColorType::La16,
+            (png::ColorType::RGB, png::BitDepth::Eight) => ColorType::Rgb8,
+            (png::ColorType::RGB, png::BitDepth::Sixteen) => ColorType::Rgb16,
+            (png::ColorType::RGBA, png::BitDepth::Eight) => ColorType::Rgba8,
+            (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
-        Ok(PNGDecoder { colortype, reader })
+            (png::ColorType::Grayscale, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L1)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La1)),
+            (png::ColorType::RGB, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb1)),
+            (png::ColorType::RGBA, png::BitDepth::One) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba1)),
+
+            (png::ColorType::Grayscale, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L2)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La2)),
+            (png::ColorType::RGB, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb2)),
+            (png::ColorType::RGBA, png::BitDepth::Two) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba2)),
+
+            (png::ColorType::Grayscale, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L4)),
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La4)),
+            (png::ColorType::RGB, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb4)),
+            (png::ColorType::RGBA, png::BitDepth::Four) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba4)),
+
+            (png::ColorType::Indexed, bits) =>
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(bits as u8))),
+        };
+
+        Ok(PngDecoder { color_type, reader })
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     type Reader = PNGReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -116,8 +156,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PNGDecoder<R> {
         (u64::from(w), u64::from(h))
     }
 
-    fn colortype(&self) -> ColorType {
-        self.colortype
+    fn color_type(&self) -> ColorType {
+        self.color_type
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -152,42 +192,25 @@ impl<W: Write> PNGEncoder<W> {
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let (ct, bits) = color.into();
+        let (ct, bits) = match color {
+            ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
+            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
+            ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
+            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::Bgr8 => (png::ColorType::RGB, png::BitDepth::Eight),
+            ColorType::Bgra8 => (png::ColorType::RGBA, png::BitDepth::Eight),
+            _ => return Err(ImageError::UnsupportedColor(color.into())),
+        };
+
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
         let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
         writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
-    }
-}
-
-impl From<(png::ColorType, png::BitDepth)> for ColorType {
-    fn from((ct, bits): (png::ColorType, png::BitDepth)) -> ColorType {
-        use self::png::ColorType::*;
-        let bits = bits as u8;
-        match ct {
-            Grayscale => ColorType::Gray(bits),
-            RGB => ColorType::RGB(bits),
-            Indexed => ColorType::Palette(bits),
-            GrayscaleAlpha => ColorType::GrayA(bits),
-            RGBA => ColorType::RGBA(bits),
-        }
-    }
-}
-
-impl From<ColorType> for (png::ColorType, png::BitDepth) {
-    fn from(ct: ColorType) -> (png::ColorType, png::BitDepth) {
-        use self::png::ColorType::*;
-        let (ct, bits) = match ct {
-            ColorType::Gray(bits) => (Grayscale, bits),
-            ColorType::RGB(bits) => (RGB, bits),
-            ColorType::Palette(bits) => (Indexed, bits),
-            ColorType::GrayA(bits) => (GrayscaleAlpha, bits),
-            ColorType::RGBA(bits) => (RGBA, bits),
-            ColorType::BGRA(bits) => (RGBA, bits),
-            ColorType::BGR(bits) => (RGB, bits),
-        };
-        (ct, png::BitDepth::from_u8(bits).unwrap())
     }
 }
 
@@ -216,15 +239,15 @@ mod tests {
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PNGDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
+        let dec = PngDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
             .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
 
         assert_eq![
-            ColorType::RGB(8),
-            dec.colortype(),
-            "Image MUST have the RGB(8) format"
+            ColorType::Rgb8,
+            dec.color_type(),
+            "Image MUST have the Rgb8 format"
         ];
 
         let correct_bytes = dec

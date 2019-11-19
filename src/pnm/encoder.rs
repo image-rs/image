@@ -7,7 +7,7 @@ use std::io::Write;
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
-use color::{channel_count, ColorType};
+use color::{ColorType, ExtendedColorType};
 use image::{ImageError, ImageResult};
 
 use byteorder::{BigEndian, WriteBytesExt};
@@ -36,7 +36,7 @@ struct CheckedImageBuffer<'a> {
     _image: FlatSamples<'a>,
     _width: u32,
     _height: u32,
-    _color: ColorType,
+    _color: ExtendedColorType,
 }
 
 // Check the header against the buffer. Each struct produces the next after a check.
@@ -52,7 +52,7 @@ struct CheckedDimensions<'a> {
 
 struct CheckedHeaderColor<'a> {
     dimensions: CheckedDimensions<'a>,
-    color: ColorType,
+    color: ExtendedColorType,
 }
 
 struct CheckedHeader<'a> {
@@ -147,12 +147,12 @@ impl<W: Write> PNMEncoder<W> {
     {
         let image = image.into();
         match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color),
+            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color.into()),
             HeaderStrategy::Subtype(subtype) => {
-                self.write_subtyped_header(subtype, image, width, height, color)
+                self.write_subtyped_header(subtype, image, width, height, color.into())
             }
             HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, image, width, height, color)
+                Self::write_with_header(&mut self.writer, header, image, width, height, color.into())
             }
         }
     }
@@ -165,16 +165,20 @@ impl<W: Write> PNMEncoder<W> {
         image: FlatSamples,
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
-        let depth = channel_count(color).into();
+        let depth = u32::from(color.channel_count());
         let (maxval, tupltype) = match color {
-            ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
-            ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
-            ColorType::RGB(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGB),
-            ColorType::RGBA(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
+            ExtendedColorType::L1 => (1, ArbitraryTuplType::BlackAndWhite),
+            ExtendedColorType::L8 => (0xff, ArbitraryTuplType::Grayscale),
+            ExtendedColorType::L16 => (0xffff, ArbitraryTuplType::Grayscale),
+            ExtendedColorType::La1 => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
+            ExtendedColorType::La8 => (0xff, ArbitraryTuplType::GrayscaleAlpha),
+            ExtendedColorType::La16 => (0xffff, ArbitraryTuplType::GrayscaleAlpha),
+            ExtendedColorType::Rgb8 => (0xff, ArbitraryTuplType::RGB),
+            ExtendedColorType::Rgb16 => (0xffff, ArbitraryTuplType::RGB),
+            ExtendedColorType::Rgba8 => (0xff, ArbitraryTuplType::RGBAlpha),
+            ExtendedColorType::Rgba16 => (0xffff, ArbitraryTuplType::RGBAlpha),
             _ => {
                 return Err(ImageError::UnsupportedColor(color))
             }
@@ -201,13 +205,13 @@ impl<W: Write> PNMEncoder<W> {
         image: FlatSamples,
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
         let header = match (subtype, color) {
             (PNMSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
             }
-            (PNMSubtype::Pixmap(encoding), ColorType::RGB(8)) => PNMHeader {
+            (PNMSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PNMHeader {
                 decoded: HeaderRecord::Pixmap(PixmapHeader {
                     encoding,
                     width,
@@ -216,7 +220,7 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Graymap(encoding), ColorType::Gray(8)) => PNMHeader {
+            (PNMSubtype::Graymap(encoding), ExtendedColorType::L8) => PNMHeader {
                 decoded: HeaderRecord::Graymap(GraymapHeader {
                     encoding,
                     width,
@@ -225,8 +229,8 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Bitmap(encoding), ColorType::Gray(8))
-            | (PNMSubtype::Bitmap(encoding), ColorType::Gray(1)) => PNMHeader {
+            (PNMSubtype::Bitmap(encoding), ExtendedColorType::L8)
+            | (PNMSubtype::Bitmap(encoding), ExtendedColorType::L1) => PNMHeader {
                 decoded: HeaderRecord::Bitmap(BitmapHeader {
                     encoding,
                     width,
@@ -255,7 +259,7 @@ impl<W: Write> PNMEncoder<W> {
         image: FlatSamples,
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<()> {
         let unchecked = UncheckedHeader { header };
 
@@ -273,9 +277,9 @@ impl<'a> CheckedImageBuffer<'a> {
         image: FlatSamples<'a>,
         width: u32,
         height: u32,
-        color: ColorType,
+        color: ExtendedColorType,
     ) -> ImageResult<CheckedImageBuffer<'a>> {
-        let components = channel_count(color) as usize;
+        let components = color.channel_count() as usize;
         let uwidth = width as usize;
         let uheight = height as usize;
         match Some(components)
@@ -322,24 +326,19 @@ impl<'a> CheckedDimensions<'a> {
     // Check color compatibility with the header. This will only error when we are certain that
     // the comination is bogus (e.g. combining Pixmap and Palette) but allows uncertain
     // combinations (basically a ArbitraryTuplType::Custom with any color of fitting depth).
-    fn check_header_color(self, color: ColorType) -> ImageResult<CheckedHeaderColor<'a>> {
-        let components = match color {
-            ColorType::Gray(_) => 1,
-            ColorType::GrayA(_) => 2,
-            ColorType::Palette(_) | ColorType::RGB(_) | ColorType::BGR(_) => 3,
-            ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
-        };
+    fn check_header_color(self, color: ExtendedColorType) -> ImageResult<CheckedHeaderColor<'a>> {
+        let components = u32::from(color.channel_count());
 
         match *self.unchecked.header {
             PNMHeader {
                 decoded: HeaderRecord::Bitmap(_),
                 ..
             } => match color {
-                ColorType::Gray(_) => (),
+                ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::IoError(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PBM format only support ColorType::Gray",
+                        "PBM format only support luma color types",
                     )))
                 }
             },
@@ -347,11 +346,11 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
-                ColorType::Gray(_) => (),
+                ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
                     return Err(ImageError::IoError(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PGM format only support ColorType::Gray",
+                        "PGM format only support luma color types",
                     )))
                 }
             },
@@ -359,11 +358,11 @@ impl<'a> CheckedDimensions<'a> {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
-                ColorType::RGB(_) => (),
+                ExtendedColorType::Rgb8 => (),
                 _ => {
                     return Err(ImageError::IoError(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        "PPM format only support ColorType::RGB",
+                        "PPM format only support ExtendedColorType::Rgb8",
                     )))
                 }
             },
@@ -376,14 +375,16 @@ impl<'a> CheckedDimensions<'a> {
                     }),
                 ..
             } => match (tupltype, color) {
-                (&Some(ArbitraryTuplType::BlackAndWhite), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ColorType::GrayA(_)) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhite), ExtendedColorType::L1) => (),
+                (&Some(ArbitraryTuplType::BlackAndWhiteAlpha), ExtendedColorType::La8) => (),
 
-                (&Some(ArbitraryTuplType::Grayscale), ColorType::Gray(_)) => (),
-                (&Some(ArbitraryTuplType::GrayscaleAlpha), ColorType::GrayA(_)) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L1) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L8) => (),
+                (&Some(ArbitraryTuplType::Grayscale), ExtendedColorType::L16) => (),
+                (&Some(ArbitraryTuplType::GrayscaleAlpha), ExtendedColorType::La8) => (),
 
-                (&Some(ArbitraryTuplType::RGB), ColorType::RGB(_)) => (),
-                (&Some(ArbitraryTuplType::RGBAlpha), ColorType::RGBA(_)) => (),
+                (&Some(ArbitraryTuplType::RGB), ExtendedColorType::Rgb8) => (),
+                (&Some(ArbitraryTuplType::RGBAlpha), ExtendedColorType::Rgba8) => (),
 
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
@@ -420,28 +421,27 @@ impl<'a> CheckedHeaderColor<'a> {
 
         // We trust the image color bit count to be correct at least.
         let max_sample = match self.color {
-            // Protects against overflows from shifting and gives a better error.
-            ColorType::Gray(n)
-            | ColorType::GrayA(n)
-            | ColorType::Palette(n)
-            | ColorType::RGB(n)
-            | ColorType::RGBA(n)
-            | ColorType::BGR(n)
-            | ColorType::BGRA(n)
-                if n > 16 =>
-            {
+            ExtendedColorType::Unknown(n) if n <= 16 => (1 << n) - 1,
+            ExtendedColorType::L1 => 1,
+            ExtendedColorType::L8
+            | ExtendedColorType::La8
+            | ExtendedColorType::Rgb8
+            | ExtendedColorType::Rgba8
+            | ExtendedColorType::Bgr8
+            | ExtendedColorType::Bgra8
+                => 0xff,
+            ExtendedColorType::L16
+            | ExtendedColorType::La16
+            | ExtendedColorType::Rgb16
+            | ExtendedColorType::Rgba16
+                => 0xffff,
+            ExtendedColorType::__Nonexhaustive => unreachable!(),
+            _ => {
                 return Err(ImageError::IoError(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "Encoding colors with a bit depth greater 16 not supported",
+                    "Unsupported target color type",
                 )))
             }
-            ColorType::Gray(n)
-            | ColorType::GrayA(n)
-            | ColorType::Palette(n)
-            | ColorType::RGB(n)
-            | ColorType::RGBA(n)
-            | ColorType::BGR(n)
-            | ColorType::BGRA(n) => (1 << n) - 1,
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
@@ -636,30 +636,5 @@ impl<'a> TupleEncoding<'a> {
                 .write_samples_ascii(samples.iter())
                 .map_err(ImageError::IoError),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn custom_header_and_color() {
-        let data: [u8; 12] = [0, 0, 0, 1, 1, 1, 255, 255, 255, 0, 0, 0];
-
-        let header = ArbitraryHeader {
-            width: 2,
-            height: 2,
-            depth: 3,
-            maxval: 255,
-            tupltype: Some(ArbitraryTuplType::Custom("Palette".to_string())),
-        };
-
-        let mut output = Vec::new();
-
-        PNMEncoder::new(&mut output)
-            .with_header(header.into())
-            .encode(&data[..], 2, 2, ColorType::Palette(8))
-            .expect("Failed encoding custom color value");
     }
 }

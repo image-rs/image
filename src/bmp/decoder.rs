@@ -425,7 +425,7 @@ impl Bitfields {
 }
 
 /// A bmp decoder
-pub struct BMPDecoder<R> {
+pub struct BmpDecoder<R> {
     reader: R,
 
     bmp_header_type: BMPHeaderType,
@@ -510,10 +510,10 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
     }
 }
 
-impl<R: Read + Seek> BMPDecoder<R> {
+impl<R: Read + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(reader: R) -> ImageResult<BMPDecoder<R>> {
-        let mut decoder = BMPDecoder {
+    pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -538,8 +538,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     #[cfg(feature = "ico")]
-    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BMPDecoder<R>> {
-        let mut decoder = BMPDecoder {
+    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -1298,18 +1298,18 @@ impl<R> Read for BmpReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     type Reader = BmpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.width as u64, self.height as u64)
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         if self.add_alpha_channel {
-            ColorType::RGBA(8)
+            ColorType::Rgba8
         } else {
-            ColorType::RGB(8)
+            ColorType::Rgb8
         }
     }
 
@@ -1322,7 +1322,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u64,

@@ -7,22 +7,22 @@ use color::ColorType;
 use image::{ImageDecoder, ImageError, ImageResult};
 
 use self::InnerDecoder::*;
-use bmp::BMPDecoder;
-use png::PNGDecoder;
+use bmp::BmpDecoder;
+use png::PngDecoder;
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /// An ico decoder
-pub struct ICODecoder<R: Read> {
+pub struct IcoDecoder<R: Read> {
     selected_entry: DirEntry,
     inner_decoder: InnerDecoder<R>,
 }
 
 enum InnerDecoder<R: Read> {
-    BMP(BMPDecoder<R>),
-    PNG(PNGDecoder<R>),
+    BMP(BmpDecoder<R>),
+    PNG(PngDecoder<R>),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -39,14 +39,14 @@ struct DirEntry {
     image_offset: u32,
 }
 
-impl<R: Read + Seek> ICODecoder<R> {
+impl<R: Read + Seek> IcoDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(mut r: R) -> ImageResult<ICODecoder<R>> {
+    pub fn new(mut r: R) -> ImageResult<IcoDecoder<R>> {
         let entries = read_entries(&mut r)?;
         let entry = best_entry(entries)?;
         let decoder = entry.decoder(r)?;
 
-        Ok(ICODecoder {
+        Ok(IcoDecoder {
             selected_entry: entry,
             inner_decoder: decoder,
         })
@@ -153,9 +153,9 @@ impl DirEntry {
         self.seek_to_start(&mut r)?;
 
         if is_png {
-            Ok(PNG(PNGDecoder::new(r)?))
+            Ok(PNG(PngDecoder::new(r)?))
         } else {
-            Ok(BMP(BMPDecoder::new_with_ico_format(r)?))
+            Ok(BMP(BmpDecoder::new_with_ico_format(r)?))
         }
     }
 }
@@ -176,7 +176,7 @@ impl<R> Read for IcoReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     type Reader = IcoReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
@@ -186,10 +186,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
         }
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         match self.inner_decoder {
-            BMP(ref decoder) => decoder.colortype(),
-            PNG(ref decoder) => decoder.colortype(),
+            BMP(ref decoder) => decoder.color_type(),
+            PNG(ref decoder) => decoder.color_type(),
         }
     }
 
@@ -216,8 +216,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                let color_type = decoder.colortype();
-                if let ColorType::RGBA(8) = color_type {
+                let color_type = decoder.color_type();
+                if let ColorType::Rgba8 = color_type {
                 } else {
                     return Err(ImageError::FormatError(
                         "The PNG is not in RGBA format!".to_string(),
@@ -235,7 +235,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for ICODecoder<R> {
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
-                if decoder.colortype() != ColorType::RGBA(8) {
+                if decoder.color_type() != ColorType::Rgba8 {
                     return Err(ImageError::UnsupportedError(
                         "Unsupported color type".to_string(),
                     ));

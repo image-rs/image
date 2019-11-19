@@ -8,14 +8,14 @@ use color::ColorType;
 use image::{ImageDecoder, ImageError, ImageResult};
 
 /// JPEG decoder
-pub struct JPEGDecoder<R> {
+pub struct JpegDecoder<R> {
     decoder: jpeg_decoder::Decoder<R>,
     metadata: jpeg_decoder::ImageInfo,
 }
 
-impl<R: Read> JPEGDecoder<R> {
+impl<R: Read> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<JPEGDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
         let mut decoder = jpeg_decoder::Decoder::new(r);
 
         decoder.read_info()?;
@@ -26,7 +26,7 @@ impl<R: Read> JPEGDecoder<R> {
             metadata.pixel_format = jpeg_decoder::PixelFormat::RGB24;
         }
 
-        Ok(JPEGDecoder {
+        Ok(JpegDecoder {
             decoder,
             metadata,
         })
@@ -49,14 +49,14 @@ impl<R> Read for JpegReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for JPEGDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     type Reader = JpegReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (u64::from(self.metadata.width), u64::from(self.metadata.height))
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         self.metadata.pixel_format.into()
     }
 
@@ -107,8 +107,8 @@ impl From<jpeg_decoder::PixelFormat> for ColorType {
     fn from(pixel_format: jpeg_decoder::PixelFormat) -> ColorType {
         use self::jpeg_decoder::PixelFormat::*;
         match pixel_format {
-            L8 => ColorType::Gray(8),
-            RGB24 => ColorType::RGB(8),
+            L8 => ColorType::L8,
+            RGB24 => ColorType::Rgb8,
             CMYK32 => panic!(),
         }
     }

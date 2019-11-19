@@ -1,4 +1,3 @@
-use num_traits::cast::NumCast;
 use num_traits::identities::Zero;
 use scoped_threadpool::Pool;
 #[cfg(test)]
@@ -17,7 +16,7 @@ use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progre
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
 pub struct HDRAdapter<R: BufRead> {
-    inner: Option<HDRDecoder<R>>,
+    inner: Option<HdrDecoder<R>>,
     data: Option<Vec<u8>>,
     meta: HDRMetadata,
 }
@@ -25,7 +24,7 @@ pub struct HDRAdapter<R: BufRead> {
 impl<R: BufRead> HDRAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = HDRDecoder::new(r)?;
+        let decoder = HdrDecoder::new(r)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -36,7 +35,7 @@ impl<R: BufRead> HDRAdapter<R> {
 
     /// Allows reading old Radiance HDR images
     pub fn new_nonstrict(r: R) -> ImageResult<HDRAdapter<R>> {
-        let decoder = HDRDecoder::with_strictness(r, false)?;
+        let decoder = HdrDecoder::with_strictness(r, false)?;
         let meta = decoder.metadata();
         Ok(HDRAdapter {
             inner: Some(decoder),
@@ -86,11 +85,11 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     type Reader = HdrReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
-        (self.meta.width as u64, self.meta.height as u64)
+        (u64::from(self.meta.width), u64::from(self.meta.height))
     }
 
-    fn colortype(&self) -> ColorType {
-        ColorType::RGB(8)
+    fn color_type(&self) -> ColorType {
+        ColorType::Rgb8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -144,7 +143,7 @@ const SIGNATURE_LENGTH: usize = 10;
 
 /// An Radiance HDR decoder
 #[derive(Debug)]
-pub struct HDRDecoder<R> {
+pub struct HdrDecoder<R> {
     r: R,
     width: u32,
     height: u32,
@@ -211,7 +210,7 @@ impl RGBE8Pixel {
         fn sg<T: Primitive + Zero>(v: f32, scale: f32, gamma: f32) -> T {
             let t_max = T::max_value();
             // Disassembly shows that t_max_f32 is compiled into constant
-            let t_max_f32: f32 = NumCast::from(t_max)
+            let t_max_f32: f32 = num_traits::NumCast::from(t_max)
                 .expect("to_ldr_scale_gamma: maximum value of type is not representable as f32");
             let fv = f32::powf(v * scale, gamma) * t_max_f32 + 0.5;
             if fv < 0.0 {
@@ -219,7 +218,7 @@ impl RGBE8Pixel {
             } else if fv > t_max_f32 {
                 t_max
             } else {
-                NumCast::from(fv)
+                num_traits::NumCast::from(fv)
                     .expect("to_ldr_scale_gamma: cannot convert f32 to target type. NaN?")
             }
         }
@@ -231,22 +230,22 @@ impl RGBE8Pixel {
     }
 }
 
-impl<R: BufRead> HDRDecoder<R> {
+impl<R: BufRead> HdrDecoder<R> {
     /// Reads Radiance HDR image header from stream ```r```
-    /// if the header is valid, creates HDRDecoder
+    /// if the header is valid, creates HdrDecoder
     /// strict mode is enabled
-    pub fn new(reader: R) -> ImageResult<HDRDecoder<R>> {
-        HDRDecoder::with_strictness(reader, true)
+    pub fn new(reader: R) -> ImageResult<HdrDecoder<R>> {
+        HdrDecoder::with_strictness(reader, true)
     }
 
     /// Reads Radiance HDR image header from stream ```reader```,
-    /// if the header is valid, creates ```HDRDecoder```.
+    /// if the header is valid, creates ```HdrDecoder```.
     ///
     /// strict enables strict mode
     ///
     /// Warning! Reading wrong file in non-strict mode
     ///   could consume file size worth of memory in the process.
-    pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HDRDecoder<R>> {
+    pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HDRMetadata::new();
 
         {
@@ -301,7 +300,7 @@ impl<R: BufRead> HDRDecoder<R> {
             }
         };
 
-        Ok(HDRDecoder {
+        Ok(HdrDecoder {
             r: reader,
 
             width,
@@ -386,7 +385,7 @@ impl<R: BufRead> HDRDecoder<R> {
     }
 }
 
-impl<R: BufRead> IntoIterator for HDRDecoder<R> {
+impl<R: BufRead> IntoIterator for HdrDecoder<R> {
     type Item = ImageResult<RGBE8Pixel>;
     type IntoIter = HDRImageDecoderIterator<R>;
 

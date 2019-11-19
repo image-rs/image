@@ -1,65 +1,145 @@
 use num_traits::{NumCast, Zero};
-use std::mem;
 use std::ops::{Index, IndexMut};
 
 use buffer::Pixel;
 use traits::Primitive;
 
-/// An enumeration over supported color types and their bit depths
+/// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
-    /// Pixel is grayscale
-    Gray(u8),
+    /// Pixel is 8-bit luminance
+    L8,
+    /// Pixel is 8-bit luminance with an alpha channel
+    La8,
+    /// Pixel contains 8-bit R, G and B channels
+    Rgb8,
+    /// Pixel is 8-bit RGB with an alpha channel
+    Rgba8,
 
-    /// Pixel contains R, G and B channels
-    RGB(u8),
+    /// Pixel is 16-bit luminance
+    L16,
+    /// Pixel is 16-bit luminance with an alpha channel
+    La16,
+    /// Pixel is 16-bit RGB
+    Rgb16,
+    /// Pixel is 16-bit RGBA
+    Rgba16,
 
-    /// Pixel is an index into a color palette
-    Palette(u8),
+    /// Pixel contains 8-bit B, G and R channels
+    Bgr8,
+    /// Pixel is 8-bit BGR with an alpha channel
+    Bgra8,
 
-    /// Pixel is grayscale with an alpha channel
-    GrayA(u8),
-
-    /// Pixel is RGB with an alpha channel
-    RGBA(u8),
-
-    /// Pixel contains B, G and R channels
-    BGR(u8),
-
-    /// Pixel is BGR with an alpha channel
-    BGRA(u8),
-
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 impl ColorType {
-    /// Returns the number of bits contained in a pixel of this `ColorType`
-    pub fn bits_per_pixel(&self) -> u16 {
-        bits_per_pixel(*self)
+    /// Returns the number of bytes contained in a pixel of `ColorType` ```c```
+    pub fn bytes_per_pixel(self) -> u8 {
+        match self {
+            ColorType::L8 => 1,
+            ColorType::L16 | ColorType::La8 => 2,
+            ColorType::Rgb8 | ColorType::Bgr8 => 3,
+            ColorType::Rgba8 | ColorType::Bgra8 | ColorType::La16 => 4,
+            ColorType::Rgb16 => 6,
+            ColorType::Rgba16 => 8,
+            ColorType::__Nonexhaustive => unreachable!(),
+        }
+    }
+
+    /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
+    /// a multiple of 8).
+    pub fn bits_per_pixel(self) -> u16 {
+        <u16 as From<u8>>::from(self.bytes_per_pixel()) * 8
     }
 
     /// Returns the number of color channels that make up this pixel
-    pub fn channel_count(&self) -> u8 {
-        channel_count(*self)
+    pub fn channel_count(self) -> u8 {
+        let e: ExtendedColorType = self.into();
+        e.channel_count()
     }
 }
 
-/// Returns the number of bits contained in a pixel of `ColorType` ```c```
-pub(crate) fn bits_per_pixel(c: ColorType) -> u16 {
-    match c {
-        ColorType::Gray(n) => n as u16,
-        ColorType::GrayA(n) => 2 * n as u16,
-        ColorType::RGB(n) | ColorType::Palette(n)| ColorType::BGR(n) => 3 * n as u16,
-        ColorType::RGBA(n) | ColorType::BGRA(n) => 4 * n as u16,
-    }
+#[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+pub enum ExtendedColorType {
+    L1,
+    La1,
+    Rgb1,
+    Rgba1,
+    L2,
+    La2,
+    Rgb2,
+    Rgba2,
+    L4,
+    La4,
+    Rgb4,
+    Rgba4,
+    L8,
+    La8,
+    Rgb8,
+    Rgba8,
+    L16,
+    La16,
+    Rgb16,
+    Rgba16,
+    Bgr8,
+    Bgra8,
+
+    /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
+    /// which are associated with an external palette. In that case, the pixel value is an index
+    /// into the palette.
+    Unknown(u8),
+
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
-/// Returns the number of color channels that make up this pixel
-pub(crate) fn channel_count(c: ColorType) -> u8 {
-    match c {
-        ColorType::Gray(_) => 1,
-        ColorType::GrayA(_) => 2,
-        ColorType::RGB(_) | ColorType::Palette(_) | ColorType::BGR(_)=> 3,
-        ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
+impl ExtendedColorType {
+    pub fn channel_count(self) -> u8 {
+        match self {
+            ExtendedColorType::L1 |
+            ExtendedColorType::L2 |
+            ExtendedColorType::L4 |
+            ExtendedColorType::L8 |
+            ExtendedColorType::L16 |
+            ExtendedColorType::Unknown(_) => 1,
+            ExtendedColorType::La1 |
+            ExtendedColorType::La2 |
+            ExtendedColorType::La4 |
+            ExtendedColorType::La8 |
+            ExtendedColorType::La16 => 2,
+            ExtendedColorType::Rgb1 |
+            ExtendedColorType::Rgb2 |
+            ExtendedColorType::Rgb4 |
+            ExtendedColorType::Rgb8 |
+            ExtendedColorType::Rgb16 |
+            ExtendedColorType::Bgr8 => 3,
+            ExtendedColorType::Rgba1 |
+            ExtendedColorType::Rgba2 |
+            ExtendedColorType::Rgba4 |
+            ExtendedColorType::Rgba8 |
+            ExtendedColorType::Rgba16 |
+            ExtendedColorType::Bgra8 => 4,
+            ExtendedColorType::__Nonexhaustive => unreachable!(),
+        }
+    }
+}
+impl From<ColorType> for ExtendedColorType {
+    fn from(c: ColorType) -> Self {
+        match c {
+            ColorType::L8 => ExtendedColorType::L8,
+            ColorType::La8 => ExtendedColorType::La8,
+            ColorType::Rgb8 => ExtendedColorType::Rgb8,
+            ColorType::Rgba8 => ExtendedColorType::Rgba8,
+            ColorType::L16 => ExtendedColorType::L16,
+            ColorType::La16 => ExtendedColorType::La16,
+            ColorType::Rgb16 => ExtendedColorType::Rgb16,
+            ColorType::Rgba16 => ExtendedColorType::Rgba16,
+            ColorType::Bgr8 => ExtendedColorType::Bgr8,
+            ColorType::Bgra8 => ExtendedColorType::Bgra8,
+            ColorType::__Nonexhaustive => unreachable!(),
+        }
     }
 }
 
@@ -69,7 +149,7 @@ macro_rules! define_colors {
         $channels: expr,
         $alphas: expr,
         $interpretation: expr,
-        $color_type: ident,
+        $color_type: expr,
         #[$doc:meta];
     )*} => {
 
@@ -82,14 +162,13 @@ $( // START Structure definitions
 pub struct $ident<T: Primitive> (pub [T; $channels]);
 
 impl<T: Primitive + 'static> Pixel for $ident<T> {
-
     type Subpixel = T;
 
     const CHANNEL_COUNT: u8 = $channels;
 
     const COLOR_MODEL: &'static str = $interpretation;
 
-    const COLOR_TYPE: ColorType = ColorType::$color_type(mem::size_of::<T>() as u8 * 8); 
+    const COLOR_TYPE: ColorType = $color_type;
 
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -229,12 +308,12 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", Gray, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", RGBA, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", GrayA, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", ColorType::Rgb8, #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::Bgr8, #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", ColorType::L8, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", ColorType::Rgba8, #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::Bgra8, #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::La8, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

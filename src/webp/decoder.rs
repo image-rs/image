@@ -11,23 +11,23 @@ use image::ImageResult;
 use color;
 
 use super::vp8::Frame;
-use super::vp8::VP8Decoder;
+use super::vp8::Vp8Decoder;
 
-/// Webp Image format decoder. Currently only supportes the luma channel (meaning that decoded
+/// WebP Image format decoder. Currently only supportes the luma channel (meaning that decoded
 /// images will be grayscale).
-pub struct WebpDecoder<R> {
+pub struct WebPDecoder<R> {
     r: R,
     frame: Frame,
     have_frame: bool,
 }
 
-impl<R: Read> WebpDecoder<R> {
-    /// Create a new WebpDecoder from the Reader ```r```.
+impl<R: Read> WebPDecoder<R> {
+    /// Create a new WebPDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
-    pub fn new(r: R) -> ImageResult<WebpDecoder<R>> {
+    pub fn new(r: R) -> ImageResult<WebPDecoder<R>> {
         let f: Frame = Default::default();
 
-        let mut decoder = WebpDecoder {
+        let mut decoder = WebPDecoder {
             r,
             have_frame: false,
             frame: f,
@@ -78,7 +78,7 @@ impl<R: Read> WebpDecoder<R> {
         self.r.read_to_end(&mut framedata)?;
         let m = io::Cursor::new(framedata);
 
-        let mut v = VP8Decoder::new(m);
+        let mut v = Vp8Decoder::new(m);
         let frame = v.decode_frame()?;
 
         self.frame = frame.clone();
@@ -115,15 +115,15 @@ impl<R> Read for WebpReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for WebpDecoder<R> {
+impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     type Reader = WebpReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (u64::from(self.frame.width), u64::from(self.frame.height))
     }
 
-    fn colortype(&self) -> color::ColorType {
-        color::ColorType::Gray(8)
+    fn color_type(&self) -> color::ColorType {
+        color::ColorType::L8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

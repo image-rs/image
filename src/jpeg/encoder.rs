@@ -375,7 +375,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         height: u32,
         c: color::ColorType,
     ) -> ImageResult<()> {
-        let n = color::channel_count(c);
+        let n = c.channel_count();
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_segment(SOI, None)?;
@@ -444,20 +444,20 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         self.writer.write_segment(SOS, Some(&buf))?;
 
         match c {
-            color::ColorType::RGB(8) => {
+            color::ColorType::Rgb8 => {
                 self.encode_rgb(image, width as usize, height as usize, 3)?
             }
-            color::ColorType::RGBA(8) => {
+            color::ColorType::Rgba8 => {
                 self.encode_rgb(image, width as usize, height as usize, 4)?
             }
-            color::ColorType::Gray(8) => {
+            color::ColorType::L8 => {
                 self.encode_gray(image, width as usize, height as usize, 1)?
             }
-            color::ColorType::GrayA(8) => {
+            color::ColorType::La8 => {
                 self.encode_gray(image, width as usize, height as usize, 2)?
             }
             _ => {
-                return Err(ImageError::UnsupportedColor(c))
+                return Err(ImageError::UnsupportedColor(c.into()))
             }
         };
 
@@ -751,7 +751,7 @@ fn copy_blocks_gray(
 
 #[cfg(test)]
 mod tests {
-    use super::super::JPEGDecoder;
+    use super::super::JpegDecoder;
     use super::JPEGEncoder;
     use color::ColorType;
     use image::ImageDecoder;
@@ -767,13 +767,13 @@ mod tests {
         {
             let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 1, 1, ColorType::RGB(8))
+                .encode(&img, 1, 1, ColorType::Rgb8)
                 .expect("Could not encode image");
         }
 
         // decode it from the memory buffer
         {
-            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
                 .expect("Could not decode image");
             let decoded = decoder.read_image().expect("Could not decode image");
             // note that, even with the encode quality set to 100, we do not get the same image
@@ -795,13 +795,13 @@ mod tests {
         {
             let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 2, 2, ColorType::Gray(8))
+                .encode(&img, 2, 2, ColorType::L8)
                 .expect("Could not encode image");
         }
 
         // decode it from the memory buffer
         {
-            let decoder = JPEGDecoder::new(Cursor::new(&encoded_img))
+            let decoder = JpegDecoder::new(Cursor::new(&encoded_img))
                 .expect("Could not decode image");
             let decoded = decoder.read_image().expect("Could not decode image");
             // note that, even with the encode quality set to 100, we do not get the same image

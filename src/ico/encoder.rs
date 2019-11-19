@@ -1,8 +1,9 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use color::{bits_per_pixel, ColorType};
+use color::ColorType;
 use image::ImageResult;
+
 use png::PNGEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
@@ -78,7 +79,7 @@ fn write_direntry<W: Write>(
     // Color planes:
     w.write_u16::<LittleEndian>(0)?;
     // Bits per pixel:
-    w.write_u16::<LittleEndian>(bits_per_pixel(color))?;
+    w.write_u16::<LittleEndian>(color.bits_per_pixel())?;
     // Image data size, in bytes:
     w.write_u32::<LittleEndian>(data_size)?;
     // Image data offset, in bytes:

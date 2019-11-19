@@ -153,7 +153,7 @@ impl ColorMap {
 }
 
 /// The representation of a TGA decoder
-pub struct TGADecoder<R> {
+pub struct TgaDecoder<R> {
     r: R,
 
     width: usize,
@@ -172,10 +172,10 @@ pub struct TGADecoder<R> {
     line_remain_buff: Vec<u8>,
 }
 
-impl<R: Read + Seek> TGADecoder<R> {
+impl<R: Read + Seek> TgaDecoder<R> {
     /// Create a new decoder that decodes from the stream `r`
-    pub fn new(r: R) -> ImageResult<TGADecoder<R>> {
-        let mut decoder = TGADecoder {
+    pub fn new(r: R) -> ImageResult<TgaDecoder<R>> {
+        let mut decoder = TgaDecoder {
             r,
 
             width: 0,
@@ -184,7 +184,7 @@ impl<R: Read + Seek> TGADecoder<R> {
             has_loaded_metadata: false,
 
             image_type: ImageType::Unknown,
-            color_type: ColorType::Gray(1),
+            color_type: ColorType::L8,
 
             header: Header::new(),
             color_map: None,
@@ -249,12 +249,12 @@ impl<R: Read + Seek> TGADecoder<R> {
 
         match (num_alpha_bits, other_channel_bits, color) {
             // really, the encoding is BGR and BGRA, this is fixed
-            // up with `TGADecoder::reverse_encoding`.
-            (0, 32, true) => self.color_type = ColorType::RGBA(8),
-            (8, 24, true) => self.color_type = ColorType::RGBA(8),
-            (0, 24, true) => self.color_type = ColorType::RGB(8),
-            (8, 8, false) => self.color_type = ColorType::GrayA(8),
-            (0, 8, false) => self.color_type = ColorType::Gray(8),
+            // up with `TgaDecoder::reverse_encoding`.
+            (0, 32, true) => self.color_type = ColorType::Rgba8,
+            (8, 24, true) => self.color_type = ColorType::Rgba8,
+            (0, 24, true) => self.color_type = ColorType::Rgb8,
+            (8, 8, false) => self.color_type = ColorType::La8,
+            (0, 8, false) => self.color_type = ColorType::L8,
             _ => {
                 return Err(ImageError::UnsupportedError(format!(
                     "Color format not supported. Bit depth: {}, Alpha bits: {}",
@@ -411,7 +411,7 @@ impl<R: Read + Seek> TGADecoder<R> {
     fn reverse_encoding(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
-            ColorType::RGB(8) | ColorType::RGBA(8) => {
+            ColorType::Rgb8 | ColorType::Rgba8 => {
                 for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
                     chunk.swap(0, 2);
                 }
@@ -489,19 +489,21 @@ impl<R: Read + Seek> TGADecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     type Reader = TGAReader<R>;
 
     fn dimensions(&self) -> (u64, u64) {
         (self.width as u64, self.height as u64)
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         self.color_type
     }
 
     fn scanline_bytes(&self) -> u64 {
-        self.row_bytes()
+        // This cannot overflow because TGA has a maximum width of u16::MAX_VALUE and
+        // `bytes_per_pixel` is a u8.
+        u64::from(self.color_type.bytes_per_pixel()) * self.width as u64
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -525,7 +527,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TGADecoder<R> {
 
 pub struct TGAReader<R> {
     buffer: ImageReadBuffer,
-    decoder: TGADecoder<R>,
+    decoder: TgaDecoder<R>,
 }
 impl<R: Read + Seek> Read for TGAReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

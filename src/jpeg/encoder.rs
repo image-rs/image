@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use byteorder::{BigEndian, WriteBytesExt};
+use image::{ImageError, ImageResult};
 use math::utils::clamp;
 use num_iter::range_step;
 use std::io::{self, Write};
@@ -373,7 +374,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         width: u32,
         height: u32,
         c: color::ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let n = c.channel_count();
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
@@ -456,13 +457,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 self.encode_gray(image, width as usize, height as usize, 2)?
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    &format!(
-                    "Unsupported color type {:?}. Use 8 bit per channel RGB(A) or Gray(A) instead.",
-                    c
-                )[..],
-                ))
+                return Err(ImageError::UnsupportedColor(c.into()))
             }
         };
 

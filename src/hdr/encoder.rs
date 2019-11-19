@@ -1,6 +1,7 @@
 use color::Rgb;
 use hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
 use std::io::{Result, Write};
+use image::ImageResult;
 use std::cmp::Ordering;
 
 /// Radiance HDR encoder
@@ -16,7 +17,7 @@ impl<W: Write> HDREncoder<W> {
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> Result<()> {
+    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
         assert!(data.len() >= width * height);
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;

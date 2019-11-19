@@ -555,7 +555,7 @@ impl DynamicImage {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
@@ -569,7 +569,7 @@ impl DynamicImage {
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
-    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
+    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
@@ -737,7 +737,7 @@ pub fn save_buffer<P>(
     width: u32,
     height: u32,
     color: color::ColorType,
-) -> io::Result<()>
+) -> ImageResult<()>
 where
     P: AsRef<Path>,
 {
@@ -760,7 +760,7 @@ pub fn save_buffer_with_format<P>(
     height: u32,
     color: color::ColorType,
     format: ImageFormat,
-) -> io::Result<()>
+) -> ImageResult<()>
 where
     P: AsRef<Path>,
 {

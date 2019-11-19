@@ -190,7 +190,7 @@ impl<W: Write> PNGEncoder<W> {
     /// Encodes the image ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
-    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> io::Result<()> {
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
@@ -202,15 +202,14 @@ impl<W: Write> PNGEncoder<W> {
             ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
             ColorType::Bgr8 => (png::ColorType::RGB, png::BitDepth::Eight),
             ColorType::Bgra8 => (png::ColorType::RGBA, png::BitDepth::Eight),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                           "Unsupported color type".to_owned())),
+            _ => return Err(ImageError::UnsupportedColor(color.into())),
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(data).map_err(|e| e.into())
+        let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
+        writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
     }
 }
 

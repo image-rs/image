@@ -1,6 +1,5 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
@@ -29,8 +28,7 @@ use webp;
 use color;
 use image;
 use dynimage::DynamicImage;
-use image::{ImageDecoder, ImageFormat, ImageResult};
-use ImageError;
+use image::{ImageDecoder, ImageFormat, ImageResult, ImageError};
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {
@@ -136,7 +134,7 @@ pub(crate) fn save_buffer_impl(
     width: u32,
     height: u32,
     color: color::ColorType,
-) -> io::Result<()> {
+) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
     let ext = path.extension()
         .and_then(|s| s.to_str())
@@ -166,12 +164,9 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
-        format => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
+        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
+            .encode(buf, width, height, color),
+        format => Err(ImageError::UnsupportedError(format!("Unsupported image format image/{:?}", format))),
     }
 }
 
@@ -182,7 +177,7 @@ pub(crate) fn save_buffer_with_format_impl(
     height: u32,
     color: color::ColorType,
     format: ImageFormat,
-) -> io::Result<()> {
+) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
 
     match format {
@@ -196,12 +191,8 @@ pub(crate) fn save_buffer_with_format_impl(
         image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
-            .encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
+            .encode(buf, width, height, color),
+        _ => Err(ImageError::UnsupportedError(format!("Unsupported image format image/{:?}", format))),
     }
 }
 

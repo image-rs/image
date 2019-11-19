@@ -1,5 +1,4 @@
 use num_traits::Zero;
-use std::io;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
@@ -8,7 +7,7 @@ use std::slice::{Chunks, ChunksMut};
 use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat};
+use image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
 use traits::Primitive;
 use utils::expand_packed;
 
@@ -753,7 +752,7 @@ where
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
@@ -778,7 +777,7 @@ where
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
-    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
+    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {

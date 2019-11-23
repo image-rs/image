@@ -423,9 +423,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     /// Set the pixel density of the images the encoder will encode.
     /// If this method is not called, then a default pixel aspect ratio of 1x1 will be applied,
     /// and no DPI information will be stored in the image.
-    pub fn set_pixel_density(&mut self, pixel_density: PixelDensity) -> &mut Self {
+    pub fn set_pixel_density(&mut self, pixel_density: PixelDensity) {
         self.pixel_density = pixel_density;
-        self
     }
 
     /// Encodes the image ```image```

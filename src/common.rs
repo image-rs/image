@@ -331,9 +331,7 @@ impl Info {
 
 
 bitflags! {
-    /// # Output transformations
-    ///
-    /// Only `IDENTITY` and `TRANSFORM_EXPAND | TRANSFORM_STRIP_ALPHA` can be used at the moment.
+    /// Output transformations
     pub struct Transformations: u32 {
         /// No transformation
         const IDENTITY            = 0x0000; // read and write */

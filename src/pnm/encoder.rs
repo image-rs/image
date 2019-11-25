@@ -170,8 +170,8 @@ impl<W: Write> PNMEncoder<W> {
         let (maxval, tupltype) = match color {
             ColorType::Gray(1) => (1, ArbitraryTuplType::BlackAndWhite),
             ColorType::GrayA(1) => (1, ArbitraryTuplType::BlackAndWhiteAlpha),
-            ColorType::Gray(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
-            ColorType::GrayA(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
+            ColorType::Gray(n @ 2..=16) => ((1 << n) - 1, ArbitraryTuplType::Grayscale),
+            ColorType::GrayA(n @ 2..=16) => ((1 << n) - 1, ArbitraryTuplType::GrayscaleAlpha),
             ColorType::RGB(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGB),
             ColorType::RGBA(n @ 1..=16) => ((1 << n) - 1, ArbitraryTuplType::RGBAlpha),
             _ => {

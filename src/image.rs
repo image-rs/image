@@ -379,8 +379,8 @@ pub(crate) fn decoder_to_vec<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<
 /// Represents the progress of an image operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {
-    current: u64,
-    total: u64,
+    pub current: u64,
+    pub total: u64,
 }
 
 /// The trait that all decoders implement

@@ -16,7 +16,7 @@ use std::mem;
 use byteorder::{NativeEndian, ByteOrder};
 
 use color::{ColorType, ExtendedColorType};
-use image::{ImageDecoder, ImageResult, ImageError};
+use image::{ImageDecoder, ImageEncoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
@@ -129,6 +129,13 @@ pub struct TiffEncoder<W> {
     w: W,
 }
 
+// Utility to simplify and deduplicate error handling during 16-bit encoding.
+fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<zerocopy::LayoutVerified<&[u8], [u16]>> {
+    zerocopy::LayoutVerified::new_slice(buf)
+        // If the buffer is not aligned or the correct length for a u16 slice, err.
+        .ok_or_else(|| ImageError::IoError(std::io::ErrorKind::InvalidData.into()))
+}
+
 impl<W: Write + Seek> TiffEncoder<W> {
     /// Create a new encoder that writes its output to `w`
     pub fn new(w: W) -> TiffEncoder<W> {
@@ -137,16 +144,31 @@ impl<W: Write + Seek> TiffEncoder<W> {
 
     /// Encodes the image `image` that has dimensions `width` and `height` and `ColorType` `c`.
     ///
-    /// 16-bit color types are not yet supported.
+    /// 16-bit types assume the buffer is native endian.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let mut encoder = tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff)?;
         match color {
             ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
             ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
             ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
+            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, &u8_slice_as_u16(data)?),
+            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, &u8_slice_as_u16(data)?),
+            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, &u8_slice_as_u16(data)?),
             _ => return Err(ImageError::UnsupportedColor(color.into()))
         }.map_err(ImageError::from_tiff)?;
 
         Ok(())
+    }
+}
+
+impl<W: Write + Seek> ImageEncoder for TiffEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }

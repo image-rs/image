@@ -8,7 +8,7 @@ use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use color::{ColorType, ExtendedColorType};
-use image::{ImageError, ImageResult};
+use image::{ImageEncoder, ImageError, ImageResult};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
@@ -269,6 +269,18 @@ impl<W: Write> PNMEncoder<W> {
             .check_sample_values(image)?
             .write_header(writer)?
             .write_image(writer)
+    }
+}
+
+impl<W: Write> ImageEncoder for PNMEncoder<W> {
+    fn write_image(
+        mut self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }
 

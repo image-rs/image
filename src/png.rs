@@ -12,7 +12,7 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use color::{ColorType, ExtendedColorType};
-use image::{ImageDecoder, ImageError, ImageResult};
+use image::{ImageDecoder, ImageEncoder, ImageError, ImageResult};
 
 /// PNG Reader
 ///
@@ -224,6 +224,36 @@ impl<W: Write> PNGEncoder<W> {
         encoder.set_depth(bits);
         let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
         writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
+    }
+}
+
+impl<W: Write> ImageEncoder for PNGEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        use byteorder::{BigEndian, ByteOrder, NativeEndian};
+
+        // PNG images are big endian. For 16 bit per channel and larger types,
+        // the buffer may need to be reordered to big endian per the
+        // contract of `write_image`.
+        match color_type.bytes_per_channel() {
+            1 => self.encode(buf, width, height, color_type),  // No reodering necessary for u8
+            2 => {
+                // Because the buffer is immutable and the PNG encoder does not
+                // yet take Write/Read traits, create a temporary buffer for
+                // big endian reordering.
+                let mut reordered = vec![0; buf.len()];
+                buf.chunks(2)
+                    .zip(reordered.chunks_mut(2))
+                    .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
+                self.encode(&reordered, width, height, color_type)
+            },
+            _ => unreachable!(),
+        }
     }
 }
 

@@ -762,7 +762,7 @@ mod tests {
         use std::path::Path;
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {
-            test::black_box(resize(&img, 200, 200, ::Nearest));
+            test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });
         b.bytes = 800 * 800 * 3 + 200 * 200 * 3;
     }

@@ -6,7 +6,7 @@ use image::{ImageOutputFormat, ImageFormat};
 
 #[test]
 fn jqeg_qualitys() {
-    let img = image::open("tests/images/tiff/testsuite/lenna.tiff").unwrap();
+    let img = image::open("tests/images/tiff/testsuite/mandrill.tiff").unwrap();
 
     let mut default = vec![];
     img.write_to(&mut default, ImageFormat::Jpeg).unwrap();

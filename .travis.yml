@@ -60,3 +60,7 @@ script:
   - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
       cargo test -v;
     fi
+  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ -n "${DEFAULT_FEATURES+exists}" ]; then
+      cargo build -v --features=benchmarks &&
+      cargo build -v --benches --features=benchmarks;
+    fi

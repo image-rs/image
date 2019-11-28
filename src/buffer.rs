@@ -1118,7 +1118,7 @@ mod test {
     fn bench_conversion(b: &mut test::Bencher) {
         use buffer::{ConvertBuffer, GrayImage, Pixel};
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;
@@ -1140,7 +1140,7 @@ mod test {
         use buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;
@@ -1170,7 +1170,7 @@ mod test {
         use buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;

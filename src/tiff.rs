@@ -37,6 +37,7 @@ impl<R> TiffDecoder<R>
         Self::new_with_limits(r, DecodingLimits::default())
     }
 
+    /// Same as `new`, but allows you to set limits.
     pub fn new_with_limits(r: R, limits: DecodingLimits) -> Result<TiffDecoder<R>, ImageError> {
         let mut tiff_limits = tiff::decoder::Limits::default();
         tiff_limits.decoding_buffer_size = limits.buffer_limit;

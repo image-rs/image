@@ -56,6 +56,8 @@ impl<R: Read> GifDecoder<R> {
     pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
         Self::new_with_limits(r, DecodingLimits::default())
     }
+
+    /// Same as `new`, but allows you to set limits.
     pub fn new_with_limits(r: R, limits: DecodingLimits) -> ImageResult<GifDecoder<R>> {
         let gif_limits = gif::MemoryLimit(min(u32::max_value() as usize, limits.buffer_limit) as u32);
         let mut decoder = gif::Decoder::new(r);

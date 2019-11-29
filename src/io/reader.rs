@@ -210,7 +210,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// If no format was determined, returns an `ImageError::UnsupportedError`.
     pub fn decode(mut self) -> ImageResult<DynamicImage> {
         let format = self.require_format()?;
-        free_functions::load(self.inner, format)
+        free_functions::load_with_limits(self.inner, format, self.limits)
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {

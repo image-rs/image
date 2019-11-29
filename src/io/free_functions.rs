@@ -58,7 +58,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     load_with_limits(r, format, DecodingLimits::default())
 }
 
-fn load_with_limits<R: BufRead + Seek>(r: R, format: ImageFormat, limits: DecodingLimits) -> ImageResult<DynamicImage> {
+pub(crate) fn load_with_limits<R: BufRead + Seek>(r: R, format: ImageFormat, limits: DecodingLimits) -> ImageResult<DynamicImage> {
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {

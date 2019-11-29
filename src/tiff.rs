@@ -18,6 +18,7 @@ use byteorder::{NativeEndian, ByteOrder};
 use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageResult, ImageError};
 use utils::vec_u16_into_u8;
+use io::DecodingLimits;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -33,7 +34,16 @@ impl<R> TiffDecoder<R>
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff)?;
+        Self::new_with_limits(r, DecodingLimits::default())
+    }
+
+    pub fn new_with_limits(r: R, limits: DecodingLimits) -> Result<TiffDecoder<R>, ImageError> {
+        let mut tiff_limits = tiff::decoder::Limits::default();
+        tiff_limits.decoding_buffer_size = limits.buffer_limit;
+        tiff_limits.ifd_value_size = limits.buffer_limit;
+        let mut inner = tiff::decoder::Decoder::new(r)
+            .map_err(ImageError::from_tiff)?
+            .with_limits(tiff_limits);
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff)?;
         let color_type = match inner.colortype().map_err(ImageError::from_tiff)? {
             tiff::ColorType::Gray(8) => ColorType::L8,

@@ -13,6 +13,7 @@ use std::io::{self, Read, Write};
 
 use color::{ColorType, ExtendedColorType};
 use image::{ImageDecoder, ImageError, ImageResult};
+use io::DecodingLimits;
 
 /// PNG Reader
 ///
@@ -98,8 +99,13 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
+        Self::new_with_limits(r, DecodingLimits::default())
+    }
+
+    /// Same as `new`, but allows you to specify limits.
+    pub fn new_with_limits(r: R, limits: DecodingLimits) -> ImageResult<PngDecoder<R>> {
         let limits = png::Limits {
-            bytes: usize::max_value(),
+            bytes: limits.buffer_limit,
         };
         let decoder = png::Decoder::new_with_limits(r, limits);
         let (_, mut reader) = decoder.read_info().map_err(ImageError::from_png)?;

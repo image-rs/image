@@ -43,6 +43,7 @@ use animation;
 use buffer::{ImageBuffer, Pixel};
 use color::{self, Rgba};
 use image::{self, AnimationDecoder, ImageDecoder, ImageError, ImageResult};
+use io::DecodingLimits;
 use num_rational::Ratio;
 
 /// GIF decoder
@@ -53,7 +54,12 @@ pub struct GifDecoder<R: Read> {
 impl<R: Read> GifDecoder<R> {
     /// Creates a new decoder that decodes the input steam ```r```
     pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
+        Self::new_with_limits(r, DecodingLimits::default())
+    }
+    pub fn new_with_limits(r: R, limits: DecodingLimits) -> ImageResult<GifDecoder<R>> {
+        let gif_limits = gif::MemoryLimit(min(u32::max_value() as usize, limits.buffer_limit) as u32);
         let mut decoder = gif::Decoder::new(r);
+        decoder.set(gif_limits);
         decoder.set(ColorOutput::RGBA);
 
         Ok(GifDecoder {

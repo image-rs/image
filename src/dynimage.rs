@@ -26,7 +26,7 @@ use image;
 use image::{
     GenericImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageOutputFormat, ImageResult,
 };
-use io::free_functions;
+use io::{DecodingLimits, free_functions};
 use imageops;
 
 /// A Dynamic Image
@@ -133,7 +133,14 @@ impl DynamicImage {
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>)
         -> ImageResult<Self>
     {
-        decoder_to_image(decoder)
+        decoder_to_image(decoder, DecodingLimits::default())
+    }
+
+    /// Decodes an encoded image into a dynamic image.
+    pub(crate) fn from_decoder_limits<'a>(decoder: impl ImageDecoder<'a>, limits: DecodingLimits)
+        -> ImageResult<Self>
+    {
+        decoder_to_image(decoder, limits)
     }
 
     /// Returns a copy of this image as an RGB image.
@@ -639,9 +646,14 @@ impl GenericImage for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I, limits: DecodingLimits) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
+    
+    if ((color_type.bits_per_pixel() + 7) / 8) as u64 * w as u64 * h as u64 > limits.buffer_limit as u64 {
+        return Err(ImageError::InsufficientMemory)
+    }
+
     let buf = image::decoder_to_vec(decoder)?;
 
     let image = match color_type {

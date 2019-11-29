@@ -63,25 +63,25 @@ pub(crate) fn load_with_limits<R: BufRead + Seek>(r: R, format: ImageFormat, lim
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new_with_limits(r, limits)?),
+        image::ImageFormat::Png => DynamicImage::from_decoder_limits(png::PngDecoder::new_with_limits(r, limits)?, limits),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new_with_limits(r, limits)?),
+        image::ImageFormat::Gif => DynamicImage::from_decoder_limits(gif::GifDecoder::new_with_limits(r, limits)?, limits),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
+        image::ImageFormat::Jpeg => DynamicImage::from_decoder_limits(jpeg::JpegDecoder::new(r)?, limits),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
+        image::ImageFormat::WebP => DynamicImage::from_decoder_limits(webp::WebPDecoder::new(r)?, limits),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new_with_limits(r, limits)?),
+        image::ImageFormat::Tiff => DynamicImage::from_decoder_limits(tiff::TiffDecoder::new_with_limits(r, limits)?, limits),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        image::ImageFormat::Tga => DynamicImage::from_decoder_limits(tga::TgaDecoder::new(r)?, limits),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
+        image::ImageFormat::Bmp => DynamicImage::from_decoder_limits(bmp::BmpDecoder::new(r)?, limits),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
+        image::ImageFormat::Ico => DynamicImage::from_decoder_limits(ico::IcoDecoder::new(r)?, limits),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder_limits(hdr::HDRAdapter::new(BufReader::new(r))?, limits),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder_limits(pnm::PnmDecoder::new(BufReader::new(r))?, limits),
         _ => Err(image::ImageError::UnsupportedError(format!(
             "A decoder for {:?} is not available.",
             format

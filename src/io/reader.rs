@@ -200,7 +200,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// If no format was determined, returns an `ImageError::UnsupportedError`.
     pub fn into_dimensions(mut self) -> ImageResult<(u32, u32)> {
         let format = self.require_format()?;
-        free_functions::image_dimensions_with_format_impl(self.inner, format)
+        free_functions::image_dimensions_with_format_impl(self.inner, format, self.limits)
     }
 
     /// Read the image (replaces `load`).

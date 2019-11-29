@@ -95,10 +95,10 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     let fin = File::open(path)?;
     let fin = BufReader::new(fin);
 
-    image_dimensions_with_format_impl(fin, format)
+    image_dimensions_with_format_impl(fin, format, DecodingLimits::default())
 }
 
-pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat, limits: DecodingLimits)
     -> ImageResult<(u32, u32)>
 {
     #[allow(unreachable_patterns)]
@@ -107,13 +107,13 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Png => png::PngDecoder::new_with_limits(fin, limits)?.dimensions(),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Gif => gif::GifDecoder::new_with_limits(fin, limits)?.dimensions(),
         #[cfg(feature = "webp")]
         image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tiff => tiff::TiffDecoder::new_with_limits(fin, limits)?.dimensions(),
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]

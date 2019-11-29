@@ -6,7 +6,7 @@ use dynimage::DynamicImage;
 use image::ImageFormat;
 use {ImageError, ImageResult};
 
-use super::free_functions;
+use super::{free_functions, limits};
 
 /// A multi-format image reader.
 ///
@@ -62,6 +62,8 @@ pub struct Reader<R: Read> {
     inner: R,
     /// The format, if one has been set or deduced.
     format: Option<ImageFormat>,
+    /// Decoding limits.
+    limits: limits::DecodingLimits,
 }
 
 impl<R: Read> Reader<R> {
@@ -76,6 +78,7 @@ impl<R: Read> Reader<R> {
         Reader {
             inner: reader,
             format: None,
+            limits: limits::DecodingLimits::default(),
         }
     }
 
@@ -84,6 +87,7 @@ impl<R: Read> Reader<R> {
         Reader {
             inner: reader,
             format: Some(format),
+            limits: limits::DecodingLimits::default(),
         }
     }
 
@@ -103,6 +107,11 @@ impl<R: Read> Reader<R> {
     /// `ImageError::UnsupportedError` when the image format has not been set.
     pub fn clear_format(&mut self) {
         self.format = None;
+    }
+
+    /// Set the limits to use when decoding.
+    pub fn set_limits(&mut self, limits: limits::DecodingLimits) {
+        self.limits = limits;
     }
 
     /// Unwrap the reader.
@@ -129,6 +138,7 @@ impl Reader<BufReader<File>> {
         Ok(Reader {
             inner: BufReader::new(file),
             format: ImageFormat::from_path(path).ok(),
+            limits: limits::DecodingLimits::default(),
         })
     }
 }

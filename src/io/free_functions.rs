@@ -29,6 +29,7 @@ use color;
 use image;
 use dynimage::DynamicImage;
 use image::{ImageDecoder, ImageFormat, ImageResult, ImageError};
+use super::DecodingLimits;
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {
@@ -54,19 +55,23 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 ///
 /// [`io::Reader`]: io/struct.Reader.html
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    load_with_limits(r, format, DecodingLimits::default())
+}
+
+fn load_with_limits<R: BufRead + Seek>(r: R, format: ImageFormat, limits: DecodingLimits) -> ImageResult<DynamicImage> {
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png_codec")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new_with_limits(r, limits)?),
         #[cfg(feature = "gif_codec")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
+        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new_with_limits(r, limits)?),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
         #[cfg(feature = "webp")]
         image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
+        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new_with_limits(r, limits)?),
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
         #[cfg(feature = "bmp")]

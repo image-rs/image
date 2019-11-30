@@ -383,15 +383,23 @@ pub(crate) fn decoder_to_vec<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<
 /// progress `(0, 0)` if progress is unknown, without violating the interface contract of the type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {
-    /// A measure of completed decoding.
-    pub current: u64,
-    /// A measure of all necessary decoding work.
-    ///
-    /// This is in general greater or equal than `current`.
-    pub total: u64,
+    current: u64,
+    total: u64,
 }
 
 impl Progress {
+    /// A measure of completed decoding.
+    pub fn current(self) -> u64 {
+        self.current
+    }
+
+    /// A measure of all necessary decoding work.
+    ///
+    /// This is in general greater or equal than `current`.
+    pub fn total(self) -> u64 {
+        self.total
+    }
+
     /// Calculate a measure for remaining decoding work.
     pub fn remaining(self) -> u64 {
         self.total.max(self.current) - self.current

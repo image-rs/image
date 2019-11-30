@@ -26,7 +26,7 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use color::ColorType;
+pub use color::{ColorType, ExtendedColorType};
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
@@ -36,14 +36,13 @@ pub use image::{AnimationDecoder,
                 ImageDecoder,
                 ImageDecoderExt,
                 ImageError,
+                ImageFormat,
+                ImageOutputFormat,
                 ImageResult,
+                Progress,
                 // Iterators
                 Pixels,
                 SubImage};
-
-pub use image::ImageFormat;
-
-pub use image::ImageOutputFormat;
 
 pub use buffer::{ConvertBuffer,
                  GrayAlphaImage,

@@ -61,6 +61,14 @@ impl ColorType {
     }
 }
 
+/// An enumeration of color types encountered in image formats.
+///
+/// This is not exhaustive over all existing image formats but should be granular enough to allow
+/// round tripping of decoding and encoding as much as possible. The variants will be extended as
+/// necessary to enable this.
+///
+/// Another purpose is to advise users of a rough estimate of the accuracy and effort of the
+/// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ExtendedColorType {
     L1,
@@ -96,6 +104,10 @@ pub enum ExtendedColorType {
 }
 
 impl ExtendedColorType {
+    /// Get the number of channels for colors of this type.
+    ///
+    /// Note that the `Unknown` variant returns a value of `1` since pixels can only be treated as
+    /// an opaque datum by the library.
     pub fn channel_count(self) -> u8 {
         match self {
             ExtendedColorType::L1 |

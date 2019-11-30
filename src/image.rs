@@ -377,10 +377,25 @@ pub(crate) fn decoder_to_vec<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<
 }
 
 /// Represents the progress of an image operation.
+///
+/// Note that this is not necessarily accurate and no change to the values passed to the progress
+/// function during decoding will be considered breaking. A decoder could in theory report the
+/// progress `(0, 0)` if progress is unknown, without violating the interface contract of the type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {
+    /// A measure of completed decoding.
     pub current: u64,
+    /// A measure of all necessary decoding work.
+    ///
+    /// This is in general greater or equal than `current`.
     pub total: u64,
+}
+
+impl Progress {
+    /// Calculate a measure for remaining decoding work.
+    pub fn remaining(self) -> u64 {
+        self.total.max(self.current) - self.current
+    }
 }
 
 /// The trait that all decoders implement

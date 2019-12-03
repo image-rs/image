@@ -1,3 +1,6 @@
+## 0.15.2
+
+* Fix `EXPAND` transformation to leave bit depths above 8 unchanged
 
 ## 0.15.1
 

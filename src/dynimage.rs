@@ -22,6 +22,7 @@ use buffer::{
     RgbaImage, Rgba16Image,
 };
 use color::{self, IntoColor};
+use flat::FlatSamples;
 use image;
 use image::{
     GenericImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageOutputFormat, ImageResult,
@@ -388,6 +389,30 @@ impl DynamicImage {
     pub fn as_mut_luma_alpha16(&mut self) -> Option<&mut GrayAlpha16Image> {
         match *self {
             DynamicImage::ImageLumaA16(ref mut p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a view on the raw sample buffer for 8 bit per channel images.
+    pub fn as_flat_samples_u8(&self) -> Option<FlatSamples<&[u8]>> {
+        match *self {
+            DynamicImage::ImageLuma8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageLumaA8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageRgb8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageRgba8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageBgr8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageBgra8(ref p) => Some(p.as_flat_samples()),
+            _ => None,
+        }
+    }
+
+    /// Return a view on the raw sample buffer for 16 bit per channel images.
+    pub fn as_flat_samples_u16(&self) -> Option<FlatSamples<&[u16]>> {
+        match *self {
+            DynamicImage::ImageLuma16(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageLumaA16(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageRgb16(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageRgba16(ref p) => Some(p.as_flat_samples()),
             _ => None,
         }
     }

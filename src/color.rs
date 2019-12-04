@@ -19,6 +19,9 @@ pub enum ChannelsType {
     Bgr,
     /// Blue, green, red and alpha
     Bgra,
+
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 impl ChannelsType {
@@ -30,6 +33,7 @@ impl ChannelsType {
             Self::Rgba => 4,
             Self::Bgr => 3,
             Self::Bgra => 4,
+            Self::__Nonexhaustive => unreachable!(),
         }
     }
 }
@@ -237,6 +241,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
             (ChannelsType::Rgba, _) => ColorType::Rgba16,
             (ChannelsType::Bgr, _) => ColorType::Bgr8,
             (ChannelsType::Bgra, _) => ColorType::Bgra8,
+            (ChannelsType::__Nonexhaustive, _) => unreachable!(),
         }
     }
 

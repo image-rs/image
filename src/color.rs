@@ -82,11 +82,6 @@ impl ColorType {
         }
     }
 
-    /// Returns the number of bytes contained in a channel per pixel of `ColorType` ```c```
-    pub fn bytes_per_channel(self) -> u8 {
-        self.bytes_per_pixel() / self.channel_count()
-    }
-
     /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
     /// a multiple of 8).
     pub fn bits_per_pixel(self) -> u16 {

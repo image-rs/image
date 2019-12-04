@@ -176,7 +176,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to native endianness per the
         // contract of `read_image`.
-        match self.color_type().bytes_per_channel() {
+        // TODO: assumes equal channel bit depth.
+        let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
+        match bpc {
             1 => (),  // No reodering necessary for u8
             2 => buf.chunks_mut(2).for_each(|c| NativeEndian::write_u16(c, BigEndian::read_u16(c))),
             _ => unreachable!(),
@@ -240,7 +242,9 @@ impl<W: Write> ImageEncoder for PNGEncoder<W> {
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
         // contract of `write_image`.
-        match color_type.bytes_per_channel() {
+        // TODO: assumes equal channel bit depth.
+        let bpc = color_type.bytes_per_pixel() / color_type.channel_count();
+        match bpc {
             1 => self.encode(buf, width, height, color_type),  // No reodering necessary for u8
             2 => {
                 // Because the buffer is immutable and the PNG encoder does not

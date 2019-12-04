@@ -406,6 +406,8 @@ impl<A: Copy> FromColor<A> for A {
 }
 
 /// Copy-based conversions to target pixel types using `FromColor`.
+// FIXME: this trait should be removed and replaced with real color space models
+// rather than assuming sRGB.
 pub(crate) trait IntoColor<Other> {
     /// Constructs a pixel of the target type and converts this pixel into it.
     fn into_color(&self) -> Other;

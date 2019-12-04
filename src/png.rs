@@ -180,7 +180,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
         match bpc {
             1 => (),  // No reodering necessary for u8
-            2 => buf.chunks_mut(2).for_each(|c| NativeEndian::write_u16(c, BigEndian::read_u16(c))),
+            2 => buf.chunks_mut(2).for_each(|c| {
+                let v = BigEndian::read_u16(c);
+                NativeEndian::write_u16(c, v)
+            }),
             _ => unreachable!(),
         }
         Ok(())

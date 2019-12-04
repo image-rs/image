@@ -27,13 +27,13 @@ pub enum ChannelsType {
 impl ChannelsType {
     pub fn channel_count(self) -> u8 {
         match self {
-            Self::L => 1,
-            Self::La => 2,
-            Self::Rgb => 3,
-            Self::Rgba => 4,
-            Self::Bgr => 3,
-            Self::Bgra => 4,
-            Self::__Nonexhaustive => unreachable!(),
+            ChannelsType::L => 1,
+            ChannelsType::La => 2,
+            ChannelsType::Rgb => 3,
+            ChannelsType::Rgba => 4,
+            ChannelsType::Bgr => 3,
+            ChannelsType::Bgra => 4,
+            ChannelsType::__Nonexhaustive => unreachable!(),
         }
     }
 }

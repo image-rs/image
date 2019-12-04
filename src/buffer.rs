@@ -8,9 +8,8 @@ use color::{ChannelsType, ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgr
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_with_format};
 use image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
-use traits::Primitive;
+use traits::{EncodableLayout, Primitive};
 use utils::expand_packed;
-use zerocopy::AsBytes;
 
 /// A generalized pixel.
 ///
@@ -744,7 +743,7 @@ where
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + 'static,
-    P::Subpixel: AsBytes,
+    [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the path specified.
@@ -769,7 +768,7 @@ where
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel + 'static,
-    P::Subpixel: AsBytes,
+    [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the specified path in

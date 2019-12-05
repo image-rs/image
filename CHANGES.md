@@ -24,11 +24,14 @@ version.
 - Heavily reworked `ColorType`:
   - This type is now used for denoting formats for which we support operations
       on buffers in these memory representations. Particularly, all channels in
-      pixel types are assumed to be sized in units of bytes.
+      pixel types are assumed to be an integer number of bytes (In terms of the
+      Rust type system, these are `Sized` and one can crate slices of channel
+      values).
   - An `ExtendedColorType` (WIP: do You have better name?) is used to express
-      more generic color formats from which the library can potentially
-      convert/scale/map into a `ColorType` buffer. This operation might be
-      fallible but includes sources with 1/2/4-bit components.
+      more generic color formats for which the library has limited support but
+      can be converted/scaled/mapped into a `ColorType` buffer. This operation
+      might be fallible but, for example, includes sources with 1/2/4-bit
+      components.
   - Both types are non-exhaustive to add more formats in a minor release.
   - A work-in-progress (#1085) will further separate the color model from the
       specific channel instantiation, e.g. both `8-bit RGB` and `16-bit BGR`

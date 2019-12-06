@@ -8,6 +8,55 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.0-preview.0
+
+This major release intends to improve the interface with regards to handling of
+color format data for both decoding and encoding. This necessitated many
+breaking changes anyways so it was used to improve the compliance to the
+interface guidelines such as outstanding renaming.
+
+WIP: This preview version is intended to allow an evaluation and feedback on
+the new interface. It is not yet perfect with regards to color spaces but it
+was designed mainly as an improvement over the current interface with regards
+to in-memory color formats, first. We'll get to color spaces in a later major
+version.
+
+- Heavily reworked `ColorType`:
+  - This type is now used for denoting formats for which we support operations
+      on buffers in these memory representations. Particularly, all channels in
+      pixel types are assumed to be an integer number of bytes (In terms of the
+      Rust type system, these are `Sized` and one can crate slices of channel
+      values).
+  - An `ExtendedColorType` (WIP: do You have better name?) is used to express
+      more generic color formats for which the library has limited support but
+      can be converted/scaled/mapped into a `ColorType` buffer. This operation
+      might be fallible but, for example, includes sources with 1/2/4-bit
+      components.
+  - Both types are non-exhaustive to add more formats in a minor release.
+  - A work-in-progress (#1085) will further separate the color model from the
+      specific channel instantiation, e.g. both `8-bit RGB` and `16-bit BGR`
+      are instantiations of `RGB` color model.
+- Reworked the `ImageDecoder` trait:
+  - `read_image` takes an output buffer argument instead of allocating all
+      memory on its own.
+  - The return type of `dimensions` now aligns with `GenericImage` sizes.
+  - The `colortype` method was renamed to `color_type` for conformity.
+- The result of `encode` operations is now uniformly an `ImageResult<()>`.
+- Removed public converters from some `tiff` and `png` types. This allows
+  upgrading the dependency across major versions without a major release in
+  `image` itself.
+- The enums `ColorType`, `DynamicImage`, `imageops::FilterType`, `ImageFormat`
+  no longer re-export all of their variants in the top-level of the crate. This
+  removes the growing pollution in the documentation and usage.
+- The capitalization of types such as `HDRDecoder` etc. has been adjusted to
+  adhere to the API guidelines. These are now spelled `HdrDecoder` etc. The
+  same change has been made on `ImageFormat` and other enum variants.
+- The `Progress` type has finally received public access functions. Strange
+  that no one reported them missing.
+- Introduced `PixelDensity` and `PixelDensityUnit` to store DPI information in
+  formats that support encoding this form of metadata (e.g. in `jpeg`).
+
+
 ### Version 0.22.3
 
 - Added a new module `io` containing a configurable `Reader`. It can replace

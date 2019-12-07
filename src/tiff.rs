@@ -33,9 +33,9 @@ impl<R> TiffDecoder<R>
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff)?;
-        let dimensions = inner.dimensions().map_err(ImageError::from_tiff)?;
-        let color_type = match inner.colortype().map_err(ImageError::from_tiff)? {
+        let mut inner = tiff::decoder::Decoder::new(r).map_err(convert_tiff_error)?;
+        let dimensions = inner.dimensions().map_err(convert_tiff_error)?;
+        let color_type = match inner.colortype().map_err(convert_tiff_error)? {
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -63,14 +63,12 @@ impl<R> TiffDecoder<R>
     }
 }
 
-impl ImageError {
-    fn from_tiff(err: tiff::TiffError) -> ImageError {
-        match err {
-            tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
-            tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
-            tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
-        }
+fn convert_tiff_error(err: tiff::TiffError) -> ImageError {
+    match err {
+        tiff::TiffError::IoError(err) => ImageError::IoError(err),
+        tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
+        tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
+        tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
     }
 }
 
@@ -102,7 +100,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let buf = match self.inner.read_image().map_err(ImageError::from_tiff)? {
+        let buf = match self.inner.read_image().map_err(convert_tiff_error)? {
             tiff::decoder::DecodingResult::U8(v) => v,
             tiff::decoder::DecodingResult::U16(v) => vec_u16_into_u8(v),
         };
@@ -112,7 +110,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner.read_image().map_err(ImageError::from_tiff)? {
+        match self.inner.read_image().map_err(convert_tiff_error)? {
             tiff::decoder::DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
             }
@@ -139,13 +137,13 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// 16-bit color types are not yet supported.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let mut encoder = tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff)?;
+        let mut encoder = tiff::encoder::TiffEncoder::new(self.w).map_err(convert_tiff_error)?;
         match color {
             ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
             ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
             ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
             _ => return Err(ImageError::UnsupportedColor(color.into()))
-        }.map_err(ImageError::from_tiff)?;
+        }.map_err(convert_tiff_error)?;
 
         Ok(())
     }

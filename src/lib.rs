@@ -12,6 +12,7 @@
 #![allow(clippy::many_single_char_names)]
 
 extern crate byteorder;
+extern crate image_core;
 extern crate num_iter;
 extern crate num_rational;
 extern crate num_traits;
@@ -26,20 +27,16 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use color::{ColorType, ExtendedColorType};
+pub use image_core::{ColorType, ExtendedColorType, ImageDecoder, ImageDecoderExt, ImageError,
+                     ImageResult, Progress};
 
 pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
 pub use image::{AnimationDecoder,
                 GenericImage,
                 GenericImageView,
-                ImageDecoder,
-                ImageDecoderExt,
-                ImageError,
                 ImageFormat,
                 ImageOutputFormat,
-                ImageResult,
-                Progress,
                 // Iterators
                 Pixels,
                 SubImage};

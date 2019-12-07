@@ -19,7 +19,7 @@ impl<R: Read> JpegDecoder<R> {
     pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
         let mut decoder = jpeg_decoder::Decoder::new(r);
 
-        decoder.read_info()?;
+        decoder.read_info().map_err(convert_jpeg_error)?;
         let mut metadata = decoder.info().unwrap();
 
         // We convert CMYK data to RGB before returning it to the user.
@@ -58,11 +58,16 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        self.metadata.pixel_format.into()
+        use self::jpeg_decoder::PixelFormat::*;
+        match self.metadata.pixel_format {
+            L8 => ColorType::L8,
+            RGB24 => ColorType::Rgb8,
+            CMYK32 => panic!(),
+        }
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let mut data = self.decoder.decode()?;
+        let mut data = self.decoder.decode().map_err(convert_jpeg_error)?;
         data = match self.decoder.info().unwrap().pixel_format {
             jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
@@ -74,7 +79,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let mut data = self.decoder.decode()?;
+        let mut data = self.decoder.decode().map_err(convert_jpeg_error)?;
         data = match self.decoder.info().unwrap().pixel_format {
             jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
@@ -113,25 +118,12 @@ fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     output
 }
 
-impl From<jpeg_decoder::PixelFormat> for ColorType {
-    fn from(pixel_format: jpeg_decoder::PixelFormat) -> ColorType {
-        use self::jpeg_decoder::PixelFormat::*;
-        match pixel_format {
-            L8 => ColorType::L8,
-            RGB24 => ColorType::Rgb8,
-            CMYK32 => panic!(),
-        }
-    }
-}
-
-impl From<jpeg_decoder::Error> for ImageError {
-    fn from(err: jpeg_decoder::Error) -> ImageError {
-        use self::jpeg_decoder::Error::*;
-        match err {
-            Format(desc) => ImageError::FormatError(desc),
-            Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),
-            Io(err) => ImageError::IoError(err),
-            Internal(err) => ImageError::FormatError(err.description().to_owned()),
-        }
+fn convert_jpeg_error(err: jpeg_decoder::Error) -> ImageError {
+    use self::jpeg_decoder::Error::*;
+    match err {
+        Format(desc) => ImageError::FormatError(desc),
+        Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),
+        Io(err) => ImageError::IoError(err),
+        Internal(err) => ImageError::FormatError(err.description().to_owned()),
     }
 }

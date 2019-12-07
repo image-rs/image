@@ -57,7 +57,7 @@ impl<R: Read> GifDecoder<R> {
         decoder.set(ColorOutput::RGBA);
 
         Ok(GifDecoder {
-            reader: decoder.read_info().map_err(ImageError::from_gif)?,
+            reader: decoder.read_info().map_err(convert_gif_error)?,
         })
     }
 }
@@ -98,7 +98,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         let (f_width, f_height, left, top);
 
-        if let Some(frame) = self.reader.next_frame_info().map_err(ImageError::from_gif)? {
+        if let Some(frame) = self.reader.next_frame_info().map_err(convert_gif_error)? {
             left = u32::from(frame.left);
             top = u32::from(frame.top);
             f_width = u32::from(frame.width);
@@ -107,7 +107,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             return Err(ImageError::ImageEnd);
         }
 
-        self.reader.read_into_buffer(buf).map_err(ImageError::from_gif)?;
+        self.reader.read_into_buffer(buf).map_err(convert_gif_error)?;
 
         let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
         if (left, top) != (0, 0) || (width, height) != (f_width, f_height) {
@@ -197,12 +197,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                     return None;
                 }
             },
-            Err(err) => return Some(Err(ImageError::from_gif(err))),
+            Err(err) => return Some(Err(convert_gif_error(err))),
         }
 
         let mut vec = vec![0; self.reader.buffer_size()];
         if let Err(err) = self.reader.fill_buffer(&mut vec) {
-            return Some(Err(ImageError::from_gif(err)));
+            return Some(Err(convert_gif_error(err)));
         }
 
         // create the image buffer from the raw frame.
@@ -376,12 +376,10 @@ impl<W: Write> Encoder<W> {
     }
 }
 
-impl ImageError {
-    fn from_gif(err: gif::DecodingError) -> ImageError {
-        use self::gif::DecodingError::*;
-        match err {
-            Format(desc) | Internal(desc) => ImageError::FormatError(desc.into()),
-            Io(io_err) => ImageError::IoError(io_err),
-        }
+fn convert_gif_error(err: gif::DecodingError) -> ImageError {
+    use self::gif::DecodingError::*;
+    match err {
+        Format(desc) | Internal(desc) => ImageError::FormatError(desc.into()),
+        Io(io_err) => ImageError::IoError(io_err),
     }
 }

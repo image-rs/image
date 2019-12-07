@@ -20,9 +20,9 @@ env:
   matrix:
     - DEFAULT_FEATURES='yes'
     - FEATURES=''
-    - FEATURES='gif_codec'
+    - FEATURES='gif'
     - FEATURES='jpeg'
-    - FEATURES='png_codec'
+    - FEATURES='png'
     - FEATURES='pnm'
     - FEATURES='tga'
     - FEATURES='tiff'

@@ -25,7 +25,7 @@ num-iter = "0.1.32"
 num-rational = { version = "0.2.1", default-features = false }
 num-traits = "0.2.0"
 gif = { version = "0.10.0", optional = true }
-jpeg-decoder = { version = "0.1", default-features = false, optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.1", default-features = false, optional = true }
 png = { version = "0.15", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }
 tiff = { version = "0.4.0", optional = true }
@@ -40,13 +40,12 @@ quickcheck = "0.6.2"
 default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
 
 ico = ["bmp", "png"]
-jpeg = ["jpeg-decoder"]
 pnm = []
 tga = []
 webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
 dxt = []
-jpeg_rayon = ["jpeg-decoder/rayon"]
+jpeg_rayon = ["jpeg/rayon"]
 
 benchmarks = []

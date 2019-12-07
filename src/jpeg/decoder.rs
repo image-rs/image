@@ -1,4 +1,4 @@
-extern crate jpeg_decoder;
+extern crate jpeg;
 
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read};
@@ -10,21 +10,21 @@ use image::{ImageDecoder, ImageError, ImageResult};
 
 /// JPEG decoder
 pub struct JpegDecoder<R> {
-    decoder: jpeg_decoder::Decoder<R>,
-    metadata: jpeg_decoder::ImageInfo,
+    decoder: jpeg::Decoder<R>,
+    metadata: jpeg::ImageInfo,
 }
 
 impl<R: Read> JpegDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<JpegDecoder<R>> {
-        let mut decoder = jpeg_decoder::Decoder::new(r);
+        let mut decoder = jpeg::Decoder::new(r);
 
         decoder.read_info()?;
         let mut metadata = decoder.info().unwrap();
 
         // We convert CMYK data to RGB before returning it to the user.
-        if metadata.pixel_format == jpeg_decoder::PixelFormat::CMYK32 {
-            metadata.pixel_format = jpeg_decoder::PixelFormat::RGB24;
+        if metadata.pixel_format == jpeg::PixelFormat::CMYK32 {
+            metadata.pixel_format = jpeg::PixelFormat::RGB24;
         }
 
         Ok(JpegDecoder {
@@ -64,7 +64,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
         let mut data = self.decoder.decode()?;
         data = match self.decoder.info().unwrap().pixel_format {
-            jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
+            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
         };
 
@@ -76,7 +76,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
 
         let mut data = self.decoder.decode()?;
         data = match self.decoder.info().unwrap().pixel_format {
-            jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
+            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
             _ => data,
         };
 
@@ -113,9 +113,9 @@ fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     output
 }
 
-impl From<jpeg_decoder::PixelFormat> for ColorType {
-    fn from(pixel_format: jpeg_decoder::PixelFormat) -> ColorType {
-        use self::jpeg_decoder::PixelFormat::*;
+impl From<jpeg::PixelFormat> for ColorType {
+    fn from(pixel_format: jpeg::PixelFormat) -> ColorType {
+        use self::jpeg::PixelFormat::*;
         match pixel_format {
             L8 => ColorType::L8,
             RGB24 => ColorType::Rgb8,
@@ -124,9 +124,9 @@ impl From<jpeg_decoder::PixelFormat> for ColorType {
     }
 }
 
-impl From<jpeg_decoder::Error> for ImageError {
-    fn from(err: jpeg_decoder::Error) -> ImageError {
-        use self::jpeg_decoder::Error::*;
+impl From<jpeg::Error> for ImageError {
+    fn from(err: jpeg::Error) -> ImageError {
+        use self::jpeg::Error::*;
         match err {
             Format(desc) => ImageError::FormatError(desc),
             Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),

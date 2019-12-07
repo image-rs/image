@@ -37,12 +37,10 @@ glob = "0.3"
 quickcheck = "0.6.2"
 
 [features]
-default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
 
-gif_codec = ["gif"]
-ico = ["bmp", "png_codec"]
+ico = ["bmp", "png"]
 jpeg = ["jpeg-decoder"]
-png_codec = ["png"]
 pnm = []
 tga = []
 webp = []

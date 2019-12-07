@@ -84,7 +84,7 @@ pub mod flat;
 pub mod bmp;
 #[cfg(feature = "dxt")]
 pub mod dxt;
-#[cfg(feature = "gif_codec")]
+#[cfg(feature = "gif")]
 pub mod gif;
 #[cfg(feature = "hdr")]
 pub mod hdr;
@@ -92,7 +92,7 @@ pub mod hdr;
 pub mod ico;
 #[cfg(feature = "jpeg")]
 pub mod jpeg;
-#[cfg(feature = "png_codec")]
+#[cfg(feature = "png")]
 pub mod png;
 #[cfg(feature = "pnm")]
 pub mod pnm;

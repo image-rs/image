@@ -185,7 +185,7 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedGifFrame { frame: frame_num } => {
-                #[cfg(feature = "gif_codec")]
+                #[cfg(feature = "gif")]
                 {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
@@ -214,7 +214,7 @@ fn check_references() {
                     test_img = frame.into_buffer();
                 }
 
-                #[cfg(not(feature = "gif_codec"))]
+                #[cfg(not(feature = "gif"))]
                 {
                     println!("Skipping - GIF codec is not enabled");
                     return;

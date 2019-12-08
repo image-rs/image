@@ -747,32 +747,44 @@ impl GenericImage for DynamicImage {
     type InnerImage = DynamicImage;
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
+        let color::Rgba([r, g, b, a]) = pixel;
+        let (r16, g16, b16, a16) = (r as u16 * 257, b as u16 * 257, g as u16 * 257, a as u16 * 257);
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, color::Rgb([r, g, b])),
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
-            DynamicImage::ImageBgr8(ref mut p) => p.put_pixel(x, y, pixel.to_bgr()),
-            DynamicImage::ImageBgra8(ref mut p) => p.put_pixel(x, y, pixel.to_bgra()),
-            DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha().into_color()),
-            DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageBgr8(ref mut p) => p.put_pixel(x, y, color::Bgr([b, g, r])),
+            DynamicImage::ImageBgra8(ref mut p) => p.put_pixel(x, y, color::Bgra([b, g, r, a])),
+            DynamicImage::ImageLuma16(ref mut p) =>
+                p.put_pixel(x, y, color::Rgb([r16, g16, b16]).to_luma()),
+            DynamicImage::ImageLumaA16(ref mut p) =>
+                p.put_pixel(x, y, color::Rgba([r16, g16, b16, a16]).to_luma_alpha()),
+            DynamicImage::ImageRgb16(ref mut p) =>
+                p.put_pixel(x, y, color::Rgb([r16, g16, b16])),
+            DynamicImage::ImageRgba16(ref mut p) =>
+                p.put_pixel(x, y, color::Rgba([r16, g16, b16, a16])),
         }
     }
     /// DEPRECATED: Use iterator `pixels_mut` to blend the pixels directly.
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
+        let color::Rgba([r, g, b, a]) = pixel;
+        let (r16, g16, b16, a16) = (r as u16 * 257, b as u16 * 257, g as u16 * 257, a as u16 * 257);
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
             DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
+            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, color::Rgb([r, g, b])),
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageBgr8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgr()),
-            DynamicImage::ImageBgra8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgra()),
-            DynamicImage::ImageLuma16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha().into_color()),
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageBgr8(ref mut p) => p.blend_pixel(x, y, color::Bgr([b, g, r])),
+            DynamicImage::ImageBgra8(ref mut p) => p.blend_pixel(x, y, color::Bgra([b, g, r, a])),
+            DynamicImage::ImageRgb16(ref mut p) =>
+                p.blend_pixel(x, y, color::Rgb([r16, g16, b16])),
+            DynamicImage::ImageRgba16(ref mut p) =>
+                p.blend_pixel(x, y, color::Rgba([r16, g16, b16, a16])),
+            DynamicImage::ImageLuma16(ref mut p) =>
+                p.blend_pixel(x, y, color::Rgb([r16, g16, b16]).to_luma()),
+            DynamicImage::ImageLumaA16(ref mut p) =>
+                p.blend_pixel(x, y, color::Rgba([r16, g16, b16, a16]).to_luma_alpha()),
         }
     }
 

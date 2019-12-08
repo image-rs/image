@@ -214,26 +214,8 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         unsafe { &mut *(slice.as_ptr() as *mut $ident<T>) }
     }
 
-    fn to_rgb(&self) -> Rgb<T> {
-        let mut pix = Rgb([Zero::zero(), Zero::zero(), Zero::zero()]);
-        pix.from_color(self);
-        pix
-    }
-
-    fn to_bgr(&self) -> Bgr<T> {
-        let mut pix = Bgr([Zero::zero(), Zero::zero(), Zero::zero()]);
-        pix.from_color(self);
-        pix
-    }
-
     fn to_rgba(&self) -> Rgba<T> {
         let mut pix = Rgba([Zero::zero(), Zero::zero(), Zero::zero(), Zero::zero()]);
-        pix.from_color(self);
-        pix
-    }
-
-    fn to_bgra(&self) -> Bgra<T> {
-        let mut pix = Bgra([Zero::zero(), Zero::zero(), Zero::zero(), Zero::zero()]);
         pix.from_color(self);
         pix
     }

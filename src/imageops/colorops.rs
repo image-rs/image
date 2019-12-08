@@ -1,7 +1,7 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use buffer::{ImageBuffer, Pixel};
-use color::{Luma, Rgba};
+use color::{Luma, LumaA, Rgba};
 use image::{GenericImage, GenericImageView};
 use math::nq;
 use math::utils::clamp;
@@ -24,8 +24,8 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let p = image.get_pixel(x, y).to_luma();
-            out.put_pixel(x, y, p);
+            let LumaA([l, _]) = image.get_pixel(x, y).to_luma_alpha();
+            out.put_pixel(x, y, Luma([l]));
         }
     }
 

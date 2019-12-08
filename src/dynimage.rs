@@ -750,14 +750,19 @@ impl GenericImage for DynamicImage {
         let color::Rgba([r, g, b, a]) = pixel;
         let (r16, g16, b16, a16) = (r as u16 * 257, b as u16 * 257, g as u16 * 257, a as u16 * 257);
         match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
+            DynamicImage::ImageLuma8(ref mut p) => {
+                let color::LumaA([l, _]) = pixel.to_luma_alpha();
+                p.put_pixel(x, y, color::Luma([l]))
+            }
             DynamicImage::ImageLumaA8(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha()),
             DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, color::Rgb([r, g, b])),
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
             DynamicImage::ImageBgr8(ref mut p) => p.put_pixel(x, y, color::Bgr([b, g, r])),
             DynamicImage::ImageBgra8(ref mut p) => p.put_pixel(x, y, color::Bgra([b, g, r, a])),
-            DynamicImage::ImageLuma16(ref mut p) =>
-                p.put_pixel(x, y, color::Rgb([r16, g16, b16]).to_luma()),
+            DynamicImage::ImageLuma16(ref mut p) =>{
+                let color::LumaA([l, _]) = color::Rgb([r16, g16, b16]).to_luma_alpha();
+                p.put_pixel(x, y, color::Luma([l]))
+            }
             DynamicImage::ImageLumaA16(ref mut p) =>
                 p.put_pixel(x, y, color::Rgba([r16, g16, b16, a16]).to_luma_alpha()),
             DynamicImage::ImageRgb16(ref mut p) =>
@@ -771,7 +776,10 @@ impl GenericImage for DynamicImage {
         let color::Rgba([r, g, b, a]) = pixel;
         let (r16, g16, b16, a16) = (r as u16 * 257, b as u16 * 257, g as u16 * 257, a as u16 * 257);
         match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
+            DynamicImage::ImageLuma8(ref mut p) => {
+                let color::LumaA([l, _]) = pixel.to_luma_alpha();
+                p.blend_pixel(x, y, color::Luma([l]))
+            }
             DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
             DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, color::Rgb([r, g, b])),
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
@@ -781,8 +789,10 @@ impl GenericImage for DynamicImage {
                 p.blend_pixel(x, y, color::Rgb([r16, g16, b16])),
             DynamicImage::ImageRgba16(ref mut p) =>
                 p.blend_pixel(x, y, color::Rgba([r16, g16, b16, a16])),
-            DynamicImage::ImageLuma16(ref mut p) =>
-                p.blend_pixel(x, y, color::Rgb([r16, g16, b16]).to_luma()),
+            DynamicImage::ImageLuma16(ref mut p) =>{
+                let color::LumaA([l, _]) = color::Rgb([r16, g16, b16]).to_luma_alpha();
+                p.blend_pixel(x, y, color::Luma([l]))
+            }
             DynamicImage::ImageLumaA16(ref mut p) =>
                 p.blend_pixel(x, y, color::Rgba([r16, g16, b16, a16]).to_luma_alpha()),
         }

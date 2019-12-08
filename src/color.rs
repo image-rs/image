@@ -220,12 +220,6 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         pix
     }
 
-    fn to_luma(&self) -> Luma<T> {
-        let mut pix = Luma([Zero::zero()]);
-        pix.from_color(self);
-        pix
-    }
-
     fn to_luma_alpha(&self) -> LumaA<T> {
         let mut pix = LumaA([Zero::zero(), Zero::zero()]);
         pix.from_color(self);

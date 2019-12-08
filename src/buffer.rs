@@ -89,9 +89,6 @@ pub trait Pixel: Copy + Clone {
     /// Convert this pixel to RGB with an alpha channel
     fn to_rgba(&self) -> Rgba<Self::Subpixel>;
 
-    /// Convert this pixel to luma
-    fn to_luma(&self) -> Luma<Self::Subpixel>;
-
     /// Convert this pixel to luma with an alpha channel
     fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
 

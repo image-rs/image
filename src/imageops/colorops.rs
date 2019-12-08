@@ -2,7 +2,7 @@
 
 use buffer::{ImageBuffer, Pixel};
 use color::{Luma, LumaA, Rgba};
-use image::{GenericImage, GenericImageView};
+use image::GenericImageView;
 use math::nq;
 use math::utils::clamp;
 use num_traits::{Num, NumCast};
@@ -30,21 +30,6 @@ where
     }
 
     out
-}
-
-/// Invert each pixel within the supplied image.
-/// This function operates in place.
-pub fn invert<I: GenericImage>(image: &mut I) {
-    let (width, height) = image.dimensions();
-
-    for y in 0..height {
-        for x in 0..width {
-            let mut p = image.get_pixel(x, y);
-            p.invert();
-
-            image.put_pixel(x, y, p);
-        }
-    }
 }
 
 /// Adjust the contrast of the supplied image.

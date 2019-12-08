@@ -457,7 +457,12 @@ impl DynamicImage {
     /// Invert the colors of this image.
     /// This method operates inplace.
     pub fn invert(&mut self) {
-        dynamic_map!(*self, ref mut p -> imageops::invert(p))
+        use traits::Primitive;
+        fn invert_pixel<T: Primitive>(p: &mut impl Pixel<Subpixel = T>) {
+            p.apply_with_alpha(|c|T::max_value() - c, |a|a);
+        }
+
+        dynamic_map!(*self, ref mut img -> img.pixels_mut().for_each(invert_pixel))
     }
 
     /// Resize this image using the specified filter algorithm.

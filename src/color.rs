@@ -268,10 +268,6 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
         }
     }
 
-    fn invert(&mut self) {
-        Invert::invert(self)
-    }
-
     fn blend(&mut self, other: &$ident<T>) {
         Blend::blend(self, other)
     }
@@ -989,83 +985,6 @@ impl<T: Primitive> Blend for Rgb<T> {
 impl<T: Primitive> Blend for Bgr<T> {
     fn blend(&mut self, other: &Bgr<T>) {
         *self = *other
-    }
-}
-
-
-/// Invert a color
-pub(crate) trait Invert {
-    /// Inverts a color in-place.
-    fn invert(&mut self);
-}
-
-impl<T: Primitive> Invert for LumaA<T> {
-    fn invert(&mut self) {
-        let l = self.0;
-        let max = T::max_value();
-
-        *self = LumaA([max - l[0], l[1]])
-    }
-}
-
-impl<T: Primitive> Invert for Luma<T> {
-    fn invert(&mut self) {
-        let l = self.0;
-
-        let max = T::max_value();
-        let l1 = max - l[0];
-
-        *self = Luma([l1])
-    }
-}
-
-impl<T: Primitive> Invert for Rgba<T> {
-    fn invert(&mut self) {
-        let rgba = self.0;
-
-        let max = T::max_value();
-
-        *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
-    }
-}
-
-
-impl<T: Primitive> Invert for Bgra<T> {
-    fn invert(&mut self) {
-        let bgra = self.0;
-
-        let max = T::max_value();
-
-        *self = Bgra([max - bgra[2], max - bgra[1], max - bgra[0], bgra[3]])
-    }
-}
-
-
-impl<T: Primitive> Invert for Rgb<T> {
-    fn invert(&mut self) {
-        let rgb = self.0;
-
-        let max = T::max_value();
-
-        let r1 = max - rgb[0];
-        let g1 = max - rgb[1];
-        let b1 = max - rgb[2];
-
-        *self = Rgb([r1, g1, b1])
-    }
-}
-
-impl<T: Primitive> Invert for Bgr<T> {
-    fn invert(&mut self) {
-        let bgr = self.0;
-
-        let max = T::max_value();
-
-        let r1 = max - bgr[2];
-        let g1 = max - bgr[1];
-        let b1 = max - bgr[0];
-
-        *self = Bgr([b1, g1, r1])
     }
 }
 

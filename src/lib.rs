@@ -54,10 +54,6 @@ pub use buffer::{ConvertBuffer,
                  Pixel,
                  RgbImage,
                  RgbaImage,
-                 Rgb16Image,
-                 Rgba16Image,
-                 Gray16Image,
-                 GrayAlpha16Image,
                  };
 
 pub use flat::FlatSamples;

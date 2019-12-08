@@ -5,13 +5,13 @@ use std::u32;
 
 #[cfg(feature = "bmp")]
 use bmp;
-#[cfg(feature = "gif_codec")]
+#[cfg(feature = "gif")]
 use gif;
 #[cfg(feature = "ico")]
 use ico;
 #[cfg(feature = "jpeg")]
 use jpeg;
-#[cfg(feature = "png_codec")]
+#[cfg(feature = "png")]
 use png;
 #[cfg(feature = "pnm")]
 use pnm;
@@ -477,7 +477,7 @@ impl DynamicImage {
 
         #[allow(deprecated)]
         match format {
-            #[cfg(feature = "png_codec")]
+            #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
                 let p = png::PNGEncoder::new(w);
                 match *self {
@@ -519,7 +519,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "gif_codec")]
+            #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
                 let mut g = gif::Encoder::new(w);
 

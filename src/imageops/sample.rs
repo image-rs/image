@@ -757,7 +757,7 @@ mod tests {
     use test;
 
     #[bench]
-    #[cfg(all(feature = "benchmarks", feature = "png_codec"))]
+    #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
         use std::path::Path;
         let img = ::open(&Path::new("./examples/fractal.png")).unwrap();

@@ -6,7 +6,7 @@ use std::u32;
 
 #[cfg(feature = "bmp")]
 use bmp;
-#[cfg(feature = "gif_codec")]
+#[cfg(feature = "gif")]
 use gif;
 #[cfg(feature = "hdr")]
 use hdr;
@@ -14,7 +14,7 @@ use hdr;
 use ico;
 #[cfg(feature = "jpeg")]
 use jpeg;
-#[cfg(feature = "png_codec")]
+#[cfg(feature = "png")]
 use png;
 #[cfg(feature = "pnm")]
 use pnm;
@@ -57,9 +57,9 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
-        #[cfg(feature = "png_codec")]
+        #[cfg(feature = "png")]
         image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
-        #[cfg(feature = "gif_codec")]
+        #[cfg(feature = "gif")]
         image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
@@ -101,9 +101,9 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
     Ok(match format {
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "png_codec")]
+        #[cfg(feature = "png")]
         image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "gif_codec")]
+        #[cfg(feature = "gif")]
         image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
         image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
@@ -145,7 +145,7 @@ pub(crate) fn save_buffer_impl(
         "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
+        #[cfg(feature = "png")]
         "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pbm" => pnm::PNMEncoder::new(fout)
@@ -185,7 +185,7 @@ pub(crate) fn save_buffer_with_format_impl(
         image::ImageFormat::Ico => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
+        #[cfg(feature = "png")]
         image::ImageFormat::Png => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "bmp")]
         image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),

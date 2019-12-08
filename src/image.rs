@@ -156,7 +156,7 @@ impl ImageFormat {
 /// An enumeration of supported image formats for encoding.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ImageOutputFormat {
-    #[cfg(feature = "png_codec")]
+    #[cfg(feature = "png")]
     /// An Image in PNG Format
     Png,
 
@@ -168,7 +168,7 @@ pub enum ImageOutputFormat {
     /// An Image in one of the PNM Formats
     Pnm(PNMSubtype),
 
-    #[cfg(feature = "gif_codec")]
+    #[cfg(feature = "gif")]
     /// An Image in GIF Format
     Gif,
 
@@ -189,13 +189,13 @@ pub enum ImageOutputFormat {
 impl From<ImageFormat> for ImageOutputFormat {
     fn from(fmt: ImageFormat) -> Self {
         match fmt {
-            #[cfg(feature = "png_codec")]
+            #[cfg(feature = "png")]
             ImageFormat::Png => ImageOutputFormat::Png,
             #[cfg(feature = "jpeg")]
             ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
             #[cfg(feature = "pnm")]
             ImageFormat::Pnm => ImageOutputFormat::Pnm(PNMSubtype::ArbitraryMap),
-            #[cfg(feature = "gif_codec")]
+            #[cfg(feature = "gif")]
             ImageFormat::Gif => ImageOutputFormat::Gif,
             #[cfg(feature = "ico")]
             ImageFormat::Ico => ImageOutputFormat::Ico,

@@ -181,12 +181,8 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     const COLOR_MODEL: &'static str = $interpretation;
 
-    fn color_type() -> ColorType {
-        match std::mem::size_of::<T>() {
-            1 => $color_type_u8,
-            _ => $color_type_u16,
-        }
-    }
+    const COLOR_TYPE: ColorType =
+        [$color_type_u8, $color_type_u16][(std::mem::size_of::<T>() > 1) as usize];
 
     #[inline(always)]
     fn channels(&self) -> &[T] {

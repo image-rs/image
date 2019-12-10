@@ -42,8 +42,13 @@ pub trait Pixel: Copy + Clone {
         Self::COLOR_MODEL
     }
 
+    /// ColorType for this pixel format
+    const COLOR_TYPE: ColorType;
     /// Returns the ColorType for this pixel format
-    fn color_type() -> ColorType;
+    #[deprecated(note="please use COLOR_TYPE associated constant")]
+    fn color_type() -> ColorType {
+        Self::COLOR_TYPE
+    }
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
@@ -650,7 +655,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 
@@ -664,7 +669,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::color_type()),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 }
@@ -758,7 +763,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::color_type(),
+            <P as Pixel>::COLOR_TYPE,
         )
     }
 }
@@ -784,7 +789,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::color_type(),
+            <P as Pixel>::COLOR_TYPE,
             format,
         )
     }

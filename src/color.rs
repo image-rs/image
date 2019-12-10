@@ -4,40 +4,6 @@ use std::ops::{Index, IndexMut};
 use buffer::Pixel;
 use traits::Primitive;
 
-/// Supported ordered sets of channels
-#[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
-pub enum ChannelsType {
-    /// Luminance
-    L,
-    /// Luminance and alpha
-    La,
-    /// Red, green and blue
-    Rgb,
-    /// Red, green, blue and alpha
-    Rgba,
-    /// Blue, green and red
-    Bgr,
-    /// Blue, green, red and alpha
-    Bgra,
-
-    #[doc(hidden)]
-    __Nonexhaustive,
-}
-
-impl ChannelsType {
-    pub fn channel_count(self) -> u8 {
-        match self {
-            ChannelsType::L => 1,
-            ChannelsType::La => 2,
-            ChannelsType::Rgb => 3,
-            ChannelsType::Rgba => 4,
-            ChannelsType::Bgr => 3,
-            ChannelsType::Bgra => 4,
-            ChannelsType::__Nonexhaustive => unreachable!(),
-        }
-    }
-}
-
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ColorType {
@@ -138,45 +104,37 @@ pub enum ExtendedColorType {
 }
 
 impl ExtendedColorType {
-    /// Get the type of channels for colors of this type.
+    /// Get the number of channels for colors of this type.
     ///
-    /// Note that the `Unknown` variant returns a luminance channel since pixels can only be treated as
+    /// Note that the `Unknown` variant returns a value of `1` since pixels can only be treated as
     /// an opaque datum by the library.
-    pub fn channels_type(self) -> ChannelsType {
+    pub fn channel_count(self) -> u8 {
         match self {
             ExtendedColorType::L1 |
             ExtendedColorType::L2 |
             ExtendedColorType::L4 |
             ExtendedColorType::L8 |
             ExtendedColorType::L16 |
-            ExtendedColorType::Unknown(_) => ChannelsType::L,
+            ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1 |
             ExtendedColorType::La2 |
             ExtendedColorType::La4 |
             ExtendedColorType::La8 |
-            ExtendedColorType::La16 => ChannelsType::La,
+            ExtendedColorType::La16 => 2,
             ExtendedColorType::Rgb1 |
             ExtendedColorType::Rgb2 |
             ExtendedColorType::Rgb4 |
             ExtendedColorType::Rgb8 |
-            ExtendedColorType::Rgb16 => ChannelsType::Rgb,
-            ExtendedColorType::Bgr8 => ChannelsType::Bgr,
+            ExtendedColorType::Rgb16 |
+            ExtendedColorType::Bgr8 => 3,
             ExtendedColorType::Rgba1 |
             ExtendedColorType::Rgba2 |
             ExtendedColorType::Rgba4 |
             ExtendedColorType::Rgba8 |
-            ExtendedColorType::Rgba16 => ChannelsType::Rgba,
-            ExtendedColorType::Bgra8 => ChannelsType::Bgra,
+            ExtendedColorType::Rgba16 |
+            ExtendedColorType::Bgra8 => 4,
             ExtendedColorType::__Nonexhaustive => unreachable!(),
         }
-    }
-    
-    /// Get the number of channels for colors of this type.
-    ///
-    /// Note that the `Unknown` variant returns a value of `1` since pixels can only be treated as
-    /// an opaque datum by the library.
-    pub fn channel_count(self) -> u8 {
-        self.channels_type().channel_count()
     }
 }
 impl From<ColorType> for ExtendedColorType {
@@ -203,7 +161,8 @@ macro_rules! define_colors {
         $channels: expr,
         $alphas: expr,
         $interpretation: expr,
-        $channels_type: expr,
+        $color_type_u8: expr,
+        $color_type_u16: expr,
         #[$doc:meta];
     )*} => {
 
@@ -222,21 +181,10 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     const COLOR_MODEL: &'static str = $interpretation;
 
-    const CHANNELS_TYPE: ChannelsType = $channels_type;
-
     fn color_type() -> ColorType {
-        match (Self::CHANNELS_TYPE, std::mem::size_of::<T>()) {
-            (ChannelsType::L, 1) => ColorType::L8,
-            (ChannelsType::L, _) => ColorType::L16,
-            (ChannelsType::La, 1) => ColorType::La8,
-            (ChannelsType::La, _) => ColorType::La16,
-            (ChannelsType::Rgb, 1) => ColorType::Rgb8,
-            (ChannelsType::Rgb, _) => ColorType::Rgb16,
-            (ChannelsType::Rgba, 1) => ColorType::Rgba8,
-            (ChannelsType::Rgba, _) => ColorType::Rgba16,
-            (ChannelsType::Bgr, _) => ColorType::Bgr8,
-            (ChannelsType::Bgra, _) => ColorType::Bgra8,
-            (ChannelsType::__Nonexhaustive, _) => unreachable!(),
+        match std::mem::size_of::<T>() {
+            1 => $color_type_u8,
+            _ => $color_type_u16,
         }
     }
 
@@ -384,12 +332,12 @@ impl<T: Primitive + 'static> From<[T; $channels]> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", ChannelsType::Rgb, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", ChannelsType::Bgr, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ChannelsType::L, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", ChannelsType::Rgba, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", ChannelsType::Bgra, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ChannelsType::La, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", ColorType::Rgb8, ColorType::Rgb16, #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::Bgr8, ColorType::Bgr8, #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", ColorType::L8, ColorType::L16, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", ColorType::Rgba8, ColorType::Rgba16, #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::Bgra8, ColorType::Bgra8, #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::La8, ColorType::La16, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

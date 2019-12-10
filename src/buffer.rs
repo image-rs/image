@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ChannelsType, ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use flat::{FlatSamples, SampleLayout};
 use dynimage::{save_buffer, save_buffer_with_format};
 use image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
@@ -42,8 +42,6 @@ pub trait Pixel: Copy + Clone {
         Self::COLOR_MODEL
     }
 
-    /// Channels for this pixel format
-    const CHANNELS_TYPE: ChannelsType;
     /// Returns the ColorType for this pixel format
     fn color_type() -> ColorType;
 

@@ -7,6 +7,7 @@ use num_iter::range_step;
 use std::io::{self, Write};
 
 use color;
+use image::ImageEncoder;
 
 use super::entropy::build_huff_lut;
 use super::transform;
@@ -628,6 +629,18 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         }
 
         Ok(())
+    }
+}
+
+impl<'a, W: Write> ImageEncoder for JPEGEncoder<'a, W> {
+    fn write_image(
+        mut self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: color::ColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }
 

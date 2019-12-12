@@ -366,13 +366,16 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     Ok(seek_scanline(decoder, 0)?)
 }
 
-/// Reads all of the bytes of a decoder into a Vec<u8>. No particular alignment
+/// Reads all of the bytes of a decoder into a Vec<T>. No particular alignment
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<u8>> {
-    let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
-    decoder.read_image(&mut buf)?;
+pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<T>>
+where
+    T: ::traits::Primitive + bytemuck::Pod,
+{
+    let mut buf = vec![num_traits::Zero::zero(); usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()];
+    decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
 
@@ -533,6 +536,27 @@ pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
 pub trait AnimationDecoder<'a> {
     /// Consume the decoder producing a series of frames.
     fn into_frames(self) -> Frames<'a>;
+}
+
+/// The trait all encoders implement
+pub trait ImageEncoder {
+    /// Writes all the bytes in an image to the encoder.
+    ///
+    /// This function takes a slice of bytes of the pixel data of the image
+    /// and encodes them. Unlike particular format encoders inherent impl encode
+    /// methods where endianness is not specified, here image data bytes should
+    /// always be in native endian. The implementor will reorder the endianess
+    /// as necessary for the target encoding format.
+    ///
+    /// See also `ImageDecoder::read_image` which reads byte buffers into
+    /// native endian.
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()>;
 }
 
 /// Immutable pixel iterator

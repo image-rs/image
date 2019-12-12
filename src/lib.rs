@@ -11,6 +11,7 @@
 // it's a bit of a pain otherwise
 #![allow(clippy::many_single_char_names)]
 
+extern crate bytemuck;
 extern crate byteorder;
 extern crate num_iter;
 extern crate num_rational;
@@ -35,6 +36,7 @@ pub use image::{AnimationDecoder,
                 GenericImageView,
                 ImageDecoder,
                 ImageDecoderExt,
+                ImageEncoder,
                 ImageError,
                 ImageFormat,
                 ImageOutputFormat,
@@ -51,7 +53,8 @@ pub use buffer::{ConvertBuffer,
                  ImageBuffer,
                  Pixel,
                  RgbImage,
-                 RgbaImage};
+                 RgbaImage,
+                 };
 
 pub use flat::FlatSamples;
 

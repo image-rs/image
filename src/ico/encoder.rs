@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use color::ColorType;
-use image::ImageResult;
+use image::{ImageEncoder, ImageResult};
 
 use png::PNGEncoder;
 
@@ -48,6 +48,18 @@ impl<W: Write> ICOEncoder<W> {
         )?;
         self.w.write_all(&image_data)?;
         Ok(())
+    }
+}
+
+impl<W: Write> ImageEncoder for ICOEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }
 

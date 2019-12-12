@@ -130,10 +130,10 @@ pub struct TiffEncoder<W> {
 }
 
 // Utility to simplify and deduplicate error handling during 16-bit encoding.
-fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<zerocopy::LayoutVerified<&[u8], [u16]>> {
-    zerocopy::LayoutVerified::new_slice(buf)
+fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<&[u16]> {
+    bytemuck::try_cast_slice(buf)
         // If the buffer is not aligned or the correct length for a u16 slice, err.
-        .ok_or_else(|| ImageError::IoError(std::io::ErrorKind::InvalidData.into()))
+        .map_err(|_| ImageError::IoError(std::io::ErrorKind::InvalidData.into()))
 }
 
 impl<W: Write + Seek> TiffEncoder<W> {

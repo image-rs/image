@@ -14,13 +14,13 @@ pub trait EncodableLayout: seals::EncodableLayout {
 
 impl EncodableLayout for [u8] {
     fn as_bytes(&self) -> &[u8] {
-        zerocopy::AsBytes::as_bytes(self)
+        bytemuck::cast_slice(self)
     }
 }
 
 impl EncodableLayout for [u16] {
     fn as_bytes(&self) -> &[u8] {
-        zerocopy::AsBytes::as_bytes(self)
+        bytemuck::cast_slice(self)
     }
 }
 

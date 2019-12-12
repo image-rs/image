@@ -851,7 +851,7 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
 
 #[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
-    use zerocopy::AsBytes;
+    use traits::EncodableLayout;
 
     match *image {
         // TODO: consider transmuting

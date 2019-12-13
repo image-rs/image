@@ -179,6 +179,72 @@ impl DynamicImage {
         })
     }
 
+    /// Consume the image and returns a RGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgb(self) -> RgbImage {
+        match self {
+            Self::ImageRgb8(x) => x,
+            x => x.to_rgb(),
+        }
+    }
+
+    /// Consume the image and returns a RGBA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgba(self) -> RgbaImage {
+        match self {
+            Self::ImageRgba8(x) => x,
+            x => x.to_rgba(),
+        }
+    }
+
+    /// Consume the image and returns a BGR image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_bgr(self) -> BgrImage {
+        match self {
+            Self::ImageBgr8(x) => x,
+            x => x.to_bgr(),
+        }
+    }
+
+    /// Consume the image and returns a BGRA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_bgra(self) -> BgraImage {
+        match self {
+            Self::ImageBgra8(x) => x,
+            x => x.to_bgra(),
+        }
+    }
+
+    /// Consume the image and returns a Luma image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_luma(self) -> GrayImage {
+        match self {
+            Self::ImageLuma8(x) => x,
+            x => x.to_luma(),
+        }
+    }
+
+    /// Consume the image and returns a LumaA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_luma_alpha(self) -> GrayAlphaImage {
+        match self {
+            Self::ImageLumaA8(x) => x,
+            x => x.to_luma_alpha(),
+        }
+    }
+
     /// Return a cut out of this image delimited by the bounding rectangle.
     pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())

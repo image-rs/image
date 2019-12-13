@@ -33,8 +33,15 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
-
-        let image_size = width * height * written_pixel_size + (height * row_pad_size);
+        let image_size = width.checked_mul(height);
+        if image_size.is_none() {
+            return Err(ImageError::DimensionError);
+        }
+        let image_size = image_size.unwrap().checked_mul(written_pixel_size);
+        if image_size.is_none() {
+            return Err(ImageError::DimensionError);
+        }
+        let image_size = image_size.unwrap() + (height * row_pad_size);
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 
@@ -282,6 +289,15 @@ mod tests {
         assert_eq!(255, decoded[0]);
         assert_eq!(0, decoded[1]);
         assert_eq!(0, decoded[2]);
+    }
+
+    #[test]
+    fn huge_files_return_error() {
+        let mut encoded_data = Vec::new();
+        let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap
+        let mut encoder = BMPEncoder::new(&mut encoded_data);
+        let result = encoder.encode(&image, 40_000, 40_000, ColorType::Rgb8);
+        assert!(result.is_err());
     }
 
     #[test]

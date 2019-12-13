@@ -185,7 +185,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_rgb(self) -> RgbImage {
         match self {
-            Self::ImageRgb8(x) => x,
+            DynamicImage::ImageRgb8(x) => x,
             x => x.to_rgb(),
         }
     }
@@ -196,7 +196,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_rgba(self) -> RgbaImage {
         match self {
-            Self::ImageRgba8(x) => x,
+            DynamicImage::ImageRgba8(x) => x,
             x => x.to_rgba(),
         }
     }
@@ -207,7 +207,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_bgr(self) -> BgrImage {
         match self {
-            Self::ImageBgr8(x) => x,
+            DynamicImage::ImageBgr8(x) => x,
             x => x.to_bgr(),
         }
     }
@@ -218,7 +218,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_bgra(self) -> BgraImage {
         match self {
-            Self::ImageBgra8(x) => x,
+            DynamicImage::ImageBgra8(x) => x,
             x => x.to_bgra(),
         }
     }
@@ -229,7 +229,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_luma(self) -> GrayImage {
         match self {
-            Self::ImageLuma8(x) => x,
+            DynamicImage::ImageLuma8(x) => x,
             x => x.to_luma(),
         }
     }
@@ -240,7 +240,7 @@ impl DynamicImage {
     /// Otherwise, a copy is created.
     pub fn into_luma_alpha(self) -> GrayAlphaImage {
         match self {
-            Self::ImageLumaA8(x) => x,
+            DynamicImage::ImageLumaA8(x) => x,
             x => x.to_luma_alpha(),
         }
     }

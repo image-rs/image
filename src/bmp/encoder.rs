@@ -33,15 +33,14 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
 
         let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
-        let image_size = width.checked_mul(height);
-        if image_size.is_none() {
-            return Err(ImageError::DimensionError);
-        }
-        let image_size = image_size.unwrap().checked_mul(written_pixel_size);
-        if image_size.is_none() {
-            return Err(ImageError::DimensionError);
-        }
-        let image_size = image_size.unwrap() + (height * row_pad_size);
+        let image_size = width
+            .checked_mul(height)
+            .ok_or(ImageError::DimensionError)?
+            .checked_mul(written_pixel_size)
+            .ok_or(ImageError::DimensionError)?
+            .checked_add(height * row_pad_size)
+            .ok_or(ImageError::DimensionError)?;
+
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 

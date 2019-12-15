@@ -79,20 +79,7 @@ impl fmt::Display for ImageError {
 }
 
 impl Error for ImageError {
-    fn description(&self) -> &str {
-        match *self {
-            ImageError::FormatError(..) => "Format error",
-            ImageError::DimensionError => "Dimension error",
-            ImageError::UnsupportedError(..) => "Unsupported error",
-            ImageError::UnsupportedColor(..) => "Unsupported color",
-            ImageError::NotEnoughData => "Not enough data",
-            ImageError::IoError(..) => "IO error",
-            ImageError::ImageEnd => "Image end",
-            ImageError::InsufficientMemory => "Insufficient memory",
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             ImageError::IoError(ref e) => Some(e),
             _ => None,

@@ -33,22 +33,15 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
 
+        let make_invalid_input_err =
+            || io::Error::new(io::ErrorKind::InvalidInput, "Overflowing dimensions");
         let image_size = width
             .checked_mul(height)
-            .ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Overflowing dimensions",
-            ))?
+            .ok_or_else(make_invalid_input_err)?
             .checked_mul(written_pixel_size)
-            .ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Overflowing dimensions",
-            ))?
+            .ok_or_else(make_invalid_input_err)?
             .checked_add(height * row_pad_size)
-            .ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Overflowing dimensions",
-            ))?;
+            .ok_or_else(make_invalid_input_err)?;
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 

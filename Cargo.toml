@@ -15,7 +15,7 @@ exclude = [
 
 [dependencies]
 inflate = "0.4.2"
-deflate = { version = "0.7.12", optional = true }
+deflate = { version = "0.8.2", optional = true }
 bitflags = "1.0"
 crc32fast = "1.2.0"
 

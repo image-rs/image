@@ -189,7 +189,8 @@ pub fn rotate180_in_place<I: GenericImage>(image: &mut I) {
             let x2 = width - x - 1;
             let y2 = height - y - 1;
 
-            image.put_pixel(x, y, image.get_pixel(x2, y2));
+            let p2 = image.get_pixel(x2, y2);
+            image.put_pixel(x, y, p2);
             image.put_pixel(x2, y2, p);
         }
     }
@@ -201,7 +202,8 @@ pub fn rotate180_in_place<I: GenericImage>(image: &mut I) {
             let p = image.get_pixel(x, middle);
             let x2 = width - x - 1;
 
-            image.put_pixel(x, middle, image.get_pixel(x2, middle));
+            let p2 = image.get_pixel(x2, middle);
+            image.put_pixel(x, middle, p2);
             image.put_pixel(x2, middle, p);
         }
     }
@@ -215,7 +217,8 @@ pub fn flip_horizontal_in_place<I: GenericImage>(image: &mut I) {
         for x in 0..width / 2 {
             let x2 = width - x - 1;
             let p2 = image.get_pixel(x2, y);
-            image.put_pixel(x2, y, image.get_pixel(x, y));
+            let p = image.get_pixel(x, y);
+            image.put_pixel(x2, y, p);
             image.put_pixel(x, y, p2);
         }
     }
@@ -229,7 +232,8 @@ pub fn flip_vertical_in_place<I: GenericImage>(image: &mut I) {
         for x in 0..width {
             let y2 = height - y - 1;
             let p2 = image.get_pixel(x, y2);
-            image.put_pixel(x, y2, image.get_pixel(x, y));
+            let p = image.get_pixel(x, y);
+            image.put_pixel(x, y2, p);
             image.put_pixel(x, y, p2);
         }
     }

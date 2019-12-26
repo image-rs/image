@@ -19,7 +19,7 @@ impl<'a> Frames<'a> {
     /// Steps through the iterator from the current frame until the end and pushes each frame into
     /// a `Vec`.
     /// If en error is encountered that error is returned instead.
-    /// 
+    ///
     /// Note: This is equivalent to `Frames::collect::<ImageResult<Vec<Frame>>>()`
     pub fn collect_frames(self) -> ImageResult<Vec<Frame>> {
         self.collect()

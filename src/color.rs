@@ -89,7 +89,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
 
     const COLOR_MODEL: &'static str = $interpretation;
 
-    const COLOR_TYPE: ColorType = ColorType::$color_type(mem::size_of::<T>() as u8 * 8); 
+    const COLOR_TYPE: ColorType = ColorType::$color_type(mem::size_of::<T>() as u8 * 8);
 
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -937,7 +937,7 @@ mod tests {
         let b = Rgba([255 as u8, 255, 255, 0]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
-    }    
+    }
 
     #[test]
     fn test_apply_without_alpha_rgba() {

@@ -33,7 +33,12 @@ impl<R> TiffDecoder<R>
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff)?;
+        let mut limits = tiff::decoder::Limits::default();
+        limits.decoding_buffer_size = usize::max_value();
+
+        let mut inner = tiff::decoder::Decoder::new(r)
+            .map_err(ImageError::from_tiff)?
+            .with_limits(limits);
         let dimensions = inner.dimensions().map_err(ImageError::from_tiff)?;
         let color_type = match inner.colortype().map_err(ImageError::from_tiff)? {
             tiff::ColorType::Gray(8) => ColorType::L8,

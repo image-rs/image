@@ -222,47 +222,44 @@ impl<R: BufRead> HdrDecoder<R> {
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HDRMetadata::new();
 
-        {
-            // scope to make borrowck happy
-            let r = &mut reader;
-            if strict {
-                let mut signature = [0; SIGNATURE_LENGTH];
-                r.read_exact(&mut signature)?;
-                if signature != SIGNATURE {
-                    return Err(ImageError::FormatError(
+        let r = &mut reader;
+        if strict {
+            let mut signature = [0; SIGNATURE_LENGTH];
+            r.read_exact(&mut signature)?;
+            if signature != SIGNATURE {
+                return Err(ImageError::FormatError(
                         "Radiance HDR signature not found".to_string(),
-                    ));
-                } // no else
-                  // skip signature line ending
-                read_line_u8(r)?;
-            } else {
-                // Old Radiance HDR files (*.pic) don't use signature
-                // Let them be parsed in non-strict mode
-            }
-            // read header data until empty line
-            loop {
-                match read_line_u8(r)? {
-                    None => {
-                        // EOF before end of header
-                        return Err(ImageError::FormatError("EOF in header".into()));
-                    }
-                    Some(line) => {
-                        if line.is_empty() {
-                            // end of header
-                            break;
-                        } else if line[0] == b'#' {
-                            // line[0] will not panic, line.len() == 0 is false here
-                            // skip comments
-                            continue;
-                        } // no else
-                          // process attribute line
-                        let line = String::from_utf8_lossy(&line[..]);
-                        attributes.update_header_info(&line, strict)?;
-                    } // <= Some(line)
-                } // match read_line_u8()
-            } // loop
-        } // scope to end borrow of reader
-          // parse dimensions
+                ));
+            } // no else
+            // skip signature line ending
+            read_line_u8(r)?;
+        } else {
+            // Old Radiance HDR files (*.pic) don't use signature
+            // Let them be parsed in non-strict mode
+        }
+        // read header data until empty line
+        loop {
+            match read_line_u8(r)? {
+                None => {
+                    // EOF before end of header
+                    return Err(ImageError::FormatError("EOF in header".into()));
+                }
+                Some(line) => {
+                    if line.is_empty() {
+                        // end of header
+                        break;
+                    } else if line[0] == b'#' {
+                        // line[0] will not panic, line.len() == 0 is false here
+                        // skip comments
+                        continue;
+                    } // no else
+                    // process attribute line
+                    let line = String::from_utf8_lossy(&line[..]);
+                    attributes.update_header_info(&line, strict)?;
+                } // <= Some(line)
+            } // match read_line_u8()
+        } // loop
+        // parse dimensions
         let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions

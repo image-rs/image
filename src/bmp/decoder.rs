@@ -1119,134 +1119,131 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let mut delta_pixels_left = skip_pixels;
         let mut eof_hit = false;
 
-        // Scope the borrowing of pixel_data by the row iterator.
-        {
-            // Handling deltas in the RLE scheme means that we need to manually
-            // iterate through rows and pixels.  Even if we didn't have to handle
-            // deltas, we have to ensure that a single runlength doesn't straddle
-            // two rows.
-            let mut row_iter = self.rows(&mut pixel_data);
-            // If we have previously hit a delta value,
-            // blank the rows that are to be skipped.
-            blank_bytes((&mut row_iter).take(skip_rows.into()));
-            let mut insns_iter = RLEInsnIterator {
-                r: &mut self.reader,
-                image_type,
-            };
-            let p = self.palette.as_ref().unwrap();
+        // Handling deltas in the RLE scheme means that we need to manually
+        // iterate through rows and pixels.  Even if we didn't have to handle
+        // deltas, we have to ensure that a single runlength doesn't straddle
+        // two rows.
+        let mut row_iter = self.rows(&mut pixel_data);
+        // If we have previously hit a delta value,
+        // blank the rows that are to be skipped.
+        blank_bytes((&mut row_iter).take(skip_rows.into()));
+        let mut insns_iter = RLEInsnIterator {
+            r: &mut self.reader,
+            image_type,
+        };
+        let p = self.palette.as_ref().unwrap();
 
-            'row_loop: while let Some(row) = row_iter.next() {
-                let mut pixel_iter = row.chunks_mut(num_channels);
-                // Blank delta skipped pixels if any.
-                blank_bytes((&mut pixel_iter).take(delta_pixels_left.into()));
-                delta_pixels_left = 0;
+        'row_loop: while let Some(row) = row_iter.next() {
+            let mut pixel_iter = row.chunks_mut(num_channels);
+            // Blank delta skipped pixels if any.
+            blank_bytes((&mut pixel_iter).take(delta_pixels_left.into()));
+            delta_pixels_left = 0;
 
-                'rle_loop: loop {
-                    if let Some(insn) = insns_iter.next() {
-                        match insn {
-                            RLEInsn::EndOfFile => {
-                                blank_bytes(pixel_iter);
-                                blank_bytes(row_iter);
-                                eof_hit = true;
-                                break 'row_loop;
-                            }
-                            RLEInsn::EndOfRow => {
-                                blank_bytes(pixel_iter);
-                                break 'rle_loop;
-                            }
-                            RLEInsn::Delta(x_delta, y_delta) => {
-                                if y_delta > 0 {
-                                    for n in 1..y_delta {
-                                        if let Some(row) = row_iter.next() {
-                                            // The msdn site on bitmap compression doesn't specify
-                                            // what happens to the values skipped when encountering
-                                            // a delta code, however IE and the windows image
-                                            // preview seems to replace them with black pixels,
-                                            // so we stick to that.
-                                            for b in row {
-                                                *b = 0;
-                                            }
-                                        } else {
-                                            delta_pixels_left = x_delta;
-                                            // We've reached the end of the buffer.
-                                            delta_rows_left = y_delta - n;
-                                            break 'row_loop;
-                                        }
-                                    }
-                                }
-
-                                for _ in 0..x_delta {
-                                    if let Some(pixel) = pixel_iter.next() {
-                                        for b in pixel {
+            'rle_loop: loop {
+                if let Some(insn) = insns_iter.next() {
+                    match insn {
+                        RLEInsn::EndOfFile => {
+                            blank_bytes(pixel_iter);
+                            blank_bytes(row_iter);
+                            eof_hit = true;
+                            break 'row_loop;
+                        }
+                        RLEInsn::EndOfRow => {
+                            blank_bytes(pixel_iter);
+                            break 'rle_loop;
+                        }
+                        RLEInsn::Delta(x_delta, y_delta) => {
+                            if y_delta > 0 {
+                                for n in 1..y_delta {
+                                    if let Some(row) = row_iter.next() {
+                                        // The msdn site on bitmap compression doesn't specify
+                                        // what happens to the values skipped when encountering
+                                        // a delta code, however IE and the windows image
+                                        // preview seems to replace them with black pixels,
+                                        // so we stick to that.
+                                        for b in row {
                                             *b = 0;
                                         }
                                     } else {
-                                        // We can't go any further in this row.
-                                        break;
+                                        delta_pixels_left = x_delta;
+                                        // We've reached the end of the buffer.
+                                        delta_rows_left = y_delta - n;
+                                        break 'row_loop;
                                     }
                                 }
                             }
-                            RLEInsn::Absolute(length, indices) => {
-                                // Absolute mode cannot span rows, so if we run
-                                // out of pixels to process, we should stop
-                                // processing the image.
-                                match image_type {
-                                    ImageType::RLE8 => {
-                                        if !set_8bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            indices.iter(),
-                                            length as usize,
-                                        ) {
-                                            break 'row_loop;
-                                        }
+
+                            for _ in 0..x_delta {
+                                if let Some(pixel) = pixel_iter.next() {
+                                    for b in pixel {
+                                        *b = 0;
                                     }
-                                    ImageType::RLE4 => {
-                                        if !set_4bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            indices.iter(),
-                                            length as usize,
-                                        ) {
-                                            break 'row_loop;
-                                        }
-                                    }
-                                    _ => panic!(),
-                                }
-                            }
-                            RLEInsn::PixelRun(n_pixels, palette_index) => {
-                                // A pixel run isn't allowed to span rows, but we
-                                // simply continue on to the next row if we run
-                                // out of pixels to set.
-                                match image_type {
-                                    ImageType::RLE8 => {
-                                        if !set_8bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            repeat(&palette_index),
-                                            n_pixels as usize,
-                                        ) {
-                                            break 'rle_loop;
-                                        }
-                                    }
-                                    ImageType::RLE4 => {
-                                        if !set_4bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            repeat(&palette_index),
-                                            n_pixels as usize,
-                                        ) {
-                                            break 'rle_loop;
-                                        }
-                                    }
-                                    _ => panic!(),
+                                } else {
+                                    // We can't go any further in this row.
+                                    break;
                                 }
                             }
                         }
-                    } else {
-                        // We ran out of data while we still had rows to fill in.
-                        return Err(ImageError::FormatError("Not enough RLE data".to_string()));
+                        RLEInsn::Absolute(length, indices) => {
+                            // Absolute mode cannot span rows, so if we run
+                            // out of pixels to process, we should stop
+                            // processing the image.
+                            match image_type {
+                                ImageType::RLE8 => {
+                                    if !set_8bit_pixel_run(
+                                        &mut pixel_iter,
+                                        p,
+                                        indices.iter(),
+                                        length as usize,
+                                    ) {
+                                        break 'row_loop;
+                                    }
+                                }
+                                ImageType::RLE4 => {
+                                    if !set_4bit_pixel_run(
+                                        &mut pixel_iter,
+                                        p,
+                                        indices.iter(),
+                                        length as usize,
+                                    ) {
+                                        break 'row_loop;
+                                    }
+                                }
+                                _ => panic!(),
+                            }
+                        }
+                        RLEInsn::PixelRun(n_pixels, palette_index) => {
+                            // A pixel run isn't allowed to span rows, but we
+                            // simply continue on to the next row if we run
+                            // out of pixels to set.
+                            match image_type {
+                                ImageType::RLE8 => {
+                                    if !set_8bit_pixel_run(
+                                        &mut pixel_iter,
+                                        p,
+                                        repeat(&palette_index),
+                                        n_pixels as usize,
+                                    ) {
+                                        break 'rle_loop;
+                                    }
+                                }
+                                ImageType::RLE4 => {
+                                    if !set_4bit_pixel_run(
+                                        &mut pixel_iter,
+                                        p,
+                                        repeat(&palette_index),
+                                        n_pixels as usize,
+                                    ) {
+                                        break 'rle_loop;
+                                    }
+                                }
+                                _ => panic!(),
+                            }
+                        }
                     }
+                } else {
+                    // We ran out of data while we still had rows to fill in.
+                    return Err(ImageError::FormatError("Not enough RLE data".to_string()));
                 }
             }
         }

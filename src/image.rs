@@ -8,13 +8,13 @@ use std::io::Read;
 use std::path::Path;
 use std::ops::{Deref, DerefMut};
 
-use buffer::{ImageBuffer, Pixel};
-use color::{ColorType, ExtendedColorType};
+use crate::buffer::{ImageBuffer, Pixel};
+use crate::color::{ColorType, ExtendedColorType};
 
-use animation::Frames;
+use crate::animation::Frames;
 
 #[cfg(feature = "pnm")]
-use pnm::PNMSubtype;
+use crate::pnm::PNMSubtype;
 
 /// An enumeration of Image errors
 #[derive(Debug)]
@@ -148,7 +148,7 @@ impl ImageFormat {
     /// Return the image format specified by the path's file extension.
     pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
         // thin wrapper function to strip generics before calling from_path_impl
-        ::io::free_functions::guess_format_from_path_impl(path.as_ref())
+        crate::io::free_functions::guess_format_from_path_impl(path.as_ref())
             .map_err(Into::into)
     }
 }
@@ -268,11 +268,11 @@ impl ImageReadBuffer {
         // Finally, copy bytes into output buffer.
         let bytes_buffered = self.buffer.len() - self.consumed;
         if bytes_buffered > buf.len() {
-            ::copy_memory(&self.buffer[self.consumed..][..buf.len()], &mut buf[..]);
+            crate::copy_memory(&self.buffer[self.consumed..][..buf.len()], &mut buf[..]);
             self.consumed += buf.len();
             Ok(buf.len())
         } else {
-            ::copy_memory(&self.buffer[self.consumed..], &mut buf[..bytes_buffered]);
+            crate::copy_memory(&self.buffer[self.consumed..], &mut buf[..bytes_buffered]);
             self.consumed = self.buffer.len();
             Ok(bytes_buffered)
         }
@@ -372,7 +372,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
 /// Panics if there isn't enough memory to decode the image.
 pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<T>>
 where
-    T: ::traits::Primitive + bytemuck::Pod,
+    T: crate::traits::Primitive + bytemuck::Pod,
 {
     let mut buf = vec![num_traits::Zero::zero(); usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
@@ -880,8 +880,8 @@ mod tests {
     use std::path::Path;
 
     use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
-    use buffer::ImageBuffer;
-    use color::Rgba;
+    use crate::buffer::ImageBuffer;
+    use crate::color::Rgba;
 
     #[test]
     /// Test that alpha blending works as expected

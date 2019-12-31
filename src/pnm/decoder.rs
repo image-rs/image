@@ -7,9 +7,9 @@ use std::mem;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
-use color::{ColorType, ExtendedColorType};
-use image::{self, ImageDecoder, ImageError, ImageResult};
-use utils;
+use crate::color::{ColorType, ExtendedColorType};
+use crate::image::{self, ImageDecoder, ImageError, ImageResult};
+use crate::utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 

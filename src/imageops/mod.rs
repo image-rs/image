@@ -1,9 +1,9 @@
 //! Image Processing Functions
 use std::cmp;
 
-use image::{GenericImage, GenericImageView, SubImage};
+use crate::image::{GenericImage, GenericImageView, SubImage};
 
-use buffer::Pixel;
+use crate::buffer::Pixel;
 
 pub use self::sample::FilterType;
 
@@ -163,8 +163,8 @@ where
 mod tests {
 
     use super::overlay;
-    use buffer::ImageBuffer;
-    use color::Rgb;
+    use crate::buffer::ImageBuffer;
+    use crate::color::Rgb;
 
     #[test]
     /// Test that images written into other images works

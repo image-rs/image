@@ -1,7 +1,7 @@
 //! Functions for performing affine transformations.
 
-use buffer::{ImageBuffer, Pixel};
-use image::GenericImageView;
+use crate::buffer::{ImageBuffer, Pixel};
+use crate::image::GenericImageView;
 
 /// Rotate an image 90 degrees clockwise.
 pub fn rotate90<I: GenericImageView>(
@@ -101,8 +101,8 @@ pub fn flip_vertical<I: GenericImageView>(
 #[cfg(test)]
 mod test {
     use super::{flip_horizontal, flip_vertical, rotate180, rotate270, rotate90};
-    use buffer::{GrayImage, ImageBuffer, Pixel};
-    use image::GenericImage;
+    use crate::buffer::{GrayImage, ImageBuffer, Pixel};
+    use crate::image::GenericImage;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

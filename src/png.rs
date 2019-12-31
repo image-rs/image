@@ -11,8 +11,8 @@ extern crate png;
 use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
-use color::{ColorType, ExtendedColorType};
-use image::{ImageDecoder, ImageEncoder, ImageError, ImageResult};
+use crate::color::{ColorType, ExtendedColorType};
+use crate::image::{ImageDecoder, ImageEncoder, ImageError, ImageResult};
 
 /// PNG Reader
 ///
@@ -283,7 +283,7 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
-    use image::ImageDecoder;
+    use crate::image::ImageDecoder;
     use std::io::Read;
     use super::*;
 

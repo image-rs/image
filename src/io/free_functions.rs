@@ -5,30 +5,30 @@ use std::path::Path;
 use std::u32;
 
 #[cfg(feature = "bmp")]
-use bmp;
+use crate::bmp;
 #[cfg(feature = "gif")]
-use gif;
+use crate::gif;
 #[cfg(feature = "hdr")]
-use hdr;
+use crate::hdr;
 #[cfg(feature = "ico")]
-use ico;
+use crate::ico;
 #[cfg(feature = "jpeg")]
-use jpeg;
+use crate::jpeg;
 #[cfg(feature = "png")]
-use png;
+use crate::png;
 #[cfg(feature = "pnm")]
-use pnm;
+use crate::pnm;
 #[cfg(feature = "tga")]
-use tga;
+use crate::tga;
 #[cfg(feature = "tiff")]
-use tiff;
+use crate::tiff;
 #[cfg(feature = "webp")]
-use webp;
+use crate::webp;
 
-use color;
-use image;
-use dynimage::DynamicImage;
-use image::{ImageDecoder, ImageEncoder, ImageFormat, ImageResult, ImageError};
+use crate::color;
+use crate::image;
+use crate::dynimage::DynamicImage;
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat, ImageResult, ImageError};
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {

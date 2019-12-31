@@ -4,12 +4,12 @@ use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
 use std::mem;
 
-use color::ColorType;
-use image::{self, ImageDecoder, ImageError, ImageResult};
+use crate::color::ColorType;
+use crate::image::{self, ImageDecoder, ImageError, ImageResult};
 
 use self::InnerDecoder::*;
-use bmp::BmpDecoder;
-use png::PngDecoder;
+use crate::bmp::BmpDecoder;
+use crate::png::PngDecoder;
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:

@@ -4,12 +4,12 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
-use flat::{FlatSamples, SampleLayout};
-use dynimage::{save_buffer, save_buffer_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
-use traits::{EncodableLayout, Primitive};
-use utils::expand_packed;
+use crate::color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::flat::{FlatSamples, SampleLayout};
+use crate::dynimage::{save_buffer, save_buffer_with_format};
+use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageResult};
+use crate::traits::{EncodableLayout, Primitive};
+use crate::utils::expand_packed;
 
 /// A generalized pixel.
 ///
@@ -1091,7 +1091,7 @@ pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 mod test {
 
     use super::{ImageBuffer, RgbImage};
-    use color;
+    use crate::color;
     #[cfg(feature = "benchmarks")]
     use test;
 

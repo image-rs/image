@@ -7,8 +7,8 @@ use std::io::Write;
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
-use color::{ColorType, ExtendedColorType};
-use image::{ImageEncoder, ImageError, ImageResult};
+use crate::color::{ColorType, ExtendedColorType};
+use crate::image::{ImageEncoder, ImageError, ImageResult};
 
 use byteorder::{BigEndian, WriteBytesExt};
 

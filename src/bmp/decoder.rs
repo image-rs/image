@@ -8,8 +8,8 @@ use std::cmp::Ordering;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use color::ColorType;
-use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use crate::color::ColorType;
+use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;

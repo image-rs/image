@@ -1,8 +1,8 @@
 use num_traits::{NumCast, ToPrimitive, Zero};
 use std::ops::{Index, IndexMut};
 
-use buffer::Pixel;
-use traits::Primitive;
+use crate::buffer::Pixel;
+use crate::traits::Primitive;
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -339,7 +339,7 @@ define_colors! {
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
-    fn from_color(&mut self, &Other);
+    fn from_color(&mut self, _: &Other);
 }
 
 // Self->Self: just copy
@@ -359,7 +359,7 @@ pub(crate) trait IntoColor<Other> {
 
 impl<O, S> IntoColor<O> for S
 where
-    O: ::buffer::Pixel + FromColor<S> {
+    O: Pixel + FromColor<S> {
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.

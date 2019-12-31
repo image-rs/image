@@ -10,7 +10,10 @@ pub use self::sample::FilterType;
 pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
 
 /// Affine transformations
-pub use self::affine::{flip_horizontal, flip_vertical, rotate180, rotate270, rotate90};
+pub use self::affine::{
+    flip_horizontal, flip_horizontal_in_place, flip_vertical, flip_vertical_in_place, rotate180,
+    rotate180_in_place, rotate270, rotate90, rotate180_in, rotate90_in, rotate270_in, flip_horizontal_in, flip_vertical_in
+};
 
 /// Image sampling
 pub use self::sample::{blur, filter3x3, resize, thumbnail, unsharpen};

@@ -18,9 +18,9 @@ use std::cmp;
 use std::io::Read;
 
 use super::transform;
-use ::{ImageError, ImageResult};
+use crate::{ImageError, ImageResult};
 
-use math::utils::clamp;
+use crate::math::utils::clamp;
 
 const MAX_SEGMENTS: usize = 4;
 const NUM_DCT_TOKENS: usize = 12;

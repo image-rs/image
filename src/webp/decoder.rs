@@ -5,11 +5,11 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use image;
-use image::ImageDecoder;
-use image::ImageResult;
+use crate::image;
+use crate::image::ImageDecoder;
+use crate::image::ImageResult;
 
-use color;
+use crate::color;
 
 use super::vp8::Frame;
 use super::vp8::Vp8Decoder;

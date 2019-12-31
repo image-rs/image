@@ -3,8 +3,8 @@ use std::convert::TryFrom;
 use std::io;
 use std::io::{Read, Seek};
 
-use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageReadBuffer, ImageResult};
+use crate::color::ColorType;
+use crate::image::{ImageDecoder, ImageError, ImageReadBuffer, ImageResult};
 
 enum ImageType {
     NoImageData = 0,

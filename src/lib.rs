@@ -27,11 +27,11 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use color::{ColorType, ExtendedColorType};
+pub use crate::color::{ColorType, ExtendedColorType};
 
-pub use color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
-pub use image::{AnimationDecoder,
+pub use crate::image::{AnimationDecoder,
                 GenericImage,
                 GenericImageView,
                 ImageDecoder,
@@ -46,7 +46,7 @@ pub use image::{AnimationDecoder,
                 Pixels,
                 SubImage};
 
-pub use buffer::{ConvertBuffer,
+pub use crate::buffer::{ConvertBuffer,
                  GrayAlphaImage,
                  GrayImage,
                  // Image types
@@ -56,19 +56,19 @@ pub use buffer::{ConvertBuffer,
                  RgbaImage,
                  };
 
-pub use flat::FlatSamples;
+pub use crate::flat::FlatSamples;
 
 // Traits
-pub use traits::Primitive;
+pub use crate::traits::Primitive;
 
 // Opening and loading images
-pub use io::free_functions::{guess_format, load};
-pub use dynimage::{load_from_memory, load_from_memory_with_format, open,
+pub use crate::io::free_functions::{guess_format, load};
+pub use crate::dynimage::{load_from_memory, load_from_memory_with_format, open,
                    save_buffer, save_buffer_with_format, image_dimensions};
 
-pub use dynimage::DynamicImage;
+pub use crate::dynimage::DynamicImage;
 
-pub use animation::{Frame, Frames};
+pub use crate::animation::{Frame, Frames};
 
 // Math utils
 pub mod math;

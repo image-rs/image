@@ -5,8 +5,8 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use color::ColorType;
-use image::{ImageDecoder, ImageError, ImageResult};
+use crate::color::ColorType;
+use crate::image::{ImageDecoder, ImageError, ImageResult};
 
 /// JPEG decoder
 pub struct JpegDecoder<R> {

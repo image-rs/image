@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use dynimage::DynamicImage;
-use image::ImageFormat;
-use {ImageError, ImageResult};
+use crate::dynimage::DynamicImage;
+use crate::image::ImageFormat;
+use crate::{ImageError, ImageResult};
 
 use super::free_functions;
 

@@ -9,10 +9,10 @@ use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::mem;
 use std::path::Path;
-use Primitive;
+use crate::Primitive;
 
-use color::{ColorType, Rgb};
-use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use crate::color::{ColorType, Rgb};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]

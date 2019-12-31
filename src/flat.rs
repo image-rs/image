@@ -47,9 +47,9 @@ use std::marker::PhantomData;
 
 use num_traits::Zero;
 
-use buffer::{ImageBuffer, Pixel};
-use color::ColorType;
-use image::{GenericImage, GenericImageView, ImageError};
+use crate::buffer::{ImageBuffer, Pixel};
+use crate::color::ColorType;
+use crate::image::{GenericImage, GenericImageView, ImageError};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -1418,8 +1418,8 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use buffer::GrayAlphaImage;
-    use color::{LumaA, Rgb};
+    use crate::buffer::GrayAlphaImage;
+    use crate::color::{LumaA, Rgb};
 
     #[test]
     fn aliasing_view() {

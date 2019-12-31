@@ -4,31 +4,31 @@ use std::path::Path;
 use std::u32;
 
 #[cfg(feature = "bmp")]
-use bmp;
+use crate::bmp;
 #[cfg(feature = "gif")]
-use gif;
+use crate::gif;
 #[cfg(feature = "ico")]
-use ico;
+use crate::ico;
 #[cfg(feature = "jpeg")]
-use jpeg;
+use crate::jpeg;
 #[cfg(feature = "png")]
-use png;
+use crate::png;
 #[cfg(feature = "pnm")]
-use pnm;
+use crate::pnm;
 
-use buffer::{
+use crate::buffer::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
     GrayImage, Gray16Image, ImageBuffer, Pixel, RgbImage, Rgb16Image,
     RgbaImage, Rgba16Image,
 };
-use color::{self, IntoColor};
-use flat::FlatSamples;
-use image;
-use image::{
+use crate::color::{self, IntoColor};
+use crate::flat::FlatSamples;
+use crate::image;
+use crate::image::{
     GenericImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageOutputFormat, ImageResult,
 };
-use io::free_functions;
-use imageops;
+use crate::io::free_functions;
+use crate::imageops;
 
 /// A Dynamic Image
 #[derive(Clone)]
@@ -851,7 +851,7 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
 
 #[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
-    use traits::EncodableLayout;
+    use crate::traits::EncodableLayout;
 
     match *image {
         // TODO: consider transmuting

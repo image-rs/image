@@ -1,7 +1,7 @@
-use color::Rgb;
-use hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
+use crate::color::Rgb;
+use crate::hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
 use std::io::{Result, Write};
-use image::ImageResult;
+use crate::image::ImageResult;
 use std::cmp::Ordering;
 
 /// Radiance HDR encoder
@@ -247,7 +247,7 @@ pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
 
 #[test]
 fn to_rgbe8_test() {
-    use hdr::rgbe8;
+    use crate::hdr::rgbe8;
     let test_cases = vec![rgbe8(0, 0, 0, 0), rgbe8(1, 1, 128, 128)];
     for &pix in &test_cases {
         assert_eq!(pix, to_rgbe8(pix.to_hdr()));

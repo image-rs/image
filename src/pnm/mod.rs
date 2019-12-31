@@ -20,8 +20,8 @@ mod header;
 mod tests {
     use super::*;
     use byteorder::{ByteOrder, NativeEndian};
-    use color::ColorType;
-    use image::ImageDecoder;
+    use crate::color::ColorType;
+    use crate::image::ImageDecoder;
 
     fn execute_roundtrip_default(buffer: &[u8], width: u32, height: u32, color: ColorType) {
         let mut encoded_buffer = Vec::new();

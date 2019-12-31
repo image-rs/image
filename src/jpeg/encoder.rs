@@ -1,13 +1,13 @@
 #![allow(clippy::too_many_arguments)]
 
 use byteorder::{BigEndian, WriteBytesExt};
-use image::{ImageError, ImageResult};
-use math::utils::clamp;
+use crate::image::{ImageError, ImageResult};
+use crate::math::utils::clamp;
 use num_iter::range_step;
 use std::io::{self, Write};
 
-use color;
-use image::ImageEncoder;
+use crate::color;
+use crate::image::ImageEncoder;
 
 use super::entropy::build_huff_lut;
 use super::transform;
@@ -834,8 +834,8 @@ fn copy_blocks_gray(
 mod tests {
     use super::super::JpegDecoder;
     use super::{JPEGEncoder, PixelDensity, build_jfif_header};
-    use color::ColorType;
-    use image::ImageDecoder;
+    use crate::color::ColorType;
+    use crate::image::ImageDecoder;
     use std::io::Cursor;
 
     fn decode(encoded: &[u8]) -> Vec<u8> {

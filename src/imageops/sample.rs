@@ -404,7 +404,7 @@ where
 fn thumbnail_sample_block<I, P, S>(
     image: &I,
     left: u32,
-    right: u32, 
+    right: u32,
     bottom: u32,
     top: u32,
 ) -> (S, S, S, S)
@@ -438,7 +438,7 @@ where
 fn thumbnail_sample_fraction_horizontal<I, P, S>(
     image: &I,
     left: u32,
-    fraction_horizontal: f32, 
+    fraction_horizontal: f32,
     bottom: u32,
     top: u32,
 ) -> (S, S, S, S)
@@ -462,8 +462,8 @@ where
     // Now we approximate: left/n*(1-fract) + right/n*fract
     let fact_right =       fract /((top - bottom) as f32);
     let fact_left  = (1. - fract)/((top - bottom) as f32);
-    
-    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| 
+
+    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger|
         <S as NumCast>::from(
             fact_left * leftv.to_f32().unwrap() +
             fact_right * rightv.to_f32().unwrap()
@@ -481,7 +481,7 @@ where
 fn thumbnail_sample_fraction_vertical<I, P, S>(
     image: &I,
     left: u32,
-    right: u32, 
+    right: u32,
     bottom: u32,
     fraction_vertical: f32,
 ) -> (S, S, S, S)
@@ -505,8 +505,8 @@ where
     // Now we approximate: bot/n*fract + top/n*(1-fract)
     let fact_top =       fract /((right - left) as f32);
     let fact_bot = (1. - fract)/((right - left) as f32);
-    
-    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| 
+
+    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger|
         <S as NumCast>::from(
             fact_bot * botv.to_f32().unwrap() +
             fact_top * topv.to_f32().unwrap()
@@ -537,7 +537,7 @@ where
     let k_tl = image.get_pixel(left,     bottom + 1).channels4();
     let k_br = image.get_pixel(left + 1, bottom    ).channels4();
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
-    
+
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
 
@@ -553,7 +553,7 @@ where
             fact_bl * bl.to_f32().unwrap() +
             fact_tl * tl.to_f32().unwrap()
         ).expect("Average sample value should fit into sample type");
-    
+
     (
         mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
         mix(k_br.1, k_tr.1, k_bl.1, k_tl.1),

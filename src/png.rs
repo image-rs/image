@@ -27,7 +27,7 @@ pub struct PNGReader<R: Read> {
 impl<R: Read> PNGReader<R> {
     fn new(mut reader: png::Reader<R>) -> ImageResult<PNGReader<R>> {
         let len = reader.output_buffer_size();
-        // Since interlaced images do not come in 
+        // Since interlaced images do not come in
         // scanline order it is almost impossible to
         // read them in a streaming fashion, however
         // this shouldn't be a too big of a problem
@@ -55,7 +55,7 @@ impl<R: Read> Read for PNGReader<R> {
 
         let mut bytes = readed;
         self.index += readed;
-    
+
         while self.index >= self.buffer.len() {
             match self.reader.next_row()? {
                 Some(row) => {
@@ -78,7 +78,7 @@ impl<R: Read> Read for PNGReader<R> {
         buf.extend_from_slice(&self.buffer);
         self.buffer = Vec::new();
         self.index = 0;
-    
+
         while let Some(row) = self.reader.next_row()? {
             buf.extend_from_slice(row);
             bytes += row.len();

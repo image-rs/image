@@ -921,6 +921,35 @@ where
         self.get_pixel_mut(x, y).blend(&p)
     }
 
+    fn copy_within(&mut self, from: (u32, u32), to: (u32, u32), width: u32, height: u32) -> bool {
+        let (fx, fy) = from;
+        let (tx, ty) = to;
+        if tx.max(fx) + width > self.width() || ty.max(fy) + height > self.height() {
+            return false;
+        }
+
+        let px_size = <P as Pixel>::CHANNEL_COUNT as usize * std::mem::size_of::<<P as Pixel>::Subpixel>();
+        let width = px_size * width as usize;
+        if from.1 < to.1 {
+            for y in (0..height).rev() {
+                let sy = fy + y;
+                let dy = ty + y;
+                let src = px_size * (sy * self.width + fx) as usize;
+                let dst = px_size * (dy * self.width + tx) as usize;
+                (&mut **self).copy_within(src..src + width, dst);
+            }
+        } else {
+            for y in 0..height {
+                let sy = fy + y;
+                let dy = ty + y;
+                let src = px_size * (sy * self.width + fx) as usize;
+                let dst = px_size * (dy * self.width + tx) as usize;
+                (&mut **self).copy_within(src..src + width, dst);
+            }
+        }
+        true
+    }
+
     fn inner_mut(&mut self) -> &mut Self::InnerImage {
         self
     }
@@ -1081,7 +1110,8 @@ pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
 #[cfg(test)]
 mod test {
 
-    use super::{ImageBuffer, RgbImage};
+    use super::{ImageBuffer, RgbImage, GrayImage};
+    use super::GenericImage;
     use color;
     #[cfg(feature = "benchmarks")]
     use test;
@@ -1193,5 +1223,93 @@ mod test {
         });
 
         b.bytes = 1000 * 1000 * 3;
+    }
+
+    #[test]
+    fn test_image_buffer_copy_within_oob() {
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
+        assert!(!image.copy_within((0, 0), (0, 0), 5, 4));
+        assert!(!image.copy_within((0, 0), (0, 0), 4, 5));
+        assert!(!image.copy_within((1, 0), (0, 0), 4, 4));
+        assert!(!image.copy_within((0, 0), (1, 0), 4, 4));
+        assert!(!image.copy_within((0, 1), (0, 0), 4, 4));
+        assert!(!image.copy_within((0, 0), (0, 1), 4, 4));
+        assert!(!image.copy_within((1, 1), (0, 0), 4, 4));
+    }
+
+    #[test]
+    fn test_image_buffer_copy_within_tl() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 01, 02, 03,
+            04, 00, 01, 02,
+            08, 04, 05, 06,
+            12, 08, 09, 10,
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.copy_within((0, 0), (1, 1), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_image_buffer_copy_within_tr() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 01, 02, 03,
+            01, 02, 03, 07,
+            05, 06, 07, 11,
+            09, 10, 11, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.copy_within((1, 0), (0, 1), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_image_buffer_copy_within_bl() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 04, 05, 06,
+            04, 08, 09, 10,
+            08, 12, 13, 14,
+            12, 13, 14, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.copy_within((0, 1), (1, 0), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_image_buffer_copy_within_br() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            05, 06, 07, 03,
+            09, 10, 11, 07,
+            13, 14, 15, 11,
+            12, 13, 14, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.copy_within((1, 1), (0, 0), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
     }
 }

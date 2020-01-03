@@ -632,6 +632,47 @@ pub trait GenericImage: GenericImageView {
         true
     }
 
+    /// Copies all of the pixels from one part of this image to another part of this image.
+    ///
+    /// The from parameter defines the top left corner of the source rectangle, while the
+    /// to parameter defines the top left corner of the destination rectangle. These together
+    /// with width and height construct the rectangles of the copy operation. 
+    ///
+    /// # Returns
+    /// `true` if the copy was successful, `false` if the image could not
+    /// be copied due to size constraints.
+    fn copy_within(&mut self, from: (u32, u32), to: (u32, u32), width: u32, height: u32) -> bool {
+        let (fx, fy) = from;
+        let (tx, ty) = to;
+        if tx.max(fx) + width > self.width() || ty.max(fy) + height > self.height() {
+            return false;
+        }
+        // since `.rev()` creates a new type we would either have to go with dynamic dispatch for the ranges
+        // or have quite a lot of code bloat. A macro gives us static dispatch with less visible bloat.
+        macro_rules! copy_within_impl_ {
+            ($xiter:expr, $yiter:expr) => {
+                for y in $yiter {
+                    let sy = fy + y;
+                    let dy = ty + y;
+                    for x in $xiter {
+                        let sx = fx + x;
+                        let dx = tx + x;
+                        let pixel = self.get_pixel(sx, sy);
+                        self.put_pixel(dx, dy, pixel);
+                    }
+                } 
+            }
+        }
+        // check how target and source rectangles relate to each other so we dont overwrite data before we copied it.
+        match (from.0 < to.0, from.1 < to.1) {
+            (true, true) => copy_within_impl_!((0..width).rev(), (0..height).rev()),
+            (true, false) => copy_within_impl_!((0..width).rev(), 0..height),
+            (false, true) => copy_within_impl_!(0..width, (0..height).rev()),
+            (false, false) => copy_within_impl_!(0..width, 0..height),
+        }
+        true
+    }
+
     /// Returns a mutable reference to the underlying image.
     fn inner_mut(&mut self) -> &mut Self::InnerImage;
 
@@ -786,7 +827,7 @@ mod tests {
     use std::path::Path;
 
     use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
-    use buffer::ImageBuffer;
+    use buffer::{ImageBuffer, GrayImage};
     use color::Rgba;
 
     #[test]
@@ -941,5 +982,93 @@ mod tests {
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::PNM);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
+    }
+
+    #[test]
+    fn test_generic_image_copy_within_oob() {
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((0, 0), (0, 0), 5, 4));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((0, 0), (0, 0), 4, 5));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((1, 0), (0, 0), 4, 4));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((0, 0), (1, 0), 4, 4));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((0, 1), (0, 0), 4, 4));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((0, 0), (0, 1), 4, 4));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within((1, 1), (0, 0), 4, 4));
+    }
+
+    #[test]
+    fn test_generic_image_copy_within_tl() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 01, 02, 03,
+            04, 00, 01, 02,
+            08, 04, 05, 06,
+            12, 08, 09, 10,
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.sub_image(0, 0, 4, 4).copy_within((0, 0), (1, 1), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_generic_image_copy_within_tr() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 01, 02, 03,
+            01, 02, 03, 07,
+            05, 06, 07, 11,
+            09, 10, 11, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.sub_image(0, 0, 4, 4).copy_within((1, 0), (0, 1), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_generic_image_copy_within_bl() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            00, 04, 05, 06,
+            04, 08, 09, 10,
+            08, 12, 13, 14,
+            12, 13, 14, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.sub_image(0, 0, 4, 4).copy_within((0, 1), (1, 0), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn test_generic_image_copy_within_br() {
+        let data = &[
+            00, 01, 02, 03,
+            04, 05, 06, 07,
+            08, 09, 10, 11,
+            12, 13, 14, 15
+        ];
+        let expected = [
+            05, 06, 07, 03,
+            09, 10, 11, 07,
+            13, 14, 15, 11,
+            12, 13, 14, 15
+        ];
+        let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
+        assert!(image.sub_image(0, 0, 4, 4).copy_within((1, 1), (0, 0), 3, 3));
+        assert_eq!(&image.into_raw(), &expected);
     }
 }

@@ -924,27 +924,29 @@ where
     fn copy_within(&mut self, from: (u32, u32), to: (u32, u32), width: u32, height: u32) -> bool {
         let (fx, fy) = from;
         let (tx, ty) = to;
-        if tx.max(fx) + width > self.width() || ty.max(fy) + height > self.height() {
+        assert!(fx < self.width() && tx < self.width()); 
+        assert!(fy < self.height() && ty < self.height());
+        if self.width() - tx.max(fx) < width || self.height() - ty.max(fy) < height  {
             return false;
         }
 
-        let px_size = <P as Pixel>::CHANNEL_COUNT as usize * std::mem::size_of::<<P as Pixel>::Subpixel>();
-        let width = px_size * width as usize;
         if from.1 < to.1 {
             for y in (0..height).rev() {
                 let sy = fy + y;
                 let dy = ty + y;
-                let src = px_size * (sy * self.width + fx) as usize;
-                let dst = px_size * (dy * self.width + tx) as usize;
-                (&mut **self).copy_within(src..src + width, dst);
+                let Range { start, .. } = self.pixel_indices_unchecked(fx, sy);
+                let Range { end, .. } = self.pixel_indices_unchecked(fx + width - 1, sy);
+                let dst = self.pixel_indices_unchecked(tx, dy).start;
+                (&mut **self).copy_within(start..end, dst);
             }
         } else {
             for y in 0..height {
                 let sy = fy + y;
                 let dy = ty + y;
-                let src = px_size * (sy * self.width + fx) as usize;
-                let dst = px_size * (dy * self.width + tx) as usize;
-                (&mut **self).copy_within(src..src + width, dst);
+                let Range { start, .. } = self.pixel_indices_unchecked(fx, sy);
+                let Range { end, .. } = self.pixel_indices_unchecked(fx + width - 1, sy);
+                let dst = self.pixel_indices_unchecked(tx, dy).start;
+                (&mut **self).copy_within(start..end, dst);
             }
         }
         true

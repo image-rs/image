@@ -644,7 +644,9 @@ pub trait GenericImage: GenericImageView {
     fn copy_within(&mut self, from: (u32, u32), to: (u32, u32), width: u32, height: u32) -> bool {
         let (fx, fy) = from;
         let (tx, ty) = to;
-        if tx.max(fx) + width > self.width() || ty.max(fy) + height > self.height() {
+        assert!(fx < self.width() && tx < self.width()); 
+        assert!(fy < self.height() && ty < self.height());
+        if self.width() - tx.max(fx) < width || self.height() - ty.max(fy) < height  {
             return false;
         }
         // since `.rev()` creates a new type we would either have to go with dynamic dispatch for the ranges

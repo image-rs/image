@@ -115,6 +115,14 @@ impl<W: Write> Writer<W> {
     }
 
     fn init(mut self) -> Result<Self> {
+        if self.info.width == 0 {
+            return Err(EncodingError::Format("Zero width not allowed".into()));
+        }
+
+        if self.info.height == 0 {
+            return Err(EncodingError::Format("Zero height not allowed".into()));
+        }
+
         self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
         let mut data = [0; 13];
         (&mut data[..]).write_be(self.info.width)?;
@@ -424,6 +432,25 @@ mod tests {
         let image = vec![0u8; correct_image_size + 1];
         let result = png_writer.write_image_data(image.as_ref());
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn expect_error_on_empty_image() -> Result<()> {
+        use std::io::Cursor;
+
+        let output = vec![0u8; 1024];
+        let mut writer = Cursor::new(output);
+
+        let encoder = Encoder::new(&mut writer, 0, 0);
+        assert!(encoder.write_header().is_err());
+
+        let encoder = Encoder::new(&mut writer, 100, 0);
+        assert!(encoder.write_header().is_err());
+
+        let encoder = Encoder::new(&mut writer, 0, 100);
+        assert!(encoder.write_header().is_err());
 
         Ok(())
     }

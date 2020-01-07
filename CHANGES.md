@@ -1,3 +1,9 @@
+## 0.15.3
+
+* Fix panic while trying to encode empty images. Such images are no longer
+  accepted and error when calling `write_header` before any data has been
+  written. The specification does not permit empty images.
+
 ## 0.15.2
 
 * Fix `EXPAND` transformation to leave bit depths above 8 unchanged

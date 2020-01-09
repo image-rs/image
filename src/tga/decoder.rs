@@ -4,7 +4,8 @@ use std::io;
 use std::io::{Read, Seek};
 
 use crate::color::ColorType;
-use crate::image::{ImageDecoder, ImageError, ImageReadBuffer, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{ImageDecoder, ImageReadBuffer};
 
 enum ImageType {
     NoImageData = 0,

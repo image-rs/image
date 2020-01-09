@@ -8,7 +8,8 @@ use std::mem;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
-use crate::image::{self, ImageDecoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder};
 use crate::utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};

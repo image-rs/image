@@ -2,7 +2,8 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use crate::color::ColorType;
-use crate::image::{ImageEncoder, ImageResult};
+use crate::error::ImageResult;
+use crate::image::ImageEncoder;
 
 use crate::png::PNGEncoder;
 

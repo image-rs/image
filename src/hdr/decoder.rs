@@ -12,7 +12,8 @@ use std::path::Path;
 use crate::Primitive;
 
 use crate::color::{ColorType, Rgb};
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, Progress};
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]

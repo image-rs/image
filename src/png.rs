@@ -12,7 +12,8 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::image::{ImageDecoder, ImageEncoder, ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{ImageDecoder, ImageEncoder};
 
 /// PNG Reader
 ///

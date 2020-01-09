@@ -49,7 +49,8 @@ use num_traits::Zero;
 
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::ColorType;
-use crate::image::{GenericImage, GenericImageView, ImageError};
+use crate::error::ImageError;
+use crate::image::{GenericImage, GenericImageView};
 
 /// A flat buffer over a (multi channel) image.
 ///

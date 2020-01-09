@@ -16,7 +16,8 @@ use std::mem;
 use byteorder::{NativeEndian, ByteOrder};
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::image::{ImageDecoder, ImageEncoder, ImageResult, ImageError};
+use crate::error::{ImageError, ImageResult};
+use crate::image::{ImageDecoder, ImageEncoder};
 use crate::utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.

@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use byteorder::{BigEndian, WriteBytesExt};
-use crate::image::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult};
 use crate::math::utils::clamp;
 use num_iter::range_step;
 use std::io::{self, Write};

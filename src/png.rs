@@ -16,8 +16,8 @@ use image::{ImageDecoder, ImageError, ImageResult};
 /// PNG Reader
 ///
 /// This reader will try to read the png one row at a time,
-/// however for interlaced png files this is not posible and
-/// these are therefore readed at once.
+/// however for interlaced png files this is not possible and
+/// these are therefore read at once.
 pub struct PNGReader<R: Read> {
     reader: png::Reader<R>,
     buffer: Vec<u8>,

@@ -8,6 +8,17 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22.4
+
+- Added in-place variants for flip and rotate operations.
+- The bmp encoder now checks if dimensions are valid for the format. It would
+  previously write a subset or panic.
+- Removed deprecated implementations of `Error::description`
+- Added `DynamicImage::into_*` which convert without an additional allocation.
+- The PNG encoder errors on unsupported color types where it had previously
+  silently swapped color channels.
+- Enabled saving images as `gif` with `save_buffer`.
+
 ### Version 0.22.3
 
 - Added a new module `io` containing a configurable `Reader`. It can replace

@@ -142,6 +142,8 @@ pub(crate) fn save_buffer_impl(
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
+        #[cfg(feature = "gif")]
+        "gif" => gif::Encoder::new(fout).encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf)),
         #[cfg(feature = "ico")]
         "ico" => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
@@ -182,6 +184,9 @@ pub(crate) fn save_buffer_with_format_impl(
     let fout = &mut BufWriter::new(File::create(path)?);
 
     match format {
+        #[cfg(feature = "gif")]
+        image::ImageFormat::Gif => gif::Encoder::new(fout)
+            .encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf)),
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]

@@ -132,7 +132,7 @@ impl From<jpeg::Error> for ImageError {
             Format(desc) => ImageError::FormatError(desc),
             Unsupported(desc) => ImageError::UnsupportedError(format!("{:?}", desc)),
             Io(err) => ImageError::IoError(err),
-            Internal(err) => ImageError::FormatError(err.description().to_owned()),
+            Internal(err) => ImageError::FormatError(err.to_string()),
         }
     }
 }

@@ -1199,7 +1199,7 @@ mod tests {
         let b = Rgba([255 as u8, 255, 255, 0]);
         a.blend(&b);
         assert_eq!(a.0, [255, 255, 255, 0]);
-    }    
+    }
 
     #[test]
     fn test_apply_without_alpha_rgba() {

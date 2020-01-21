@@ -18,8 +18,8 @@ use crate::image::{ImageDecoder, ImageEncoder};
 /// PNG Reader
 ///
 /// This reader will try to read the png one row at a time,
-/// however for interlaced png files this is not posible and
-/// these are therefore readed at once.
+/// however for interlaced png files this is not possible and
+/// these are therefore read at once.
 pub struct PNGReader<R: Read> {
     reader: png::Reader<R>,
     buffer: Vec<u8>,
@@ -29,7 +29,7 @@ pub struct PNGReader<R: Read> {
 impl<R: Read> PNGReader<R> {
     fn new(mut reader: png::Reader<R>) -> ImageResult<PNGReader<R>> {
         let len = reader.output_buffer_size();
-        // Since interlaced images do not come in 
+        // Since interlaced images do not come in
         // scanline order it is almost impossible to
         // read them in a streaming fashion, however
         // this shouldn't be a too big of a problem
@@ -57,7 +57,7 @@ impl<R: Read> Read for PNGReader<R> {
 
         let mut bytes = readed;
         self.index += readed;
-    
+
         while self.index >= self.buffer.len() {
             match self.reader.next_row()? {
                 Some(row) => {
@@ -80,7 +80,7 @@ impl<R: Read> Read for PNGReader<R> {
         buf.extend_from_slice(&self.buffer);
         self.buffer = Vec::new();
         self.index = 0;
-    
+
         while let Some(row) = self.reader.next_row()? {
             buf.extend_from_slice(row);
             bytes += row.len();
@@ -220,8 +220,6 @@ impl<W: Write> PNGEncoder<W> {
             ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
             ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
-            ColorType::Bgr8 => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::Bgra8 => (png::ColorType::RGBA, png::BitDepth::Eight),
             _ => return Err(ImageError::UnsupportedColor(color.into())),
         };
 

@@ -3,7 +3,6 @@ use scoped_threadpool::Pool;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::error::Error;
 use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
 use std::marker::PhantomData;
@@ -681,7 +680,7 @@ impl HDRMetadata {
                         if strict {
                             return Err(ImageError::FormatError(format!(
                                 "Cannot parse EXPOSURE value: {}",
-                                parse_error.description()
+                                parse_error
                             )));
                         } // no else, skip this line in non-strict mode
                     }
@@ -697,7 +696,7 @@ impl HDRMetadata {
                         if strict {
                             return Err(ImageError::FormatError(format!(
                                 "Cannot parse PIXASPECT value: {}",
-                                parse_error.description()
+                                parse_error
                             )));
                         } // no else, skip this line in non-strict mode
                     }
@@ -745,7 +744,7 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
                     return Err(ImageError::FormatError(format!(
                         "f32 parse error in {}: {}",
                         name,
-                        err.description()
+                        err
                     )));
                 }
             }
@@ -806,7 +805,7 @@ trait IntoImageError<T> {
 impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseFloatError> {
     fn into_image_error(self, description: &str) -> ImageResult<T> {
         self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err.description()))
+            ImageError::FormatError(format!("{} {}", description, err))
         })
     }
 }
@@ -814,7 +813,7 @@ impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseFloatErr
 impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseIntError> {
     fn into_image_error(self, description: &str) -> ImageResult<T> {
         self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err.description()))
+            ImageError::FormatError(format!("{} {}", description, err))
         })
     }
 }

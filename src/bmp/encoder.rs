@@ -41,7 +41,6 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             .ok_or(ImageError::DimensionError)?
             .checked_add(height * row_pad_size)
             .ok_or(ImageError::DimensionError)?;
-
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 

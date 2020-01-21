@@ -128,10 +128,10 @@ pub trait Pixel: Copy + Clone {
     where
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
         G: FnMut(Self::Subpixel) -> Self::Subpixel;
-    
-    /// Apply the function ```f``` to each channel except the alpha channel. 
-    fn map_without_alpha<F>(&self, f: F) -> Self 
-    where 
+
+    /// Apply the function ```f``` to each channel except the alpha channel.
+    fn map_without_alpha<F>(&self, f: F) -> Self
+    where
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
     {
         let mut this = *self;
@@ -139,10 +139,10 @@ pub trait Pixel: Copy + Clone {
         this
     }
 
-    /// Apply the function ```f``` to each channel except the alpha channel. 
+    /// Apply the function ```f``` to each channel except the alpha channel.
     /// Works in place.
-    fn apply_without_alpha<F>(&mut self, f: F) 
-    where 
+    fn apply_without_alpha<F>(&mut self, f: F)
+    where
         F: FnMut(Self::Subpixel) -> Self::Subpixel,
     {
         self.apply_with_alpha(f, |x| x);
@@ -649,7 +649,7 @@ where
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
     pub fn into_flat_samples(self) -> FlatSamples<Container>
-        where Container: AsRef<[P::Subpixel]> 
+        where Container: AsRef<[P::Subpixel]>
     {
         // None of these can overflow, as all our memory is addressable.
         let layout = self.sample_layout();
@@ -664,7 +664,7 @@ where
     ///
     /// See `flattened` for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-        where Container: AsRef<[P::Subpixel]> 
+        where Container: AsRef<[P::Subpixel]>
     {
         let layout = self.sample_layout();
         FlatSamples {

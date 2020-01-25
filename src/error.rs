@@ -99,7 +99,9 @@ pub enum UnsupportedErrorKind {
     Color(ExtendedColorType),
     /// An image format is not supported.
     Format(ImageFormatHint),
-    Feature,
+    /// Some feature specified by string.
+    /// This is discouraged and is likely to get deprecated (but not removed).
+    GenericFeature(String),
     #[doc(hidden)]
     __NonExhaustive,
 }
@@ -172,7 +174,57 @@ pub enum ImageFormatHint {
     __NonExhaustive,
 }
 
+#[allow(non_upper_case_globals)]
+#[allow(non_snake_case)]
+impl NewImageError {
+    pub(crate) const InsufficientMemory: Self =
+        NewImageError::Limits(LimitError {
+            kind: LimitErrorKind::InsufficientMemory,
+        });
+
+    pub(crate) const DimensionError: Self =
+        NewImageError::Parameter(ParameterError {
+            kind: ParameterErrorKind::DimensionMismatch,
+            underlying: None,
+        });
+
+    pub(crate) const ImageEnd: Self =
+        NewImageError::Parameter(ParameterError {
+            kind: ParameterErrorKind::FailedAlready,
+            underlying: None,
+        });
+
+    pub(crate) fn UnsupportedError(message: String) -> Self {
+        NewImageError::Unsupported(UnsupportedError::legacy_from_string(message))
+    }
+
+    pub(crate) fn UnsupportedColor(color: ExtendedColorType) -> Self {
+        NewImageError::Unsupported(UnsupportedError::new(
+            ImageFormatHint::Unknown,
+            UnsupportedErrorKind::Color(color),
+        ))
+    }
+
+    pub(crate) fn FormatError(message: String) -> Self {
+        NewImageError::Decoding(DecodingError::legacy_from_string(message))
+    }
+}
+
 impl UnsupportedError {
+    pub fn new(format: ImageFormatHint, kind: UnsupportedErrorKind) -> Self {
+        UnsupportedError {
+            format,
+            kind,
+        }
+    }
+
+    pub(crate) fn legacy_from_string(message: String) -> Self {
+        UnsupportedError {
+            format: ImageFormatHint::Unknown,
+            kind: UnsupportedErrorKind::GenericFeature(message),
+        }
+    }
+
     pub fn kind(&self) -> UnsupportedErrorKind {
         self.kind.clone()
     }
@@ -186,6 +238,14 @@ impl DecodingError {
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
     }
+
+    pub(crate) fn legacy_from_string(message: String) -> Self {
+        DecodingError {
+            format: ImageFormatHint::Unknown,
+            message,
+            underlying: None,
+        }
+    }
 }
 
 impl EncodingError {
@@ -197,6 +257,36 @@ impl EncodingError {
 impl LimitError {
     pub fn kind(&self) -> LimitErrorKind {
         self.kind.clone()
+    }
+}
+
+impl From<io::Error> for NewImageError {
+    fn from(err: io::Error) -> NewImageError {
+        NewImageError::IoError(err)
+    }
+}
+
+impl From<ImageFormat> for ImageFormatHint {
+    fn from(format: ImageFormat) -> Self {
+        ImageFormatHint::Exact(format)
+    }
+}
+
+impl From<&'_ std::path::Path> for ImageFormatHint {
+    fn from(path: &'_ std::path::Path) -> Self {
+        match path.extension() {
+            Some(ext) => ImageFormatHint::PathExtension(ext.into()),
+            None => ImageFormatHint::Unknown,
+        }
+    }
+}
+
+impl From<ImageFormatHint> for UnsupportedError {
+    fn from(hint: ImageFormatHint) -> Self {
+        UnsupportedError {
+            format: hint.clone(),
+            kind: UnsupportedErrorKind::Format(hint),
+        }
     }
 }
 
@@ -251,6 +341,9 @@ impl From<io::Error> for ImageError {
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
 
+/// Result of an image decoding/encoding process
+pub(crate) type NewImageResult<T> = Result<T, NewImageError>;
+
 impl fmt::Display for NewImageError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -287,7 +380,21 @@ impl fmt::Display for UnsupportedError {
                 self.format,
                 color,
             ),
-            UnsupportedErrorKind::Feature => unimplemented!(),
+            UnsupportedErrorKind::GenericFeature(message) => {
+                match &self.format {
+                    ImageFormatHint::Unknown => write!(
+                        fmt,
+                        "The decoder does not support the format feature {}",
+                        message,
+                    ),
+                    other => write!(
+                        fmt,
+                        "The decoder for {} does not support the format features {}",
+                        other,
+                        message,
+                    ),
+                }
+            },
             UnsupportedErrorKind::__NonExhaustive => unreachable!()
         }
     }

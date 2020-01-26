@@ -20,6 +20,8 @@ use crate::png;
 use crate::pnm;
 #[cfg(feature = "tga")]
 use crate::tga;
+#[cfg(feature = "dds")]
+use crate::dds;
 #[cfg(feature = "tiff")]
 use crate::tiff;
 #[cfg(feature = "webp")]
@@ -70,6 +72,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        #[cfg(feature = "dds")]
+        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?),
         #[cfg(feature = "bmp")]
         image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
         #[cfg(feature = "ico")]
@@ -112,6 +116,8 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
+        #[cfg(feature = "dds")]
+        image::ImageFormat::Dds => dds::DdsDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
         image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
@@ -223,6 +229,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         Some("webp") => image::ImageFormat::WebP,
         Some("tif") | Some("tiff") => image::ImageFormat::Tiff,
         Some("tga") => image::ImageFormat::Tga,
+        Some("dds") => image::ImageFormat::Dds,
         Some("bmp") => image::ImageFormat::Bmp,
         Some("ico") => image::ImageFormat::Ico,
         Some("hdr") => image::ImageFormat::Hdr,
@@ -235,7 +242,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
     })
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 18] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -243,6 +250,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 17] = [
     (b"RIFF", ImageFormat::WebP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
     (b"MM\x00*", ImageFormat::Tiff),
     (b"II*\x00", ImageFormat::Tiff),
+    (b"DDS ", ImageFormat::Dds),
     (b"BM", ImageFormat::Bmp),
     (&[0, 0, 1, 0], ImageFormat::Ico),
     (b"#?RADIANCE", ImageFormat::Hdr),

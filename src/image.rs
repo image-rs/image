@@ -39,6 +39,9 @@ pub enum ImageFormat {
     /// An Image in TGA Format
     Tga,
 
+    /// An Image in DDS Format
+    Dds,
+
     /// An Image in BMP Format
     Bmp,
 
@@ -931,6 +934,7 @@ mod tests {
         assert_eq!(from_path("./a.tiFF").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tif").unwrap(), ImageFormat::Tiff);
         assert_eq!(from_path("./a.tga").unwrap(), ImageFormat::Tga);
+        assert_eq!(from_path("./a.dds").unwrap(), ImageFormat::Dds);
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);

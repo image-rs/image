@@ -25,6 +25,7 @@ env:
     - FEATURES='png'
     - FEATURES='pnm'
     - FEATURES='tga'
+    - FEATURES='dds'
     - FEATURES='tiff'
     - FEATURES='webp'
     - FEATURES='hdr'

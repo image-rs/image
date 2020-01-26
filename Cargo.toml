@@ -39,7 +39,7 @@ glob = "0.3"
 quickcheck = "0.9"
 
 [features]
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "jpeg_rayon"]
 
 ico = ["bmp", "png"]
 pnm = []
@@ -48,6 +48,7 @@ webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
 dxt = []
+dds = []
 jpeg_rayon = ["jpeg/rayon"]
 
 benchmarks = []

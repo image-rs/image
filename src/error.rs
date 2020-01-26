@@ -52,35 +52,6 @@ pub enum ImageError {
     IoError(io::Error),
 }
 
-/// An enumeration of Image errors
-#[derive(Debug)]
-pub enum OldImageError {
-    /// The Image is not formatted properly
-    FormatError(String),
-
-    /// The Image's dimensions are either too small or too large
-    DimensionError,
-
-    /// The Decoder does not support this image format
-    UnsupportedError(String),
-
-    /// The Decoder does not support this color type
-    UnsupportedColor(ExtendedColorType),
-
-    /// Not enough data was provided to the Decoder
-    /// to decode the image
-    NotEnoughData,
-
-    /// An I/O Error occurred while decoding the image
-    IoError(io::Error),
-
-    /// The end of the image has been reached
-    ImageEnd,
-
-    /// There is not enough memory to complete the given operation
-    InsufficientMemory,
-}
-
 /// The implementation for an operation was not provided.
 ///
 /// See the variant [`Unsupported`] for more documentation.
@@ -289,57 +260,6 @@ impl From<ImageFormatHint> for UnsupportedError {
         }
     }
 }
-
-impl fmt::Display for OldImageError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match *self {
-            OldImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
-            OldImageError::DimensionError => write!(
-                fmt,
-                "The Image's dimensions are either too \
-                 small or too large"
-            ),
-            OldImageError::UnsupportedError(ref f) => write!(
-                fmt,
-                "The Decoder does not support the \
-                 image format `{}`",
-                f
-            ),
-            OldImageError::UnsupportedColor(ref c) => write!(
-                fmt,
-                "The decoder does not support \
-                 the color type `{:?}`",
-                c
-            ),
-            OldImageError::NotEnoughData => write!(
-                fmt,
-                "Not enough data was provided to the \
-                 Decoder to decode the image"
-            ),
-            OldImageError::IoError(ref e) => e.fmt(fmt),
-            OldImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
-            OldImageError::InsufficientMemory => write!(fmt, "Insufficient memory"),
-        }
-    }
-}
-
-impl Error for OldImageError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match *self {
-            OldImageError::IoError(ref e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<io::Error> for OldImageError {
-    fn from(err: io::Error) -> OldImageError {
-        OldImageError::IoError(err)
-    }
-}
-
-/// Result of an image decoding/encoding process
-pub type OldImageResult<T> = Result<T, OldImageError>;
 
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;

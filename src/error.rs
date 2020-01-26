@@ -12,7 +12,7 @@ use crate::image::ImageFormat;
 /// This high level enum is allows, by variant matching, a rough separation of concerns between
 /// underlying IO, the caller, format specifications, and the `image` implementation.
 #[derive(Debug)]
-pub enum NewImageError {
+pub enum ImageError {
     /// An error was encountered while decoding.
     ///
     /// This means that the input data did not conform to the specification of some image format,
@@ -54,7 +54,7 @@ pub enum NewImageError {
 
 /// An enumeration of Image errors
 #[derive(Debug)]
-pub enum ImageError {
+pub enum OldImageError {
     /// The Image is not formatted properly
     FormatError(String),
 
@@ -176,37 +176,37 @@ pub enum ImageFormatHint {
 
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
-impl NewImageError {
+impl ImageError {
     pub(crate) const InsufficientMemory: Self =
-        NewImageError::Limits(LimitError {
+        ImageError::Limits(LimitError {
             kind: LimitErrorKind::InsufficientMemory,
         });
 
     pub(crate) const DimensionError: Self =
-        NewImageError::Parameter(ParameterError {
+        ImageError::Parameter(ParameterError {
             kind: ParameterErrorKind::DimensionMismatch,
             underlying: None,
         });
 
     pub(crate) const ImageEnd: Self =
-        NewImageError::Parameter(ParameterError {
+        ImageError::Parameter(ParameterError {
             kind: ParameterErrorKind::FailedAlready,
             underlying: None,
         });
 
     pub(crate) fn UnsupportedError(message: String) -> Self {
-        NewImageError::Unsupported(UnsupportedError::legacy_from_string(message))
+        ImageError::Unsupported(UnsupportedError::legacy_from_string(message))
     }
 
     pub(crate) fn UnsupportedColor(color: ExtendedColorType) -> Self {
-        NewImageError::Unsupported(UnsupportedError::new(
+        ImageError::Unsupported(UnsupportedError::new(
             ImageFormatHint::Unknown,
             UnsupportedErrorKind::Color(color),
         ))
     }
 
     pub(crate) fn FormatError(message: String) -> Self {
-        NewImageError::Decoding(DecodingError::legacy_from_string(message))
+        ImageError::Decoding(DecodingError::legacy_from_string(message))
     }
 }
 
@@ -260,9 +260,9 @@ impl LimitError {
     }
 }
 
-impl From<io::Error> for NewImageError {
-    fn from(err: io::Error) -> NewImageError {
-        NewImageError::IoError(err)
+impl From<io::Error> for ImageError {
+    fn from(err: io::Error) -> ImageError {
+        ImageError::IoError(err)
     }
 }
 
@@ -290,69 +290,69 @@ impl From<ImageFormatHint> for UnsupportedError {
     }
 }
 
-impl fmt::Display for ImageError {
+impl fmt::Display for OldImageError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            ImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
-            ImageError::DimensionError => write!(
+            OldImageError::FormatError(ref e) => write!(fmt, "Format error: {}", e),
+            OldImageError::DimensionError => write!(
                 fmt,
                 "The Image's dimensions are either too \
                  small or too large"
             ),
-            ImageError::UnsupportedError(ref f) => write!(
+            OldImageError::UnsupportedError(ref f) => write!(
                 fmt,
                 "The Decoder does not support the \
                  image format `{}`",
                 f
             ),
-            ImageError::UnsupportedColor(ref c) => write!(
+            OldImageError::UnsupportedColor(ref c) => write!(
                 fmt,
                 "The decoder does not support \
                  the color type `{:?}`",
                 c
             ),
-            ImageError::NotEnoughData => write!(
+            OldImageError::NotEnoughData => write!(
                 fmt,
                 "Not enough data was provided to the \
                  Decoder to decode the image"
             ),
-            ImageError::IoError(ref e) => e.fmt(fmt),
-            ImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
-            ImageError::InsufficientMemory => write!(fmt, "Insufficient memory"),
+            OldImageError::IoError(ref e) => e.fmt(fmt),
+            OldImageError::ImageEnd => write!(fmt, "The end of the image has been reached"),
+            OldImageError::InsufficientMemory => write!(fmt, "Insufficient memory"),
         }
     }
 }
 
-impl Error for ImageError {
+impl Error for OldImageError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
-            ImageError::IoError(ref e) => Some(e),
+            OldImageError::IoError(ref e) => Some(e),
             _ => None,
         }
     }
 }
 
-impl From<io::Error> for ImageError {
-    fn from(err: io::Error) -> ImageError {
-        ImageError::IoError(err)
+impl From<io::Error> for OldImageError {
+    fn from(err: io::Error) -> OldImageError {
+        OldImageError::IoError(err)
     }
 }
 
 /// Result of an image decoding/encoding process
-pub type ImageResult<T> = Result<T, ImageError>;
+pub type OldImageResult<T> = Result<T, OldImageError>;
 
 /// Result of an image decoding/encoding process
-pub(crate) type NewImageResult<T> = Result<T, NewImageError>;
+pub type ImageResult<T> = Result<T, ImageError>;
 
-impl fmt::Display for NewImageError {
+impl fmt::Display for ImageError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            NewImageError::IoError(err) => err.fmt(fmt),
-            NewImageError::Decoding(err) => err.fmt(fmt),
-            NewImageError::Encoding(err) => err.fmt(fmt),
-            NewImageError::Parameter(err) => err.fmt(fmt),
-            NewImageError::Limits(err) => err.fmt(fmt),
-            NewImageError::Unsupported(err) => err.fmt(fmt),
+            ImageError::IoError(err) => err.fmt(fmt),
+            ImageError::Decoding(err) => err.fmt(fmt),
+            ImageError::Encoding(err) => err.fmt(fmt),
+            ImageError::Parameter(err) => err.fmt(fmt),
+            ImageError::Limits(err) => err.fmt(fmt),
+            ImageError::Unsupported(err) => err.fmt(fmt),
         }
     }
 }

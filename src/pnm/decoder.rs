@@ -474,6 +474,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 }
 
+fn err_input_is_too_short() -> ImageError {
+    return ImageError::FormatError(
+        "Not enough data was provided to the Decoder to decode the image".into()
+    )
+}
+
 impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
         match self.subtype().sample_encoding() {
@@ -481,10 +487,19 @@ impl<R: Read> PnmDecoder<R> {
                 let width = self.header.width();
                 let height = self.header.height();
                 let bytecount = S::bytelen(width, height, components)?;
-                let mut bytes = vec![0 as u8; bytecount];
-                (&mut self.reader)
-                    .read_exact(&mut bytes)
-                    .map_err(|_| ImageError::NotEnoughData)?;
+                let mut bytes = vec![];
+
+                self.reader
+                    .by_ref()
+                    // This conversion is potentially lossy but unlikely and in that case we error
+                    // later anyways.
+                    .take(bytecount as u64)
+                    .read_to_end(&mut bytes)?;
+
+                if bytes.len() != bytecount {
+                    return Err(err_input_is_too_short());
+                }
+
                 let samples = S::from_bytes(&bytes, width, height, components)?;
                 Ok(samples)
             }
@@ -648,7 +663,7 @@ impl Sample for PbmBit {
             .collect::<ImageResult<Vec<u8>>>()?;
 
         if raw_samples.len() < count {
-            return Err(ImageError::NotEnoughData)
+            return Err(err_input_is_too_short())
         }
 
         Ok(raw_samples)

@@ -21,6 +21,7 @@ include = [
 
 [dependencies]
 inflate = "0.4.2"
+miniz_oxide = "0.3.5"
 deflate = { version = "0.8.2", optional = true }
 bitflags = "1.0"
 crc32fast = "1.2.0"

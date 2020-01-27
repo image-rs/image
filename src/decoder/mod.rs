@@ -1,4 +1,5 @@
 mod stream;
+mod zlib;
 
 use self::stream::{get_info, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};

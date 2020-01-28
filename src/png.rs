@@ -12,8 +12,8 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult};
-use crate::image::{ImageDecoder, ImageEncoder};
+use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// PNG Reader
 ///
@@ -268,14 +268,23 @@ impl ImageError {
         use self::png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),
-            Format(desc) => ImageError::FormatError(desc.into_owned()),
-            InvalidSignature => ImageError::FormatError("invalid signature".into()),
-            CrcMismatch { .. } => ImageError::FormatError("CRC error".into()),
-            Other(desc) => ImageError::FormatError(desc.into_owned()),
-            CorruptFlateStream => {
-                ImageError::FormatError("compressed data stream corrupted".into())
-            }
+            Format(message) => ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::Png.into(),
+                message.into_owned(),
+            )),
             LimitsExceeded => ImageError::InsufficientMemory,
+            // Other is used when the buffer to `Reader::next_frame` is too small.
+            Other(message) => ImageError::Parameter(ParameterError::new(
+                ParameterErrorKind::Generic(message.into_owned())
+            )),
+            err @ InvalidSignature
+            | err @ CrcMismatch { .. }
+            | err @ CorruptFlateStream => {
+                ImageError::Decoding(DecodingError::with_underlying(
+                    ImageFormat::Png.into(),
+                    err,
+                ))
+            }
         }
     }
 }
@@ -307,5 +316,20 @@ mod tests {
             .collect::<Vec<u8>>();
 
         assert_eq![6_000_000, correct_bytes.len()];
+    }
+
+    #[test]
+    fn underlying_error() {
+        use std::error::Error;
+
+        let mut not_png = std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap();
+        not_png[0] = 0;
+
+        let error = PngDecoder::new(&not_png[..]).err().unwrap();
+        let _ = error
+            .source()
+            .unwrap()
+            .downcast_ref::<png::DecodingError>()
+            .expect("Caused by a png error");
     }
 }

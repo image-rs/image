@@ -81,13 +81,13 @@ pub enum UnsupportedErrorKind {
 pub struct EncodingError {
     format: ImageFormatHint,
     message: String,
-    underlying: Option<Box<dyn Error>>,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
 #[derive(Debug)]
 pub struct ParameterError {
     kind: ParameterErrorKind,
-    underlying: Option<Box<dyn Error>>,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
 /// Details how a parameter is malformed.
@@ -107,8 +107,8 @@ pub enum ParameterErrorKind {
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
-    message: String,
-    underlying: Option<Box<dyn Error>>,
+    message: Option<String>,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
 #[derive(Debug)]
@@ -206,6 +206,25 @@ impl UnsupportedError {
 }
 
 impl DecodingError {
+    pub fn new(format: ImageFormatHint) -> Self {
+        DecodingError {
+            format,
+            message: None,
+            underlying: None,
+        }
+    }
+
+    pub fn with_underlying(
+        format: ImageFormatHint,
+        err: impl Into<Box<dyn Error + Send + Sync>>,
+    ) -> Self {
+        DecodingError {
+            format,
+            message: None,
+            underlying: Some(err.into()),
+        }
+    }
+
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
     }
@@ -213,8 +232,29 @@ impl DecodingError {
     pub(crate) fn legacy_from_string(message: String) -> Self {
         DecodingError {
             format: ImageFormatHint::Unknown,
-            message,
+            message: Some(message),
             underlying: None,
+        }
+    }
+
+    /// Not quite legacy but also highly discouraged.
+    /// This is just since the string typing is prevalent in the `image` decoders...
+    // TODO: maybe a Cow? A constructor from `&'static str` wouldn't be too bad.
+    pub(crate) fn with_message(
+        format: ImageFormatHint,
+        message: String,
+    ) -> Self {
+        DecodingError {
+            format,
+            message: Some(message),
+            underlying: None,
+        }
+    }
+
+    fn message(&self) -> &str {
+        match self.message {
+            Some(ref st) => st.as_str(),
+            None => "",
         }
     }
 }
@@ -222,6 +262,19 @@ impl DecodingError {
 impl EncodingError {
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
+    }
+}
+
+impl ParameterError {
+    pub fn new(kind: ParameterErrorKind) -> Self {
+        ParameterError {
+            kind,
+            underlying: None,
+        }
+    }
+
+    pub fn kind(&self) -> ParameterErrorKind {
+        self.kind.clone()
     }
 }
 
@@ -273,6 +326,19 @@ impl fmt::Display for ImageError {
             ImageError::Parameter(err) => err.fmt(fmt),
             ImageError::Limits(err) => err.fmt(fmt),
             ImageError::Unsupported(err) => err.fmt(fmt),
+        }
+    }
+}
+
+impl Error for ImageError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ImageError::IoError(err) => err.source(),
+            ImageError::Decoding(err) => err.source(),
+            ImageError::Encoding(err) => err.source(),
+            ImageError::Parameter(err) => err.source(),
+            ImageError::Limits(err) => err.source(),
+            ImageError::Unsupported(err) => err.source(),
         }
     }
 }
@@ -352,7 +418,10 @@ impl fmt::Display for ParameterError {
 
 impl Error for ParameterError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.underlying.as_ref().map(|b| &**b)
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
     }
 }
 
@@ -378,25 +447,35 @@ impl fmt::Display for EncodingError {
 
 impl Error for EncodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.underlying.as_ref().map(|b| &**b)
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
     }
 }
 
 impl fmt::Display for DecodingError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match &self.underlying {
+            None => match self.format {
+                ImageFormatHint::Unknown => write!(
+                    fmt,
+                    "Format error: {}",
+                    self.message(),
+                ),
+                _ => write!(
+                    fmt,
+                    "Format error decoding {}: {}",
+                    self.format,
+                    self.message(),
+                ),
+            },
             Some(underlying) => write!(
                 fmt,
                 "Format error decoding {}: {}\n{}",
                 self.format,
-                self.message,
+                self.message(),
                 underlying,
-            ),
-            None => write!(
-                fmt,
-                "Format error decoding {}: {}",
-                self.format,
-                self.message,
             ),
         }
     }
@@ -404,7 +483,10 @@ impl fmt::Display for DecodingError {
 
 impl Error for DecodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.underlying.as_ref().map(|b| &**b)
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
     }
 }
 

@@ -1,8 +1,7 @@
 //! Contains detailed error representation.
 
+use std::{fmt, io, mem};
 use std::error::Error;
-use std::fmt;
-use std::io;
 
 use crate::color::ExtendedColorType;
 use crate::image::ImageFormat;
@@ -145,6 +144,7 @@ pub enum ImageFormatHint {
     __NonExhaustive,
 }
 
+// Internal implementation block for ImageError.
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 impl ImageError {
@@ -511,5 +511,21 @@ impl fmt::Display for ImageFormatHint {
             ImageFormatHint::Unknown => write!(fmt, "`Unknown`"),
             ImageFormatHint::__NonExhaustive => unreachable!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(dead_code)]
+    // This will fail to compile if the size of this type is large.
+    const ASSERT_SMALLISH: usize = [0][(mem::size_of::<ImageError>() >= 200) as usize];
+
+    #[test]
+    fn test_send_sync_stability() {
+        fn assert_send_sync<T: Send + Sync>() { }
+
+        assert_send_sync::<ImageError>();
     }
 }

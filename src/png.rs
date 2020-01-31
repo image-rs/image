@@ -274,13 +274,13 @@ impl ImageError {
             )),
             LimitsExceeded => ImageError::InsufficientMemory,
             // Other is used when the buffer to `Reader::next_frame` is too small.
-            Other(message) => ImageError::Parameter(ParameterError::new(
+            Other(message) => ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(message.into_owned())
             )),
             err @ InvalidSignature
             | err @ CrcMismatch { .. }
             | err @ CorruptFlateStream => {
-                ImageError::Decoding(DecodingError::with_underlying(
+                ImageError::Decoding(DecodingError::new(
                     ImageFormat::Png.into(),
                     err,
                 ))

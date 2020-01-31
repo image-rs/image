@@ -169,7 +169,7 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "tiff")]
         "tif" | "tiff" => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),
-        format => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
+        _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
     }
 }
 
@@ -229,7 +229,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         Some("hdr") => image::ImageFormat::Hdr,
         Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
         // The original extension is used, instead of _format
-        _format => return match exact_ext {
+        _ => return match exact_ext {
             None => Err(PathError::NoExtension),
             Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
         },

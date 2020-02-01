@@ -125,7 +125,7 @@ pub enum ParameterErrorKind {
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
-    message: Option<String>,
+    message: Option<Box<str>>,
     underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
@@ -277,7 +277,7 @@ impl DecodingError {
     pub(crate) fn legacy_from_string(message: String) -> Self {
         DecodingError {
             format: ImageFormatHint::Unknown,
-            message: Some(message),
+            message: Some(message.into_boxed_str()),
             underlying: None,
         }
     }
@@ -291,14 +291,14 @@ impl DecodingError {
     ) -> Self {
         DecodingError {
             format,
-            message: Some(message),
+            message: Some(message.into_boxed_str()),
             underlying: None,
         }
     }
 
     fn get_message_or_default(&self) -> &str {
-        match self.message {
-            Some(ref st) => st.as_str(),
+        match &self.message {
+            Some(st) => st,
             None => "",
         }
     }

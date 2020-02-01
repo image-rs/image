@@ -1,13 +1,14 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use crate::buffer::{ImageBuffer, Pixel};
+use num_traits::{Num, NumCast};
+use std::f64::consts::PI;
+
+use crate::ImageBuffer;
 use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
 use crate::math::nq;
 use crate::math::utils::clamp;
-use num_traits::{Num, NumCast};
-use std::f64::consts::PI;
-use crate::traits::Primitive;
+use crate::traits::{Pixel, Primitive};
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 

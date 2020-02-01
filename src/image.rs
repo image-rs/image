@@ -5,10 +5,11 @@ use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
-use crate::buffer::{ImageBuffer, Pixel};
+use crate::ImageBuffer;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{ImageError, ImageResult};
 use crate::math::Rect;
+use crate::traits::Pixel;
 
 use crate::animation::Frames;
 
@@ -846,7 +847,7 @@ mod tests {
     use std::path::Path;
 
     use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
-    use crate::buffer::{GrayImage, ImageBuffer};
+    use crate::{GrayImage, ImageBuffer};
     use crate::color::Rgba;
     use crate::math::Rect;
 

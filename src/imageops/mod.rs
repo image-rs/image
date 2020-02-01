@@ -2,8 +2,7 @@
 use std::cmp;
 
 use crate::image::{GenericImage, GenericImageView, SubImage};
-
-use crate::buffer::Pixel;
+use crate::traits::Pixel;
 
 pub use self::sample::FilterType;
 
@@ -166,7 +165,7 @@ where
 mod tests {
 
     use super::overlay;
-    use crate::buffer::ImageBuffer;
+    use crate::ImageBuffer;
     use crate::color::Rgb;
 
     #[test]

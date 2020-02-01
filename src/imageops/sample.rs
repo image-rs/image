@@ -7,10 +7,10 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::buffer::{ImageBuffer, Pixel};
+use crate::ImageBuffer;
 use crate::image::GenericImageView;
 use crate::math::utils::clamp;
-use crate::traits::{Enlargeable, Primitive};
+use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// Available Sampling Filters.
 ///
@@ -817,7 +817,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, FilterType};
-    use crate::buffer::{ImageBuffer, RgbImage};
+    use crate::{ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 

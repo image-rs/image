@@ -754,7 +754,9 @@ impl DynamicImage {
 
             image::ImageOutputFormat::Unsupported(msg) => {
                 Err(ImageError::UnsupportedError(msg))
-            }
+            },
+
+            image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 

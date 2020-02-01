@@ -50,6 +50,9 @@ pub enum ImageFormat {
 
     /// An Image in Radiance HDR Format
     Hdr,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ImageFormat {
@@ -92,6 +95,9 @@ pub enum ImageOutputFormat {
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
     Unsupported(String),
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl From<ImageFormat> for ImageOutputFormat {

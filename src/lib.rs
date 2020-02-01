@@ -70,6 +70,9 @@ pub use crate::dynimage::DynamicImage;
 
 pub use crate::animation::{Frame, Frames};
 
+// More detailed error type
+pub mod error;
+
 // Math utils
 pub mod math;
 
@@ -108,7 +111,6 @@ pub mod tiff;
 #[cfg(feature = "webp")]
 pub mod webp;
 
-mod error;
 mod animation;
 mod buffer;
 mod color;

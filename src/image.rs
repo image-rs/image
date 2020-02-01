@@ -16,7 +16,7 @@ use crate::pnm::PNMSubtype;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ImageFormat {
     /// An Image in PNG Format
     Png,

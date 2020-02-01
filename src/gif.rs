@@ -181,7 +181,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         let mut vec = vec![0; self.reader.buffer_size()];
-        if let Err(err) = self.reader.fill_buffer(&mut vec) {
+        if let Err(err) = self.reader.read_into_buffer(&mut vec) {
             return Some(Err(err.into()));
         }
 

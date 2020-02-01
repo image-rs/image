@@ -1,4 +1,17 @@
 //! Contains detailed error representation.
+//!
+//! See the main [`ImageError`] which contains a variant for each specialized error type. The
+//! subtypes used in each variant are opaque by design. They can be roughly inspected through their
+//! respective `kind` methods which work similar to `std::io::Error::kind`.
+//!
+//! The error interface makes it possible to inspect the error of an underlying decoder or encoder,
+//! through the `Error::source` method. Note that this is not part of the stable interface and you
+//! may not rely on a particular error value for a particular operation. This means mainly that
+//! `image` does not promise to remain on a particular version of its underlying decoders but if
+//! you ensure to use the same version of the dependency (or at least of the error type) through
+//! external means then you could inspect the error type in slightly more detail.
+//!
+//! [`ImageError`]: enum.ImageError.html
 
 use std::{fmt, io};
 use std::error::Error;
@@ -9,7 +22,7 @@ use crate::utils::NonExhaustiveMarker;
 
 /// The generic error type for image operations.
 ///
-/// This high level enum is allows, by variant matching, a rough separation of concerns between
+/// This high level enum allows, by variant matching, a rough separation of concerns between
 /// underlying IO, the caller, format specifications, and the `image` implementation.
 #[derive(Debug)]
 pub enum ImageError {
@@ -56,7 +69,7 @@ pub enum ImageError {
 ///
 /// See the variant [`Unsupported`] for more documentation.
 ///
-/// [`Unsupported`]: struct.ImageError.html#variant.Unsupported
+/// [`Unsupported`]: enum.ImageError.html#variant.Unsupported
 #[derive(Debug)]
 pub struct UnsupportedError {
     format: ImageFormatHint,

@@ -48,7 +48,7 @@ webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
 dxt = []
-dds = []
+dds = ["dxt"]
 jpeg_rayon = ["jpeg/rayon"]
 
 benchmarks = []

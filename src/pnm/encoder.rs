@@ -448,7 +448,7 @@ impl<'a> CheckedHeaderColor<'a> {
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgba16
                 => 0xffff,
-            ExtendedColorType::__Nonexhaustive => unreachable!(),
+            ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
             _ => {
                 return Err(ImageError::IoError(io::Error::new(
                     io::ErrorKind::InvalidInput,

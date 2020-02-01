@@ -1093,7 +1093,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
-        let a = super::DynamicImage::ImageRgb8(::ImageBuffer::new(1000, 1000));
+        let a = super::DynamicImage::ImageRgb8(crate::ImageBuffer::new(1000, 1000));
         b.iter(|| a.to_luma());
         b.bytes = 1000 * 1000 * 3
     }

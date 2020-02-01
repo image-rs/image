@@ -1127,7 +1127,7 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
-        use buffer::{ConvertBuffer, GrayImage, Pixel};
+        use crate::buffer::{ConvertBuffer, GrayImage, Pixel};
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
             let rgb = p.channels_mut();
@@ -1148,7 +1148,7 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_image_access_row_by_row(b: &mut test::Bencher) {
-        use buffer::{ImageBuffer, Pixel};
+        use crate::buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {
@@ -1178,7 +1178,7 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_image_access_col_by_col(b: &mut test::Bencher) {
-        use buffer::{ImageBuffer, Pixel};
+        use crate::buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
         for p in a.pixels_mut() {

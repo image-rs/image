@@ -5,6 +5,7 @@ use std::error::Error;
 
 use crate::color::ExtendedColorType;
 use crate::image::ImageFormat;
+use crate::utils::NonExhaustiveMarker;
 
 /// The generic error type for image operations.
 ///
@@ -73,7 +74,7 @@ pub enum UnsupportedErrorKind {
     /// This is discouraged and is likely to get deprecated (but not removed).
     GenericFeature(String),
     #[doc(hidden)]
-    __NonExhaustive,
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// An error was encountered while encoding an image.
@@ -113,7 +114,7 @@ pub enum ParameterErrorKind {
     Generic(String),
     #[doc(hidden)]
     /// Do not use this, not part of stability guarantees.
-    __NonExhaustive,
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// An error was encountered while decoding an image.
@@ -154,7 +155,7 @@ pub enum LimitErrorKind {
     InsufficientMemory,
     #[doc(hidden)]
     /// Do not use this, not part of stability guarantees.
-    __NonExhaustive,
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// A best effort representation for image formats.
@@ -173,7 +174,7 @@ pub enum ImageFormatHint {
     Unknown,
 
     #[doc(hidden)]
-    __NonExhaustive,
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 // Internal implementation block for ImageError.
@@ -458,7 +459,7 @@ impl fmt::Display for UnsupportedError {
                     ),
                 }
             },
-            UnsupportedErrorKind::__NonExhaustive => unreachable!()
+            UnsupportedErrorKind::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -482,7 +483,7 @@ impl fmt::Display for ParameterError {
                 "The parameter is malformed: {}",
                 message,
             ),
-            ParameterErrorKind::__NonExhaustive => unreachable!(),
+            ParameterErrorKind::__NonExhaustive(marker) => match marker._private {},
         }?;
 
         if let Some(underlying) = &self.underlying {
@@ -570,7 +571,7 @@ impl fmt::Display for LimitError {
         match self.kind {
             LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
             LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
-            LimitErrorKind::__NonExhaustive => unreachable!(),
+            LimitErrorKind::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -584,7 +585,7 @@ impl fmt::Display for ImageFormatHint {
             ImageFormatHint::Name(name) => write!(fmt, "`{}`", name),
             ImageFormatHint::PathExtension(ext) => write!(fmt, "`.{:?}`", ext),
             ImageFormatHint::Unknown => write!(fmt, "`Unknown`"),
-            ImageFormatHint::__NonExhaustive => unreachable!(),
+            ImageFormatHint::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }

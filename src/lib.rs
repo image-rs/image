@@ -85,6 +85,8 @@ pub mod flat;
 // Image codecs
 #[cfg(feature = "bmp")]
 pub mod bmp;
+#[cfg(feature = "dds")]
+pub mod dds;
 #[cfg(feature = "dxt")]
 pub mod dxt;
 #[cfg(feature = "gif")]

@@ -26,9 +26,6 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-extern crate gif;
-extern crate num_rational;
-
 use std::clone::Clone;
 use std::convert::TryInto;
 use std::cmp::min;
@@ -37,15 +34,16 @@ use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
 
-use self::gif::{ColorOutput, SetParameter};
-pub use self::gif::{DisposalMethod, Frame};
+use gif::{ColorOutput, SetParameter};
+use gif::DisposalMethod;
+pub(crate) use gif::Frame;
+use num_rational::Ratio;
 
 use crate::animation;
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::{self, Rgba};
 use crate::error::{ImageError, ImageResult};
 use crate::image::{self, AnimationDecoder, ImageDecoder};
-use num_rational::Ratio;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
@@ -325,7 +323,7 @@ impl<W: Write> Encoder<W> {
         }
     }
     /// Encodes a frame.
-    pub fn encode(&mut self, frame: &Frame) -> ImageResult<()> {
+    pub(crate) fn encode(&mut self, frame: &Frame) -> ImageResult<()> {
         let result;
         if let Some(ref mut encoder) = self.gif_encoder {
             result = encoder.write_frame(frame).map_err(|err| err.into());
@@ -340,7 +338,7 @@ impl<W: Write> Encoder<W> {
 
     /// Encodes Frames.
     /// Consider using `try_encode_frames` instead to encode an `animation::Frames` like iterator.
-    pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
+    pub(crate) fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = animation::Frame>
     {
@@ -353,7 +351,7 @@ impl<W: Write> Encoder<W> {
     /// Try to encode a collection of `ImageResult<animation::Frame>` objects.
     /// Use this function to encode an `animation::Frames` like iterator.
     /// Whenever an `Err` item is encountered, that value is returned without further actions.
-    pub fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
+    pub(crate) fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = ImageResult<animation::Frame>>
     {
@@ -380,7 +378,7 @@ impl<W: Write> Encoder<W> {
 
 impl ImageError {
     fn from_gif(err: gif::DecodingError) -> ImageError {
-        use self::gif::DecodingError::*;
+        use gif::DecodingError::*;
         match err {
             Format(desc) | Internal(desc) => ImageError::FormatError(desc.into()),
             Io(io_err) => ImageError::IoError(io_err),

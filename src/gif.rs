@@ -35,13 +35,12 @@ use std::marker::PhantomData;
 use std::mem;
 
 use gif::{ColorOutput, SetParameter};
-use gif::DisposalMethod;
-pub(crate) use gif::Frame;
+use gif::{DisposalMethod, Frame};
 use num_rational::Ratio;
 
 use crate::animation;
 use crate::buffer::{ImageBuffer, Pixel};
-use crate::color::{self, Rgba};
+use crate::color::{ColorType, Rgba};
 use crate::error::{ImageError, ImageResult};
 use crate::image::{self, AnimationDecoder, ImageDecoder};
 
@@ -85,8 +84,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
         (u32::from(self.reader.width()), u32::from(self.reader.height()))
     }
 
-    fn color_type(&self) -> color::ColorType {
-        color::ColorType::Rgba8
+    fn color_type(&self) -> ColorType {
+        ColorType::Rgba8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -322,28 +321,39 @@ impl<W: Write> Encoder<W> {
             gif_encoder: None,
         }
     }
-    /// Encodes a frame.
-    pub(crate) fn encode(&mut self, frame: &Frame) -> ImageResult<()> {
-        let result;
-        if let Some(ref mut encoder) = self.gif_encoder {
-            result = encoder.write_frame(frame).map_err(|err| err.into());
-        } else {
-            let writer = self.w.take().unwrap();
-            let mut encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])?;
-            result = encoder.write_frame(&frame).map_err(|err| err.into());
-            self.gif_encoder = Some(encoder);
+
+    /// Encode a single image.
+    pub fn encode(
+        &mut self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<()> {
+        let (width, height) = self.gif_dimensions(width, height)?;
+        match color {
+            ColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
+            ColorType::Rgba8 => {
+                self.encode_gif(Frame::from_rgb(width, height, &mut data.to_owned()))
+            },
+            _ => Err(ImageError::UnsupportedColor(color.into())),
         }
-        result
+    }
+
+    /// Encode one frame of animation.
+    pub fn encode_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
+        let frame = self.convert_frame(img_frame)?;
+        self.encode_gif(frame)
     }
 
     /// Encodes Frames.
     /// Consider using `try_encode_frames` instead to encode an `animation::Frames` like iterator.
-    pub(crate) fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
+    pub fn encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = animation::Frame>
     {
         for img_frame in frames {
-            self.encode_single_frame(img_frame)?;
+            self.encode_frame(img_frame)?;
         }
         Ok(())
     }
@@ -351,28 +361,56 @@ impl<W: Write> Encoder<W> {
     /// Try to encode a collection of `ImageResult<animation::Frame>` objects.
     /// Use this function to encode an `animation::Frames` like iterator.
     /// Whenever an `Err` item is encountered, that value is returned without further actions.
-    pub(crate) fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
+    pub fn try_encode_frames<F>(&mut self, frames: F) -> ImageResult<()>
     where
         F: IntoIterator<Item = ImageResult<animation::Frame>>
     {
         for img_frame in frames {
-            self.encode_single_frame(img_frame?)?;
+            self.encode_frame(img_frame?)?;
         }
         Ok(())
     }
 
-    fn encode_single_frame(&mut self, img_frame: animation::Frame) -> ImageResult<()> {
+    pub(crate) fn convert_frame(&mut self, img_frame: animation::Frame)
+        -> ImageResult<Frame<'static>>
+    {
         // get the delay before converting img_frame
         let frame_delay = img_frame.delay_ms().to_integer();
         // convert img_frame into RgbaImage
-        let rbga_frame = img_frame.into_buffer();
+        let mut rbga_frame = img_frame.into_buffer();
+        let (width, height) = self.gif_dimensions(
+            rbga_frame.width(),
+            rbga_frame.height())?;
 
         // Create the gif::Frame from the animation::Frame
-        let mut frame = Frame::from_rgba(rbga_frame.width() as u16, rbga_frame.height() as u16, &mut rbga_frame.into_raw());
+        let mut frame = Frame::from_rgba(width, height, &mut *rbga_frame);
         frame.delay = (frame_delay / 10).try_into().map_err(|_|ImageError::DimensionError)?;
 
-        // encode the gif::Frame
-        self.encode(&frame)
+        Ok(frame)
+    }
+
+    fn gif_dimensions(&self, width: u32, height: u32) -> ImageResult<(u16, u16)> {
+        fn inner_dimensions(width: u32, height: u32) -> Option<(u16, u16)> {
+            let width = u16::try_from(width).ok()?;
+            let height = u16::try_from(height).ok()?;
+            Some((width, height))
+        }
+
+        inner_dimensions(width, height).ok_or(ImageError::DimensionError)
+    }
+
+    pub(crate) fn encode_gif(&mut self, frame: Frame) -> ImageResult<()> {
+        let gif_encoder;
+        if let Some(ref mut encoder) = self.gif_encoder {
+            gif_encoder = encoder;
+        } else {
+            let writer = self.w.take().unwrap();
+            let encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])?;
+            self.gif_encoder = Some(encoder);
+            gif_encoder = self.gif_encoder.as_mut().unwrap()
+        }
+
+        gif_encoder.write_frame(&frame).map_err(|err| err.into())
     }
 }
 

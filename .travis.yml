@@ -52,6 +52,14 @@ matrix:
       script:
         - rustup component add clippy
         - cargo clippy
+    - os: linux
+      rust: nightly
+      name: "Public private dependencies"
+      script:
+        - mv ./Cargo.toml.public-private-dependencies ./Cargo.toml
+        - echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
+        - mv src/lib.rs.0 src/lib.rs
+        - cargo check
 script:
   - if [ -n "${FEATURES+exists}" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&

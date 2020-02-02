@@ -728,12 +728,7 @@ impl DynamicImage {
             #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
                 let mut g = gif::Encoder::new(w);
-
-                g.encode(&gif::Frame::from_rgba(
-                    width as u16,
-                    height as u16,
-                    &mut *self.to_rgba().iter().cloned().collect::<Vec<u8>>(),
-                ))?;
+                g.encode_frame(crate::animation::Frame::new(self.to_rgba()))?;
                 Ok(())
             }
 

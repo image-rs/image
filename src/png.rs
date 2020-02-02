@@ -6,8 +6,6 @@
 //! * <http://www.w3.org/TR/PNG/> - The PNG Specification
 //!
 
-extern crate png;
-
 use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
@@ -265,7 +263,7 @@ impl<W: Write> ImageEncoder for PNGEncoder<W> {
 
 impl ImageError {
     fn from_png(err: png::DecodingError) -> ImageError {
-        use self::png::DecodingError::*;
+        use png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),
             Format(message) => ImageError::Decoding(DecodingError::with_message(

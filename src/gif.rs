@@ -244,7 +244,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         let frame = animation::Frame::from_parts(
-            image_buffer.clone(), 0, 0, delay
+            image_buffer.clone(), 0, 0, animation::Delay::from_ratio(delay),
         );
 
         match dispose {
@@ -375,7 +375,7 @@ impl<W: Write> Encoder<W> {
         -> ImageResult<Frame<'static>>
     {
         // get the delay before converting img_frame
-        let frame_delay = img_frame.delay_ms().to_integer();
+        let frame_delay = img_frame.delay().into_ratio().to_integer();
         // convert img_frame into RgbaImage
         let mut rbga_frame = img_frame.into_buffer();
         let (width, height) = self.gif_dimensions(

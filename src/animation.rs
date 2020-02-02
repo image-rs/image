@@ -37,7 +37,7 @@ impl<'a> Iterator for Frames<'a> {
 #[derive(Clone)]
 pub struct Frame {
     /// Delay between the frames in milliseconds
-    delay_ms: Ratio<u32>,
+    delay: Delay,
     /// x offset
     left: u32,
     /// y offset
@@ -45,11 +45,17 @@ pub struct Frame {
     buffer: RgbaImage,
 }
 
+/// The delay of a frame relative to the previous one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
+pub struct Delay {
+    ratio: Ratio<u32>,
+}
+
 impl Frame {
-    /// Contructs a new frame
+    /// Contructs a new frame without any delay.
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
-            delay_ms: Ratio::from_integer(0),
+            delay: Delay::from_ratio(Ratio::from_integer(0)),
             left: 0,
             top: 0,
             buffer,
@@ -57,9 +63,9 @@ impl Frame {
     }
 
     /// Contructs a new frame
-    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay_ms: Ratio<u32>) -> Frame {
+    pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
         Frame {
-            delay_ms,
+            delay,
             left,
             top,
             buffer,
@@ -67,8 +73,8 @@ impl Frame {
     }
 
     /// Delay of this frame
-    pub fn delay_ms(&self) -> Ratio<u32> {
-        self.delay_ms
+    pub fn delay(&self) -> Delay {
+        self.delay
     }
 
     /// Returns the image buffer
@@ -89,5 +95,32 @@ impl Frame {
     /// Returns the y offset
     pub fn top(&self) -> u32 {
         self.top
+    }
+}
+
+impl Delay {
+    /// Create a delay from a ratio of milliseconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use image::Delay;
+    /// let delay_10ms = Delay::from_num_denom_ms(10, 1);
+    /// ```
+    pub fn from_num_denom_ms(numerator: u32, denominator: u32) -> Self {
+        Delay { ratio: Ratio::new_raw(numerator, denominator) }
+    }
+
+    /// The numerator and denominator of the delay in milliseconds.
+    pub fn num_denom_ms(self) -> (u32, u32) {
+        (*self.ratio.numer(), *self.ratio.denom())
+    }
+
+    pub(crate) fn from_ratio(ratio: Ratio<u32>) -> Self {
+        Delay { ratio }
+    }
+
+    pub(crate) fn into_ratio(self) -> Ratio<u32> {
+        self.ratio
     }
 }

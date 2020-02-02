@@ -68,7 +68,7 @@ pub use crate::dynimage::{load_from_memory, load_from_memory_with_format, open,
 
 pub use crate::dynimage::DynamicImage;
 
-pub use crate::animation::{Frame, Frames};
+pub use crate::animation::{Delay, Frame, Frames};
 
 // More detailed error type
 pub mod error;

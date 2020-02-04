@@ -33,7 +33,7 @@ fn main() {
         ("xcmr", FilterType::CatmullRom),
         ("ygauss", FilterType::Gaussian),
         ("zlcz2", FilterType::Lanczos3),
-    ].into_iter()
+    ].iter()
     {
         let timer = Instant::now();
         let scaled = tiny.resize(32, 32, filter);

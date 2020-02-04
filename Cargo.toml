@@ -59,7 +59,7 @@ optional = true
 crc32fast = "1.2.0"
 num-complex = "0.2.0"
 glob = "0.3"
-quickcheck = "0.6.2"
+quickcheck = "0.9"
 
 [features]
 default = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "jpeg_rayon"]

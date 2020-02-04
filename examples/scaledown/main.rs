@@ -33,7 +33,7 @@ fn main() {
         ("cmr", FilterType::CatmullRom),
         ("gauss", FilterType::Gaussian),
         ("lcz2", FilterType::Lanczos3),
-    ].into_iter()
+    ].iter()
     {
         let timer = Instant::now();
         let scaled = img.resize(400, 400, filter);

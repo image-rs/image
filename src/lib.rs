@@ -11,13 +11,6 @@
 // it's a bit of a pain otherwise
 #![allow(clippy::many_single_char_names)]
 
-extern crate bytemuck;
-extern crate byteorder;
-extern crate num_iter;
-extern crate num_rational;
-extern crate num_traits;
-#[cfg(feature = "hdr")]
-extern crate scoped_threadpool;
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
 

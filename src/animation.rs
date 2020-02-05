@@ -1,4 +1,5 @@
 use std::iter::Iterator;
+use std::time::Duration;
 
 use num_rational::Ratio;
 
@@ -122,5 +123,35 @@ impl Delay {
 
     pub(crate) fn into_ratio(self) -> Ratio<u32> {
         self.ratio
+    }
+}
+
+impl From<Delay> for Duration {
+    fn from(delay: Delay) -> Self {
+        let ratio = delay.into_ratio();
+        let ms = ratio.to_integer();
+        let rest = ratio.numer() % ratio.denom();
+        let nanos = (u64::from(rest) * 1_000_000) / u64::from(*ratio.denom());
+        Duration::from_millis(ms.into()) + Duration::from_nanos(nanos)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Delay, Duration, Ratio};
+
+    #[test]
+    fn simple() {
+        let second = Delay::from_num_denom_ms(1000, 1);
+        assert_eq!(Duration::from(second), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn fps_30() {
+        let thirtieth = Delay::from_num_denom_ms(1000, 30);
+        let duration = Duration::from(thirtieth);
+        assert_eq!(duration.as_secs(), 0);
+        assert_eq!(duration.subsec_millis(), 33);
+        assert_eq!(duration.subsec_nanos(), 33_333_333);
     }
 }

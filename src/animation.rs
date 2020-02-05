@@ -106,14 +106,17 @@ impl Delay {
     ///
     /// ```
     /// use image::Delay;
-    /// let delay_10ms = Delay::from_num_denom_ms(10, 1);
+    /// let delay_10ms = Delay::from_numer_denom_ms(10, 1);
     /// ```
-    pub fn from_num_denom_ms(numerator: u32, denominator: u32) -> Self {
+    pub fn from_numer_denom_ms(numerator: u32, denominator: u32) -> Self {
         Delay { ratio: Ratio::new_raw(numerator, denominator) }
     }
 
     /// The numerator and denominator of the delay in milliseconds.
-    pub fn num_denom_ms(self) -> (u32, u32) {
+    ///
+    /// This is guaranteed to be an exact conversion if the `Delay` was previously created with the
+    /// `from_numer_denom_ms` constructor.
+    pub fn numer_denom_ms(self) -> (u32, u32) {
         (*self.ratio.numer(), *self.ratio.denom())
     }
 
@@ -142,13 +145,13 @@ mod tests {
 
     #[test]
     fn simple() {
-        let second = Delay::from_num_denom_ms(1000, 1);
+        let second = Delay::from_numer_denom_ms(1000, 1);
         assert_eq!(Duration::from(second), Duration::from_secs(1));
     }
 
     #[test]
     fn fps_30() {
-        let thirtieth = Delay::from_num_denom_ms(1000, 30);
+        let thirtieth = Delay::from_numer_denom_ms(1000, 30);
         let duration = Duration::from(thirtieth);
         assert_eq!(duration.as_secs(), 0);
         assert_eq!(duration.subsec_millis(), 33);

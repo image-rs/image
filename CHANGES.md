@@ -8,6 +8,12 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.22.5
+
+- Added `GenericImage::copy_within`, specialized for `ImageBuffer`
+- Fixed decoding of interlaced `gif` files
+- Prepare for future compatibility of array `IntoIterator` in example code
+
 ### Version 0.22.4
 
 - Added in-place variants for flip and rotate operations.

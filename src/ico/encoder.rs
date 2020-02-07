@@ -1,9 +1,11 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use color::{bits_per_pixel, ColorType};
+use crate::color::ColorType;
+use crate::error::ImageResult;
+use crate::image::ImageEncoder;
 
-use png::PNGEncoder;
+use crate::png::PNGEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -32,7 +34,7 @@ impl<W: Write> ICOEncoder<W> {
         width: u32,
         height: u32,
         color: ColorType,
-    ) -> io::Result<()> {
+    ) -> ImageResult<()> {
         let mut image_data: Vec<u8> = Vec::new();
         PNGEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
@@ -47,6 +49,18 @@ impl<W: Write> ICOEncoder<W> {
         )?;
         self.w.write_all(&image_data)?;
         Ok(())
+    }
+}
+
+impl<W: Write> ImageEncoder for ICOEncoder<W> {
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.encode(buf, width, height, color_type)
     }
 }
 
@@ -78,7 +92,7 @@ fn write_direntry<W: Write>(
     // Color planes:
     w.write_u16::<LittleEndian>(0)?;
     // Bits per pixel:
-    w.write_u16::<LittleEndian>(bits_per_pixel(color))?;
+    w.write_u16::<LittleEndian>(color.bits_per_pixel())?;
     // Image data size, in bytes:
     w.write_u32::<LittleEndian>(data_size)?;
     // Image data offset, in bytes:

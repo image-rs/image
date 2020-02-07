@@ -29,14 +29,17 @@ https://docs.rs/image
 | WebP   | Lossy(Luma channel only) | No |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 
-### 2.2 The ```ImageDecoder``` Trait
-All image format decoders implement the ```ImageDecoder``` trait which provides the following methods:
-+ **dimensions**: Return a tuple containing the width and height of the image
-+ **colortype**: Return the color type of the image.
-+ **row_len**: Returns the length in bytes of one decoded row of the image
-+ **read_scanline**: Read one row from the image into buf Returns the row index
-+ **read_image**: Decode the entire image and return it as a Vector
-+ **load_rect**: Decode a specific region of the image
+### 2.2 The ```ImageDecoder``` and ```ImageDecoderExt` Traits
+
+All image format decoders implement the ```ImageDecoder``` trait which provide
+basic methods for getting image metadata and decoding images. Some formats
+additionally provide ```ImageDecoderExt``` implementations which allow for
+decoding only part of an image at once.
+
+The most important methods for decoders are...
++ **dimensions**: Return a tuple containing the width and height of the image.
++ **color_type**: Return the color type of the image data produced by this decoder.
++ **read_image**: Decode the entire image and return it as a Vec of bytes.
 
 ## 3 Pixels
 ```image``` provides the following pixel types:
@@ -249,7 +252,7 @@ fn main() {
     let buffer: &[u8] = unimplemented!(); // Generate the image data
 
     // Save the buffer as "image.png"
-    image::save_buffer("image.png", buffer, 800, 600, image::RGB(8)).unwrap()
+    image::save_buffer("image.png", buffer, 800, 600, image::ColorType::Rgb8).unwrap()
 }
 
 ```

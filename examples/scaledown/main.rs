@@ -1,6 +1,7 @@
 extern crate image;
 
-use image::{FilterType, PNG};
+use image::ImageFormat;
+use image::imageops::FilterType;
 use std::fmt;
 use std::fs::File;
 use std::time::{Duration, Instant};
@@ -39,7 +40,7 @@ fn main() {
         let scaled = img.resize(400, 400, filter);
         println!("Scaled by {} in {}", name, Elapsed::from(&timer));
         let mut output = File::create(&format!("test-{}.png", name)).unwrap();
-        scaled.write_to(&mut output, PNG).unwrap();
+        scaled.write_to(&mut output, ImageFormat::Png).unwrap();
     }
 
     for size in &[20_u32, 40, 100, 200, 400] {
@@ -47,6 +48,6 @@ fn main() {
         let scaled = img.thumbnail(*size, *size);
         println!("Thumbnailed to {} in {}", size, Elapsed::from(&timer));
         let mut output = File::create(format!("test-thumb{}.png", size)).unwrap();
-        scaled.write_to(&mut output, PNG).unwrap();
+        scaled.write_to(&mut output, ImageFormat::Png).unwrap();
     }
 }

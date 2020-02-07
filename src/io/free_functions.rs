@@ -1,36 +1,37 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
 
 #[cfg(feature = "bmp")]
-use bmp;
-#[cfg(feature = "gif_codec")]
-use gif;
+use crate::bmp;
+#[cfg(feature = "gif")]
+use crate::gif;
 #[cfg(feature = "hdr")]
-use hdr;
+use crate::hdr;
 #[cfg(feature = "ico")]
-use ico;
+use crate::ico;
 #[cfg(feature = "jpeg")]
-use jpeg;
-#[cfg(feature = "png_codec")]
-use png;
+use crate::jpeg;
+#[cfg(feature = "png")]
+use crate::png;
 #[cfg(feature = "pnm")]
-use pnm;
+use crate::pnm;
 #[cfg(feature = "tga")]
-use tga;
+use crate::tga;
+#[cfg(feature = "dds")]
+use crate::dds;
 #[cfg(feature = "tiff")]
-use tiff;
+use crate::tiff;
 #[cfg(feature = "webp")]
-use webp;
+use crate::webp;
 
-use color;
-use image;
-use dynimage::DynamicImage;
-use image::{ImageDecoder, ImageFormat, ImageResult};
-use ImageError;
+use crate::color;
+use crate::image;
+use crate::dynimage::DynamicImage;
+use crate::error::{ImageError, ImageFormatHint, ImageResult};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {
@@ -43,7 +44,7 @@ pub(crate) enum PathError {
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
         Ok(f) => f,
-        Err(err) => return Err(image::ImageError::IoError(err)),
+        Err(err) => return Err(ImageError::IoError(err)),
     };
     let fin = BufReader::new(fin);
 
@@ -59,30 +60,29 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     #[allow(deprecated, unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => DynamicImage::from_decoder(png::PNGDecoder::new(r)?),
-        #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => DynamicImage::from_decoder(gif::Decoder::new(r)?),
+        #[cfg(feature = "png")]
+        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
+        #[cfg(feature = "gif")]
+        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => DynamicImage::from_decoder(jpeg::JPEGDecoder::new(r)?),
+        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => DynamicImage::from_decoder(webp::WebpDecoder::new(r)?),
+        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => DynamicImage::from_decoder(tiff::TIFFDecoder::new(r)?),
+        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
         #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => DynamicImage::from_decoder(tga::TGADecoder::new(r)?),
+        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        #[cfg(feature = "dds")]
+        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => DynamicImage::from_decoder(bmp::BMPDecoder::new(r)?),
+        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => DynamicImage::from_decoder(ico::ICODecoder::new(r)?),
+        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => DynamicImage::from_decoder(pnm::PNMDecoder::new(BufReader::new(r))?),
-        _ => Err(image::ImageError::UnsupportedError(format!(
-            "A decoder for {:?} is not available.",
-            format
-        ))),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
 
@@ -100,38 +100,33 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
 {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
-    let (w, h): (u64, u64) = match format {
+    Ok(match format {
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => jpeg::JPEGDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => png::PNGDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => gif::Decoder::new(fin)?.dimensions(),
+        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
+        #[cfg(feature = "png")]
+        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
+        #[cfg(feature = "gif")]
+        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => webp::WebpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => tiff::TIFFDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "tga")]
-        image::ImageFormat::TGA => tga::TGADecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
+        #[cfg(feature = "dds")]
+        image::ImageFormat::Dds => dds::DdsDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => bmp::BMPDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => ico::ICODecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::HDR => hdr::HDRAdapter::new(fin)?.dimensions(),
+        image::ImageFormat::Hdr => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::PNM => {
-            pnm::PNMDecoder::new(fin)?.dimensions()
+        image::ImageFormat::Pnm => {
+            pnm::PnmDecoder::new(fin)?.dimensions()
         }
-        format => return Err(image::ImageError::UnsupportedError(format!(
-            "Image format image/{:?} is not supported.",
-            format
-        ))),
-    };
-    if w >= u64::from(u32::MAX) || h >= u64::from(u32::MAX) {
-        return Err(image::ImageError::DimensionError);
-    }
-    Ok((w as u32, h as u32))
+        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+    })
 }
 
 pub(crate) fn save_buffer_impl(
@@ -140,45 +135,41 @@ pub(crate) fn save_buffer_impl(
     width: u32,
     height: u32,
     color: color::ColorType,
-) -> io::Result<()> {
+) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
     let ext = path.extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
     match &*ext {
-        #[cfg(feature = "gif_codec")]
-        "gif" => gif::Encoder::new(fout).encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf))
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
+        #[cfg(feature = "gif")]
+        "gif" => gif::Encoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        "ico" => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
+        "ico" => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
-        "png" => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "png")]
+        "png" => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pbm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pgm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "ppm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-            .encode(buf, width, height, color),
+            .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pam" => pnm::PNMEncoder::new(fout).encode(buf, width, height, color),
+        "pam" => pnm::PNMEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
+        "bmp" => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout).encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
-        format => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
+        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
+            .write_image(buf, width, height, color),
+        _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
     }
 }
 
@@ -189,30 +180,24 @@ pub(crate) fn save_buffer_with_format_impl(
     height: u32,
     color: color::ColorType,
     format: ImageFormat,
-) -> io::Result<()> {
+) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
 
     match format {
-        #[cfg(feature = "gif_codec")]
-        image::ImageFormat::GIF => gif::Encoder::new(fout)
-            .encode(&gif::Frame::from_rgb(width as u16, height as u16, &buf))
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))), // FIXME: see https://github.com/image-rs/image/issues/921
+        #[cfg(feature = "gif")]
+        image::ImageFormat::Gif => gif::Encoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        image::ImageFormat::ICO => ico::ICOEncoder::new(fout).encode(buf, width, height, color),
+        image::ImageFormat::Ico => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => jpeg::JPEGEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "png_codec")]
-        image::ImageFormat::PNG => png::PNGEncoder::new(fout).encode(buf, width, height, color),
+        image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "png")]
+        image::ImageFormat::Png => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::BMP => bmp::BMPEncoder::new(fout).encode(buf, width, height, color),
+        image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::TIFF => tiff::TiffEncoder::new(fout)
-            .encode(buf, width, height, color)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e))),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            &format!("Unsupported image format image/{:?}", format)[..],
-        )),
+        image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
+            .write_image(buf, width, height, color),
+        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
 
@@ -231,42 +216,44 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         .map(String::as_str);
 
     Ok(match ext {
-        Some("jpg") | Some("jpeg") => image::ImageFormat::JPEG,
-        Some("png") => image::ImageFormat::PNG,
-        Some("gif") => image::ImageFormat::GIF,
-        Some("webp") => image::ImageFormat::WEBP,
-        Some("tif") | Some("tiff") => image::ImageFormat::TIFF,
-        Some("tga") => image::ImageFormat::TGA,
-        Some("bmp") => image::ImageFormat::BMP,
-        Some("ico") => image::ImageFormat::ICO,
-        Some("hdr") => image::ImageFormat::HDR,
-        Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::PNM,
+        Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
+        Some("png") => image::ImageFormat::Png,
+        Some("gif") => image::ImageFormat::Gif,
+        Some("webp") => image::ImageFormat::WebP,
+        Some("tif") | Some("tiff") => image::ImageFormat::Tiff,
+        Some("tga") => image::ImageFormat::Tga,
+        Some("dds") => image::ImageFormat::Dds,
+        Some("bmp") => image::ImageFormat::Bmp,
+        Some("ico") => image::ImageFormat::Ico,
+        Some("hdr") => image::ImageFormat::Hdr,
+        Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
         // The original extension is used, instead of _format
-        _format => return match exact_ext {
+        _ => return match exact_ext {
             None => Err(PathError::NoExtension),
             Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
         },
     })
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 17] = [
-    (b"\x89PNG\r\n\x1a\n", ImageFormat::PNG),
-    (&[0xff, 0xd8, 0xff], ImageFormat::JPEG),
-    (b"GIF89a", ImageFormat::GIF),
-    (b"GIF87a", ImageFormat::GIF),
-    (b"RIFF", ImageFormat::WEBP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
-    (b"MM\x00*", ImageFormat::TIFF),
-    (b"II*\x00", ImageFormat::TIFF),
-    (b"BM", ImageFormat::BMP),
-    (&[0, 0, 1, 0], ImageFormat::ICO),
-    (b"#?RADIANCE", ImageFormat::HDR),
-    (b"P1", ImageFormat::PNM),
-    (b"P2", ImageFormat::PNM),
-    (b"P3", ImageFormat::PNM),
-    (b"P4", ImageFormat::PNM),
-    (b"P5", ImageFormat::PNM),
-    (b"P6", ImageFormat::PNM),
-    (b"P7", ImageFormat::PNM),
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 18] = [
+    (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
+    (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
+    (b"GIF89a", ImageFormat::Gif),
+    (b"GIF87a", ImageFormat::Gif),
+    (b"RIFF", ImageFormat::WebP), // TODO: better magic byte detection, see https://github.com/image-rs/image/issues/660
+    (b"MM\x00*", ImageFormat::Tiff),
+    (b"II*\x00", ImageFormat::Tiff),
+    (b"DDS ", ImageFormat::Dds),
+    (b"BM", ImageFormat::Bmp),
+    (&[0, 0, 1, 0], ImageFormat::Ico),
+    (b"#?RADIANCE", ImageFormat::Hdr),
+    (b"P1", ImageFormat::Pnm),
+    (b"P2", ImageFormat::Pnm),
+    (b"P3", ImageFormat::Pnm),
+    (b"P4", ImageFormat::Pnm),
+    (b"P5", ImageFormat::Pnm),
+    (b"P6", ImageFormat::Pnm),
+    (b"P7", ImageFormat::Pnm),
 ];
 
 /// Guess image format from memory block
@@ -277,9 +264,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 17] = [
 pub fn guess_format(buffer: &[u8]) -> ImageResult<ImageFormat> {
     match guess_format_impl(buffer) {
         Some(format) => Ok(format),
-        None => Err(image::ImageError::UnsupportedError(
-            "Unsupported image format".to_string(),
-        )),
+        None => Err(ImageError::Unsupported(ImageFormatHint::Unknown.into())),
     }
 }
 
@@ -295,11 +280,10 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
 
 impl From<PathError> for ImageError {
     fn from(path: PathError) -> Self {
-        match path {
-            PathError::NoExtension => ImageError::UnsupportedError(
-                "Image format could not be recognized: no extension present".into()),
-            PathError::UnknownExtension(ext) => ImageError::UnsupportedError(format!(
-                "Image format image/{} is not recognized.", Path::new(&ext).display()))
-        }
+        let format_hint = match path {
+            PathError::NoExtension => ImageFormatHint::Unknown,
+            PathError::UnknownExtension(ext) => ImageFormatHint::PathExtension(ext.into()),
+        };
+        ImageError::Unsupported(format_hint.into())
     }
 }

@@ -20,11 +20,12 @@ env:
   matrix:
     - DEFAULT_FEATURES='yes'
     - FEATURES=''
-    - FEATURES='gif_codec'
+    - FEATURES='gif'
     - FEATURES='jpeg'
-    - FEATURES='png_codec'
+    - FEATURES='png'
     - FEATURES='pnm'
     - FEATURES='tga'
+    - FEATURES='dds'
     - FEATURES='tiff'
     - FEATURES='webp'
     - FEATURES='hdr'
@@ -51,6 +52,14 @@ matrix:
       script:
         - rustup component add clippy
         - cargo clippy
+    - os: linux
+      rust: nightly
+      name: "Public private dependencies"
+      script:
+        - mv ./Cargo.toml.public-private-dependencies ./Cargo.toml
+        - echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
+        - mv src/lib.rs.0 src/lib.rs
+        - cargo check
 script:
   - if [ -n "${FEATURES+exists}" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&
@@ -59,4 +68,8 @@ script:
     fi
   - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
       cargo test -v;
+    fi
+  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ -n "${DEFAULT_FEATURES+exists}" ]; then
+      cargo build -v --features=benchmarks &&
+      cargo build -v --benches --features=benchmarks;
     fi

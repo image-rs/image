@@ -7,10 +7,10 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use buffer::{ImageBuffer, Pixel};
-use image::GenericImageView;
-use math::utils::clamp;
-use traits::{Enlargeable, Primitive};
+use crate::buffer::{ImageBuffer, Pixel};
+use crate::image::GenericImageView;
+use crate::math::utils::clamp;
+use crate::traits::{Enlargeable, Primitive};
 
 /// Available Sampling Filters.
 ///
@@ -817,17 +817,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, FilterType};
-    use buffer::{ImageBuffer, RgbImage};
+    use crate::buffer::{ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
     #[bench]
-    #[cfg(all(feature = "benchmarks", feature = "png_codec"))]
+    #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
         use std::path::Path;
-        let img = ::open(&Path::new("./examples/fractal.png")).unwrap();
+        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
         b.iter(|| {
-            test::black_box(resize(&img, 200, 200, ::Nearest));
+            test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });
         b.bytes = 800 * 800 * 3 + 200 * 200 * 3;
     }
@@ -841,8 +841,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
-        let image = ::open(path).unwrap();
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let image = crate::open(path).unwrap();
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
         });
@@ -852,8 +852,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
-        let image = ::open(path).unwrap().thumbnail(256, 256);
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let image = crate::open(path).unwrap().thumbnail(256, 256);
         b.iter(|| {
             test::black_box(image.thumbnail(512, 512));
         });
@@ -863,8 +863,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/lenna.tiff");
-        let image = ::open(path).unwrap().thumbnail(193, 193);
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let image = crate::open(path).unwrap().thumbnail(193, 193);
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
         });

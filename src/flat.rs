@@ -47,9 +47,10 @@ use std::marker::PhantomData;
 
 use num_traits::Zero;
 
-use buffer::{ImageBuffer, Pixel};
-use color::ColorType;
-use image::{GenericImage, GenericImageView, ImageError};
+use crate::buffer::{ImageBuffer, Pixel};
+use crate::color::ColorType;
+use crate::error::ImageError;
+use crate::image::{GenericImage, GenericImageView};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -1076,7 +1077,8 @@ where
     /// `self.into_inner().as_view_mut()` and keeps the `View` alive on failure.
     ///
     /// ```
-    /// # use image::{Rgb, RgbImage};
+    /// # use image::RgbImage;
+    /// # use image::Rgb;
     /// let mut buffer = RgbImage::new(480, 640).into_flat_samples();
     /// let view = buffer.as_view_with_mut_samples::<Rgb<u8>>().unwrap();
     ///
@@ -1374,7 +1376,7 @@ impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
         match error {
             Error::TooLarge => ImageError::DimensionError,
-            Error::WrongColor(color) => ImageError::UnsupportedColor(color),
+            Error::WrongColor(color) => ImageError::UnsupportedColor(color.into()),
             Error::NormalFormRequired(form) => ImageError::FormatError(
                 format!("Required sample buffer in normal form {:?}", form)),
         }
@@ -1417,8 +1419,8 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use buffer::GrayAlphaImage;
-    use color::{LumaA, Rgb};
+    use crate::buffer::GrayAlphaImage;
+    use crate::color::{LumaA, Rgb};
 
     #[test]
     fn aliasing_view() {

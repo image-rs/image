@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
@@ -7,8 +8,9 @@ use std::cmp::Ordering;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use color::ColorType;
-use image::{self, ImageDecoder, ImageDecoderExt, ImageError, ImageResult, Progress};
+use crate::color::ColorType;
+use crate::error::{ImageError, ImageResult};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, Progress};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -425,7 +427,7 @@ impl Bitfields {
 }
 
 /// A bmp decoder
-pub struct BMPDecoder<R> {
+pub struct BmpDecoder<R> {
     reader: R,
 
     bmp_header_type: BMPHeaderType,
@@ -510,10 +512,10 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
     }
 }
 
-impl<R: Read + Seek> BMPDecoder<R> {
+impl<R: Read + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(reader: R) -> ImageResult<BMPDecoder<R>> {
-        let mut decoder = BMPDecoder {
+    pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -538,8 +540,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
     }
 
     #[cfg(feature = "ico")]
-    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BMPDecoder<R>> {
-        let mut decoder = BMPDecoder {
+    pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -1254,8 +1256,8 @@ impl<R: Read + Seek> BMPDecoder<R> {
 
     /// Read the actual data of the image. This function is deliberately not public because it
     /// cannot be called multiple times without seeking back the underlying reader in between.
-    pub(crate) fn read_image_data(&mut self) -> ImageResult<Vec<u8>> {
-        match self.image_type {
+    pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+        let data = match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
             ImageType::RGB24 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB24),
@@ -1278,7 +1280,10 @@ impl<R: Read + Seek> BMPDecoder<R> {
                     "Missing 32-bit bitfield masks".to_string(),
                 )),
             },
-        }
+        }?;
+
+        buf.copy_from_slice(&data);
+        Ok(())
     }
 }
 
@@ -1298,58 +1303,45 @@ impl<R> Read for BmpReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     type Reader = BmpReader<R>;
 
-    fn dimensions(&self) -> (u64, u64) {
-        (self.width as u64, self.height as u64)
+    fn dimensions(&self) -> (u32, u32) {
+        (self.width as u32, self.height as u32)
     }
 
-    fn colortype(&self) -> ColorType {
+    fn color_type(&self) -> ColorType {
         if self.add_alpha_channel {
-            ColorType::RGBA(8)
+            ColorType::Rgba8
         } else {
-            ColorType::RGB(8)
+            ColorType::Rgb8
         }
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(Cursor::new(self.read_image()?), PhantomData))
+        Ok(BmpReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
     }
 
-    fn read_image(mut self) -> ImageResult<Vec<u8>> {
-        self.read_image_data()
+    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        self.read_image_data(buf)
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BMPDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
-        x: u64,
-        y: u64,
-        width: u64,
-        height: u64,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
-        let data = self.read_image_data();
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+                         |s, buf| { s.read_image_data(buf).map(|_| buf.len()) })?;
         self.reader.seek(SeekFrom::Start(start))?;
-
-        let data = data?;
-
-        #[rustfmt::skip]
-        image::load_rect(
-            x, y, width, height,
-            buf,
-            progress_callback,
-            self,
-            |_, _| unreachable!(),
-            |_, buf| {
-                buf.copy_from_slice(&data);
-                Ok(buf.len())
-            },
-        )?;
         Ok(())
     }
 }

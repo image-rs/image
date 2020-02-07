@@ -1,17 +1,17 @@
 use num_traits::Zero;
-use std::io;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
-use flat::{FlatSamples, SampleLayout};
-use dynimage::{save_buffer, save_buffer_with_format};
-use image::{GenericImage, GenericImageView, ImageFormat};
-use math::Rect;
-use traits::Primitive;
-use utils::expand_packed;
+use crate::color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::flat::{FlatSamples, SampleLayout};
+use crate::dynimage::{save_buffer, save_buffer_with_format};
+use crate::error::ImageResult;
+use crate::image::{GenericImage, GenericImageView, ImageFormat};
+use crate::math::Rect;
+use crate::traits::{EncodableLayout, Primitive};
+use crate::utils::expand_packed;
 
 /// A generalized pixel.
 ///
@@ -747,21 +747,22 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
+    P: Pixel + 'static,
+    [P::Subpixel]: EncodableLayout,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
     /// Currently only jpeg and png files are supported.
-    pub fn save<Q>(&self, path: Q) -> io::Result<()>
+    pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
         // This is valid as the subpixel is u8.
         save_buffer(
             path,
-            self,
+            self.as_bytes(),
             self.width(),
             self.height(),
             <P as Pixel>::COLOR_TYPE,
@@ -771,22 +772,23 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel<Subpixel = u8> + 'static,
-    Container: Deref<Target = [u8]>,
+    P: Pixel + 'static,
+    [P::Subpixel]: EncodableLayout,
+    Container: Deref<Target = [P::Subpixel]>,
 {
     /// Saves the buffer to a file at the specified path in
     /// the specified format.
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
-    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> io::Result<()>
+    pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
     {
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self,
+            self.as_bytes(),
             self.width(),
             self.height(),
             <P as Pixel>::COLOR_TYPE,
@@ -1128,14 +1130,22 @@ pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
 pub(crate) type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
 /// Sendable Bgr + alpha channel image buffer
 pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
+/// Sendable 16-bit Rgb image buffer
+pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
+/// Sendable 16-bit Rgb + alpha channel image buffer
+pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
+/// Sendable 16-bit grayscale image buffer
+pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
+/// Sendable 16-bit grayscale + alpha channel image buffer
+pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
 #[cfg(test)]
 mod test {
 
-    use super::{ImageBuffer, RgbImage, GrayImage};
-    use super::GenericImage;
-    use color;
-    use math::Rect;
+    use super::{GrayImage, ImageBuffer, RgbImage};
+    use crate::image::GenericImage;
+    use crate::color;
+    use crate::math::Rect;
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -1170,9 +1180,9 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_conversion(b: &mut test::Bencher) {
-        use buffer::{ConvertBuffer, GrayImage, Pixel};
+        use crate::buffer::{ConvertBuffer, GrayImage, Pixel};
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;
@@ -1191,10 +1201,10 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_image_access_row_by_row(b: &mut test::Bencher) {
-        use buffer::{ImageBuffer, Pixel};
+        use crate::buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;
@@ -1221,10 +1231,10 @@ mod test {
     #[bench]
     #[cfg(feature = "benchmarks")]
     fn bench_image_access_col_by_col(b: &mut test::Bencher) {
-        use buffer::{ImageBuffer, Pixel};
+        use crate::buffer::{ImageBuffer, Pixel};
 
         let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for mut p in a.pixels_mut() {
+        for p in a.pixels_mut() {
             let rgb = p.channels_mut();
             rgb[0] = 255;
             rgb[1] = 23;

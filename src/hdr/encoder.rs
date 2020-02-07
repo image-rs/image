@@ -1,5 +1,6 @@
-use color::Rgb;
-use hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
+use crate::color::Rgb;
+use crate::error::ImageResult;
+use crate::hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
 use std::io::{Result, Write};
 use std::cmp::Ordering;
 
@@ -16,7 +17,7 @@ impl<W: Write> HDREncoder<W> {
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> Result<()> {
+    pub fn encode(mut self, data: &[Rgb<f32>], width: usize, height: usize) -> ImageResult<()> {
         assert!(data.len() >= width * height);
         let w = &mut self.w;
         w.write_all(SIGNATURE)?;
@@ -246,7 +247,7 @@ pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
 
 #[test]
 fn to_rgbe8_test() {
-    use hdr::rgbe8;
+    use crate::hdr::rgbe8;
     let test_cases = vec![rgbe8(0, 0, 0, 0), rgbe8(1, 1, 128, 128)];
     for &pix in &test_cases {
         assert_eq!(pix, to_rgbe8(pix.to_hdr()));

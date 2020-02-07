@@ -50,7 +50,7 @@ fn render_images() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::UnsupportedError(e)) => {
+            Err(image::ImageError::Unsupported(e)) => {
                 println!("UNSUPPORTED {}: {}", path.display(), e);
                 return;
             }
@@ -161,7 +161,7 @@ fn check_references() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::UnsupportedError(_)) => return,
+            Err(image::ImageError::Unsupported(_)) => return,
             Err(err) => panic!(format!("{}", err)),
         };
 
@@ -185,14 +185,14 @@ fn check_references() {
 
         match case.kind {
             ReferenceTestKind::AnimatedGifFrame { frame: frame_num } => {
-                #[cfg(feature = "gif_codec")]
+                #[cfg(feature = "gif")]
                 {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                    let decoder = match image::gif::Decoder::new(stream) {
+                    let decoder = match image::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
-                        Err(image::ImageError::UnsupportedError(_)) => return,
+                        Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
                             panic!(format!("decoding of {:?} failed with: {}", img_path, err))
                         }
@@ -200,7 +200,7 @@ fn check_references() {
 
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
-                        Err(image::ImageError::UnsupportedError(_)) => return,
+                        Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => panic!(format!(
                             "collecting frames of {:?} failed with: {}",
                             img_path, err
@@ -214,7 +214,7 @@ fn check_references() {
                     test_img = frame.into_buffer();
                 }
 
-                #[cfg(not(feature = "gif_codec"))]
+                #[cfg(not(feature = "gif"))]
                 {
                     println!("Skipping - GIF codec is not enabled");
                     return;
@@ -228,7 +228,7 @@ fn check_references() {
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
-                    Err(image::ImageError::UnsupportedError(_)) => return,
+                    Err(image::ImageError::Unsupported(_)) => return,
                     Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
                 };
             }
@@ -284,7 +284,7 @@ fn check_hdr_references() {
         ref_path.set_extension("raw");
         println!("{}", ref_path.display());
         println!("{}", path.display());
-        let decoder = image::hdr::HDRDecoder::new(io::BufReader::new(
+        let decoder = image::hdr::HdrDecoder::new(io::BufReader::new(
             fs::File::open(&path).unwrap(),
         )).unwrap();
         let decoded = decoder.read_image_hdr().unwrap();

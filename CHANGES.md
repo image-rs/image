@@ -56,6 +56,12 @@ version.
 - Introduced `PixelDensity` and `PixelDensityUnit` to store DPI information in
   formats that support encoding this form of metadata (e.g. in `jpeg`).
 
+### Version 0.22.5
+
+- Added `GenericImage::copy_within`, specialized for `ImageBuffer`
+- Fixed decoding of interlaced `gif` files
+- Prepare for future compatibility of array `IntoIterator` in example code
+
 ### Version 0.22.4
 
 - Added in-place variants for flip and rotate operations.

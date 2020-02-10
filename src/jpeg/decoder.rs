@@ -88,19 +88,19 @@ fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     let size = input.len() - input.len() / 4;
     let mut output = Vec::with_capacity(size);
 
+    let inv = 1.0 / 255.0;
     for pixel in input.chunks(4) {
         let c = f32::from(pixel[0]);
         let m = f32::from(pixel[1]);
         let y = f32::from(pixel[2]);
         let k = 255.0 - f32::from(pixel[3]);
 
-        let k_sub = k / 255.0;
-
+        let k_sub = -k;
+        let k = k * 255.0;
         // CMY -> RGB
-        let r = k - c * k_sub;
-        let g = k - m * k_sub;
-        let b = k - y * k_sub;
-
+        let r = (c * k_sub + k) * inv;
+        let g = (y * k_sub + k) * inv;
+        let b = (m * k_sub + k) * inv;
 
         output.push(r as u8);
         output.push(g as u8);

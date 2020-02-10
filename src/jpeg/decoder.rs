@@ -146,8 +146,15 @@ mod tests {
                 let r = (255.0 - f32::from(c)) * (255.0 - f32::from(k)) / 255.0;
                 let r_u8 = r as u8;
                 let convert_r = cmyk_to_rgb(&[c, 0, 0, k])[0];
+                let convert_g = cmyk_to_rgb(&[0, c, 0, k])[0];
+                let convert_b = cmyk_to_rgb(&[0, 0, c, k])[0];
+
                 assert_eq!(convert_r, r_u8,
                            "c = {}, k = {}, cymk_to_rgb[0] = {}, should be {}", c, k, convert_r, r_u8);
+                assert_eq!(convert_g, r_u8,
+                           "m = {}, k = {}, cymk_to_rgb[0] = {}, should be {}", c, k, convert_g, r_u8);
+                assert_eq!(convert_b, r_u8,
+                           "y = {}, k = {}, cymk_to_rgb[0] = {}, should be {}", c, k, convert_b, r_u8);
             }
         }
     }

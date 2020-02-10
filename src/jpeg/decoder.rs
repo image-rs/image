@@ -158,5 +158,20 @@ mod tests {
             }
         }
     }
+    
+    fn single_pix_correct(cymk_pix: [u8; 4], rgb_pix_true: [u8; 3]) {
+        let rgb_pix = cmyk_to_rgb(&cymk_pix);
+        assert_eq!(rgb_pix[0], rgb_pix_true[0]);
+        assert_eq!(rgb_pix[1], rgb_pix_true[1]);
+        assert_eq!(rgb_pix[2], rgb_pix_true[2]);
+    }
+
+    #[test]
+    fn test_grey_colors() {
+        single_pix_correct([0, 0, 0, 0], [255, 255, 255]);
+        single_pix_correct([0, 0, 0, 254], [1, 1, 1]);
+        single_pix_correct([0, 0, 0, 253], [2, 2, 2]);
+    }
+
 }
 

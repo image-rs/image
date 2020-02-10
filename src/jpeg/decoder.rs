@@ -132,3 +132,23 @@ impl ImageError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::cmyk_to_rgb;
+
+    #[test]
+    fn cymk_to_rgb_correct() {
+        // Based on R = 255 * (1-C/255) * (1-K/255)
+        for c in 0..255 {
+            for k in 0..255 {
+                let r = (255.0 - f32::from(c)) * (255.0 - f32::from(k)) / 255.0;
+                let r_u8 = r as u8;
+                let convert_r = cmyk_to_rgb(&[c, 0, 0, k])[0];
+                assert_eq!(convert_r, r_u8,
+                           "c = {}, k = {}, cymk_to_rgb[0] = {}, should be {}", c, k, convert_r, r_u8);
+            }
+        }
+    }
+}
+

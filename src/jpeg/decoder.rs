@@ -84,7 +84,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 }
 
-fn cmyk_to_rgb_int(input: &[u8]) -> Vec<u8> {
+fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     let count = input.len() / 4;
     let mut output = vec![0; 3 * count];
 
@@ -137,7 +137,7 @@ mod tests {
     use super::cmyk_to_rgb;
 
     #[test]
-    fn cymk_to_rgb_correct() {
+    fn cmyk_to_rgb_correct() {
         // Based on R = 255 * (1-C/255) * (1-K/255)
         for c in 0..255 {
             for k in 0..255 {

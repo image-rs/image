@@ -84,7 +84,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 }
 
-pub fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
+fn cmyk_to_rgb(input: &[u8]) -> Vec<u8> {
     let count = input.len()/4;
     let mut output = vec![0; 3*count];
 

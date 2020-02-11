@@ -53,6 +53,16 @@ matrix:
         - rustup component add clippy
         - cargo clippy
     - os: linux
+      rust: stable
+      name: "Build fuzz targets (afl)"
+      script:
+        - cargo install afl
+        - cd fuzz-afl
+        - cargo check --bin reproduce_webp
+        - cargo check --bin reproduce_pnm
+        - cargo afl check --bin fuzz_webp
+        - cargo afl check --bin fuzz_pnm
+    - os: linux
       rust: nightly
       name: "Public private dependencies"
       script:

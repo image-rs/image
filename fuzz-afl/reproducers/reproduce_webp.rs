@@ -1,12 +1,12 @@
 extern crate image;
 
-use image::ImageDecoder;
+use image::{DynamicImage, ImageDecoder};
 use image::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
 
 mod utils;
 
 #[inline(always)]
-fn webp_decode(data: &[u8]) -> ImageResult<Vec<u8>> {
+fn webp_decode(data: &[u8]) -> ImageResult<DynamicImage> {
     let decoder = image::webp::WebPDecoder::new(data)?;
     let (width, height) = decoder.dimensions();
 
@@ -14,9 +14,7 @@ fn webp_decode(data: &[u8]) -> ImageResult<Vec<u8>> {
         return Err(ImageError::Limits(LimitError::from_kind(LimitErrorKind::DimensionError)));
     }
 
-    let mut buf = vec![];
-    decoder.read_image(&mut buf)?;
-    Ok(buf)
+    DynamicImage::from_decoder(decoder)
 }
 
 fn main() {

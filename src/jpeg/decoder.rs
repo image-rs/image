@@ -134,10 +134,10 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
-    #![cfg(feature = "benchmarks")]
     extern crate test;
     
     use super::cmyk_to_rgb;
+    #[cfg(feature = "benchmarks")]
     use test::Bencher;
 
     const W: usize = 256;

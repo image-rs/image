@@ -134,13 +134,20 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
+    #![cfg(feature = "benchmarks")]
+    extern crate test;
+    
     use super::cmyk_to_rgb;
+    use test::Bencher;
+
+    const W: usize = 256;
+    const H: usize = 256;
 
     #[test]
     fn cmyk_to_rgb_correct() {
-        for c in 0..255 {
-            for k in 0..255 {
-                // Based on R = 255 * (1-C/255) * (1-K/255)	  
+        for c in 0..256 {
+            for k in 0..256 {
+                // Based on R = 255 * (1-C/255) * (1-K/255)
                 let r = (255.0 - f32::from(c)) * (255.0 - f32::from(k)) / 255.0;
                 let r_u8 = r as u8;
                 let convert_r = cmyk_to_rgb(&[c, 0, 0, k])[0];
@@ -173,4 +180,29 @@ mod tests {
             single_pix_correct(cmyk_pixel, rgb_pixel);
         }
     }
+    
+    #[bench]
+    fn bench_cmyk_to_rgb(b: &mut Bencher) {
+        let mut v = Vec::with_capacity((W * H * 4) as usize);
+        for c in 0..256 {
+            for k in 0..256 {
+                v.push(c as u8);
+                v.push(0);
+                v.push(0);
+                v.push(k as u8);
+            }
+        }
+
+        b.iter(|| {
+            cmyk_to_rgb(&v);
+        });
+    }
+
+    #[bench]
+    fn bench_cmyk_to_rgb_single(b: &mut Bencher) {
+        b.iter(|| {
+            cmyk_to_rgb(&[128, 128, 128, 128]);
+        });
+    }
+
 }

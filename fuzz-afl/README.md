@@ -5,7 +5,19 @@ live in their own crate. `image-png` for example has their own fuzzing targets.
 
 ## Using the fuzzer
 
+Install afl:
+
     $ cargo install afl
-    $ RUSTFLAGS="-Clink-arg=-fuse-ld=gold" cargo +nightly afl build --release --bin fuzz_<format>
+
+Build fuzz target:
+
+    $ cargo afl build --bin fuzz_<format>
+
+Run afl:
+
     $ mkdir out/<format>
-    $ cargo afl fuzz -i ./in/<format> -o ./out/<format> ./target/release/fuzz_<format>
+    $ cargo afl fuzz -i ./in/<format> -o ./out/<format> ./target/debug/fuzz_<format>
+
+To reproduce a crash:
+
+    $ cargo run --bin reproduce_<format>

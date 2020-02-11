@@ -19,5 +19,13 @@ name = "fuzz_pnm"
 path = "fuzzers/fuzz_pnm.rs"
 
 [[bin]]
+name = "reproduce_pnm"
+path = "reproducers/reproduce_pnm.rs"
+
+[[bin]]
 name = "fuzz_webp"
 path = "fuzzers/fuzz_webp.rs"
+
+[[bin]]
+name = "reproduce_webp"
+path = "reproducers/reproduce_webp.rs"

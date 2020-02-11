@@ -15,9 +15,9 @@ version = "0.4.3"
 members = ["."]
 
 [[bin]]
-name = "fuzzer_script_pnm"
-path = "fuzzers/fuzzer_script_pnm.rs"
+name = "fuzz_pnm"
+path = "fuzzers/fuzz_pnm.rs"
 
 [[bin]]
-name = "fuzzer_script_webp"
-path = "fuzzers/fuzzer_script_webp.rs"
+name = "fuzz_webp"
+path = "fuzzers/fuzz_webp.rs"

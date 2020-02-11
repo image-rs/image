@@ -145,8 +145,8 @@ mod tests {
 
     #[test]
     fn cmyk_to_rgb_correct() {
-        for c in 0..256 {
-            for k in 0..256 {
+        for c in 0..=255 {
+            for k in 0..=255 {
                 // Based on R = 255 * (1-C/255) * (1-K/255)
                 let r = (255.0 - f32::from(c)) * (255.0 - f32::from(k)) / 255.0;
                 let r_u8 = r as u8;
@@ -181,11 +181,12 @@ mod tests {
         }
     }
     
+    #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_cmyk_to_rgb(b: &mut Bencher) {
         let mut v = Vec::with_capacity((W * H * 4) as usize);
-        for c in 0..256 {
-            for k in 0..256 {
+        for c in 0..=255 {
+            for k in 0..=255 {
                 v.push(c as u8);
                 v.push(0);
                 v.push(0);
@@ -197,7 +198,8 @@ mod tests {
             cmyk_to_rgb(&v);
         });
     }
-
+    
+    #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_cmyk_to_rgb_single(b: &mut Bencher) {
         b.iter(|| {

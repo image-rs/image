@@ -1786,14 +1786,16 @@ fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
 }
 
 fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
-    let a0 = a[(y0 - 1) * stride + x0];
-    let a1 = a[(y0 - 1) * stride + x0 + 1];
-    let a2 = a[(y0 - 1) * stride + x0 + 2];
-    let a3 = a[(y0 - 1) * stride + x0 + 3];
-    let a4 = a[(y0 - 1) * stride + x0 + 4];
-    let a5 = a[(y0 - 1) * stride + x0 + 5];
-    let a6 = a[(y0 - 1) * stride + x0 + 6];
-    let a7 = a[(y0 - 1) * stride + x0 + 7];
+    let pos = (y0 - 1) * stride + x0;
+    let a_slice = &a[pos..pos+8];
+    let a0 = a_slice[0];
+    let a1 = a_slice[1];
+    let a2 = a_slice[2];
+    let a3 = a_slice[3];
+    let a4 = a_slice[4];
+    let a5 = a_slice[5];
+    let a6 = a_slice[6];
+    let a7 = a_slice[7];
 
     (a0, a1, a2, a3, a4, a5, a6, a7)
 }
@@ -1813,15 +1815,17 @@ fn edge_pixels(
     y0: usize,
     stride: usize,
 ) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
-    let e8 = a[(y0 - 1) * stride + x0 + 3];
-    let e7 = a[(y0 - 1) * stride + x0 + 2];
-    let e6 = a[(y0 - 1) * stride + x0 + 1];
-    let e5 = a[(y0 - 1) * stride + x0];
-    let e4 = a[(y0 - 1) * stride + x0 - 1];
-    let e3 = a[y0 * stride + x0 - 1];
-    let e2 = a[(y0 + 1) * stride + x0 - 1];
-    let e1 = a[(y0 + 2) * stride + x0 - 1];
-    let e0 = a[(y0 + 3) * stride + x0 - 1];
+    let pos = (y0 - 1) * stride + x0 - 1;
+    let a_slice = &a[pos..=pos+4];
+    let e0 = a[pos + 4 * stride];
+    let e1 = a[pos + 3 * stride];
+    let e2 = a[pos + 2 * stride];
+    let e3 = a[pos + stride];
+    let e4 = a_slice[0];
+    let e5 = a_slice[1];
+    let e6 = a_slice[2];
+    let e7 = a_slice[3];
+    let e8 = a_slice[4];
 
     (e0, e1, e2, e3, e4, e5, e6, e7, e8)
 }
@@ -2001,3 +2005,139 @@ fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     a[(y0 + 3) * stride + x0 + 2] = l3;
     a[(y0 + 3) * stride + x0 + 3] = l3;
 }
+
+#[cfg(test)]
+mod test {
+
+    #[cfg(feature = "benchmarks")]
+    extern crate test;
+    use super::{top_pixels, edge_pixels, avg2, avg3, IntraMode, predict_4x4};
+    #[cfg(feature = "benchmarks")]
+    use test::{Bencher, black_box};
+
+    const W: usize = 256;
+    const H: usize = 256;
+    
+    fn make_sample_image() -> Vec<u8> {
+        let mut v = Vec::with_capacity((W * H * 4) as usize);
+        for c in 0u8..=255 {
+            for k in 0u8..=255 {
+                v.push(c);
+                v.push(0);
+                v.push(0);
+                v.push(k);
+            }
+        }
+        v
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_top_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(top_pixels(&v, 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_edge_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(edge_pixels(&v, 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_4x4(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        let res_data = vec![1i32; W * H * 4];
+        let modes = [
+            IntraMode::TM, IntraMode::VE, IntraMode::HE, IntraMode::DC,
+            IntraMode::LD, IntraMode::RD, IntraMode::VR, IntraMode::VL,
+            IntraMode::HD, IntraMode::HU, IntraMode::TM, IntraMode::VE,
+            IntraMode::HE, IntraMode::DC, IntraMode::LD, IntraMode::RD
+        ];
+        
+        b.iter(|| {
+            black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
+        });
+    }
+
+    #[test]
+    fn test_avg2() {
+        for i in 0u8..=255 {
+            for j in 0u8..=255 {
+                let ceil_avg = ((i as f32) + (j as f32)) / 2.0;
+                let ceil_avg = ceil_avg.ceil() as u8;
+                assert_eq!(ceil_avg, avg2(i, j), "avg2({}, {}), expected {}, got {}.", i, j, ceil_avg, avg2(i, j));
+            }
+        }
+    }
+
+    #[test]
+    fn test_avg2_specific() {
+        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(2, 1));
+        assert_eq!(1, avg2(1, 1), "avg2(1, 1), expected 1, got {}.", avg2(1, 1));
+        assert_eq!(2, avg2(2, 1), "avg2(2, 1), expected 2, got {}.", avg2(2, 1));
+    }
+
+    #[test]
+    fn test_avg3() {
+        for i in 0u8..=255 {
+            for j in 0u8..=255 {
+                for k in 0u8..=255 {
+                    let floor_avg = ((i as f32) + 2.0 * (j as f32) + { k as f32 } + 2.0) / 4.0;
+                    let floor_avg = floor_avg.floor() as u8;
+                    assert_eq!(floor_avg, avg3(i, j, k), "avg3({}, {}, {}), expected {}, got {}.", i, j, k, floor_avg, avg3(i, j, k));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_edge_pixels() {
+        let im = vec![5, 6, 7, 8, 9,
+                      4, 0, 0, 0, 0,
+                      3, 0, 0, 0, 0,
+                      2, 0, 0, 0, 0,
+                      1, 0, 0, 0, 0];
+        let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(&im, 1, 1, 5);
+        assert_eq!(e0, 1);
+        assert_eq!(e1, 2);
+        assert_eq!(e2, 3);
+        assert_eq!(e3, 4);
+        assert_eq!(e4, 5);
+        assert_eq!(e5, 6);
+        assert_eq!(e6, 7);
+        assert_eq!(e7, 8);
+        assert_eq!(e8, 9);
+    }
+    
+    #[test]
+    fn test_top_pixels() {
+        let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0];
+        let (e0, e1, e2, e3, e4, e5, e6, e7) = top_pixels(&im, 0, 1, 8);
+        assert_eq!(e0, 1);
+        assert_eq!(e1, 2);
+        assert_eq!(e2, 3);
+        assert_eq!(e3, 4);
+        assert_eq!(e4, 5);
+        assert_eq!(e5, 6);
+        assert_eq!(e6, 7);
+        assert_eq!(e7, 8);
+    }
+}
+

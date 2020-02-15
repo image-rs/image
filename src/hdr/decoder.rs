@@ -11,7 +11,7 @@ use std::path::Path;
 use crate::Primitive;
 
 use crate::color::{ColorType, Rgb};
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, Progress};
 
 /// Adapter to conform to ```ImageDecoder``` trait
@@ -55,7 +55,9 @@ impl<R: BufRead> HDRAdapter<R> {
 
                 Ok(())
             }
-            None => Err(ImageError::ImageEnd),
+            None => Err(ImageError::Parameter(
+                ParameterError::from_kind(ParameterErrorKind::NoMoreData)
+            )),
         }
     }
 }
@@ -418,7 +420,9 @@ impl<R: BufRead> Iterator for HDRImageDecoderIterator<R> {
                 self.advance();
                 // Error was encountered. Keep producing errors.
                 // ImageError can't implement Clone, so just dump some error
-                return Some(Err(ImageError::ImageEnd));
+                return Some(Err(ImageError::Parameter(
+                    ParameterError::from_kind(ParameterErrorKind::FailedAlready)
+                )));
             } // no else
             if self.col == 0 {
                 // fill scanline buffer

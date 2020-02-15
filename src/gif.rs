@@ -41,7 +41,7 @@ use num_rational::Ratio;
 use crate::animation;
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::{ColorType, Rgba};
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{self, AnimationDecoder, ImageDecoder};
 
 /// GIF decoder
@@ -103,7 +103,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             f_width = u32::from(frame.width);
             f_height = u32::from(frame.height);
         } else {
-            return Err(ImageError::ImageEnd);
+            return Err(ImageError::Parameter(
+                ParameterError::from_kind(ParameterErrorKind::NoMoreData)
+            ));
         }
 
         self.reader.read_into_buffer(buf).map_err(ImageError::from_gif)?;

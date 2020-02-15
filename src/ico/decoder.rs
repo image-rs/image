@@ -97,7 +97,10 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
 /// Find the entry with the highest (color depth, size).
 fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
-    let mut best = entries.pop().ok_or(ImageError::ImageEnd)?;
+    let mut best = entries.pop().ok_or_else(|| ImageError::FormatError(
+            "ICO directory contains no image".to_string(),
+        ))?;
+
     let mut best_score = (
         best.bits_per_pixel,
         u32::from(best.real_width()) * u32::from(best.real_height()),
@@ -256,7 +259,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                     let mask_row_bytes = ((width + 31) / 32) * 4;
                     let expected_length = u64::from(mask_row_bytes) * u64::from(height);
                     if mask_length < expected_length {
-                        return Err(ImageError::ImageEnd);
+                        return Err(ImageError::FormatError(
+                            "ICO mask too short for the image".to_string(),
+                        ));
                     }
 
                     for y in 0..height {

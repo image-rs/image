@@ -1833,26 +1833,18 @@ fn edge_pixels(
 fn predict_bvepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (a0, a1, a2, a3, a4, _, _, _) = top_pixels(a, x0, y0, stride);
+    let avg_1 = avg3(p, a0, a1);
+    let avg_2 = avg3(a0, a1, a2);
+    let avg_3 = avg3(a1, a2, a3);
+    let avg_4 = avg3(a2, a3, a4);
 
-    a[y0 * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 1) * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 2) * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 3) * stride + x0] = avg3(p, a0, a1);
+    let avg = [avg_1, avg_2, avg_3, avg_4];
 
-    a[y0 * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(a0, a1, a2);
-
-    a[y0 * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(a1, a2, a3);
-
-    a[y0 * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(a2, a3, a4);
+    let mut pos = y0 * stride + x0;
+    for _ in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avg);
+        pos += stride;
+    }
 }
 
 fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
@@ -2011,7 +2003,7 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, IntraMode, predict_4x4};
+    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, IntraMode, predict_4x4};
     #[cfg(feature = "benchmarks")]
     use test::{Bencher, black_box};
 
@@ -2037,7 +2029,7 @@ mod test {
         let v = black_box(make_sample_image());
 
         b.iter(|| {
-            black_box(top_pixels(&v, 5, 5, W * 2));
+            black_box(top_pixels(black_box(&v), 5, 5, W * 2));
         });
     }
     
@@ -2047,7 +2039,7 @@ mod test {
         let v = black_box(make_sample_image());
 
         b.iter(|| {
-            black_box(edge_pixels(&v, 5, 5, W * 2));
+            black_box(edge_pixels(black_box(&v), 5, 5, W * 2));
         });
     }
     
@@ -2068,6 +2060,17 @@ mod test {
             black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
         });
     }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_bvepred(b: &mut Bencher) {
+        let mut v = make_sample_image();
+
+        b.iter(|| {
+            predict_bvepred(black_box(&mut v), 5, 5, W * 2);
+        });
+    }
+
 
     #[test]
     fn test_avg2() {
@@ -2139,5 +2142,42 @@ mod test {
         assert_eq!(e6, 7);
         assert_eq!(e7, 8);
     }
+    
+    #[test]
+    fn test_predict_bvepred() {
+        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let avg_1 = 2u8;
+        let avg_2 = 3u8;
+        let avg_3 = 4u8;
+        let avg_4 = 5u8;
+
+        predict_bvepred(&mut im, 1, 1, 9);
+
+        assert_eq!(im[10], avg_1);
+        assert_eq!(im[11], avg_2);
+        assert_eq!(im[12], avg_3);
+        assert_eq!(im[13], avg_4);
+        assert_eq!(im[19], avg_1);
+        assert_eq!(im[20], avg_2);
+        assert_eq!(im[21], avg_3);
+        assert_eq!(im[22], avg_4);
+        assert_eq!(im[28], avg_1);
+        assert_eq!(im[29], avg_2);
+        assert_eq!(im[30], avg_3);
+        assert_eq!(im[31], avg_4);
+        assert_eq!(im[37], avg_1);
+        assert_eq!(im[38], avg_2);
+        assert_eq!(im[39], avg_3);
+        assert_eq!(im[40], avg_4);
+    }
+
 }
 

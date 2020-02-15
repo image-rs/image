@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use crate::color;
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageEncoder;
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
@@ -36,11 +36,13 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
         let image_size = width
             .checked_mul(height)
-            .ok_or(ImageError::DimensionError)?
-            .checked_mul(written_pixel_size)
-            .ok_or(ImageError::DimensionError)?
-            .checked_add(height * row_pad_size)
-            .ok_or(ImageError::DimensionError)?;
+            .and_then(|v| v.checked_mul(written_pixel_size))
+            .and_then(|v| v.checked_add(height * row_pad_size))
+            .ok_or_else(|| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?;
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
         let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
 

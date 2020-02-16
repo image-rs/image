@@ -18,7 +18,10 @@ use std::cmp;
 use std::io::Read;
 
 use super::transform;
-use crate::{ImageError, ImageResult};
+use crate::error::{
+    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+};
+use crate::image::ImageFormat;
 
 use crate::math::utils::clamp;
 
@@ -684,8 +687,10 @@ impl BoolReader {
 
     pub(crate) fn init(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         if buf.len() < 2 {
-            return Err(ImageError::FormatError(
-                "Expected at least 2 bytes of decoder initialization data".into()));
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::WebP.into(),
+                "Expected at least 2 bytes of decoder initialization data".to_owned(),
+            )));
         }
 
         self.buf = buf;
@@ -1107,8 +1112,10 @@ impl<R: Read> Vp8Decoder<R> {
             self.r.read_exact(&mut tag)?;
 
             if tag != [0x9d, 0x01, 0x2a] {
-                return Err(ImageError::FormatError(
-                    format!("Invalid magic bytes {:?} for vp8", tag)))
+                return Err(ImageError::Decoding(DecodingError::with_message(
+                    ImageFormat::WebP.into(),
+                    format!("Invalid magic bytes {:?} for vp8", tag),
+                )));
             }
 
             let w = self.r.read_u16::<LittleEndian>()?;
@@ -1142,8 +1149,10 @@ impl<R: Read> Vp8Decoder<R> {
             self.frame.pixel_type = self.b.read_literal(1);
 
             if color_space != 0 {
-                return Err(ImageError::FormatError(
-                    "Only YUV color space is specified.".to_string()))
+                return Err(ImageError::Decoding(DecodingError::with_message(
+                    ImageFormat::WebP.into(),
+                    "Only YUV color space is specified.".to_string(),
+                )));
             }
         }
 
@@ -1169,9 +1178,15 @@ impl<R: Read> Vp8Decoder<R> {
 
         if !self.frame.keyframe {
             // 9.7 refresh golden frame and altref frame
-            return Err(ImageError::UnsupportedError(
-                "Frames that are not keyframes are not supported".into()))
             // FIXME: support this?
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Frames that are not keyframes are not supported".to_owned(),
+                    ),
+                ),
+            ));
         } else {
             // Refresh entropy probs ?????
             let _ = self.b.read_literal(1);
@@ -1190,9 +1205,15 @@ impl<R: Read> Vp8Decoder<R> {
             // 9.10 remaining frame data
             self.prob_intra = 0;
 
-            return Err(ImageError::UnsupportedError(
-                "Frames that are not keyframes are not supported".into()))
             // FIXME: support this?
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Frames that are not keyframes are not supported".to_owned(),
+                    ),
+                ),
+            ));
         } else {
             // Reset motion vectors
         }
@@ -1223,18 +1244,26 @@ impl<R: Read> Vp8Decoder<R> {
         };
 
         if inter_predicted {
-            return Err(ImageError::UnsupportedError(
-                "VP8 inter prediction is not implemented yet".into()));
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "VP8 inter prediction is not implemented yet".to_owned(),
+                    ),
+                ),
+            ));
         }
 
         if self.frame.keyframe {
             // intra prediction
             let luma = self.b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
-            mb.luma_mode = LumaMode::from_i8(luma)
-                .ok_or_else(|| ImageError::FormatError(
-                    format!("Invalid luma prediction mode {}", luma))
-                )?;
+            mb.luma_mode = LumaMode::from_i8(luma).ok_or_else(|| {
+                ImageError::Decoding(DecodingError::with_message(
+                    ImageFormat::WebP.into(),
+                    format!("Invalid luma prediction mode {}", luma),
+                ))
+            })?;
 
             match mb.luma_mode.into_intra() {
                 // `LumaMode::B` - This is predicted individually
@@ -1248,10 +1277,12 @@ impl<R: Read> Vp8Decoder<R> {
                                 &KEYFRAME_BPRED_MODE_PROBS[top as usize][left as usize],
                                 0,
                             );
-                            let bmode = IntraMode::from_i8(intra)
-                                .ok_or_else(|| ImageError::FormatError(
-                                    format!("Invalid intra prediction mode {}", intra))
-                                )?;
+                            let bmode = IntraMode::from_i8(intra).ok_or_else(|| {
+                                ImageError::Decoding(DecodingError::with_message(
+                                    ImageFormat::WebP.into(),
+                                    format!("Invalid intra prediction mode {}", intra),
+                                ))
+                            })?;
                             mb.bpred[x + y * 4] = bmode;
 
                             self.top[mbx].bpred[12 + x] = bmode;
@@ -1269,10 +1300,12 @@ impl<R: Read> Vp8Decoder<R> {
 
             let chroma = self.b
                 .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
-            mb.chroma_mode = ChromaMode::from_i8(chroma)
-                .ok_or_else(|| ImageError::FormatError(
-                    format!("Invalid chroma prediction mode {}", chroma))
-                )?;
+            mb.chroma_mode = ChromaMode::from_i8(chroma).ok_or_else(|| {
+                ImageError::Decoding(DecodingError::with_message(
+                    ImageFormat::WebP.into(),
+                    format!("Invalid chroma prediction mode {}", chroma),
+                ))
+            })?;
         }
 
         self.top[mbx].chroma_mode = mb.chroma_mode;

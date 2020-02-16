@@ -11,9 +11,10 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
 use crate::dxt::{DxtDecoder, DXTReader, DXTVariant};
-use crate::error::{ImageError, ImageResult};
-use crate::image::ImageDecoder;
-
+use crate::error::{
+    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+};
+use crate::image::{ImageDecoder, ImageFormat};
 
 /// Header used by DDS image files
 #[derive(Debug)]
@@ -45,7 +46,10 @@ impl PixelFormat {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
-            return Err(ImageError::FormatError("Invalid DDS PixelFormat size".to_string()))
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::Dds.into(),
+                "Invalid DDS PixelFormat size".to_string(),
+            )));
         }
 
         Ok(Self {
@@ -68,14 +72,20 @@ impl Header {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
-            return Err(ImageError::FormatError("Invalid DDS header size".to_string()))
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::Dds.into(),
+                "Invalid DDS header size".to_string(),
+            )));
         }
 
         const REQUIRED_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x1000;
         const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x800000;
         let flags = r.read_u32::<LittleEndian>()?;
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
-            return Err(ImageError::FormatError("Invalid DDS header flags".to_string()))
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::Dds.into(),
+                "Invalid DDS header flags".to_string(),
+            )));
         }
 
         let height = r.read_u32::<LittleEndian>()?;
@@ -123,7 +133,10 @@ impl<R: Read> DdsDecoder<R> {
         let mut magic = [0; 4];
         r.read_exact(&mut magic)?;
         if magic != b"DDS "[..] {
-            return Err(ImageError::FormatError("DDS signature not found".to_string()))
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::Dds.into(),
+                "DDS signature not found".to_string(),
+            )));
         }
 
         let header = Header::from_reader(&mut r)?;
@@ -133,13 +146,28 @@ impl<R: Read> DdsDecoder<R> {
                 b"DXT1" => DXTVariant::DXT1,
                 b"DXT3" => DXTVariant::DXT3,
                 b"DXT5" => DXTVariant::DXT5,
-                _ => return Err(ImageError::FormatError("Unsupported DDS FourCC".to_string())),
+                fourcc => {
+                    return Err(ImageError::Unsupported(
+                        UnsupportedError::from_format_and_kind(
+                            ImageFormat::Dds.into(),
+                            UnsupportedErrorKind::GenericFeature(format!(
+                                "Unsupported DDS FourCC {:?}",
+                                fourcc
+                            )),
+                        ),
+                    ))
+                }
             };
             let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
             Ok(Self { inner })
         } else {
             // For now, supports only DXT variants
-            Err(ImageError::FormatError("DDS format not supported".to_string()))
+            Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Dds.into(),
+                    UnsupportedErrorKind::GenericFeature("DDS format not supported".to_string()),
+                ),
+            ))
         }
     }
 }

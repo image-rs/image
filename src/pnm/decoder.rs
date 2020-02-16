@@ -166,8 +166,7 @@ trait HeaderReader: BufRead {
     /// Reads the two magic constant bytes
     fn read_magic_constant(&mut self) -> ImageResult<[u8; 2]> {
         let mut magic: [u8; 2] = [0, 0];
-        self.read_exact(&mut magic)
-            .map_err(ImageError::IoError)?;
+        self.read_exact(&mut magic)?;
         Ok(magic)
     }
 
@@ -226,8 +225,7 @@ trait HeaderReader: BufRead {
     /// Read the next line
     fn read_next_line(&mut self) -> ImageResult<String> {
         let mut buffer = String::new();
-        self.read_line(&mut buffer)
-            .map_err(ImageError::IoError)?;
+        self.read_line(&mut buffer)?;
         Ok(buffer)
     }
 
@@ -300,7 +298,7 @@ trait HeaderReader: BufRead {
         let mut tupltype: Option<String> = None;
         loop {
             line.truncate(0);
-            let len = self.read_line(&mut line).map_err(ImageError::IoError)?;
+            let len = self.read_line(&mut line)?;
             if len == 0 {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),

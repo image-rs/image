@@ -8,8 +8,11 @@ use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult};
-use crate::image::ImageEncoder;
+use crate::error::{
+    ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
+};
+use crate::image::{ImageEncoder, ImageFormat};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
@@ -181,7 +184,12 @@ impl<W: Write> PNMEncoder<W> {
             ExtendedColorType::Rgba8 => (0xff, ArbitraryTuplType::RGBAlpha),
             ExtendedColorType::Rgba16 => (0xffff, ArbitraryTuplType::RGBAlpha),
             _ => {
-                return Err(ImageError::UnsupportedColor(color))
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Pnm.into(),
+                        UnsupportedErrorKind::Color(color),
+                    ),
+                ))
             }
         };
 
@@ -240,11 +248,11 @@ impl<W: Write> PNMEncoder<W> {
                 encoded: None,
             },
             (_, _) => {
-                // FIXME https://github.com/image-rs/image/issues/921
-                return Err(ImageError::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Color type can not be represented in the chosen format",
-                )))
+                return Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::Generic(
+                        "Color type can not be represented in the chosen format".to_owned(),
+                    ),
+                )));
             }
         };
 
@@ -295,22 +303,21 @@ impl<'a> CheckedImageBuffer<'a> {
         let components = color.channel_count() as usize;
         let uwidth = width as usize;
         let uheight = height as usize;
-        match Some(components)
-            .and_then(|v| v.checked_mul(uwidth))
-            .and_then(|v| v.checked_mul(uheight))
-        {
-            None => Err(ImageError::DimensionError),
-            Some(v) if v == image.len() => Ok(CheckedImageBuffer {
-                _image: image,
-                _width: width,
-                _height: height,
-                _color: color,
-            }),
-            Some(_) => Err(ImageError::IoError(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                &"Image buffer does not correspond to size and colour".to_string()[..],
-            ))),
+        let expected_len = components
+            .checked_mul(uwidth)
+            .and_then(|v| v.checked_mul(uheight));
+        if Some(image.len()) != expected_len {
+            // Image buffer does not correspond to size and colour.
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
+        Ok(CheckedImageBuffer {
+            _image: image,
+            _width: width,
+            _height: height,
+            _color: color,
+        })
     }
 }
 
@@ -321,9 +328,9 @@ impl<'a> UncheckedHeader<'a> {
         height: u32,
     ) -> ImageResult<CheckedDimensions<'a>> {
         if self.header.width() != width || self.header.height() != height {
-            return Err(ImageError::IoError(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Chosen header does not match Image dimensions",
+            // Chosen header does not match Image dimensions.
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
             )));
         }
 
@@ -349,9 +356,10 @@ impl<'a> CheckedDimensions<'a> {
             } => match color {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
-                    return Err(ImageError::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PBM format only support luma color types",
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(
+                            "PBM format only support luma color types".to_owned(),
+                        ),
                     )))
                 }
             },
@@ -361,9 +369,10 @@ impl<'a> CheckedDimensions<'a> {
             } => match color {
                 ExtendedColorType::L1 | ExtendedColorType::L8 | ExtendedColorType::L16 => (),
                 _ => {
-                    return Err(ImageError::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PGM format only support luma color types",
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(
+                            "PGM format only support luma color types".to_owned(),
+                        ),
                     )))
                 }
             },
@@ -373,9 +382,10 @@ impl<'a> CheckedDimensions<'a> {
             } => match color {
                 ExtendedColorType::Rgb8 => (),
                 _ => {
-                    return Err(ImageError::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PPM format only support ExtendedColorType::Rgb8",
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(
+                            "PPM format only support ExtendedColorType::Rgb8".to_owned(),
+                        ),
                     )))
                 }
             },
@@ -402,15 +412,18 @@ impl<'a> CheckedDimensions<'a> {
                 (&None, _) if depth == components => (),
                 (&Some(ArbitraryTuplType::Custom(_)), _) if depth == components => (),
                 _ if depth != components => {
-                    return Err(ImageError::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("Depth mismatch: header {} vs. color {}", depth, components),
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(format!(
+                            "Depth mismatch: header {} vs. color {}",
+                            depth, components
+                        )),
                     )))
                 }
                 _ => {
-                    return Err(ImageError::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Invalid color type for selected PAM color type",
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(
+                            "Invalid color type for selected PAM color type".to_owned(),
+                        ),
                     )))
                 }
             },
@@ -450,21 +463,27 @@ impl<'a> CheckedHeaderColor<'a> {
                 => 0xffff,
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
             _ => {
-                return Err(ImageError::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Unsupported target color type",
-                )))
+                // Unsupported target color type.
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Pnm.into(),
+                        UnsupportedErrorKind::Color(self.color),
+                    ),
+                ));
             }
         };
 
         // Avoid the performance heavy check if possible, e.g. if the header has been chosen by us.
         if header_maxval < max_sample && !image.all_smaller(header_maxval) {
-            // FIXME https://github.com/image-rs/image/issues/921, No ImageError variant seems
-            // appropriate in this situation UnsupportedHeaderFormat maybe?
-            return Err(ImageError::IoError(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Sample value greater than allowed for chosen header",
-            )));
+            // Sample value greater than allowed for chosen header.
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Pnm.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Sample value greater than allowed for chosen header".to_owned(),
+                    ),
+                ),
+            ));
         }
 
         let encoding = image.encoding_for(&self.dimensions.unchecked.header.decoded);

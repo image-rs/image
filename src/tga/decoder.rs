@@ -4,8 +4,8 @@ use std::io;
 use std::io::{Read, Seek};
 
 use crate::color::ColorType;
-use crate::error::{ImageError, ImageResult};
-use crate::image::{ImageDecoder, ImageReadBuffer};
+use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::image::{ImageDecoder, ImageFormat, ImageReadBuffer};
 
 enum ImageType {
     NoImageData = 0,
@@ -224,13 +224,23 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// by 8 and are less than 32.
     fn read_color_information(&mut self) -> ImageResult<()> {
         if self.header.pixel_depth % 8 != 0 {
-            return Err(ImageError::UnsupportedError(
-                "Bit depth must be divisible by 8".to_string(),
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tga.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Bit depth must be divisible by 8".to_string(),
+                    ),
+                ),
             ));
         }
         if self.header.pixel_depth > 32 {
-            return Err(ImageError::UnsupportedError(
-                "Bit depth must be less than 32".to_string(),
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tga.into(),
+                    UnsupportedErrorKind::GenericFeature(
+                        "Bit depth must be less than 32".to_string(),
+                    ),
+                ),
             ));
         }
 
@@ -240,8 +250,14 @@ impl<R: Read + Seek> TgaDecoder<R> {
             self.header.map_entry_size
         } else {
             if num_alpha_bits > self.header.pixel_depth {
-                return Err(ImageError::UnsupportedError(
-                    format!("Color format not supported. Alpha bits: {}", num_alpha_bits),
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tga.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Color format not supported. Alpha bits: {}",
+                            num_alpha_bits
+                        )),
+                    ),
                 ));
             }
 
@@ -258,10 +274,15 @@ impl<R: Read + Seek> TgaDecoder<R> {
             (8, 8, false) => self.color_type = ColorType::La8,
             (0, 8, false) => self.color_type = ColorType::L8,
             _ => {
-                return Err(ImageError::UnsupportedError(format!(
-                    "Color format not supported. Bit depth: {}, Alpha bits: {}",
-                    other_channel_bits, num_alpha_bits
-                )))
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tga.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Color format not supported. Bit depth: {}, Alpha bits: {}",
+                            other_channel_bits, num_alpha_bits
+                        )),
+                    ),
+                ))
             }
         }
         Ok(())

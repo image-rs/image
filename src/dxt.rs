@@ -11,7 +11,7 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ColorType;
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progress};
 
 /// What version of DXT compression are we using?
@@ -81,7 +81,9 @@ impl<R: Read> DxtDecoder<R> {
         variant: DXTVariant,
     ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
-            return Err(ImageError::DimensionError);
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
         let width_blocks = width / 4;
         let height_blocks = height / 4;
@@ -204,7 +206,9 @@ impl<W: Write> DXTEncoder<W> {
         variant: DXTVariant,
     ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
-            return Err(ImageError::DimensionError);
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
         let width_blocks = width / 4;
         let height_blocks = height / 4;

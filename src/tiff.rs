@@ -16,8 +16,11 @@ use std::mem;
 use byteorder::{NativeEndian, ByteOrder};
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult};
-use crate::image::{ImageDecoder, ImageEncoder};
+use crate::error::{
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
+use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 use crate::utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
@@ -34,9 +37,9 @@ impl<R> TiffDecoder<R>
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
-        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff)?;
-        let dimensions = inner.dimensions().map_err(ImageError::from_tiff)?;
-        let color_type = match inner.colortype().map_err(ImageError::from_tiff)? {
+        let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
+        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
+        let color_type = match inner.colortype().map_err(ImageError::from_tiff_decode)? {
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -46,14 +49,14 @@ impl<R> TiffDecoder<R>
             tiff::ColorType::RGBA(8) => ColorType::Rgba8,
             tiff::ColorType::RGBA(16) => ColorType::Rgba16,
 
-            tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n))),
-            tiff::ColorType::GrayA(n) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*2))),
-            tiff::ColorType::RGB(n) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*3))),
-            tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(n*4))),
+            tiff::ColorType::Palette(n) | tiff::ColorType::Gray(n) => {
+                return Err(err_unknown_color_type(n))
+            }
+            tiff::ColorType::GrayA(n) => return Err(err_unknown_color_type(n * 2)),
+            tiff::ColorType::RGB(n) => return Err(err_unknown_color_type(n * 3)),
+            tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
+                return Err(err_unknown_color_type(n * 4))
+            }
         };
 
         Ok(TiffDecoder {
@@ -64,13 +67,47 @@ impl<R> TiffDecoder<R>
     }
 }
 
+fn err_unknown_color_type(value: u8) -> ImageError {
+    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        ImageFormat::Tiff.into(),
+        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(value)),
+    ))
+}
+
 impl ImageError {
-    fn from_tiff(err: tiff::TiffError) -> ImageError {
+    fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            tiff::TiffError::FormatError(desc) => ImageError::FormatError(desc.to_string()),
-            tiff::TiffError::UnsupportedError(desc) => ImageError::UnsupportedError(desc.to_string()),
-            tiff::TiffError::LimitsExceeded => ImageError::InsufficientMemory,
+            err @ tiff::TiffError::FormatError(_) => {
+                ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
+            }
+            tiff::TiffError::UnsupportedError(desc) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(desc.to_string()),
+                ))
+            }
+            tiff::TiffError::LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
+        }
+    }
+
+    fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
+        match err {
+            tiff::TiffError::IoError(err) => ImageError::IoError(err),
+            err @ tiff::TiffError::FormatError(_) => {
+                ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
+            }
+            tiff::TiffError::UnsupportedError(desc) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(desc.to_string()),
+                ))
+            }
+            tiff::TiffError::LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
         }
     }
 }
@@ -103,7 +140,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let buf = match self.inner.read_image().map_err(ImageError::from_tiff)? {
+        let buf = match self
+            .inner
+            .read_image()
+            .map_err(ImageError::from_tiff_decode)?
+        {
             tiff::decoder::DecodingResult::U8(v) => v,
             tiff::decoder::DecodingResult::U16(v) => vec_u16_into_u8(v),
         };
@@ -113,7 +154,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        match self.inner.read_image().map_err(ImageError::from_tiff)? {
+        match self
+            .inner
+            .read_image()
+            .map_err(ImageError::from_tiff_decode)?
+        {
             tiff::decoder::DecodingResult::U8(v) => {
                 buf.copy_from_slice(&v);
             }
@@ -132,9 +177,16 @@ pub struct TiffEncoder<W> {
 
 // Utility to simplify and deduplicate error handling during 16-bit encoding.
 fn u8_slice_as_u16(buf: &[u8]) -> ImageResult<&[u16]> {
-    bytemuck::try_cast_slice(buf)
+    bytemuck::try_cast_slice(buf).map_err(|err| {
         // If the buffer is not aligned or the correct length for a u16 slice, err.
-        .map_err(|_| ImageError::IoError(std::io::ErrorKind::InvalidData.into()))
+        //
+        // `bytemuck::PodCastError` of bytemuck-1.2.0 does not implement
+        // `Error` and `Display` trait.
+        // See <https://github.com/Lokathor/bytemuck/issues/22>.
+        ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::Generic(
+            format!("{:?}", err),
+        )))
+    })
 }
 
 impl<W: Write + Seek> TiffEncoder<W> {
@@ -147,7 +199,8 @@ impl<W: Write + Seek> TiffEncoder<W> {
     ///
     /// 16-bit types assume the buffer is native endian.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let mut encoder = tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff)?;
+        let mut encoder =
+            tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color {
             ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
             ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
@@ -155,8 +208,16 @@ impl<W: Write + Seek> TiffEncoder<W> {
             ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, &u8_slice_as_u16(data)?),
             ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, &u8_slice_as_u16(data)?),
             ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, &u8_slice_as_u16(data)?),
-            _ => return Err(ImageError::UnsupportedColor(color.into()))
-        }.map_err(ImageError::from_tiff)?;
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Tiff.into(),
+                        UnsupportedErrorKind::Color(color.into()),
+                    ),
+                ))
+            }
+        }
+        .map_err(ImageError::from_tiff_encode)?;
 
         Ok(())
     }

@@ -5,8 +5,8 @@ use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 
-use crate::image::ImageDecoder;
-use crate::error::{ImageError, ImageResult};
+use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::image::{ImageDecoder, ImageFormat};
 
 use crate::color;
 
@@ -44,15 +44,17 @@ impl<R: Read> WebPDecoder<R> {
         self.r.by_ref().take(4).read_to_end(&mut webp)?;
 
         if &*riff != b"RIFF" {
-            return Err(ImageError::FormatError(
-                "Invalid RIFF signature.".to_string(),
-            ));
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::WebP.into(),
+                "Invalid RIFF signature".to_string(),
+            )));
         }
 
         if &*webp != b"WEBP" {
-            return Err(ImageError::FormatError(
-                "Invalid WEBP signature.".to_string(),
-            ));
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::WebP.into(),
+                "Invalid WEBP signature".to_string(),
+            )));
         }
 
         Ok(size)
@@ -63,9 +65,10 @@ impl<R: Read> WebPDecoder<R> {
         self.r.by_ref().take(4).read_to_end(&mut vp8)?;
 
         if &*vp8 != b"VP8 " {
-            return Err(ImageError::FormatError(
+            return Err(ImageError::Decoding(DecodingError::with_message(
+                ImageFormat::WebP.into(),
                 "Invalid VP8 signature.".to_string(),
-            ));
+            )));
         }
 
         let _len = self.r.read_u32::<LittleEndian>()?;

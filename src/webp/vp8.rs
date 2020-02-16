@@ -1875,43 +1875,28 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[y0 * stride + x0] = avg3(a0, a1, a2);
-    a[y0 * stride + x0 + 1] = avg3(a1, a2, a3);
-    a[(y0 + 1) * stride + x0] = avg3(a1, a2, a3);
-    a[y0 * stride + x0 + 2] = avg3(a2, a3, a4);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(a2, a3, a4);
-    a[(y0 + 2) * stride + x0] = avg3(a2, a3, a4);
-    a[y0 * stride + x0 + 3] = avg3(a3, a4, a5);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(a3, a4, a5);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(a3, a4, a5);
-    a[(y0 + 3) * stride + x0] = avg3(a3, a4, a5);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(a4, a5, a6);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(a4, a5, a6);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(a4, a5, a6);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(a5, a6, a7);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(a5, a6, a7);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(a6, a7, a7);
+    let avgs = [avg3(a0, a1, a2), avg3(a1, a2, a3), avg3(a2, a3, a4),
+    avg3(a3, a4, a5), avg3(a4, a5, a6), avg3(a5, a6, a7), avg3(a6, a7, a7)];
+
+    let mut pos = y0 * stride + x0;
+
+    for i in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i+3]);
+        pos += stride;
+    }
 }
 
 fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    a[(y0 + 3) * stride + x0] = avg3(e0, e1, e2);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(e1, e2, e3);
-    a[(y0 + 2) * stride + x0] = avg3(e1, e2, e3);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(e2, e3, e4);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(e2, e3, e4);
-    a[(y0 + 1) * stride + x0] = avg3(e2, e3, e4);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(e3, e4, e5);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(e3, e4, e5);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[y0 * stride + x0] = avg3(e3, e4, e5);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(e4, e5, e6);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[y0 * stride + x0 + 1] = avg3(e4, e5, e6);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(e5, e6, e7);
-    a[y0 * stride + x0 + 2] = avg3(e5, e6, e7);
-    a[y0 * stride + x0 + 3] = avg3(e6, e7, e8);
+    let avgs = [avg3(e0, e1, e2), avg3(e1, e2, e3), avg3(e2, e3, e4),
+    avg3(e3, e4, e5), avg3(e4, e5, e6), avg3(e5, e6, e7), avg3(e6, e7, e8)];
+    let mut pos = y0 * stride + x0;
+
+    for i in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avgs[3-i..7-i]);
+        pos += stride;
+    }
 }
 
 fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
@@ -2003,7 +1988,7 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, IntraMode, predict_4x4};
+    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, IntraMode, predict_4x4};
     #[cfg(feature = "benchmarks")]
     use test::{Bencher, black_box};
 
@@ -2021,26 +2006,6 @@ mod test {
             }
         }
         v
-    }
-
-    #[cfg(feature = "benchmarks")]
-    #[bench]
-    fn bench_top_pixels(b: &mut Bencher) {
-        let v = black_box(make_sample_image());
-
-        b.iter(|| {
-            black_box(top_pixels(black_box(&v), 5, 5, W * 2));
-        });
-    }
-    
-    #[cfg(feature = "benchmarks")]
-    #[bench]
-    fn bench_edge_pixels(b: &mut Bencher) {
-        let v = black_box(make_sample_image());
-
-        b.iter(|| {
-            black_box(edge_pixels(black_box(&v), 5, 5, W * 2));
-        });
     }
     
     #[cfg(feature = "benchmarks")]
@@ -2060,7 +2025,7 @@ mod test {
             black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
         });
     }
-    
+        
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_bvepred(b: &mut Bencher) {
@@ -2071,6 +2036,44 @@ mod test {
         });
     }
 
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_bldpred(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(predict_bldpred(black_box(&mut v), 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_brdpred(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(predict_brdpred(black_box(&mut v), 5, 5, W * 2));
+        });
+    }
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_top_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(top_pixels(black_box(&v), 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_edge_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(edge_pixels(black_box(&v), 5, 5, W * 2));
+        });
+    }
 
     #[test]
     fn test_avg2() {
@@ -2143,6 +2146,63 @@ mod test {
         assert_eq!(e7, 8);
     }
     
+    #[test]
+    fn test_predict_brdpred() {
+        let expected: Vec<u8> = vec![5, 6, 7, 8, 9,
+              4, 5, 6, 7, 8,
+              3, 4, 5, 6, 7,
+              2, 3, 4, 5, 6,
+              1, 2, 3, 4, 5];
+
+        let mut im = vec![5, 6, 7, 8, 9,
+                      4, 0, 0, 0, 0,
+                      3, 0, 0, 0, 0,
+                      2, 0, 0, 0, 0,
+                      1, 0, 0, 0, 0];
+        predict_brdpred(& mut im, 1, 1, 5);
+        for (&e, i) in expected.iter().zip(im) {
+            assert_eq!(e, i);
+        }
+    }
+
+    #[test]
+    fn test_predict_bldpred() {
+        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0];
+        let avg_1 = 2u8;
+        let avg_2 = 3u8;
+        let avg_3 = 4u8;
+        let avg_4 = 5u8;
+        let avg_5 = 6u8;
+        let avg_6 = 7u8;
+        let avg_7 = 8u8;
+
+        predict_bldpred(&mut im, 0, 1, 8);
+
+        assert_eq!(im[8], avg_1);
+        assert_eq!(im[9], avg_2);
+        assert_eq!(im[10], avg_3);
+        assert_eq!(im[11], avg_4);
+        assert_eq!(im[16], avg_2);
+        assert_eq!(im[17], avg_3);
+        assert_eq!(im[18], avg_4);
+        assert_eq!(im[19], avg_5);
+        assert_eq!(im[24], avg_3);
+        assert_eq!(im[25], avg_4);
+        assert_eq!(im[26], avg_5);
+        assert_eq!(im[27], avg_6);
+        assert_eq!(im[32], avg_4);
+        assert_eq!(im[33], avg_5);
+        assert_eq!(im[34], avg_6);
+        assert_eq!(im[35], avg_7);
+    }
     #[test]
     fn test_predict_bvepred() {
         let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,

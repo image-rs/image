@@ -1300,11 +1300,14 @@ impl<R: Read> Vp8Decoder<R> {
             for y in 0usize..4 {
                 for x in 0usize..4 {
                     let i = x + y * 4;
-                    let rb = &resdata[i * 16..i * 16 + 16];
+                    // Create a [i32; 16] array for add_residue by copying the
+                    // slice from resdata into rb (slices of size 16 do not work).
+                    let mut rb = [0i32; 16];
+                    rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
-
-                    add_residue(&mut ws, rb, y0, x0, stride);
+                    
+                    add_residue(&mut ws, &rb, y0, x0, stride);
                 }
             }
         }
@@ -1669,14 +1672,15 @@ fn avg2(this: u8, right: u8) -> u8 {
     avg as u8
 }
 
-fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: usize) {
-    for y in 0usize..4 {
-        for x in 0usize..4 {
-            let a = rblock[x + y * 4];
-            let b = pblock[(y0 + y) * stride + x0 + x];
-            let c = clamp(a + i32::from(b), 0, 255) as u8;
-            pblock[(y0 + y) * stride + x0 + x] = c;
+// Only 16 elements from rblock are used to add residue, so it is restricted to 16 elements
+// to enable SIMD and other optimizations.
+fn add_residue(pblock: &mut [u8], rblock: &[i32; 16], y0: usize, x0: usize, stride: usize) {
+    let mut pos = y0 * stride + x0;
+    for row in rblock.chunks(4) {
+        for (p, &a) in pblock[pos..pos+4].iter_mut().zip(row.iter()) {
+            *p = clamp(a + i32::from(*p), 0, 255) as u8;
         }
+        pos += stride;
     }
 }
 
@@ -1701,7 +1705,11 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32
                 IntraMode::HU => predict_bhupred(ws, x0, y0, stride),
             }
 
-            add_residue(ws, rb, y0, x0, stride);
+            // Create a [i32; 16] array for add_residue by copying the
+            // slice from resdata into rb (slices do not work).
+            let mut rb = [0i32; 16];
+            rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
+            add_residue(ws, &rb, y0, x0, stride);
         }
     }
 }
@@ -1979,7 +1987,7 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, IntraMode, predict_4x4};
+    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue, IntraMode, predict_4x4};
     #[cfg(feature = "benchmarks")]
     use test::{Bencher, black_box};
 
@@ -2148,6 +2156,19 @@ mod test {
         assert_eq!(e7, 8);
     }
     
+    #[test]
+    fn test_add_residue() {
+        let mut pblock = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let rblock = [-1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9];
+        let expected:[u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
+
+        add_residue(& mut pblock, &rblock, 0, 0, 4);
+
+        for (&e, &i) in expected.iter().zip(&pblock) {
+            assert_eq!(e, i);
+        }
+    }
+
     #[test]
     fn test_predict_bhepred() {
         let expected: Vec<u8> = vec![5, 0, 0, 0, 0,

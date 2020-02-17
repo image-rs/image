@@ -1,9 +1,11 @@
 use std::convert::TryFrom;
+use std::error;
 use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::str::{self, FromStr};
-use std::fmt::Display;
+use std::fmt::{self, Display};
 use std::marker::PhantomData;
 use std::mem;
+use std::num::ParseIntError;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
@@ -231,12 +233,8 @@ trait HeaderReader: BufRead {
 
     fn read_next_u32(&mut self) -> ImageResult<u32> {
         let s = self.read_next_string()?;
-        s.parse::<u32>().map_err(|err| {
-            ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                format!("Error parsing number {} in preamble: {}", s, err),
-            ))
-        })
+        s.parse::<u32>()
+            .map_err(|err| PrimitiveParseError::NumberInPreamble(s.to_owned(), err).into())
     }
 
     fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
@@ -326,12 +324,10 @@ trait HeaderReader: BufRead {
                             "Duplicate HEIGHT line".to_string(),
                         )));
                     } else {
-                        let h = rest.trim().parse::<u32>().map_err(|err| {
-                            ImageError::Decoding(DecodingError::with_message(
-                                ImageFormat::Pnm.into(),
-                                format!("Invalid height {}: {}", rest, err),
-                            ))
-                        })?;
+                        let h = rest
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|err| PrimitiveParseError::Height(rest.to_owned(), err))?;
                         height = Some(h);
                     }
                 }
@@ -342,12 +338,10 @@ trait HeaderReader: BufRead {
                             "Duplicate WIDTH line".to_string(),
                         )));
                     } else {
-                        let w = rest.trim().parse::<u32>().map_err(|err| {
-                            ImageError::Decoding(DecodingError::with_message(
-                                ImageFormat::Pnm.into(),
-                                format!("Invalid width {}: {}", rest, err),
-                            ))
-                        })?;
+                        let w = rest
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|err| PrimitiveParseError::Width(rest.to_owned(), err))?;
                         width = Some(w);
                     }
                 }
@@ -358,12 +352,10 @@ trait HeaderReader: BufRead {
                             "Duplicate DEPTH line".to_string(),
                         )));
                     } else {
-                        let d = rest.trim().parse::<u32>().map_err(|err| {
-                            ImageError::Decoding(DecodingError::with_message(
-                                ImageFormat::Pnm.into(),
-                                format!("Invalid depth {}: {}", rest, err),
-                            ))
-                        })?;
+                        let d = rest
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|err| PrimitiveParseError::Depth(rest.to_owned(), err))?;
                         depth = Some(d);
                     }
                 }
@@ -374,12 +366,10 @@ trait HeaderReader: BufRead {
                             "Duplicate MAXVAL line".to_string(),
                         )));
                     } else {
-                        let m = rest.trim().parse::<u32>().map_err(|err| {
-                            ImageError::Decoding(DecodingError::with_message(
-                                ImageFormat::Pnm.into(),
-                                format!("Invalid maxval {}: {}", rest, err),
-                            ))
-                        })?;
+                        let m = rest
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|err| PrimitiveParseError::Maxval(rest.to_owned(), err))?;
                         maxval = Some(m);
                     }
                 }
@@ -568,7 +558,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 }
 
-fn read_separated_ascii<T: FromStr>(reader: &mut dyn Read) -> ImageResult<T>
+fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) -> ImageResult<T>
     where T::Err: Display
 {
     let is_separator = |v: &u8| match *v {
@@ -593,12 +583,9 @@ fn read_separated_ascii<T: FromStr>(reader: &mut dyn Read) -> ImageResult<T>
         // We checked the precondition ourselves a few lines before, `token.is_ascii()`.
         .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
 
-    string.parse().map_err(|err| {
-        ImageError::Decoding(DecodingError::with_message(
-            ImageFormat::Pnm.into(),
-            format!("Error parsing {} as a sample: {}", string, err),
-        ))
-    })
+    string
+        .parse()
+        .map_err(|err| PrimitiveParseError::Sample(string.to_owned(), err).into())
 }
 
 impl Sample for U8 {
@@ -865,6 +852,60 @@ impl DecodableImageHeader for ArbitraryHeader {
         }
     }
 }
+
+/// An internal error type for primitive value.
+#[derive(Debug, Clone)]
+enum PrimitiveParseError {
+    /// Failed to parse a value in preamble.
+    NumberInPreamble(String, ParseIntError),
+    /// Failed to parse height.
+    Height(String, ParseIntError),
+    /// Failed to parse width.
+    Width(String, ParseIntError),
+    /// Failed to parse depth.
+    Depth(String, ParseIntError),
+    /// Failed to parse maxval.
+    Maxval(String, ParseIntError),
+    /// Failed to parse a sample.
+    Sample(String, ParseIntError),
+}
+
+impl Display for PrimitiveParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrimitiveParseError::NumberInPreamble(s, err) => {
+                write!(f, "Error parsing number {:?} in preamble: {}", s, err)
+            }
+            PrimitiveParseError::Height(s, err) => write!(f, "Invalid height {:?}: {}", s, err),
+            PrimitiveParseError::Width(s, err) => write!(f, "Invalid width {:?}: {}", s, err),
+            PrimitiveParseError::Depth(s, err) => write!(f, "Invalid depth {:?}: {}", s, err),
+            PrimitiveParseError::Maxval(s, err) => write!(f, "Invalid maxval {:?}: {}", s, err),
+            PrimitiveParseError::Sample(s, err) => {
+                write!(f, "Error parsing {:?} as a sample: {}", s, err)
+            }
+        }
+    }
+}
+
+impl error::Error for PrimitiveParseError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            PrimitiveParseError::NumberInPreamble(_, err) => Some(err),
+            PrimitiveParseError::Height(_, err) => Some(err),
+            PrimitiveParseError::Width(_, err) => Some(err),
+            PrimitiveParseError::Depth(_, err) => Some(err),
+            PrimitiveParseError::Maxval(_, err) => Some(err),
+            PrimitiveParseError::Sample(_, err) => Some(err),
+        }
+    }
+}
+
+impl From<PrimitiveParseError> for ImageError {
+    fn from(e: PrimitiveParseError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

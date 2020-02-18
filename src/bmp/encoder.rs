@@ -77,7 +77,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             // Assume BGRA32
             self.writer.write_u32::<LittleEndian>(0xff << 16)?; // red mask
             self.writer.write_u32::<LittleEndian>(0xff << 8)?; // green mask
-            self.writer.write_u32::<LittleEndian>(0xff << 0)?; // blue mask
+            self.writer.write_u32::<LittleEndian>(0xff << 0)?; /s/ blue mask
             self.writer.write_u32::<LittleEndian>(0xff << 24)?; // alpha mask
             self.writer.write_u32::<LittleEndian>(0x73524742)?; // colorspace - sRGB
 
@@ -127,12 +127,12 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         for row in (0..height).rev() {
             // from the bottom up
             let row_start = row * y_stride;
-            for px in image[row_start.. row_start + y_stride].chunks_exact(x_stride) {
+            for px in image[row_start..][..y_stride].chunks_exact(x_stride) {
                 let r = px[0];
                 let g = px[1];
                 let b = px[2];
                 // written as BGR
-                self.writer.write(&[b, g, r])?;
+                self.writer.write_all(&[b, g, r])?;
             }
             self.write_row_pad(row_pad_size)?;
         }
@@ -155,13 +155,13 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         for row in (0..height).rev() {
             // from the bottom up
             let row_start = row * y_stride;
-            for px in image[row_start..row_start + y_stride].chunks_exact(x_stride) {
+            for px in image[row_start..][..y_stride].chunks_exact(x_stride) {
                 let r = px[0];
                 let g = px[1];
                 let b = px[2];
                 let a = px[3];
                 // written as BGRA
-                self.writer.write(&[b, g, r, a])?;
+                self.writer.write_all(&[b, g, r, a])?;
             }
             self.write_row_pad(row_pad_size)?;
         }

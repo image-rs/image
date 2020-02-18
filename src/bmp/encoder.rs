@@ -178,21 +178,17 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         bytes_per_pixel: u32,
     ) -> io::Result<()> {
         // write grayscale palette
-        for val in 0..256 {
+        for val in 0u8..=255 {
             // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
-            let val = val as u8;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(0)?;
+            self.writer.write_all(&[val, val, val, 0])?;
         }
 
         // write image data
         let x_stride = bytes_per_pixel;
         let y_stride = width * x_stride;
-        for row in 0..height {
+        for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (height - row - 1) * y_stride;
+            let row_start = row * y_stride;
             for col in 0..width {
                 let pixel_start = (row_start + (col * x_stride)) as usize;
                 // color value is equal to the palette index

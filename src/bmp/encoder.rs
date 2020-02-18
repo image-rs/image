@@ -151,24 +151,21 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         row_pad_size: u32,
         bytes_per_pixel: u32,
     ) -> io::Result<()> {
-        let x_stride = bytes_per_pixel;
+        let width = width as usize;
+        let height = height as usize;
+        let x_stride = bytes_per_pixel as usize;
         let y_stride = width * x_stride;
-        for row in 0..height {
+        for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (height - row - 1) * y_stride;
-            for col in 0..width {
-                let pixel_start = (row_start + (col * x_stride)) as usize;
-                let r = image[pixel_start];
-                let g = image[pixel_start + 1];
-                let b = image[pixel_start + 2];
-                let a = image[pixel_start + 3];
+            let row_start = row * y_stride;
+            for px in image[row_start..row_start + y_stride].chunks_exact(x_stride) {
+                let r = px[0];
+                let g = px[1];
+                let b = px[2];
+                let a = px[3];
                 // written as BGRA
-                self.writer.write_u8(b)?;
-                self.writer.write_u8(g)?;
-                self.writer.write_u8(r)?;
-                self.writer.write_u8(a)?;
+                self.writer.write(&[b, g, r, a])?;
             }
-
             self.write_row_pad(row_pad_size)?;
         }
 
@@ -266,6 +263,9 @@ mod tests {
     use crate::image::ImageDecoder;
     use std::io::Cursor;
 
+    #[cfg(feature = "benchmarks")]
+    use test::{Bencher};
+
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
@@ -280,6 +280,17 @@ mod tests {
         let mut buf = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut buf).expect("failed to decode");
         buf
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_rgba(b: &mut Bencher) {
+        let mut v= Vec::with_capacity(2000 * 2000);
+        let mut x = BMPEncoder::new(&mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_rgba(&mut im, 500, 2000, 0, 4);
+        });
     }
 
     #[test]

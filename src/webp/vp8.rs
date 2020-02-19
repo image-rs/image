@@ -1690,7 +1690,6 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32
             let i = sbx + sby * 4;
             let y0 = sby * 4 + 1;
             let x0 = sbx * 4 + 1;
-            let rb = &resdata[i * 16..i * 16 + 16];
 
             match modes[i] {
                 IntraMode::TM => predict_tmpred(ws, 4, x0, y0, stride),

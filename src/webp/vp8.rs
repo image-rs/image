@@ -2097,7 +2097,7 @@ mod test {
 
     #[test]
     fn test_avg2_specific() {
-        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(2, 1));
+        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(255, 255));
         assert_eq!(1, avg2(1, 1), "avg2(1, 1), expected 1, got {}.", avg2(1, 1));
         assert_eq!(2, avg2(2, 1), "avg2(2, 1), expected 2, got {}.", avg2(2, 1));
     }

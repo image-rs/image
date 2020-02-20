@@ -1333,11 +1333,14 @@ impl<R: Read> Vp8Decoder<R> {
             for y in 0usize..4 {
                 for x in 0usize..4 {
                     let i = x + y * 4;
-                    let rb = &resdata[i * 16..i * 16 + 16];
+                    // Create a [i32; 16] array for add_residue by copying the
+                    // slice from resdata into rb (slices of size 16 do not work).
+                    let mut rb = [0i32; 16];
+                    rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
-
-                    add_residue(&mut ws, rb, y0, x0, stride);
+                    
+                    add_residue(&mut ws, &rb, y0, x0, stride);
                 }
             }
         }
@@ -1702,14 +1705,15 @@ fn avg2(this: u8, right: u8) -> u8 {
     avg as u8
 }
 
-fn add_residue(pblock: &mut [u8], rblock: &[i32], y0: usize, x0: usize, stride: usize) {
-    for y in 0usize..4 {
-        for x in 0usize..4 {
-            let a = rblock[x + y * 4];
-            let b = pblock[(y0 + y) * stride + x0 + x];
-            let c = clamp(a + i32::from(b), 0, 255) as u8;
-            pblock[(y0 + y) * stride + x0 + x] = c;
+// Only 16 elements from rblock are used to add residue, so it is restricted to 16 elements
+// to enable SIMD and other optimizations.
+fn add_residue(pblock: &mut [u8], rblock: &[i32; 16], y0: usize, x0: usize, stride: usize) {
+    let mut pos = y0 * stride + x0;
+    for row in rblock.chunks(4) {
+        for (p, &a) in pblock[pos..pos+4].iter_mut().zip(row.iter()) {
+            *p = clamp(a + i32::from(*p), 0, 255) as u8;
         }
+        pos += stride;
     }
 }
 
@@ -1719,7 +1723,6 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32
             let i = sbx + sby * 4;
             let y0 = sby * 4 + 1;
             let x0 = sbx * 4 + 1;
-            let rb = &resdata[i * 16..i * 16 + 16];
 
             match modes[i] {
                 IntraMode::TM => predict_tmpred(ws, 4, x0, y0, stride),
@@ -1734,7 +1737,11 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32
                 IntraMode::HU => predict_bhupred(ws, x0, y0, stride),
             }
 
-            add_residue(ws, rb, y0, x0, stride);
+            // Create a [i32; 16] array for add_residue by copying the
+            // slice from resdata into rb (slices do not work).
+            let mut rb = [0i32; 16];
+            rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
+            add_residue(ws, &rb, y0, x0, stride);
         }
     }
 }
@@ -1819,14 +1826,16 @@ fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
 }
 
 fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
-    let a0 = a[(y0 - 1) * stride + x0];
-    let a1 = a[(y0 - 1) * stride + x0 + 1];
-    let a2 = a[(y0 - 1) * stride + x0 + 2];
-    let a3 = a[(y0 - 1) * stride + x0 + 3];
-    let a4 = a[(y0 - 1) * stride + x0 + 4];
-    let a5 = a[(y0 - 1) * stride + x0 + 5];
-    let a6 = a[(y0 - 1) * stride + x0 + 6];
-    let a7 = a[(y0 - 1) * stride + x0 + 7];
+    let pos = (y0 - 1) * stride + x0;
+    let a_slice = &a[pos..pos+8];
+    let a0 = a_slice[0];
+    let a1 = a_slice[1];
+    let a2 = a_slice[2];
+    let a3 = a_slice[3];
+    let a4 = a_slice[4];
+    let a5 = a_slice[5];
+    let a6 = a_slice[6];
+    let a7 = a_slice[7];
 
     (a0, a1, a2, a3, a4, a5, a6, a7)
 }
@@ -1846,15 +1855,17 @@ fn edge_pixels(
     y0: usize,
     stride: usize,
 ) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
-    let e8 = a[(y0 - 1) * stride + x0 + 3];
-    let e7 = a[(y0 - 1) * stride + x0 + 2];
-    let e6 = a[(y0 - 1) * stride + x0 + 1];
-    let e5 = a[(y0 - 1) * stride + x0];
-    let e4 = a[(y0 - 1) * stride + x0 - 1];
-    let e3 = a[y0 * stride + x0 - 1];
-    let e2 = a[(y0 + 1) * stride + x0 - 1];
-    let e1 = a[(y0 + 2) * stride + x0 - 1];
-    let e0 = a[(y0 + 3) * stride + x0 - 1];
+    let pos = (y0 - 1) * stride + x0 - 1;
+    let a_slice = &a[pos..=pos+4];
+    let e0 = a[pos + 4 * stride];
+    let e1 = a[pos + 3 * stride];
+    let e2 = a[pos + 2 * stride];
+    let e3 = a[pos + stride];
+    let e4 = a_slice[0];
+    let e5 = a_slice[1];
+    let e6 = a_slice[2];
+    let e7 = a_slice[3];
+    let e8 = a_slice[4];
 
     (e0, e1, e2, e3, e4, e5, e6, e7, e8)
 }
@@ -1862,93 +1873,61 @@ fn edge_pixels(
 fn predict_bvepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (a0, a1, a2, a3, a4, _, _, _) = top_pixels(a, x0, y0, stride);
+    let avg_1 = avg3(p, a0, a1);
+    let avg_2 = avg3(a0, a1, a2);
+    let avg_3 = avg3(a1, a2, a3);
+    let avg_4 = avg3(a2, a3, a4);
 
-    a[y0 * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 1) * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 2) * stride + x0] = avg3(p, a0, a1);
-    a[(y0 + 3) * stride + x0] = avg3(p, a0, a1);
+    let avg = [avg_1, avg_2, avg_3, avg_4];
 
-    a[y0 * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(a0, a1, a2);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(a0, a1, a2);
-
-    a[y0 * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(a1, a2, a3);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(a1, a2, a3);
-
-    a[y0 * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(a2, a3, a4);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(a2, a3, a4);
+    let mut pos = y0 * stride + x0;
+    for _ in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avg);
+        pos += stride;
+    }
 }
 
 fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    a[y0 * stride + x0] = avg3(p, l0, l1);
-    a[y0 * stride + x0 + 1] = avg3(p, l0, l1);
-    a[y0 * stride + x0 + 2] = avg3(p, l0, l1);
-    a[y0 * stride + x0 + 3] = avg3(p, l0, l1);
+    let avgs = [avg3(p, l0, l1), avg3(l0, l1, l2),
+     avg3(l1, l2, l3), avg3(l2, l3, l3)];
 
-    a[(y0 + 1) * stride + x0] = avg3(l0, l1, l2);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(l0, l1, l2);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(l0, l1, l2);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(l0, l1, l2);
-
-    a[(y0 + 2) * stride + x0] = avg3(l1, l2, l3);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(l1, l2, l3);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(l1, l2, l3);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(l1, l2, l3);
-
-    a[(y0 + 3) * stride + x0] = avg3(l2, l3, l3);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(l2, l3, l3);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(l2, l3, l3);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(l2, l3, l3);
+    let mut pos = y0 * stride + x0;
+    for &avg in avgs.iter() {
+        for a_p in a[pos..=pos+3].iter_mut() {
+            *a_p = avg;
+        }
+        pos += stride;
+    }
 }
 
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    a[y0 * stride + x0] = avg3(a0, a1, a2);
-    a[y0 * stride + x0 + 1] = avg3(a1, a2, a3);
-    a[(y0 + 1) * stride + x0] = avg3(a1, a2, a3);
-    a[y0 * stride + x0 + 2] = avg3(a2, a3, a4);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(a2, a3, a4);
-    a[(y0 + 2) * stride + x0] = avg3(a2, a3, a4);
-    a[y0 * stride + x0 + 3] = avg3(a3, a4, a5);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(a3, a4, a5);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(a3, a4, a5);
-    a[(y0 + 3) * stride + x0] = avg3(a3, a4, a5);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(a4, a5, a6);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(a4, a5, a6);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(a4, a5, a6);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(a5, a6, a7);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(a5, a6, a7);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(a6, a7, a7);
+    let avgs = [avg3(a0, a1, a2), avg3(a1, a2, a3), avg3(a2, a3, a4),
+    avg3(a3, a4, a5), avg3(a4, a5, a6), avg3(a5, a6, a7), avg3(a6, a7, a7)];
+
+    let mut pos = y0 * stride + x0;
+
+    for i in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i+3]);
+        pos += stride;
+    }
 }
 
 fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    a[(y0 + 3) * stride + x0] = avg3(e0, e1, e2);
-    a[(y0 + 3) * stride + x0 + 1] = avg3(e1, e2, e3);
-    a[(y0 + 2) * stride + x0] = avg3(e1, e2, e3);
-    a[(y0 + 3) * stride + x0 + 2] = avg3(e2, e3, e4);
-    a[(y0 + 2) * stride + x0 + 1] = avg3(e2, e3, e4);
-    a[(y0 + 1) * stride + x0] = avg3(e2, e3, e4);
-    a[(y0 + 3) * stride + x0 + 3] = avg3(e3, e4, e5);
-    a[(y0 + 2) * stride + x0 + 2] = avg3(e3, e4, e5);
-    a[(y0 + 1) * stride + x0 + 1] = avg3(e3, e4, e5);
-    a[y0 * stride + x0] = avg3(e3, e4, e5);
-    a[(y0 + 2) * stride + x0 + 3] = avg3(e4, e5, e6);
-    a[(y0 + 1) * stride + x0 + 2] = avg3(e4, e5, e6);
-    a[y0 * stride + x0 + 1] = avg3(e4, e5, e6);
-    a[(y0 + 1) * stride + x0 + 3] = avg3(e5, e6, e7);
-    a[y0 * stride + x0 + 2] = avg3(e5, e6, e7);
-    a[y0 * stride + x0 + 3] = avg3(e6, e7, e8);
+    let avgs = [avg3(e0, e1, e2), avg3(e1, e2, e3), avg3(e2, e3, e4),
+    avg3(e3, e4, e5), avg3(e4, e5, e6), avg3(e5, e6, e7), avg3(e6, e7, e8)];
+    let mut pos = y0 * stride + x0;
+
+    for i in 0..4 {
+        a[pos..=pos + 3].copy_from_slice(&avgs[3-i..7-i]);
+        pos += stride;
+    }
 }
 
 fn predict_bvrpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
@@ -2034,3 +2013,306 @@ fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     a[(y0 + 3) * stride + x0 + 2] = l3;
     a[(y0 + 3) * stride + x0 + 3] = l3;
 }
+
+#[cfg(test)]
+mod test {
+
+    #[cfg(feature = "benchmarks")]
+    extern crate test;
+    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue, IntraMode, predict_4x4};
+    #[cfg(feature = "benchmarks")]
+    use test::{Bencher, black_box};
+
+    const W: usize = 256;
+    const H: usize = 256;
+    
+    fn make_sample_image() -> Vec<u8> {
+        let mut v = Vec::with_capacity((W * H * 4) as usize);
+        for c in 0u8..=255 {
+            for k in 0u8..=255 {
+                v.push(c);
+                v.push(0);
+                v.push(0);
+                v.push(k);
+            }
+        }
+        v
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_4x4(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        let res_data = vec![1i32; W * H * 4];
+        let modes = [
+            IntraMode::TM, IntraMode::VE, IntraMode::HE, IntraMode::DC,
+            IntraMode::LD, IntraMode::RD, IntraMode::VR, IntraMode::VL,
+            IntraMode::HD, IntraMode::HU, IntraMode::TM, IntraMode::VE,
+            IntraMode::HE, IntraMode::DC, IntraMode::LD, IntraMode::RD
+        ];
+        
+        b.iter(|| {
+            black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
+        });
+    }
+        
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_bvepred(b: &mut Bencher) {
+        let mut v = make_sample_image();
+
+        b.iter(|| {
+            predict_bvepred(black_box(&mut v), 5, 5, W * 2);
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_bldpred(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(predict_bldpred(black_box(&mut v), 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_brdpred(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(predict_brdpred(black_box(&mut v), 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_predict_bhepred(b: &mut Bencher) {
+        let mut v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(predict_bhepred(black_box(&mut v), 5, 5, W * 2));
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_top_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(top_pixels(black_box(&v), 5, 5, W * 2));
+        });
+    }
+    
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_edge_pixels(b: &mut Bencher) {
+        let v = black_box(make_sample_image());
+
+        b.iter(|| {
+            black_box(edge_pixels(black_box(&v), 5, 5, W * 2));
+        });
+    }
+
+    #[test]
+    fn test_avg2() {
+        for i in 0u8..=255 {
+            for j in 0u8..=255 {
+                let ceil_avg = ((i as f32) + (j as f32)) / 2.0;
+                let ceil_avg = ceil_avg.ceil() as u8;
+                assert_eq!(ceil_avg, avg2(i, j), "avg2({}, {}), expected {}, got {}.", i, j, ceil_avg, avg2(i, j));
+            }
+        }
+    }
+
+    #[test]
+    fn test_avg2_specific() {
+        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(255, 255));
+        assert_eq!(1, avg2(1, 1), "avg2(1, 1), expected 1, got {}.", avg2(1, 1));
+        assert_eq!(2, avg2(2, 1), "avg2(2, 1), expected 2, got {}.", avg2(2, 1));
+    }
+
+    #[test]
+    fn test_avg3() {
+        for i in 0u8..=255 {
+            for j in 0u8..=255 {
+                for k in 0u8..=255 {
+                    let floor_avg = ((i as f32) + 2.0 * (j as f32) + { k as f32 } + 2.0) / 4.0;
+                    let floor_avg = floor_avg.floor() as u8;
+                    assert_eq!(floor_avg, avg3(i, j, k), "avg3({}, {}, {}), expected {}, got {}.", i, j, k, floor_avg, avg3(i, j, k));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_edge_pixels() {
+        let im = vec![5, 6, 7, 8, 9,
+                      4, 0, 0, 0, 0,
+                      3, 0, 0, 0, 0,
+                      2, 0, 0, 0, 0,
+                      1, 0, 0, 0, 0];
+        let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(&im, 1, 1, 5);
+        assert_eq!(e0, 1);
+        assert_eq!(e1, 2);
+        assert_eq!(e2, 3);
+        assert_eq!(e3, 4);
+        assert_eq!(e4, 5);
+        assert_eq!(e5, 6);
+        assert_eq!(e6, 7);
+        assert_eq!(e7, 8);
+        assert_eq!(e8, 9);
+    }
+    
+    #[test]
+    fn test_top_pixels() {
+        let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0];
+        let (e0, e1, e2, e3, e4, e5, e6, e7) = top_pixels(&im, 0, 1, 8);
+        assert_eq!(e0, 1);
+        assert_eq!(e1, 2);
+        assert_eq!(e2, 3);
+        assert_eq!(e3, 4);
+        assert_eq!(e4, 5);
+        assert_eq!(e5, 6);
+        assert_eq!(e6, 7);
+        assert_eq!(e7, 8);
+    }
+    
+    #[test]
+    fn test_add_residue() {
+        let mut pblock = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let rblock = [-1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9];
+        let expected:[u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
+
+        add_residue(& mut pblock, &rblock, 0, 0, 4);
+
+        for (&e, &i) in expected.iter().zip(&pblock) {
+            assert_eq!(e, i);
+        }
+    }
+
+    #[test]
+    fn test_predict_bhepred() {
+        let expected: Vec<u8> = vec![5, 0, 0, 0, 0,
+              4, 4, 4, 4, 4,
+              3, 3, 3, 3, 3,
+              2, 2, 2, 2, 2,
+              1, 1, 1, 1, 1];
+
+        let mut im = vec![5, 0, 0, 0, 0,
+                      4, 0, 0, 0, 0,
+                      3, 0, 0, 0, 0,
+                      2, 0, 0, 0, 0,
+                      1, 0, 0, 0, 0];
+        predict_bhepred(& mut im, 1, 1, 5);
+        for (&e, i) in expected.iter().zip(im) {
+            assert_eq!(e, i);
+        }
+    }
+
+    #[test]
+    fn test_predict_brdpred() {
+        let expected: Vec<u8> = vec![5, 6, 7, 8, 9,
+              4, 5, 6, 7, 8,
+              3, 4, 5, 6, 7,
+              2, 3, 4, 5, 6,
+              1, 2, 3, 4, 5];
+
+        let mut im = vec![5, 6, 7, 8, 9,
+                      4, 0, 0, 0, 0,
+                      3, 0, 0, 0, 0,
+                      2, 0, 0, 0, 0,
+                      1, 0, 0, 0, 0];
+        predict_brdpred(& mut im, 1, 1, 5);
+        for (&e, i) in expected.iter().zip(im) {
+            assert_eq!(e, i);
+        }
+    }
+
+    #[test]
+    fn test_predict_bldpred() {
+        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0];
+        let avg_1 = 2u8;
+        let avg_2 = 3u8;
+        let avg_3 = 4u8;
+        let avg_4 = 5u8;
+        let avg_5 = 6u8;
+        let avg_6 = 7u8;
+        let avg_7 = 8u8;
+
+        predict_bldpred(&mut im, 0, 1, 8);
+
+        assert_eq!(im[8], avg_1);
+        assert_eq!(im[9], avg_2);
+        assert_eq!(im[10], avg_3);
+        assert_eq!(im[11], avg_4);
+        assert_eq!(im[16], avg_2);
+        assert_eq!(im[17], avg_3);
+        assert_eq!(im[18], avg_4);
+        assert_eq!(im[19], avg_5);
+        assert_eq!(im[24], avg_3);
+        assert_eq!(im[25], avg_4);
+        assert_eq!(im[26], avg_5);
+        assert_eq!(im[27], avg_6);
+        assert_eq!(im[32], avg_4);
+        assert_eq!(im[33], avg_5);
+        assert_eq!(im[34], avg_6);
+        assert_eq!(im[35], avg_7);
+    }
+
+    #[test]
+    fn test_predict_bvepred() {
+        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let avg_1 = 2u8;
+        let avg_2 = 3u8;
+        let avg_3 = 4u8;
+        let avg_4 = 5u8;
+
+        predict_bvepred(&mut im, 1, 1, 9);
+
+        assert_eq!(im[10], avg_1);
+        assert_eq!(im[11], avg_2);
+        assert_eq!(im[12], avg_3);
+        assert_eq!(im[13], avg_4);
+        assert_eq!(im[19], avg_1);
+        assert_eq!(im[20], avg_2);
+        assert_eq!(im[21], avg_3);
+        assert_eq!(im[22], avg_4);
+        assert_eq!(im[28], avg_1);
+        assert_eq!(im[29], avg_2);
+        assert_eq!(im[30], avg_3);
+        assert_eq!(im[31], avg_4);
+        assert_eq!(im[37], avg_1);
+        assert_eq!(im[38], avg_2);
+        assert_eq!(im[39], avg_3);
+        assert_eq!(im[40], avg_4);
+    }
+
+}
+

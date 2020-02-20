@@ -258,6 +258,8 @@ mod tests {
 
     #[cfg(feature = "benchmarks")]
     use test::{Bencher};
+//     #[cfg(feature = "benchmarks")]
+//     use std::fs::File;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
@@ -296,6 +298,52 @@ mod tests {
             x.encode_rgba(&mut im, 500, 2000, 0, 4);
         });
     }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_gray(b: &mut Bencher) {
+        let mut v: Vec<u8> = Vec::with_capacity(2000 * 2000);
+        let mut x = BMPEncoder::new(& mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_gray(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_gray_buf(b: &mut Bencher) {
+        let mut u: Vec<u8> = Vec::with_capacity(2000 * 2000);
+        let mut v= BufWriter::new(&mut u);
+        let mut x = BMPEncoder::new(& mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_gray(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+//     #[cfg(feature = "benchmarks")]
+//     #[bench]
+//     fn bench_encode_gray_buf_file(b: &mut Bencher) {
+//         let mut file = File::create("temp.bmp").unwrap();
+//         let mut v= BufWriter::new(&mut file);
+//         let mut x = BMPEncoder::new(& mut v);
+//         let mut im = vec![0; 2000 * 2000];
+//         b.iter(|| {
+//             x.encode_gray(&mut im, 500, 2000, 0, 4);
+//         });
+//     }
+
+//     #[cfg(feature = "benchmarks")]
+//     #[bench]
+//     fn bench_encode_gray_file(b: &mut Bencher) {
+//         let mut file = File::create("temp.bmp").unwrap();
+//         let mut x = BMPEncoder::new(& mut file);
+//         let mut im = vec![0; 2000 * 2000];
+//         b.iter(|| {
+//             x.encode_gray(&mut im, 500, 2000, 0, 4);
+//         });
+//     }
 
     #[test]
     fn round_trip_single_pixel_rgb() {

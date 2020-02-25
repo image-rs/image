@@ -118,13 +118,15 @@ pub struct ParameterError {
 /// Details how a parameter is malformed.
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum ParameterErrorKind {
-    /// Repeated an operation for which error that could not be cloned was emitted already.
-    FailedAlready,
     /// The dimensions passed are wrong.
     DimensionMismatch,
+    /// Repeated an operation for which error that could not be cloned was emitted already.
+    FailedAlready,
     /// A string describing the parameter.
     /// This is discouraged and is likely to get deprecated (but not removed).
     Generic(String),
+    /// The end of the image has been reached.
+    NoMoreData,
     #[doc(hidden)]
     /// Do not use this, not part of stability guarantees.
     __NonExhaustive(NonExhaustiveMarker),
@@ -202,12 +204,6 @@ impl ImageError {
     pub(crate) const DimensionError: Self =
         ImageError::Parameter(ParameterError {
             kind: ParameterErrorKind::DimensionMismatch,
-            underlying: None,
-        });
-
-    pub(crate) const ImageEnd: Self =
-        ImageError::Parameter(ParameterError {
-            kind: ParameterErrorKind::FailedAlready,
             underlying: None,
         });
 
@@ -495,6 +491,10 @@ impl fmt::Display for ParameterError {
                 fmt,
                 "The parameter is malformed: {}",
                 message,
+            ),
+            ParameterErrorKind::NoMoreData => write!(
+                fmt,
+                "The end of the image has been reached",
             ),
             ParameterErrorKind::__NonExhaustive(marker) => match marker._private {},
         }?;

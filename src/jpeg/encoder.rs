@@ -1,13 +1,13 @@
 #![allow(clippy::too_many_arguments)]
 
 use byteorder::{BigEndian, WriteBytesExt};
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::math::utils::clamp;
 use num_iter::range_step;
 use std::io::{self, Write};
 
 use crate::color;
-use crate::image::ImageEncoder;
+use crate::image::{ImageEncoder, ImageFormat};
 
 use super::entropy::build_huff_lut;
 use super::transform;
@@ -522,7 +522,12 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                 self.encode_gray(image, width as usize, height as usize, 2)?
             }
             _ => {
-                return Err(ImageError::UnsupportedColor(c.into()))
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Jpeg.into(),
+                        UnsupportedErrorKind::Color(c.into()),
+                    ),
+                ))
             }
         };
 

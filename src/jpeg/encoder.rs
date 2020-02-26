@@ -228,17 +228,9 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
         // Figure F.2
         let mut zero_run = 0;
-        let mut k = 0usize;
 
-        loop {
-            k += 1;
-
+        for k in 1usize..=63 {
             if block[UNZIGZAG[k] as usize] == 0 {
-                if k == 63 {
-                    self.huffman_encode(0x00, actable)?;
-                    break;
-                }
-
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
@@ -260,9 +252,13 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
             }
         }
 
+        if block[UNZIGZAG[63] as usize] == 0 {
+            self.huffman_encode(0x00, actable)?;
+        }
+
         Ok(dcval)
     }
-
+    
     fn write_segment(&mut self, marker: u8, data: Option<&[u8]>) -> io::Result<()> {
         self.w.write_all(&[0xFF, marker])?;
 

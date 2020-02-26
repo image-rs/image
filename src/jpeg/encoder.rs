@@ -180,14 +180,14 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         }
 
         self.nbits += size;
-        self.accumulator |= u32::from(bits) << (32 - self.nbits) as u32;
+        self.accumulator |= u32::from(bits) << (32 - self.nbits) as usize;
 
         while self.nbits >= 8 {
-            let byte = (self.accumulator >> 24) & 0xFF;
-            self.w.write_u8(byte as u8)?;
+            let byte = self.accumulator >> 24;
+            self.w.write_all(&[byte as u8])?;
 
             if byte == 0xFF {
-                self.w.write_u8(0x00)?;
+                self.w.write_all(&[0x00])?;
             }
 
             self.nbits -= 8;
@@ -228,9 +228,17 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
         // Figure F.2
         let mut zero_run = 0;
+        let mut k = 0usize;
 
-        for &k in UNZIGZAG[1..=63].iter() {
-            if block[k as usize] == 0 {
+        loop {
+            k += 1;
+
+            if block[UNZIGZAG[k] as usize] == 0 {
+                if k == 63 {
+                    self.huffman_encode(0x00, actable)?;
+                    break;
+                }
+
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
@@ -238,18 +246,18 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = encode_coefficient(block[k as usize]);
+                let (size, value) = encode_coefficient(block[UNZIGZAG[k] as usize]);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode(symbol, actable)?;
                 self.write_bits(value, size)?;
 
                 zero_run = 0;
-            }
-        }
 
-        if block[UNZIGZAG[63] as usize] == 0 {
-            self.huffman_encode(0x00, actable)?;
+                if k == 63 {
+                    break;
+                }
+            }
         }
 
         Ok(dcval)
@@ -644,15 +652,18 @@ fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     m.clear();
 
     let _ = write!(m, "JFIF");
-    let _ = m.write_all(&[0x00, 0x01, 0x02]);
-    let _ = m.write_u8(match density.unit {
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0x01]);
+    let _ = m.write_all(&[0x02]);
+    let _ = m.write_all(&[match density.unit {
         PixelDensityUnit::PixelAspectRatio => 0x00,
         PixelDensityUnit::Inches => 0x01,
         PixelDensityUnit::Centimeters => 0x02,
-    });
+    }]);
     let _ = m.write_u16::<BigEndian>(density.density.0);
     let _ = m.write_u16::<BigEndian>(density.density.1);
-    let _ = m.write_all(&[0, 0]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[0]);
 }
 
 fn build_frame_header(
@@ -664,29 +675,34 @@ fn build_frame_header(
 ) {
     m.clear();
 
-    let _ = m.write_u8(precision);
+    let _ = m.write_all(&[precision]);
     let _ = m.write_u16::<BigEndian>(height);
     let _ = m.write_u16::<BigEndian>(width);
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for &comp in components.iter() {
+        let _ = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _ = m.write_all(&[comp.id, hv, comp.tq]);
+        let _ = m.write_all(&[hv]);
+        let _ = m.write_all(&[comp.tq]);
     }
 }
 
 fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     m.clear();
 
-    let _ = m.write_u8(components.len() as u8);
+    let _ = m.write_all(&[components.len() as u8]);
 
     for &comp in components.iter() {
+        let _ = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ = m.write_all(&[comp.id, tables]);
+        let _ = m.write_all(&[tables]);
     }
 
     // spectral start and end, approx. high and low
-    let _ = m.write_all(&[0, 63, 0]);
+    let _ = m.write_all(&[0]);
+    let _ = m.write_all(&[63]);
+    let _ = m.write_all(&[0]);
 }
 
 fn build_huffman_segment(
@@ -725,7 +741,7 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
     let pqtq = (p << 4) | identifier;
     let _ = m.write_u8(pqtq);
 
-    for &i in UNZIGZAG[0..64].iter() {
+    for &i in &UNZIGZAG[..] {
         let _ = m.write_u8(qtable[i as usize]);
     }
 }

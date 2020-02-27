@@ -1,5 +1,4 @@
 extern crate crc32fast;
-extern crate inflate;
 
 use std::borrow::Cow;
 use std::cmp::min;
@@ -11,7 +10,7 @@ use std::io;
 
 use crc32fast::Hasher as Crc32;
 
-use self::inflate::InflateStream;
+use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
@@ -27,14 +26,6 @@ pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
 /// This is used only in fuzzing. `afl` automatically adds `--cfg fuzzing` to RUSTFLAGS which can
 /// be used to detect that build.
 const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
-
-fn zlib_stream() -> InflateStream {
-    if CHECKSUM_DISABLED {
-        InflateStream::from_zlib_no_checksum()
-    } else {
-        InflateStream::from_zlib()
-    }
-}
 
 #[derive(Debug)]
 enum U32Value {
@@ -141,7 +132,7 @@ pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
-    inflater: InflateStream,
+    inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
     info: Option<Info>,
     /// The animation chunk sequence number.
@@ -170,7 +161,7 @@ impl StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: ChunkState::default(),
-            inflater: zlib_stream(),
+            inflater: ZlibStream::new(),
             info: None,
             current_seq_no: None,
             apng_seq_handled: false,
@@ -184,7 +175,7 @@ impl StreamingDecoder {
         self.current_chunk.crc = Crc32::new();
         self.current_chunk.remaining = 0;
         self.current_chunk.raw_bytes.clear();
-        self.inflater = zlib_stream();
+        self.inflater = ZlibStream::new();
         self.info = None;
         self.current_seq_no = None;
         self.apng_seq_handled = false;
@@ -393,10 +384,9 @@ impl StreamingDecoder {
             DecodeData(type_str, mut n) => {
                 let chunk_len = self.current_chunk.raw_bytes.len();
                 let chunk_data = &self.current_chunk.raw_bytes[n..];
-                let (c, data) = self.inflater.update(chunk_data)?;
-                image_data.extend_from_slice(data);
+                let c = self.inflater.decompress(chunk_data, image_data)?;
                 n += c;
-                if n == chunk_len && data.is_empty() && c == 0 {
+                if n == chunk_len && c == 0 {
                     goto!(
                         0,
                         ReadChunk(type_str, true),
@@ -477,7 +467,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = zlib_stream();
+        self.inflater = ZlibStream::new();
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,

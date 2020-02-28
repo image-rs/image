@@ -37,6 +37,7 @@ crc32fast = "1.2.0"
 num-complex = "0.2.0"
 glob = "0.3"
 quickcheck = "0.9"
+criterion = "0.3"
 
 [features]
 default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "jpeg_rayon"]
@@ -52,3 +53,8 @@ dds = ["dxt"]
 jpeg_rayon = ["jpeg/rayon"]
 
 benchmarks = []
+
+[[bench]]
+path = "benches/encode_bmp.rs"
+name = "BMPEncoder"
+harness = false

@@ -24,18 +24,21 @@ pub enum EncodingError {
 }
 
 impl error::Error for EncodingError {
-    fn description(&self) -> &str {
-        use self::EncodingError::*;
-        match *self {
-            IoError(ref err) => err.description(),
-            Format(ref desc) => &desc,
+    fn cause(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            EncodingError::IoError(err) => Some(err),
+            _ => None,
         }
     }
 }
 
 impl fmt::Display for EncodingError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
-        write!(fmt, "{}", (self as &dyn error::Error).description())
+        use self::EncodingError::*;
+        match self {
+            IoError(err) => write!(fmt, "{}", err),
+            Format(desc) => write!(fmt, "{}", desc),
+        }
     }
 }
 
@@ -46,7 +49,7 @@ impl From<io::Error> for EncodingError {
 }
 impl From<EncodingError> for io::Error {
     fn from(err: EncodingError) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, (&err as &dyn error::Error).description())
+        io::Error::new(io::ErrorKind::Other, err.to_string())
     }
 }
 

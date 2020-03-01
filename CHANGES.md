@@ -1,3 +1,8 @@
+## 0.16.0
+
+* Fix a bug compressing images with deflate
+* Address use of deprecated error interfaces
+
 ## 0.15.3
 
 * Fix panic while trying to encode empty images. Such images are no longer

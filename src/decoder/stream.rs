@@ -90,22 +90,25 @@ pub enum DecodingError {
 }
 
 impl error::Error for DecodingError {
-    fn description(&self) -> &str {
-        use self::DecodingError::*;
-        match *self {
-            IoError(ref err) => err.description(),
-            Format(ref desc) | Other(ref desc) => &desc,
-            InvalidSignature => "invalid signature",
-            CrcMismatch { .. } => "CRC error",
-            CorruptFlateStream => "compressed data stream corrupted",
-            LimitsExceeded => "limits are exceeded"
+    fn cause(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            DecodingError::IoError(err) => Some(err),
+            _ => None,
         }
     }
 }
 
 impl fmt::Display for DecodingError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(fmt, "{}", (self as &dyn error::Error).description())
+        use self::DecodingError::*;
+        match self {
+            IoError(err) => write!(fmt, "{}", err),
+            Format(desc) | Other(desc) => write!(fmt, "{}", &desc),
+            InvalidSignature => write!(fmt, "invalid signature"),
+            CrcMismatch { .. } => write!(fmt, "CRC error"),
+            CorruptFlateStream => write!(fmt, "compressed data stream corrupted"),
+            LimitsExceeded => write!(fmt, "limits are exceeded")
+        }
     }
 }
 
@@ -123,12 +126,11 @@ impl From<String> for DecodingError {
 
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> io::Error {
-        use std::error::Error;
         match err {
             DecodingError::IoError(err) => err,
             err => io::Error::new(
                 io::ErrorKind::Other,
-                err.description()
+                err.to_string()
             )
         }
     }

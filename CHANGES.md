@@ -1,3 +1,7 @@
+## 0.16.1
+
+* Addressed files bloating the packed crate
+
 ## 0.16.0
 
 * Fix a bug compressing images with deflate

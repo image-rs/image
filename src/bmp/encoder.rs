@@ -120,23 +120,20 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         row_pad_size: u32,
         bytes_per_pixel: u32,
     ) -> io::Result<()> {
-        let x_stride = bytes_per_pixel;
+        let width = width as usize;
+        let height = height as usize;
+        let x_stride = bytes_per_pixel as usize;
         let y_stride = width * x_stride;
-        for row in 0..height {
+        for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (height - row - 1) * y_stride;
-            for col in 0..width {
-                let pixel_start = (row_start + (col * x_stride)) as usize;
-                let r = image[pixel_start];
-                let g = image[pixel_start + 1];
-                let b = image[pixel_start + 2];
+            let row_start = row * y_stride;
+            for px in image[row_start..][..y_stride].chunks_exact(x_stride) {
+                let r = px[0];
+                let g = px[1];
+                let b = px[2];
                 // written as BGR
-                self.writer.write_u8(b)?;
-                self.writer.write_u8(g)?;
-                self.writer.write_u8(r)?;
-                // alpha is never written as it's not widely supported
+                self.writer.write_all(&[b, g, r])?;
             }
-
             self.write_row_pad(row_pad_size)?;
         }
 
@@ -151,24 +148,21 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         row_pad_size: u32,
         bytes_per_pixel: u32,
     ) -> io::Result<()> {
-        let x_stride = bytes_per_pixel;
+        let width = width as usize;
+        let height = height as usize;
+        let x_stride = bytes_per_pixel as usize;
         let y_stride = width * x_stride;
-        for row in 0..height {
+        for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (height - row - 1) * y_stride;
-            for col in 0..width {
-                let pixel_start = (row_start + (col * x_stride)) as usize;
-                let r = image[pixel_start];
-                let g = image[pixel_start + 1];
-                let b = image[pixel_start + 2];
-                let a = image[pixel_start + 3];
+            let row_start = row * y_stride;
+            for px in image[row_start..][..y_stride].chunks_exact(x_stride) {
+                let r = px[0];
+                let g = px[1];
+                let b = px[2];
+                let a = px[3];
                 // written as BGRA
-                self.writer.write_u8(b)?;
-                self.writer.write_u8(g)?;
-                self.writer.write_u8(r)?;
-                self.writer.write_u8(a)?;
+                self.writer.write_all(&[b, g, r, a])?;
             }
-
             self.write_row_pad(row_pad_size)?;
         }
 
@@ -184,21 +178,17 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
         bytes_per_pixel: u32,
     ) -> io::Result<()> {
         // write grayscale palette
-        for val in 0..256 {
+        for val in 0u8..=255 {
             // each color is written as BGRA, where A is always 0 and since only grayscale is being written, B = G = R = index
-            let val = val as u8;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(val)?;
-            self.writer.write_u8(0)?;
+            self.writer.write_all(&[val, val, val, 0])?;
         }
 
         // write image data
         let x_stride = bytes_per_pixel;
         let y_stride = width * x_stride;
-        for row in 0..height {
+        for row in (0..height).rev() {
             // from the bottom up
-            let row_start = (height - row - 1) * y_stride;
+            let row_start = row * y_stride;
             for col in 0..width {
                 let pixel_start = (row_start + (col * x_stride)) as usize;
                 // color value is equal to the palette index
@@ -266,6 +256,11 @@ mod tests {
     use crate::image::ImageDecoder;
     use std::io::Cursor;
 
+    #[cfg(feature = "benchmarks")]
+    use test::{Bencher};
+//     #[cfg(feature = "benchmarks")]
+//     use std::fs::File;
+
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
@@ -281,6 +276,74 @@ mod tests {
         decoder.read_image(&mut buf).expect("failed to decode");
         buf
     }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_rgb(b: &mut Bencher) {
+        let mut v= Vec::with_capacity(2000 * 2000);
+        let mut x = BMPEncoder::new(&mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_rgb(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_rgba(b: &mut Bencher) {
+        let mut v= Vec::with_capacity(2000 * 2000);
+        let mut x = BMPEncoder::new(&mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_rgba(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_gray(b: &mut Bencher) {
+        let mut v: Vec<u8> = Vec::with_capacity(2000 * 2000);
+        let mut x = BMPEncoder::new(& mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_gray(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_gray_buf(b: &mut Bencher) {
+        let mut u: Vec<u8> = Vec::with_capacity(2000 * 2000);
+        let mut v= BufWriter::new(&mut u);
+        let mut x = BMPEncoder::new(& mut v);
+        let mut im = vec![0; 2000 * 2000];
+        b.iter(|| {
+            x.encode_gray(&mut im, 500, 2000, 0, 4);
+        });
+    }
+
+//     #[cfg(feature = "benchmarks")]
+//     #[bench]
+//     fn bench_encode_gray_buf_file(b: &mut Bencher) {
+//         let mut file = File::create("temp.bmp").unwrap();
+//         let mut v= BufWriter::new(&mut file);
+//         let mut x = BMPEncoder::new(& mut v);
+//         let mut im = vec![0; 2000 * 2000];
+//         b.iter(|| {
+//             x.encode_gray(&mut im, 500, 2000, 0, 4);
+//         });
+//     }
+
+//     #[cfg(feature = "benchmarks")]
+//     #[bench]
+//     fn bench_encode_gray_file(b: &mut Bencher) {
+//         let mut file = File::create("temp.bmp").unwrap();
+//         let mut x = BMPEncoder::new(& mut file);
+//         let mut im = vec![0; 2000 * 2000];
+//         b.iter(|| {
+//             x.encode_gray(&mut im, 500, 2000, 0, 4);
+//         });
+//     }
 
     #[test]
     fn round_trip_single_pixel_rgb() {

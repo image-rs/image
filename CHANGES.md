@@ -10,6 +10,12 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.1
+
+- Fix cmyk_to_rgb (jpeg) causing off by one rounding errors.
+- A number of performance improvements for jpeg (encode and decode), bmp, vp8
+- Added more details to errors for many formats
+
 ### Version 0.23.0
 
 This major release intends to improve the interface with regards to handling of

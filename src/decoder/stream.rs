@@ -2,22 +2,25 @@ extern crate crc32fast;
 extern crate inflate;
 
 use std::borrow::Cow;
+use std::cmp::min;
+use std::convert::From;
 use std::default::Default;
 use std::error;
 use std::fmt;
 use std::io;
-use std::cmp::min;
-use std::convert::From;
 
 use crc32fast::Hasher as Crc32;
 
 use self::inflate::InflateStream;
+use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
+use crate::common::{
+    AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
+    Unit,
+};
 use crate::traits::ReadBytesExt;
-use crate::common::{BitDepth, BlendOp, ColorType, DisposeOp, Info, Unit, PixelDimensions, AnimationControl, FrameControl};
-use crate::chunk::{self, ChunkType, IHDR, IDAT, IEND};
 
 /// TODO check if these size are reasonable
-pub const CHUNCK_BUFFER_SIZE: usize = 32*1024;
+pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
 
 /// Determines if checksum checks should be disabled globally.
 ///
@@ -38,7 +41,7 @@ enum U32Value {
     // CHUNKS
     Length,
     Type(u32),
-    Crc(ChunkType)
+    Crc(ChunkType),
 }
 
 #[derive(Debug)]
@@ -82,7 +85,7 @@ pub enum DecodingError {
         crc_val: u32,
         /// Calculated CRC32 sum
         crc_sum: u32,
-        chunk: ChunkType
+        chunk: ChunkType,
     },
     Other(Cow<'static, str>),
     CorruptFlateStream,
@@ -107,7 +110,7 @@ impl fmt::Display for DecodingError {
             InvalidSignature => write!(fmt, "invalid signature"),
             CrcMismatch { .. } => write!(fmt, "CRC error"),
             CorruptFlateStream => write!(fmt, "compressed data stream corrupted"),
-            LimitsExceeded => write!(fmt, "limits are exceeded")
+            LimitsExceeded => write!(fmt, "limits are exceeded"),
         }
     }
 }
@@ -128,10 +131,7 @@ impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> io::Error {
         match err {
             DecodingError::IoError(err) => err,
-            err => io::Error::new(
-                io::ErrorKind::Other,
-                err.to_string()
-            )
+            err => io::Error::new(io::ErrorKind::Other, err.to_string()),
         }
     }
 }
@@ -168,7 +168,7 @@ impl StreamingDecoder {
             inflater: zlib_stream(),
             info: None,
             current_seq_no: None,
-            have_idat: false
+            have_idat: false,
         }
     }
 
@@ -189,26 +189,30 @@ impl StreamingDecoder {
     /// Allows to stream partial data to the encoder. Returns a tuple containing the bytes that have
     /// been consumed from the input buffer and the current decoding result. If the decoded chunk
     /// was an image data chunk, it also appends the read data to `image_data`.
-    pub fn update(&mut self, mut buf: &[u8], image_data: &mut Vec<u8>)
-    -> Result<(usize, Decoded), DecodingError> {
+    pub fn update(
+        &mut self,
+        mut buf: &[u8],
+        image_data: &mut Vec<u8>,
+    ) -> Result<(usize, Decoded), DecodingError> {
         let len = buf.len();
         while !buf.is_empty() && self.state.is_some() {
             match self.next_state(buf, image_data) {
-                Ok((bytes, Decoded::Nothing)) => {
-                    buf = &buf[bytes..]
-                }
+                Ok((bytes, Decoded::Nothing)) => buf = &buf[bytes..],
                 Ok((bytes, result)) => {
                     buf = &buf[bytes..];
-                    return Ok((len-buf.len(), result));
+                    return Ok((len - buf.len(), result));
                 }
-                Err(err) => return Err(err)
+                Err(err) => return Err(err),
             }
         }
-        Ok((len-buf.len(), Decoded::Nothing))
+        Ok((len - buf.len(), Decoded::Nothing))
     }
 
-    fn next_state<'a>(&'a mut self, buf: &[u8], image_data: &mut Vec<u8>)
-    -> Result<(usize, Decoded), DecodingError> {
+    fn next_state<'a>(
+        &'a mut self,
+        buf: &[u8],
+        image_data: &mut Vec<u8>,
+    ) -> Result<(usize, Decoded), DecodingError> {
         use self::State::*;
 
         macro_rules! goto (
@@ -239,9 +243,11 @@ impl StreamingDecoder {
         match state {
             Signature(i, mut signature) if i < 7 => {
                 signature[i as usize] = current_byte;
-                goto!(Signature(i+1, signature))
+                goto!(Signature(i + 1, signature))
             }
-            Signature(_, signature) if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 => {
+            Signature(_, signature)
+                if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 =>
+            {
                 goto!(U32(U32Value::Length))
             }
             Signature(..) => Err(DecodingError::InvalidSignature),
@@ -255,7 +261,7 @@ impl StreamingDecoder {
                             (val >> 24) as u8,
                             (val >> 16) as u8,
                             (val >> 8) as u8,
-                            val as u8
+                            val as u8,
                         ];
                         self.current_chunk.crc.reset();
                         self.current_chunk.crc.update(&type_str);
@@ -264,7 +270,7 @@ impl StreamingDecoder {
                             ReadChunk(type_str, true),
                             emit Decoded::ChunkBegin(length, type_str)
                         )
-                    },
+                    }
                     Crc(type_str) => {
                         let sum = self.current_chunk.crc.clone().finalize();
                         if CHECKSUM_DISABLED || val == sum {
@@ -281,21 +287,15 @@ impl StreamingDecoder {
                                 recover: 1,
                                 crc_val: val,
                                 crc_sum: sum,
-                                chunk: type_str
+                                chunk: type_str,
                             })
                         }
-                    },
+                    }
                 }
-            },
-            U32Byte2(type_, val) => {
-                goto!(U32Byte3(type_, val | u32::from(current_byte) << 8))
-            },
-            U32Byte1(type_, val) => {
-                goto!(U32Byte2(type_, val | u32::from(current_byte) << 16))
-            },
-            U32(type_) => {
-                goto!(U32Byte1(type_,       u32::from(current_byte) << 24))
-            },
+            }
+            U32Byte2(type_, val) => goto!(U32Byte3(type_, val | u32::from(current_byte) << 8)),
+            U32Byte1(type_, val) => goto!(U32Byte2(type_, val | u32::from(current_byte) << 16)),
+            U32(type_) => goto!(U32Byte1(type_, u32::from(current_byte) << 24)),
             PartialChunk(type_str) => {
                 match type_str {
                     IDAT => {
@@ -305,31 +305,37 @@ impl StreamingDecoder {
                             DecodeData(type_str, 0),
                             emit Decoded::PartialChunk(type_str)
                         )
-                    },
+                    }
                     chunk::fdAT => {
                         if let Some(seq_no) = self.current_seq_no {
                             let mut buf = &self.current_chunk.raw_bytes[..];
                             let next_seq_no = buf.read_be()?;
                             if next_seq_no != seq_no + 1 {
-                                return Err(DecodingError::Format(format!(
-                                    "Sequence is not in order, expected #{} got #{}.",
-                                    seq_no + 1,
-                                    next_seq_no
-                                ).into()))
+                                return Err(DecodingError::Format(
+                                    format!(
+                                        "Sequence is not in order, expected #{} got #{}.",
+                                        seq_no + 1,
+                                        next_seq_no
+                                    )
+                                    .into(),
+                                ));
                             }
                             self.current_seq_no = Some(next_seq_no);
                         } else {
-                            return Err(DecodingError::Format("fcTL chunk missing before fdAT chunk.".into()))
+                            return Err(DecodingError::Format(
+                                "fcTL chunk missing before fdAT chunk.".into(),
+                            ));
                         }
                         goto!(
                             0,
                             DecodeData(type_str, 4),
                             emit Decoded::PartialChunk(type_str)
                         )
-                    },
+                    }
                     // Handle other chunks
                     _ => {
-                        if self.current_chunk.remaining == 0 { // complete chunk
+                        if self.current_chunk.remaining == 0 {
+                            // complete chunk
                             Ok((0, self.parse_chunk(type_str)?))
                         } else {
                             goto!(
@@ -339,14 +345,17 @@ impl StreamingDecoder {
                         }
                     }
                 }
-
-            },
+            }
             ReadChunk(type_str, clear) => {
                 if clear {
                     self.current_chunk.raw_bytes.clear();
                 }
                 if self.current_chunk.remaining > 0 {
-                    let ChunkState { crc, remaining, raw_bytes } = &mut self.current_chunk;
+                    let ChunkState {
+                        crc,
+                        remaining,
+                        raw_bytes,
+                    } = &mut self.current_chunk;
                     let buf_avail = raw_bytes.capacity() - raw_bytes.len();
                     let bytes_avail = min(buf.len(), buf_avail);
                     let n = min(*remaining, bytes_avail as u32);
@@ -358,12 +367,10 @@ impl StreamingDecoder {
                         raw_bytes.extend_from_slice(buf);
                         *remaining -= n;
                         if *remaining == 0 {
-                            goto!(n as usize, PartialChunk(type_str
-                            ))
+                            goto!(n as usize, PartialChunk(type_str))
                         } else {
                             goto!(n as usize, ReadChunk(type_str, false))
                         }
-
                     }
                 } else {
                     goto!(0, U32(U32Value::Crc(type_str)))
@@ -392,72 +399,67 @@ impl StreamingDecoder {
         }
     }
 
-    fn parse_chunk(&mut self, type_str: [u8; 4])
-    -> Result<Decoded, DecodingError> {
+    fn parse_chunk(&mut self, type_str: [u8; 4]) -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
         if self.info.is_none() && type_str != IHDR {
-            return Err(DecodingError::Format(format!(
-                "{} chunk appeared before IHDR chunk", String::from_utf8_lossy(&type_str)
-            ).into()))
+            return Err(DecodingError::Format(
+                format!(
+                    "{} chunk appeared before IHDR chunk",
+                    String::from_utf8_lossy(&type_str)
+                )
+                .into(),
+            ));
         }
         match match type_str {
-            IHDR => {
-                self.parse_ihdr()
-            }
-            chunk::PLTE => {
-                self.parse_plte()
-            }
-            chunk::tRNS => {
-                self.parse_trns()
-            }
-            chunk::pHYs => {
-                self.parse_phys()
-            }
-            chunk::acTL => {
-                self.parse_actl()
-            }
-            chunk::fcTL => {
-                self.parse_fctl()
-            }
-            _ => Ok(Decoded::PartialChunk(type_str))
+            IHDR => self.parse_ihdr(),
+            chunk::PLTE => self.parse_plte(),
+            chunk::tRNS => self.parse_trns(),
+            chunk::pHYs => self.parse_phys(),
+            chunk::acTL => self.parse_actl(),
+            chunk::fcTL => self.parse_fctl(),
+            _ => Ok(Decoded::PartialChunk(type_str)),
         } {
-            Err(err) =>{
+            Err(err) => {
                 // Borrow of self ends here, because Decoding error does not borrow self.
                 self.state = None;
                 Err(err)
-            },
-            ok => ok
+            }
+            ok => ok,
         }
     }
 
     fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
-        self.info.as_ref().ok_or_else(|| DecodingError::Format(
-            "IHDR chunk missing".into()
-        ))
+        self.info
+            .as_ref()
+            .ok_or_else(|| DecodingError::Format("IHDR chunk missing".into()))
     }
 
-    fn parse_fctl(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_fctl(&mut self) -> Result<Decoded, DecodingError> {
         let mut buf = &self.current_chunk.raw_bytes[..];
         let next_seq_no = buf.read_be()?;
 
         // Asuming that fcTL is required before *every* fdAT-sequence
         self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
             if next_seq_no != seq_no + 1 {
-                return Err(DecodingError::Format(format!(
-                    "Sequence is not in order, expected #{} got #{}.",
-                    seq_no + 1,
-                    next_seq_no
-                ).into()))
+                return Err(DecodingError::Format(
+                    format!(
+                        "Sequence is not in order, expected #{} got #{}.",
+                        seq_no + 1,
+                        next_seq_no
+                    )
+                    .into(),
+                ));
             }
             next_seq_no
         } else {
             if next_seq_no != 0 {
-                return Err(DecodingError::Format(format!(
-                    "Sequence is not in order, expected #{} got #{}.",
-                    0,
-                    next_seq_no
-                ).into()))
+                return Err(DecodingError::Format(
+                    format!(
+                        "Sequence is not in order, expected #{} got #{}.",
+                        0, next_seq_no
+                    )
+                    .into(),
+                ));
             }
             0
         });
@@ -472,44 +474,41 @@ impl StreamingDecoder {
             delay_den: buf.read_be()?,
             dispose_op: match DisposeOp::from_u8(buf.read_be()?) {
                 Some(dispose_op) => dispose_op,
-                None => return Err(DecodingError::Format("invalid dispose operation".into()))
+                None => return Err(DecodingError::Format("invalid dispose operation".into())),
             },
-            blend_op : match BlendOp::from_u8(buf.read_be()?) {
+            blend_op: match BlendOp::from_u8(buf.read_be()?) {
                 Some(blend_op) => blend_op,
-                None => return Err(DecodingError::Format("invalid blend operation".into()))
+                None => return Err(DecodingError::Format("invalid blend operation".into())),
             },
         };
         self.info.as_mut().unwrap().frame_control = Some(fc);
         Ok(Decoded::FrameControl(fc))
     }
 
-    fn parse_actl(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_actl(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
             Err(DecodingError::Format(
-                "acTL chunk appeared after first IDAT chunk".into()
+                "acTL chunk appeared after first IDAT chunk".into(),
             ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let actl = AnimationControl {
                 num_frames: buf.read_be()?,
-                num_plays: buf.read_be()?
+                num_plays: buf.read_be()?,
             };
             self.info.as_mut().unwrap().animation_control = Some(actl);
             Ok(Decoded::AnimationControl(actl))
         }
     }
 
-    fn parse_plte(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_plte(&mut self) -> Result<Decoded, DecodingError> {
         if let Some(info) = self.info.as_mut() {
             info.palette = Some(self.current_chunk.raw_bytes.clone())
         }
         Ok(Decoded::Nothing)
     }
 
-    fn parse_trns(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_trns(&mut self) -> Result<Decoded, DecodingError> {
         use crate::common::ColorType::*;
         let (color_type, bit_depth) = {
             let info = self.get_info_or_err()?;
@@ -519,30 +518,28 @@ impl StreamingDecoder {
         let len = vec.len();
         let info = match self.info {
             Some(ref mut info) => info,
-            None => return Err(DecodingError::Format(
-              "tRNS chunk occured before IHDR chunk".into()
-            ))
+            None => {
+                return Err(DecodingError::Format(
+                    "tRNS chunk occured before IHDR chunk".into(),
+                ))
+            }
         };
         info.trns = Some(vec);
         let vec = info.trns.as_mut().unwrap();
         match color_type {
             Grayscale => {
                 if len < 2 {
-                    return Err(DecodingError::Format(
-                        "not enough palette entries".into()
-                    ))
+                    return Err(DecodingError::Format("not enough palette entries".into()));
                 }
                 if bit_depth < 16 {
                     vec[0] = vec[1];
                     vec.truncate(1);
                 }
                 Ok(Decoded::Nothing)
-            },
+            }
             RGB => {
                 if len < 6 {
-                    return Err(DecodingError::Format(
-                        "not enough palette entries".into()
-                    ))
+                    return Err(DecodingError::Format("not enough palette entries".into()));
                 }
                 if bit_depth < 16 {
                     vec[0] = vec[1];
@@ -551,25 +548,23 @@ impl StreamingDecoder {
                     vec.truncate(3);
                 }
                 Ok(Decoded::Nothing)
-            },
+            }
             Indexed => {
-                let _ = info.palette.as_ref().ok_or_else(|| DecodingError::Format(
-                    "tRNS chunk occured before PLTE chunk".into()
-                ));
+                let _ = info.palette.as_ref().ok_or_else(|| {
+                    DecodingError::Format("tRNS chunk occured before PLTE chunk".into())
+                });
                 Ok(Decoded::Nothing)
-            },
+            }
             c => Err(DecodingError::Format(
-                format!("tRNS chunk found for color type ({})", c as u8).into()
-            ))
+                format!("tRNS chunk found for color type ({})", c as u8).into(),
+            )),
         }
-
     }
 
-    fn parse_phys(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_phys(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
             Err(DecodingError::Format(
-                "pHYs chunk appeared after first IDAT chunk".into()
+                "pHYs chunk appeared after first IDAT chunk".into(),
             ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
@@ -578,22 +573,19 @@ impl StreamingDecoder {
             let unit = buf.read_be()?;
             let unit = match Unit::from_u8(unit) {
                 Some(unit) => unit,
-                None => return Err(DecodingError::Format(
-                    format!("invalid unit ({})", unit).into()
-                ))
+                None => {
+                    return Err(DecodingError::Format(
+                        format!("invalid unit ({})", unit).into(),
+                    ))
+                }
             };
-            let pixel_dims = PixelDimensions {
-                xppu,
-                yppu,
-                unit,
-            };
+            let pixel_dims = PixelDimensions { xppu, yppu, unit };
             self.info.as_mut().unwrap().pixel_dims = Some(pixel_dims);
             Ok(Decoded::PixelDimensions(pixel_dims))
         }
     }
 
-    fn parse_ihdr(&mut self)
-    -> Result<Decoded, DecodingError> {
+    fn parse_ihdr(&mut self) -> Result<Decoded, DecodingError> {
         // TODO: check if color/bit depths combination is valid
         let mut buf = &self.current_chunk.raw_bytes[..];
         let width = buf.read_be()?;
@@ -601,37 +593,47 @@ impl StreamingDecoder {
         let bit_depth = buf.read_be()?;
         let bit_depth = match BitDepth::from_u8(bit_depth) {
             Some(bits) => bits,
-            None => return Err(DecodingError::Format(
-                format!("invalid bit depth ({})", bit_depth).into()
-            ))
+            None => {
+                return Err(DecodingError::Format(
+                    format!("invalid bit depth ({})", bit_depth).into(),
+                ))
+            }
         };
         let color_type = buf.read_be()?;
         let color_type = match ColorType::from_u8(color_type) {
             Some(color_type) => color_type,
-            None => return Err(DecodingError::Format(
-                format!("invalid color type ({})", color_type).into()
-            ))
+            None => {
+                return Err(DecodingError::Format(
+                    format!("invalid color type ({})", color_type).into(),
+                ))
+            }
         };
-        match buf.read_be()? { // compression method
+        match buf.read_be()? {
+            // compression method
             0u8 => (),
-            n => return Err(DecodingError::Format(
-                format!("unknown compression method ({})", n).into()
-            ))
+            n => {
+                return Err(DecodingError::Format(
+                    format!("unknown compression method ({})", n).into(),
+                ))
+            }
         }
-        match buf.read_be()? { // filter method
+        match buf.read_be()? {
+            // filter method
             0u8 => (),
-            n => return Err(DecodingError::Format(
-                format!("unknown filter method ({})", n).into()
-            ))
+            n => {
+                return Err(DecodingError::Format(
+                    format!("unknown filter method ({})", n).into(),
+                ))
+            }
         }
         let interlaced = match buf.read_be()? {
             0u8 => false,
-            1 => {
-                true
-            },
-            n => return Err(DecodingError::Format(
-                format!("unknown interlace method ({})", n).into()
-            ))
+            1 => true,
+            n => {
+                return Err(DecodingError::Format(
+                    format!("unknown interlace method ({})", n).into(),
+                ))
+            }
         };
         let mut info = Info::default();
 
@@ -642,11 +644,7 @@ impl StreamingDecoder {
         info.interlaced = interlaced;
         self.info = Some(info);
         Ok(Decoded::Header(
-            width,
-            height,
-            bit_depth,
-            color_type,
-            interlaced
+            width, height, bit_depth, color_type, interlaced,
         ))
     }
 }
@@ -654,7 +652,7 @@ impl StreamingDecoder {
 impl Default for ChunkState {
     fn default() -> Self {
         ChunkState {
-            crc:Crc32::new(),
+            crc: Crc32::new(),
             remaining: 0,
             raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
         }

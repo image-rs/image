@@ -43,19 +43,22 @@
 //!
 //#![cfg_attr(test, feature(test))]
 
-#[macro_use] extern crate bitflags;
+#[macro_use]
+extern crate bitflags;
 
 pub mod chunk;
+mod common;
 mod decoder;
 #[cfg(feature = "png-encoding")]
 mod encoder;
 mod filter;
 mod traits;
-mod common;
 mod utils;
 
 pub use crate::common::*;
-pub use crate::decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError, Limits};
+pub use crate::decoder::{
+    Decoded, Decoder, DecodingError, Limits, OutputInfo, Reader, StreamingDecoder,
+};
 #[cfg(feature = "png-encoding")]
-pub use crate::encoder::{Encoder, Writer, StreamWriter, EncodingError};
+pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
 pub use crate::filter::FilterType;

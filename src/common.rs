@@ -11,7 +11,7 @@ pub enum ColorType {
     RGB = 2,
     Indexed = 3,
     GrayscaleAlpha = 4,
-    RGBA = 6
+    RGBA = 6,
 }
 
 impl ColorType {
@@ -22,10 +22,10 @@ impl ColorType {
             Grayscale | Indexed => 1,
             RGB => 3,
             GrayscaleAlpha => 2,
-            RGBA => 4
+            RGBA => 4,
         }
     }
-    
+
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<ColorType> {
         match n {
@@ -34,7 +34,7 @@ impl ColorType {
             3 => Some(ColorType::Indexed),
             4 => Some(ColorType::GrayscaleAlpha),
             6 => Some(ColorType::RGBA),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -43,10 +43,10 @@ impl ColorType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BitDepth {
-    One     = 1,
-    Two     = 2,
-    Four    = 4,
-    Eight   = 8,
+    One = 1,
+    Two = 2,
+    Four = 4,
+    Eight = 8,
     Sixteen = 16,
 }
 
@@ -59,7 +59,7 @@ impl BitDepth {
             4 => Some(BitDepth::Four),
             8 => Some(BitDepth::Eight),
             16 => Some(BitDepth::Sixteen),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -89,7 +89,7 @@ impl Unit {
         match n {
             0 => Some(Unit::Unspecified),
             1 => Some(Unit::Meter),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -99,11 +99,11 @@ impl Unit {
 #[repr(u8)]
 pub enum DisposeOp {
     /// Leave the buffer unchanged.
-    None       = 0,
+    None = 0,
     /// Clear buffer with the background color.
     Background = 1,
     /// Reset the buffer to the state before the current frame.
-    Previous   = 2,
+    Previous = 2,
 }
 
 impl DisposeOp {
@@ -113,7 +113,7 @@ impl DisposeOp {
             0 => Some(DisposeOp::None),
             1 => Some(DisposeOp::Background),
             2 => Some(DisposeOp::Previous),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -136,7 +136,7 @@ pub enum BlendOp {
     /// Pixels overwrite the value at their position.
     Source = 0,
     /// The new pixels are blended into the current state based on alpha.
-    Over   = 1,
+    Over = 1,
 }
 
 impl BlendOp {
@@ -145,7 +145,7 @@ impl BlendOp {
         match n {
             0 => Some(BlendOp::Source),
             1 => Some(BlendOp::Over),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -207,7 +207,6 @@ impl FrameControl {
     pub fn inc_seq_num(&mut self, i: u32) {
         self.sequence_number += i;
     }
-
 }
 
 /// Animation control information
@@ -266,8 +265,8 @@ impl Default for Info {
             pixel_dims: None,
             frame_control: None,
             animation_control: None,
-            // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub` 
-            // to maintain backward compatible output. 
+            // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub`
+            // to maintain backward compatible output.
             compression: Compression::Fast,
             filter: filter::FilterType::Sub,
         }
@@ -279,56 +278,61 @@ impl Info {
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
     }
-    
+
     /// Returns true if the image is an APNG image.
     pub fn is_animated(&self) -> bool {
         self.frame_control.is_some() && self.animation_control.is_some()
     }
-    
+
     /// Returns the frame control information of the image
     pub fn animation_control(&self) -> Option<&AnimationControl> {
         self.animation_control.as_ref()
     }
-    
+
     /// Returns the frame control information of the current frame
     pub fn frame_control(&self) -> Option<&FrameControl> {
         self.frame_control.as_ref()
     }
-    
+
     /// Returns the bits per pixel
     pub fn bits_per_pixel(&self) -> usize {
         self.color_type.samples() * self.bit_depth as usize
     }
-    
+
     /// Returns the bytes per pixel
     pub fn bytes_per_pixel(&self) -> usize {
         self.color_type.samples() * ((self.bit_depth as usize + 7) >> 3)
     }
-    
+
     /// Returns the number of bytes needed for one deinterlaced image
     pub fn raw_bytes(&self) -> usize {
         self.height as usize * self.raw_row_length()
     }
-    
-    /// Returns the number of bytes needed for one deinterlaced row 
+
+    /// Returns the number of bytes needed for one deinterlaced row
     pub fn raw_row_length(&self) -> usize {
         let bits = self.width as usize * self.color_type.samples() * self.bit_depth as usize;
         let extra = bits % 8;
-        bits/8
-        + match extra { 0 => 0, _ => 1 }
-        + 1 // filter method
+        bits / 8
+            + match extra {
+                0 => 0,
+                _ => 1,
+            }
+            + 1 // filter method
     }
-    
+
     /// Returns the number of bytes needed for one deinterlaced row of width `width`
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
         let bits = width as usize * self.color_type.samples() * self.bit_depth as usize;
         let extra = bits % 8;
-        bits/8
-        + match extra { 0 => 0, _ => 1 }
-        + 1 // filter method
+        bits / 8
+            + match extra {
+                0 => 0,
+                _ => 1,
+            }
+            + 1 // filter method
     }
 }
-
 
 bitflags! {
     /// # Output transformations
@@ -401,4 +405,3 @@ mod deflate_convert {
         }
     }
 }
-

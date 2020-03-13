@@ -4,31 +4,32 @@ use std::ops::Range;
 
 #[inline(always)]
 pub fn unpack_bits<F>(buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
-where F: Fn(u8, &mut[u8]) {
+where
+    F: Fn(u8, &mut [u8]),
+{
     // Return early if empty. This enables to subtract `channels` later without overflow.
     if buf.len() < channels {
         return;
     }
 
-    let bits = buf.len()/channels*bit_depth as usize;
+    let bits = buf.len() / channels * bit_depth as usize;
     let extra_bits = bits % 8;
-    let entries = bits / 8 + match extra_bits {
-        0 => 0,
-        _ => 1
-    };
+    let entries = bits / 8
+        + match extra_bits {
+            0 => 0,
+            _ => 1,
+        };
     let skip = match extra_bits {
         0 => 0,
-        n => (8-n) / bit_depth as usize
+        n => (8 - n) / bit_depth as usize,
     };
     let mask = ((1u16 << bit_depth) - 1) as u8;
-    let i =
-        (0..entries)
+    let i = (0..entries)
         .rev() // reverse iterator
         .flat_map(|idx|
             // this has to be reversed too
             (0..8).step_by(bit_depth.into())
-            .zip(repeat(idx))
-        )
+            .zip(repeat(idx)))
         .skip(skip);
     let j = (0..=buf.len() - channels).rev().step_by(channels);
     for ((shift, i), j) in i.zip(j) {
@@ -37,53 +38,54 @@ where F: Fn(u8, &mut[u8]) {
     }
 }
 
-pub fn expand_trns_line(buf: &mut[u8], trns: &[u8], channels: usize) {
+pub fn expand_trns_line(buf: &mut [u8], trns: &[u8], channels: usize) {
     // Return early if empty. This enables to subtract `channels` later without overflow.
-    if buf.len() < (channels+1) {
+    if buf.len() < (channels + 1) {
         return;
     }
 
-    let i = (0..=buf.len() / (channels+1) * channels - channels).rev().step_by(channels);
-    let j = (0..=buf.len() - (channels+1)).rev().step_by(channels+1);
+    let i = (0..=buf.len() / (channels + 1) * channels - channels)
+        .rev()
+        .step_by(channels);
+    let j = (0..=buf.len() - (channels + 1)).rev().step_by(channels + 1);
     for (i, j) in i.zip(j) {
         let i_pixel = i;
         let j_chunk = j;
-        if &buf[i_pixel..i_pixel+channels] == trns {
-            buf[j_chunk+channels] = 0
+        if &buf[i_pixel..i_pixel + channels] == trns {
+            buf[j_chunk + channels] = 0
         } else {
-            buf[j_chunk+channels] = 0xFF
+            buf[j_chunk + channels] = 0xFF
         }
         for k in (0..channels).rev() {
-            buf[j_chunk+k] = buf[i_pixel+k];
+            buf[j_chunk + k] = buf[i_pixel + k];
         }
     }
 }
 
-pub fn expand_trns_line16(buf: &mut[u8], trns: &[u8], channels: usize) {
+pub fn expand_trns_line16(buf: &mut [u8], trns: &[u8], channels: usize) {
     let c2 = 2 * channels;
     // Return early if empty. This enables to subtract `channels` later without overflow.
-    if buf.len() < (c2+2) {
+    if buf.len() < (c2 + 2) {
         return;
     }
 
-    let i = (0..=buf.len() / (c2+2) * c2 - c2).rev().step_by(c2);
-    let j = (0..=buf.len() - (c2+2)).rev().step_by(c2+2);
+    let i = (0..=buf.len() / (c2 + 2) * c2 - c2).rev().step_by(c2);
+    let j = (0..=buf.len() - (c2 + 2)).rev().step_by(c2 + 2);
     for (i, j) in i.zip(j) {
         let i_pixel = i;
         let j_chunk = j;
-        if &buf[i_pixel..i_pixel+c2] == trns {
-            buf[j_chunk+c2] = 0;
-            buf[j_chunk+c2 + 1] = 0
+        if &buf[i_pixel..i_pixel + c2] == trns {
+            buf[j_chunk + c2] = 0;
+            buf[j_chunk + c2 + 1] = 0
         } else {
-            buf[j_chunk+c2] = 0xFF;
-            buf[j_chunk+c2 + 1] = 0xFF
+            buf[j_chunk + c2] = 0xFF;
+            buf[j_chunk + c2 + 1] = 0xFF
         }
         for k in (0..c2).rev() {
-            buf[j_chunk+k] = buf[i_pixel+k];
+            buf[j_chunk + k] = buf[i_pixel + k];
         }
     }
 }
-
 
 /// This iterator iterates over the different passes of an image Adam7 encoded
 /// PNG image
@@ -126,20 +128,20 @@ impl Adam7Iterator {
         let w = f64::from(self.width);
         let h = f64::from(self.height);
         let (line_width, lines) = match self.current_pass {
-            1 => (w/8.0, h/8.0),
-            2 => ((w-4.0)/8.0, h/8.0),
-            3 => (w/4.0, (h-4.0)/8.0),
-            4 => ((w-2.0)/4.0, h/4.0),
-            5 => (w/2.0, (h-2.0)/4.0),
-            6 => ((w-1.0)/2.0, h/2.0),
-            7 => (w, (h-1.0)/2.0),
-            _ => unreachable!()
+            1 => (w / 8.0, h / 8.0),
+            2 => ((w - 4.0) / 8.0, h / 8.0),
+            3 => (w / 4.0, (h - 4.0) / 8.0),
+            4 => ((w - 2.0) / 4.0, h / 4.0),
+            5 => (w / 2.0, (h - 2.0) / 4.0),
+            6 => ((w - 1.0) / 2.0, h / 2.0),
+            7 => (w, (h - 1.0) / 2.0),
+            _ => unreachable!(),
         };
         self.line_width = line_width.ceil() as u32;
         self.lines = lines.ceil() as u32;
         self.line = 0;
     }
-    
+
     /// The current pass#.
     pub fn current_pass(&self) -> u8 {
         self.current_pass
@@ -164,26 +166,33 @@ impl Iterator for Adam7Iterator {
     }
 }
 
-fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item=u8> + 'a {
-    (0..scanline.len() * 8).step_by(bits_pp).map(move |bit_idx| {
-        let byte_idx = bit_idx / 8;
+fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item = u8> + 'a {
+    (0..scanline.len() * 8)
+        .step_by(bits_pp)
+        .map(move |bit_idx| {
+            let byte_idx = bit_idx / 8;
 
-        // sub-byte samples start in the high-order bits
-        let rem = 8 - bit_idx % 8 - bits_pp;
+            // sub-byte samples start in the high-order bits
+            let rem = 8 - bit_idx % 8 - bits_pp;
 
-        match bits_pp {
-            // evenly divides bytes
-            1 => (scanline[byte_idx] >> rem) & 1,
-            2 => (scanline[byte_idx] >> rem) & 3,
-            4 => (scanline[byte_idx] >> rem) & 15,
-            _ => unreachable!(),
-        }
-    })
+            match bits_pp {
+                // evenly divides bytes
+                1 => (scanline[byte_idx] >> rem) & 1,
+                2 => (scanline[byte_idx] >> rem) & 3,
+                4 => (scanline[byte_idx] >> rem) & 15,
+                _ => unreachable!(),
+            }
+        })
 }
 
 /// Given pass, image width, and line number, produce an iterator of bit positions of pixels to copy
 /// from the input scanline to the image buffer.
-fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> StepBy<Range<usize>> {
+fn expand_adam7_bits(
+    pass: u8,
+    width: usize,
+    line_no: usize,
+    bits_pp: usize,
+) -> StepBy<Range<usize>> {
     let (line_mul, line_off, samp_mul, samp_off) = match pass {
         1 => (8, 0, 8, 0),
         2 => (8, 0, 8, 4),
@@ -192,7 +201,7 @@ fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> 
         5 => (4, 2, 2, 0),
         6 => (2, 0, 2, 1),
         7 => (2, 1, 1, 0),
-        _ => panic!("Adam7 pass out of range: {}", pass)
+        _ => panic!("Adam7 pass out of range: {}", pass),
     };
 
     // the equivalent line number in progressive scan
@@ -203,20 +212,26 @@ fn expand_adam7_bits(pass: u8, width: usize, line_no: usize, bits_pp: usize) -> 
     let start = line_start + (samp_off * bits_pp);
     let stop = line_start + (width * bits_pp);
 
-    (start .. stop).step_by(bits_pp * samp_mul)
+    (start..stop).step_by(bits_pp * samp_mul)
 }
 
 /// Expands an Adam 7 pass
 pub fn expand_pass(
-    img: &mut [u8], width: u32, scanline: &[u8],
-    pass: u8, line_no: u32, bits_pp: u8) {
-
+    img: &mut [u8],
+    width: u32,
+    scanline: &[u8],
+    pass: u8,
+    line_no: u32,
+    bits_pp: u8,
+) {
     let width = width as usize;
     let line_no = line_no as usize;
     let bits_pp = bits_pp as usize;
 
-	// pass is out of range but don't blow up
-    if pass == 0 || pass > 7 { return; }
+    // pass is out of range but don't blow up
+    if pass == 0 || pass > 7 {
+        return;
+    }
 
     let bit_indices = expand_adam7_bits(pass, width, line_no, bits_pp);
 
@@ -226,14 +241,14 @@ pub fn expand_pass(
             img[pos / 8] |= px << rem as u8;
         }
     } else {
-		let bytes_pp = bits_pp / 8;
+        let bytes_pp = bits_pp / 8;
 
-		for (bitpos, px) in bit_indices.zip(scanline.chunks(bytes_pp)) {
-			for (offset, val) in px.iter().enumerate() {
-				img[bitpos / 8 + offset] = *val;
-			}
-		}
-	}
+        for (bitpos, px) in bit_indices.zip(scanline.chunks(bytes_pp)) {
+            for (offset, val) in px.iter().enumerate() {
+                img[bitpos / 8 + offset] = *val;
+            }
+        }
+    }
 }
 
 #[test]
@@ -246,13 +261,23 @@ fn test_adam7() {
     */
     let it = Adam7Iterator::new(4, 4);
     let passes: Vec<_> = it.collect();
-    assert_eq!(&*passes, &[(1, 0, 1), (4, 0, 1), (5, 0, 2), (6, 0, 2), (6, 1, 2), (7, 0, 4), (7, 1, 4)]);
+    assert_eq!(
+        &*passes,
+        &[
+            (1, 0, 1),
+            (4, 0, 1),
+            (5, 0, 2),
+            (6, 0, 2),
+            (6, 1, 2),
+            (7, 0, 4),
+            (7, 1, 4)
+        ]
+    );
 }
 
 #[test]
 fn test_subbyte_pixels() {
     let scanline = &[0b10101010, 0b10101010];
-
 
     let pixels = subbyte_pixels(scanline, 1).collect::<Vec<_>>();
     assert_eq!(pixels.len(), 16);
@@ -264,7 +289,11 @@ fn test_expand_adam7_bits() {
     let width = 32;
     let bits_pp = 1;
 
-    let expected = |offset: usize, step: usize, count: usize| (0 .. count).map(move |i| step * i + offset).collect::<Vec<_>>();
+    let expected = |offset: usize, step: usize, count: usize| {
+        (0..count)
+            .map(move |i| step * i + offset)
+            .collect::<Vec<_>>()
+    };
 
     for line_no in 0..8 {
         let start = 8 * line_no * width;
@@ -289,7 +318,7 @@ fn test_expand_adam7_bits() {
         );
     }
 
-    for line_no in 0 .. 16 {
+    for line_no in 0..16 {
         let start = 4 * line_no * width + 2;
 
         assert_eq!(
@@ -305,13 +334,14 @@ fn test_expand_adam7_bits() {
         )
     }
 
-    for line_no in 0 .. 32 {
+    for line_no in 0..32 {
         let start = 2 * line_no * width + 1;
 
         assert_eq!(
             expand_adam7_bits(6, width, line_no, bits_pp).collect::<Vec<_>>(),
             expected(start, 2, 16),
-            "line_no: {}", line_no
+            "line_no: {}",
+            line_no
         );
 
         let start = (2 * line_no + 1) * width;
@@ -348,29 +378,92 @@ fn test_expand_pass_subbyte() {
     assert_eq!(img, [0b10101010u8, 0, 0b10101010, 0, 0b10101010, 0, 0, 0]);
 
     expand_pass(&mut img, width, &[0b11110000], 5, 1, bits_pp);
-    assert_eq!(img, [0b10101010u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]);
+    assert_eq!(
+        img,
+        [0b10101010u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]
+    );
 
     expand_pass(&mut img, width, &[0b11110000], 6, 0, bits_pp);
-    assert_eq!(img, [0b11111111u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]);
+    assert_eq!(
+        img,
+        [0b11111111u8, 0, 0b10101010, 0, 0b10101010, 0, 0b10101010, 0]
+    );
 
     expand_pass(&mut img, width, &[0b11110000], 6, 1, bits_pp);
-    assert_eq!(img, [0b11111111u8, 0, 0b11111111, 0, 0b10101010, 0, 0b10101010, 0]);
+    assert_eq!(
+        img,
+        [0b11111111u8, 0, 0b11111111, 0, 0b10101010, 0, 0b10101010, 0]
+    );
 
     expand_pass(&mut img, width, &[0b11110000], 6, 2, bits_pp);
-    assert_eq!(img, [0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b10101010, 0]);
+    assert_eq!(
+        img,
+        [0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b10101010, 0]
+    );
 
     expand_pass(&mut img, width, &[0b11110000], 6, 3, bits_pp);
-    assert_eq!([0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b11111111, 0], img);
+    assert_eq!(
+        [0b11111111u8, 0, 0b11111111, 0, 0b11111111, 0, 0b11111111, 0],
+        img
+    );
 
     expand_pass(&mut img, width, &[0b11111111], 7, 0, bits_pp);
-    assert_eq!([0b11111111u8, 0b11111111, 0b11111111, 0, 0b11111111, 0, 0b11111111, 0], img);
+    assert_eq!(
+        [
+            0b11111111u8,
+            0b11111111,
+            0b11111111,
+            0,
+            0b11111111,
+            0,
+            0b11111111,
+            0
+        ],
+        img
+    );
 
     expand_pass(&mut img, width, &[0b11111111], 7, 1, bits_pp);
-    assert_eq!([0b11111111u8, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0, 0b11111111, 0], img);
+    assert_eq!(
+        [
+            0b11111111u8,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0,
+            0b11111111,
+            0
+        ],
+        img
+    );
 
     expand_pass(&mut img, width, &[0b11111111], 7, 2, bits_pp);
-    assert_eq!([0b11111111u8, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0], img);
+    assert_eq!(
+        [
+            0b11111111u8,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0
+        ],
+        img
+    );
 
     expand_pass(&mut img, width, &[0b11111111], 7, 3, bits_pp);
-    assert_eq!([0b11111111u8, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111], img);
+    assert_eq!(
+        [
+            0b11111111u8,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111,
+            0b11111111
+        ],
+        img
+    );
 }

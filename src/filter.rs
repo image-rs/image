@@ -12,10 +12,10 @@ pub enum FilterType {
     Sub = 1,
     Up = 2,
     Avg = 3,
-    Paeth = 4
+    Paeth = 4,
 }
 
- impl FilterType {  
+impl FilterType {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<FilterType> {
         match n {
@@ -24,7 +24,7 @@ pub enum FilterType {
             2 => Some(FilterType::Up),
             3 => Some(FilterType::Avg),
             4 => Some(FilterType::Paeth),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -49,7 +49,12 @@ fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
     }
 }
 
-pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) -> std::result::Result<(), &'static str> {
+pub fn unfilter(
+    filter: FilterType,
+    bpp: usize,
+    previous: &[u8],
+    current: &mut [u8],
+) -> std::result::Result<(), &'static str> {
     use self::FilterType::*;
     assert!(bpp > 0);
     let len = current.len();
@@ -58,9 +63,7 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
         NoFilter => Ok(()),
         Sub => {
             for i in bpp..len {
-                current[i] = current[i].wrapping_add(
-                    current[i - bpp]
-                );
+                current[i] = current[i].wrapping_add(current[i - bpp]);
             }
             Ok(())
         }
@@ -69,9 +72,7 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
                 Err("Filtering failed: not enough data in previous row")
             } else {
                 for i in 0..len {
-                    current[i] = current[i].wrapping_add(
-                        previous[i]
-                    );
+                    current[i] = current[i].wrapping_add(previous[i]);
                 }
                 Ok(())
             }
@@ -83,14 +84,12 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
                 Err("Filtering failed: bytes per pixel is greater than length of row")
             } else {
                 for i in 0..bpp {
-                    current[i] = current[i].wrapping_add(
-                        previous[i] / 2
-                    );
+                    current[i] = current[i].wrapping_add(previous[i] / 2);
                 }
 
                 for i in bpp..len {
                     current[i] = current[i].wrapping_add(
-                        ((i16::from(current[i - bpp]) + i16::from(previous[i])) / 2) as u8
+                        ((i16::from(current[i - bpp]) + i16::from(previous[i])) / 2) as u8,
                     );
                 }
                 Ok(())
@@ -103,15 +102,15 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
                 Err("Filtering failed: bytes per pixel is greater than length of row")
             } else {
                 for i in 0..bpp {
-                    current[i] = current[i].wrapping_add(
-                        filter_paeth(0, previous[i], 0)
-                    );
+                    current[i] = current[i].wrapping_add(filter_paeth(0, previous[i], 0));
                 }
 
                 for i in bpp..len {
-                    current[i] = current[i].wrapping_add(
-                        filter_paeth(current[i - bpp], previous[i], previous[i - bpp])
-                    );
+                    current[i] = current[i].wrapping_add(filter_paeth(
+                        current[i - bpp],
+                        previous[i],
+                        previous[i - bpp],
+                    ));
                 }
                 Ok(())
             }
@@ -122,32 +121,37 @@ pub fn unfilter(filter: FilterType, bpp: usize, previous: &[u8], current: &mut [
 pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
     use self::FilterType::*;
     assert!(bpp > 0);
-    let len  = current.len();
+    let len = current.len();
 
     match method {
         NoFilter => (),
-        Sub      => {
+        Sub => {
             for i in (bpp..len).rev() {
                 current[i] = current[i].wrapping_sub(current[i - bpp]);
             }
         }
-        Up       => {
+        Up => {
             for i in 0..len {
                 current[i] = current[i].wrapping_sub(previous[i]);
             }
         }
-        Avg  => {
+        Avg => {
             for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub(current[i - bpp].wrapping_add(previous[i]) / 2);
+                current[i] =
+                    current[i].wrapping_sub(current[i - bpp].wrapping_add(previous[i]) / 2);
             }
 
             for i in 0..bpp {
                 current[i] = current[i].wrapping_sub(previous[i] / 2);
             }
         }
-        Paeth    => {
+        Paeth => {
             for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub(filter_paeth(current[i - bpp], previous[i], previous[i - bpp]));
+                current[i] = current[i].wrapping_sub(filter_paeth(
+                    current[i - bpp],
+                    previous[i],
+                    previous[i - bpp],
+                ));
             }
 
             for i in 0..bpp {

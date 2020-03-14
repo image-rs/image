@@ -27,7 +27,12 @@ matrix:
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
 
+before_install:
+    - rustup component add rustfmt
+    - cargo fmt --version
+
 script:
+  - cargo fmt --all -- --check
   - cargo build -v $FLAGS
   - cargo doc -v $FLAGS
   - if [ -n "$IMAGE_PNG_TEST" ]; then cargo test -v $FLAGS; fi

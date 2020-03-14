@@ -11,8 +11,8 @@ use std::result;
 use crc32fast::Hasher as Crc32;
 
 use crate::chunk;
-use crate::common::{Info, ColorType, BitDepth, Compression};
-use crate::filter::{FilterType, filter};
+use crate::common::{BitDepth, ColorType, Compression, Info};
+use crate::filter::{filter, FilterType};
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -220,7 +220,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.buffer[self.index..])?;
         self.index += written;
-        
+
         if self.index + 1 >= self.buffer.len() {
             self.writer.write_chunk(chunk::IDAT, &self.buffer)?;
             self.index = 0;
@@ -231,7 +231,8 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
 
     fn flush(&mut self) -> io::Result<()> {
         if self.index > 0 {
-            self.writer.write_chunk(chunk::IDAT, &self.buffer[..=self.index])?;
+            self.writer
+                .write_chunk(chunk::IDAT, &self.buffer[..=self.index])?;
         }
         self.index = 0;
         Ok(())
@@ -244,11 +245,10 @@ impl<'a, W: Write> Drop for ChunkWriter<'a, W> {
     }
 }
 
-
 /// Streaming png writer
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
-/// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping. 
+/// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping.
 pub struct StreamWriter<'a, W: Write> {
     writer: deflate::write::ZlibEncoder<ChunkWriter<'a, W>>,
     prev_buf: Vec<u8>,
@@ -260,9 +260,9 @@ pub struct StreamWriter<'a, W: Write> {
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(writer: &'a mut Writer<W>, buf_len: usize) -> StreamWriter<'a, W> {
-        let bpp      = writer.info.bytes_per_pixel();
-        let in_len   = writer.info.raw_row_length() - 1;
-        let filter   = writer.info.filter;
+        let bpp = writer.info.bytes_per_pixel();
+        let in_len = writer.info.raw_row_length() - 1;
+        let filter = writer.info.filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 
@@ -291,7 +291,7 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.curr_buf[self.index..])?;
         self.index += written;
-        
+
         if self.index >= self.curr_buf.len() {
             self.writer.write_all(&[self.filter as u8])?;
             filter(self.filter, self.bpp, &self.prev_buf, &mut self.curr_buf);
@@ -326,15 +326,18 @@ mod tests {
     extern crate glob;
 
     use rand::{thread_rng, Rng};
-    use std::{io, cmp};
-    use std::io::Write;
     use std::fs::File;
+    use std::io::Write;
+    use std::{cmp, io};
 
     #[test]
     fn roundtrip() {
         // More loops = more random testing, but also more test wait time
         for _ in 0..10 {
-            for path in glob::glob("tests/pngsuite/*.png").unwrap().map(|r| r.unwrap()) {
+            for path in glob::glob("tests/pngsuite/*.png")
+                .unwrap()
+                .map(|r| r.unwrap())
+            {
                 if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
                     // x* files are expected to fail to decode
                     continue;
@@ -353,10 +356,12 @@ mod tests {
                 {
                     let mut wrapper = RandomChunkWriter {
                         rng: thread_rng(),
-                        w: &mut out
+                        w: &mut out,
                     };
 
-                    let mut encoder = Encoder::new(&mut wrapper, info.width, info.height).write_header().unwrap();
+                    let mut encoder = Encoder::new(&mut wrapper, info.width, info.height)
+                        .write_header()
+                        .unwrap();
                     encoder.write_image_data(&buf).unwrap();
                 }
                 // Decode encoded decoded image
@@ -374,7 +379,10 @@ mod tests {
     fn roundtrip_stream() {
         // More loops = more random testing, but also more test wait time
         for _ in 0..10 {
-            for path in glob::glob("tests/pngsuite/*.png").unwrap().map(|r| r.unwrap()) {
+            for path in glob::glob("tests/pngsuite/*.png")
+                .unwrap()
+                .map(|r| r.unwrap())
+            {
                 if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
                     // x* files are expected to fail to decode
                     continue;
@@ -393,17 +401,19 @@ mod tests {
                 {
                     let mut wrapper = RandomChunkWriter {
                         rng: thread_rng(),
-                        w: &mut out
+                        w: &mut out,
                     };
 
-                    let mut encoder = Encoder::new(&mut wrapper, info.width, info.height).write_header().unwrap();
+                    let mut encoder = Encoder::new(&mut wrapper, info.width, info.height)
+                        .write_header()
+                        .unwrap();
                     let mut stream_writer = encoder.stream_writer();
 
                     let mut outer_wrapper = RandomChunkWriter {
                         rng: thread_rng(),
-                        w: &mut stream_writer
+                        w: &mut stream_writer,
                     };
-                    
+
                     outer_wrapper.write_all(&buf).unwrap();
                 }
                 // Decode encoded decoded image
@@ -461,7 +471,7 @@ mod tests {
     /// A Writer that only writes a few bytes at a time
     struct RandomChunkWriter<'a, R: Rng, W: Write + 'a> {
         rng: R,
-        w: &'a mut W
+        w: &'a mut W,
     }
 
     impl<'a, R: Rng, W: Write + 'a> Write for RandomChunkWriter<'a, R, W> {
@@ -476,5 +486,4 @@ mod tests {
             self.w.flush()
         }
     }
-
 }

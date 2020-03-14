@@ -4,11 +4,11 @@ extern crate getopts;
 extern crate glob;
 extern crate png;
 
+use std::env;
+use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use std::fs::File;
-use std::env;
 
 use getopts::{Matches, Options, ParsingStyle};
 use term::{color, Attr};
@@ -24,10 +24,13 @@ fn parse_args() -> Matches {
     if args.len() > 1 {
         match opts.parse(&args[1..]) {
             Ok(matches) => return matches,
-            Err(err) => println!("{}", err)
+            Err(err) => println!("{}", err),
         }
     }
-    println!("{}", opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]")));
+    println!(
+        "{}",
+        opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]"))
+    );
     std::process::exit(0);
 }
 
@@ -35,7 +38,7 @@ fn parse_args() -> Matches {
 struct Config {
     quiet: bool,
     verbose: bool,
-    color: bool
+    color: bool,
 }
 
 fn display_interlaced(i: bool) -> &'static str {
@@ -56,7 +59,7 @@ fn display_image_type(bits: u8, color: png::ColorType) -> String {
             RGB => "RGB",
             Indexed => "palette",
             GrayscaleAlpha => "grayscale+alpha",
-            RGBA => "RGB+alpha"
+            RGBA => "RGB+alpha",
         }
     )
 }
@@ -68,7 +71,7 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
         RGB => 3,
         Indexed => 3 + if trns { 1 } else { 0 },
         GrayscaleAlpha => 2,
-        RGBA => 4
+        RGBA => 4,
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
@@ -76,9 +79,9 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     use png::Decoded::*;
     let mut t = term::stdout().ok_or(io::Error::new(
         io::ErrorKind::Other,
-        "could not open terminal"
+        "could not open terminal",
     ))?;
-    let mut data = vec![0; 10*1024];
+    let mut data = vec![0; 10 * 1024];
     let data_p = data.as_mut_ptr();
     let mut reader = io::BufReader::new(File::open(&fname)?);
     let fname = fname.as_ref().to_string_lossy();
@@ -108,7 +111,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     let display_error = |err| -> Result<_, io::Error> {
         let mut t = term::stdout().ok_or(io::Error::new(
             io::ErrorKind::Other,
-            "could not open terminal"
+            "could not open terminal",
         ))?;
         if c.verbose {
             if c.color {
@@ -124,18 +127,20 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             }
             println!(" in {}", fname);
         } else {
-            if !c.quiet { if c.color {
-                t.fg(color::RED)?;
-                t.attr(Attr::Bold)?;
-                write!(t, "ERROR")?;
-                t.reset()?;
-                write!(t, ": ")?;
-                t.fg(color::YELLOW)?;
-                writeln!(t, "{}", fname)?;
-                t.reset()?;
-            } else {
-                println!("ERROR: {}", fname)
-            }}
+            if !c.quiet {
+                if c.color {
+                    t.fg(color::RED)?;
+                    t.attr(Attr::Bold)?;
+                    write!(t, "ERROR")?;
+                    t.reset()?;
+                    write!(t, ": ")?;
+                    t.fg(color::YELLOW)?;
+                    writeln!(t, "{}", fname)?;
+                    t.reset()?;
+                } else {
+                    println!("ERROR: {}", fname)
+                }
+            }
             print!("{}: ", fname);
             if c.color {
                 t.fg(color::RED)?;
@@ -144,11 +149,10 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             } else {
                 println!("{}", err);
             }
-            
         }
         Ok(())
     };
-    
+
     if c.verbose {
         print!("File: ");
         if c.color {
@@ -159,15 +163,12 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             print!("{}", fname);
         }
         print!(" ({}) bytes", data.len())
-            
     }
     loop {
         if buf.len() == 0 {
             // circumvent borrow checker
             assert!(!data.is_empty());
-            let n = reader.read(unsafe {
-                ::std::slice::from_raw_parts_mut(data_p, data.len())
-            })?;
+            let n = reader.read(unsafe { ::std::slice::from_raw_parts_mut(data_p, data.len()) })?;
 
             // EOF
             if n == 0 {
@@ -202,7 +203,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         display_image_type(bits, color),
                         (if trns { "+trns" } else { "" }),
                         display_interlaced(interlaced),
-                        100.0*(1.0-c_ratio!())
+                        100.0 * (1.0 - c_ratio!())
                     )
                 } else if !c.quiet {
                     println!("");
@@ -218,11 +219,11 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         "in {} ({} chunks, {:.1}% compression)",
                         fname,
                         n_chunks,
-                        100.0*(1.0-c_ratio!())
+                        100.0 * (1.0 - c_ratio!())
                     )
                 }
-                break
-            },
+                break;
+            }
             Ok((n, res)) => {
                 buf = &buf[n..];
                 pos += n;
@@ -258,11 +259,11 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             chunk::IDAT => {
                                 have_idat = true;
                                 compressed_size += len
-                            },
+                            }
                             chunk::tRNS => {
                                 trns = true;
-                            },    
-                            _ => ()
+                            }
+                            _ => (),
                         }
                     }
                     ImageData => {
@@ -282,16 +283,12 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                                     display_interlaced(interlaced),
                                 );
                             }
-                            _ => ()
+                            _ => (),
                         }
                     }
                     AnimationControl(actl) => {
                         println!("");
-                        print!(
-                            "    {} frames, {} plays",
-                            actl.num_frames,
-                            actl.num_plays,
-                        );
+                        print!("    {} frames, {} plays", actl.num_frames, actl.num_plays,);
                     }
                     FrameControl(fctl) => {
                         println!("");
@@ -310,18 +307,22 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         print!(
                             "    {}/{} s delay, dispose: {}, blend: {}",
                             fctl.delay_num,
-                            if fctl.delay_den == 0 { 100 } else {fctl.delay_den},
+                            if fctl.delay_den == 0 {
+                                100
+                            } else {
+                                fctl.delay_den
+                            },
                             fctl.dispose_op,
                             fctl.blend_op,
                         );
                     }
-                    _ => ()
+                    _ => (),
                 }
                 //println!("{} {:?}", n, res)
-            },
+            }
             Err(err) => {
                 let _ = display_error(err);
-                break
+                break;
             }
         }
     }
@@ -334,20 +335,20 @@ fn main() {
     let config = Config {
         quiet: m.opt_present("q"),
         verbose: m.opt_present("v"),
-        color: m.opt_present("c")
+        color: m.opt_present("c"),
     };
 
     for file in m.free {
         let result = if file.contains("*") {
-            glob::glob(&file).map_err(|err| {
-                io::Error::new(io::ErrorKind::Other, err)
-            }).and_then(|mut glob| glob.try_for_each(|entry| {
-                entry.map_err(|err| {
-                    io::Error::new(io::ErrorKind::Other, err)
-                }).and_then(|file| {
-                    check_image(config, file)
+            glob::glob(&file)
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                .and_then(|mut glob| {
+                    glob.try_for_each(|entry| {
+                        entry
+                            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                            .and_then(|file| check_image(config, file))
+                    })
                 })
-            }))
         } else {
             check_image(config, &file)
         };

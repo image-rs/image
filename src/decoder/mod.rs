@@ -1,15 +1,15 @@
 mod stream;
 
-pub use self::stream::{StreamingDecoder, Decoded, DecodingError};
-use self::stream::{CHUNCK_BUFFER_SIZE, get_info};
+use self::stream::{get_info, CHUNCK_BUFFER_SIZE};
+pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
-use std::mem;
 use std::borrow;
-use std::io::{Read, Write, BufReader, BufRead};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::mem;
 
-use crate::common::{ColorType, BitDepth, Info, Transformations};
-use crate::filter::{unfilter, FilterType};
 use crate::chunk::IDAT;
+use crate::common::{BitDepth, ColorType, Info, Transformations};
+use crate::filter::{unfilter, FilterType};
 use crate::utils;
 
 /*
@@ -50,7 +50,7 @@ pub struct Limits {
 impl Default for Limits {
     fn default() -> Limits {
         Limits {
-            bytes: 1024*1024*64,
+            bytes: 1024 * 1024 * 64,
         }
     }
 }
@@ -69,11 +69,13 @@ impl<R: Read> Decoder<R> {
     pub fn new(r: R) -> Decoder<R> {
         Decoder::new_with_limits(r, Limits::default())
     }
-    
+
     pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
         Decoder {
             r,
-            transform: crate::Transformations::EXPAND | crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
+            transform: crate::Transformations::EXPAND
+                | crate::Transformations::SCALE_16
+                | crate::Transformations::STRIP_16,
             limits,
         }
     }
@@ -128,7 +130,7 @@ impl<R: Read> Decoder<R> {
 struct ReadDecoder<R: Read> {
     reader: BufReader<R>,
     decoder: StreamingDecoder,
-    at_eof: bool
+    at_eof: bool,
 }
 
 impl<R: Read> ReadDecoder<R> {
@@ -139,9 +141,7 @@ impl<R: Read> ReadDecoder<R> {
             let (consumed, result) = {
                 let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
-                    return Err(DecodingError::Format(
-                        "unexpected EOF".into()
-                    ))
+                    return Err(DecodingError::Format("unexpected EOF".into()));
                 }
                 self.decoder.update(buf, image_data)?
             };
@@ -149,7 +149,7 @@ impl<R: Read> ReadDecoder<R> {
             match result {
                 Decoded::Nothing => (),
                 Decoded::ImageEnd => self.at_eof = true,
-                result => return Ok(Some(result))
+                result => return Ok(Some(result)),
             }
         }
         Ok(None)
@@ -192,7 +192,7 @@ impl<R: Read> Reader<R> {
             decoder: ReadDecoder {
                 reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
                 decoder: d,
-                at_eof: false
+                at_eof: false,
             },
             bpp: 0,
             rowlen: 0,
@@ -214,18 +214,14 @@ impl<R: Read> Reader<R> {
             loop {
                 match self.decoder.decode_next(&mut Vec::new())? {
                     Some(ChunkBegin(_, IDAT)) => break,
-                    None => return Err(DecodingError::Format(
-                        "IDAT chunk missing".into()
-                    )),
+                    None => return Err(DecodingError::Format("IDAT chunk missing".into())),
                     _ => (),
                 }
             }
             {
                 let info = match self.decoder.info() {
                     Some(info) => info,
-                    None => return Err(DecodingError::Format(
-                      "IHDR chunk missing".into()
-                    ))
+                    None => return Err(DecodingError::Format("IHDR chunk missing".into())),
                 };
                 self.bpp = info.bytes_per_pixel();
                 self.rowlen = info.raw_row_length();
@@ -250,15 +246,15 @@ impl<R: Read> Reader<R> {
         let width = get_info!(self).width;
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Other(
-                "supplied buffer is too small to hold the image".into()
-            ))
+                "supplied buffer is too small to hold the image".into(),
+            ));
         }
         if get_info!(self).interlaced {
-             while let Some((row, adam7)) = self.next_interlaced_row()? {
-                 let (pass, line, _) = adam7.unwrap();
-                 let samples = color_type.samples() as u8;
-                 utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
-             }
+            while let Some((row, adam7)) = self.next_interlaced_row()? {
+                let (pass, line, _) = adam7.unwrap();
+                let samples = color_type.samples() as u8;
+                utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
+            }
         } else {
             let mut len = 0;
             while let Some(row) = self.next_row()? {
@@ -274,7 +270,9 @@ impl<R: Read> Reader<R> {
     }
 
     /// Returns the next processed row of the image
-    pub fn next_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+    pub fn next_interlaced_row(
+        &mut self,
+    ) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         use crate::common::ColorType::*;
         let transform = self.transform;
         if transform == crate::Transformations::IDENTITY {
@@ -304,12 +302,10 @@ impl<R: Read> Reader<R> {
                 let mut len = output_buffer.len();
                 if transform.contains(crate::Transformations::EXPAND) {
                     match color_type {
-                        Indexed => {
-                            expand_paletted(output_buffer, get_info!(self))?
+                        Indexed => expand_paletted(output_buffer, get_info!(self))?,
+                        Grayscale | GrayscaleAlpha if bit_depth < 8 => {
+                            expand_gray_u8(output_buffer, get_info!(self))
                         }
-                        Grayscale | GrayscaleAlpha if bit_depth < 8 => expand_gray_u8(
-                            output_buffer, get_info!(self)
-                        ),
                         Grayscale | RGB if trns => {
                             let channels = color_type.samples();
                             let trns = get_info!(self).trns.as_ref().unwrap();
@@ -318,20 +314,21 @@ impl<R: Read> Reader<R> {
                             } else {
                                 utils::expand_trns_line16(output_buffer, &*trns, channels);
                             }
-                        },
-                        _ => ()
+                        }
+                        _ => (),
                     }
                 }
-                if bit_depth == 16 && transform.intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16) {
+                if bit_depth == 16
+                    && transform.intersects(
+                        crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
+                    )
+                {
                     len /= 2;
                     for i in 0..len {
                         output_buffer[i] = output_buffer[2 * i];
                     }
                 }
-                Ok(Some((
-                    &output_buffer[..len],
-                    adam7
-                )))
+                Ok(Some((&output_buffer[..len], adam7)))
             } else {
                 Ok(None)
             }
@@ -349,10 +346,13 @@ impl<R: Read> Reader<R> {
         } else {
             let bits = match info.bit_depth as u8 {
                 16 if t.intersects(
-                    crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16
-                ) => 8,
+                    crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
+                ) =>
+                {
+                    8
+                }
                 n if n < 8 && t.contains(crate::Transformations::EXPAND) => 8,
-                n => n
+                n => n,
             };
             let color_type = if t.contains(crate::Transformations::EXPAND) {
                 let has_trns = info.trns.is_some();
@@ -361,7 +361,7 @@ impl<R: Read> Reader<R> {
                     RGB if has_trns => RGBA,
                     Indexed if has_trns => RGBA,
                     Indexed => RGB,
-                    ct => ct
+                    ct => ct,
                 }
             } else {
                 info.color_type
@@ -381,9 +381,11 @@ impl<R: Read> Reader<R> {
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let size = self.line_size(width);
-        if get_info!(self).bit_depth as u8 == 16 && self.transform.intersects(
-            crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16
-        ) {
+        if get_info!(self).bit_depth as u8 == 16
+            && self
+                .transform
+                .intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16)
+        {
             size / 2
         } else {
             size
@@ -406,13 +408,15 @@ impl<R: Read> Reader<R> {
             GrayscaleAlpha if t.contains(crate::Transformations::EXPAND) => 2 * 8,
             // divide by 2 as it will get mutiplied by two later
             _ if info.bit_depth as u8 == 16 => info.bits_per_pixel() / 2,
-            _ => info.bits_per_pixel()
-        }
-        * width as usize
-        * if info.bit_depth as u8 == 16 { 2 } else { 1 };
+            _ => info.bits_per_pixel(),
+        } * width as usize
+            * if info.bit_depth as u8 == 16 { 2 } else { 1 };
         let len = bits / 8;
         let extra = bits % 8;
-        len + match extra { 0 => 0, _ => 1 }
+        len + match extra {
+            0 => 0,
+            _ => 1,
+        }
     }
 
     fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
@@ -426,7 +430,9 @@ impl<R: Read> Reader<R> {
     }
 
     /// Returns the next raw row of the image
-    fn next_raw_interlaced_row(&mut self) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+    fn next_raw_interlaced_row(
+        &mut self,
+    ) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
         let _ = get_info!(self);
         let bpp = self.bpp;
         let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
@@ -441,7 +447,7 @@ impl<R: Read> Reader<R> {
                 }
                 (rowlen, Some((pass, line, len)))
             } else {
-                return Ok(None)
+                return Ok(None);
             }
         } else {
             (self.rowlen, None)
@@ -449,23 +455,21 @@ impl<R: Read> Reader<R> {
         loop {
             if self.current.len() >= rowlen {
                 if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                    if let Err(message) = unfilter(filter, bpp, &self.prev[1..rowlen], &mut self.current[1..rowlen]) {
-                        return Err(DecodingError::Format(
-                            borrow::Cow::Borrowed(message)
-                        ))
+                    if let Err(message) = unfilter(
+                        filter,
+                        bpp,
+                        &self.prev[1..rowlen],
+                        &mut self.current[1..rowlen],
+                    ) {
+                        return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
                     }
                     self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
                     self.current.drain(0..rowlen);
-                    return Ok(
-                        Some((
-                            &self.prev[1..rowlen],
-                            passdata
-                        ))
-                    )
+                    return Ok(Some((&self.prev[1..rowlen], passdata)));
                 } else {
                     return Err(DecodingError::Format(
-                        format!("invalid filter method ({})", self.current[0]).into()
-                    ))
+                        format!("invalid filter method ({})", self.current[0]).into(),
+                    ));
                 }
             } else {
                 let val = self.decoder.decode_next(&mut self.current)?;
@@ -473,14 +477,12 @@ impl<R: Read> Reader<R> {
                     Some(Decoded::ImageData) => {}
                     None => {
                         if !self.current.is_empty() {
-                            return Err(DecodingError::Format(
-                              "file truncated".into()
-                            ))
+                            return Err(DecodingError::Format("file truncated".into()));
                         } else {
-                            return Ok(None)
+                            return Ok(None);
                         }
                     }
-                    _ => ()
+                    _ => (),
                 }
             }
         }
@@ -490,14 +492,18 @@ impl<R: Read> Reader<R> {
 fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
     if let Some(palette) = info.palette.as_ref() {
         if let BitDepth::Sixteen = info.bit_depth {
-            Err(DecodingError::Format("Bit depth '16' is not valid for paletted images".into()))
+            Err(DecodingError::Format(
+                "Bit depth '16' is not valid for paletted images".into(),
+            ))
         } else {
             let black = [0, 0, 0];
             if let Some(ref trns) = info.trns {
                 utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
                     let (rgb, a) = (
-                        palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black),
-                        *trns.get(i as usize).unwrap_or(&0xFF)
+                        palette
+                            .get(3 * i as usize..3 * i as usize + 3)
+                            .unwrap_or(&black),
+                        *trns.get(i as usize).unwrap_or(&0xFF),
                     );
                     chunk[0] = rgb[0];
                     chunk[1] = rgb[1];
@@ -506,7 +512,9 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
                 });
             } else {
                 utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-                    let rgb = palette.get(3*i as usize..3*i as usize+3).unwrap_or(&black);
+                    let rgb = palette
+                        .get(3 * i as usize..3 * i as usize + 3)
+                        .unwrap_or(&black);
                     chunk[0] = rgb[0];
                     chunk[1] = rgb[1];
                     chunk[2] = rgb[2];
@@ -522,7 +530,7 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
 fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
     let rescale = true;
     let scaling_factor = if rescale {
-        (255)/((1u16 << info.bit_depth as u8) - 1) as u8
+        (255) / ((1u16 << info.bit_depth as u8) - 1) as u8
     } else {
         1
     };

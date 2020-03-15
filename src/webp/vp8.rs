@@ -13,8 +13,8 @@
 //!
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::default::Default;
 use std::cmp;
+use std::default::Default;
 use std::io::Read;
 
 use super::transform;
@@ -943,7 +943,8 @@ impl<R: Read> Vp8Decoder<R> {
             self.r.read_exact(sizes.as_mut_slice())?;
 
             for (i, s) in sizes.chunks(3).enumerate() {
-                let size = {s}.read_u24::<LittleEndian>()
+                let size = { s }
+                    .read_u24::<LittleEndian>()
                     .expect("Reading from &[u8] can't fail and the chunk is complete");
 
                 let mut buf = vec![0; size as usize];
@@ -1126,8 +1127,7 @@ impl<R: Read> Vp8Decoder<R> {
 
             self.top = init_top_macroblocks(self.frame.width as usize);
             // Almost always the first macro block, except when non exists (i.e. `width == 0`)
-            self.left = self.top.get(0).cloned()
-                .unwrap_or_else(MacroBlock::default);
+            self.left = self.top.get(0).cloned().unwrap_or_else(MacroBlock::default);
 
             self.mbwidth = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;
@@ -1256,7 +1256,8 @@ impl<R: Read> Vp8Decoder<R> {
 
         if self.frame.keyframe {
             // intra prediction
-            let luma = self.b
+            let luma = self
+                .b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
             mb.luma_mode = LumaMode::from_i8(luma).ok_or_else(|| {
                 ImageError::Decoding(DecodingError::with_message(
@@ -1289,8 +1290,8 @@ impl<R: Read> Vp8Decoder<R> {
                             self.left.bpred[y] = bmode;
                         }
                     }
-                },
-                Some(mode) =>  {
+                }
+                Some(mode) => {
                     for i in 0usize..4 {
                         mb.bpred[12 + i] = mode;
                         self.left.bpred[i] = mode;
@@ -1298,7 +1299,8 @@ impl<R: Read> Vp8Decoder<R> {
                 }
             }
 
-            let chroma = self.b
+            let chroma = self
+                .b
                 .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
             mb.chroma_mode = ChromaMode::from_i8(chroma).ok_or_else(|| {
                 ImageError::Decoding(DecodingError::with_message(
@@ -1339,7 +1341,7 @@ impl<R: Read> Vp8Decoder<R> {
                     rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
-                    
+
                     add_residue(&mut ws, &rb, y0, x0, stride);
                 }
             }
@@ -1353,8 +1355,8 @@ impl<R: Read> Vp8Decoder<R> {
         }
 
         // Length is the remainder to the border, but maximally the current chunk.
-        let ylength = cmp::min(self.frame.height as usize - mby*16, 16);
-        let xlength = cmp::min(self.frame.width as usize - mbx*16, 16);
+        let ylength = cmp::min(self.frame.height as usize - mby * 16, 16);
+        let xlength = cmp::min(self.frame.width as usize - mbx * 16, 16);
 
         for y in 0usize..ylength {
             for x in 0usize..xlength {
@@ -1632,7 +1634,7 @@ fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
         // Section 11.3 #3
         bpred: [IntraMode::DC; 16],
         luma_mode: LumaMode::DC,
-        .. MacroBlock::default()
+        ..MacroBlock::default()
     };
 
     vec![mb; mb_width]
@@ -1710,7 +1712,7 @@ fn avg2(this: u8, right: u8) -> u8 {
 fn add_residue(pblock: &mut [u8], rblock: &[i32; 16], y0: usize, x0: usize, stride: usize) {
     let mut pos = y0 * stride + x0;
     for row in rblock.chunks(4) {
-        for (p, &a) in pblock[pos..pos+4].iter_mut().zip(row.iter()) {
+        for (p, &a) in pblock[pos..pos + 4].iter_mut().zip(row.iter()) {
             *p = clamp(a + i32::from(*p), 0, 255) as u8;
         }
         pos += stride;
@@ -1827,7 +1829,7 @@ fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
 
 fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
     let pos = (y0 - 1) * stride + x0;
-    let a_slice = &a[pos..pos+8];
+    let a_slice = &a[pos..pos + 8];
     let a0 = a_slice[0];
     let a1 = a_slice[1];
     let a2 = a_slice[2];
@@ -1856,7 +1858,7 @@ fn edge_pixels(
     stride: usize,
 ) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
     let pos = (y0 - 1) * stride + x0 - 1;
-    let a_slice = &a[pos..=pos+4];
+    let a_slice = &a[pos..=pos + 4];
     let e0 = a[pos + 4 * stride];
     let e1 = a[pos + 3 * stride];
     let e2 = a[pos + 2 * stride];
@@ -1891,12 +1893,16 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(p, l0, l1), avg3(l0, l1, l2),
-     avg3(l1, l2, l3), avg3(l2, l3, l3)];
+    let avgs = [
+        avg3(p, l0, l1),
+        avg3(l0, l1, l2),
+        avg3(l1, l2, l3),
+        avg3(l2, l3, l3),
+    ];
 
     let mut pos = y0 * stride + x0;
     for &avg in avgs.iter() {
-        for a_p in a[pos..=pos+3].iter_mut() {
+        for a_p in a[pos..=pos + 3].iter_mut() {
             *a_p = avg;
         }
         pos += stride;
@@ -1906,13 +1912,20 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(a0, a1, a2), avg3(a1, a2, a3), avg3(a2, a3, a4),
-    avg3(a3, a4, a5), avg3(a4, a5, a6), avg3(a5, a6, a7), avg3(a6, a7, a7)];
+    let avgs = [
+        avg3(a0, a1, a2),
+        avg3(a1, a2, a3),
+        avg3(a2, a3, a4),
+        avg3(a3, a4, a5),
+        avg3(a4, a5, a6),
+        avg3(a5, a6, a7),
+        avg3(a6, a7, a7),
+    ];
 
     let mut pos = y0 * stride + x0;
 
     for i in 0..4 {
-        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i+3]);
+        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i + 3]);
         pos += stride;
     }
 }
@@ -1920,12 +1933,19 @@ fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(e0, e1, e2), avg3(e1, e2, e3), avg3(e2, e3, e4),
-    avg3(e3, e4, e5), avg3(e4, e5, e6), avg3(e5, e6, e7), avg3(e6, e7, e8)];
+    let avgs = [
+        avg3(e0, e1, e2),
+        avg3(e1, e2, e3),
+        avg3(e2, e3, e4),
+        avg3(e3, e4, e5),
+        avg3(e4, e5, e6),
+        avg3(e5, e6, e7),
+        avg3(e6, e7, e8),
+    ];
     let mut pos = y0 * stride + x0;
 
     for i in 0..4 {
-        a[pos..=pos + 3].copy_from_slice(&avgs[3-i..7-i]);
+        a[pos..=pos + 3].copy_from_slice(&avgs[3 - i..7 - i]);
         pos += stride;
     }
 }
@@ -2019,13 +2039,16 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue, IntraMode, predict_4x4};
+    use super::{
+        add_residue, avg2, avg3, edge_pixels, predict_4x4, predict_bhepred, predict_bldpred,
+        predict_brdpred, predict_bvepred, top_pixels, IntraMode,
+    };
     #[cfg(feature = "benchmarks")]
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
     const W: usize = 256;
     const H: usize = 256;
-    
+
     fn make_sample_image() -> Vec<u8> {
         let mut v = Vec::with_capacity((W * H * 4) as usize);
         for c in 0u8..=255 {
@@ -2038,7 +2061,7 @@ mod test {
         }
         v
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_4x4(b: &mut Bencher) {
@@ -2046,17 +2069,29 @@ mod test {
 
         let res_data = vec![1i32; W * H * 4];
         let modes = [
-            IntraMode::TM, IntraMode::VE, IntraMode::HE, IntraMode::DC,
-            IntraMode::LD, IntraMode::RD, IntraMode::VR, IntraMode::VL,
-            IntraMode::HD, IntraMode::HU, IntraMode::TM, IntraMode::VE,
-            IntraMode::HE, IntraMode::DC, IntraMode::LD, IntraMode::RD
+            IntraMode::TM,
+            IntraMode::VE,
+            IntraMode::HE,
+            IntraMode::DC,
+            IntraMode::LD,
+            IntraMode::RD,
+            IntraMode::VR,
+            IntraMode::VL,
+            IntraMode::HD,
+            IntraMode::HU,
+            IntraMode::TM,
+            IntraMode::VE,
+            IntraMode::HE,
+            IntraMode::DC,
+            IntraMode::LD,
+            IntraMode::RD,
         ];
-        
+
         b.iter(|| {
-            black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
+            black_box(predict_4x4(&mut v, W * 2, &modes, &res_data));
         });
     }
-        
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_bvepred(b: &mut Bencher) {
@@ -2076,7 +2111,7 @@ mod test {
             black_box(predict_bldpred(black_box(&mut v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_brdpred(b: &mut Bencher) {
@@ -2086,7 +2121,7 @@ mod test {
             black_box(predict_brdpred(black_box(&mut v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_bhepred(b: &mut Bencher) {
@@ -2106,7 +2141,7 @@ mod test {
             black_box(top_pixels(black_box(&v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_edge_pixels(b: &mut Bencher) {
@@ -2123,14 +2158,27 @@ mod test {
             for j in 0u8..=255 {
                 let ceil_avg = ((i as f32) + (j as f32)) / 2.0;
                 let ceil_avg = ceil_avg.ceil() as u8;
-                assert_eq!(ceil_avg, avg2(i, j), "avg2({}, {}), expected {}, got {}.", i, j, ceil_avg, avg2(i, j));
+                assert_eq!(
+                    ceil_avg,
+                    avg2(i, j),
+                    "avg2({}, {}), expected {}, got {}.",
+                    i,
+                    j,
+                    ceil_avg,
+                    avg2(i, j)
+                );
             }
         }
     }
 
     #[test]
     fn test_avg2_specific() {
-        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(255, 255));
+        assert_eq!(
+            255,
+            avg2(255, 255),
+            "avg2(255, 255), expected 255, got {}.",
+            avg2(255, 255)
+        );
         assert_eq!(1, avg2(1, 1), "avg2(1, 1), expected 1, got {}.", avg2(1, 1));
         assert_eq!(2, avg2(2, 1), "avg2(2, 1), expected 2, got {}.", avg2(2, 1));
     }
@@ -2142,7 +2190,16 @@ mod test {
                 for k in 0u8..=255 {
                     let floor_avg = ((i as f32) + 2.0 * (j as f32) + { k as f32 } + 2.0) / 4.0;
                     let floor_avg = floor_avg.floor() as u8;
-                    assert_eq!(floor_avg, avg3(i, j, k), "avg3({}, {}, {}), expected {}, got {}.", i, j, k, floor_avg, avg3(i, j, k));
+                    assert_eq!(
+                        floor_avg,
+                        avg3(i, j, k),
+                        "avg3({}, {}, {}), expected {}, got {}.",
+                        i,
+                        j,
+                        k,
+                        floor_avg,
+                        avg3(i, j, k)
+                    );
                 }
             }
         }
@@ -2150,11 +2207,9 @@ mod test {
 
     #[test]
     fn test_edge_pixels() {
-        let im = vec![5, 6, 7, 8, 9,
-                      4, 0, 0, 0, 0,
-                      3, 0, 0, 0, 0,
-                      2, 0, 0, 0, 0,
-                      1, 0, 0, 0, 0];
+        let im = vec![
+            5, 6, 7, 8, 9, 4, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        ];
         let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(&im, 1, 1, 5);
         assert_eq!(e0, 1);
         assert_eq!(e1, 2);
@@ -2166,17 +2221,14 @@ mod test {
         assert_eq!(e7, 8);
         assert_eq!(e8, 9);
     }
-    
+
     #[test]
     fn test_top_pixels() {
-        let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0];
+        let im = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,
+        ];
         let (e0, e1, e2, e3, e4, e5, e6, e7) = top_pixels(&im, 0, 1, 8);
         assert_eq!(e0, 1);
         assert_eq!(e1, 2);
@@ -2187,14 +2239,16 @@ mod test {
         assert_eq!(e6, 7);
         assert_eq!(e7, 8);
     }
-    
+
     #[test]
     fn test_add_residue() {
         let mut pblock = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let rblock = [-1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9];
-        let expected:[u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
+        let rblock = [
+            -1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9,
+        ];
+        let expected: [u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
 
-        add_residue(& mut pblock, &rblock, 0, 0, 4);
+        add_residue(&mut pblock, &rblock, 0, 0, 4);
 
         for (&e, &i) in expected.iter().zip(&pblock) {
             assert_eq!(e, i);
@@ -2203,18 +2257,14 @@ mod test {
 
     #[test]
     fn test_predict_bhepred() {
-        let expected: Vec<u8> = vec![5, 0, 0, 0, 0,
-              4, 4, 4, 4, 4,
-              3, 3, 3, 3, 3,
-              2, 2, 2, 2, 2,
-              1, 1, 1, 1, 1];
+        let expected: Vec<u8> = vec![
+            5, 0, 0, 0, 0, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+        ];
 
-        let mut im = vec![5, 0, 0, 0, 0,
-                      4, 0, 0, 0, 0,
-                      3, 0, 0, 0, 0,
-                      2, 0, 0, 0, 0,
-                      1, 0, 0, 0, 0];
-        predict_bhepred(& mut im, 1, 1, 5);
+        let mut im = vec![
+            5, 0, 0, 0, 0, 4, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        ];
+        predict_bhepred(&mut im, 1, 1, 5);
         for (&e, i) in expected.iter().zip(im) {
             assert_eq!(e, i);
         }
@@ -2222,18 +2272,14 @@ mod test {
 
     #[test]
     fn test_predict_brdpred() {
-        let expected: Vec<u8> = vec![5, 6, 7, 8, 9,
-              4, 5, 6, 7, 8,
-              3, 4, 5, 6, 7,
-              2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5];
+        let expected: Vec<u8> = vec![
+            5, 6, 7, 8, 9, 4, 5, 6, 7, 8, 3, 4, 5, 6, 7, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5,
+        ];
 
-        let mut im = vec![5, 6, 7, 8, 9,
-                      4, 0, 0, 0, 0,
-                      3, 0, 0, 0, 0,
-                      2, 0, 0, 0, 0,
-                      1, 0, 0, 0, 0];
-        predict_brdpred(& mut im, 1, 1, 5);
+        let mut im = vec![
+            5, 6, 7, 8, 9, 4, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        ];
+        predict_brdpred(&mut im, 1, 1, 5);
         for (&e, i) in expected.iter().zip(im) {
             assert_eq!(e, i);
         }
@@ -2241,15 +2287,11 @@ mod test {
 
     #[test]
     fn test_predict_bldpred() {
-        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0];
+        let mut im: Vec<u8> = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         let avg_1 = 2u8;
         let avg_2 = 3u8;
         let avg_3 = 4u8;
@@ -2280,15 +2322,11 @@ mod test {
 
     #[test]
     fn test_predict_bvepred() {
-        let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut im: Vec<u8> = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         let avg_1 = 2u8;
         let avg_2 = 3u8;
         let avg_3 = 4u8;
@@ -2313,6 +2351,4 @@ mod test {
         assert_eq!(im[39], avg_3);
         assert_eq!(im[40], avg_4);
     }
-
 }
-

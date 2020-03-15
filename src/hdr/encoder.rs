@@ -1,8 +1,8 @@
 use crate::color::Rgb;
 use crate::error::ImageResult;
 use crate::hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
-use std::io::{Result, Write};
 use std::cmp::Ordering;
+use std::io::{Result, Write};
 
 /// Radiance HDR encoder
 pub struct HDREncoder<W: Write> {
@@ -40,7 +40,8 @@ impl<W: Write> HDREncoder<W> {
             let mut bufe = vec![0; width];
             let mut rle_buf = vec![0; width];
             for scanline in data.chunks(width) {
-                for ((((r, g), b), e), &pix) in bufr.iter_mut()
+                for ((((r, g), b), e), &pix) in bufr
+                    .iter_mut()
                     .zip(bufg.iter_mut())
                     .zip(bufb.iter_mut())
                     .zip(bufe.iter_mut())
@@ -150,7 +151,8 @@ impl<'a> Iterator for NorunCombineIterator<'a> {
                                 Ordering::Equal => return Some(Norun(idx, clen)),
                                 Ordering::Greater => {
                                     // combined norun exceeds maximum length. store extra part of norun
-                                    self.prev = Some(Norun(idx + NORUN_MAX_LEN, clen - NORUN_MAX_LEN));
+                                    self.prev =
+                                        Some(Norun(idx + NORUN_MAX_LEN, clen - NORUN_MAX_LEN));
                                     // then return maximal norun
                                     return Some(Norun(idx, NORUN_MAX_LEN));
                                 }
@@ -274,14 +276,14 @@ fn to_rgbe8_test() {
     }
     fn relative_dist(a: Rgb<f32>, b: Rgb<f32>) -> f32 {
         // maximal difference divided by maximal value
-        let max_diff = a.0
-            .iter()
-            .zip(b.0.iter())
-            .fold(0.0, |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
-        let max_val = a.0
-            .iter()
-            .chain(b.0.iter())
-            .fold(0.0, |maxv, &a| f32::max(maxv, a));
+        let max_diff =
+            a.0.iter()
+                .zip(b.0.iter())
+                .fold(0.0, |diff, (&a, &b)| f32::max(diff, (a - b).abs()));
+        let max_val =
+            a.0.iter()
+                .chain(b.0.iter())
+                .fold(0.0, |maxv, &a| f32::max(maxv, a));
         if max_val == 0.0 {
             0.0
         } else {

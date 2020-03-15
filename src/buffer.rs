@@ -4,10 +4,10 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{Chunks, ChunksMut};
 
-use crate::color::{ColorType, FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
-use crate::flat::{FlatSamples, SampleLayout};
+use crate::color::{Bgr, Bgra, ColorType, FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format};
 use crate::error::ImageResult;
+use crate::flat::{FlatSamples, SampleLayout};
 use crate::image::{GenericImage, GenericImageView, ImageFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Primitive};
@@ -23,7 +23,7 @@ pub trait Pixel: Copy + Clone {
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
     /// Returns the number of channels of this pixel type.
-    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
+    #[deprecated(note = "please use CHANNEL_COUNT associated constant")]
     fn channel_count() -> u8 {
         Self::CHANNEL_COUNT
     }
@@ -39,7 +39,7 @@ pub trait Pixel: Copy + Clone {
     const COLOR_MODEL: &'static str;
     /// Returns a string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
-    #[deprecated(note="please use COLOR_MODEL associated constant")]
+    #[deprecated(note = "please use COLOR_MODEL associated constant")]
     fn color_model() -> &'static str {
         Self::COLOR_MODEL
     }
@@ -47,7 +47,7 @@ pub trait Pixel: Copy + Clone {
     /// ColorType for this pixel format
     const COLOR_TYPE: ColorType;
     /// Returns the ColorType for this pixel format
-    #[deprecated(note="please use COLOR_TYPE associated constant")]
+    #[deprecated(note = "please use COLOR_TYPE associated constant")]
     fn color_type() -> ColorType {
         Self::COLOR_TYPE
     }
@@ -599,7 +599,11 @@ where
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
         match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
             Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
         }
     }
@@ -623,7 +627,7 @@ where
     #[inline(always)]
     fn pixel_indices(&self, x: u32, y: u32) -> Option<Range<usize>> {
         if x >= self.width || y >= self.height {
-            return None
+            return None;
         }
 
         Some(self.pixel_indices_unchecked(x, y))
@@ -633,8 +637,8 @@ where
     fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
         let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
-        let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
-        min_index..min_index+no_channels
+        let min_index = (y as usize * self.width as usize + x as usize) * no_channels;
+        min_index..min_index + no_channels
     }
 
     /// Get the format of the buffer when viewed as a matrix of samples.
@@ -650,7 +654,8 @@ where
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
     pub fn into_flat_samples(self) -> FlatSamples<Container>
-        where Container: AsRef<[P::Subpixel]>
+    where
+        Container: AsRef<[P::Subpixel]>,
     {
         // None of these can overflow, as all our memory is addressable.
         let layout = self.sample_layout();
@@ -665,7 +670,8 @@ where
     ///
     /// See `flattened` for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-        where Container: AsRef<[P::Subpixel]>
+    where
+        Container: AsRef<[P::Subpixel]>,
     {
         let layout = self.sample_layout();
         FlatSamples {
@@ -730,7 +736,11 @@ where
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
             Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
         }
     }
@@ -925,12 +935,17 @@ where
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
-        let Rect { x: sx, y: sy, width, height } = source;
+        let Rect {
+            x: sx,
+            y: sy,
+            width,
+            height,
+        } = source;
         let dx = x;
         let dy = y;
-        assert!(sx < self.width() && dx < self.width()); 
+        assert!(sx < self.width() && dx < self.width());
         assert!(sy < self.height() && dy < self.height());
-        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height  {
+        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height {
             return false;
         }
 
@@ -961,11 +976,18 @@ where
     }
 }
 
-// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten 
-//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within` 
+// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten
+//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within`
 //  has been stabilized in 1.37.
 #[inline(always)]
-fn slice_copy_within<T: Copy>(slice: &mut [T], Range { start: src_start, end: src_end }: Range<usize>, dest: usize) {
+fn slice_copy_within<T: Copy>(
+    slice: &mut [T],
+    Range {
+        start: src_start,
+        end: src_end,
+    }: Range<usize>,
+    dest: usize,
+) {
     assert!(src_start <= src_end, "src end is before src start");
     assert!(src_end <= slice.len(), "src is out of bounds");
     let count = src_end - src_start;
@@ -1143,8 +1165,8 @@ pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 mod test {
 
     use super::{GrayImage, ImageBuffer, RgbImage};
-    use crate::image::GenericImage;
     use crate::color;
+    use crate::image::GenericImage;
     use crate::math::Rect;
     #[cfg(feature = "benchmarks")]
     use test;
@@ -1261,88 +1283,163 @@ mod test {
     #[test]
     fn test_image_buffer_copy_within_oob() {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
-        assert!(!image.copy_within(Rect { x: 0, y: 0, width: 5, height: 4 }, 0, 0));
-        assert!(!image.copy_within(Rect { x: 0, y: 0, width: 4, height: 5 }, 0, 0));
-        assert!(!image.copy_within(Rect { x: 1, y: 0, width: 4, height: 4 }, 0, 0));
-        assert!(!image.copy_within(Rect { x: 0, y: 0, width: 4, height: 4 }, 1, 0));
-        assert!(!image.copy_within(Rect { x: 0, y: 1, width: 4, height: 4 }, 0, 0));
-        assert!(!image.copy_within(Rect { x: 0, y: 0, width: 4, height: 4 }, 0, 1));
-        assert!(!image.copy_within(Rect { x: 1, y: 1, width: 4, height: 4 }, 0, 0));
+        assert!(!image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 5,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 5
+            },
+            0,
+            0
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 1,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            1,
+            0
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 0,
+                y: 1,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            0,
+            1
+        ));
+        assert!(!image.copy_within(
+            Rect {
+                x: 1,
+                y: 1,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
     }
 
     #[test]
     fn test_image_buffer_copy_within_tl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            04, 00, 01, 02,
-            08, 04, 05, 06,
-            12, 08, 09, 10,
+            00, 01, 02, 03, 04, 00, 01, 02, 08, 04, 05, 06, 12, 08, 09, 10,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 0, y: 0, width: 3, height: 3 }, 1, 1));
+        assert!(image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            1,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_tr() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            01, 02, 03, 07,
-            05, 06, 07, 11,
-            09, 10, 11, 15
+            00, 01, 02, 03, 01, 02, 03, 07, 05, 06, 07, 11, 09, 10, 11, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 1, y: 0, width: 3, height: 3 }, 0, 1));
+        assert!(image.copy_within(
+            Rect {
+                x: 1,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            0,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_bl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 04, 05, 06,
-            04, 08, 09, 10,
-            08, 12, 13, 14,
-            12, 13, 14, 15
+            00, 04, 05, 06, 04, 08, 09, 10, 08, 12, 13, 14, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 0, y: 1, width: 3, height: 3 }, 1, 0));
+        assert!(image.copy_within(
+            Rect {
+                x: 0,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            1,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_br() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            05, 06, 07, 03,
-            09, 10, 11, 07,
-            13, 14, 15, 11,
-            12, 13, 14, 15
+            05, 06, 07, 03, 09, 10, 11, 07, 13, 14, 15, 11, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 1, y: 1, width: 3, height: 3 }, 0, 0));
+        assert!(image.copy_within(
+            Rect {
+                x: 1,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            0,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 }

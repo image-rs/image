@@ -1,7 +1,7 @@
 extern crate criterion;
 
-use criterion::{Bencher, Criterion, ParameterizedBenchmark, criterion_group, criterion_main};
-use image::{ColorType, bmp::BMPEncoder};
+use criterion::{criterion_group, criterion_main, Bencher, Criterion, ParameterizedBenchmark};
+use image::{bmp::BMPEncoder, ColorType};
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -15,9 +15,9 @@ fn encode_gray_test(criterion: &mut Criterion) {
         b.iter(|| {
             v.clear();
             let mut x = BMPEncoder::new(&mut v);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8)
+                .unwrap();
+        })
     }
 
     fn buf_vec(b: &mut Bencher, s: &usize) {
@@ -28,9 +28,9 @@ fn encode_gray_test(criterion: &mut Criterion) {
             v.clear();
             let mut buf = BufWriter::new(&mut v);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8)
+                .unwrap();
+        })
     }
 
     fn buf_file(b: &mut Bencher, s: &usize) {
@@ -40,15 +40,17 @@ fn encode_gray_test(criterion: &mut Criterion) {
             let mut f = File::open("temp.bmp").unwrap();
             let mut buf = BufWriter::new(&mut f);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::L8)
+                .unwrap();
+        })
     }
 
-    criterion.bench("encode_gray",
-                    ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
-                        .with_function("buf_vec", buf_vec)
-                        .with_function("buf_file", buf_file));
+    criterion.bench(
+        "encode_gray",
+        ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
+            .with_function("buf_vec", buf_vec)
+            .with_function("buf_file", buf_file),
+    );
 }
 
 fn encode_rgb_test(criterion: &mut Criterion) {
@@ -60,9 +62,9 @@ fn encode_rgb_test(criterion: &mut Criterion) {
         b.iter(|| {
             v.clear();
             let mut x = BMPEncoder::new(&mut v);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8)
+                .unwrap();
+        })
     }
 
     fn buf_vec(b: &mut Bencher, s: &usize) {
@@ -73,9 +75,9 @@ fn encode_rgb_test(criterion: &mut Criterion) {
             v.clear();
             let mut buf = BufWriter::new(&mut v);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8)
+                .unwrap();
+        })
     }
 
     fn buf_file(b: &mut Bencher, s: &usize) {
@@ -85,15 +87,17 @@ fn encode_rgb_test(criterion: &mut Criterion) {
             let mut f = File::open("temp.bmp").unwrap();
             let mut buf = BufWriter::new(&mut f);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgb8)
+                .unwrap();
+        })
     }
 
-    criterion.bench("encode_rgb",
-                    ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
-                        .with_function("buf_vec", buf_vec)
-                        .with_function("buf_file", buf_file));
+    criterion.bench(
+        "encode_rgb",
+        ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
+            .with_function("buf_vec", buf_vec)
+            .with_function("buf_file", buf_file),
+    );
 }
 
 fn encode_rgba_test(criterion: &mut Criterion) {
@@ -105,9 +109,9 @@ fn encode_rgba_test(criterion: &mut Criterion) {
         b.iter(|| {
             v.clear();
             let mut x = BMPEncoder::new(&mut v);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8)
+                .unwrap();
+        })
     }
 
     fn buf_vec(b: &mut Bencher, s: &usize) {
@@ -118,9 +122,9 @@ fn encode_rgba_test(criterion: &mut Criterion) {
             v.clear();
             let mut buf = BufWriter::new(&mut v);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8)
+                .unwrap();
+        })
     }
 
     fn buf_file(b: &mut Bencher, s: &usize) {
@@ -130,17 +134,18 @@ fn encode_rgba_test(criterion: &mut Criterion) {
             let mut f = File::open("temp.bmp").unwrap();
             let mut buf = BufWriter::new(&mut f);
             let mut x = BMPEncoder::new(&mut buf);
-            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8).unwrap();
-        }
-        )
+            x.encode(&im, (s / 2) as u32, (s / 2) as u32, ColorType::Rgba8)
+                .unwrap();
+        })
     }
 
-    criterion.bench("encode_rgba",
-                    ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
-                        .with_function("buf_vec", buf_vec)
-                        .with_function("buf_file", buf_file));
+    criterion.bench(
+        "encode_rgba",
+        ParameterizedBenchmark::new("raw_vec", raw_vec, counts)
+            .with_function("buf_vec", buf_vec)
+            .with_function("buf_file", buf_file),
+    );
 }
 
 criterion_group!(benches, encode_gray_test);
 criterion_main!(benches);
-

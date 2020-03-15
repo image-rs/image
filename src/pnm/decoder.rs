@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 use std::error;
-use std::io::{self, BufRead, BufReader, Cursor, Read};
-use std::str::{self, FromStr};
 use std::fmt::{self, Display};
+use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::marker::PhantomData;
 use std::mem;
 use std::num::ParseIntError;
+use std::str::{self, FromStr};
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
 use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
@@ -33,11 +33,14 @@ trait Sample {
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
 
     /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
-    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32)
-        -> ImageResult<Vec<u8>>;
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<u8>>;
 
-    fn from_ascii(reader: &mut dyn Read, width: u32, height: u32, samples: u32)
-        -> ImageResult<Vec<u8>>;
+    fn from_ascii(
+        reader: &mut dyn Read,
+        width: u32,
+        height: u32,
+        samples: u32,
+    ) -> ImageResult<Vec<u8>>;
 }
 
 struct U8;
@@ -200,10 +203,10 @@ trait HeaderReader: BufRead {
                         ImageFormat::Pnm.into(),
                         format!("Non ascii character {} in header", byte),
                     )));
-                },
+                }
                 Ok(byte) => {
                     bytes.push(byte);
-                },
+                }
                 Err(_) => break,
             }
         }
@@ -313,7 +316,8 @@ trait HeaderReader: BufRead {
                 )));
             }
             #[allow(deprecated)]
-            let (identifier, rest) = line.trim_left()
+            let (identifier, rest) = line
+                .trim_left()
                 .split_at(line.find(char::is_whitespace).unwrap_or_else(|| line.len()));
             match identifier {
                 "ENDHDR" => break,
@@ -494,7 +498,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(PnmReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
+        Ok(PnmReader(
+            Cursor::new(image::decoder_to_vec(self)?),
+            PhantomData,
+        ))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -549,7 +556,12 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     fn read_ascii<Basic: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
-        Basic::from_ascii(&mut self.reader, self.header.width(), self.header.height(), components)
+        Basic::from_ascii(
+            &mut self.reader,
+            self.header.width(),
+            self.header.height(),
+            components,
+        )
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
@@ -559,7 +571,8 @@ impl<R: Read> PnmDecoder<R> {
 }
 
 fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) -> ImageResult<T>
-    where T::Err: Display
+where
+    T::Err: Display,
 {
     let is_separator = |v: &u8| match *v {
         b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
@@ -593,12 +606,7 @@ impl Sample for U8 {
         Ok((width * height * samples) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<u8>> {
         assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
         Ok(bytes.to_vec())
     }
@@ -609,7 +617,7 @@ impl Sample for U8 {
         height: u32,
         samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        (0..width*height*samples)
+        (0..width * height * samples)
             .map(|_| read_separated_ascii(reader))
             .collect()
     }
@@ -620,12 +628,7 @@ impl Sample for U16 {
         Ok((width * height * samples * 2) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<u8>> {
         assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
 
         let mut buffer = bytes.to_vec();
@@ -643,9 +646,9 @@ impl Sample for U16 {
         samples: u32,
     ) -> ImageResult<Vec<u8>> {
         let mut buffer = vec![0; (width * height * samples * 2) as usize];
-        for i in 0..(width*height*samples) as usize {
+        for i in 0..(width * height * samples) as usize {
             let v = read_separated_ascii::<u16>(reader)?;
-            NativeEndian::write_u16(&mut buffer[2*i..][..2], v);
+            NativeEndian::write_u16(&mut buffer[2 * i..][..2], v);
         }
         Ok(buffer)
     }
@@ -661,12 +664,7 @@ impl Sample for PbmBit {
         Ok((linelen * height) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<u8>> {
         assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
 
         let mut expanded = utils::expand_bits(1, width * samples, bytes);
@@ -682,18 +680,14 @@ impl Sample for PbmBit {
         height: u32,
         samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        let count = (width*height*samples) as usize;
-        let raw_samples = reader.bytes()
+        let count = (width * height * samples) as usize;
+        let raw_samples = reader
+            .bytes()
             .filter_map(|ascii| match ascii {
                 Ok(b'0') => Some(Ok(1)),
                 Ok(b'1') => Some(Ok(0)),
                 Err(err) => Some(Err(ImageError::IoError(err))),
-                Ok(b'\t')
-                | Ok(b'\n')
-                | Ok(b'\x0b')
-                | Ok(b'\x0c')
-                | Ok(b'\r')
-                | Ok(b' ') => None,
+                Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => None,
                 Ok(c) => Some(Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
                     format!("Unexpected character {} within sample raster", c),
@@ -703,7 +697,7 @@ impl Sample for PbmBit {
             .collect::<ImageResult<Vec<u8>>>()?;
 
         if raw_samples.len() < count {
-            return Err(err_input_is_too_short())
+            return Err(err_input_is_too_short());
         }
 
         Ok(raw_samples)
@@ -716,12 +710,7 @@ impl Sample for BWBit {
         U8::bytelen(width, height, samples)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
+    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32) -> ImageResult<Vec<u8>> {
         assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
 
         let values = U8::from_bytes(bytes, width, height, samples)?;
@@ -931,8 +920,10 @@ ENDHDR
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
-            vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00,
-                 0x00, 0x01]
+            vec![
+                0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00,
+                0x00, 0x01
+            ]
         );
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
@@ -974,8 +965,10 @@ ENDHDR
         decoder.read_image(&mut image).unwrap();
         assert_eq!(
             image,
-            vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad,
-                 0xbe, 0xef]
+            vec![
+                0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad,
+                0xbe, 0xef
+            ]
         );
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
@@ -1015,8 +1008,10 @@ ENDHDR
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
-        assert_eq!(image,
-                   vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(
+            image,
+            vec![0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef]
+        );
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
@@ -1081,7 +1076,7 @@ ENDHDR
                     Ok(n) if n > 0 => Ok(n),
                     _ => Err(Error::new(
                         ErrorKind::BrokenPipe,
-                        "Simulated broken pipe error"
+                        "Simulated broken pipe error",
                     )),
                 }
             }
@@ -1091,7 +1086,9 @@ ENDHDR
 
         let decoder = PnmDecoder::new(pbmbinary).unwrap();
         let mut image = vec![0; decoder.total_bytes() as usize];
-        decoder.read_image(&mut image).expect_err("Image is malformed");
+        decoder
+            .read_image(&mut image)
+            .expect_err("Image is malformed");
     }
 
     #[test]

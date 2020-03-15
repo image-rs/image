@@ -10,7 +10,7 @@ use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
-use crate::dxt::{DxtDecoder, DXTReader, DXTVariant};
+use crate::dxt::{DXTReader, DXTVariant, DxtDecoder};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
@@ -121,7 +121,6 @@ impl Header {
     }
 }
 
-
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
     inner: DxtDecoder<R>,
@@ -195,4 +194,3 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
         self.inner.read_image(buf)
     }
 }
-

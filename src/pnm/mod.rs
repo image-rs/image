@@ -7,8 +7,9 @@ use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
 pub use self::encoder::PNMEncoder;
 use self::header::HeaderRecord;
-pub use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader,
-                       PixmapHeader};
+pub use self::header::{
+    ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader,
+};
 pub use self::header::{PNMHeader, PNMSubtype, SampleEncoding};
 
 mod autobreak;
@@ -19,9 +20,9 @@ mod header;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use byteorder::{ByteOrder, NativeEndian};
     use crate::color::ColorType;
     use crate::image::ImageDecoder;
+    use byteorder::{ByteOrder, NativeEndian};
 
     fn execute_roundtrip_default(buffer: &[u8], width: u32, height: u32, color: ColorType) {
         let mut encoded_buffer = Vec::new();
@@ -37,7 +38,9 @@ mod tests {
             let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
-            decoder.read_image(&mut image).expect("Failed to decode the image");
+            decoder
+                .read_image(&mut image)
+                .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };
@@ -68,7 +71,9 @@ mod tests {
             let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
-            decoder.read_image(&mut image).expect("Failed to decode the image");
+            decoder
+                .read_image(&mut image)
+                .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };
@@ -94,7 +99,9 @@ mod tests {
             let decoder = PnmDecoder::new(&encoded_buffer[..]).unwrap();
             let color_type = decoder.color_type();
             let mut image = vec![0; decoder.total_bytes() as usize];
-            decoder.read_image(&mut image).expect("Failed to decode the image");
+            decoder
+                .read_image(&mut image)
+                .expect("Failed to decode the image");
             let (_, header) = PnmDecoder::new(&encoded_buffer[..]).unwrap().into_inner();
             (header, color_type, image)
         };

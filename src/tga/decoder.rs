@@ -240,9 +240,10 @@ impl<R: Read + Seek> TgaDecoder<R> {
             self.header.map_entry_size
         } else {
             if num_alpha_bits > self.header.pixel_depth {
-                return Err(ImageError::UnsupportedError(
-                    format!("Color format not supported. Alpha bits: {}", num_alpha_bits),
-                ));
+                return Err(ImageError::UnsupportedError(format!(
+                    "Color format not supported. Alpha bits: {}",
+                    num_alpha_bits
+                )));
             }
 
             self.header.pixel_depth - num_alpha_bits

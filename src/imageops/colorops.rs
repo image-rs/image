@@ -5,16 +5,14 @@ use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
 use crate::math::nq;
 use crate::math::utils::clamp;
+use crate::traits::Primitive;
 use num_traits::{Num, NumCast};
 use std::f64::consts::PI;
-use crate::traits::Primitive;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<I: GenericImageView>(
-    image: &I,
-) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
+pub fn grayscale<I: GenericImageView>(image: &I) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
 where
     Subpixel<I>: 'static,
     <Subpixel<I> as Num>::FromStrRadixErr: 'static,

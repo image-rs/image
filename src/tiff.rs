@@ -9,11 +9,11 @@
 extern crate tiff;
 
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read, Write, Seek};
+use std::io::{self, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
-use byteorder::{NativeEndian, ByteOrder};
+use byteorder::{ByteOrder, NativeEndian};
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -25,7 +25,8 @@ use crate::utils::vec_u16_into_u8;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     dimensions: (u32, u32),
     color_type: ColorType,
@@ -33,7 +34,8 @@ pub struct TiffDecoder<R>
 }
 
 impl<R> TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
@@ -202,12 +204,30 @@ impl<W: Write + Seek> TiffEncoder<W> {
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color {
-            ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
-            ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
-            ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, &u8_slice_as_u16(data)?),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, &u8_slice_as_u16(data)?),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, &u8_slice_as_u16(data)?),
+            ColorType::L8 => {
+                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)
+            }
+            ColorType::Rgb8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)
+            }
+            ColorType::Rgba8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)
+            }
+            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
+                width,
+                height,
+                &u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
+                width,
+                height,
+                &u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
+                width,
+                height,
+                &u8_slice_as_u16(data)?,
+            ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

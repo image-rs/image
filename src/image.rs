@@ -58,10 +58,12 @@ pub enum ImageFormat {
 
 impl ImageFormat {
     /// Return the image format specified by the path's file extension.
-    pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
+    pub fn from_path<P>(path: P) -> ImageResult<Self>
+    where
+        P: AsRef<Path>,
+    {
         // thin wrapper function to strip generics before calling from_path_impl
-        crate::io::free_functions::guess_format_from_path_impl(path.as_ref())
-            .map_err(Into::into)
+        crate::io::free_functions::guess_format_from_path_impl(path.as_ref()).map_err(Into::into)
     }
 }
 
@@ -196,18 +198,30 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
-pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height: u32, buf: &mut [u8],
-                                          progress_callback: F,
-                                          decoder: &mut D,
-                                          mut seek_scanline: F1,
-                                          mut read_scanline: F2) -> ImageResult<()>
-    where D: ImageDecoder<'a>,
-          F: Fn(Progress),
-          F1: FnMut(&mut D, u64) -> io::Result<()>,
-          F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
-          ImageError: From<E>,
+pub(crate) fn load_rect<'a, D, F, F1, F2, E>(
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    buf: &mut [u8],
+    progress_callback: F,
+    decoder: &mut D,
+    mut seek_scanline: F1,
+    mut read_scanline: F2,
+) -> ImageResult<()>
+where
+    D: ImageDecoder<'a>,
+    F: Fn(Progress),
+    F1: FnMut(&mut D, u64) -> io::Result<()>,
+    F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
+    ImageError: From<E>,
 {
-    let (x, y, width, height) = (u64::from(x), u64::from(y), u64::from(width), u64::from(height));
+    let (x, y, width, height) = (
+        u64::from(x),
+        u64::from(y),
+        u64::from(width),
+        u64::from(height),
+    );
     let dimensions = decoder.dimensions();
     let bytes_per_pixel = u64::from(decoder.color_type().bytes_per_pixel());
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
@@ -231,8 +245,10 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
             let mut position = current_scanline * scanline_bytes;
             while position < end {
                 if position >= start && end - position >= scanline_bytes {
-                    read_scanline(decoder, &mut buf[(bytes_read as usize)..]
-                                                   [..(scanline_bytes as usize)])?;
+                    read_scanline(
+                        decoder,
+                        &mut buf[(bytes_read as usize)..][..(scanline_bytes as usize)],
+                    )?;
                     bytes_read += scanline_bytes;
                 } else {
                     tmp.resize(scanline_bytes as usize, 0u8);
@@ -250,26 +266,35 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
 
                 current_scanline += 1;
                 position += scanline_bytes;
-                progress_callback(Progress {current: bytes_read, total: total_bytes});
+                progress_callback(Progress {
+                    current: bytes_read,
+                    total: total_bytes,
+                });
             }
             Ok(())
         };
 
-        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.0)
-            || width == 0 || height == 0 {
-                return Err(ImageError::DimensionError);
-            }
+        if x + width > u64::from(dimensions.0)
+            || y + height > u64::from(dimensions.0)
+            || width == 0
+            || height == 0
+        {
+            return Err(ImageError::DimensionError);
+        }
         if scanline_bytes > usize::max_value() as u64 {
             return Err(ImageError::InsufficientMemory);
         }
 
-        progress_callback(Progress {current: 0, total: total_bytes});
+        progress_callback(Progress {
+            current: 0,
+            total: total_bytes,
+        });
         if x == 0 && width == u64::from(dimensions.0) {
             let start = x * bytes_per_pixel + y * row_bytes;
             let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
             read_image_range(start, end)?;
         } else {
-            for row in y..(y+height) {
+            for row in y..(y + height) {
                 let start = x * bytes_per_pixel + row * row_bytes;
                 let end = (x + width) * bytes_per_pixel + row * row_bytes;
                 read_image_range(start, end)?;
@@ -289,7 +314,10 @@ pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResu
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let mut buf = vec![num_traits::Zero::zero(); usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()];
+    let mut buf = vec![
+        num_traits::Zero::zero();
+        usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()
+    ];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
@@ -353,7 +381,9 @@ pub trait ImageDecoder<'a>: Sized {
     /// into.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
-        u64::from(dimensions.0) * u64::from(dimensions.1) * u64::from(self.color_type().bytes_per_pixel())
+        u64::from(dimensions.0)
+            * u64::from(dimensions.1)
+            * u64::from(self.color_type().bytes_per_pixel())
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
@@ -432,7 +462,7 @@ pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
         height: u32,
         buf: &mut [u8],
     ) -> ImageResult<()> {
-        self.read_rect_with_progress(x, y, width, height, buf, |_|{})
+        self.read_rect_with_progress(x, y, width, height, buf, |_| {})
     }
 
     /// Read a rectangular section of the image, periodically reporting progress.
@@ -649,7 +679,12 @@ pub trait GenericImage: GenericImageView {
     /// `true` if the copy was successful, `false` if the image could not
     /// be copied due to size constraints.
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
-        let Rect { x: sx, y: sy, width, height } = source;
+        let Rect {
+            x: sx,
+            y: sy,
+            width,
+            height,
+        } = source;
         let dx = x;
         let dy = y;
         assert!(sx < self.width() && dx < self.width());
@@ -836,7 +871,10 @@ mod tests {
     use std::io;
     use std::path::Path;
 
-    use super::{ColorType, ImageDecoder, ImageResult, GenericImage, GenericImageView, load_rect, ImageFormat};
+    use super::{
+        load_rect, ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat,
+        ImageResult,
+    };
     use crate::buffer::{GrayImage, ImageBuffer};
     use crate::color::Rgba;
     use crate::math::Rect;
@@ -910,20 +948,30 @@ mod tests {
 
     #[test]
     fn test_load_rect() {
-        struct MockDecoder {scanline_number: u64, scanline_bytes: u64}
+        struct MockDecoder {
+            scanline_number: u64,
+            scanline_bytes: u64,
+        }
         impl<'a> ImageDecoder<'a> for MockDecoder {
             type Reader = Box<dyn io::Read>;
-            fn dimensions(&self) -> (u32, u32) {(5, 5)}
-            fn color_type(&self) -> ColorType {  ColorType::L8 }
-            fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
-            fn scanline_bytes(&self) -> u64 { self.scanline_bytes }
+            fn dimensions(&self) -> (u32, u32) {
+                (5, 5)
+            }
+            fn color_type(&self) -> ColorType {
+                ColorType::L8
+            }
+            fn into_reader(self) -> ImageResult<Self::Reader> {
+                unimplemented!()
+            }
+            fn scanline_bytes(&self) -> u64 {
+                self.scanline_bytes
+            }
         }
 
-        const DATA: [u8; 25] = [0,  1,  2,  3,  4,
-                                5,  6,  7,  8,  9,
-                                10, 11, 12, 13, 14,
-                                15, 16, 17, 18, 19,
-                                20, 21, 22, 23, 24];
+        const DATA: [u8; 25] = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24,
+        ];
 
         fn seek_scanline(m: &mut MockDecoder, n: u64) -> io::Result<()> {
             m.scanline_number = n;
@@ -944,31 +992,77 @@ mod tests {
         for scanline_bytes in 1..30 {
             let mut output = [0u8; 26];
 
-            load_rect(0, 0, 5, 5, &mut output, |_|{},
-                      &mut MockDecoder{scanline_number:0, scanline_bytes},
-                      seek_scanline, read_scanline).unwrap();
+            load_rect(
+                0,
+                0,
+                5,
+                5,
+                &mut output,
+                |_| {},
+                &mut MockDecoder {
+                    scanline_number: 0,
+                    scanline_bytes,
+                },
+                seek_scanline,
+                read_scanline,
+            )
+            .unwrap();
             assert_eq!(output[0..25], DATA);
             assert_eq!(output[25], 0);
 
             output = [0u8; 26];
-            load_rect(3, 2, 1, 1, &mut output, |_|{},
-                      &mut MockDecoder{scanline_number:0, scanline_bytes},
-                      seek_scanline, read_scanline).unwrap();
+            load_rect(
+                3,
+                2,
+                1,
+                1,
+                &mut output,
+                |_| {},
+                &mut MockDecoder {
+                    scanline_number: 0,
+                    scanline_bytes,
+                },
+                seek_scanline,
+                read_scanline,
+            )
+            .unwrap();
             assert_eq!(output[0..2], [13, 0]);
 
             output = [0u8; 26];
-            load_rect(3, 2, 2, 2, &mut output, |_|{},
-                      &mut MockDecoder{scanline_number:0, scanline_bytes},
-                      seek_scanline, read_scanline).unwrap();
+            load_rect(
+                3,
+                2,
+                2,
+                2,
+                &mut output,
+                |_| {},
+                &mut MockDecoder {
+                    scanline_number: 0,
+                    scanline_bytes,
+                },
+                seek_scanline,
+                read_scanline,
+            )
+            .unwrap();
             assert_eq!(output[0..5], [13, 14, 18, 19, 0]);
 
-
             output = [0u8; 26];
-            load_rect(1, 1, 2, 4, &mut output, |_|{},
-                      &mut MockDecoder{scanline_number:0, scanline_bytes},
-                      seek_scanline, read_scanline).unwrap();
+            load_rect(
+                1,
+                1,
+                2,
+                4,
+                &mut output,
+                |_| {},
+                &mut MockDecoder {
+                    scanline_number: 0,
+                    scanline_bytes,
+                },
+                seek_scanline,
+                read_scanline,
+            )
+            .unwrap();
             assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
-
         }
     }
 
@@ -1001,88 +1095,163 @@ mod tests {
     #[test]
     fn test_generic_image_copy_within_oob() {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 0, width: 5, height: 4 }, 0, 0));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 0, width: 4, height: 5 }, 0, 0));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 1, y: 0, width: 4, height: 4 }, 0, 0));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 0, width: 4, height: 4 }, 1, 0));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 1, width: 4, height: 4 }, 0, 0));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 0, width: 4, height: 4 }, 0, 1));
-        assert!(!image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 1, y: 1, width: 4, height: 4 }, 0, 0));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 5,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 5
+            },
+            0,
+            0
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 1,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            1,
+            0
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 1,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 4
+            },
+            0,
+            1
+        ));
+        assert!(!image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 1,
+                y: 1,
+                width: 4,
+                height: 4
+            },
+            0,
+            0
+        ));
     }
 
     #[test]
     fn test_generic_image_copy_within_tl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            04, 00, 01, 02,
-            08, 04, 05, 06,
-            12, 08, 09, 10,
+            00, 01, 02, 03, 04, 00, 01, 02, 08, 04, 05, 06, 12, 08, 09, 10,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 0, width: 3, height: 3 }, 1, 1));
+        assert!(image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            1,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_generic_image_copy_within_tr() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            01, 02, 03, 07,
-            05, 06, 07, 11,
-            09, 10, 11, 15
+            00, 01, 02, 03, 01, 02, 03, 07, 05, 06, 07, 11, 09, 10, 11, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 1, y: 0, width: 3, height: 3 }, 0, 1));
+        assert!(image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 1,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            0,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_generic_image_copy_within_bl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 04, 05, 06,
-            04, 08, 09, 10,
-            08, 12, 13, 14,
-            12, 13, 14, 15
+            00, 04, 05, 06, 04, 08, 09, 10, 08, 12, 13, 14, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 0, y: 1, width: 3, height: 3 }, 1, 0));
+        assert!(image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 0,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            1,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_generic_image_copy_within_br() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            05, 06, 07, 03,
-            09, 10, 11, 07,
-            13, 14, 15, 11,
-            12, 13, 14, 15
+            05, 06, 07, 03, 09, 10, 11, 07, 13, 14, 15, 11, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 1, y: 1, width: 3, height: 3 }, 0, 0));
+        assert!(image.sub_image(0, 0, 4, 4).copy_within(
+            Rect {
+                x: 1,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            0,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 }

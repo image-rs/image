@@ -21,17 +21,20 @@ where
     F: Fn(&PathBuf, PathBuf, &str),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
+    let decoders = &[
+        "tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp",
+    ];
     for decoder in decoders {
         let mut path = base.clone();
         path.push(dir);
         path.push(decoder);
         path.push("**");
         path.push(
-            "*.".to_string() + match input_decoder {
-                Some(val) => val,
-                None => decoder,
-            },
+            "*.".to_string()
+                + match input_decoder {
+                    Some(val) => val,
+                    None => decoder,
+                },
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
@@ -269,7 +272,8 @@ fn check_hdr_references() {
         use std::path::Component::Normal;
         let mut ref_path = ref_path.clone();
         // append 2 last components of image path to reference path
-        for c in path.components()
+        for c in path
+            .components()
             .rev()
             .take(2)
             .collect::<Vec<_>>()
@@ -284,9 +288,9 @@ fn check_hdr_references() {
         ref_path.set_extension("raw");
         println!("{}", ref_path.display());
         println!("{}", path.display());
-        let decoder = image::hdr::HdrDecoder::new(io::BufReader::new(
-            fs::File::open(&path).unwrap(),
-        )).unwrap();
+        let decoder =
+            image::hdr::HdrDecoder::new(io::BufReader::new(fs::File::open(&path).unwrap()))
+                .unwrap();
         let decoded = decoder.read_image_hdr().unwrap();
         let reference = image::hdr::read_raw_file(&ref_path).unwrap();
         assert_eq!(decoded, reference);

@@ -6,6 +6,8 @@ use std::u32;
 
 #[cfg(feature = "bmp")]
 use crate::bmp;
+#[cfg(feature = "dds")]
+use crate::dds;
 #[cfg(feature = "gif")]
 use crate::gif;
 #[cfg(feature = "hdr")]
@@ -20,17 +22,15 @@ use crate::png;
 use crate::pnm;
 #[cfg(feature = "tga")]
 use crate::tga;
-#[cfg(feature = "dds")]
-use crate::dds;
 #[cfg(feature = "tiff")]
 use crate::tiff;
 #[cfg(feature = "webp")]
 use crate::webp;
 
 use crate::color;
-use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
+use crate::image;
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// Internal error type for guessing format from path.
@@ -79,10 +79,16 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => {
+            DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?)
+        }
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
-        _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+        image::ImageFormat::Pnm => {
+            DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?)
+        }
+        _ => Err(ImageError::Unsupported(
+            ImageFormatHint::Exact(format).into(),
+        )),
     }
 }
 
@@ -95,9 +101,10 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     image_dimensions_with_format_impl(fin, format)
 }
 
-pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
-    -> ImageResult<(u32, u32)>
-{
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(
+    fin: R,
+    format: ImageFormat,
+) -> ImageResult<(u32, u32)> {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     Ok(match format {
@@ -122,10 +129,12 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => hdr::HDRAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => {
-            pnm::PnmDecoder::new(fin)?.dimensions()
+        image::ImageFormat::Pnm => pnm::PnmDecoder::new(fin)?.dimensions(),
+        format => {
+            return Err(ImageError::Unsupported(
+                ImageFormatHint::Exact(format).into(),
+            ))
         }
-        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     })
 }
 
@@ -137,7 +146,8 @@ pub(crate) fn save_buffer_impl(
     color: color::ColorType,
 ) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
-    let ext = path.extension()
+    let ext = path
+        .extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
@@ -167,8 +177,7 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "bmp")]
         "bmp" => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
-            .write_image(buf, width, height, color),
+        "tif" | "tiff" => tiff::TiffEncoder::new(fout).write_image(buf, width, height, color),
         _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
     }
 }
@@ -187,17 +196,30 @@ pub(crate) fn save_buffer_with_format_impl(
         #[cfg(feature = "gif")]
         image::ImageFormat::Gif => gif::Encoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Ico => {
+            ico::ICOEncoder::new(fout).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Jpeg => {
+            jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Png => {
+            png::PNGEncoder::new(fout).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Bmp => {
+            bmp::BMPEncoder::new(fout).write_image(buf, width, height, color)
+        }
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
-            .write_image(buf, width, height, color),
-        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+        image::ImageFormat::Tiff => {
+            tiff::TiffEncoder::new(fout).write_image(buf, width, height, color)
+        }
+        format => {
+            return Err(ImageError::Unsupported(
+                ImageFormatHint::Exact(format).into(),
+            ))
+        }
     }
 }
 
@@ -212,8 +234,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         .and_then(|s| s.to_str())
         .map(str::to_ascii_lowercase);
 
-    let ext = ext.as_ref()
-        .map(String::as_str);
+    let ext = ext.as_ref().map(String::as_str);
 
     Ok(match ext {
         Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
@@ -228,10 +249,12 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         Some("hdr") => image::ImageFormat::Hdr,
         Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
         // The original extension is used, instead of _format
-        _ => return match exact_ext {
-            None => Err(PathError::NoExtension),
-            Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
-        },
+        _ => {
+            return match exact_ext {
+                None => Err(PathError::NoExtension),
+                Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
+            }
+        }
     })
 }
 

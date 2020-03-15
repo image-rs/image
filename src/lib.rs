@@ -22,32 +22,35 @@ use std::io::Write;
 
 pub use crate::color::{ColorType, ExtendedColorType};
 
-pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+pub use crate::color::{Bgr, Bgra, Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
-pub use crate::image::{AnimationDecoder,
-                GenericImage,
-                GenericImageView,
-                ImageDecoder,
-                ImageDecoderExt,
-                ImageEncoder,
-                ImageFormat,
-                ImageOutputFormat,
-                Progress,
-                // Iterators
-                Pixels,
-                SubImage};
+pub use crate::image::{
+    AnimationDecoder,
+    GenericImage,
+    GenericImageView,
+    ImageDecoder,
+    ImageDecoderExt,
+    ImageEncoder,
+    ImageFormat,
+    ImageOutputFormat,
+    // Iterators
+    Pixels,
+    Progress,
+    SubImage,
+};
 
-pub use crate::buffer::{ConvertBuffer,
-                 GrayAlphaImage,
-                 GrayImage,
-                 // Image types
-                 ImageBuffer,
-                 Pixel,
-                 RgbImage,
-                 RgbaImage,
-                 };
+pub use crate::buffer::{
+    ConvertBuffer,
+    GrayAlphaImage,
+    GrayImage,
+    // Image types
+    ImageBuffer,
+    Pixel,
+    RgbImage,
+    RgbaImage,
+};
 
 pub use crate::flat::FlatSamples;
 
@@ -55,9 +58,11 @@ pub use crate::flat::FlatSamples;
 pub use crate::traits::Primitive;
 
 // Opening and loading images
+pub use crate::dynimage::{
+    image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
+    save_buffer_with_format,
+};
 pub use crate::io::free_functions::{guess_format, load};
-pub use crate::dynimage::{load_from_memory, load_from_memory_with_format, open,
-                   save_buffer, save_buffer_with_format, image_dimensions};
 
 pub use crate::dynimage::DynamicImage;
 

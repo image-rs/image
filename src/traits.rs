@@ -65,7 +65,6 @@ impl Enlargeable for u32 {
     type Larger = u64;
 }
 
-
 /// Private module for supertraits of sealed traits.
 mod seals {
     pub trait EncodableLayout {}

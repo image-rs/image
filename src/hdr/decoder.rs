@@ -1,3 +1,4 @@
+use crate::Primitive;
 use num_traits::identities::Zero;
 use scoped_threadpool::Pool;
 #[cfg(test)]
@@ -8,7 +9,6 @@ use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::mem;
 use std::path::Path;
-use crate::Primitive;
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
@@ -50,14 +50,14 @@ impl<R: BufRead> HDRAdapter<R> {
             Some(decoder) => {
                 let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
                 for (i, Rgb(data)) in img.into_iter().enumerate() {
-                    buf[(i*3)..][..3].copy_from_slice(&data);
+                    buf[(i * 3)..][..3].copy_from_slice(&data);
                 }
 
                 Ok(())
             }
-            None => Err(ImageError::Parameter(
-                ParameterError::from_kind(ParameterErrorKind::NoMoreData)
-            )),
+            None => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::NoMoreData,
+            ))),
         }
     }
 }
@@ -90,7 +90,10 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HDRAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(HdrReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
+        Ok(HdrReader(
+            Cursor::new(image::decoder_to_vec(self)?),
+            PhantomData,
+        ))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -108,8 +111,17 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| s.read_image_data(buf).map(|_| buf.len()))
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |_, _| unreachable!(),
+            |s, buf| s.read_image_data(buf).map(|_| buf.len()),
+        )
     }
 }
 
@@ -420,9 +432,9 @@ impl<R: BufRead> Iterator for HDRImageDecoderIterator<R> {
                 self.advance();
                 // Error was encountered. Keep producing errors.
                 // ImageError can't implement Clone, so just dump some error
-                return Some(Err(ImageError::Parameter(
-                    ParameterError::from_kind(ParameterErrorKind::FailedAlready)
-                )));
+                return Some(Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::FailedAlready,
+                ))));
             } // no else
             if self.col == 0 {
                 // fill scanline buffer
@@ -747,8 +759,7 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
                 Err(err) => {
                     return Err(ImageError::FormatError(format!(
                         "f32 parse error in {}: {}",
-                        name,
-                        err
+                        name, err
                     )));
                 }
             }
@@ -808,17 +819,13 @@ trait IntoImageError<T> {
 
 impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseFloatError> {
     fn into_image_error(self, description: &str) -> ImageResult<T> {
-        self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err))
-        })
+        self.map_err(|err| ImageError::FormatError(format!("{} {}", description, err)))
     }
 }
 
 impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseIntError> {
     fn into_image_error(self, description: &str) -> ImageResult<T> {
-        self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err))
-        })
+        self.map_err(|err| ImageError::FormatError(format!("{} {}", description, err)))
     }
 }
 

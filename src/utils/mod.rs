@@ -1,9 +1,9 @@
 //!  Utilities
 
-use byteorder::{NativeEndian, ByteOrder};
+use byteorder::{ByteOrder, NativeEndian};
 use num_iter::range_step;
-use std::mem;
 use std::iter::repeat;
+use std::mem;
 
 #[inline(always)]
 pub(crate) fn expand_packed<F>(buf: &mut [u8], channels: usize, bit_depth: u8, mut func: F)
@@ -12,18 +12,18 @@ where
 {
     let pixels = buf.len() / channels * bit_depth as usize;
     let extra = pixels % 8;
-    let entries = pixels / 8 + match extra {
-        0 => 0,
-        _ => 1,
-    };
+    let entries = pixels / 8
+        + match extra {
+            0 => 0,
+            _ => 1,
+        };
     let mask = ((1u16 << bit_depth) - 1) as u8;
     let i = (0..entries)
         .rev() // Reverse iterator
         .flat_map(|idx|
             // This has to be reversed to
             range_step(0, 8, bit_depth)
-            .zip(repeat(idx))
-        )
+            .zip(repeat(idx)))
         .skip(extra);
     let channels = channels as isize;
     let j = range_step(buf.len() as isize - channels, -channels, -channels);
@@ -50,7 +50,8 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     let mut p = Vec::new();
     let mut i = 0;
     for v in buf {
-        for shift in num_iter::range_step_inclusive(8i8-(bit_depth as i8), 0, -(bit_depth as i8)) {
+        for shift in num_iter::range_step_inclusive(8i8 - (bit_depth as i8), 0, -(bit_depth as i8))
+        {
             // skip the pixels that can be neglected because scanlines should
             // start at byte boundaries
             if i % (row_len as usize) < (row_size as usize) {
@@ -74,7 +75,6 @@ pub(crate) fn vec_u16_copy_u8(vec: &[u16]) -> Vec<u8> {
     new
 }
 
-
 /// A marker struct for __NonExhaustive enums.
 ///
 /// This is an empty type that can not be constructed. When an enum contains a tuple variant that
@@ -92,36 +92,39 @@ pub struct NonExhaustiveMarker {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Empty { }
+pub(crate) enum Empty {}
 
 #[cfg(test)]
 mod test {
     #[test]
     fn gray_to_luma8_skip() {
         let check = |bit_depth, w, from, to| {
-            assert_eq!(
-                super::expand_bits(bit_depth, w, from),
-                to);
+            assert_eq!(super::expand_bits(bit_depth, w, from), to);
         };
         // Bit depth 1, skip is more than half a byte
         check(
-            1, 10,
+            1,
+            10,
             &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255]);
+            vec![
+                255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255,
+            ],
+        );
         // Bit depth 2, skip is more than half a byte
         check(
-            2, 5,
+            2,
+            5,
             &[0b11110000, 0b11000000, 0b00001111, 0b11000000],
-            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255]);
+            vec![255, 255, 0, 0, 255, 0, 0, 255, 255, 255],
+        );
         // Bit depth 2, skip is 0
         check(
-            2, 4,
+            2,
+            4,
             &[0b11110000, 0b00001111],
-            vec![255, 255, 0, 0, 0, 0, 255, 255]);
+            vec![255, 255, 0, 0, 0, 0, 255, 255],
+        );
         // Bit depth 4, skip is half a byte
-        check(
-            4, 1,
-            &[0b11110011, 0b00001100],
-            vec![255, 0]);
+        check(4, 1, &[0b11110011, 0b00001100], vec![255, 0]);
     }
 }

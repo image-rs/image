@@ -5,7 +5,7 @@ use std::env;
 use std::fs::File;
 use std::path::Path;
 
-use image::{ImageFormat, GenericImageView};
+use image::{GenericImageView, ImageFormat};
 
 fn main() {
     let file = if env::args().count() == 2 {

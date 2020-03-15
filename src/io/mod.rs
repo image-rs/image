@@ -1,5 +1,5 @@
 //! Input and output of images.
-mod reader;
 pub(crate) mod free_functions;
+mod reader;
 
 pub use self::reader::Reader;

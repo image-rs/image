@@ -110,29 +110,29 @@ impl ExtendedColorType {
     /// an opaque datum by the library.
     pub fn channel_count(self) -> u8 {
         match self {
-            ExtendedColorType::L1 |
-            ExtendedColorType::L2 |
-            ExtendedColorType::L4 |
-            ExtendedColorType::L8 |
-            ExtendedColorType::L16 |
-            ExtendedColorType::Unknown(_) => 1,
-            ExtendedColorType::La1 |
-            ExtendedColorType::La2 |
-            ExtendedColorType::La4 |
-            ExtendedColorType::La8 |
-            ExtendedColorType::La16 => 2,
-            ExtendedColorType::Rgb1 |
-            ExtendedColorType::Rgb2 |
-            ExtendedColorType::Rgb4 |
-            ExtendedColorType::Rgb8 |
-            ExtendedColorType::Rgb16 |
-            ExtendedColorType::Bgr8 => 3,
-            ExtendedColorType::Rgba1 |
-            ExtendedColorType::Rgba2 |
-            ExtendedColorType::Rgba4 |
-            ExtendedColorType::Rgba8 |
-            ExtendedColorType::Rgba16 |
-            ExtendedColorType::Bgra8 => 4,
+            ExtendedColorType::L1
+            | ExtendedColorType::L2
+            | ExtendedColorType::L4
+            | ExtendedColorType::L8
+            | ExtendedColorType::L16
+            | ExtendedColorType::Unknown(_) => 1,
+            ExtendedColorType::La1
+            | ExtendedColorType::La2
+            | ExtendedColorType::La4
+            | ExtendedColorType::La8
+            | ExtendedColorType::La16 => 2,
+            ExtendedColorType::Rgb1
+            | ExtendedColorType::Rgb2
+            | ExtendedColorType::Rgb4
+            | ExtendedColorType::Rgb8
+            | ExtendedColorType::Rgb16
+            | ExtendedColorType::Bgr8 => 3,
+            ExtendedColorType::Rgba1
+            | ExtendedColorType::Rgba2
+            | ExtendedColorType::Rgba4
+            | ExtendedColorType::Rgba8
+            | ExtendedColorType::Rgba16
+            | ExtendedColorType::Bgra8 => 4,
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -359,7 +359,8 @@ pub(crate) trait IntoColor<Other> {
 
 impl<O, S> IntoColor<O> for S
 where
-    O: Pixel + FromColor<S> {
+    O: Pixel + FromColor<S>,
+{
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.
@@ -397,7 +398,6 @@ fn downcast_channel(c16: u16) -> u8 {
 fn upcast_channel(c8: u8) -> u16 {
     NumCast::from(c8.to_u64().unwrap() << 8).unwrap()
 }
-
 
 // `FromColor` for Luma
 
@@ -439,7 +439,6 @@ impl<T: Primitive + 'static> FromColor<LumaA<T>> for Luma<T> {
     }
 }
 
-
 impl FromColor<Rgba<u16>> for Luma<u8> {
     fn from_color(&mut self, other: &Rgba<u16>) {
         let gray = self.channels_mut();
@@ -478,7 +477,6 @@ impl FromColor<LumaA<u16>> for Luma<u8> {
         self.channels_mut()[0] = downcast_channel(l);
     }
 }
-
 
 // `FromColor` for LumaA
 
@@ -545,7 +543,6 @@ impl FromColor<LumaA<u8>> for LumaA<u16> {
         la8[1] = upcast_channel(alpha);
     }
 }
-
 
 // `FromColor` for RGBA
 
@@ -626,7 +623,6 @@ impl FromColor<Rgba<u8>> for Rgba<u16> {
     }
 }
 
-
 // `FromColor` for BGRA
 
 impl<T: Primitive + 'static> FromColor<Rgb<T>> for Bgra<T> {
@@ -683,7 +679,6 @@ impl<T: Primitive + 'static> FromColor<Luma<T>> for Bgra<T> {
         bgra[3] = T::max_value();
     }
 }
-
 
 // `FromColor` for RGB
 
@@ -753,7 +748,6 @@ impl FromColor<Rgb<u8>> for Rgb<u16> {
     }
 }
 
-
 /// `FromColor` for BGR
 
 impl<T: Primitive + 'static> FromColor<Rgba<T>> for Bgr<T> {
@@ -775,7 +769,6 @@ impl<T: Primitive + 'static> FromColor<Rgb<T>> for Bgr<T> {
         bgr[2] = rgb[0];
     }
 }
-
 
 impl<T: Primitive + 'static> FromColor<Bgra<T>> for Bgr<T> {
     fn from_color(&mut self, other: &Bgra<T>) {
@@ -811,14 +804,15 @@ macro_rules! downcast_bit_depth_early {
     ($src:ident, $intermediate:ident, $dst:ident) => {
         impl FromColor<$src<u16>> for $dst<u8> {
             fn from_color(&mut self, other: &$src<u16>) {
-                let mut intermediate: $intermediate<u8> = $intermediate([Zero::zero(); <$intermediate<u8> as Pixel>::CHANNEL_COUNT as usize]);
+                let mut intermediate: $intermediate<u8> = $intermediate(
+                    [Zero::zero(); <$intermediate<u8> as Pixel>::CHANNEL_COUNT as usize],
+                );
                 intermediate.from_color(other);
                 self.from_color(&intermediate);
             }
         }
     };
 }
-
 
 // Downcasts
 // LumaA
@@ -843,7 +837,6 @@ downcast_bit_depth_early!(Luma, Luma, Bgra);
 downcast_bit_depth_early!(LumaA, LumaA, Bgra);
 downcast_bit_depth_early!(Rgb, Rgb, Bgra);
 downcast_bit_depth_early!(Rgba, Rgba, Bgra);
-
 
 /// Blends a color inter another one
 pub(crate) trait Blend {
@@ -946,8 +939,6 @@ impl<T: Primitive> Blend for Rgba<T> {
     }
 }
 
-
-
 impl<T: Primitive> Blend for Bgra<T> {
     fn blend(&mut self, other: &Bgra<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
@@ -1016,7 +1007,6 @@ impl<T: Primitive> Blend for Bgr<T> {
     }
 }
 
-
 /// Invert a color
 pub(crate) trait Invert {
     /// Inverts a color in-place.
@@ -1053,7 +1043,6 @@ impl<T: Primitive> Invert for Rgba<T> {
     }
 }
 
-
 impl<T: Primitive> Invert for Bgra<T> {
     fn invert(&mut self) {
         let bgra = self.0;
@@ -1063,7 +1052,6 @@ impl<T: Primitive> Invert for Bgra<T> {
         *self = Bgra([max - bgra[2], max - bgra[1], max - bgra[0], bgra[3]])
     }
 }
-
 
 impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
@@ -1095,7 +1083,7 @@ impl<T: Primitive> Invert for Bgr<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Luma, LumaA, Pixel, Rgb, Rgba, Bgr, Bgra};
+    use super::{Bgr, Bgra, Luma, LumaA, Pixel, Rgb, Rgba};
 
     #[test]
     fn test_apply_with_alpha_rgba() {
@@ -1125,7 +1113,6 @@ mod tests {
         assert_eq!(bgr, Bgr([0, 0, 0]));
     }
 
-
     #[test]
     fn test_map_with_alpha_rgba() {
         let rgba = Rgba([0, 0, 0, 0]).map_with_alpha(|s| s, |_| 0xFF);
@@ -1143,7 +1130,6 @@ mod tests {
         let bgr = Bgr([0, 0, 0]).map_with_alpha(|s| s, |_| panic!("bug"));
         assert_eq!(bgr, Bgr([0, 0, 0]));
     }
-
 
     #[test]
     fn test_map_with_alpha_bgra() {
@@ -1255,7 +1241,9 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Subpixel::max_value() >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
+            let a: $a = [<$a as Pixel>::Subpixel::max_value() >> 2;
+                <$a as Pixel>::CHANNEL_COUNT as usize]
+                .into();
             let b: $b = a.into_color();
             let c: $c = b.into_color();
             assert_eq!(a.channels(), c.channels());

@@ -17,17 +17,16 @@ use crate::png;
 use crate::pnm;
 
 use crate::buffer::{
-    BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
-    GrayImage, Gray16Image, ImageBuffer, Pixel, RgbImage, Rgb16Image,
-    RgbaImage, Rgba16Image,
+    BgrImage, BgraImage, ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage,
+    ImageBuffer, Pixel, Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult};
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-use crate::io::free_functions;
 use crate::imageops;
+use crate::io::free_functions;
 
 /// A Dynamic Image
 #[derive(Clone)]
@@ -179,9 +178,7 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>)
-        -> ImageResult<Self>
-    {
+    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
         decoder_to_image(decoder)
     }
 
@@ -747,9 +744,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            image::ImageOutputFormat::Unsupported(msg) => {
-                Err(ImageError::UnsupportedError(msg))
-            },
+            image::ImageOutputFormat::Unsupported(msg) => Err(ImageError::UnsupportedError(msg)),
 
             image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
         }
@@ -817,7 +812,9 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageBgr8(ref mut p) => p.put_pixel(x, y, pixel.to_bgr()),
             DynamicImage::ImageBgra8(ref mut p) => p.put_pixel(x, y, pixel.to_bgra()),
             DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha().into_color()),
+            DynamicImage::ImageLumaA16(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_luma_alpha().into_color())
+            }
             DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
         }
@@ -831,8 +828,12 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
             DynamicImage::ImageBgr8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgr()),
             DynamicImage::ImageBgra8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgra()),
-            DynamicImage::ImageLuma16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha().into_color()),
+            DynamicImage::ImageLuma16(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_luma().into_color())
+            }
+            DynamicImage::ImageLumaA16(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
+            }
             DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
         }

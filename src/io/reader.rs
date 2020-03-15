@@ -120,7 +120,10 @@ impl Reader<BufReader<File>> {
     /// on file extensions, follow this call with a call to [`guess_format`].
     ///
     /// [`guess_format`]: #method.guess_format
-    pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
+    pub fn open<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         Self::open_impl(path.as_ref())
     }
 
@@ -177,7 +180,8 @@ impl<R: BufRead + Seek> Reader<R> {
         let len = io::copy(
             // Accept shorter files but read at most 16 bytes.
             &mut self.inner.by_ref().take(16),
-            &mut Cursor::new(&mut start[..]))?;
+            &mut Cursor::new(&mut start[..]),
+        )?;
         self.inner.seek(SeekFrom::Start(cur))?;
 
         Ok(free_functions::guess_format_impl(&start[..len as usize]))
@@ -204,7 +208,7 @@ impl<R: BufRead + Seek> Reader<R> {
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {
-        self.format.ok_or_else(||
-            ImageError::UnsupportedError("Unable to determine image format".into()))
+        self.format
+            .ok_or_else(|| ImageError::UnsupportedError("Unable to determine image format".into()))
     }
 }

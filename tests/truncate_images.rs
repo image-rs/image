@@ -22,10 +22,11 @@ where
         path.push(decoder);
         path.push("*");
         path.push(
-            "*.".to_string() + match input_decoder {
-                Some(val) => val,
-                None => decoder,
-            },
+            "*.".to_string()
+                + match input_decoder {
+                    Some(val) => val,
+                    None => decoder,
+                },
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {

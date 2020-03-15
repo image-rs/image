@@ -1,10 +1,10 @@
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
 use std::slice::ChunksMut;
 use std::{cmp, mem};
-use std::cmp::Ordering;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -1406,7 +1406,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
+        Ok(BmpReader(
+            Cursor::new(image::decoder_to_vec(self)?),
+            PhantomData,
+        ))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -1426,8 +1429,17 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| { s.read_image_data(buf).map(|_| buf.len()) })?;
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |_, _| unreachable!(),
+            |s, buf| s.read_image_data(buf).map(|_| buf.len()),
+        )?;
         self.reader.seek(SeekFrom::Start(start))?;
         Ok(())
     }

@@ -131,10 +131,13 @@ fn bc_cubic_spline(x: f32, b: f32, c: f32) -> f32 {
     let a = x.abs();
 
     let k = if a < 1.0 {
-        (12.0 - 9.0 * b - 6.0 * c) * a.powi(3) + (-18.0 + 12.0 * b + 6.0 * c) * a.powi(2)
+        (12.0 - 9.0 * b - 6.0 * c) * a.powi(3)
+            + (-18.0 + 12.0 * b + 6.0 * c) * a.powi(2)
             + (6.0 - 2.0 * b)
     } else if a < 2.0 {
-        (-b - 6.0 * c) * a.powi(3) + (6.0 * b + 30.0 * c) * a.powi(2) + (-12.0 * b - 48.0 * c) * a
+        (-b - 6.0 * c) * a.powi(3)
+            + (6.0 * b + 30.0 * c) * a.powi(2)
+            + (-12.0 * b - 48.0 * c) * a
             + (8.0 * b + 24.0 * c)
     } else {
         0.0
@@ -362,14 +365,19 @@ struct ThumbnailSum<S: Primitive + Enlargeable>(S::Larger, S::Larger, S::Larger,
 
 impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     fn zeroed() -> Self {
-        ThumbnailSum(S::Larger::zero(), S::Larger::zero(), S::Larger::zero(), S::Larger::zero())
+        ThumbnailSum(
+            S::Larger::zero(),
+            S::Larger::zero(),
+            S::Larger::zero(),
+            S::Larger::zero(),
+        )
     }
 
     fn sample_val(val: S) -> S::Larger {
         <S::Larger as NumCast>::from(val).unwrap()
     }
 
-    fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+    fn add_pixel<P: Pixel<Subpixel = S>>(&mut self, pixel: P) {
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
         self.1 += Self::sample_val(pixel.1);
@@ -406,55 +414,58 @@ where
         let bottomf = outy as f32 * y_ratio;
         let topf = bottomf + y_ratio;
 
-        let bottom = clamp(
-            bottomf.ceil() as u32,
-            0,
-            height - 1,
-        );
-        let top = clamp(
-            topf.ceil() as u32,
-            bottom,
-            height,
-        );
+        let bottom = clamp(bottomf.ceil() as u32, 0, height - 1);
+        let top = clamp(topf.ceil() as u32, bottom, height);
 
         for outx in 0..new_width {
             let leftf = outx as f32 * x_ratio;
             let rightf = leftf + x_ratio;
 
-            let left = clamp(
-                leftf.ceil() as u32,
-                0,
-                width - 1,
-            );
-            let right = clamp(
-                rightf.ceil() as u32,
-                left,
-                width,
-            );
+            let left = clamp(leftf.ceil() as u32, 0, width - 1);
+            let right = clamp(rightf.ceil() as u32, left, width);
 
             let avg = if bottom != top && left != right {
                 thumbnail_sample_block(image, left, right, bottom, top)
-            } else if bottom != top {  // && left == right
+            } else if bottom != top {
+                // && left == right
                 // In the first column we have left == 0 and right > ceil(y_scale) > 0 so this
                 // assertion can never trigger.
-                debug_assert!(left > 0 && right > 0,
-                    "First output column must have corresponding pixels");
+                debug_assert!(
+                    left > 0 && right > 0,
+                    "First output column must have corresponding pixels"
+                );
 
-                let fraction_horizontal = (leftf.fract() + rightf.fract())/2.;
-                thumbnail_sample_fraction_horizontal(image, right - 1, fraction_horizontal, bottom, top)
-            } else if left != right {  // && bottom == top
+                let fraction_horizontal = (leftf.fract() + rightf.fract()) / 2.;
+                thumbnail_sample_fraction_horizontal(
+                    image,
+                    right - 1,
+                    fraction_horizontal,
+                    bottom,
+                    top,
+                )
+            } else if left != right {
+                // && bottom == top
                 // In the first line we have bottom == 0 and top > ceil(x_scale) > 0 so this
                 // assertion can never trigger.
-                debug_assert!(bottom > 0 && top > 0,
-                    "First output row must have corresponding pixels");
+                debug_assert!(
+                    bottom > 0 && top > 0,
+                    "First output row must have corresponding pixels"
+                );
 
-                let fraction_vertical = (topf.fract() + bottomf.fract())/2.;
+                let fraction_vertical = (topf.fract() + bottomf.fract()) / 2.;
                 thumbnail_sample_fraction_vertical(image, left, right, top - 1, fraction_vertical)
-            } else {  // bottom == top && left == right
-                let fraction_horizontal = (topf.fract() + bottomf.fract())/2.;
-                let fraction_vertical= (leftf.fract() + rightf.fract())/2.;
+            } else {
+                // bottom == top && left == right
+                let fraction_horizontal = (topf.fract() + bottomf.fract()) / 2.;
+                let fraction_vertical = (leftf.fract() + rightf.fract()) / 2.;
 
-                thumbnail_sample_fraction_both(image, right - 1, fraction_horizontal, top - 1, fraction_vertical)
+                thumbnail_sample_fraction_both(
+                    image,
+                    right - 1,
+                    fraction_horizontal,
+                    top - 1,
+                    fraction_vertical,
+                )
             };
 
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
@@ -487,15 +498,13 @@ where
         }
     }
 
-    let n = <S::Larger as NumCast>::from(
-        (right - left) * (top - bottom)).unwrap();
-    let round = <S::Larger as NumCast>::from(
-        n / NumCast::from(2).unwrap()).unwrap();
+    let n = <S::Larger as NumCast>::from((right - left) * (top - bottom)).unwrap();
+    let round = <S::Larger as NumCast>::from(n / NumCast::from(2).unwrap()).unwrap();
     (
-        S::clamp_from((sum.0 + round)/n),
-        S::clamp_from((sum.1 + round)/n),
-        S::clamp_from((sum.2 + round)/n),
-        S::clamp_from((sum.3 + round)/n),
+        S::clamp_from((sum.0 + round) / n),
+        S::clamp_from((sum.1 + round) / n),
+        S::clamp_from((sum.2 + round) / n),
+        S::clamp_from((sum.3 + round) / n),
     )
 }
 
@@ -525,14 +534,15 @@ where
     }
 
     // Now we approximate: left/n*(1-fract) + right/n*fract
-    let fact_right =       fract /((top - bottom) as f32);
-    let fact_left  = (1. - fract)/((top - bottom) as f32);
+    let fact_right = fract / ((top - bottom) as f32);
+    let fact_left = (1. - fract) / ((top - bottom) as f32);
 
-    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger|
+    let mix_left_and_right = |leftv: S::Larger, rightv: S::Larger| {
         <S as NumCast>::from(
-            fact_left * leftv.to_f32().unwrap() +
-            fact_right * rightv.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+            fact_left * leftv.to_f32().unwrap() + fact_right * rightv.to_f32().unwrap(),
+        )
+        .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix_left_and_right(sum_left.0, sum_right.0),
@@ -568,14 +578,13 @@ where
     }
 
     // Now we approximate: bot/n*fract + top/n*(1-fract)
-    let fact_top =       fract /((right - left) as f32);
-    let fact_bot = (1. - fract)/((right - left) as f32);
+    let fact_top = fract / ((right - left) as f32);
+    let fact_bot = (1. - fract) / ((right - left) as f32);
 
-    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger|
-        <S as NumCast>::from(
-            fact_bot * botv.to_f32().unwrap() +
-            fact_top * topv.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+    let mix_bot_and_top = |botv: S::Larger, topv: S::Larger| {
+        <S as NumCast>::from(fact_bot * botv.to_f32().unwrap() + fact_top * topv.to_f32().unwrap())
+            .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix_bot_and_top(sum_bot.0, sum_top.0),
@@ -598,26 +607,28 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
-    let k_bl = image.get_pixel(left,     bottom    ).channels4();
-    let k_tl = image.get_pixel(left,     bottom + 1).channels4();
-    let k_br = image.get_pixel(left + 1, bottom    ).channels4();
+    let k_bl = image.get_pixel(left, bottom).channels4();
+    let k_tl = image.get_pixel(left, bottom + 1).channels4();
+    let k_br = image.get_pixel(left + 1, bottom).channels4();
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
 
-    let fact_tr = frac_v        * frac_h;
-    let fact_tl = frac_v        * (1. - frac_h);
+    let fact_tr = frac_v * frac_h;
+    let fact_tl = frac_v * (1. - frac_h);
     let fact_br = (1. - frac_v) * frac_h;
     let fact_bl = (1. - frac_v) * (1. - frac_h);
 
-    let mix = |br: S, tr: S, bl: S, tl: S|
+    let mix = |br: S, tr: S, bl: S, tl: S| {
         <S as NumCast>::from(
-            fact_br * br.to_f32().unwrap() +
-            fact_tr * tr.to_f32().unwrap() +
-            fact_bl * bl.to_f32().unwrap() +
-            fact_tl * tl.to_f32().unwrap()
-        ).expect("Average sample value should fit into sample type");
+            fact_br * br.to_f32().unwrap()
+                + fact_tr * tr.to_f32().unwrap()
+                + fact_bl * bl.to_f32().unwrap()
+                + fact_tl * tl.to_f32().unwrap(),
+        )
+        .expect("Average sample value should fit into sample type")
+    };
 
     (
         mix(k_br.0, k_tr.0, k_bl.0, k_tl.0),
@@ -841,7 +852,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap();
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
@@ -852,7 +866,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap().thumbnail(256, 256);
         b.iter(|| {
             test::black_box(image.thumbnail(512, 512));
@@ -863,7 +880,10 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
         let image = crate::open(path).unwrap().thumbnail(193, 193);
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));

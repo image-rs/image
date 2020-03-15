@@ -151,13 +151,20 @@ impl<W: Write> PNMEncoder<W> {
     {
         let image = image.into();
         match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color.into()),
+            HeaderStrategy::Dynamic => {
+                self.write_dynamic_header(image, width, height, color.into())
+            }
             HeaderStrategy::Subtype(subtype) => {
                 self.write_subtyped_header(subtype, image, width, height, color.into())
             }
-            HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, image, width, height, color.into())
-            }
+            HeaderStrategy::Chosen(ref header) => Self::write_with_header(
+                &mut self.writer,
+                header,
+                image,
+                width,
+                height,
+                color.into(),
+            ),
         }
     }
 
@@ -454,13 +461,11 @@ impl<'a> CheckedHeaderColor<'a> {
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Bgr8
-            | ExtendedColorType::Bgra8
-                => 0xff,
+            | ExtendedColorType::Bgra8 => 0xff,
             ExtendedColorType::L16
             | ExtendedColorType::La16
             | ExtendedColorType::Rgb16
-            | ExtendedColorType::Rgba16
-                => 0xffff,
+            | ExtendedColorType::Rgba16 => 0xffff,
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
             _ => {
                 // Unsupported target color type.

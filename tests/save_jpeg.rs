@@ -2,7 +2,7 @@
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
 extern crate image;
 
-use image::{ImageOutputFormat, ImageFormat};
+use image::{ImageFormat, ImageOutputFormat};
 
 #[test]
 fn jqeg_qualitys() {

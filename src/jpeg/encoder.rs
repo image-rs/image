@@ -1,8 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 
-use byteorder::{BigEndian, WriteBytesExt};
 use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::math::utils::clamp;
+use byteorder::{BigEndian, WriteBytesExt};
 use num_iter::range_step;
 use std::io::{self, Write};
 
@@ -258,7 +258,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
         Ok(dcval)
     }
-    
+
     fn write_segment(&mut self, marker: u8, data: Option<&[u8]>) -> io::Result<()> {
         self.w.write_all(&[0xFF, marker])?;
 
@@ -504,18 +504,12 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         self.writer.write_segment(SOS, Some(&buf))?;
 
         match c {
-            color::ColorType::Rgb8 => {
-                self.encode_rgb(image, width as usize, height as usize, 3)?
-            }
+            color::ColorType::Rgb8 => self.encode_rgb(image, width as usize, height as usize, 3)?,
             color::ColorType::Rgba8 => {
                 self.encode_rgb(image, width as usize, height as usize, 4)?
             }
-            color::ColorType::L8 => {
-                self.encode_gray(image, width as usize, height as usize, 1)?
-            }
-            color::ColorType::La8 => {
-                self.encode_gray(image, width as usize, height as usize, 2)?
-            }
+            color::ColorType::L8 => self.encode_gray(image, width as usize, height as usize, 1)?,
+            color::ColorType::La8 => self.encode_gray(image, width as usize, height as usize, 2)?,
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -610,11 +604,11 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
                     dct_yblock[i] =
                         ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
-                        .round() as i32;
+                        / f32::from(self.tables[64 + i]))
+                    .round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
-                        .round() as i32;
+                        / f32::from(self.tables[64 + i]))
+                    .round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -832,17 +826,18 @@ fn copy_blocks_gray(
 #[cfg(test)]
 mod tests {
     use super::super::JpegDecoder;
-    use super::{JPEGEncoder, PixelDensity, build_jfif_header};
+    use super::{build_jfif_header, JPEGEncoder, PixelDensity};
     use crate::color::ColorType;
     use crate::image::ImageDecoder;
     use std::io::Cursor;
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
-        let decoder = JpegDecoder::new(Cursor::new(encoded))
-            .expect("Could not decode image");
+        let decoder = JpegDecoder::new(Cursor::new(encoded)).expect("Could not decode image");
 
         let mut decoded = vec![0; decoder.total_bytes() as usize];
-        decoder.read_image(&mut decoded).expect("Could not decode image");
+        decoder
+            .read_image(&mut decoded)
+            .expect("Could not decode image");
         decoded
     }
 
@@ -903,13 +898,23 @@ mod tests {
     fn jfif_header_density_check() {
         let mut buffer = Vec::new();
         build_jfif_header(&mut buffer, PixelDensity::dpi(300));
-        assert_eq!(buffer, vec![
-                b'J', b'F', b'I', b'F',
-                0, 1, 2, // JFIF version 1.2
+        assert_eq!(
+            buffer,
+            vec![
+                b'J',
+                b'F',
+                b'I',
+                b'F',
+                0,
+                1,
+                2, // JFIF version 1.2
                 1, // density is in dpi
-                300u16.to_be_bytes()[0], 300u16.to_be_bytes()[1],
-                300u16.to_be_bytes()[0], 300u16.to_be_bytes()[1],
-                0, 0, // No thumbnail
+                300u16.to_be_bytes()[0],
+                300u16.to_be_bytes()[1],
+                300u16.to_be_bytes()[0],
+                300u16.to_be_bytes()[1],
+                0,
+                0, // No thumbnail
             ]
         );
     }

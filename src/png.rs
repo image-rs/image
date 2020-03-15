@@ -34,7 +34,9 @@ impl<R: Read> PNGReader<R> {
         // as most interlaced images should fit in memory.
         let buffer = if reader.info().interlaced {
             let mut buffer = vec![0; len];
-            reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+            reader
+                .next_frame(&mut buffer)
+                .map_err(ImageError::from_png)?;
             buffer
         } else {
             Vec::new()
@@ -60,13 +62,13 @@ impl<R: Read> Read for PNGReader<R> {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
-                    let readed  = buf.write(row).unwrap();
+                    let readed = buf.write(row).unwrap();
                     bytes += readed;
 
                     self.buffer = (&row[readed..]).to_owned();
                     self.index = 0;
                 }
-                None => return Ok(bytes)
+                None => return Ok(bytes),
             }
         }
 
@@ -117,35 +119,50 @@ impl<R: Read> PngDecoder<R> {
             (png::ColorType::RGBA, png::BitDepth::Eight) => ColorType::Rgba8,
             (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
-            (png::ColorType::Grayscale, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L1)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La1)),
-            (png::ColorType::RGB, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb1)),
-            (png::ColorType::RGBA, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba1)),
+            (png::ColorType::Grayscale, png::BitDepth::One) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L1))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::One) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La1))
+            }
+            (png::ColorType::RGB, png::BitDepth::One) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb1))
+            }
+            (png::ColorType::RGBA, png::BitDepth::One) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba1))
+            }
 
-            (png::ColorType::Grayscale, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L2)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La2)),
-            (png::ColorType::RGB, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb2)),
-            (png::ColorType::RGBA, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba2)),
+            (png::ColorType::Grayscale, png::BitDepth::Two) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L2))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La2))
+            }
+            (png::ColorType::RGB, png::BitDepth::Two) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb2))
+            }
+            (png::ColorType::RGBA, png::BitDepth::Two) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba2))
+            }
 
-            (png::ColorType::Grayscale, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L4)),
-            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La4)),
-            (png::ColorType::RGB, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb4)),
-            (png::ColorType::RGBA, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba4)),
+            (png::ColorType::Grayscale, png::BitDepth::Four) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::L4))
+            }
+            (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::La4))
+            }
+            (png::ColorType::RGB, png::BitDepth::Four) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb4))
+            }
+            (png::ColorType::RGBA, png::BitDepth::Four) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba4))
+            }
 
-            (png::ColorType::Indexed, bits) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(bits as u8))),
+            (png::ColorType::Indexed, bits) => {
+                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(
+                    bits as u8,
+                )))
+            }
         };
 
         Ok(PngDecoder { color_type, reader })
@@ -178,7 +195,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         // TODO: assumes equal channel bit depth.
         let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
         match bpc {
-            1 => (),  // No reodering necessary for u8
+            1 => (), // No reodering necessary for u8
             2 => buf.chunks_mut(2).for_each(|c| {
                 let v = BigEndian::read_u16(c);
                 NativeEndian::write_u16(c, v)
@@ -211,21 +228,25 @@ impl<W: Write> PNGEncoder<W> {
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
-            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
-            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen),
             ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
+            ColorType::Rgb16 => (png::ColorType::RGB, png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
-            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::Rgba16 => (png::ColorType::RGBA, png::BitDepth::Sixteen),
             _ => return Err(ImageError::UnsupportedColor(color.into())),
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
-        let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
-        writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| ImageError::IoError(e.into()))?;
+        writer
+            .write_image_data(data)
+            .map_err(|e| ImageError::IoError(e.into()))
     }
 }
 
@@ -245,7 +266,7 @@ impl<W: Write> ImageEncoder for PNGEncoder<W> {
         // TODO: assumes equal channel bit depth.
         let bpc = color_type.bytes_per_pixel() / color_type.channel_count();
         match bpc {
-            1 => self.encode(buf, width, height, color_type),  // No reodering necessary for u8
+            1 => self.encode(buf, width, height, color_type), // No reodering necessary for u8
             2 => {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
@@ -255,7 +276,7 @@ impl<W: Write> ImageEncoder for PNGEncoder<W> {
                     .zip(reordered.chunks_mut(2))
                     .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
                 self.encode(&reordered, width, height, color_type)
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -273,15 +294,10 @@ impl ImageError {
             LimitsExceeded => ImageError::InsufficientMemory,
             // Other is used when the buffer to `Reader::next_frame` is too small.
             Other(message) => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic(message.into_owned())
+                ParameterErrorKind::Generic(message.into_owned()),
             )),
-            err @ InvalidSignature
-            | err @ CrcMismatch { .. }
-            | err @ CorruptFlateStream => {
-                ImageError::Decoding(DecodingError::new(
-                    ImageFormat::Png.into(),
-                    err,
-                ))
+            err @ InvalidSignature | err @ CrcMismatch { .. } | err @ CorruptFlateStream => {
+                ImageError::Decoding(DecodingError::new(ImageFormat::Png.into(), err))
             }
         }
     }
@@ -289,14 +305,17 @@ impl ImageError {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::image::ImageDecoder;
     use std::io::Read;
-    use super::*;
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PngDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
-            .expect("Unable to read PNG file (does it exist?)");
+        let dec = PngDecoder::new(
+            std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
+                .unwrap(),
+        )
+        .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
 
@@ -320,7 +339,9 @@ mod tests {
     fn underlying_error() {
         use std::error::Error;
 
-        let mut not_png = std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap();
+        let mut not_png =
+            std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
+                .unwrap();
         not_png[0] = 0;
 
         let error = PngDecoder::new(&not_png[..]).err().unwrap();

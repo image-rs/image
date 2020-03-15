@@ -1,7 +1,7 @@
 extern crate image;
 
-use image::ImageFormat;
 use image::imageops::FilterType;
+use image::ImageFormat;
 use std::fmt;
 use std::fs::File;
 use std::time::{Duration, Instant};
@@ -34,7 +34,8 @@ fn main() {
         ("xcmr", FilterType::CatmullRom),
         ("ygauss", FilterType::Gaussian),
         ("zlcz2", FilterType::Lanczos3),
-    ].iter()
+    ]
+    .iter()
     {
         let timer = Instant::now();
         let scaled = tiny.resize(32, 32, filter);

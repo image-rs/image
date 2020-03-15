@@ -97,9 +97,9 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
 /// Find the entry with the highest (color depth, size).
 fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
-    let mut best = entries.pop().ok_or_else(|| ImageError::FormatError(
-            "ICO directory contains no image".to_string(),
-        ))?;
+    let mut best = entries
+        .pop()
+        .ok_or_else(|| ImageError::FormatError("ICO directory contains no image".to_string()))?;
 
     let mut best_score = (
         best.bits_per_pixel,
@@ -199,7 +199,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(IcoReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
+        Ok(IcoReader(
+            Cursor::new(image::decoder_to_vec(self)?),
+            PhantomData,
+        ))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

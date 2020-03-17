@@ -2,7 +2,7 @@ cargo-features = ["public-dependency"]
 
 [package]
 name = "image"
-version = "0.23.0-preview.0"
+version = "0.23.2"
 edition = "2018"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -31,7 +31,7 @@ num-rational = "0.2.1"
 # Public due to Pixel, otherwise quite useless.
 num-traits = { version = "0.2.0", public = true }
 gif = { version = "0.10.0", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.1", default-features = false, optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.1.17", default-features = false, optional = true }
 png = { version = "0.16.0", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }
 tiff = { version = "0.4.0", optional = true }

@@ -10,6 +10,10 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.2
+
+- The dependency on `jpeg-decoder` now reflects minimum requirements.
+
 ### Version 0.23.1
 
 - Fix cmyk_to_rgb (jpeg) causing off by one rounding errors.

@@ -26,6 +26,8 @@ use crate::dds;
 use crate::tiff;
 #[cfg(feature = "webp")]
 use crate::webp;
+#[cfg(feature = "farbfeld")]
+use crate::farbfeld;
 
 use crate::color;
 use crate::image;
@@ -82,6 +84,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        #[cfg(feature = "farbfeld")]
+        image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
@@ -227,6 +231,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         Some("ico") => image::ImageFormat::Ico,
         Some("hdr") => image::ImageFormat::Hdr,
         Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
+        Some("ff") | Some("farbfeld") => image::ImageFormat::Farbfeld,
         // The original extension is used, instead of _format
         _ => return match exact_ext {
             None => Err(PathError::NoExtension),
@@ -235,7 +240,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
     })
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 18] = [
+static MAGIC_BYTES: [(&'static [u8], ImageFormat); 19] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -254,6 +259,7 @@ static MAGIC_BYTES: [(&'static [u8], ImageFormat); 18] = [
     (b"P5", ImageFormat::Pnm),
     (b"P6", ImageFormat::Pnm),
     (b"P7", ImageFormat::Pnm),
+    (b"farbfeld", ImageFormat::Farbfeld),
 ];
 
 /// Guess image format from memory block

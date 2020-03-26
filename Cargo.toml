@@ -50,6 +50,7 @@ bmp = []
 hdr = ["scoped_threadpool"]
 dxt = []
 dds = ["dxt"]
+farbfeld = []
 jpeg_rayon = ["jpeg/rayon"]
 
 benchmarks = []

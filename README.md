@@ -32,6 +32,7 @@ https://docs.rs/image
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |
 | TGA    | Yes | No |
+| farbfeld | Yes | Yes |
 
 ### 2.2 The `ImageDecoder` and `ImageDecoderExt` Traits
 

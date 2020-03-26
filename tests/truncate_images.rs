@@ -15,7 +15,7 @@ where
     F: Fn(PathBuf),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr"];
+    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "farbfeld"];
     for decoder in decoders {
         let mut path = base.clone();
         path.push(dir);
@@ -93,4 +93,10 @@ fn truncate_jpg() {
 #[ignore]
 fn truncate_hdr() {
     truncate_images("hdr");
+}
+
+#[test]
+#[ignore]
+fn truncate_farbfeld() {
+    truncate_images("farbfeld");
 }

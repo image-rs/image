@@ -16,19 +16,23 @@
 //! # Related Links
 //! * <https://tools.suckless.org/farbfeld/> - the farbfeld specification
 
-use std::io::{self, Read, Write, BufReader, BufWriter};
+use std::convert::TryFrom;
+use std::i64;
+use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
 use crate::error::{EncodingError, DecodingError, ImageError, ImageResult};
-use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader
 pub struct FarbfeldReader<R: Read> {
     width: u32,
     height: u32,
     inner: BufReader<R>,
+    /// Relative to the start of the pixel data
+    current_offset: u64,
     cached_byte: Option<u8>,
 }
 
@@ -63,6 +67,7 @@ impl<R: Read> FarbfeldReader<R> {
             width: read_dimm(&mut inner)?,
             height: read_dimm(&mut inner)?,
             inner,
+            current_offset: 0,
             cached_byte: None,
         })
     }
@@ -70,35 +75,88 @@ impl<R: Read> FarbfeldReader<R> {
 
 impl<R: Read> Read for FarbfeldReader<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        fn consume_channel<R: Read>(from: &mut R, to: &mut [u8]) -> io::Result<()> {
-            let mut ibuf = [0u8; 2];
-            from.read_exact(&mut ibuf)?;
-            NativeEndian::write_u16(to, BigEndian::read_u16(&ibuf));
-            Ok(())
-        }
-
         let mut bytes_written = 0;
         if let Some(byte) = self.cached_byte.take() {
             buf[0] = byte;
             buf = &mut buf[1..];
             bytes_written = 1;
+            self.current_offset += 1;
         }
 
         if buf.len() == 1 {
-            let mut obuf = [0u8; 2];
-            consume_channel(&mut self.inner, &mut obuf)?;
-            buf[0] = obuf[0];
-            self.cached_byte = Some(obuf[1]);
+            buf[0] = cache_byte(&mut self.inner, &mut self.cached_byte)?;
             bytes_written += 1;
+            self.current_offset += 1;
         } else {
             for channel_out in buf.chunks_exact_mut(2) {
                 consume_channel(&mut self.inner, channel_out)?;
                 bytes_written += 2;
+                self.current_offset += 2;
             }
         }
 
         Ok(bytes_written)
     }
+}
+
+impl<R: Read + Seek> Seek for FarbfeldReader<R> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        fn parse_offset(original_offset: u64, end_offset: u64, pos: SeekFrom) -> Option<i64> {
+            match pos {
+                SeekFrom::Start(off) =>
+                    i64::try_from(off).ok()?.checked_sub(i64::try_from(original_offset).ok()?),
+                SeekFrom::End(off) =>
+                    if off < i64::try_from(end_offset).unwrap_or(i64::MAX) {
+                        None
+                    } else {
+                        Some(i64::try_from(end_offset.checked_sub(original_offset)?).ok()? + off)
+                    },
+                SeekFrom::Current(off) =>
+                    if off < i64::try_from(original_offset).unwrap_or(i64::MAX) {
+                        None
+                    } else {
+                        Some(off)
+                    },
+            }
+        }
+
+        let original_offset = self.current_offset;
+        let end_offset = self.width as u64 * self.height as u64 * 2;
+        let offset_from_current = parse_offset(original_offset, end_offset, pos)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid seek to a negative or overflowing position"))?;
+
+        // TODO: convert to seek_relative() once that gets stabilised
+        self.inner.seek(SeekFrom::Current(offset_from_current))?;
+        self.current_offset = if offset_from_current < 0 {
+                                  original_offset.checked_sub(offset_from_current.wrapping_neg() as u64)
+                              } else {
+                                  original_offset.checked_add(offset_from_current as u64)
+                              }.expect("This should've been checked above");
+
+        if self.current_offset < end_offset && self.current_offset % 2 == 1 {
+            let curr = self.inner.seek(SeekFrom::Current(-1))?;
+            cache_byte(&mut self.inner, &mut self.cached_byte)?;
+            self.inner.seek(SeekFrom::Start(curr))?;
+        } else {
+            self.cached_byte = None;
+        }
+
+        Ok(original_offset)
+    }
+}
+
+fn consume_channel<R: Read>(from: &mut R, to: &mut [u8]) -> io::Result<()> {
+    let mut ibuf = [0u8; 2];
+    from.read_exact(&mut ibuf)?;
+    NativeEndian::write_u16(to, BigEndian::read_u16(&ibuf));
+    Ok(())
+}
+
+fn cache_byte<R: Read>(from: &mut R, cached_byte: &mut Option<u8>) -> io::Result<u8> {
+    let mut obuf = [0u8; 2];
+    consume_channel(from, &mut obuf)?;
+    *cached_byte = Some(obuf[1]);
+    Ok(obuf[0])
 }
 
 /// farbfeld decoder
@@ -130,6 +188,27 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
 
     fn scanline_bytes(&self) -> u64 {
         2
+    }
+}
+
+impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        // A "scanline" (defined as "shortest non-caching read" in the doc) is just one channel in this case
+
+        let start = self.reader.seek(SeekFrom::Current(0))?;
+        image::load_rect(x, y, width, height, buf, progress_callback, self,
+                         |s, scanline| s.reader.seek(SeekFrom::Start(scanline * 2)).map(|_| ()),
+                         |s, buf| s.reader.read_exact(buf).map(|()| buf.len()))?;
+        self.reader.seek(SeekFrom::Start(start))?;
+        Ok(())
     }
 }
 

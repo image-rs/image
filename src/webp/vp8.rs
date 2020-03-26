@@ -1339,7 +1339,7 @@ impl<R: Read> Vp8Decoder<R> {
                     rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
-                    
+
                     add_residue(&mut ws, &rb, y0, x0, stride);
                 }
             }
@@ -2019,13 +2019,13 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue, IntraMode, predict_4x4};
+    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue};
     #[cfg(feature = "benchmarks")]
     use test::{Bencher, black_box};
 
     const W: usize = 256;
     const H: usize = 256;
-    
+
     fn make_sample_image() -> Vec<u8> {
         let mut v = Vec::with_capacity((W * H * 4) as usize);
         for c in 0u8..=255 {
@@ -2038,7 +2038,7 @@ mod test {
         }
         v
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_4x4(b: &mut Bencher) {
@@ -2051,12 +2051,12 @@ mod test {
             IntraMode::HD, IntraMode::HU, IntraMode::TM, IntraMode::VE,
             IntraMode::HE, IntraMode::DC, IntraMode::LD, IntraMode::RD
         ];
-        
+
         b.iter(|| {
             black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
         });
     }
-        
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_bvepred(b: &mut Bencher) {
@@ -2076,7 +2076,7 @@ mod test {
             black_box(predict_bldpred(black_box(&mut v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_brdpred(b: &mut Bencher) {
@@ -2086,7 +2086,7 @@ mod test {
             black_box(predict_brdpred(black_box(&mut v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_predict_bhepred(b: &mut Bencher) {
@@ -2106,7 +2106,7 @@ mod test {
             black_box(top_pixels(black_box(&v), 5, 5, W * 2));
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_edge_pixels(b: &mut Bencher) {
@@ -2166,7 +2166,7 @@ mod test {
         assert_eq!(e7, 8);
         assert_eq!(e8, 9);
     }
-    
+
     #[test]
     fn test_top_pixels() {
         let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
@@ -2187,7 +2187,7 @@ mod test {
         assert_eq!(e6, 7);
         assert_eq!(e7, 8);
     }
-    
+
     #[test]
     fn test_add_residue() {
         let mut pblock = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];

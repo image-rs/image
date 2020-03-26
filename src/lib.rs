@@ -103,6 +103,8 @@ pub mod tga;
 pub mod tiff;
 #[cfg(feature = "webp")]
 pub mod webp;
+#[cfg(feature = "farbfeld")]
+pub mod farbfeld;
 
 mod animation;
 mod buffer;

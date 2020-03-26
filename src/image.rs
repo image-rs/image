@@ -52,6 +52,9 @@ pub enum ImageFormat {
     /// An Image in Radiance HDR Format
     Hdr,
 
+    /// An Image in farbfeld Format
+    Farbfeld,
+
     #[doc(hidden)]
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
@@ -92,6 +95,10 @@ pub enum ImageOutputFormat {
     /// An Image in BMP Format
     Bmp,
 
+    #[cfg(feature = "farbfeld")]
+    /// An Image in farbfeld Format
+    Farbfeld,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -116,6 +123,8 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Ico => ImageOutputFormat::Ico,
             #[cfg(feature = "bmp")]
             ImageFormat::Bmp => ImageOutputFormat::Bmp,
+            #[cfg(feature = "farbfeld")]
+            ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
 
             f => ImageOutputFormat::Unsupported(format!(
                 "Image format {:?} not supported for encoding.",

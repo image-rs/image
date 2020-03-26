@@ -15,6 +15,8 @@ use crate::jpeg;
 use crate::png;
 #[cfg(feature = "pnm")]
 use crate::pnm;
+#[cfg(feature = "farbfeld")]
+use crate::farbfeld;
 
 use crate::buffer::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
@@ -25,7 +27,7 @@ use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult};
 use crate::flat::FlatSamples;
 use crate::image;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
+use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageDecoder, ImageFormat, ImageOutputFormat};
 use crate::io::free_functions;
 use crate::imageops;
 
@@ -745,6 +747,11 @@ impl DynamicImage {
                 let mut b = bmp::BMPEncoder::new(w);
                 b.encode(&bytes, width, height, color)?;
                 Ok(())
+            }
+
+            #[cfg(feature = "farbfeld")]
+            image::ImageOutputFormat::Farbfeld => {
+                farbfeld::FarbfeldEncoder::new(w).write_image(&bytes, width, height, color)
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {

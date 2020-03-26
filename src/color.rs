@@ -48,6 +48,16 @@ impl ColorType {
         }
     }
 
+    /// Returns if there is an alpha channel.
+    pub fn has_alpha(self) -> bool {
+        use ColorType::*;
+        match self {
+            L8 | L16 | Rgb8 | Bgr8 | Rgb16 => false,
+            La8 | Rgba8 | Bgra8 | La16 | Rgba16 => true,
+            __NonExhaustive(marker) => match marker._private {},
+        }
+    }
+
     /// Returns the number of bits contained in a pixel of `ColorType` ```c``` (which will always be
     /// a multiple of 8).
     pub fn bits_per_pixel(self) -> u16 {

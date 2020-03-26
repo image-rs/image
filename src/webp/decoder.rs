@@ -60,25 +60,39 @@ impl<R: Read> WebPDecoder<R> {
         Ok(size)
     }
 
-    fn read_vp8_header(&mut self) -> ImageResult<()> {
-        let mut vp8 = Vec::with_capacity(4);
-        self.r.by_ref().take(4).read_to_end(&mut vp8)?;
+    fn read_vp8_header(&mut self) -> ImageResult<u32> {
+        loop {
+            let mut chunk = Vec::with_capacity(4);
+            self.r.by_ref().take(4).read_to_end(&mut chunk)?;
 
-        if &*vp8 != b"VP8 " {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::WebP.into(),
-                "Invalid VP8 signature.".to_string(),
-            )));
+            match &*chunk {
+                b"VP8 " => {
+                    let len = self.r.read_u32::<LittleEndian>()?;
+                    return Ok(len);
+                }
+                b"ALPH" | b"VP8L" | b"ANIM" | b"ANMF" => {
+                    // Alpha, Lossless and Animation isn't supported
+                    return Err(ImageError::Decoding(DecodingError::with_message(
+                        ImageFormat::WebP.into(),
+                        "Unsupported WEBP feature.".to_string(),
+                    )));
+                }
+                _ => {
+                    let mut len = self.r.read_u32::<LittleEndian>()?;
+                    if len % 2 != 0 {
+                        // RIFF chunks containing an uneven number of bytes append
+                        // an extra 0x00 at the end of the chunk
+                        len += 1;
+                    }
+                    io::copy(&mut self.r.by_ref().take(len as u64), &mut io::sink())?;
+                }
+            }
         }
-
-        let _len = self.r.read_u32::<LittleEndian>()?;
-
-        Ok(())
     }
 
-    fn read_frame(&mut self) -> ImageResult<()> {
+    fn read_frame(&mut self, len: u32) -> ImageResult<()> {
         let mut framedata = Vec::new();
-        self.r.read_to_end(&mut framedata)?;
+        self.r.by_ref().take(len as u64).read_to_end(&mut framedata)?;
         let m = io::Cursor::new(framedata);
 
         let mut v = Vp8Decoder::new(m);
@@ -92,8 +106,8 @@ impl<R: Read> WebPDecoder<R> {
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.have_frame {
             self.read_riff_header()?;
-            self.read_vp8_header()?;
-            self.read_frame()?;
+            let len = self.read_vp8_header()?;
+            self.read_frame(len)?;
 
             self.have_frame = true;
         }

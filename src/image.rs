@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::usize;
 
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::{ColorType, ExtendedColorType};
@@ -223,6 +224,10 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
 
+    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
+        panic!("output buffer too short\n expected `{}`, provided `{}`", total_bytes, buf.len());
+    }
+
     let mut bytes_read = 0u64;
     let mut current_scanline = 0;
     let mut tmp = Vec::new();
@@ -264,7 +269,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
             Ok(())
         };
 
-        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.0)
+        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.1)
             || width == 0 || height == 0 {
                 return Err(ImageError::DimensionError);
             }

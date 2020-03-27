@@ -267,3 +267,84 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
         self.encode(buf, width, height)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::farbfeld::FarbfeldDecoder;
+    use crate::ImageDecoderExt;
+    use std::io::{Cursor, Seek, SeekFrom};
+    use byteorder::{ByteOrder, NativeEndian};
+
+    static RECTANGLE_IN: &[u8] =     b"farbfeld\
+                                       \x00\x00\x00\x02\x00\x00\x00\x03\
+                                       \xFF\x01\xFE\x02\xFD\x03\xFC\x04\xFB\x05\xFA\x06\xF9\x07\xF8\x08\
+                                       \xF7\x09\xF6\x0A\xF5\x0B\xF4\x0C\xF3\x0D\xF2\x0E\xF1\x0F\xF0\x10\
+                                       \xEF\x11\xEE\x12\xED\x13\xEC\x14\xEB\x15\xEA\x16\xE9\x17\xE8\x18";
+
+    #[test]
+    fn read_rect_1x2() {
+        static RECTANGLE_OUT: &[u16] =                                 &[0xF30D, 0xF20E, 0xF10F, 0xF010,
+                                                                         0xEB15, 0xEA16, 0xE917, 0xE818];
+
+        read_rect(1, 1, 1, 2, RECTANGLE_OUT);
+    }
+
+    #[test]
+    fn read_rect_2x2() {
+        static RECTANGLE_OUT: &[u16] = &[0xFF01, 0xFE02, 0xFD03, 0xFC04, 0xFB05, 0xFA06, 0xF907, 0xF808,
+                                         0xF709, 0xF60A, 0xF50B, 0xF40C, 0xF30D, 0xF20E, 0xF10F, 0xF010];
+
+        read_rect(0, 0, 2, 2, RECTANGLE_OUT);
+    }
+
+    #[test]
+    fn read_rect_2x1() {
+        static RECTANGLE_OUT: &[u16] = &[0xEF11, 0xEE12, 0xED13, 0xEC14, 0xEB15, 0xEA16, 0xE917, 0xE818];
+
+        read_rect(0, 2, 2, 1, RECTANGLE_OUT);
+    }
+
+    #[test]
+    fn read_rect_2x3() {
+        static RECTANGLE_OUT: &[u16] = &[0xFF01, 0xFE02, 0xFD03, 0xFC04, 0xFB05, 0xFA06, 0xF907, 0xF808,
+                                         0xF709, 0xF60A, 0xF50B, 0xF40C, 0xF30D, 0xF20E, 0xF10F, 0xF010,
+                                         0xEF11, 0xEE12, 0xED13, 0xEC14, 0xEB15, 0xEA16, 0xE917, 0xE818];
+
+        read_rect(0, 0, 2, 3, RECTANGLE_OUT);
+    }
+
+    #[test]
+    fn read_rect_in_stream() {
+        static RECTANGLE_OUT: &[u16] = &[0xEF11, 0xEE12, 0xED13, 0xEC14];
+
+        let mut input = vec![];
+        input.extend_from_slice(b"This is a 31-byte-long prologue");
+        input.extend_from_slice(RECTANGLE_IN);
+        let mut input_cur = Cursor::new(input);
+        input_cur.seek(SeekFrom::Start(31)).unwrap();
+
+        let mut out_buf = [0u8; 64];
+        FarbfeldDecoder::new(input_cur)
+            .unwrap()
+            .read_rect(0, 2, 1, 1, &mut out_buf)
+            .unwrap();
+        let exp = degenerate_pixels(RECTANGLE_OUT);
+        assert_eq!(&out_buf[..exp.len()], &exp[..]);
+    }
+
+    fn read_rect(x: u32, y: u32, width: u32, height: u32, exp_wide: &[u16]) {
+        let mut out_buf = [0u8; 64];
+        FarbfeldDecoder::new(Cursor::new(RECTANGLE_IN))
+            .unwrap()
+            .read_rect(x, y, width, height, &mut out_buf)
+            .unwrap();
+        let exp = degenerate_pixels(exp_wide);
+        assert_eq!(&out_buf[..exp.len()], &exp[..]);
+    }
+
+    fn degenerate_pixels(exp_wide: &[u16]) -> Vec<u8> {
+        let mut exp = vec![0u8; exp_wide.len() * 2];
+        NativeEndian::write_u16_into(exp_wide, &mut exp);
+        exp
+    }
+}

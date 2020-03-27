@@ -214,7 +214,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     where D: ImageDecoder<'a>,
           F: Fn(Progress),
           F1: FnMut(&mut D, u64) -> io::Result<()>,
-          F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
+          F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
           ImageError: From<E>,
 {
     let (x, y, width, height) = (u64::from(x), u64::from(y), u64::from(width), u64::from(height));
@@ -943,16 +943,16 @@ mod tests {
             m.scanline_number = n;
             Ok(())
         }
-        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<usize> {
+        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<()> {
             let bytes_read = m.scanline_number * m.scanline_bytes;
             if bytes_read >= 25 {
-                return Ok(0);
+                return Ok(());
             }
 
             let len = m.scanline_bytes.min(25 - bytes_read);
             buf[..(len as usize)].copy_from_slice(&DATA[(bytes_read as usize)..][..(len as usize)]);
             m.scanline_number += 1;
-            Ok(len as usize)
+            Ok(())
         }
 
         for scanline_bytes in 1..30 {

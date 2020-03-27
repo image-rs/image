@@ -109,7 +109,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HDRAdapter<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| s.read_image_data(buf).map(|_| buf.len()))
+                         |s, buf| s.read_image_data(buf))
     }
 }
 

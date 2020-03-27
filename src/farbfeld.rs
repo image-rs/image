@@ -206,7 +206,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
         image::load_rect(x, y, width, height, buf, progress_callback, self,
                          |s, scanline| s.reader.seek(SeekFrom::Start(scanline * 2)).map(|_| ()),
-                         |s, buf| s.reader.read_exact(buf).map(|()| buf.len()))?;
+                         |s, buf| s.reader.read_exact(buf))?;
         self.reader.seek(SeekFrom::Start(start))?;
         Ok(())
     }

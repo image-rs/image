@@ -165,7 +165,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
                              s.inner.seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
                              Ok(())
                          },
-                         |s, buf| s.read_scanline(buf))?;
+                         |s, buf| s.read_scanline(buf).map(|_| ()))?;
         self.inner.seek(SeekFrom::Start(start))?;
         Ok(())
     }

@@ -56,6 +56,11 @@ jpeg_rayon = ["jpeg/rayon"]
 benchmarks = []
 
 [[bench]]
-path = "benches/encode_bmp.rs"
-name = "BMPEncoder"
+path = "benches/decode.rs"
+name = "decode"
+harness = false
+
+[[bench]]
+path = "benches/encode.rs"
+name = "encode"
 harness = false

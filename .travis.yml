@@ -33,6 +33,7 @@ env:
 matrix:
   allow_failures:
     - name: "Clippy"
+    - name: "Public private dependencies"
     - rust: nightly
   include:
     - os: osx
@@ -47,6 +48,10 @@ matrix:
       rust: nightly
     - os: windows
       rust: nightly
+    - os: linux
+      rust: nightly
+      name: "Internal benchmarks"
+      env: BENCHMARKS='yes'
     - os: linux
       rust: stable
       name: "Clippy"
@@ -80,7 +85,6 @@ script:
   - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
       cargo test -v;
     fi
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ -n "${DEFAULT_FEATURES+exists}" ]; then
-      cargo build -v --features=benchmarks &&
+  - if [ -n "${BENCHMARKS+exists}" ]; then
       cargo build -v --benches --features=benchmarks;
     fi

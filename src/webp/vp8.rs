@@ -2021,11 +2021,16 @@ mod test {
     extern crate test;
     use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue};
     #[cfg(feature = "benchmarks")]
+    use super::{IntraMode, predict_4x4};
+    #[cfg(feature = "benchmarks")]
     use test::{Bencher, black_box};
 
+    #[cfg(feature = "benchmarks")]
     const W: usize = 256;
+    #[cfg(feature = "benchmarks")]
     const H: usize = 256;
 
+    #[cfg(feature = "benchmarks")]
     fn make_sample_image() -> Vec<u8> {
         let mut v = Vec::with_capacity((W * H * 4) as usize);
         for c in 0u8..=255 {

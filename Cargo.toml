@@ -57,10 +57,10 @@ benchmarks = []
 
 [[bench]]
 path = "benches/load.rs"
-name = "decodes"
+name = "decode"
 harness = false
 
 [[bench]]
-path = "benches/encode_bmp.rs"
-name = "BMPEncoder"
+path = "benches/encode.rs"
+name = "encode"
 harness = false

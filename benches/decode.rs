@@ -1,4 +1,4 @@
-use std::{fs, path};
+use std::{iter, fs, path};
 
 use image::ImageFormat;
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -15,11 +15,10 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     let mut group = c.benchmark_group(&group_name);
     let paths = IMAGE_DIR.iter().chain(def.dir);
 
-    for file in def.files {
-        let fn_name = format!("{}-{}", &group_name, file);
-        let path: path::PathBuf = paths.clone().chain(Some(file)).collect();
+    for file_name in def.files {
+        let path: path::PathBuf = paths.clone().chain(iter::once(file_name)).collect();
         let buf = fs::read(path).unwrap();
-        group.bench_function(fn_name, |b| b.iter(|| {
+        group.bench_function(file_name.to_owned(), |b| b.iter(|| {
             image::load_from_memory_with_format(&buf, def.format).unwrap();
         }));
     }

@@ -10,6 +10,34 @@ struct BenchDef {
     format: ImageFormat,
 }
 
+fn load_all(c: &mut Criterion) {
+    const BENCH_DEFS: &'static [BenchDef] = &[
+        BenchDef {
+            dir: &["bmp", "images"],
+            files: &[
+                "Core_1_Bit.bmp",
+                "Core_4_Bit.bmp",
+                "Core_8_Bit.bmp",
+                "rgb16.bmp",
+                "rgb24.bmp",
+                "rgb32.bmp",
+                "pal4rle.bmp",
+                "pal8rle.bmp",
+                "rgb16-565.bmp",
+                "rgb32bf.bmp",
+            ],
+            format: ImageFormat::Bmp,
+        },
+    ];
+
+    for bench in BENCH_DEFS {
+        bench_load(c, bench);
+    }
+}
+
+criterion_group!(benches, load_all);
+criterion_main!(benches);
+
 fn bench_load(c: &mut Criterion, def: &BenchDef) {
     let group_name = format!("load-{:?}", def.format);
     let mut group = c.benchmark_group(&group_name);
@@ -24,34 +52,5 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     }
 }
 
-fn load_all(c: &mut Criterion) {
-    const BENCH_DEFS: &'static [BenchDef] = &[
-        BMP,
-    ];
-
-    for bench in BENCH_DEFS {
-        bench_load(c, bench);
-    }
-}
-
-criterion_group!(benches, load_all);
-criterion_main!(benches);
-
 const IMAGE_DIR: [&'static str; 3] = [".", "tests", "images"];
 
-const BMP: BenchDef = BenchDef {
-    dir: &["bmp", "images"],
-    files: &[
-        "Core_1_Bit.bmp",
-        "Core_4_Bit.bmp",
-        "Core_8_Bit.bmp",
-        "rgb16.bmp",
-        "rgb24.bmp",
-        "rgb32.bmp",
-        "pal4rle.bmp",
-        "pal8rle.bmp",
-        "rgb16-565.bmp",
-        "rgb32bf.bmp",
-    ],
-    format: ImageFormat::Bmp,
-};

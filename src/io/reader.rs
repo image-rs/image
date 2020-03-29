@@ -4,7 +4,6 @@ use std::path::Path;
 
 use crate::dynimage::DynamicImage;
 use crate::image::ImageFormat;
-use crate::open; // docs only
 use crate::{ImageError, ImageResult};
 
 use super::free_functions;
@@ -150,7 +149,7 @@ impl<R: BufRead + Seek> Reader<R> {
     ///
     /// ## Usage
     ///
-    /// This supplements the path based type deduction from [`open`] with content based deduction.
+    /// This supplements the path based type deduction from [`open`](Reader::open) with content based deduction.
     /// This is more common in Linux and UNIX operating systems and also helpful if the path can
     /// not be directly controlled.
     ///

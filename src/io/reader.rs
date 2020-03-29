@@ -4,6 +4,7 @@ use std::path::Path;
 
 use crate::dynimage::DynamicImage;
 use crate::image::ImageFormat;
+use crate::open; // docs only
 use crate::{ImageError, ImageResult};
 
 use super::free_functions;

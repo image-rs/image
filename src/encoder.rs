@@ -112,6 +112,8 @@ pub struct Writer<W: Write> {
     info: Info,
 }
 
+const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
+
 impl<W: Write> Writer<W> {
     fn new(w: W, info: Info) -> Writer<W> {
         Writer { w, info }
@@ -178,19 +180,41 @@ impl<W: Write> Writer<W> {
 
     /// Create an stream writer.
     ///
-    /// This allows you create images that do not fit
-    /// in memory. The default chunk size is 4K, use
-    /// `stream_writer_with_size` to set another chuck
+    /// This allows you create images that do not fit in memory. The default
+    /// chunk size is 4K, use `stream_writer_with_size` to set another chuck
     /// size.
+    ///
+    /// This borrows the writer. This preserves it which allows manually
+    /// appending additional chunks after the image data has been written
     pub fn stream_writer(&mut self) -> StreamWriter<W> {
-        self.stream_writer_with_size(4 * 1024)
+        self.stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
     /// Create a stream writer with custom buffer size.
     ///
-    /// See `stream_writer`
+    /// See [`stream_writer`].
+    ///
+    /// [`stream_writer`]: #fn.stream_writer
     pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<W> {
-        StreamWriter::new(self, size)
+        StreamWriter::new(ChunkOutput::Borrowed(self), size)
+    }
+
+    /// Turn this into a stream writer for image data.
+    ///
+    /// This allows you create images that do not fit in memory. The default
+    /// chunk size is 4K, use `stream_writer_with_size` to set another chuck
+    /// size.
+    pub fn into_stream_writer(self) -> StreamWriter<'static, W> {
+        self.into_stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
+    }
+
+    /// Turn this into a stream writer with custom buffer size.
+    ///
+    /// See [`into_stream_writer`].
+    ///
+    /// [`into_stream_writer`]: #fn.into_stream_writer
+    pub fn into_stream_writer_with_size(self, size: usize) -> StreamWriter<'static, W> {
+        StreamWriter::new(ChunkOutput::Owned(self), size)
     }
 }
 
@@ -201,17 +225,31 @@ impl<W: Write> Drop for Writer<W> {
 }
 
 struct ChunkWriter<'a, W: Write> {
-    writer: &'a mut Writer<W>,
+    writer: ChunkOutput<'a, W>,
     buffer: Vec<u8>,
     index: usize,
 }
 
+enum ChunkOutput<'a, W: Write> {
+    Borrowed(&'a mut Writer<W>),
+    Owned(Writer<W>),
+}
+
 impl<'a, W: Write> ChunkWriter<'a, W> {
-    fn new(writer: &'a mut Writer<W>, buf_len: usize) -> ChunkWriter<'a, W> {
+    fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> ChunkWriter<'a, W> {
         ChunkWriter {
             writer,
             buffer: vec![0; buf_len],
             index: 0,
+        }
+    }
+}
+
+impl<'a, W: Write> AsMut<Writer<W>> for ChunkOutput<'a, W> {
+    fn as_mut(&mut self) -> &mut Writer<W> {
+        match self {
+            ChunkOutput::Borrowed(writer) => writer,
+            ChunkOutput::Owned(writer) => writer,
         }
     }
 }
@@ -222,7 +260,9 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         self.index += written;
 
         if self.index + 1 >= self.buffer.len() {
-            self.writer.write_chunk(chunk::IDAT, &self.buffer)?;
+            self.writer
+                .as_mut()
+                .write_chunk(chunk::IDAT, &self.buffer)?;
             self.index = 0;
         }
 
@@ -232,6 +272,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
     fn flush(&mut self) -> io::Result<()> {
         if self.index > 0 {
             self.writer
+                .as_mut()
                 .write_chunk(chunk::IDAT, &self.buffer[..=self.index])?;
         }
         self.index = 0;
@@ -259,14 +300,14 @@ pub struct StreamWriter<'a, W: Write> {
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
-    fn new(writer: &'a mut Writer<W>, buf_len: usize) -> StreamWriter<'a, W> {
-        let bpp = writer.info.bytes_per_pixel();
-        let in_len = writer.info.raw_row_length() - 1;
-        let filter = writer.info.filter;
+    fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
+        let bpp = writer.as_mut().info.bytes_per_pixel();
+        let in_len = writer.as_mut().info.raw_row_length() - 1;
+        let filter = writer.as_mut().info.filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 
-        let compression = writer.info.compression.clone();
+        let compression = writer.as_mut().info.compression.clone();
         let chunk_writer = ChunkWriter::new(writer, buf_len);
         let zlib = deflate::write::ZlibEncoder::new(chunk_writer, compression);
 

@@ -1,6 +1,9 @@
 //! This crate provides native rust implementations of
 //! image encoders and decoders and basic image manipulation
 //! functions.
+//!
+//! Additional documentation can currently be found in the
+//! [README.md file which is most easily viewed on github](https://github.com/image-rs/image/blob/master/README.md).
 
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]

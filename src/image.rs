@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::usize;
 
 use crate::buffer::{ImageBuffer, Pixel};
 use crate::color::{ColorType, ExtendedColorType};
@@ -213,7 +214,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     where D: ImageDecoder<'a>,
           F: Fn(Progress),
           F1: FnMut(&mut D, u64) -> io::Result<()>,
-          F2: FnMut(&mut D, &mut [u8]) -> Result<usize, E>,
+          F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
           ImageError: From<E>,
 {
     let (x, y, width, height) = (u64::from(x), u64::from(y), u64::from(width), u64::from(height));
@@ -222,6 +223,10 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     let row_bytes = bytes_per_pixel * u64::from(dimensions.0);
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
+
+    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
+        panic!("output buffer too short\n expected `{}`, provided `{}`", total_bytes, buf.len());
+    }
 
     let mut bytes_read = 0u64;
     let mut current_scanline = 0;
@@ -264,7 +269,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
             Ok(())
         };
 
-        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.0)
+        if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.1)
             || width == 0 || height == 0 {
                 return Err(ImageError::DimensionError);
             }
@@ -938,16 +943,16 @@ mod tests {
             m.scanline_number = n;
             Ok(())
         }
-        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<usize> {
+        fn read_scanline(m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<()> {
             let bytes_read = m.scanline_number * m.scanline_bytes;
             if bytes_read >= 25 {
-                return Ok(0);
+                return Ok(());
             }
 
             let len = m.scanline_bytes.min(25 - bytes_read);
             buf[..(len as usize)].copy_from_slice(&DATA[(bytes_read as usize)..][..(len as usize)]);
             m.scanline_number += 1;
-            Ok(len as usize)
+            Ok(())
         }
 
         for scanline_bytes in 1..30 {

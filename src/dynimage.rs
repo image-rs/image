@@ -27,7 +27,9 @@ use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult};
 use crate::flat::FlatSamples;
 use crate::image;
-use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageDecoder, ImageFormat, ImageOutputFormat};
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
+#[cfg(feature = "farbfeld")]
+use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
 

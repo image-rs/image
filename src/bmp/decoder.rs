@@ -1427,7 +1427,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
         image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| { s.read_image_data(buf).map(|_| buf.len()) })?;
+                         |s, buf| s.read_image_data(buf))?;
         self.reader.seek(SeekFrom::Start(start))?;
         Ok(())
     }

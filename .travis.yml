@@ -11,6 +11,8 @@ matrix:
   include:
     - rust: stable
       env: FLAGS="--no-default-features"
+    - rust: stable
+      env: CROSS_TARGET=mips64-unknown-linux-gnuabi64 FLAGS="--all-features --target $CROSS_TARGET"
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
     - rust: stable
@@ -32,6 +34,12 @@ matrix:
   allow_failures:
     - rust: nightly
       env: FLAGS="-Z minimal-versions"
+
+before_script:
+  - if [ ! -z "$CROSS_TARGET" ]; then
+      rustup target add $CROSS_TARGET;
+      cargo install cross --force;
+    fi
 
 script:
   - cargo build -v $FLAGS

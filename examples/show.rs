@@ -69,7 +69,7 @@ fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
     let context = glutin::ContextBuilder::new().with_vsync(true);
 
     let display = Display::new(window, context, &events_loop)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err.description()))?;
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
     // building the display, ie. the main object
     resize_window(&display, &image);
     let mut opengl_texture = glium::Texture2d::new(&display, image).unwrap();

@@ -435,9 +435,9 @@ pub trait ImageDecoder<'a>: Sized {
     }
 }
 
-/// ImageDecoderExt trait
+/// Specialized image decoding not be supported by all formats
 pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
-    /// Read a rectangular section of the image.
+    /// Decode a rectangular section of the image; see [`read_rect_with_progress()`](#fn.read_rect_with_progress).
     fn read_rect(
         &mut self,
         x: u32,
@@ -449,7 +449,18 @@ pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
         self.read_rect_with_progress(x, y, width, height, buf, |_|{})
     }
 
-    /// Read a rectangular section of the image, periodically reporting progress.
+    /// Decode a rectangular section of the image, periodically reporting progress.
+    ///
+    /// The output buffer will be filled with fields specified by
+    /// [`ImageDecoder::color_type()`](trait.ImageDecoder.html#fn.color_type),
+    /// in that order, each field represented in native-endian.
+    ///
+    /// The progress callback will be called at least once at the start and the end of decoding,
+    /// implementations are encouraged to call this more often,
+    /// with a frequency meaningful for display to the end-user.
+    ///
+    /// This function will panic if the output buffer isn't at least
+    /// `color_type().bytes_per_pixel() * color_type().channel_count() * width * height` bytes long.
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,

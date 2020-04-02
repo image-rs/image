@@ -42,20 +42,18 @@ pub use crate::image::{AnimationDecoder,
                 Pixels,
                 SubImage};
 
-pub use crate::buffer::{ConvertBuffer,
+pub use crate::buffer_::{
                  GrayAlphaImage,
                  GrayImage,
                  // Image types
                  ImageBuffer,
-                 Pixel,
                  RgbImage,
-                 RgbaImage,
-                 };
+                 RgbaImage};
 
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::Primitive;
+pub use crate::traits::{Primitive, Pixel};
 
 // Opening and loading images
 pub use crate::io::free_functions::{guess_format, load};
@@ -68,6 +66,22 @@ pub use crate::animation::{Delay, Frame, Frames};
 
 // More detailed error type
 pub mod error;
+
+/// Iterators and other auxiliary structure for the `ImageBuffer` type.
+pub mod buffer {
+    // Only those not exported at the top-level
+    pub use crate::buffer_::{
+        ConvertBuffer,
+        EnumeratePixels,
+        EnumeratePixelsMut,
+        EnumerateRows,
+        EnumerateRowsMut,
+        Pixels,
+        PixelsMut,
+        Rows,
+        RowsMut,
+    };
+}
 
 // Math utils
 pub mod math;
@@ -110,7 +124,8 @@ pub mod webp;
 pub mod farbfeld;
 
 mod animation;
-mod buffer;
+#[path = "buffer.rs"]
+mod buffer_;
 mod color;
 mod dynimage;
 mod image;

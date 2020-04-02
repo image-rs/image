@@ -39,10 +39,11 @@ use gif::{DisposalMethod, Frame};
 use num_rational::Ratio;
 
 use crate::animation;
-use crate::buffer::{ImageBuffer, Pixel};
+use crate::ImageBuffer;
 use crate::color::{ColorType, Rgba};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{self, AnimationDecoder, ImageDecoder};
+use crate::traits::Pixel;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {

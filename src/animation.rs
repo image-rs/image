@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use num_rational::Ratio;
 
-use crate::buffer::RgbaImage;
+use crate::RgbaImage;
 use crate::error::ImageResult;
 
 /// An implementation dependent iterator, reading the frames as requested

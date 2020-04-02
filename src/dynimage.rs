@@ -18,10 +18,10 @@ use crate::pnm;
 #[cfg(feature = "farbfeld")]
 use crate::farbfeld;
 
-use crate::buffer::{
+use crate::buffer_::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
-    GrayImage, Gray16Image, ImageBuffer, Pixel, RgbImage, Rgb16Image,
-    RgbaImage, Rgba16Image,
+    GrayImage, Gray16Image, ImageBuffer, RgbImage, Rgb16Image, RgbaImage,
+    Rgba16Image,
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult};
@@ -32,6 +32,7 @@ use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, Im
 use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
+use crate::traits::Pixel;
 
 /// A Dynamic Image
 #[derive(Clone)]

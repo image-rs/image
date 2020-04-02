@@ -1,8 +1,7 @@
 use num_traits::{NumCast, ToPrimitive, Zero};
 use std::ops::{Index, IndexMut};
 
-use crate::buffer::Pixel;
-use crate::traits::Primitive;
+use crate::traits::{Pixel, Primitive};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]

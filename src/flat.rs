@@ -47,10 +47,11 @@ use std::marker::PhantomData;
 
 use num_traits::Zero;
 
-use crate::buffer::{ImageBuffer, Pixel};
+use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::ImageError;
 use crate::image::{GenericImage, GenericImageView};
+use crate::traits::Pixel;
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -1419,7 +1420,7 @@ impl PartialOrd for NormalForm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::GrayAlphaImage;
+    use crate::buffer_::GrayAlphaImage;
     use crate::color::{LumaA, Rgb};
 
     #[test]

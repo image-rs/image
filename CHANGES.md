@@ -1,3 +1,7 @@
+## 0.16.2
+
+* Added method constructing an owned stream encoder.
+
 ## 0.16.1
 
 * Addressed files bloating the packed crate

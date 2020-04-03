@@ -343,6 +343,54 @@ where
 }
 
 /// Generic image buffer
+///
+/// This is an image parameterised by its Pixel types, represented by a width and height and a
+/// container of channel data. It provides direct access to its pixels and implements the
+/// [`GenericImageView`] and [`GenericImage`] traits. In many ways, this is the standard buffer
+/// implementing those traits. Using this concrete type instead of a generic type parameter has
+/// been shown to improve performance.
+///
+/// The crate defines a few type aliases with regularly used pixel types for your convenience, such
+/// as `RgbImage`, `GrayImage` etc.
+///
+/// [`GenericImage`]: trait.GenericImage.html
+/// [`GenericImageView`]: trait.GenericImageView.html
+/// [`RgbImage`]: type.RgbImage.html
+/// [`GrayImage`]: type.GrayImage.html
+///
+/// ## Examples
+///
+/// Create a simple canvas and paint a small cross.
+///
+/// ```
+/// use image::{RgbImage, Rgb};
+///
+/// let mut img = RgbImage::new(32, 32);
+///
+/// for x in 15..=17 {
+///     for y in 8..24 {
+///         img.put_pixel(x, y, Rgb([255, 0, 0]));
+///         img.put_pixel(y, x, Rgb([255, 0, 0]));
+///     }
+/// }
+/// ```
+///
+/// Overlays an image on top of a larger background raster.
+///
+/// ```no_run
+/// use image::{GenericImage, GenericImageView, ImageBuffer, open};
+///
+/// let on_top = open("path/to/some.png").unwrap().into_rgb();
+/// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
+///     if (x + y) % 2 == 0 {
+///         image::Rgb([0, 0, 0])
+///     } else {
+///         image::Rgb([255, 255, 255])
+///     }
+/// });
+///
+/// image::imageops::overlay(&mut img, &on_top, 128, 128);
+/// ```
 #[derive(Debug)]
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,

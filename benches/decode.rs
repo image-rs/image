@@ -28,6 +28,73 @@ fn load_all(c: &mut Criterion) {
             ],
             format: ImageFormat::Bmp,
         },
+        BenchDef {
+            dir: &["gif", "simple"],
+            files: &[
+                "alpha_gif_a.gif",
+                "sample_1.gif",
+            ],
+            format: ImageFormat::Gif,
+        },
+        BenchDef {
+            dir: &["hdr", "images"],
+            files: &[
+                "image1.hdr",
+                "rgbr4x4.hdr",
+            ],
+            format: ImageFormat::Hdr,
+        },
+        BenchDef {
+            dir: &["ico", "images"],
+            files: &[
+                "bmp-24bpp-mask.ico",
+                "bmp-32bpp-alpha.ico",
+                "png-32bpp-alpha.ico",
+                "smile.ico",
+            ],
+            format: ImageFormat::Ico,
+        },
+        BenchDef {
+            dir: &["jpg", "progressive"],
+            files: &[
+                "3.jpg",
+                "cat.jpg",
+                "test.jpg",
+            ],
+            format: ImageFormat::Jpeg,
+        },
+        // TODO: pnm
+        // TODO: png
+        BenchDef {
+            dir: &["tga", "testsuite"],
+            files: &[
+                "cbw8.tga",
+                "ctc24.tga",
+                "ubw8.tga",
+                "utc24.tga",
+            ],
+            format: ImageFormat::Tga,
+        },
+        BenchDef {
+            dir: &["tiff", "testsuite"],
+            files: &[
+                "hpredict.tiff",
+                "hpredict_packbits.tiff",
+                "mandrill.tiff",
+                "rgb-3c-16b.tiff",
+            ],
+            format: ImageFormat::Tiff,
+        },
+        BenchDef {
+            dir: &["webp", "images"],
+            files: &[
+                "simple-gray.webp",
+                "simple-rgb.webp",
+                "vp8x-gray.webp",
+                "vp8x-rgb.webp",
+            ],
+            format: ImageFormat::WebP,
+        },
     ];
 
     for bench in BENCH_DEFS {

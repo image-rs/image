@@ -10,6 +10,14 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.3
+
+- Added `ColorType::has_alpha` to facilitate lossless conversion
+- Recognize extended WebP formats for decoding
+- Added decoding and encoding for the `farbfeld` format
+- Export named iterator types created from various `ImageBuffer` methods
+- Error in jpeg encoder for images larger than 65536 pixels, fixes panic
+
 ### Version 0.23.2
 
 - The dependency on `jpeg-decoder` now reflects minimum requirements.

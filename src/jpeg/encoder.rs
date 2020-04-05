@@ -11,6 +11,7 @@ use crate::image::ImageEncoder;
 
 use super::entropy::build_huff_lut;
 use super::transform;
+use std::convert::TryFrom;
 
 // Markers
 // Baseline DCT
@@ -453,8 +454,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_frame_header(
             &mut buf,
             8,
-            width as u16,
-            height as u16,
+            u16::try_from(width).map_err(|_| ImageError::DimensionError)?,
+            u16::try_from(height).map_err(|_| ImageError::DimensionError)?,
             &self.components[..num_components],
         );
         self.writer.write_segment(SOF0, Some(&buf))?;
@@ -837,6 +838,8 @@ mod tests {
     use crate::color::ColorType;
     use crate::image::ImageDecoder;
     use std::io::Cursor;
+    use crate::ImageError;
+    use crate::error::ParameterErrorKind::DimensionMismatch;
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let decoder = JpegDecoder::new(Cursor::new(encoded))
@@ -913,5 +916,26 @@ mod tests {
                 0, 0, // No thumbnail
             ]
         );
+    }
+
+
+    #[test]
+    fn test_image_too_large() {
+        // JPEG cannot encode images larger than 65,535×65,535
+        // create a 65,536×1 8-bit black image buffer
+        let img = [0; 65_536];
+        // Try to encode an image that is too large
+        let mut encoded = Vec::new();
+        let mut encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
+        let result = encoder.encode(&img, 65_536, 1, ColorType::L8);
+        match result {
+            Err(ImageError::Parameter(err)) => {
+                assert_eq!(err.kind(), DimensionMismatch)
+            }
+            other => {
+                assert!(false, "Encoding an image that is too large should return a DimensionError \
+                                it returned {:?} instead", other)
+            }
+        }
     }
 }

@@ -387,7 +387,13 @@ impl<W: Write> Encoder<W> {
 
         // Create the gif::Frame from the animation::Frame
         let mut frame = Frame::from_rgba(width, height, &mut *rbga_frame);
-        frame.delay = (frame_delay / 10).try_into().map_err(|_|ImageError::DimensionError)?;
+        frame.delay = (frame_delay / 10)
+            .try_into()
+            .map_err(|_| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch
+                ))
+            })?;
 
         Ok(frame)
     }
@@ -399,7 +405,9 @@ impl<W: Write> Encoder<W> {
             Some((width, height))
         }
 
-        inner_dimensions(width, height).ok_or(ImageError::DimensionError)
+        inner_dimensions(width, height).ok_or(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch
+        )))
     }
 
     pub(crate) fn encode_gif(&mut self, frame: Frame) -> ImageResult<()> {

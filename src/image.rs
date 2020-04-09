@@ -8,7 +8,7 @@ use std::usize;
 
 use crate::ImageBuffer;
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
+use crate::error::{ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind};
 use crate::math::Rect;
 use crate::traits::Pixel;
 
@@ -272,7 +272,9 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
 
         if x + width > u64::from(dimensions.0) || y + height > u64::from(dimensions.1)
             || width == 0 || height == 0 {
-                return Err(ImageError::DimensionError);
+                return Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                )));
             }
         if scanline_bytes > usize::max_value() as u64 {
             return Err(ImageError::Limits(LimitError::from_kind(
@@ -657,7 +659,9 @@ pub trait GenericImage: GenericImageView {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
-            return Err(ImageError::DimensionError);
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
 
         for i in 0..other.width() {

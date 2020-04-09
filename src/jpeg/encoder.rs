@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use byteorder::{BigEndian, WriteBytesExt};
-use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::math::utils::clamp;
 use num_iter::range_step;
 use std::io::{self, Write};
@@ -449,8 +449,16 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_frame_header(
             &mut buf,
             8,
-            u16::try_from(width).map_err(|_| ImageError::DimensionError)?,
-            u16::try_from(height).map_err(|_| ImageError::DimensionError)?,
+            u16::try_from(width).map_err(|_| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?,
+            u16::try_from(height).map_err(|_| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?,
             &self.components[..num_components],
         );
         self.writer.write_segment(SOF0, Some(&buf))?;

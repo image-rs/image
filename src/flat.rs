@@ -49,7 +49,7 @@ use num_traits::Zero;
 
 use crate::ImageBuffer;
 use crate::color::ColorType;
-use crate::error::ImageError;
+use crate::error::{ImageError, ParameterError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
 
@@ -1376,7 +1376,9 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
         match error {
-            Error::TooLarge => ImageError::DimensionError,
+            Error::TooLarge => ImageError::Parameter(
+                ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)
+            ),
             Error::WrongColor(color) => ImageError::UnsupportedColor(color.into()),
             Error::NormalFormRequired(form) => ImageError::FormatError(
                 format!("Required sample buffer in normal form {:?}", form)),

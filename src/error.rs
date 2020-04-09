@@ -196,12 +196,6 @@ pub enum ImageFormatHint {
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 impl ImageError {
-    pub(crate) const DimensionError: Self =
-        ImageError::Parameter(ParameterError {
-            kind: ParameterErrorKind::DimensionMismatch,
-            underlying: None,
-        });
-
     pub(crate) fn UnsupportedError(message: String) -> Self {
         ImageError::Unsupported(UnsupportedError::legacy_from_string(message))
     }

@@ -8,7 +8,7 @@ use std::usize;
 
 use crate::ImageBuffer;
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
 use crate::math::Rect;
 use crate::traits::Pixel;
 
@@ -275,7 +275,9 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
                 return Err(ImageError::DimensionError);
             }
         if scanline_bytes > usize::max_value() as u64 {
-            return Err(ImageError::InsufficientMemory);
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
         }
 
         progress_callback(Progress {current: 0, total: total_bytes});

@@ -10,7 +10,9 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind
+};
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
 /// PNG Reader
@@ -270,7 +272,9 @@ impl ImageError {
                 ImageFormat::Png.into(),
                 message.into_owned(),
             )),
-            LimitsExceeded => ImageError::InsufficientMemory,
+            LimitsExceeded => ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )),
             // Other is used when the buffer to `Reader::next_frame` is too small.
             Other(message) => ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(message.into_owned())

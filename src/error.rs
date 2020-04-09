@@ -196,11 +196,6 @@ pub enum ImageFormatHint {
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 impl ImageError {
-    pub(crate) const InsufficientMemory: Self =
-        ImageError::Limits(LimitError {
-            kind: LimitErrorKind::InsufficientMemory,
-        });
-
     pub(crate) const DimensionError: Self =
         ImageError::Parameter(ParameterError {
             kind: ParameterErrorKind::DimensionMismatch,

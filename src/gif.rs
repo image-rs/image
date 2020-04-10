@@ -26,9 +26,7 @@
 //! ```
 #![allow(clippy::while_let_loop)]
 
-use std::clone::Clone;
 use std::convert::TryInto;
-use std::cmp::min;
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
@@ -212,8 +210,8 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // correct storage requirement if the result does not fit in `usize`.
         // on the other hand, `ImageBuffer::from_raw` detects overflow and
         // reports by returning `None`.
-        let image_buffer_raw = match ImageBuffer::from_raw(f_width, f_height, vec) {
-            Some(image_buffer_raw) => image_buffer_raw,
+        let mut frame_buffer = match ImageBuffer::from_raw(f_width, f_height, vec) {
+            Some(frame_buffer) => frame_buffer,
             None => {
                 return Some(Err(ImageError::UnsupportedError(
                     "Image dimensions are too large".into(),
@@ -221,84 +219,65 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             }
         };
 
-        // if `image_buffer_raw`'s frame exactly matches the entire image, then
-        // use it directly.
-        //
-        // otherwise, `image_buffer_raw` represents a smaller image.
-        // create a new image of the target size and place
-        // `image_buffer_raw` within it. the outside region is filled with
-        // transparent pixels.
-        let mut image_buffer =
-            full_image_from_frame(self.width, self.height, image_buffer_raw, left, top);
-
-        // loop over all pixels, checking if any pixels from the non disposed
-        // frame need to be used
-        for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
-            let previous_img_buffer = &self.non_disposed_frame;
-            let adjusted_pixel: &mut Rgba<u8> = pixel;
-            let previous_pixel: &Rgba<u8> = previous_img_buffer.get_pixel(x, y);
-
-            let pixel_alpha = adjusted_pixel.channels()[3];
-
-            // If a pixel is not visible then we show the non disposed frame pixel instead
+        // blend the current frame with the non-disposed frame, then update
+        // the non-disposed frame according to the disposal method.
+        fn blend_and_dispose_pixel(dispose: DisposalMethod,
+                previous: &mut Rgba<u8>, current: &mut Rgba<u8>) {
+            let pixel_alpha = current.channels()[3];
             if pixel_alpha == 0 {
-                adjusted_pixel.blend(previous_pixel);
+                *current = *previous;
+            }
+
+            match dispose {
+                DisposalMethod::Any | DisposalMethod::Keep => {
+                    // do not dispose
+                    // (keep pixels from this frame)
+                    // note: the `Any` disposal method is underspecified in the GIF
+                    // spec, but most viewers treat it identically to `Keep`
+                    *previous = *current;
+                }
+                DisposalMethod::Background => {
+                    // restore to background color
+                    // (background shows through transparent pixels in the next frame)
+                    *previous = Rgba([0, 0, 0, 0]);
+                }
+                DisposalMethod::Previous => {
+                    // restore to previous
+                    // (dispose frames leaving the last none disposal frame)
+                }
             }
         }
 
-        let frame = animation::Frame::from_parts(
-            image_buffer.clone(), 0, 0, animation::Delay::from_ratio(delay),
-        );
+        // if `frame_buffer`'s frame exactly matches the entire image, then
+        // use it directly, else create a new buffer to hold the composited
+        // image.
+        let image_buffer = if (left, top) == (0, 0)
+                && (self.width, self.height) == frame_buffer.dimensions() {
+            for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
+                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                blend_and_dispose_pixel(dispose, previous_pixel, pixel);
+            }
+            frame_buffer
+        } else {
+            ImageBuffer::from_fn(self.width, self.height, |x, y| {
+                let frame_x = x.wrapping_sub(left);
+                let frame_y = y.wrapping_sub(top);
+                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
 
-        match dispose {
-            DisposalMethod::Any | DisposalMethod::Keep => {
-                // do not dispose
-                // (keep pixels from this frame)
-                // note: the `Any` disposal method is underspecified in the GIF spec,
-                // but most viewers treat it identically to `Keep`
-                self.non_disposed_frame = image_buffer;
-            }
-            DisposalMethod::Background => {
-                // restore to background color
-                // (background shows through transparent pixels in the next frame)
-                for y in top..min(top + f_height, self.height) {
-                    for x in left..min(left + f_width, self.width) {
-                        self.non_disposed_frame.put_pixel(x, y, Rgba([0, 0, 0, 0]));
-                    }
+                if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
+                    let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
+                    blend_and_dispose_pixel(dispose, previous_pixel, &mut pixel);
+                    pixel
+                } else {
+                    // out of bounds, return pixel from previous frame
+                    *previous_pixel
                 }
-            }
-            DisposalMethod::Previous => {
-                // restore to previous
-                // (dispose frames leaving the last none disposal frame)
-            }
+            })
         };
 
-        Some(Ok(frame))
-    }
-}
-
-/// Given a frame subimage, construct a full image of size
-/// `(screen_width, screen_height)` by placing it at the top-left coordinates
-/// `(left, top)`. The remaining portion is filled with transparent pixels.
-fn full_image_from_frame(
-    screen_width: u32,
-    screen_height: u32,
-    image: crate::RgbaImage,
-    left: u32,
-    top: u32,
-) -> crate::RgbaImage {
-    if (left, top) == (0, 0) && (screen_width, screen_height) == (image.width(), image.height()) {
-        image
-    } else {
-        ImageBuffer::from_fn(screen_width, screen_height, |x, y| {
-            let x = x.wrapping_sub(left);
-            let y = y.wrapping_sub(top);
-            if x < image.width() && y < image.height() {
-                *image.get_pixel(x, y)
-            } else {
-                Rgba([0, 0, 0, 0])
-            }
-        })
+        Some(Ok(animation::Frame::from_parts(
+            image_buffer, 0, 0, animation::Delay::from_ratio(delay),
+        )))
     }
 }
 

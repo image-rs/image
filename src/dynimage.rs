@@ -24,7 +24,7 @@ use crate::buffer_::{
     Rgba16Image,
 };
 use crate::color::{self, IntoColor};
-use crate::error::{ImageError, ImageResult};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
@@ -916,7 +916,9 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
     };
     match image {
         Some(image) => Ok(image),
-        None => Err(ImageError::DimensionError),
+        None => Err(ImageError::Parameter(
+            ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)
+        ))
     }
 }
 

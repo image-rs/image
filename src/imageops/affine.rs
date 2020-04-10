@@ -2,6 +2,7 @@
 
 use crate::ImageBuffer;
 use crate::image::{GenericImage, GenericImageView};
+use crate::error::{ImageError, ParameterError, ParameterErrorKind};
 use crate::traits::Pixel;
 
 /// Rotate an image 90 degrees clockwise.
@@ -51,7 +52,9 @@ pub fn rotate90_in<I, Container>(
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
-        return Err(crate::ImageError::DimensionError);
+        return Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        )));
     }
 
     for y in 0..h0 {
@@ -74,7 +77,9 @@ pub fn rotate180_in<I, Container>(
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(crate::ImageError::DimensionError);
+        return Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        )));
     }
 
     for y in 0..h0 {
@@ -97,7 +102,9 @@ pub fn rotate270_in<I, Container>(
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
-        return Err(crate::ImageError::DimensionError);
+        return Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        )));
     }
 
     for y in 0..h0 {
@@ -144,7 +151,9 @@ pub fn flip_horizontal_in<I, Container>(
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(crate::ImageError::DimensionError);
+        return Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        )));
     }
 
     for y in 0..h0 {
@@ -167,7 +176,9 @@ pub fn flip_vertical_in<I, Container>(
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(crate::ImageError::DimensionError);
+        return Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        )));
     }
 
     for y in 0..h0 {

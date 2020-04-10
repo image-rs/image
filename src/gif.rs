@@ -385,7 +385,11 @@ impl<W: Write> Encoder<W> {
 
         // Create the gif::Frame from the animation::Frame
         let mut frame = Frame::from_rgba(width, height, &mut *rbga_frame);
-        frame.delay = (frame_delay / 10).try_into().map_err(|_|ImageError::DimensionError)?;
+        // Saturate the conversion to u16::MAX instead of returning an error as that
+        // would require a new special cased variant in ParameterErrorKind which most
+        // likely couldn't be reused for other cases. This isn't a bad trade-off given
+        // that the current algorithm is already lossy.
+        frame.delay = (frame_delay / 10).try_into().unwrap_or(std::u16::MAX);
 
         Ok(frame)
     }
@@ -397,7 +401,9 @@ impl<W: Write> Encoder<W> {
             Some((width, height))
         }
 
-        inner_dimensions(width, height).ok_or(ImageError::DimensionError)
+        inner_dimensions(width, height).ok_or(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch
+        )))
     }
 
     pub(crate) fn encode_gif(&mut self, frame: Frame) -> ImageResult<()> {

@@ -251,13 +251,11 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         );
 
         match dispose {
-            DisposalMethod::Any => {
-                // do nothing
-                // (completely replace this frame with the next)
-            }
-            DisposalMethod::Keep => {
+            DisposalMethod::Any | DisposalMethod::Keep => {
                 // do not dispose
                 // (keep pixels from this frame)
+                // note: the `Any` disposal method is underspecified in the GIF spec,
+                // but most viewers treat it identically to `Keep`
                 self.non_disposed_frame = image_buffer;
             }
             DisposalMethod::Background => {

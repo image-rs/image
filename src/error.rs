@@ -14,6 +14,7 @@
 //! [`ImageError`]: enum.ImageError.html
 
 use std::{fmt, io};
+use std::borrow::Cow;
 use std::error::Error;
 
 use crate::color::ExtendedColorType;
@@ -141,7 +142,7 @@ pub enum ParameterErrorKind {
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
-    message: Option<Box<str>>,
+    message: Option<Cow<'static, str>>,
     underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
@@ -274,23 +275,25 @@ impl DecodingError {
 
     /// A shorthand for a string error without an image format.
     pub(crate) fn legacy_from_string(message: String) -> Self {
-        DecodingError {
-            format: ImageFormatHint::Unknown,
-            message: Some(message.into_boxed_str()),
-            underlying: None,
-        }
+        DecodingError::with_message(ImageFormatHint::Unknown, message)
     }
 
     /// Not quite legacy but also highly discouraged.
     /// This is just since the string typing is prevalent in the `image` decoders...
-    // TODO: maybe a Cow? A constructor from `&'static str` wouldn't be too bad.
-    pub(crate) fn with_message(
+    pub(crate) fn with_message<M: Into<Cow<'static, str>>>(
         format: ImageFormatHint,
-        message: String,
+        message: M,
+    ) -> Self {
+        DecodingError::with_message_impl(format, message.into())
+    }
+
+    fn with_message_impl(
+        format: ImageFormatHint,
+        message: Cow<'static, str>,
     ) -> Self {
         DecodingError {
             format,
-            message: Some(message.into_boxed_str()),
+            message: Some(message),
             underlying: None,
         }
     }

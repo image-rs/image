@@ -46,14 +46,14 @@ impl<R: Read> WebPDecoder<R> {
         if &*riff != b"RIFF" {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::WebP.into(),
-                "Invalid RIFF signature".to_string(),
+                "Invalid RIFF signature",
             )));
         }
 
         if &*webp != b"WEBP" {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::WebP.into(),
-                "Invalid WEBP signature".to_string(),
+                "Invalid WEBP signature",
             )));
         }
 
@@ -74,7 +74,7 @@ impl<R: Read> WebPDecoder<R> {
                     // Alpha, Lossless and Animation isn't supported
                     return Err(ImageError::Decoding(DecodingError::with_message(
                         ImageFormat::WebP.into(),
-                        "Unsupported WEBP feature.".to_string(),
+                        "Unsupported WEBP feature.",
                     )));
                 }
                 _ => {

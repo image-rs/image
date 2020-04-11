@@ -2,11 +2,11 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
-use std::mem;
+use std::{error, fmt, mem};
 
 use crate::color::ColorType;
-use crate::error::{ImageError, ImageResult};
-use crate::image::{self, ImageDecoder};
+use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::image::{self, ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
 use crate::bmp::BmpDecoder;
@@ -15,6 +15,85 @@ use crate::png::PngDecoder;
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+
+/// Errors that can occur during decoding and parsing an ICO image or one of its enclosed images.
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum IcoDecoderError {
+    /// The ICO directory is empty
+    NoEntries,
+    /// The number of color planes (0 or 1), or the horizontal coordinate of the hotspot for CUR files too big.
+    IcoEntryTooManyPlanesOrHotspot,
+    /// The bit depth (may be 0 meaning unspecified), or the vertical coordinate of the hotspot for CUR files too big.
+    IcoEntryTooManyBitsPerPixelOrHotspot,
+
+    /// The entry is in PNG format and specified a length that is shorter than PNG header.
+    PngShorterThanHeader,
+    /// The enclosed PNG is not in RGBA, which is invalid: https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/.
+    PngNotRgba,
+
+    /// The optional mask row, containing 1 bit per pixel, padded to 4 bytes, was too short for this image.
+    BmpIcoMaskTooShortForImage,
+
+    /// The dimensions specified by the entry does not match the dimensions in the header of the enclosed image.
+    ImageEntryDimensionMismatch {
+        /// The mismatched subimage's type
+        format: IcoEntryImageFormat,
+        /// The dimensions specified by the entry
+        entry: (u16, u16),
+        /// The dimensions of the image itself
+        image: (u32, u32)
+    },
+}
+
+impl fmt::Display for IcoDecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IcoDecoderError::NoEntries =>
+                f.write_str("ICO directory contains no image"),
+            IcoDecoderError::IcoEntryTooManyPlanesOrHotspot =>
+                f.write_str("ICO image entry has too many color planes or too large hotspot value"),
+            IcoDecoderError::IcoEntryTooManyBitsPerPixelOrHotspot =>
+                f.write_str("ICO image entry has too many bits per pixel or too large hotspot value"),
+            IcoDecoderError::PngShorterThanHeader =>
+                f.write_str("Entry specified a length that is shorter than PNG header!"),
+            IcoDecoderError::PngNotRgba =>
+                f.write_str("The PNG is not in RGBA format!"),
+            IcoDecoderError::BmpIcoMaskTooShortForImage =>
+                f.write_str("ICO mask too short for the image"),
+            IcoDecoderError::ImageEntryDimensionMismatch { format, entry, image } =>
+                f.write_fmt(format_args!("Entry{:?} and {}{:?} dimensions do not match!", entry, format, image)),
+        }
+    }
+}
+
+impl error::Error for IcoDecoderError {}
+
+/// The image formats an ICO may contain
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum IcoEntryImageFormat {
+    /// PNG in ARGB
+    Png,
+    /// BMP with optional alpha mask
+    Bmp,
+}
+
+impl fmt::Display for IcoEntryImageFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            IcoEntryImageFormat::Png => "PNG",
+            IcoEntryImageFormat::Bmp => "BMP",
+        })
+    }
+}
+
+impl Into<ImageFormat> for IcoEntryImageFormat {
+    fn into(self) -> ImageFormat {
+        match self {
+            IcoEntryImageFormat::Png => ImageFormat::Png,
+            IcoEntryImageFormat::Bmp => ImageFormat::Bmp,
+        }
+    }
+}
 
 /// An ico decoder
 pub struct IcoDecoder<R: Read> {
@@ -75,18 +154,18 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
     // of the hotspot for CUR files.
     entry.num_color_planes = r.read_u16::<LittleEndian>()?;
     if entry.num_color_planes > 256 {
-        return Err(ImageError::FormatError(
-            "ICO image entry has a too large color planes/hotspot value".to_string(),
-        ));
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Ico.into(),
+            IcoDecoderError::IcoEntryTooManyPlanesOrHotspot)));
     }
 
     // This may be either the bit depth (may be 0 meaning unspecified),
     // or the vertical coordinate of the hotspot for CUR files.
     entry.bits_per_pixel = r.read_u16::<LittleEndian>()?;
     if entry.bits_per_pixel > 256 {
-        return Err(ImageError::FormatError(
-            "ICO image entry has a too large bits per pixel/hotspot value".to_string(),
-        ));
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Ico.into(),
+            IcoDecoderError::IcoEntryTooManyBitsPerPixelOrHotspot)));
     }
 
     entry.image_length = r.read_u32::<LittleEndian>()?;
@@ -97,9 +176,9 @@ fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
 
 /// Find the entry with the highest (color depth, size).
 fn best_entry(mut entries: Vec<DirEntry>) -> ImageResult<DirEntry> {
-    let mut best = entries.pop().ok_or_else(|| ImageError::FormatError(
-            "ICO directory contains no image".to_string(),
-        ))?;
+    let mut best = entries.pop().ok_or_else(|| ImageError::Decoding(DecodingError::new(
+        ImageFormat::Ico.into(),
+        IcoDecoderError::NoEntries)))?;
 
     let mut best_score = (
         best.bits_per_pixel,
@@ -207,27 +286,29 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
         match self.inner_decoder {
             PNG(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
-                    return Err(ImageError::FormatError(
-                        "Entry specified a length that is shorter than PNG header!".to_string(),
-                    ));
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Png.into(),
+                        IcoDecoderError::PngShorterThanHeader)));
                 }
 
                 // Check if the image dimensions match the ones in the image data.
                 let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
-                    return Err(ImageError::FormatError(
-                        "Entry and PNG dimensions do not match!".to_string(),
-                    ));
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Png.into(),
+                        IcoDecoderError::ImageEntryDimensionMismatch {
+                            format: IcoEntryImageFormat::Png,
+                            entry: (self.selected_entry.real_width(), self.selected_entry.real_height()),
+                            image: (width, height)
+                    })));
                 }
 
                 // Embedded PNG images can only be of the 32BPP RGBA format.
                 // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/
-                let color_type = decoder.color_type();
-                if let ColorType::Rgba8 = color_type {
-                } else {
-                    return Err(ImageError::FormatError(
-                        "The PNG is not in RGBA format!".to_string(),
-                    ));
+                if decoder.color_type() != ColorType::Rgba8 {
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Png.into(),
+                        IcoDecoderError::PngNotRgba)));
                 }
 
                 decoder.read_image(buf)
@@ -235,14 +316,21 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
             BMP(mut decoder) => {
                 let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
-                    return Err(ImageError::FormatError(
-                        "Entry({:?}) and BMP({:?}) dimensions do not match!".to_string(),
-                    ));
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Bmp.into(),
+                        IcoDecoderError::ImageEntryDimensionMismatch {
+                            format: IcoEntryImageFormat::Bmp,
+                            entry: (self.selected_entry.real_width(), self.selected_entry.real_height()),
+                            image: (width, height)
+                        })));
                 }
 
                 // The ICO decoder needs an alpha channel to apply the AND mask.
                 if decoder.color_type() != ColorType::Rgba8 {
-                    return Err(ImageError::UnsupportedColor(decoder.color_type().into()));
+                    return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                        ImageFormat::Bmp.into(),
+                        UnsupportedErrorKind::Color(decoder.color_type().into()),
+                    )));
                 }
 
                 decoder.read_image_data(buf)?;
@@ -259,9 +347,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                     let mask_row_bytes = ((width + 31) / 32) * 4;
                     let expected_length = u64::from(mask_row_bytes) * u64::from(height);
                     if mask_length < expected_length {
-                        return Err(ImageError::FormatError(
-                            "ICO mask too short for the image".to_string(),
-                        ));
+                        return Err(ImageError::Decoding(DecodingError::new(
+                            ImageFormat::Bmp.into(),
+                            IcoDecoderError::BmpIcoMaskTooShortForImage)));
                     }
 
                     for y in 0..height {

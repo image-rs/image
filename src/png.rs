@@ -268,9 +268,9 @@ impl ImageError {
         use png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),
-            Format(message) => ImageError::Decoding(DecodingError::with_message(
+            err @ Format(_) => ImageError::Decoding(DecodingError::new(
                 ImageFormat::Png.into(),
-                message,
+                err,
             )),
             LimitsExceeded => ImageError::Limits(LimitError::from_kind(
                 LimitErrorKind::InsufficientMemory,

@@ -186,6 +186,8 @@ pub struct Reader<R: Read> {
     prev: Vec<u8>,
     /// Current raw line
     current: Vec<u8>,
+    /// Start index of the current scan line.
+    scan_start: usize,
     /// Output transformations
     transform: Transformations,
     /// Processed line
@@ -213,6 +215,7 @@ impl<R: Read> Reader<R> {
             adam7: None,
             prev: Vec::new(),
             current: Vec::new(),
+            scan_start: 0,
             transform: t,
             processed: Vec::new(),
             limits,
@@ -484,9 +487,7 @@ impl<R: Read> Reader<R> {
                 let rowlen = get_info!(self).raw_row_length_from_width(len);
                 if last_pass != pass {
                     self.prev.clear();
-                    for _ in 0..rowlen {
-                        self.prev.push(0);
-                    }
+                    self.prev.resize(rowlen, 0u8);
                 }
                 (rowlen, Some((pass, line, len)))
             } else {
@@ -496,35 +497,45 @@ impl<R: Read> Reader<R> {
             (self.rowlen, None)
         };
         loop {
-            if self.current.len() >= rowlen {
-                if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                    if let Err(message) = unfilter(
-                        filter,
-                        bpp,
-                        &self.prev[1..rowlen],
-                        &mut self.current[1..rowlen],
-                    ) {
-                        return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
-                    }
-                    self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
-                    self.current.drain(0..rowlen);
-                    return Ok(Some(InterlacedRow {
-                        data: &self.prev[1..rowlen],
-                        interlace: match passdata {
-                            None => InterlaceInfo::None,
-                            Some((pass, line, width)) => InterlaceInfo::Adam7 {
-                                pass,
-                                line,
-                                width,
-                            }
-                        },
-                    }));
-                } else {
-                    return Err(DecodingError::Format(
-                        format!("invalid filter method ({})", self.current[0]).into(),
-                    ));
+            if self.current.len() - self.scan_start >= rowlen {
+                let row = &mut self.current[self.scan_start..];
+                let filter = match FilterType::from_u8(row[0]) {
+                    None => return Err(DecodingError::Format(
+                        format!("invalid filter method ({})", row[0]).into(),
+                    )),
+                    Some(filter) => filter,
+                };
+
+                if let Err(message) = unfilter(
+                    filter,
+                    bpp,
+                    &self.prev[1..rowlen],
+                    &mut row[1..rowlen],
+                ) {
+                    return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
                 }
+
+                self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
+                self.scan_start += rowlen;
+
+                return Ok(Some(InterlacedRow {
+                    data: &self.prev[1..rowlen],
+                    interlace: match passdata {
+                        None => InterlaceInfo::None,
+                        Some((pass, line, width)) => InterlaceInfo::Adam7 {
+                            pass,
+                            line,
+                            width,
+                        }
+                    },
+                }));
             } else {
+                // Clear the current buffer before appending more data.
+                if self.scan_start > 0 {
+                    self.current.drain(..self.scan_start).for_each(drop);
+                    self.scan_start = 0;
+                }
+
                 let val = self.decoder.decode_next(&mut self.current)?;
                 match val {
                     Some(Decoded::ImageData) => {}

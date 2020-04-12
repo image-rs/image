@@ -689,7 +689,7 @@ impl BoolReader {
         if buf.len() < 2 {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::WebP.into(),
-                "Expected at least 2 bytes of decoder initialization data".to_owned(),
+                "Expected at least 2 bytes of decoder initialization data",
             )));
         }
 
@@ -1151,7 +1151,7 @@ impl<R: Read> Vp8Decoder<R> {
             if color_space != 0 {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::WebP.into(),
-                    "Only YUV color space is specified.".to_string(),
+                    "Only YUV color space is specified.",
                 )));
             }
         }

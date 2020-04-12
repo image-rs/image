@@ -270,7 +270,7 @@ impl ImageError {
             IoError(err) => ImageError::IoError(err),
             Format(message) => ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Png.into(),
-                message.into_owned(),
+                message,
             )),
             LimitsExceeded => ImageError::Limits(LimitError::from_kind(
                 LimitErrorKind::InsufficientMemory,

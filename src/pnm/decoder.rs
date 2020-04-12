@@ -300,7 +300,7 @@ trait HeaderReader: BufRead {
             if len == 0 {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Unexpected end of pnm header".to_string(),
+                    "Unexpected end of pnm header",
                 )));
             }
             if line.as_bytes()[0] == b'#' {
@@ -309,7 +309,7 @@ trait HeaderReader: BufRead {
             if !line.is_ascii() {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Only ascii characters allowed in pam header".to_string(),
+                    "Only ascii characters allowed in pam header",
                 )));
             }
             #[allow(deprecated)]
@@ -321,7 +321,7 @@ trait HeaderReader: BufRead {
                     if height.is_some() {
                         return Err(ImageError::Decoding(DecodingError::with_message(
                             ImageFormat::Pnm.into(),
-                            "Duplicate HEIGHT line".to_string(),
+                            "Duplicate HEIGHT line",
                         )));
                     } else {
                         let h = rest
@@ -335,7 +335,7 @@ trait HeaderReader: BufRead {
                     if width.is_some() {
                         return Err(ImageError::Decoding(DecodingError::with_message(
                             ImageFormat::Pnm.into(),
-                            "Duplicate WIDTH line".to_string(),
+                            "Duplicate WIDTH line",
                         )));
                     } else {
                         let w = rest
@@ -349,7 +349,7 @@ trait HeaderReader: BufRead {
                     if depth.is_some() {
                         return Err(ImageError::Decoding(DecodingError::with_message(
                             ImageFormat::Pnm.into(),
-                            "Duplicate DEPTH line".to_string(),
+                            "Duplicate DEPTH line",
                         )));
                     } else {
                         let d = rest
@@ -363,7 +363,7 @@ trait HeaderReader: BufRead {
                     if maxval.is_some() {
                         return Err(ImageError::Decoding(DecodingError::with_message(
                             ImageFormat::Pnm.into(),
-                            "Duplicate MAXVAL line".to_string(),
+                            "Duplicate MAXVAL line",
                         )));
                     } else {
                         let m = rest
@@ -389,7 +389,7 @@ trait HeaderReader: BufRead {
                 _ => {
                     return Err(ImageError::Decoding(DecodingError::with_message(
                         ImageFormat::Pnm.into(),
-                        "Unknown header line".to_string(),
+                        "Unknown header line",
                     )))
                 }
             }
@@ -399,25 +399,25 @@ trait HeaderReader: BufRead {
             (None, _, _, _) => {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Expected one HEIGHT line".to_string(),
+                    "Expected one HEIGHT line",
                 )))
             }
             (_, None, _, _) => {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Expected one WIDTH line".to_string(),
+                    "Expected one WIDTH line",
                 )))
             }
             (_, _, None, _) => {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Expected one DEPTH line".to_string(),
+                    "Expected one DEPTH line",
                 )))
             }
             (_, _, _, None) => {
                 return Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Expected one MAXVAL line".to_string(),
+                    "Expected one MAXVAL line",
                 )))
             }
             (Some(h), Some(w), Some(d), Some(m)) => (h, w, d, m),
@@ -514,7 +514,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
 fn err_input_is_too_short() -> ImageError {
     ImageError::Decoding(DecodingError::with_message(
         ImageFormat::Pnm.into(),
-        "Not enough data was provided to the Decoder to decode the image".to_string(),
+        "Not enough data was provided to the Decoder to decode the image",
     ))
 }
 
@@ -575,7 +575,7 @@ fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) 
     if !token.is_ascii() {
         return Err(ImageError::Decoding(DecodingError::with_message(
             ImageFormat::Pnm.into(),
-            "Non ascii character where sample value was expected".to_string(),
+            "Non ascii character where sample value was expected",
         )));
     }
 
@@ -757,7 +757,7 @@ impl DecodableImageHeader for GraymapHeader {
             v if v <= 0xFFFF => Ok(TupleType::GrayU16),
             _ => Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Pnm.into(),
-                "Image maxval is not less or equal to 65535".to_string(),
+                "Image maxval is not less or equal to 65535",
             ))),
         }
     }
@@ -770,7 +770,7 @@ impl DecodableImageHeader for PixmapHeader {
             v if v <= 0xFFFF => Ok(TupleType::RGBU16),
             _ => Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Pnm.into(),
-                "Image maxval is not less or equal to 65535".to_string(),
+                "Image maxval is not less or equal to 65535",
             ))),
         }
     }
@@ -790,7 +790,7 @@ impl DecodableImageHeader for ArbitraryHeader {
             Some(ArbitraryTuplType::BlackAndWhite) => {
                 Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Invalid depth or maxval for tuple type BLACKANDWHITE".to_string(),
+                    "Invalid depth or maxval for tuple type BLACKANDWHITE",
                 )))
             }
 
@@ -803,7 +803,7 @@ impl DecodableImageHeader for ArbitraryHeader {
             Some(ArbitraryTuplType::Grayscale) => {
                 Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Invalid depth or maxval for tuple type GRAYSCALE".to_string(),
+                    "Invalid depth or maxval for tuple type GRAYSCALE",
                 )))
             }
 
@@ -815,13 +815,13 @@ impl DecodableImageHeader for ArbitraryHeader {
             }
             Some(ArbitraryTuplType::RGB) => Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Pnm.into(),
-                "Invalid depth for tuple type RGB".to_string(),
+                "Invalid depth for tuple type RGB",
             ))),
 
             Some(ArbitraryTuplType::BlackAndWhiteAlpha) => {
                 Err(ImageError::Decoding(DecodingError::with_message(
                     ImageFormat::Pnm.into(),
-                    "Unsupported color type: BlackAndWhiteAlpha".to_string(),
+                    "Unsupported color type: BlackAndWhiteAlpha",
                 )))
             }
             Some(ArbitraryTuplType::GrayscaleAlpha) => Err(ImageError::Unsupported(
@@ -847,7 +847,7 @@ impl DecodableImageHeader for ArbitraryHeader {
             )),
             None => Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Pnm.into(),
-                "Tuple type not recognized".to_string(),
+                "Tuple type not recognized",
             ))),
         }
     }

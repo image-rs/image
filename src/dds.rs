@@ -48,7 +48,7 @@ impl PixelFormat {
         if size != 32 {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Dds.into(),
-                "Invalid DDS PixelFormat size".to_string(),
+                "Invalid DDS PixelFormat size",
             )));
         }
 
@@ -74,7 +74,7 @@ impl Header {
         if size != 124 {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Dds.into(),
-                "Invalid DDS header size".to_string(),
+                "Invalid DDS header size",
             )));
         }
 
@@ -84,7 +84,7 @@ impl Header {
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
             return Err(ImageError::Decoding(DecodingError::with_message(
                 ImageFormat::Dds.into(),
-                "Invalid DDS header flags".to_string(),
+                "Invalid DDS header flags",
             )));
         }
 

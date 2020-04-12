@@ -4,6 +4,7 @@ use std::path::Path;
 
 use crate::dynimage::DynamicImage;
 use crate::image::ImageFormat;
+use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::{ImageError, ImageResult};
 
 use super::free_functions;
@@ -100,7 +101,7 @@ impl<R: Read> Reader<R> {
     /// Remove the current information on the image format.
     ///
     /// Note that many operations require format information to be present and will return e.g. an
-    /// `ImageError::UnsupportedError` when the image format has not been set.
+    /// `ImageError::Unsupported` when the image format has not been set.
     pub fn clear_format(&mut self) {
         self.format = None;
     }
@@ -187,7 +188,7 @@ impl<R: BufRead + Seek> Reader<R> {
     ///
     /// Uses the current format to construct the correct reader for the format.
     ///
-    /// If no format was determined, returns an `ImageError::UnsupportedError`.
+    /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn into_dimensions(mut self) -> ImageResult<(u32, u32)> {
         let format = self.require_format()?;
         free_functions::image_dimensions_with_format_impl(self.inner, format)
@@ -197,7 +198,7 @@ impl<R: BufRead + Seek> Reader<R> {
     ///
     /// Uses the current format to construct the correct reader for the format.
     ///
-    /// If no format was determined, returns an `ImageError::UnsupportedError`.
+    /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn decode(mut self) -> ImageResult<DynamicImage> {
         let format = self.require_format()?;
         free_functions::load(self.inner, format)
@@ -205,6 +206,8 @@ impl<R: BufRead + Seek> Reader<R> {
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {
         self.format.ok_or_else(||
-            ImageError::UnsupportedError("Unable to determine image format".into()))
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Format(ImageFormatHint::Unknown))))
     }
 }

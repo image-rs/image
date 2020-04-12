@@ -24,7 +24,7 @@ use crate::buffer_::{
     Rgba16Image,
 };
 use crate::color::{self, IntoColor};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
@@ -758,7 +758,9 @@ impl DynamicImage {
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {
-                Err(ImageError::UnsupportedError(msg))
+                Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
             },
 
             image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},

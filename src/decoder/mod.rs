@@ -10,7 +10,7 @@ use std::mem;
 use std::ops::Range;
 
 use crate::chunk;
-use crate::common::{BitDepth, ColorType, Info, Transformations};
+use crate::common::{BitDepth, BytesPerPixel, ColorType, Info, Transformations};
 use crate::filter::{unfilter, FilterType};
 use crate::utils;
 
@@ -212,7 +212,7 @@ impl<R: Read> ReadDecoder<R> {
 /// Provides a high level that iterates over lines or whole images.
 pub struct Reader<R: Read> {
     decoder: ReadDecoder<R>,
-    bpp: usize,
+    bpp: BytesPerPixel,
     subframe: SubframeInfo,
     /// Number of frame control chunks read.
     /// By the APNG specification the total number must equal the count specified in the animation
@@ -281,7 +281,7 @@ impl<R: Read> Reader<R> {
                 decoder: d,
                 at_eof: false,
             },
-            bpp: 0,
+            bpp: BytesPerPixel::One,
             subframe: SubframeInfo::not_yet_init(),
             fctl_read: 0,
             next_frame: SubframeIdx::Initial,
@@ -327,7 +327,7 @@ impl<R: Read> Reader<R> {
                 Some(info) => info,
                 None => return Err(DecodingError::Format("IHDR chunk missing".into())),
             };
-            self.bpp = info.bytes_per_pixel();
+            self.bpp = info.bpp_in_prediction();
             self.subframe = SubframeInfo::new(info);
         }
         self.allocate_out_buf()?;

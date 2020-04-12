@@ -72,11 +72,7 @@ struct InterlacedRow<'data> {
 
 enum InterlaceInfo {
     None,
-    Adam7 {
-        pass: u8,
-        line: u32,
-        width: u32,
-    },
+    Adam7 { pass: u8, line: u32, width: u32 },
 }
 
 impl<R: Read> Decoder<R> {
@@ -296,20 +292,16 @@ impl<R: Read> Reader<R> {
             Ok(Some(row)) => {
                 let interlace = match row.interlace {
                     InterlaceInfo::None => None,
-                    InterlaceInfo::Adam7 { pass, line, width } => {
-                        Some((pass, line, width))
-                    }
+                    InterlaceInfo::Adam7 { pass, line, width } => Some((pass, line, width)),
                 };
 
                 Ok(Some((row.data, interlace)))
-            },
+            }
         }
     }
 
     /// Fetch the next interlaced row and filter it according to our own transformations.
-    fn next_interlaced_row_impl(
-        &mut self,
-    ) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
+    fn next_interlaced_row_impl(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
         use crate::common::ColorType::*;
         let transform = self.transform;
 
@@ -364,9 +356,8 @@ impl<R: Read> Reader<R> {
         }
 
         if bit_depth == 16
-            && transform.intersects(
-                crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
-            )
+            && transform
+                .intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16)
         {
             len /= 2;
             for i in 0..len {
@@ -476,9 +467,7 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next raw scanline of the image interlace pass.
     /// The scanline is filtered against the previous scanline according to the specification.
-    fn next_raw_interlaced_row(
-        &mut self,
-    ) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
+    fn next_raw_interlaced_row(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
         let _ = get_info!(self);
         let bpp = self.bpp;
         let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
@@ -500,18 +489,17 @@ impl<R: Read> Reader<R> {
             if self.current.len() - self.scan_start >= rowlen {
                 let row = &mut self.current[self.scan_start..];
                 let filter = match FilterType::from_u8(row[0]) {
-                    None => return Err(DecodingError::Format(
-                        format!("invalid filter method ({})", row[0]).into(),
-                    )),
+                    None => {
+                        return Err(DecodingError::Format(
+                            format!("invalid filter method ({})", row[0]).into(),
+                        ))
+                    }
                     Some(filter) => filter,
                 };
 
-                if let Err(message) = unfilter(
-                    filter,
-                    bpp,
-                    &self.prev[1..rowlen],
-                    &mut row[1..rowlen],
-                ) {
+                if let Err(message) =
+                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen])
+                {
                     return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
                 }
 
@@ -522,11 +510,7 @@ impl<R: Read> Reader<R> {
                     data: &self.prev[1..rowlen],
                     interlace: match passdata {
                         None => InterlaceInfo::None,
-                        Some((pass, line, width)) => InterlaceInfo::Adam7 {
-                            pass,
-                            line,
-                            width,
-                        }
+                        Some((pass, line, width)) => InterlaceInfo::Adam7 { pass, line, width },
                     },
                 }));
             } else {

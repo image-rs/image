@@ -121,7 +121,7 @@ pub fn unfilter(
                             lprevious = pcurrent;
                         }
                     }
-                }
+                };
             }
 
             avg_tail!(avg_tail_8, 8);
@@ -159,7 +159,6 @@ pub fn unfilter(
 
             let mut lprevious = current.next().unwrap();
             let mut lpprevious = previous.next().unwrap();
-
 
             while let Some(pprevious) = previous.next() {
                 let pcurrent = current.next().unwrap();

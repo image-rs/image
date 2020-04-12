@@ -128,10 +128,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "farbfeld")]
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
 
-            f => ImageOutputFormat::Unsupported(format!(
-                "Image format {:?} not supported for encoding.",
-                f
-            )),
+            f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }
     }
 }

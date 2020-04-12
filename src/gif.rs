@@ -39,8 +39,8 @@ use num_rational::Ratio;
 use crate::animation;
 use crate::ImageBuffer;
 use crate::color::{ColorType, Rgba};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::{self, AnimationDecoder, ImageDecoder};
+use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::image::{self, AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::traits::Pixel;
 
 /// GIF decoder
@@ -123,8 +123,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
                 // See the comments inside `<GifFrameIterator as Iterator>::next` about
                 // the error handling of `from_raw`.
                 let image = ImageBuffer::from_raw(f_width, f_height, &mut *buf).ok_or_else(
-                    || ImageError::UnsupportedError("Image dimensions are too large".into())
-                )?;
+                    || ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                        ImageFormat::Gif.into(),
+                        UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}, {}) are too large", f_width, f_height)))))?;
 
                 ImageBuffer::from_fn(width, height, |x, y| {
                     let x = x.wrapping_sub(left);
@@ -213,9 +214,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         let mut frame_buffer = match ImageBuffer::from_raw(f_width, f_height, vec) {
             Some(frame_buffer) => frame_buffer,
             None => {
-                return Some(Err(ImageError::UnsupportedError(
-                    "Image dimensions are too large".into(),
-                )))
+                return Some(Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Gif.into(),
+                    UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}, {}) are too large", f_width, f_height)),
+                ))))
             }
         };
 
@@ -316,7 +318,10 @@ impl<W: Write> Encoder<W> {
             ColorType::Rgba8 => {
                 self.encode_gif(Frame::from_rgb(width, height, &mut data.to_owned()))
             },
-            _ => Err(ImageError::UnsupportedColor(color.into())),
+            _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Gif.into(),
+                UnsupportedErrorKind::Color(color.into())
+            ))),
         }
     }
 
@@ -404,7 +409,7 @@ impl ImageError {
     fn from_gif(err: gif::DecodingError) -> ImageError {
         use gif::DecodingError::*;
         match err {
-            Format(desc) | Internal(desc) => ImageError::FormatError(desc.into()),
+            err @ Format(_) | err @ Internal(_) => ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), err)),
             Io(io_err) => ImageError::IoError(io_err),
         }
     }

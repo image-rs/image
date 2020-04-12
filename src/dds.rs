@@ -5,6 +5,7 @@
 //!  # Related Links
 //!  * <https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide> - Description of the DDS format.
 
+use std::{error, fmt};
 use std::io::Read;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -12,9 +13,40 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use crate::color::ColorType;
 use crate::dxt::{DxtDecoder, DXTReader, DXTVariant};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
+
+/// Errors that can occur during decoding and parsing a DDS image
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum DecoderError {
+    /// Wrong DDS channel width
+    PixelFormatSizeInvalid(u32),
+    /// Wrong DDS header size
+    HeaderSizeInvalid(u32),
+    /// Wrong DDS header flags
+    HeaderFlagsInvalid(u32),
+
+    /// DDS "DDS " signature invalid or missing
+    DdsSignatureInvalid,
+}
+
+impl fmt::Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecoderError::PixelFormatSizeInvalid(s) =>
+                f.write_fmt(format_args!("Invalid DDS PixelFormat size: {}", s)),
+            DecoderError::HeaderSizeInvalid(s) =>
+                f.write_fmt(format_args!("Invalid DDS header size: {}", s)),
+            DecoderError::HeaderFlagsInvalid(fs) =>
+                f.write_fmt(format_args!("Invalid DDS header flags: {:#010x}", fs)),
+            DecoderError::DdsSignatureInvalid =>
+                f.write_str("DDS signature not found"),
+        }
+    }
+}
+
+impl error::Error for DecoderError {}
 
 /// Header used by DDS image files
 #[derive(Debug)]
@@ -46,9 +78,9 @@ impl PixelFormat {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
-            return Err(ImageError::Decoding(DecodingError::with_message(
+            return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Dds.into(),
-                "Invalid DDS PixelFormat size",
+                DecoderError::PixelFormatSizeInvalid(size),
             )));
         }
 
@@ -72,9 +104,9 @@ impl Header {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
-            return Err(ImageError::Decoding(DecodingError::with_message(
+            return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Dds.into(),
-                "Invalid DDS header size",
+                DecoderError::HeaderSizeInvalid(size),
             )));
         }
 
@@ -82,9 +114,9 @@ impl Header {
         const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x800000;
         let flags = r.read_u32::<LittleEndian>()?;
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
-            return Err(ImageError::Decoding(DecodingError::with_message(
+            return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Dds.into(),
-                "Invalid DDS header flags",
+                DecoderError::HeaderFlagsInvalid(flags)
             )));
         }
 
@@ -133,9 +165,9 @@ impl<R: Read> DdsDecoder<R> {
         let mut magic = [0; 4];
         r.read_exact(&mut magic)?;
         if magic != b"DDS "[..] {
-            return Err(ImageError::Decoding(DecodingError::with_message(
+            return Err(ImageError::Decoding(DecodingError::new(
                 ImageFormat::Dds.into(),
-                "DDS signature not found".to_string(),
+                DecoderError::DdsSignatureInvalid,
             )));
         }
 
@@ -150,10 +182,7 @@ impl<R: Read> DdsDecoder<R> {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(
                             ImageFormat::Dds.into(),
-                            UnsupportedErrorKind::GenericFeature(format!(
-                                "Unsupported DDS FourCC {:?}",
-                                fourcc
-                            )),
+                            UnsupportedErrorKind::GenericFeature(format!("DDS FourCC {:?}", fourcc)),
                         ),
                     ))
                 }
@@ -165,7 +194,7 @@ impl<R: Read> DdsDecoder<R> {
             Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Dds.into(),
-                    UnsupportedErrorKind::GenericFeature("DDS format not supported".to_string()),
+                    UnsupportedErrorKind::Format(ImageFormatHint::Name("DDS".to_string())),
                 ),
             ))
         }

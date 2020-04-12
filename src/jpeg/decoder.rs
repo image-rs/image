@@ -126,8 +126,8 @@ impl ImageError {
     fn from_jpeg(err: jpeg::Error) -> ImageError {
         use jpeg::Error::*;
         match err {
-            Format(desc) => {
-                ImageError::Decoding(DecodingError::with_message(ImageFormat::Jpeg.into(), desc))
+            err @ Format(_) => {
+                ImageError::Decoding(DecodingError::new(ImageFormat::Jpeg.into(), err))
             }
             Unsupported(desc) => ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Jpeg.into(),
@@ -145,7 +145,7 @@ impl ImageError {
 mod tests {
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    
+
     use super::cmyk_to_rgb;
     #[cfg(feature = "benchmarks")]
     use test::Bencher;
@@ -190,7 +190,7 @@ mod tests {
             single_pix_correct(cmyk_pixel, rgb_pixel);
         }
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_cmyk_to_rgb(b: &mut Bencher) {
@@ -208,7 +208,7 @@ mod tests {
             cmyk_to_rgb(&v);
         });
     }
-    
+
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_cmyk_to_rgb_single(b: &mut Bencher) {

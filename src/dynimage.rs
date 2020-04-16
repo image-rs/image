@@ -298,9 +298,17 @@ impl DynamicImage {
         }
     }
 
-    /// Return a cut out of this image delimited by the bounding rectangle.
+    /// Return a cut-out of this image delimited by the bounding rectangle.
+    ///
+    /// Note: this method does *not* modify the object,
+    /// and its signature will be replaced with `crop_imm()`'s in the 0.24 release
     pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
         dynamic_map!(*self, ref mut p => imageops::crop(p, x, y, width, height).to_image())
+    }
+
+    /// Return a cut-out of this image delimited by the bounding rectangle.
+    pub fn crop_imm(&self, x: u32, y: u32, width: u32, height: u32) -> DynamicImage {
+        dynamic_map!(*self, ref p => imageops::crop_imm(p, x, y, width, height).to_image())
     }
 
     /// Return a reference to an 8bit RGB image

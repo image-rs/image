@@ -35,6 +35,29 @@ pub fn crop<I: GenericImageView>(
     width: u32,
     height: u32,
 ) -> SubImage<&mut I> {
+    let (x, y, width, height) = crop_dimms(image, x, y, width, height);
+    SubImage::new(image, x, y, width, height)
+}
+
+/// Return an immutable view into an image
+pub fn crop_imm<I: GenericImageView>(
+    image: &I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> SubImage<&I> {
+    let (x, y, width, height) = crop_dimms(image, x, y, width, height);
+    SubImage::new(image, x, y, width, height)
+}
+
+fn crop_dimms<I: GenericImageView>(
+    image: &I,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> (u32, u32, u32, u32) {
     let (iwidth, iheight) = image.dimensions();
 
     let x = cmp::min(x, iwidth);
@@ -43,7 +66,7 @@ pub fn crop<I: GenericImageView>(
     let height = cmp::min(height, iheight - y);
     let width = cmp::min(width, iwidth - x);
 
-    SubImage::new(image, x, y, width, height)
+    (x, y, width, height)
 }
 
 /// Calculate the region that can be copied from top to bottom.

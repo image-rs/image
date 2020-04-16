@@ -3,7 +3,7 @@
 //! functions.
 //!
 //! Additional documentation can currently also be found in the
-//! [README.md file which is most easily viewed on github](https://github.com/image-rs/image/blob/master/README.md). 
+//! [README.md file which is most easily viewed on github](https://github.com/image-rs/image/blob/master/README.md).
 //!
 //! [Jump forward to crate content](#reexports)
 //!
@@ -48,9 +48,9 @@
 //! * [`DynamicImage::from_decoder`] can be used for creating a buffer from a single specific or
 //!   any custom decoder implementing the [`ImageDecoder`] trait.
 //!
-//! [`open`]: #fn.open.html
-//! [`load_from_memory`]: #fn.load_from_memory.html
-//! [`load_from_memory_with_format`]: #fn.load_from_memory_with_format.html
+//! [`open`]: fn.open.html
+//! [`load_from_memory`]: fn.load_from_memory.html
+//! [`load_from_memory_with_format`]: fn.load_from_memory_with_format.html
 //! [`io::Reader`]: io/struct.Reader.html
 //! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
 //! [`ImageDecoder`]: trait.ImageDecoder.html

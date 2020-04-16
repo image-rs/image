@@ -6,13 +6,98 @@ use std::convert::TryFrom;
 use std::io::{self, BufRead, Cursor, Read, Seek};
 use std::iter::Iterator;
 use std::marker::PhantomData;
-use std::mem;
+use std::{error, fmt, mem};
+use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 use crate::Primitive;
 
 use crate::color::{ColorType, Rgb};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::{self, ImageDecoder, ImageDecoderExt, Progress};
+use crate::error::{DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageFormat, Progress};
+
+/// Errors that can occur during decoding and parsing of a HDR image
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DecoderError {
+    /// HDR's "#?RADIANCE" signature wrong or missing
+    RadianceHdrSignatureInvalid,
+    /// EOF before end of header
+    TruncatedHeader,
+    /// EOF instead of image dimensions
+    TruncatedDimensions,
+
+    /// A value couldn't be parsed
+    UnparsableF32(LineType, ParseFloatError),
+    /// A value couldn't be parsed
+    UnparsableU32(LineType, ParseIntError),
+    /// Not enough numbers in line
+    LineTooShort(LineType),
+
+    /// COLORCORR contains too many numbers in strict mode
+    ExtraneousColorcorrNumbers,
+
+    /// Dimensions line had too few elements
+    DimensionsLineTooShort(usize, usize),
+    /// Dimensions line had too many elements
+    DimensionsLineTooLong(usize),
+
+    /// The length of a scanline (1) wasn't a match for the specified length (2)
+    WrongScanlineLength(usize, usize),
+    /// First pixel of a scanline is a run length marker
+    FirstPixelRlMarker,
+}
+
+impl fmt::Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecoderError::RadianceHdrSignatureInvalid =>
+                f.write_str("Radiance HDR signature not found"),
+            DecoderError::TruncatedHeader =>
+                f.write_str("EOF in header"),
+            DecoderError::TruncatedDimensions =>
+                f.write_str("EOF in dimensions line"),
+            DecoderError::UnparsableF32(line, pe) =>
+                f.write_fmt(format_args!("Cannot parse {} value as f32: {}", line, pe)),
+            DecoderError::UnparsableU32(line, pe) =>
+                f.write_fmt(format_args!("Cannot parse {} value as u32: {}", line, pe)),
+            DecoderError::LineTooShort(line) =>
+                f.write_fmt(format_args!("Not enough numbers in {}", line)),
+            DecoderError::ExtraneousColorcorrNumbers =>
+                f.write_str("Extra numbers in COLORCORR"),
+            DecoderError::DimensionsLineTooShort(elements, expected) =>
+                f.write_fmt(format_args!("Dimensions line too short: have {} elements, expected {}", elements, expected)),
+            DecoderError::DimensionsLineTooLong(expected) =>
+                f.write_fmt(format_args!("Dimensions line too long, expected {} elements", expected)),
+            DecoderError::WrongScanlineLength(len, expected) =>
+                f.write_fmt(format_args!("Wrong length of decoded scanline: got {}, expected {}", len, expected)),
+            DecoderError::FirstPixelRlMarker =>
+                f.write_str("First pixel of a scanline shouldn't be run length marker"),
+        }
+    }
+}
+
+impl error::Error for DecoderError {}
+
+/// Lines which contain parsable data that can fail
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum LineType {
+    Exposure,
+    Pixaspect,
+    Colorcorr,
+    DimensionsHeight,
+    DimensionsWidth,
+}
+
+impl fmt::Display for LineType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            LineType::Exposure => "EXPOSURE",
+            LineType::Pixaspect => "PIXASPECT",
+            LineType::Colorcorr => "COLORCORR",
+            LineType::DimensionsHeight => "height dimension",
+            LineType::DimensionsWidth => "width dimension",
+        })
+    }
+}
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
@@ -231,9 +316,10 @@ impl<R: BufRead> HdrDecoder<R> {
                 let mut signature = [0; SIGNATURE_LENGTH];
                 r.read_exact(&mut signature)?;
                 if signature != SIGNATURE {
-                    return Err(ImageError::FormatError(
-                        "Radiance HDR signature not found".to_string(),
-                    ));
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Hdr.into(),
+                        DecoderError::RadianceHdrSignatureInvalid,
+                    )));
                 } // no else
                   // skip signature line ending
                 read_line_u8(r)?;
@@ -246,7 +332,10 @@ impl<R: BufRead> HdrDecoder<R> {
                 match read_line_u8(r)? {
                     None => {
                         // EOF before end of header
-                        return Err(ImageError::FormatError("EOF in header".into()));
+                        return Err(ImageError::Decoding(DecodingError::new(
+                            ImageFormat::Hdr.into(),
+                            DecoderError::TruncatedHeader,
+                        )));
                     }
                     Some(line) => {
                         if line.is_empty() {
@@ -268,7 +357,10 @@ impl<R: BufRead> HdrDecoder<R> {
         let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions
-                return Err(ImageError::FormatError("EOF in dimensions line".into()));
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormat::Hdr.into(),
+                    DecoderError::TruncatedDimensions,
+                )));
             }
             Some(dimensions) => {
                 let dimensions = String::from_utf8_lossy(&dimensions[..]);
@@ -490,6 +582,13 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
     width: usize,
     mut set_component: S,
 ) -> ImageResult<()> {
+    fn scanline_err(len: usize, expected: usize) -> ImageError {
+        ImageError::Decoding(DecodingError::new(
+            ImageFormat::Hdr.into(),
+            DecoderError::WrongScanlineLength(len, expected),
+        ))
+    }
+
     let mut buf = [0; 128];
     let mut pos = 0;
     while pos < width {
@@ -499,9 +598,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
             if rl <= 128 {
                 // sanity check
                 if pos + rl as usize > width {
-                    return Err(ImageError::FormatError(
-                        "Wrong length of decoded scanline".into(),
-                    ));
+                    return Err(scanline_err(pos + rl as usize, width));
                 }
                 // read values
                 r.read_exact(&mut buf[0..rl as usize])?;
@@ -514,9 +611,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
                 let rl = rl - 128;
                 // sanity check
                 if pos + rl as usize > width {
-                    return Err(ImageError::FormatError(
-                        "Wrong length of decoded scanline".into(),
-                    ));
+                    return Err(scanline_err(pos + rl as usize, width));
                 }
                 // fill with same value
                 let value = read_byte(r)?;
@@ -528,9 +623,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
         };
     }
     if pos != width {
-        return Err(ImageError::FormatError(
-            "Wrong length of decoded scanline".into(),
-        ));
+        return Err(scanline_err(pos, width));
     }
     Ok(())
 }
@@ -558,9 +651,10 @@ fn decode_old_rle<R: BufRead>(
     // first pixel in scanline should not be run length marker
     // it is error if it is
     if rl_marker(fb).is_some() {
-        return Err(ImageError::FormatError(
-            "First pixel of a scanline shouldn't be run length marker".into(),
-        ));
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Hdr.into(),
+            DecoderError::FirstPixelRlMarker,
+        )));
     }
     buf[0] = fb; // set first pixel of scanline
 
@@ -581,9 +675,10 @@ fn decode_old_rle<R: BufRead>(
                         *b = prev_pixel;
                     }
                 } else {
-                    return Err(ImageError::FormatError(
-                        "Wrong length of decoded scanline".into(),
-                    ));
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Hdr.into(),
+                        DecoderError::WrongScanlineLength(x_off + rl, width),
+                    )));
                 };
                 rl // value to increase x_off by
             } else {
@@ -595,9 +690,10 @@ fn decode_old_rle<R: BufRead>(
         };
     }
     if x_off != width {
-        return Err(ImageError::FormatError(
-            "Wrong length of decoded scanline".into(),
-        ));
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Hdr.into(),
+            DecoderError::WrongScanlineLength(x_off, width),
+        )));
     }
     Ok(())
 }
@@ -672,7 +768,10 @@ impl HDRMetadata {
             Some(("FORMAT", val)) => {
                 if val.trim() != "32-bit_rle_rgbe" {
                     // XYZE isn't supported yet
-                    return Err(ImageError::UnsupportedError(limit_string_len(val, 20)));
+                    return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                        ImageFormat::Hdr.into(),
+                        UnsupportedErrorKind::Format(ImageFormatHint::Name(limit_string_len(val, 20)))
+                    )));
                 }
             }
             Some(("EXPOSURE", val)) => {
@@ -682,9 +781,9 @@ impl HDRMetadata {
                     }
                     Err(parse_error) => {
                         if strict {
-                            return Err(ImageError::FormatError(format!(
-                                "Cannot parse EXPOSURE value: {}",
-                                parse_error
+                            return Err(ImageError::Decoding(DecodingError::new(
+                                ImageFormat::Hdr.into(),
+                                DecoderError::UnparsableF32(LineType::Exposure, parse_error),
                             )));
                         } // no else, skip this line in non-strict mode
                     }
@@ -698,9 +797,9 @@ impl HDRMetadata {
                     }
                     Err(parse_error) => {
                         if strict {
-                            return Err(ImageError::FormatError(format!(
-                                "Cannot parse PIXASPECT value: {}",
-                                parse_error
+                            return Err(ImageError::Decoding(DecodingError::new(
+                                ImageFormat::Hdr.into(),
+                                DecoderError::UnparsableF32(LineType::Pixaspect, parse_error),
                             )));
                         } // no else, skip this line in non-strict mode
                     }
@@ -708,12 +807,13 @@ impl HDRMetadata {
             }
             Some(("COLORCORR", val)) => {
                 let mut rgbcorr = [1.0, 1.0, 1.0];
-                match parse_space_separated_f32(val, &mut rgbcorr, "COLORCORR") {
+                match parse_space_separated_f32(val, &mut rgbcorr, LineType::Colorcorr) {
                     Ok(extra_numbers) => {
                         if strict && extra_numbers {
-                            return Err(ImageError::FormatError(
-                                "Extra numbers in COLORCORR".into(),
-                            ));
+                            return Err(ImageError::Decoding(DecodingError::new(
+                                ImageFormat::Hdr.into(),
+                                DecoderError::ExtraneousColorcorrNumbers,
+                            )));
                         } // no else, just ignore extra numbers
                         let (rc, gc, bc) = self.color_correction.unwrap_or((1.0, 1.0, 1.0));
                         self.color_correction =
@@ -738,25 +838,24 @@ impl HDRMetadata {
     }
 }
 
-fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageResult<bool> {
+fn parse_space_separated_f32(line: &str, vals: &mut [f32], line_tp: LineType) -> ImageResult<bool> {
     let mut nums = line.split_whitespace();
     for val in vals.iter_mut() {
         if let Some(num) = nums.next() {
             match num.parse::<f32>() {
                 Ok(v) => *val = v,
                 Err(err) => {
-                    return Err(ImageError::FormatError(format!(
-                        "f32 parse error in {}: {}",
-                        name,
-                        err
+                    return Err(ImageError::Decoding(DecodingError::new(
+                        ImageFormat::Hdr.into(),
+                        DecoderError::UnparsableF32(line_tp, err),
                     )));
                 }
             }
         } else {
             // not enough numbers in line
-            return Err(ImageError::FormatError(format!(
-                "Not enough numbers in {}",
-                name
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Hdr.into(),
+                DecoderError::LineTooShort(line_tp),
             )));
         }
     }
@@ -766,23 +865,26 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], name: &str) -> ImageR
 // Parses dimension line "-Y height +X width"
 // returns (width, height) or error
 fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
+    const DIMENSIONS_COUNT: usize = 4;
+
+    fn too_short(n: usize) -> ImageError {
+        ImageError::Decoding(DecodingError::new(
+            ImageFormat::Hdr.into(),
+            DecoderError::DimensionsLineTooShort(n - 1, DIMENSIONS_COUNT),
+        ))
+    }
+
     let mut dim_parts = line.split_whitespace();
-    let err = "Malformed dimensions line";
-    let c1_tag = dim_parts
-        .next()
-        .ok_or_else(|| ImageError::FormatError(err.into()))?;
-    let c1_str = dim_parts
-        .next()
-        .ok_or_else(|| ImageError::FormatError(err.into()))?;
-    let c2_tag = dim_parts
-        .next()
-        .ok_or_else(|| ImageError::FormatError(err.into()))?;
-    let c2_str = dim_parts
-        .next()
-        .ok_or_else(|| ImageError::FormatError(err.into()))?;
+    let c1_tag = dim_parts.next().ok_or_else(|| too_short(1))?;
+    let c1_str = dim_parts.next().ok_or_else(|| too_short(2))?;
+    let c2_tag = dim_parts.next().ok_or_else(|| too_short(3))?;
+    let c2_str = dim_parts.next().ok_or_else(|| too_short(4))?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
-        return Err(ImageError::FormatError(err.into()));
+        return Err(ImageError::Decoding(DecodingError::new(
+            ImageFormat::Hdr.into(),
+            DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT),
+        )));
     } // no else
       // dimensions line is in the form "-Y 10 +X 20"
       // There are 8 possible orientations: +Y +X, +X -Y and so on
@@ -790,36 +892,25 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
         ("-Y", "+X") => {
             // Common orientation (left-right, top-down)
             // c1_str is height, c2_str is width
-            let height = c1_str.parse::<u32>().into_image_error(err)?;
-            let width = c2_str.parse::<u32>().into_image_error(err)?;
+            let height = c1_str.parse::<u32>().map_err(|pe| ImageError::Decoding(DecodingError::new(
+                ImageFormat::Hdr.into(),
+                DecoderError::UnparsableU32(LineType::DimensionsHeight, pe),
+            )))?;
+            let width = c2_str.parse::<u32>().map_err(|pe| ImageError::Decoding(DecodingError::new(
+                ImageFormat::Hdr.into(),
+                DecoderError::UnparsableU32(LineType::DimensionsWidth, pe),
+            )))?;
             Ok((width, height))
         }
-        _ => Err(ImageError::FormatError(format!(
-            "Unsupported orientation {} {}",
-            limit_string_len(c1_tag, 4),
-            limit_string_len(c2_tag, 4)
+        _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+            ImageFormat::Hdr.into(),
+            UnsupportedErrorKind::GenericFeature(format!(
+                "Orientation {} {}",
+                limit_string_len(c1_tag, 4),
+                limit_string_len(c2_tag, 4)
+            )),
         ))),
     } // final expression. Returns value
-}
-
-trait IntoImageError<T> {
-    fn into_image_error(self, description: &str) -> ImageResult<T>;
-}
-
-impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseFloatError> {
-    fn into_image_error(self, description: &str) -> ImageResult<T> {
-        self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err))
-        })
-    }
-}
-
-impl<T> IntoImageError<T> for ::std::result::Result<T, ::std::num::ParseIntError> {
-    fn into_image_error(self, description: &str) -> ImageResult<T> {
-        self.map_err(|err| {
-            ImageError::FormatError(format!("{} {}", description, err))
-        })
-    }
 }
 
 // Returns string with no more than len+3 characters

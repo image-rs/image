@@ -155,7 +155,8 @@ impl<W: Write> Writer<W> {
         const MAX_CHUNK_LEN: u32 = (1u32 << 31) - 1;
         let bpp = self.info.bytes_per_pixel();
         let in_len = self.info.raw_row_length() - 1;
-        let mut prev = vec![0; in_len];
+        let prev = vec![0; in_len];
+        let mut prev = prev.as_slice();
         let mut current = vec![0; in_len];
         let data_size = in_len * self.info.height as usize;
         if data_size != data.len() {
@@ -169,7 +170,7 @@ impl<W: Write> Writer<W> {
             zlib.write_all(&[filter_method as u8])?;
             filter(filter_method, bpp, &prev, &mut current);
             zlib.write_all(&current)?;
-            mem::swap(&mut prev, &mut current);
+            prev = line;
         }
         let zlib_encoded = zlib.finish()?;
         for chunk in zlib_encoded.chunks(MAX_CHUNK_LEN as usize) {
@@ -505,6 +506,38 @@ mod tests {
 
         let encoder = Encoder::new(&mut writer, 0, 100);
         assert!(encoder.write_header().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn all_filters_roundtrip() -> io::Result<()> {
+        let pixel: Vec<_> = (0..48).collect();
+
+        let roundtrip = |filter: FilterType| -> io::Result<()> {
+            let mut buffer = vec![];
+            let mut encoder = Encoder::new(&mut buffer, 4, 4);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::RGB);
+            encoder.set_filter(filter);
+            encoder.write_header()?.write_image_data(&pixel)?;
+
+            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let (info, mut reader) = decoder.read_info()?;
+            assert_eq!(info.width, 4);
+            assert_eq!(info.height, 4);
+            let mut dest = vec![0; pixel.len()];
+            reader.next_frame(&mut dest)?;
+            assert_eq!(dest, pixel, "Deviation with filter type {:?}", filter);
+
+            Ok(())
+        };
+
+        roundtrip(FilterType::NoFilter)?;
+        roundtrip(FilterType::Sub)?;
+        roundtrip(FilterType::Up)?;
+        roundtrip(FilterType::Avg)?;
+        roundtrip(FilterType::Paeth)?;
 
         Ok(())
     }

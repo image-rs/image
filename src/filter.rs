@@ -160,3 +160,38 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{filter, unfilter, FilterType};
+    use core::iter;
+
+    #[test]
+    fn roundtrip() {
+        let previous: Vec<_> = iter::repeat(1).take(256).collect();
+        let mut current: Vec<_> = (0..=255).collect();
+        let expected = current.clone();
+
+        let mut roundtrip = |kind, bpp: usize| {
+            filter(kind, bpp, &previous, &mut current);
+            unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
+            assert_eq!(current, expected);
+        };
+
+        let filters = [
+            FilterType::NoFilter,
+            FilterType::Sub,
+            FilterType::Up,
+            FilterType::Avg,
+            FilterType::Paeth,
+        ];
+
+        let bpps = [1, 2, 3, 4, 6, 8];
+
+        for &filter in filters.iter() {
+            for &bpp in bpps.iter() {
+                roundtrip(filter, bpp);
+            }
+        }
+    }
+}

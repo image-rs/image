@@ -75,7 +75,15 @@ impl fmt::Display for DecoderError {
     }
 }
 
-impl error::Error for DecoderError {}
+impl error::Error for DecoderError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            DecoderError::UnparsableF32(_, err) => Some(err),
+            DecoderError::UnparsableU32(_, err) => Some(err),
+            _ => None,
+        }
+    }
+}
 
 /// Lines which contain parsable data that can fail
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

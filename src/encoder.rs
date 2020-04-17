@@ -509,6 +509,38 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn all_filters_roundtrip() -> io::Result<()> {
+        let pixel: Vec<_> = (0..48).collect();
+
+        let roundtrip = |filter: FilterType| -> io::Result<()> {
+            let mut buffer = vec![];
+            let mut encoder = Encoder::new(&mut buffer, 4, 4);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::RGB);
+            encoder.set_filter(filter);
+            encoder.write_header()?.write_image_data(&pixel)?;
+
+            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let (info, mut reader) = decoder.read_info()?;
+            assert_eq!(info.width, 4);
+            assert_eq!(info.height, 4);
+            let mut dest = vec![0; pixel.len()];
+            reader.next_frame(&mut dest)?;
+            assert_eq!(dest, pixel, "Deviation with filter type {:?}", filter);
+
+            Ok(())
+        };
+
+        roundtrip(FilterType::NoFilter)?;
+        roundtrip(FilterType::Sub)?;
+        roundtrip(FilterType::Up)?;
+        roundtrip(FilterType::Avg)?;
+        roundtrip(FilterType::Paeth)?;
+
+        Ok(())
+    }
+
     /// A Writer that only writes a few bytes at a time
     struct RandomChunkWriter<'a, R: Rng, W: Write + 'a> {
         rng: R,

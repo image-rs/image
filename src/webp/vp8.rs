@@ -14,7 +14,7 @@
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::default::Default;
-use std::cmp;
+use std::{cmp, error, fmt};
 use std::io::Read;
 
 use super::transform;
@@ -665,6 +665,54 @@ static AC_QUANT: [i16; 128] = [
 
 static ZIGZAG: [u8; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
 
+/// All errors that can occur when attempting to parse a VP8 codec inside WebP
+#[derive(Debug, Clone)]
+enum DecoderError {
+    /// VP8's `[0x9D, 0x01, 0x2A]` magic not found or invalid
+    Vp8MagicInvalid([u8; 3]),
+
+    /// Decoder initialisation wasn't provided with enough data
+    NotEnoughInitData,
+
+    /// At time of writing, only the YUV colour-space encoded as `0` is specified
+    ColorSpaceInvalid(u8),
+    /// LUMA prediction mode was not recognised
+    LumaPredictionModeInvalid(i8),
+    /// Intra-prediction mode was not recognised
+    IntraPredictionModeInvalid(i8),
+    /// Chroma prediction mode was not recognised
+    ChromaPredictionModeInvalid(i8),
+}
+
+impl fmt::Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecoderError::Vp8MagicInvalid(tag) =>
+                f.write_fmt(format_args!("Invalid VP8 magic: [{:#04X?}, {:#04X?}, {:#04X?}]", tag[0], tag[1], tag[2])),
+
+            DecoderError::NotEnoughInitData =>
+                f.write_str("Expected at least 2 bytes of VP8 decoder initialization data"),
+
+            DecoderError::ColorSpaceInvalid(cs) =>
+                f.write_fmt(format_args!("Invalid non-YUV VP8 color space {}", cs)),
+            DecoderError::LumaPredictionModeInvalid(pm) =>
+                f.write_fmt(format_args!("Invalid VP8 LUMA prediction mode {}", pm)),
+            DecoderError::IntraPredictionModeInvalid(i) =>
+                f.write_fmt(format_args!("Invalid VP8 intra-prediction mode {}", i)),
+            DecoderError::ChromaPredictionModeInvalid(c) =>
+                f.write_fmt(format_args!("Invalid VP8 chroma prediction mode {}", c)),
+        }
+    }
+}
+
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
+    }
+}
+
+impl error::Error for DecoderError {}
+
 struct BoolReader {
     buf: Vec<u8>,
     index: usize,
@@ -687,10 +735,7 @@ impl BoolReader {
 
     pub(crate) fn init(&mut self, buf: Vec<u8>) -> ImageResult<()> {
         if buf.len() < 2 {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::WebP.into(),
-                "Expected at least 2 bytes of decoder initialization data",
-            )));
+            return Err(DecoderError::NotEnoughInitData.into());
         }
 
         self.buf = buf;
@@ -1112,10 +1157,7 @@ impl<R: Read> Vp8Decoder<R> {
             self.r.read_exact(&mut tag)?;
 
             if tag != [0x9d, 0x01, 0x2a] {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::WebP.into(),
-                    format!("Invalid magic bytes {:?} for vp8", tag),
-                )));
+                return Err(DecoderError::Vp8MagicInvalid(tag).into());
             }
 
             let w = self.r.read_u16::<LittleEndian>()?;
@@ -1149,10 +1191,7 @@ impl<R: Read> Vp8Decoder<R> {
             self.frame.pixel_type = self.b.read_literal(1);
 
             if color_space != 0 {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::WebP.into(),
-                    "Only YUV color space is specified.",
-                )));
+                return Err(DecoderError::ColorSpaceInvalid(color_space).into());
             }
         }
 
@@ -1182,9 +1221,7 @@ impl<R: Read> Vp8Decoder<R> {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::WebP.into(),
-                    UnsupportedErrorKind::GenericFeature(
-                        "Frames that are not keyframes are not supported".to_owned(),
-                    ),
+                    UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
                 ),
             ));
         } else {
@@ -1209,9 +1246,7 @@ impl<R: Read> Vp8Decoder<R> {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::WebP.into(),
-                    UnsupportedErrorKind::GenericFeature(
-                        "Frames that are not keyframes are not supported".to_owned(),
-                    ),
+                    UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
                 ),
             ));
         } else {
@@ -1247,9 +1282,7 @@ impl<R: Read> Vp8Decoder<R> {
             return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::WebP.into(),
-                    UnsupportedErrorKind::GenericFeature(
-                        "VP8 inter prediction is not implemented yet".to_owned(),
-                    ),
+                    UnsupportedErrorKind::GenericFeature("VP8 inter-prediction".to_owned()),
                 ),
             ));
         }
@@ -1258,12 +1291,8 @@ impl<R: Read> Vp8Decoder<R> {
             // intra prediction
             let luma = self.b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
-            mb.luma_mode = LumaMode::from_i8(luma).ok_or_else(|| {
-                ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::WebP.into(),
-                    format!("Invalid luma prediction mode {}", luma),
-                ))
-            })?;
+            mb.luma_mode = LumaMode::from_i8(luma)
+                .ok_or_else(|| DecoderError::LumaPredictionModeInvalid(luma))?;
 
             match mb.luma_mode.into_intra() {
                 // `LumaMode::B` - This is predicted individually
@@ -1277,12 +1306,8 @@ impl<R: Read> Vp8Decoder<R> {
                                 &KEYFRAME_BPRED_MODE_PROBS[top as usize][left as usize],
                                 0,
                             );
-                            let bmode = IntraMode::from_i8(intra).ok_or_else(|| {
-                                ImageError::Decoding(DecodingError::with_message(
-                                    ImageFormat::WebP.into(),
-                                    format!("Invalid intra prediction mode {}", intra),
-                                ))
-                            })?;
+                            let bmode = IntraMode::from_i8(intra)
+                                .ok_or_else(|| DecoderError::IntraPredictionModeInvalid(intra))?;
                             mb.bpred[x + y * 4] = bmode;
 
                             self.top[mbx].bpred[12 + x] = bmode;
@@ -1300,12 +1325,8 @@ impl<R: Read> Vp8Decoder<R> {
 
             let chroma = self.b
                 .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
-            mb.chroma_mode = ChromaMode::from_i8(chroma).ok_or_else(|| {
-                ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::WebP.into(),
-                    format!("Invalid chroma prediction mode {}", chroma),
-                ))
-            })?;
+            mb.chroma_mode = ChromaMode::from_i8(chroma)
+                .ok_or_else(|| DecoderError::ChromaPredictionModeInvalid(chroma))?;
         }
 
         self.top[mbx].chroma_mode = mb.chroma_mode;

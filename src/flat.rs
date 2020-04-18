@@ -49,7 +49,7 @@ use num_traits::Zero;
 
 use crate::ImageBuffer;
 use crate::color::ColorType;
-use crate::error::{ImageError, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageFormatHint, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
 
@@ -1379,9 +1379,11 @@ impl From<Error> for ImageError {
             Error::TooLarge => ImageError::Parameter(
                 ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)
             ),
-            Error::WrongColor(color) => ImageError::UnsupportedColor(color.into()),
             Error::NormalFormRequired(form) => ImageError::FormatError(
                 format!("Required sample buffer in normal form {:?}", form)),
+            Error::WrongColor(color) => ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Color(color.into()))),
         }
     }
 }

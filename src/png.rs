@@ -11,7 +11,7 @@ use std::io::{self, Read, Write};
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind
+    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
 
@@ -99,6 +99,13 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
+        fn unsupported_color(ect: ExtendedColorType) -> ImageError {
+            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Png.into(),
+                UnsupportedErrorKind::Color(ect),
+            ))
+        }
+
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
@@ -120,34 +127,34 @@ impl<R: Read> PngDecoder<R> {
             (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
             (png::ColorType::Grayscale, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L1)),
+                return Err(unsupported_color(ExtendedColorType::L1)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La1)),
+                return Err(unsupported_color(ExtendedColorType::La1)),
             (png::ColorType::RGB, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb1)),
+                return Err(unsupported_color(ExtendedColorType::Rgb1)),
             (png::ColorType::RGBA, png::BitDepth::One) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba1)),
+                return Err(unsupported_color(ExtendedColorType::Rgba1)),
 
             (png::ColorType::Grayscale, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L2)),
+                return Err(unsupported_color(ExtendedColorType::L2)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La2)),
+                return Err(unsupported_color(ExtendedColorType::La2)),
             (png::ColorType::RGB, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb2)),
+                return Err(unsupported_color(ExtendedColorType::Rgb2)),
             (png::ColorType::RGBA, png::BitDepth::Two) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba2)),
+                return Err(unsupported_color(ExtendedColorType::Rgba2)),
 
             (png::ColorType::Grayscale, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::L4)),
+                return Err(unsupported_color(ExtendedColorType::L4)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::La4)),
+                return Err(unsupported_color(ExtendedColorType::La4)),
             (png::ColorType::RGB, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgb4)),
+                return Err(unsupported_color(ExtendedColorType::Rgb4)),
             (png::ColorType::RGBA, png::BitDepth::Four) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba4)),
+                return Err(unsupported_color(ExtendedColorType::Rgba4)),
 
             (png::ColorType::Indexed, bits) =>
-                return Err(ImageError::UnsupportedColor(ExtendedColorType::Unknown(bits as u8))),
+                return Err(unsupported_color(ExtendedColorType::Unknown(bits as u8))),
         };
 
         Ok(PngDecoder { color_type, reader })
@@ -220,7 +227,10 @@ impl<W: Write> PNGEncoder<W> {
             ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
             ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
-            _ => return Err(ImageError::UnsupportedColor(color.into())),
+            _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Png.into(),
+                UnsupportedErrorKind::Color(color.into()),
+            ))),
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);

@@ -14,7 +14,6 @@
 //! [`ImageError`]: enum.ImageError.html
 
 use std::{fmt, io};
-use std::borrow::Cow;
 use std::error::Error;
 
 use crate::color::ExtendedColorType;
@@ -142,7 +141,6 @@ pub enum ParameterErrorKind {
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
-    message: Option<Cow<'static, str>>,
     underlying: Option<Box<dyn Error + Send + Sync>>,
 }
 
@@ -200,17 +198,6 @@ impl ImageError {
     pub(crate) fn UnsupportedError(message: String) -> Self {
         ImageError::Unsupported(UnsupportedError::legacy_from_string(message))
     }
-
-    pub(crate) fn UnsupportedColor(color: ExtendedColorType) -> Self {
-        ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-            ImageFormatHint::Unknown,
-            UnsupportedErrorKind::Color(color),
-        ))
-    }
-
-    pub(crate) fn FormatError(message: String) -> Self {
-        ImageError::Decoding(DecodingError::legacy_from_string(message))
-    }
 }
 
 impl UnsupportedError {
@@ -252,7 +239,6 @@ impl DecodingError {
     ) -> Self {
         DecodingError {
             format,
-            message: None,
             underlying: Some(err.into()),
         }
     }
@@ -263,7 +249,6 @@ impl DecodingError {
     pub fn from_format_hint(format: ImageFormatHint) -> Self {
         DecodingError {
             format,
-            message: None,
             underlying: None,
         }
     }
@@ -271,22 +256,6 @@ impl DecodingError {
     /// Returns the image format associated with this error.
     pub fn format_hint(&self) -> ImageFormatHint {
         self.format.clone()
-    }
-
-    /// A shorthand for a string error without an image format.
-    pub(crate) fn legacy_from_string(message: String) -> Self {
-        DecodingError {
-            format: ImageFormatHint::Unknown,
-            message: Some(message.into()),
-            underlying: None,
-        }
-    }
-
-    fn get_message_or_default(&self) -> &str {
-        match &self.message {
-            Some(st) => st,
-            None => "",
-        }
     }
 }
 
@@ -302,7 +271,7 @@ impl EncodingError {
         }
     }
 
-    /// Create a `DecodingError` for an image format.
+    /// Create an `EncodingError` for an image format.
     ///
     /// The error will not contain any further information but is very easy to create.
     pub fn from_format_hint(format: ImageFormatHint) -> Self {
@@ -523,25 +492,10 @@ impl fmt::Display for DecodingError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match &self.underlying {
             None => match self.format {
-                ImageFormatHint::Unknown => write!(
-                    fmt,
-                    "Format error: {}",
-                    self.get_message_or_default(),
-                ),
-                _ => write!(
-                    fmt,
-                    "Format error decoding {}: {}",
-                    self.format,
-                    self.get_message_or_default(),
-                ),
+                ImageFormatHint::Unknown => write!(fmt, "Format error"),
+                _ => write!(fmt, "Format error decoding {}", self.format),
             },
-            Some(underlying) => write!(
-                fmt,
-                "Format error decoding {}: {}\n{}",
-                self.format,
-                self.get_message_or_default(),
-                underlying,
-            ),
+            Some(underlying) => write!(fmt, "Format error decoding {}: {}", self.format, underlying),
         }
     }
 }

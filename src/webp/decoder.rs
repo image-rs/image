@@ -1,17 +1,52 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
 use std::default::Default;
+use std::{error, fmt, mem};
 use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
-use std::mem;
 
-use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageDecoder, ImageFormat};
 
 use crate::color;
 
 use super::vp8::Frame;
 use super::vp8::Vp8Decoder;
+
+/// All errors that can occur when attempting to parse a WEBP container
+#[derive(Debug, Clone, Copy)]
+enum DecoderError {
+    /// RIFF's "RIFF" signature not found or invalid
+    RiffSignatureInvalid([u8; 4]),
+    /// WebP's "WEBP" signature not found or invalid
+    WebpSignatureInvalid([u8; 4]),
+}
+
+impl fmt::Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct SignatureWriter([u8; 4]);
+        impl fmt::Display for SignatureWriter {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "[{:#04X?}, {:#04X?}, {:#04X?}, {:#04X?}]", self.0[0], self.0[1], self.0[2], self.0[3])
+            }
+        }
+
+        match self {
+            DecoderError::RiffSignatureInvalid(riff) =>
+                f.write_fmt(format_args!("Invalid RIFF signature: {}", SignatureWriter(*riff))),
+            DecoderError::WebpSignatureInvalid(webp) =>
+                f.write_fmt(format_args!("Invalid WebP signature: {}", SignatureWriter(*webp))),
+        }
+    }
+}
+
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
+    }
+}
+
+impl error::Error for DecoderError {}
 
 /// WebP Image format decoder. Currently only supportes the luma channel (meaning that decoded
 /// images will be grayscale).
@@ -37,24 +72,18 @@ impl<R: Read> WebPDecoder<R> {
     }
 
     fn read_riff_header(&mut self) -> ImageResult<u32> {
-        let mut riff = Vec::with_capacity(4);
-        self.r.by_ref().take(4).read_to_end(&mut riff)?;
-        let size = self.r.read_u32::<LittleEndian>()?;
-        let mut webp = Vec::with_capacity(4);
-        self.r.by_ref().take(4).read_to_end(&mut webp)?;
-
-        if &*riff != b"RIFF" {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::WebP.into(),
-                "Invalid RIFF signature",
-            )));
+        let mut riff = [0; 4];
+        self.r.read_exact(&mut riff)?;
+        if &riff != b"RIFF" {
+            return Err(DecoderError::RiffSignatureInvalid(riff).into());
         }
 
-        if &*webp != b"WEBP" {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::WebP.into(),
-                "Invalid WEBP signature",
-            )));
+        let size = self.r.read_u32::<LittleEndian>()?;
+
+        let mut webp = [0; 4];
+        self.r.read_exact(&mut webp)?;
+        if &webp != b"WEBP" {
+            return Err(DecoderError::WebpSignatureInvalid(webp).into());
         }
 
         Ok(size)
@@ -62,19 +91,19 @@ impl<R: Read> WebPDecoder<R> {
 
     fn read_vp8_header(&mut self) -> ImageResult<u32> {
         loop {
-            let mut chunk = Vec::with_capacity(4);
-            self.r.by_ref().take(4).read_to_end(&mut chunk)?;
+            let mut chunk = [0; 4];
+            self.r.read_exact(&mut chunk)?;
 
-            match &*chunk {
+            match &chunk {
                 b"VP8 " => {
                     let len = self.r.read_u32::<LittleEndian>()?;
                     return Ok(len);
                 }
                 b"ALPH" | b"VP8L" | b"ANIM" | b"ANMF" => {
                     // Alpha, Lossless and Animation isn't supported
-                    return Err(ImageError::Decoding(DecodingError::with_message(
+                    return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                         ImageFormat::WebP.into(),
-                        "Unsupported WEBP feature.",
+                        UnsupportedErrorKind::GenericFeature(chunk.iter().map(|&b| b as char).collect()),
                     )));
                 }
                 _ => {

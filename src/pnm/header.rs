@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt, io};
 
 /// The kind of encoding used to store sample values
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -131,6 +131,20 @@ pub enum ArbitraryTuplType {
 
     /// An image format which is not standardized
     Custom(String),
+}
+
+impl ArbitraryTuplType {
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            ArbitraryTuplType::BlackAndWhite => "BLACKANDWHITE",
+            ArbitraryTuplType::BlackAndWhiteAlpha => "BLACKANDWHITE_ALPHA",
+            ArbitraryTuplType::Grayscale => "GRAYSCALE",
+            ArbitraryTuplType::GrayscaleAlpha => "GRAYSCALE_ALPHA",
+            ArbitraryTuplType::RGB => "RGB",
+            ArbitraryTuplType::RGBAlpha => "RGB_ALPHA",
+            ArbitraryTuplType::Custom(custom) => custom,
+        }
+    }
 }
 
 impl PNMSubtype {
@@ -279,32 +293,20 @@ impl PNMHeader {
                     }),
                 ..
             } => {
-                #[allow(unused_assignments)]
-                // Declared here so its lifetime exceeds the matching. This is a trivial
-                // constructor, no allocation takes place and in the custom case we must allocate
-                // regardless due to borrow. Still, the warnings checker does pick this up :/
-                // Could use std::borrow::Cow instead but that really doesn't achieve anything but
-                // increasing type complexity.
-                let mut custom_fallback = String::new();
-
-                let tupltype = match *tupltype {
-                    None => "",
-                    Some(ArbitraryTuplType::BlackAndWhite) => "TUPLTYPE BLACKANDWHITE\n",
-                    Some(ArbitraryTuplType::BlackAndWhiteAlpha) => "TUPLTYPE BLACKANDWHITE_ALPHA\n",
-                    Some(ArbitraryTuplType::Grayscale) => "TUPLTYPE GRAYSCALE\n",
-                    Some(ArbitraryTuplType::GrayscaleAlpha) => "TUPLTYPE GRAYSCALE_ALPHA\n",
-                    Some(ArbitraryTuplType::RGB) => "TUPLTYPE RGB\n",
-                    Some(ArbitraryTuplType::RGBAlpha) => "TUPLTYPE RGB_ALPHA\n",
-                    Some(ArbitraryTuplType::Custom(ref custom)) => {
-                        custom_fallback = format!("TUPLTYPE {}", custom);
-                        &custom_fallback
+                struct TupltypeWriter<'a>(&'a Option<ArbitraryTuplType>);
+                impl<'a> fmt::Display for TupltypeWriter<'a> {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        match self.0 {
+                            Some(tt) => write!(f, "TUPLTYPE {}\n", tt.name()),
+                            None => Ok(()),
+                        }
                     }
-                };
+                }
 
                 writeln!(
                     writer,
                     "\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
-                    width, height, depth, maxval, tupltype
+                    width, height, depth, maxval, TupltypeWriter(tupltype)
                 )
             }
         }

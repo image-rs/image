@@ -18,6 +18,173 @@ use crate::utils;
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
+/// All errors that can occur when attempting to parse a PNM
+#[derive(Debug, Clone)]
+enum DecoderError {
+    /// PNM's "P[123456]" signature wrong or missing
+    PnmMagicInvalid([u8; 2]),
+    /// Couldn't parse the specified string as an integer from the specified source
+    UnparsableValue(ErrorDataSource, String, ParseIntError),
+
+    /// More than the exactly one allowed plane specified by the format
+    NonAsciiByteInHeader(u8),
+    /// The PAM header contained a non-ASCII byte
+    NonAsciiLineInPamHeader,
+    /// A sample string contained a non-ASCII byte
+    NonAsciiSample,
+
+    /// The byte after the P7 magic was not 0x0A NEWLINE
+    NotNewlineAfterP7Magic(u8),
+    /// The PNM header had too few lines
+    UnexpectedPnmHeaderEnd,
+
+    /// The specified line was specified twice
+    HeaderLineDuplicated(PnmHeaderLine),
+    /// The line with the specified ID was not understood
+    HeaderLineUnknown(String),
+    /// At least one of the required lines were missing from the header (are `None` here)
+    ///
+    /// Same names as [`PnmHeaderLine`](enum.PnmHeaderLine.html)
+    #[allow(missing_docs)]
+    HeaderLineMissing {
+        height: Option<u32>,
+        width: Option<u32>,
+        depth: Option<u32>,
+        maxval: Option<u32>,
+    },
+
+    /// Not enough data was provided to the Decoder to decode the image
+    InputTooShort,
+    /// Sample raster contained unexpected byte
+    UnexpectedByteInRaster(u8),
+    /// Specified sample was out of bounds (e.g. >1 in B&W)
+    SampleOutOfBounds(u8),
+    /// The image's maxval exceeds 0xFFFF
+    MaxvalTooBig(u32),
+
+    /// The specified tuple type supports restricted depths and maxvals, those restrictions were not met
+    InvalidDepthOrMaxval {
+        tuple_type: ArbitraryTuplType,
+        depth: u32,
+        maxval: u32,
+    },
+    /// The specified tuple type supports restricted depths, those restrictions were not met
+    InvalidDepth {
+        tuple_type: ArbitraryTuplType,
+        depth: u32,
+    },
+    /// The tuple type was not recognised by the parser
+    TupleTypeUnrecognised,
+}
+
+impl Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecoderError::PnmMagicInvalid(magic) =>
+                f.write_fmt(format_args!("Expected magic constant for PNM: P1..P7, got [{:#04X?}, {:#04X?}]", magic[0], magic[1])),
+            DecoderError::UnparsableValue(src, data, err) =>
+                f.write_fmt(format_args!("Error parsing {:?} as {}: {}", data, src, err)),
+
+            DecoderError::NonAsciiByteInHeader(c) =>
+                f.write_fmt(format_args!("Non-ASCII character {:#04X?} in header", c)),
+            DecoderError::NonAsciiLineInPamHeader =>
+                f.write_str("Non-ASCII line in PAM header"),
+            DecoderError::NonAsciiSample =>
+                f.write_str("Non-ASCII character where sample value was expected"),
+
+            DecoderError::NotNewlineAfterP7Magic(c) =>
+                f.write_fmt(format_args!("Expected newline after P7 magic, got {:#04X?}", c)),
+            DecoderError::UnexpectedPnmHeaderEnd =>
+                f.write_str("Unexpected end of PNM header"),
+
+            DecoderError::HeaderLineDuplicated(line) =>
+                f.write_fmt(format_args!("Duplicate {} line", line)),
+            DecoderError::HeaderLineUnknown(identifier) =>
+                f.write_fmt(format_args!("Unknown header line with identifier {:?}", identifier)),
+            DecoderError::HeaderLineMissing { height, width, depth, maxval } =>
+                f.write_fmt(format_args!("Missing header line: have height={:?}, width={:?}, depth={:?}, maxval={:?}", height, width, depth, maxval)),
+
+            DecoderError::InputTooShort =>
+                f.write_str("Not enough data was provided to the Decoder to decode the image"),
+            DecoderError::UnexpectedByteInRaster(c) =>
+                f.write_fmt(format_args!("Unexpected character {:#04X?} within sample raster", c)),
+            DecoderError::SampleOutOfBounds(val) =>
+                f.write_fmt(format_args!("Sample value {} outside of bounds", val)),
+            DecoderError::MaxvalTooBig(maxval) =>
+                f.write_fmt(format_args!("Image MAXVAL exceeds {}: {}", 0xFFFF, maxval)),
+
+            DecoderError::InvalidDepthOrMaxval { tuple_type, depth, maxval } =>
+                f.write_fmt(format_args!("Invalid depth ({}) or maxval ({}) for tuple type {}", depth, maxval, tuple_type.name())),
+            DecoderError::InvalidDepth { tuple_type, depth } =>
+                f.write_fmt(format_args!("Invalid depth ({}) for tuple type {}", depth, tuple_type.name())),
+            DecoderError::TupleTypeUnrecognised =>
+                f.write_str("Tuple type not recognized"),
+        }
+    }
+}
+
+/// Note: should `pnm` be extracted into a separate crate,
+/// this will need to be hidden until that crate hits version `1.0`.
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e))
+    }
+}
+
+impl error::Error for DecoderError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            DecoderError::UnparsableValue(_, _, err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+/// Single-value lines in a PNM header
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum PnmHeaderLine {
+    /// "HEIGHT"
+    Height,
+    /// "WIDTH"
+    Width,
+    /// "DEPTH"
+    Depth,
+    /// "MAXVAL", a.k.a. `maxwhite`
+    Maxval,
+}
+
+impl Display for PnmHeaderLine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            PnmHeaderLine::Height => "HEIGHT",
+            PnmHeaderLine::Width => "WIDTH",
+            PnmHeaderLine::Depth => "DEPTH",
+            PnmHeaderLine::Maxval => "MAXVAL",
+        })
+    }
+}
+
+/// Single-value lines in a PNM header
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum ErrorDataSource {
+    /// One of the header lines
+    Line(PnmHeaderLine),
+    /// Value in the preamble
+    Preamble,
+    /// Sample/pixel data
+    Sample,
+}
+
+impl Display for ErrorDataSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorDataSource::Line(l) => l.fmt(f),
+            ErrorDataSource::Preamble => f.write_str("number in preamble"),
+            ErrorDataSource::Sample => f.write_str("sample"),
+        }
+    }
+}
+
 /// Dynamic representation, represents all decodable (sample, depth) combinations.
 #[derive(Clone, Copy)]
 enum TupleType {
@@ -61,33 +228,16 @@ impl<R: Read> PnmDecoder<R> {
     pub fn new(read: R) -> ImageResult<PnmDecoder<R>> {
         let mut buf = BufReader::new(read);
         let magic = buf.read_magic_constant()?;
-        if magic[0] != b'P' {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                format!(
-                    "Expected magic constant for pnm, P1 through P7 instead of {:?}",
-                    magic
-                ),
-            )));
-        }
 
-        let subtype = match magic[1] {
-            b'1' => PNMSubtype::Bitmap(SampleEncoding::Ascii),
-            b'2' => PNMSubtype::Graymap(SampleEncoding::Ascii),
-            b'3' => PNMSubtype::Pixmap(SampleEncoding::Ascii),
-            b'4' => PNMSubtype::Bitmap(SampleEncoding::Binary),
-            b'5' => PNMSubtype::Graymap(SampleEncoding::Binary),
-            b'6' => PNMSubtype::Pixmap(SampleEncoding::Binary),
-            b'7' => PNMSubtype::ArbitraryMap,
-            _ => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    format!(
-                        "Expected magic constant for pnm, P1 through P7 instead of {:?}",
-                        magic
-                    ),
-                )));
-            }
+        let subtype = match magic {
+            [b'P', b'1'] => PNMSubtype::Bitmap(SampleEncoding::Ascii),
+            [b'P', b'2'] => PNMSubtype::Graymap(SampleEncoding::Ascii),
+            [b'P', b'3'] => PNMSubtype::Pixmap(SampleEncoding::Ascii),
+            [b'P', b'4'] => PNMSubtype::Bitmap(SampleEncoding::Binary),
+            [b'P', b'5'] => PNMSubtype::Graymap(SampleEncoding::Binary),
+            [b'P', b'6'] => PNMSubtype::Pixmap(SampleEncoding::Binary),
+            [b'P', b'7'] => PNMSubtype::ArbitraryMap,
+            _ => Err(DecoderError::PnmMagicInvalid(magic))?,
         };
 
         match subtype {
@@ -195,12 +345,7 @@ trait HeaderReader: BufRead {
                         break; // We're done as we already have some content
                     }
                 }
-                Ok(byte) if !byte.is_ascii() => {
-                    return Err(ImageError::Decoding(DecodingError::with_message(
-                        ImageFormat::Pnm.into(),
-                        format!("Non ascii character {} in header", byte),
-                    )));
-                },
+                Ok(byte) if !byte.is_ascii() => Err(DecoderError::NonAsciiByteInHeader(byte))?,
                 Ok(byte) => {
                     bytes.push(byte);
                 },
@@ -214,12 +359,12 @@ trait HeaderReader: BufRead {
 
         if !bytes.as_slice().is_ascii() {
             // We have only filled the buffer with characters for which `byte.is_ascii()` holds.
-            unreachable!("Non ascii character should have returned sooner")
+            unreachable!("Non-ASCII character should have returned sooner")
         }
 
         let string = String::from_utf8(bytes)
             // We checked the precondition ourselves a few lines before, `bytes.as_slice().is_ascii()`.
-            .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
+            .unwrap_or_else(|_| unreachable!("Only ASCII characters should be decoded"));
 
         Ok(string)
     }
@@ -234,7 +379,7 @@ trait HeaderReader: BufRead {
     fn read_next_u32(&mut self) -> ImageResult<u32> {
         let s = self.read_next_string()?;
         s.parse::<u32>()
-            .map_err(|err| PrimitiveParseError::NumberInPreamble(s.to_owned(), err).into())
+            .map_err(|err| DecoderError::UnparsableValue(ErrorDataSource::Preamble, s, err).into())
     }
 
     fn read_bitmap_header(&mut self, encoding: SampleEncoding) -> ImageResult<BitmapHeader> {
@@ -276,16 +421,21 @@ trait HeaderReader: BufRead {
     }
 
     fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
+        fn parse_single_value_line(line_val: &mut Option<u32>, rest: &str, line: PnmHeaderLine) -> ImageResult<()> {
+            if line_val.is_some() {
+                return Err(DecoderError::HeaderLineDuplicated(line).into());
+            } else {
+                let v = rest.trim().parse().map_err(|err| DecoderError::UnparsableValue(ErrorDataSource::Line(line), rest.to_owned(), err))?;
+                *line_val = Some(v);
+                Ok(())
+            }
+        }
+
         match self.bytes().next() {
             None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
             Some(Err(io)) => return Err(ImageError::IoError(io)),
             Some(Ok(b'\n')) => (),
-            Some(Ok(c)) => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    format!("Expected newline after P7 magic instead of {}", c),
-                )))
-            }
+            Some(Ok(c)) => return Err(DecoderError::NotNewlineAfterP7Magic(c).into()),
         }
 
         let mut line = String::new();
@@ -298,81 +448,23 @@ trait HeaderReader: BufRead {
             line.truncate(0);
             let len = self.read_line(&mut line)?;
             if len == 0 {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Unexpected end of pnm header",
-                )));
+                return Err(DecoderError::UnexpectedPnmHeaderEnd.into());
             }
             if line.as_bytes()[0] == b'#' {
                 continue;
             }
             if !line.is_ascii() {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Only ascii characters allowed in pam header",
-                )));
+                return Err(DecoderError::NonAsciiLineInPamHeader.into());
             }
             #[allow(deprecated)]
             let (identifier, rest) = line.trim_left()
                 .split_at(line.find(char::is_whitespace).unwrap_or_else(|| line.len()));
             match identifier {
                 "ENDHDR" => break,
-                "HEIGHT" => {
-                    if height.is_some() {
-                        return Err(ImageError::Decoding(DecodingError::with_message(
-                            ImageFormat::Pnm.into(),
-                            "Duplicate HEIGHT line",
-                        )));
-                    } else {
-                        let h = rest
-                            .trim()
-                            .parse::<u32>()
-                            .map_err(|err| PrimitiveParseError::Height(rest.to_owned(), err))?;
-                        height = Some(h);
-                    }
-                }
-                "WIDTH" => {
-                    if width.is_some() {
-                        return Err(ImageError::Decoding(DecodingError::with_message(
-                            ImageFormat::Pnm.into(),
-                            "Duplicate WIDTH line",
-                        )));
-                    } else {
-                        let w = rest
-                            .trim()
-                            .parse::<u32>()
-                            .map_err(|err| PrimitiveParseError::Width(rest.to_owned(), err))?;
-                        width = Some(w);
-                    }
-                }
-                "DEPTH" => {
-                    if depth.is_some() {
-                        return Err(ImageError::Decoding(DecodingError::with_message(
-                            ImageFormat::Pnm.into(),
-                            "Duplicate DEPTH line",
-                        )));
-                    } else {
-                        let d = rest
-                            .trim()
-                            .parse::<u32>()
-                            .map_err(|err| PrimitiveParseError::Depth(rest.to_owned(), err))?;
-                        depth = Some(d);
-                    }
-                }
-                "MAXVAL" => {
-                    if maxval.is_some() {
-                        return Err(ImageError::Decoding(DecodingError::with_message(
-                            ImageFormat::Pnm.into(),
-                            "Duplicate MAXVAL line",
-                        )));
-                    } else {
-                        let m = rest
-                            .trim()
-                            .parse::<u32>()
-                            .map_err(|err| PrimitiveParseError::Maxval(rest.to_owned(), err))?;
-                        maxval = Some(m);
-                    }
-                }
+                "HEIGHT" => parse_single_value_line(&mut height, rest, PnmHeaderLine::Height)?,
+                "WIDTH" => parse_single_value_line(&mut width, rest, PnmHeaderLine::Width)?,
+                "DEPTH" => parse_single_value_line(&mut depth, rest, PnmHeaderLine::Depth)?,
+                "MAXVAL" => parse_single_value_line(&mut maxval, rest, PnmHeaderLine::Maxval)?,
                 "TUPLTYPE" => {
                     let identifier = rest.trim();
                     if tupltype.is_some() {
@@ -386,49 +478,19 @@ trait HeaderReader: BufRead {
                         tupltype = Some(identifier.to_string());
                     }
                 }
-                _ => {
-                    return Err(ImageError::Decoding(DecodingError::with_message(
-                        ImageFormat::Pnm.into(),
-                        "Unknown header line",
-                    )))
-                }
+                _ => return Err(DecoderError::HeaderLineUnknown(identifier.to_string()).into()),
             }
         }
 
         let (h, w, d, m) = match (height, width, depth, maxval) {
-            (None, _, _, _) => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Expected one HEIGHT line",
-                )))
-            }
-            (_, None, _, _) => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Expected one WIDTH line",
-                )))
-            }
-            (_, _, None, _) => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Expected one DEPTH line",
-                )))
-            }
-            (_, _, _, None) => {
-                return Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Expected one MAXVAL line",
-                )))
-            }
             (Some(h), Some(w), Some(d), Some(m)) => (h, w, d, m),
+            _ => return Err(DecoderError::HeaderLineMissing { height, width, depth, maxval }.into()),
         };
 
         let tupltype = match tupltype {
             None => None,
             Some(ref t) if t == "BLACKANDWHITE" => Some(ArbitraryTuplType::BlackAndWhite),
-            Some(ref t) if t == "BLACKANDWHITE_ALPHA" => {
-                Some(ArbitraryTuplType::BlackAndWhiteAlpha)
-            }
+            Some(ref t) if t == "BLACKANDWHITE_ALPHA" => Some(ArbitraryTuplType::BlackAndWhiteAlpha),
             Some(ref t) if t == "GRAYSCALE" => Some(ArbitraryTuplType::Grayscale),
             Some(ref t) if t == "GRAYSCALE_ALPHA" => Some(ArbitraryTuplType::GrayscaleAlpha),
             Some(ref t) if t == "RGB" => Some(ArbitraryTuplType::RGB),
@@ -511,13 +573,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     }
 }
 
-fn err_input_is_too_short() -> ImageError {
-    ImageError::Decoding(DecodingError::with_message(
-        ImageFormat::Pnm.into(),
-        "Not enough data was provided to the Decoder to decode the image",
-    ))
-}
-
 impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
         match self.subtype().sample_encoding() {
@@ -535,7 +590,7 @@ impl<R: Read> PnmDecoder<R> {
                     .read_to_end(&mut bytes)?;
 
                 if bytes.len() != bytecount {
-                    return Err(err_input_is_too_short());
+                    return Err(DecoderError::InputTooShort.into());
                 }
 
                 let samples = S::from_bytes(&bytes, width, height, components)?;
@@ -573,19 +628,15 @@ fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) 
         .collect::<Result<Vec<u8>, _>>()?;
 
     if !token.is_ascii() {
-        return Err(ImageError::Decoding(DecodingError::with_message(
-            ImageFormat::Pnm.into(),
-            "Non ascii character where sample value was expected",
-        )));
+        return Err(DecoderError::NonAsciiSample.into());
     }
 
     let string = str::from_utf8(&token)
-        // We checked the precondition ourselves a few lines before, `token.is_ascii()`.
-        .unwrap_or_else(|_| unreachable!("Only ascii characters should be decoded"));
+        // We checked the precondition ourselves a few lines before with `token.is_ascii()`.
+        .unwrap_or_else(|_| unreachable!("Only ASCII characters should be decoded"));
 
-    string
-        .parse()
-        .map_err(|err| PrimitiveParseError::Sample(string.to_owned(), err).into())
+    string.parse()
+          .map_err(|err| DecoderError::UnparsableValue(ErrorDataSource::Sample, string.to_owned(), err).into())
 }
 
 impl Sample for U8 {
@@ -694,16 +745,13 @@ impl Sample for PbmBit {
                 | Ok(b'\x0c')
                 | Ok(b'\r')
                 | Ok(b' ') => None,
-                Ok(c) => Some(Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    format!("Unexpected character {} within sample raster", c),
-                )))),
+                Ok(c) => Some(Err(DecoderError::UnexpectedByteInRaster(c).into())),
             })
             .take(count)
             .collect::<ImageResult<Vec<u8>>>()?;
 
         if raw_samples.len() < count {
-            return Err(err_input_is_too_short())
+            return Err(DecoderError::InputTooShort.into());
         }
 
         Ok(raw_samples)
@@ -726,11 +774,8 @@ impl Sample for BWBit {
 
         let values = U8::from_bytes(bytes, width, height, samples)?;
         if let Some(val) = values.iter().find(|&val| *val > 1) {
-            return Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                format!("Sample value {} outside of bounds", val),
-            )));
-        };
+            return Err(DecoderError::SampleOutOfBounds(*val).into());
+        }
         Ok(values)
     }
 
@@ -740,7 +785,7 @@ impl Sample for BWBit {
         _height: u32,
         _samples: u32,
     ) -> ImageResult<Vec<u8>> {
-        unreachable!("BW bits from anymaps are never encoded as ascii")
+        unreachable!("BW bits from anymaps are never encoded as ASCII")
     }
 }
 
@@ -755,10 +800,7 @@ impl DecodableImageHeader for GraymapHeader {
         match self.maxwhite {
             v if v <= 0xFF => Ok(TupleType::GrayU8),
             v if v <= 0xFFFF => Ok(TupleType::GrayU16),
-            _ => Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                "Image maxval is not less or equal to 65535",
-            ))),
+            _ => Err(DecoderError::MaxvalTooBig(self.maxwhite).into()),
         }
     }
 }
@@ -768,10 +810,7 @@ impl DecodableImageHeader for PixmapHeader {
         match self.maxval {
             v if v <= 0xFF => Ok(TupleType::RGBU8),
             v if v <= 0xFFFF => Ok(TupleType::RGBU16),
-            _ => Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                "Image maxval is not less or equal to 65535",
-            ))),
+            _ => Err(DecoderError::MaxvalTooBig(self.maxval).into()),
         }
     }
 }
@@ -780,19 +819,24 @@ impl DecodableImageHeader for ArbitraryHeader {
     fn tuple_type(&self) -> ImageResult<TupleType> {
         match self.tupltype {
             None if self.depth == 1 => Ok(TupleType::GrayU8),
-            None if self.depth == 2 => Err(ImageError::UnsupportedColor(ExtendedColorType::La8)),
+            None if self.depth == 2 => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Pnm.into(),
+                UnsupportedErrorKind::Color(ExtendedColorType::La8),
+            ))),
             None if self.depth == 3 => Ok(TupleType::RGBU8),
-            None if self.depth == 4 => Err(ImageError::UnsupportedColor(ExtendedColorType::Rgba8)),
+            None if self.depth == 4 => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Pnm.into(),
+                UnsupportedErrorKind::Color(ExtendedColorType::Rgba8),
+            ))),
 
             Some(ArbitraryTuplType::BlackAndWhite) if self.maxval == 1 && self.depth == 1 => {
                 Ok(TupleType::BWBit)
             }
-            Some(ArbitraryTuplType::BlackAndWhite) => {
-                Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Invalid depth or maxval for tuple type BLACKANDWHITE",
-                )))
-            }
+            Some(ArbitraryTuplType::BlackAndWhite) => Err(DecoderError::InvalidDepthOrMaxval {
+                tuple_type: ArbitraryTuplType::BlackAndWhite,
+                maxval: self.maxval,
+                depth: self.depth,
+            }.into()),
 
             Some(ArbitraryTuplType::Grayscale) if self.depth == 1 && self.maxval <= 0xFF => {
                 Ok(TupleType::GrayU8)
@@ -800,12 +844,11 @@ impl DecodableImageHeader for ArbitraryHeader {
             Some(ArbitraryTuplType::Grayscale) if self.depth <= 1 && self.maxval <= 0xFFFF => {
                 Ok(TupleType::GrayU16)
             }
-            Some(ArbitraryTuplType::Grayscale) => {
-                Err(ImageError::Decoding(DecodingError::with_message(
-                    ImageFormat::Pnm.into(),
-                    "Invalid depth or maxval for tuple type GRAYSCALE",
-                )))
-            }
+            Some(ArbitraryTuplType::Grayscale) => Err(DecoderError::InvalidDepthOrMaxval {
+                tuple_type: ArbitraryTuplType::Grayscale,
+                maxval: self.maxval,
+                depth: self.depth,
+            }.into()),
 
             Some(ArbitraryTuplType::RGB) if self.depth == 3 && self.maxval <= 0xFF => {
                 Ok(TupleType::RGBU8)
@@ -813,15 +856,16 @@ impl DecodableImageHeader for ArbitraryHeader {
             Some(ArbitraryTuplType::RGB) if self.depth == 3 && self.maxval <= 0xFFFF => {
                 Ok(TupleType::RGBU16)
             }
-            Some(ArbitraryTuplType::RGB) => Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                "Invalid depth for tuple type RGB",
-            ))),
+            Some(ArbitraryTuplType::RGB) => Err(DecoderError::InvalidDepth {
+                tuple_type: ArbitraryTuplType::RGB,
+                depth: self.depth,
+            }.into()),
 
             Some(ArbitraryTuplType::BlackAndWhiteAlpha) => {
-                Err(ImageError::Decoding(DecodingError::with_message(
+                Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                     ImageFormat::Pnm.into(),
-                    "Unsupported color type: BlackAndWhiteAlpha",
+                    UnsupportedErrorKind::GenericFeature(
+                        format!("Color type {}", ArbitraryTuplType::BlackAndWhiteAlpha.name())),
                 )))
             }
             Some(ArbitraryTuplType::GrayscaleAlpha) => Err(ImageError::Unsupported(
@@ -840,69 +884,13 @@ impl DecodableImageHeader for ArbitraryHeader {
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Pnm.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
-                        "Tuple type {:?} not supported",
+                        "Tuple type {:?}",
                         custom
                     )),
                 ),
             )),
-            None => Err(ImageError::Decoding(DecodingError::with_message(
-                ImageFormat::Pnm.into(),
-                "Tuple type not recognized",
-            ))),
+            None => Err(DecoderError::TupleTypeUnrecognised.into()),
         }
-    }
-}
-
-/// An internal error type for primitive value.
-#[derive(Debug, Clone)]
-enum PrimitiveParseError {
-    /// Failed to parse a value in preamble.
-    NumberInPreamble(String, ParseIntError),
-    /// Failed to parse height.
-    Height(String, ParseIntError),
-    /// Failed to parse width.
-    Width(String, ParseIntError),
-    /// Failed to parse depth.
-    Depth(String, ParseIntError),
-    /// Failed to parse maxval.
-    Maxval(String, ParseIntError),
-    /// Failed to parse a sample.
-    Sample(String, ParseIntError),
-}
-
-impl Display for PrimitiveParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PrimitiveParseError::NumberInPreamble(s, err) => {
-                write!(f, "Error parsing number {:?} in preamble: {}", s, err)
-            }
-            PrimitiveParseError::Height(s, err) => write!(f, "Invalid height {:?}: {}", s, err),
-            PrimitiveParseError::Width(s, err) => write!(f, "Invalid width {:?}: {}", s, err),
-            PrimitiveParseError::Depth(s, err) => write!(f, "Invalid depth {:?}: {}", s, err),
-            PrimitiveParseError::Maxval(s, err) => write!(f, "Invalid maxval {:?}: {}", s, err),
-            PrimitiveParseError::Sample(s, err) => {
-                write!(f, "Error parsing {:?} as a sample: {}", s, err)
-            }
-        }
-    }
-}
-
-impl error::Error for PrimitiveParseError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-            PrimitiveParseError::NumberInPreamble(_, err) => Some(err),
-            PrimitiveParseError::Height(_, err) => Some(err),
-            PrimitiveParseError::Width(_, err) => Some(err),
-            PrimitiveParseError::Depth(_, err) => Some(err),
-            PrimitiveParseError::Maxval(_, err) => Some(err),
-            PrimitiveParseError::Sample(_, err) => Some(err),
-        }
-    }
-}
-
-impl From<PrimitiveParseError> for ImageError {
-    fn from(e: PrimitiveParseError) -> ImageError {
-        ImageError::Decoding(DecodingError::new(ImageFormat::Pnm.into(), e))
     }
 }
 

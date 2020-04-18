@@ -39,7 +39,7 @@ impl fmt::Display for DecoderError {
             DecoderError::HeaderSizeInvalid(s) =>
                 f.write_fmt(format_args!("Invalid DDS header size: {}", s)),
             DecoderError::HeaderFlagsInvalid(fs) =>
-                f.write_fmt(format_args!("Invalid DDS header flags: {:#010x}", fs)),
+                f.write_fmt(format_args!("Invalid DDS header flags: {:#010X}", fs)),
             DecoderError::DdsSignatureInvalid =>
                 f.write_str("DDS signature not found"),
         }

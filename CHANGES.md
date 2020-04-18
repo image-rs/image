@@ -1,3 +1,8 @@
+## 0.16.3
+
+* Fix encoding with filtering methods Up, Avg, Paeth
+* Optimize decoding throughput by up to +30%
+
 ## 0.16.2
 
 * Added method constructing an owned stream encoder.

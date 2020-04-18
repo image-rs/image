@@ -75,6 +75,12 @@ impl fmt::Display for DecoderError {
     }
 }
 
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::Hdr.into(), e))
+    }
+}
+
 impl error::Error for DecoderError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
@@ -324,10 +330,7 @@ impl<R: BufRead> HdrDecoder<R> {
                 let mut signature = [0; SIGNATURE_LENGTH];
                 r.read_exact(&mut signature)?;
                 if signature != SIGNATURE {
-                    return Err(ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Hdr.into(),
-                        DecoderError::RadianceHdrSignatureInvalid,
-                    )));
+                    return Err(DecoderError::RadianceHdrSignatureInvalid.into());
                 } // no else
                   // skip signature line ending
                 read_line_u8(r)?;
@@ -340,10 +343,7 @@ impl<R: BufRead> HdrDecoder<R> {
                 match read_line_u8(r)? {
                     None => {
                         // EOF before end of header
-                        return Err(ImageError::Decoding(DecodingError::new(
-                            ImageFormat::Hdr.into(),
-                            DecoderError::TruncatedHeader,
-                        )));
+                        return Err(DecoderError::TruncatedHeader.into());
                     }
                     Some(line) => {
                         if line.is_empty() {
@@ -365,10 +365,7 @@ impl<R: BufRead> HdrDecoder<R> {
         let (width, height) = match read_line_u8(&mut reader)? {
             None => {
                 // EOF instead of image dimensions
-                return Err(ImageError::Decoding(DecodingError::new(
-                    ImageFormat::Hdr.into(),
-                    DecoderError::TruncatedDimensions,
-                )));
+                return Err(DecoderError::TruncatedDimensions.into());
             }
             Some(dimensions) => {
                 let dimensions = String::from_utf8_lossy(&dimensions[..]);
@@ -590,13 +587,6 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
     width: usize,
     mut set_component: S,
 ) -> ImageResult<()> {
-    fn scanline_err(len: usize, expected: usize) -> ImageError {
-        ImageError::Decoding(DecodingError::new(
-            ImageFormat::Hdr.into(),
-            DecoderError::WrongScanlineLength(len, expected),
-        ))
-    }
-
     let mut buf = [0; 128];
     let mut pos = 0;
     while pos < width {
@@ -606,7 +596,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
             if rl <= 128 {
                 // sanity check
                 if pos + rl as usize > width {
-                    return Err(scanline_err(pos + rl as usize, width));
+                    return Err(DecoderError::WrongScanlineLength(pos + rl as usize, width).into());
                 }
                 // read values
                 r.read_exact(&mut buf[0..rl as usize])?;
@@ -619,7 +609,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
                 let rl = rl - 128;
                 // sanity check
                 if pos + rl as usize > width {
-                    return Err(scanline_err(pos + rl as usize, width));
+                    return Err(DecoderError::WrongScanlineLength(pos + rl as usize, width).into());
                 }
                 // fill with same value
                 let value = read_byte(r)?;
@@ -631,7 +621,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
         };
     }
     if pos != width {
-        return Err(scanline_err(pos, width));
+        return Err(DecoderError::WrongScanlineLength(pos, width).into());
     }
     Ok(())
 }
@@ -659,10 +649,7 @@ fn decode_old_rle<R: BufRead>(
     // first pixel in scanline should not be run length marker
     // it is error if it is
     if rl_marker(fb).is_some() {
-        return Err(ImageError::Decoding(DecodingError::new(
-            ImageFormat::Hdr.into(),
-            DecoderError::FirstPixelRlMarker,
-        )));
+        return Err(DecoderError::FirstPixelRlMarker.into());
     }
     buf[0] = fb; // set first pixel of scanline
 
@@ -683,10 +670,7 @@ fn decode_old_rle<R: BufRead>(
                         *b = prev_pixel;
                     }
                 } else {
-                    return Err(ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Hdr.into(),
-                        DecoderError::WrongScanlineLength(x_off + rl, width),
-                    )));
+                    return Err(DecoderError::WrongScanlineLength(x_off + rl, width).into());
                 };
                 rl // value to increase x_off by
             } else {
@@ -698,10 +682,7 @@ fn decode_old_rle<R: BufRead>(
         };
     }
     if x_off != width {
-        return Err(ImageError::Decoding(DecodingError::new(
-            ImageFormat::Hdr.into(),
-            DecoderError::WrongScanlineLength(x_off, width),
-        )));
+        return Err(DecoderError::WrongScanlineLength(x_off, width).into());
     }
     Ok(())
 }
@@ -789,10 +770,7 @@ impl HDRMetadata {
                     }
                     Err(parse_error) => {
                         if strict {
-                            return Err(ImageError::Decoding(DecodingError::new(
-                                ImageFormat::Hdr.into(),
-                                DecoderError::UnparsableF32(LineType::Exposure, parse_error),
-                            )));
+                            return Err(DecoderError::UnparsableF32(LineType::Exposure, parse_error).into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -805,10 +783,7 @@ impl HDRMetadata {
                     }
                     Err(parse_error) => {
                         if strict {
-                            return Err(ImageError::Decoding(DecodingError::new(
-                                ImageFormat::Hdr.into(),
-                                DecoderError::UnparsableF32(LineType::Pixaspect, parse_error),
-                            )));
+                            return Err(DecoderError::UnparsableF32(LineType::Pixaspect, parse_error).into());
                         } // no else, skip this line in non-strict mode
                     }
                 };
@@ -818,10 +793,7 @@ impl HDRMetadata {
                 match parse_space_separated_f32(val, &mut rgbcorr, LineType::Colorcorr) {
                     Ok(extra_numbers) => {
                         if strict && extra_numbers {
-                            return Err(ImageError::Decoding(DecodingError::new(
-                                ImageFormat::Hdr.into(),
-                                DecoderError::ExtraneousColorcorrNumbers,
-                            )));
+                            return Err(DecoderError::ExtraneousColorcorrNumbers.into());
                         } // no else, just ignore extra numbers
                         let (rc, gc, bc) = self.color_correction.unwrap_or((1.0, 1.0, 1.0));
                         self.color_correction =
@@ -852,19 +824,11 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], line_tp: LineType) ->
         if let Some(num) = nums.next() {
             match num.parse::<f32>() {
                 Ok(v) => *val = v,
-                Err(err) => {
-                    return Err(ImageError::Decoding(DecodingError::new(
-                        ImageFormat::Hdr.into(),
-                        DecoderError::UnparsableF32(line_tp, err),
-                    )));
-                }
+                Err(err) => return Err(DecoderError::UnparsableF32(line_tp, err).into()),
             }
         } else {
             // not enough numbers in line
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Hdr.into(),
-                DecoderError::LineTooShort(line_tp),
-            )));
+            return Err(DecoderError::LineTooShort(line_tp).into());
         }
     }
     Ok(nums.next().is_some())
@@ -875,24 +839,14 @@ fn parse_space_separated_f32(line: &str, vals: &mut [f32], line_tp: LineType) ->
 fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
     const DIMENSIONS_COUNT: usize = 4;
 
-    fn too_short(n: usize) -> ImageError {
-        ImageError::Decoding(DecodingError::new(
-            ImageFormat::Hdr.into(),
-            DecoderError::DimensionsLineTooShort(n - 1, DIMENSIONS_COUNT),
-        ))
-    }
-
     let mut dim_parts = line.split_whitespace();
-    let c1_tag = dim_parts.next().ok_or_else(|| too_short(1))?;
-    let c1_str = dim_parts.next().ok_or_else(|| too_short(2))?;
-    let c2_tag = dim_parts.next().ok_or_else(|| too_short(3))?;
-    let c2_str = dim_parts.next().ok_or_else(|| too_short(4))?;
+    let c1_tag = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(0, DIMENSIONS_COUNT))?;
+    let c1_str = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(1, DIMENSIONS_COUNT))?;
+    let c2_tag = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(2, DIMENSIONS_COUNT))?;
+    let c2_str = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(3, DIMENSIONS_COUNT))?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
-        return Err(ImageError::Decoding(DecodingError::new(
-            ImageFormat::Hdr.into(),
-            DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT),
-        )));
+        return Err(DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT).into());
     } // no else
       // dimensions line is in the form "-Y 10 +X 20"
       // There are 8 possible orientations: +Y +X, +X -Y and so on
@@ -900,14 +854,8 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
         ("-Y", "+X") => {
             // Common orientation (left-right, top-down)
             // c1_str is height, c2_str is width
-            let height = c1_str.parse::<u32>().map_err(|pe| ImageError::Decoding(DecodingError::new(
-                ImageFormat::Hdr.into(),
-                DecoderError::UnparsableU32(LineType::DimensionsHeight, pe),
-            )))?;
-            let width = c2_str.parse::<u32>().map_err(|pe| ImageError::Decoding(DecodingError::new(
-                ImageFormat::Hdr.into(),
-                DecoderError::UnparsableU32(LineType::DimensionsWidth, pe),
-            )))?;
+            let height = c1_str.parse::<u32>().map_err(|pe| DecoderError::UnparsableU32(LineType::DimensionsHeight, pe))?;
+            let width = c2_str.parse::<u32>().map_err(|pe| DecoderError::UnparsableU32(LineType::DimensionsWidth, pe))?;
             Ok((width, height))
         }
         _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(

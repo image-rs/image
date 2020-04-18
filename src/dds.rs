@@ -46,6 +46,12 @@ impl fmt::Display for DecoderError {
     }
 }
 
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::Dds.into(), e))
+    }
+}
+
 impl error::Error for DecoderError {}
 
 /// Header used by DDS image files
@@ -78,10 +84,7 @@ impl PixelFormat {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 32 {
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Dds.into(),
-                DecoderError::PixelFormatSizeInvalid(size),
-            )));
+            return Err(DecoderError::PixelFormatSizeInvalid(size).into());
         }
 
         Ok(Self {
@@ -104,20 +107,14 @@ impl Header {
     fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
         let size = r.read_u32::<LittleEndian>()?;
         if size != 124 {
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Dds.into(),
-                DecoderError::HeaderSizeInvalid(size),
-            )));
+            return Err(DecoderError::HeaderSizeInvalid(size).into());
         }
 
         const REQUIRED_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x1000;
         const VALID_FLAGS: u32 = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000 | 0x20000 | 0x80000 | 0x800000;
         let flags = r.read_u32::<LittleEndian>()?;
         if flags & (REQUIRED_FLAGS | !VALID_FLAGS) != REQUIRED_FLAGS {
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Dds.into(),
-                DecoderError::HeaderFlagsInvalid(flags)
-            )));
+            return Err(DecoderError::HeaderFlagsInvalid(flags).into());
         }
 
         let height = r.read_u32::<LittleEndian>()?;
@@ -165,10 +162,7 @@ impl<R: Read> DdsDecoder<R> {
         let mut magic = [0; 4];
         r.read_exact(&mut magic)?;
         if magic != b"DDS "[..] {
-            return Err(ImageError::Decoding(DecodingError::new(
-                ImageFormat::Dds.into(),
-                DecoderError::DdsSignatureInvalid,
-            )));
+            return Err(DecoderError::DdsSignatureInvalid.into());
         }
 
         let header = Header::from_reader(&mut r)?;

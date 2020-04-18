@@ -59,61 +59,123 @@ pub fn unfilter(
     assert!(bpp > 0);
     let len = current.len();
 
+    fn require_length(slice: &[u8], length: usize) -> Result<&[u8], &'static str> {
+        match slice.get(..length) {
+            None => Err("Filtering failed: not enough data in previous row"),
+            Some(slice) => Ok(slice),
+        }
+    }
+
     match filter {
         NoFilter => Ok(()),
         Sub => {
+            let current = &mut current[..len];
             for i in bpp..len {
                 current[i] = current[i].wrapping_add(current[i - bpp]);
             }
             Ok(())
         }
         Up => {
-            if previous.len() < len {
-                Err("Filtering failed: not enough data in previous row")
-            } else {
-                for i in 0..len {
-                    current[i] = current[i].wrapping_add(previous[i]);
-                }
-                Ok(())
+            let current = &mut current[..len];
+            let previous = require_length(previous, len)?;
+            for i in 0..len {
+                current[i] = current[i].wrapping_add(previous[i]);
             }
+            Ok(())
         }
         Avg => {
-            if previous.len() < len {
-                Err("Filtering failed:  not enough data in previous row")
-            } else if bpp > len {
-                Err("Filtering failed: bytes per pixel is greater than length of row")
-            } else {
-                for i in 0..bpp {
-                    current[i] = current[i].wrapping_add(previous[i] / 2);
-                }
-
-                for i in bpp..len {
-                    current[i] = current[i].wrapping_add(
-                        ((i16::from(current[i - bpp]) + i16::from(previous[i])) / 2) as u8,
-                    );
-                }
-                Ok(())
+            let current = &mut current[..len];
+            let previous = require_length(previous, len)?;
+            if bpp > len {
+                return Err("Filtering failed: bytes per pixel is greater than length of row");
             }
+
+            for i in 0..bpp {
+                current[i] = current[i].wrapping_add(previous[i] / 2);
+            }
+
+            macro_rules! avg_tail {
+                ($name:ident, $bpp:expr) => {
+                    fn $name(current: &mut [u8], previous: &[u8]) {
+                        let len = current.len();
+                        let current = &mut current[..len];
+                        let previous = &previous[..len];
+
+                        let mut current = current.chunks_exact_mut($bpp);
+                        let mut previous = previous.chunks_exact($bpp);
+
+                        let mut lprevious = current.next().unwrap();
+                        let _ = previous.next();
+
+                        while let Some(pprevious) = previous.next() {
+                            let pcurrent = current.next().unwrap();
+
+                            for i in 0..$bpp {
+                                let lprev = lprevious[i];
+                                let pprev = pprevious[i];
+                                pcurrent[i] = pcurrent[i].wrapping_add(
+                                    ((u16::from(lprev) + u16::from(pprev)) / 2) as u8,
+                                );
+                            }
+
+                            lprevious = pcurrent;
+                        }
+                    }
+                };
+            }
+
+            avg_tail!(avg_tail_8, 8);
+            avg_tail!(avg_tail_6, 6);
+            avg_tail!(avg_tail_4, 4);
+            avg_tail!(avg_tail_3, 3);
+            avg_tail!(avg_tail_2, 2);
+            avg_tail!(avg_tail_1, 1);
+
+            match bpp {
+                8 => avg_tail_8(current, previous),
+                6 => avg_tail_6(current, previous),
+                4 => avg_tail_4(current, previous),
+                3 => avg_tail_3(current, previous),
+                2 => avg_tail_2(current, previous),
+                1 => avg_tail_1(current, previous),
+                _ => unreachable!("Invalid bytes per pixel"),
+            }
+
+            Ok(())
         }
         Paeth => {
-            if previous.len() < len {
-                Err("Filtering failed: not enough data in previous row")
-            } else if bpp > len {
-                Err("Filtering failed: bytes per pixel is greater than length of row")
-            } else {
-                for i in 0..bpp {
-                    current[i] = current[i].wrapping_add(filter_paeth(0, previous[i], 0));
-                }
+            let current = &mut current[..len];
+            let previous = require_length(previous, len)?;
+            if bpp > len {
+                return Err("Filtering failed: bytes per pixel is greater than length of row");
+            }
 
-                for i in bpp..len {
-                    current[i] = current[i].wrapping_add(filter_paeth(
-                        current[i - bpp],
-                        previous[i],
-                        previous[i - bpp],
+            for i in 0..bpp {
+                current[i] = current[i].wrapping_add(filter_paeth(0, previous[i], 0));
+            }
+
+            let mut current = current.chunks_exact_mut(bpp);
+            let mut previous = previous.chunks_exact(bpp);
+
+            let mut lprevious = current.next().unwrap();
+            let mut lpprevious = previous.next().unwrap();
+
+            while let Some(pprevious) = previous.next() {
+                let pcurrent = current.next().unwrap();
+
+                for i in 0..bpp {
+                    pcurrent[i] = pcurrent[i].wrapping_add(filter_paeth(
+                        lprevious[i],
+                        pprevious[i],
+                        lpprevious[i],
                     ));
                 }
-                Ok(())
+
+                lprevious = pcurrent;
+                lpprevious = pprevious;
             }
+
+            Ok(())
         }
     }
 }

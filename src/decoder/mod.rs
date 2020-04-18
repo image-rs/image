@@ -65,6 +65,16 @@ pub struct Decoder<R: Read> {
     limits: Limits,
 }
 
+struct InterlacedRow<'data> {
+    data: &'data [u8],
+    interlace: InterlaceInfo,
+}
+
+enum InterlaceInfo {
+    None,
+    Adam7 { pass: u8, line: u32, width: u32 },
+}
+
 impl<R: Read> Decoder<R> {
     pub fn new(r: R) -> Decoder<R> {
         Decoder::new_with_limits(r, Limits::default())
@@ -172,6 +182,8 @@ pub struct Reader<R: Read> {
     prev: Vec<u8>,
     /// Current raw line
     current: Vec<u8>,
+    /// Start index of the current scan line.
+    scan_start: usize,
     /// Output transformations
     transform: Transformations,
     /// Processed line
@@ -199,6 +211,7 @@ impl<R: Read> Reader<R> {
             adam7: None,
             prev: Vec::new(),
             current: Vec::new(),
+            scan_start: 0,
             transform: t,
             processed: Vec::new(),
             limits,
@@ -273,66 +286,89 @@ impl<R: Read> Reader<R> {
     pub fn next_interlaced_row(
         &mut self,
     ) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
-        use crate::common::ColorType::*;
-        let transform = self.transform;
-        if transform == crate::Transformations::IDENTITY {
-            self.next_raw_interlaced_row()
-        } else {
-            // swap buffer to circumvent borrow issues
-            let mut buffer = mem::replace(&mut self.processed, Vec::new());
-            let (got_next, adam7) = if let Some((row, adam7)) = self.next_raw_interlaced_row()? {
-                (&mut buffer[..]).write_all(row)?;
-                (true, adam7)
-            } else {
-                (false, None)
-            };
-            // swap back
-            let _ = mem::replace(&mut self.processed, buffer);
-            if got_next {
-                let (color_type, bit_depth, trns) = {
-                    let info = get_info!(self);
-                    (info.color_type, info.bit_depth as u8, info.trns.is_some())
+        match self.next_interlaced_row_impl() {
+            Err(err) => Err(err),
+            Ok(None) => Ok(None),
+            Ok(Some(row)) => {
+                let interlace = match row.interlace {
+                    InterlaceInfo::None => None,
+                    InterlaceInfo::Adam7 { pass, line, width } => Some((pass, line, width)),
                 };
-                let output_buffer = if let Some((_, _, width)) = adam7 {
-                    let width = self.line_size(width);
-                    &mut self.processed[..width]
-                } else {
-                    &mut *self.processed
-                };
-                let mut len = output_buffer.len();
-                if transform.contains(crate::Transformations::EXPAND) {
-                    match color_type {
-                        Indexed => expand_paletted(output_buffer, get_info!(self))?,
-                        Grayscale | GrayscaleAlpha if bit_depth < 8 => {
-                            expand_gray_u8(output_buffer, get_info!(self))
-                        }
-                        Grayscale | RGB if trns => {
-                            let channels = color_type.samples();
-                            let trns = get_info!(self).trns.as_ref().unwrap();
-                            if bit_depth == 8 {
-                                utils::expand_trns_line(output_buffer, &*trns, channels);
-                            } else {
-                                utils::expand_trns_line16(output_buffer, &*trns, channels);
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-                if bit_depth == 16
-                    && transform.intersects(
-                        crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
-                    )
-                {
-                    len /= 2;
-                    for i in 0..len {
-                        output_buffer[i] = output_buffer[2 * i];
-                    }
-                }
-                Ok(Some((&output_buffer[..len], adam7)))
-            } else {
-                Ok(None)
+
+                Ok(Some((row.data, interlace)))
             }
         }
+    }
+
+    /// Fetch the next interlaced row and filter it according to our own transformations.
+    fn next_interlaced_row_impl(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
+        use crate::common::ColorType::*;
+        let transform = self.transform;
+
+        if transform == crate::Transformations::IDENTITY {
+            return self.next_raw_interlaced_row();
+        }
+
+        // swap buffer to circumvent borrow issues
+        let mut buffer = mem::replace(&mut self.processed, Vec::new());
+        let (got_next, adam7) = if let Some(row) = self.next_raw_interlaced_row()? {
+            (&mut buffer[..]).write_all(row.data)?;
+            (true, row.interlace)
+        } else {
+            (false, InterlaceInfo::None)
+        };
+        // swap back
+        let _ = mem::replace(&mut self.processed, buffer);
+
+        if !got_next {
+            return Ok(None);
+        }
+
+        let (color_type, bit_depth, trns) = {
+            let info = get_info!(self);
+            (info.color_type, info.bit_depth as u8, info.trns.is_some())
+        };
+        let output_buffer = if let InterlaceInfo::Adam7 { width, .. } = adam7 {
+            let width = self.line_size(width);
+            &mut self.processed[..width]
+        } else {
+            &mut *self.processed
+        };
+
+        let mut len = output_buffer.len();
+        if transform.contains(crate::Transformations::EXPAND) {
+            match color_type {
+                Indexed => expand_paletted(output_buffer, get_info!(self))?,
+                Grayscale | GrayscaleAlpha if bit_depth < 8 => {
+                    expand_gray_u8(output_buffer, get_info!(self))
+                }
+                Grayscale | RGB if trns => {
+                    let channels = color_type.samples();
+                    let trns = get_info!(self).trns.as_ref().unwrap();
+                    if bit_depth == 8 {
+                        utils::expand_trns_line(output_buffer, &*trns, channels);
+                    } else {
+                        utils::expand_trns_line16(output_buffer, &*trns, channels);
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        if bit_depth == 16
+            && transform
+                .intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16)
+        {
+            len /= 2;
+            for i in 0..len {
+                output_buffer[i] = output_buffer[2 * i];
+            }
+        }
+
+        Ok(Some(InterlacedRow {
+            data: &output_buffer[..len],
+            interlace: adam7,
+        }))
     }
 
     /// Returns the color type and the number of bits per sample
@@ -429,10 +465,9 @@ impl<R: Read> Reader<R> {
         Ok(())
     }
 
-    /// Returns the next raw row of the image
-    fn next_raw_interlaced_row(
-        &mut self,
-    ) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+    /// Returns the next raw scanline of the image interlace pass.
+    /// The scanline is filtered against the previous scanline according to the specification.
+    fn next_raw_interlaced_row(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
         let _ = get_info!(self);
         let bpp = self.bpp;
         let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
@@ -441,9 +476,7 @@ impl<R: Read> Reader<R> {
                 let rowlen = get_info!(self).raw_row_length_from_width(len);
                 if last_pass != pass {
                     self.prev.clear();
-                    for _ in 0..rowlen {
-                        self.prev.push(0);
-                    }
+                    self.prev.resize(rowlen, 0u8);
                 }
                 (rowlen, Some((pass, line, len)))
             } else {
@@ -453,25 +486,40 @@ impl<R: Read> Reader<R> {
             (self.rowlen, None)
         };
         loop {
-            if self.current.len() >= rowlen {
-                if let Some(filter) = FilterType::from_u8(self.current[0]) {
-                    if let Err(message) = unfilter(
-                        filter,
-                        bpp,
-                        &self.prev[1..rowlen],
-                        &mut self.current[1..rowlen],
-                    ) {
-                        return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
+            if self.current.len() - self.scan_start >= rowlen {
+                let row = &mut self.current[self.scan_start..];
+                let filter = match FilterType::from_u8(row[0]) {
+                    None => {
+                        return Err(DecodingError::Format(
+                            format!("invalid filter method ({})", row[0]).into(),
+                        ))
                     }
-                    self.prev[..rowlen].copy_from_slice(&self.current[..rowlen]);
-                    self.current.drain(0..rowlen);
-                    return Ok(Some((&self.prev[1..rowlen], passdata)));
-                } else {
-                    return Err(DecodingError::Format(
-                        format!("invalid filter method ({})", self.current[0]).into(),
-                    ));
+                    Some(filter) => filter,
+                };
+
+                if let Err(message) =
+                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen])
+                {
+                    return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
                 }
+
+                self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
+                self.scan_start += rowlen;
+
+                return Ok(Some(InterlacedRow {
+                    data: &self.prev[1..rowlen],
+                    interlace: match passdata {
+                        None => InterlaceInfo::None,
+                        Some((pass, line, width)) => InterlaceInfo::Adam7 { pass, line, width },
+                    },
+                }));
             } else {
+                // Clear the current buffer before appending more data.
+                if self.scan_start > 0 {
+                    self.current.drain(..self.scan_start).for_each(drop);
+                    self.scan_start = 0;
+                }
+
                 let val = self.decoder.decode_next(&mut self.current)?;
                 match val {
                     Some(Decoded::ImageData) => {}

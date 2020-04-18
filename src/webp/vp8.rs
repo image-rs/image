@@ -666,7 +666,7 @@ static AC_QUANT: [i16; 128] = [
 static ZIGZAG: [u8; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
 
 /// All errors that can occur when attempting to parse a VP8 codec inside WebP
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum DecoderError {
     /// VP8's `[0x9D, 0x01, 0x2A]` magic not found or invalid
     Vp8MagicInvalid([u8; 3]),

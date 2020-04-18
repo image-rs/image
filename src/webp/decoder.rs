@@ -14,7 +14,7 @@ use super::vp8::Frame;
 use super::vp8::Vp8Decoder;
 
 /// All errors that can occur when attempting to parse a WEBP container
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum DecoderError {
     /// RIFF's "RIFF" signature not found or invalid
     RiffSignatureInvalid([u8; 4]),

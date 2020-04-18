@@ -275,25 +275,9 @@ impl DecodingError {
 
     /// A shorthand for a string error without an image format.
     pub(crate) fn legacy_from_string(message: String) -> Self {
-        DecodingError::with_message(ImageFormatHint::Unknown, message)
-    }
-
-    /// Not quite legacy but also highly discouraged.
-    /// This is just since the string typing is prevalent in the `image` decoders...
-    pub(crate) fn with_message<M: Into<Cow<'static, str>>>(
-        format: ImageFormatHint,
-        message: M,
-    ) -> Self {
-        DecodingError::with_message_impl(format, message.into())
-    }
-
-    fn with_message_impl(
-        format: ImageFormatHint,
-        message: Cow<'static, str>,
-    ) -> Self {
         DecodingError {
-            format,
-            message: Some(message),
+            format: ImageFormatHint::Unknown,
+            message: Some(message.into()),
             underlying: None,
         }
     }

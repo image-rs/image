@@ -23,7 +23,7 @@ use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
-use crate::error::{EncodingError, DecodingError, ImageError, ImageResult};
+use crate::error::{EncodingError, DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader
@@ -261,7 +261,10 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
         color_type: ColorType,
     ) -> ImageResult<()> {
         if color_type != ColorType::Rgba16 {
-            return Err(ImageError::UnsupportedColor(color_type.into()));
+            return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Farbfeld.into(),
+                UnsupportedErrorKind::Color(color_type.into()),
+            )));
         }
 
         self.encode(buf, width, height)

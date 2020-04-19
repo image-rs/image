@@ -191,15 +191,6 @@ pub enum ImageFormatHint {
     __NonExhaustive(NonExhaustiveMarker),
 }
 
-// Internal implementation block for ImageError.
-#[allow(non_upper_case_globals)]
-#[allow(non_snake_case)]
-impl ImageError {
-    pub(crate) fn UnsupportedError(message: String) -> Self {
-        ImageError::Unsupported(UnsupportedError::legacy_from_string(message))
-    }
-}
-
 impl UnsupportedError {
     /// Create an `UnsupportedError` for an image with details on the unsupported feature.
     ///
@@ -209,14 +200,6 @@ impl UnsupportedError {
         UnsupportedError {
             format,
             kind,
-        }
-    }
-
-    /// A shorthand for a generic feature without an image format.
-    pub(crate) fn legacy_from_string(message: String) -> Self {
-        UnsupportedError {
-            format: ImageFormatHint::Unknown,
-            kind: UnsupportedErrorKind::GenericFeature(message),
         }
     }
 

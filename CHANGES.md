@@ -10,6 +10,14 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.4
+
+- Improved the performance of decoding animated gifs
+- Added `crop_imm` which functions like `crop` but on a shared reference
+- The gif `DisposalMethod::Any` is treated as `Keep`, consistent with browsers
+- Most errors no longer allocate a string, instead implement Display.
+- Add some implementations of `Error::source`
+
 ### Version 0.23.3
 
 - Added `ColorType::has_alpha` to facilitate lossless conversion

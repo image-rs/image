@@ -135,6 +135,8 @@ impl From<ImageFormat> for ImageOutputFormat {
 
 // This struct manages buffering associated with implementing `Read` and `Seek` on decoders that can
 // must decode ranges of bytes at a time.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) struct ImageReadBuffer {
     scanline_bytes: usize,
     buffer: Vec<u8>,
@@ -149,6 +151,8 @@ impl ImageReadBuffer {
     /// Panics if scanline_bytes doesn't fit into a usize, because that would mean reading anything
     /// from the image would take more RAM than the entire virtual address space. In other words,
     /// actually using this struct would instantly OOM so just get it out of the way now.
+    #[allow(dead_code)]
+    // When no image formats that use it are enabled
     pub(crate) fn new(scanline_bytes: u64, total_bytes: u64) -> Self {
         Self {
             scanline_bytes: usize::try_from(scanline_bytes).unwrap(),
@@ -159,6 +163,8 @@ impl ImageReadBuffer {
         }
     }
 
+    #[allow(dead_code)]
+    // When no image formats that use it are enabled
     pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
     where
         F: FnMut(&mut [u8]) -> io::Result<usize>,
@@ -204,6 +210,8 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height: u32, buf: &mut [u8],
                                           progress_callback: F,
                                           decoder: &mut D,

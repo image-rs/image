@@ -689,8 +689,14 @@ impl DynamicImage {
         w: &mut W,
         format: F,
     ) -> ImageResult<()> {
+        #[allow(unused_variables)]
+        // When no features are supported
+        let w = w;
+        #[allow(unused_variables,unused_mut)]
         let mut bytes = self.to_bytes();
+        #[allow(unused_variables)]
         let (width, height) = self.dimensions();
+        #[allow(unused_variables,unused_mut)]
         let mut color = self.color();
         let format = format.into();
 

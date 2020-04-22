@@ -19,7 +19,7 @@ where
     let base: PathBuf = BASE_PATH.iter().collect();
     let test_suites = &["pngsuite", "pngsuite-extra", "bugfixes"];
     let mut results = BTreeMap::new();
-    let mut expected_failures = 0;
+    let mut expected_failures = vec![];
     for suite in test_suites {
         let mut path = base.clone();
         path.push(suite);
@@ -34,7 +34,7 @@ where
                     println!("{}", crc)
                 }
                 Err(_) if path.file_name().unwrap().to_str().unwrap().starts_with("x") => {
-                    expected_failures += 1;
+                    expected_failures.push(format!("{}", path.display()));
                     println!("Expected failure")
                 }
                 err => panic!("{:?}", err),
@@ -44,23 +44,44 @@ where
     let mut path = base.clone();
     path.push(results_path);
     let mut ref_results = BTreeMap::new();
-    let mut failures = 0;
+    let mut failures = vec![];
     for line in BufReader::new(File::open(path).unwrap()).lines() {
         let line = line.unwrap();
         let parts: Vec<_> = line.split(": ").collect();
         if parts[1] == "Expected failure" {
-            failures += 1;
+            failures.push(format!(
+                "{}",
+                normalize_path(Path::new(&parts[0])).display()
+            ));
         } else {
             let current_path = format!("{}", normalize_path(Path::new(&parts[0])).display());
             ref_results.insert(current_path, parts[1].to_string());
         }
     }
-    assert_eq!(expected_failures, failures);
+    assert_eq!(
+        expected_failures.len(),
+        failures.len(),
+        "missing, extra: {:?}",
+        {
+            let mut same = vec![];
+            for (idx, f) in expected_failures.iter().enumerate() {
+                if let Some(inner) = failures.iter().position(|el| *el == *f) {
+                    failures.remove(inner);
+                    same.push(idx);
+                }
+            }
+            for &idx in same.iter().rev() {
+                expected_failures.remove(idx);
+            }
+            (failures, expected_failures)
+        }
+    );
     for (path, crc) in results.iter() {
         assert_eq!(
-            ref_results
-                .get(path)
-                .expect(&format!("reference for {} is missing", path)),
+            ref_results.get(path).expect(&format!(
+                "reference for {} is missing, expected {}",
+                path, crc
+            )),
             crc,
             "{}",
             path

@@ -81,11 +81,10 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         io::ErrorKind::Other,
         "could not open terminal",
     ))?;
-    let mut data = vec![0; 10 * 1024];
-    let data_p = data.as_mut_ptr();
+    let data = &mut vec![0; 10 * 1024][..];
     let mut reader = io::BufReader::new(File::open(&fname)?);
     let fname = fname.as_ref().to_string_lossy();
-    let n = reader.read(&mut data)?;
+    let n = reader.read(data)?;
     let mut buf = &data[..n];
     let mut pos = 0;
     let mut decoder = png::StreamingDecoder::new();
@@ -168,7 +167,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         if buf.len() == 0 {
             // circumvent borrow checker
             assert!(!data.is_empty());
-            let n = reader.read(unsafe { ::std::slice::from_raw_parts_mut(data_p, data.len()) })?;
+            let n = reader.read(data)?;
 
             // EOF
             if n == 0 {

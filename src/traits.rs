@@ -27,7 +27,7 @@ impl EncodableLayout for [u16] {
 }
 
 /// Primitive trait from old stdlib
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {}
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + Enlargeable {}
 
 impl Primitive for usize {}
 impl Primitive for u8 {}
@@ -45,15 +45,19 @@ impl Primitive for f64 {}
 /// An Enlargable::Larger value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
 pub trait Enlargeable: Sized + Bounded + NumCast {
-    type Larger: Primitive + AddAssign + 'static;
+    type Larger: Copy + NumCast + Num + PartialOrd<Self::Larger> + Clone + Bounded + AddAssign + 'static;
 
     fn clamp_from(n: Self::Larger) -> Self {
-        // Note: Only unsigned value types supported.
-        if n > NumCast::from(Self::max_value()).unwrap() {
+        if n > Self::max_value().to_larger() {
             Self::max_value()
+        } else if n < Self::min_value().to_larger(){
+            Self::min_value()
         } else {
             NumCast::from(n).unwrap()
         }
+    }
+    fn to_larger(self) -> Self::Larger {
+        NumCast::from(self).unwrap()
     }
 }
 
@@ -65,6 +69,35 @@ impl Enlargeable for u16 {
 }
 impl Enlargeable for u32 {
     type Larger = u64;
+}
+impl Enlargeable for u64 {
+    type Larger = u128;
+}
+impl Enlargeable for usize {
+    // Note: On 32-bit architectures, u64 should be enough here.
+    type Larger = u128;
+}
+impl Enlargeable for i8 {
+    type Larger = i32;
+}
+impl Enlargeable for i16 {
+    type Larger = i32;
+}
+impl Enlargeable for i32 {
+    type Larger = i64;
+}
+impl Enlargeable for i64 {
+    type Larger = i128;
+}
+impl Enlargeable for isize {
+    // Note: On 32-bit architectures, i64 should be enough here.
+    type Larger = i128;
+}
+impl Enlargeable for f32 {
+    type Larger = f64;
+}
+impl Enlargeable for f64 {
+    type Larger = f64;
 }
 
 /// A generalized pixel.

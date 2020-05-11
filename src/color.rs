@@ -379,22 +379,23 @@ where
 }
 
 /// Coefficients to transform from sRGB to a CIE Y (luminance) value.
-const SRGB_LUMA: [f32; 3] = [0.2126, 0.7152, 0.0722];
+const SRGB_LUMA: [u32; 3] = [2126, 7152, 722];
+const SRGB_LUMA_DIV: u32 = 10000;
 
 #[inline]
 fn rgb_to_luma<T: Primitive>(rgb: &[T]) -> T {
-    let l = SRGB_LUMA[0] * rgb[0].to_f32().unwrap()
-        + SRGB_LUMA[1] * rgb[1].to_f32().unwrap()
-        + SRGB_LUMA[2] * rgb[2].to_f32().unwrap();
-    NumCast::from(l).unwrap()
+    let l = <T::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * rgb[0].to_larger()
+        + <T::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * rgb[1].to_larger()
+        + <T::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * rgb[2].to_larger();
+    T::clamp_from(l / <T::Larger as NumCast>::from(SRGB_LUMA_DIV).unwrap())
 }
 
 #[inline]
 fn bgr_to_luma<T: Primitive>(bgr: &[T]) -> T {
-    let l = SRGB_LUMA[0] * bgr[2].to_f32().unwrap()
-        + SRGB_LUMA[1] * bgr[1].to_f32().unwrap()
-        + SRGB_LUMA[2] * bgr[0].to_f32().unwrap();
-    NumCast::from(l).unwrap()
+    let l = <T::Larger as NumCast>::from(SRGB_LUMA[0]).unwrap() * bgr[2].to_larger()
+        + <T::Larger as NumCast>::from(SRGB_LUMA[1]).unwrap() * bgr[1].to_larger()
+        + <T::Larger as NumCast>::from(SRGB_LUMA[2]).unwrap() * bgr[0].to_larger();
+    T::clamp_from(l / <T::Larger as NumCast>::from(SRGB_LUMA_DIV).unwrap())
 }
 
 #[inline]

@@ -238,7 +238,6 @@ impl StreamingDecoder {
 
         // Driver should ensure that state is never None
         let state = self.state.take().unwrap();
-        //println!("state: {:?}", state);
 
         match state {
             Signature(i, mut signature) if i < 7 => {

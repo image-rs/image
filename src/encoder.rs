@@ -128,19 +128,11 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format("Zero height not allowed".into()));
         }
 
-        let bit_depth = self.info.bit_depth;
-        let color_type = self.info.color_type;
-
-        if (bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
-            && (color_type == ColorType::RGB
-                || color_type == ColorType::GrayscaleAlpha
-                || color_type == ColorType::RGBA)
-            || bit_depth == BitDepth::Sixteen && color_type == ColorType::Indexed
-        {
+        if self.is_bit_depth_color_type_combination_invalid() {
             return Err(EncodingError::Format(
                 format!(
                     "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
-                    bit_depth, color_type
+                    self.info.bit_depth, self.info.color_type
                 )
                 .into(),
             ));
@@ -155,6 +147,19 @@ impl<W: Write> Writer<W> {
         data[12] = if self.info.interlaced { 1 } else { 0 };
         self.write_chunk(chunk::IHDR, &data)?;
         Ok(self)
+    }
+
+    fn is_bit_depth_color_type_combination_invalid(&self) -> bool {
+        let bit_depth = self.info.bit_depth;
+        let color_type = self.info.color_type;
+
+        // Section 11.2.2 of the PNG standard disallows several combinations
+        // of bit depth and color type
+        ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
+            && (color_type == ColorType::RGB
+                || color_type == ColorType::GrayscaleAlpha
+                || color_type == ColorType::RGBA))
+            || (bit_depth == BitDepth::Sixteen && color_type == ColorType::Indexed)
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {

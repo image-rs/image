@@ -6,6 +6,7 @@ pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 use std::borrow;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
+use std::ops::Range;
 
 use crate::chunk::IDAT;
 use crate::common::{BitDepth, ColorType, Info, Transformations};
@@ -165,6 +166,25 @@ impl<R: Read> ReadDecoder<R> {
         Ok(None)
     }
 
+    fn finished_decoding(&mut self) -> Result<(), DecodingError> {
+        while !self.at_eof {
+            let buf = self.reader.fill_buf()?;
+            if buf.is_empty() {
+                return Err(DecodingError::Format("unexpected EOF".into()));
+            }
+            match self.decoder.update(buf, &mut vec![])? {
+                (_, Decoded::Nothing) => (),
+                (_, Decoded::ImageEnd) => self.at_eof = true,
+                (_, Decoded::ChunkComplete(_, _)) => return Ok(()),
+                (_, Decoded::ImageData) => { /*ignore more data*/ }
+                (_, Decoded::PartialChunk(_)) => {}
+                _ => unreachable!(),
+            }
+        }
+
+        Err(DecodingError::Format("unexpected EOF".into()))
+    }
+
     fn info(&self) -> Option<&Info> {
         get_info(&self.decoder)
     }
@@ -177,7 +197,7 @@ pub struct Reader<R: Read> {
     decoder: ReadDecoder<R>,
     bpp: usize,
     rowlen: usize,
-    adam7: Option<utils::Adam7Iterator>,
+    interlace: InterlaceIter,
     /// Previous raw line
     prev: Vec<u8>,
     /// Current raw line
@@ -189,6 +209,11 @@ pub struct Reader<R: Read> {
     /// Processed line
     processed: Vec<u8>,
     limits: Limits,
+}
+
+enum InterlaceIter {
+    None(Range<u32>),
+    Adam7(utils::Adam7Iterator),
 }
 
 macro_rules! get_info(
@@ -208,7 +233,7 @@ impl<R: Read> Reader<R> {
             },
             bpp: 0,
             rowlen: 0,
-            adam7: None,
+            interlace: InterlaceIter::None(0..0),
             prev: Vec::new(),
             current: Vec::new(),
             scan_start: 0,
@@ -238,8 +263,10 @@ impl<R: Read> Reader<R> {
                 };
                 self.bpp = info.bytes_per_pixel();
                 self.rowlen = info.raw_row_length();
-                if info.interlaced {
-                    self.adam7 = Some(utils::Adam7Iterator::new(info.width, info.height))
+                self.interlace = if info.interlaced {
+                    InterlaceIter::Adam7(utils::Adam7Iterator::new(info.width, info.height))
+                } else {
+                    InterlaceIter::None(0..info.height)
                 }
             }
             self.allocate_out_buf()?;
@@ -274,7 +301,7 @@ impl<R: Read> Reader<R> {
                 len += (&mut buf[len..]).write(row)?;
             }
         }
-        Ok(())
+        self.decoder.finished_decoding()
     }
 
     /// Returns the next processed row of the image
@@ -465,34 +492,43 @@ impl<R: Read> Reader<R> {
         Ok(())
     }
 
+    fn next_pass(&mut self) -> Option<(usize, InterlaceInfo)> {
+        match self.interlace {
+            InterlaceIter::Adam7(ref mut adam7) => {
+                let last_pass = adam7.current_pass();
+                let (pass, line, width) = adam7.next()?;
+                let rowlen = get_info!(self).raw_row_length_from_width(width);
+                if last_pass != pass {
+                    self.prev.clear();
+                    self.prev.resize(rowlen, 0u8);
+                }
+                Some((rowlen, InterlaceInfo::Adam7 { pass, line, width }))
+            }
+            InterlaceIter::None(ref mut height) => {
+                let _ = height.next()?;
+                Some((self.rowlen, InterlaceInfo::None))
+            }
+        }
+    }
+
     /// Returns the next raw scanline of the image interlace pass.
     /// The scanline is filtered against the previous scanline according to the specification.
     fn next_raw_interlaced_row(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
         let _ = get_info!(self);
         let bpp = self.bpp;
-        let (rowlen, passdata) = if let Some(ref mut adam7) = self.adam7 {
-            let last_pass = adam7.current_pass();
-            if let Some((pass, line, len)) = adam7.next() {
-                let rowlen = get_info!(self).raw_row_length_from_width(len);
-                if last_pass != pass {
-                    self.prev.clear();
-                    self.prev.resize(rowlen, 0u8);
-                }
-                (rowlen, Some((pass, line, len)))
-            } else {
-                return Ok(None);
-            }
-        } else {
-            (self.rowlen, None)
+        let (rowlen, passdata) = match self.next_pass() {
+            Some((rowlen, passdata)) => (rowlen, passdata),
+            None => return Ok(None),
         };
         loop {
             if self.current.len() - self.scan_start >= rowlen {
                 let row = &mut self.current[self.scan_start..];
                 let filter = match FilterType::from_u8(row[0]) {
                     None => {
+                        self.scan_start += rowlen;
                         return Err(DecodingError::Format(
                             format!("invalid filter method ({})", row[0]).into(),
-                        ))
+                        ));
                     }
                     Some(filter) => filter,
                 };
@@ -508,10 +544,7 @@ impl<R: Read> Reader<R> {
 
                 return Ok(Some(InterlacedRow {
                     data: &self.prev[1..rowlen],
-                    interlace: match passdata {
-                        None => InterlaceInfo::None,
-                        Some((pass, line, width)) => InterlaceInfo::Adam7 { pass, line, width },
-                    },
+                    interlace: passdata,
                 }));
             } else {
                 // Clear the current buffer before appending more data.

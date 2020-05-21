@@ -128,6 +128,16 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format("Zero height not allowed".into()));
         }
 
+        if self.is_bit_depth_color_type_combination_invalid() {
+            return Err(EncodingError::Format(
+                format!(
+                    "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
+                    self.info.bit_depth, self.info.color_type
+                )
+                .into(),
+            ));
+        }
+
         self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
         let mut data = [0; 13];
         (&mut data[..]).write_be(self.info.width)?;
@@ -137,6 +147,19 @@ impl<W: Write> Writer<W> {
         data[12] = if self.info.interlaced { 1 } else { 0 };
         self.write_chunk(chunk::IHDR, &data)?;
         Ok(self)
+    }
+
+    fn is_bit_depth_color_type_combination_invalid(&self) -> bool {
+        let bit_depth = self.info.bit_depth;
+        let color_type = self.info.color_type;
+
+        // Section 11.2.2 of the PNG standard disallows several combinations
+        // of bit depth and color type
+        ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
+            && (color_type == ColorType::RGB
+                || color_type == ColorType::GrayscaleAlpha
+                || color_type == ColorType::RGBA))
+            || (bit_depth == BitDepth::Sixteen && color_type == ColorType::Indexed)
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
@@ -506,6 +529,151 @@ mod tests {
 
         let encoder = Encoder::new(&mut writer, 0, 100);
         assert!(encoder.write_header().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn expect_error_on_invalid_bit_depth_color_type_combination() -> Result<()> {
+        use std::io::Cursor;
+
+        let output = vec![0u8; 1024];
+        let mut writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::One);
+        encoder.set_color(ColorType::RGB);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::One);
+        encoder.set_color(ColorType::GrayscaleAlpha);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::One);
+        encoder.set_color(ColorType::RGBA);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Two);
+        encoder.set_color(ColorType::RGB);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Two);
+        encoder.set_color(ColorType::GrayscaleAlpha);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Two);
+        encoder.set_color(ColorType::RGBA);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Four);
+        encoder.set_color(ColorType::RGB);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Four);
+        encoder.set_color(ColorType::GrayscaleAlpha);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Four);
+        encoder.set_color(ColorType::RGBA);
+        assert!(encoder.write_header().is_err());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Sixteen);
+        encoder.set_color(ColorType::Indexed);
+        assert!(encoder.write_header().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_write_header_with_valid_bit_depth_color_type_combination() -> Result<()> {
+        use std::io::Cursor;
+
+        let output = vec![0u8; 1024];
+        let mut writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::One);
+        encoder.set_color(ColorType::Grayscale);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::One);
+        encoder.set_color(ColorType::Indexed);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Two);
+        encoder.set_color(ColorType::Grayscale);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Two);
+        encoder.set_color(ColorType::Indexed);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Four);
+        encoder.set_color(ColorType::Grayscale);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Four);
+        encoder.set_color(ColorType::Indexed);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::RGB);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Indexed);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::GrayscaleAlpha);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::RGBA);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Sixteen);
+        encoder.set_color(ColorType::Grayscale);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Sixteen);
+        encoder.set_color(ColorType::RGB);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Sixteen);
+        encoder.set_color(ColorType::GrayscaleAlpha);
+        assert!(encoder.write_header().is_ok());
+
+        let mut encoder = Encoder::new(&mut writer, 1, 1);
+        encoder.set_depth(BitDepth::Sixteen);
+        encoder.set_color(ColorType::RGBA);
+        assert!(encoder.write_header().is_ok());
 
         Ok(())
     }

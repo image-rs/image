@@ -36,6 +36,8 @@ where
 
 /// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
 /// every `row_size` entries there are padding bits up to the next byte boundry.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     // Note: this conversion assumes that the scanlines begin on byte boundaries
     let mask = (1u8 << bit_depth as usize) - 1;
@@ -63,11 +65,15 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     p
 }
 
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
     // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
     vec_u16_copy_u8(&vec)
 }
 
+#[allow(dead_code)]
+// When no image formats that use it are enabled
 pub(crate) fn vec_u16_copy_u8(vec: &[u16]) -> Vec<u8> {
     let mut new = vec![0; vec.len() * mem::size_of::<u16>()];
     NativeEndian::write_u16_into(&vec[..], &mut new[..]);

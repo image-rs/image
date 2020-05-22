@@ -33,7 +33,9 @@ use crate::color;
 use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
-use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::ImageFormat;
+#[allow(unused_imports)]  // When no features are supported
+use crate::image::{ImageDecoder, ImageEncoder};
 
 /// Internal error type for guessing format from path.
 pub(crate) enum PathError {
@@ -58,8 +60,10 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[allow(unused_variables)]
+// r is unused if no features are supported.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    #[allow(deprecated, unreachable_patterns)]
+    #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "png")]
@@ -99,11 +103,14 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     image_dimensions_with_format_impl(fin, format)
 }
 
+#[allow(unused_variables)]
+// fin is unused if no features are supported.
 pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
     -> ImageResult<(u32, u32)>
 {
-    #[allow(unreachable_patterns)]
+    #[allow(unreachable_patterns,unreachable_code)]
     // Default is unreachable if all features are supported.
+    // Code after the match is unreachable if none are.
     Ok(match format {
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
@@ -133,6 +140,8 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
     })
 }
 
+#[allow(unused_variables)]
+// Most variables when no features are supported
 pub(crate) fn save_buffer_impl(
     path: &Path,
     buf: &[u8],
@@ -177,6 +186,8 @@ pub(crate) fn save_buffer_impl(
     }
 }
 
+#[allow(unused_variables)]
+// Most variables when no features are supported
 pub(crate) fn save_buffer_with_format_impl(
     path: &Path,
     buf: &[u8],

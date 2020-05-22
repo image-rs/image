@@ -80,27 +80,49 @@ impl ColorType {
 /// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ExtendedColorType {
+    /// Pixel is 1-bit luminance
     L1,
+    /// Pixel is 1-bit luminance with an alpha channel
     La1,
+    /// Pixel contains 1-bit R, G and B channels
     Rgb1,
+    /// Pixel is 1-bit RGB with an alpha channel
     Rgba1,
+    /// Pixel is 2-bit luminance
     L2,
+    /// Pixel is 2-bit luminance with an alpha channel
     La2,
+    /// Pixel contains 2-bit R, G and B channels
     Rgb2,
+    /// Pixel is 2-bit RGB with an alpha channel
     Rgba2,
+    /// Pixel is 4-bit luminance
     L4,
+    /// Pixel is 4-bit luminance with an alpha channel
     La4,
+    /// Pixel contains 4-bit R, G and B channels
     Rgb4,
+    /// Pixel is 4-bit RGB with an alpha channel
     Rgba4,
+    /// Pixel is 8-bit luminance
     L8,
+    /// Pixel is 8-bit luminance with an alpha channel
     La8,
+    /// Pixel contains 8-bit R, G and B channels
     Rgb8,
+    /// Pixel is 8-bit RGB with an alpha channel
     Rgba8,
+    /// Pixel is 16-bit luminance
     L16,
+    /// Pixel is 16-bit luminance with an alpha channel
     La16,
+    /// Pixel contains 16-bit R, G and B channels
     Rgb16,
+    /// Pixel is 16-bit RGB with an alpha channel
     Rgba16,
+    /// Pixel contains 8-bit B, G and R channels
     Bgr8,
+    /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels

@@ -150,7 +150,9 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::Bencher;
 
+    #[cfg(feature = "benchmarks")]
     const W: usize = 256;
+    #[cfg(feature = "benchmarks")]
     const H: usize = 256;
 
     #[test]

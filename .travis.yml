@@ -2,6 +2,7 @@ language: rust
 sudo: false
 notifications:
   webhooks:
+    if: fork = false
     urls:
       - https://webhooks.gitter.im/e/816755464e93a0defff0
     on_success: change

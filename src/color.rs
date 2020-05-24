@@ -1,5 +1,6 @@
-use num_traits::{NumCast, ToPrimitive, Zero};
 use std::ops::{Index, IndexMut};
+
+use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Pixel, Primitive};
 
@@ -53,6 +54,16 @@ impl ColorType {
         match self {
             L8 | L16 | Rgb8 | Bgr8 | Rgb16 => false,
             La8 | Rgba8 | Bgra8 | La16 | Rgba16 => true,
+            __NonExhaustive(marker) => match marker._private {},
+        }
+    }
+
+    /// Returns false if the color scheme is grayscale, true otherwise.
+    pub fn has_color(self) -> bool {
+        use ColorType::*;
+        match self {
+            L8 | L16 | La8 | La16 => false,
+            Rgb8 | Bgr8 | Rgb16 | Rgba8 | Bgra8 | Rgba16 => true,
             __NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -1126,7 +1137,7 @@ impl<T: Primitive> Invert for Bgr<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Luma, LumaA, Pixel, Rgb, Rgba, Bgr, Bgra};
+    use super::{Bgr, Bgra, Luma, LumaA, Pixel, Rgb, Rgba};
 
     #[test]
     fn test_apply_with_alpha_rgba() {

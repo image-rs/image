@@ -738,9 +738,8 @@ impl DynamicImage {
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::Jpeg(quality) => {
-                let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
-
-                j.encode(&bytes, width, height, color)?;
+                let j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+                j.write_image(&bytes, width, height, color)?;
                 Ok(())
             }
 

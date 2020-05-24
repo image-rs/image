@@ -964,8 +964,9 @@ mod tests {
         // Test encoding an RGBA 16-bit image.
         // Jpeg is RGB 8-bit, so the conversion should be done on the fly
         let mut encoded = Vec::new();
+        let max = std::u16::MAX;
         let image: ImageBuffer<Bgra<u16>, _> = ImageBuffer::from_raw(
-            1, 1, vec![0, u16::MAX / 2, u16::MAX, u16::MAX]).unwrap();
+            1, 1, vec![0, max / 2, max, max]).unwrap();
         let mut encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
         encoder.encode_image(&image).unwrap();
         let decoded = decode(&encoded);

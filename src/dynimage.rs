@@ -28,7 +28,6 @@ use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, Par
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-#[cfg(feature = "farbfeld")]
 use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;

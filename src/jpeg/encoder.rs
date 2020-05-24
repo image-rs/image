@@ -791,11 +791,11 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
     use num_traits::{cast::ToPrimitive, bounds::Bounded};
-    let p = pixel.to_rgb().0;
+    let [r, g, b] = pixel.to_rgb().0;
     let max: f32 = P::Subpixel::max_value().to_f32().unwrap();
-    let r: f32 = p[0].to_f32().unwrap();
-    let g: f32 = p[1].to_f32().unwrap();
-    let b: f32 = p[2].to_f32().unwrap();
+    let r: f32 = r.to_f32().unwrap();
+    let g: f32 = g.to_f32().unwrap();
+    let b: f32 = b.to_f32().unwrap();
 
     let y = 65.481 / max * r + 128.553 / max * g + 24.933 / max * b;
     let cb = -37.797 / max * r - 74.203 / max * g + 112.0 / max * b + 128.;
@@ -807,10 +807,16 @@ fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
 
 /// Returns the pixel at (x,y) if (x,y) is in the image,
 /// otherwise the closest pixel in the image
+#[inline]
 fn pixel_at_or_near<I: GenericImageView>(source: &I, x: u32, y: u32) -> I::Pixel {
-    let x = x.min(source.width() - 1);
-    let y = y.min(source.height() - 1);
-    source.get_pixel(x, y)
+    if source.in_bounds(x, y) {
+        unsafe { source.unsafe_get_pixel(x, y) }
+    } else {
+        source.get_pixel(
+            x.min(source.width() - 1),
+            y.min(source.height() - 1),
+        )
+    }
 }
 
 fn copy_blocks_ycbcr<I: GenericImageView>(
@@ -843,7 +849,7 @@ fn copy_blocks_gray<I: GenericImageView>(
     for y in 0..8 {
         for x in 0..8 {
             let pixel = pixel_at_or_near(source, x0 + x, y0 + y);
-            let luma = pixel.to_luma().0[0];
+            let [luma] = pixel.to_luma().0;
             gb[(y * 8 + x) as usize] = luma.to_u8().unwrap();
         }
     }

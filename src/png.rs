@@ -206,6 +206,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
 /// PNG encoder
 pub struct PNGEncoder<W: Write> {
     w: W,
+    compression: CompressionType,
+    filter: FilterType,
 }
 
 /// Compression level of a PNG encoder. The default setting is ```Fast```.
@@ -238,80 +240,73 @@ pub enum FilterType {
     Avg,
     /// Algorithm that takes into account the left, upper left, and above pixels
     Paeth,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl<W: Write> PNGEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PNGEncoder<W> {
-        PNGEncoder { w }
+        PNGEncoder {
+            w,
+            compression: CompressionType::Fast,
+            filter: FilterType::Sub,
+        }
+    }
+
+    /// Create a new encoder that writes its output to ```w``` with
+    /// ```CompressionType``` ```compression``` and ```FilterType```
+    /// ```filter```
+    pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PNGEncoder<W> {
+        PNGEncoder {
+            w,
+            compression,
+            filter,
+        }
     }
 
     /// Encodes the image ```data```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        self.encode_with_settings(data, width, height, color, CompressionType::Fast, FilterType::Sub)
-    }
-
-    /// Encodes the image ```data```
-    /// that has dimensions ```width``` and ```height```
-    /// and ```ColorType``` ```c```,
-    /// with ```CompressionType``` ```compression``` and
-    /// ```FilterType``` ```filter```.
-    pub fn encode_with_settings(
-        self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-        color: ColorType,
-        compression: CompressionType,
-        filter: FilterType,
-    ) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
-            ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
+            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
-            ColorType::La16 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
             ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::Rgb16 => (png::ColorType::RGB, png::BitDepth::Sixteen),
+            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
-            ColorType::Rgba16 => (png::ColorType::RGBA, png::BitDepth::Sixteen),
-            _ => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Png.into(),
-                        UnsupportedErrorKind::Color(color.into()),
-                    ),
-                ))
-            }
+            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Png.into(),
+                UnsupportedErrorKind::Color(color.into()),
+            ))),
         };
-
-        let c = match compression {
+        let comp = match self.compression {
             CompressionType::Default => png::Compression::Default,
             CompressionType::Fast => png::Compression::Fast,
             CompressionType::Best => png::Compression::Best,
             CompressionType::Huffman => png::Compression::Huffman,
             CompressionType::Rle => png::Compression::Rle,
         };
-        let f = match filter {
+        let filt = match self.filter {
             FilterType::NoFilter => png::FilterType::NoFilter,
             FilterType::Sub => png::FilterType::Sub,
             FilterType::Up => png::FilterType::Up,
             FilterType::Avg => png::FilterType::Avg,
             FilterType::Paeth => png::FilterType::Paeth,
+            FilterType::__NonExhaustive(marker) => match marker._private {},
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
-        encoder.set_compression(c);
-        encoder.set_filter(f);
-
-        encoder
-            .write_header()
-            .map_err(|e| ImageError::IoError(e.into()))?
-            .write_image_data(data)
-            .map_err(|e| ImageError::IoError(e.into()))
+        encoder.set_compression(comp);
+        encoder.set_filter(filt);
+        let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
+        writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
     }
 }
 

@@ -17,9 +17,6 @@ use crate::animation::Frames;
 #[cfg(feature = "pnm")]
 use crate::pnm::PNMSubtype;
 
-#[cfg(feature = "png")]
-use crate::png::{CompressionType, FilterType};
-
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -78,7 +75,7 @@ impl ImageFormat {
 pub enum ImageOutputFormat {
     #[cfg(feature = "png")]
     /// An Image in PNG Format
-    Png(CompressionType, FilterType),
+    Png,
 
     #[cfg(feature = "jpeg")]
     /// An Image in JPEG Format with specified quality
@@ -117,7 +114,7 @@ impl From<ImageFormat> for ImageOutputFormat {
     fn from(fmt: ImageFormat) -> Self {
         match fmt {
             #[cfg(feature = "png")]
-            ImageFormat::Png => ImageOutputFormat::Png(CompressionType::Fast, FilterType::Sub),
+            ImageFormat::Png => ImageOutputFormat::Png,
             #[cfg(feature = "jpeg")]
             ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
             #[cfg(feature = "pnm")]

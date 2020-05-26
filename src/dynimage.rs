@@ -697,7 +697,7 @@ impl DynamicImage {
         #[allow(deprecated)]
         match format {
             #[cfg(feature = "png")]
-            image::ImageOutputFormat::Png(compression, filter) => {
+            image::ImageOutputFormat::Png => {
                 let p = png::PNGEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
@@ -710,7 +710,7 @@ impl DynamicImage {
                     }
                     _ => {}
                 }
-                p.encode_with_settings(&bytes, width, height, color, compression, filter)?;
+                p.encode(&bytes, width, height, color)?;
                 Ok(())
             }
             #[cfg(feature = "pnm")]

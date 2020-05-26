@@ -215,7 +215,7 @@ pub struct PNGEncoder<W: Write> {
 pub enum CompressionType {
     /// Default compression level
     Default,
-    /// Fast minimal compression
+    /// Fast, minimal compression
     Fast,
     /// High compression level
     Best,
@@ -223,6 +223,9 @@ pub enum CompressionType {
     Huffman,
     /// Run-length encoding compression
     Rle,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 /// Filter algorithms used to process image data to improve compression. The
@@ -290,6 +293,7 @@ impl<W: Write> PNGEncoder<W> {
             CompressionType::Best => png::Compression::Best,
             CompressionType::Huffman => png::Compression::Huffman,
             CompressionType::Rle => png::Compression::Rle,
+            CompressionType::__NonExhaustive(marker) => match marker._private {},
         };
         let filt = match self.filter {
             FilterType::NoFilter => png::FilterType::NoFilter,

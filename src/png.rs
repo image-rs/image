@@ -206,12 +206,67 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
 /// PNG encoder
 pub struct PNGEncoder<W: Write> {
     w: W,
+    compression: CompressionType,
+    filter: FilterType,
+}
+
+/// Compression level of a PNG encoder. The default setting is ```Fast```.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompressionType {
+    /// Default compression level
+    Default,
+    /// Fast, minimal compression
+    Fast,
+    /// High compression level
+    Best,
+    /// Huffman coding compression
+    Huffman,
+    /// Run-length encoding compression
+    Rle,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+}
+
+/// Filter algorithms used to process image data to improve compression. The
+/// default filter is ```Sub```.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FilterType {
+    /// No processing done, best used for low bit depth greyscale or data with a
+    /// low color count
+    NoFilter,
+    /// Filters based on previous pixel in the same scanline
+    Sub,
+    /// Filters based on the scanline above
+    Up,
+    /// Filters based on the average of left and right neighbor pixels
+    Avg,
+    /// Algorithm that takes into account the left, upper left, and above pixels
+    Paeth,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl<W: Write> PNGEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PNGEncoder<W> {
-        PNGEncoder { w }
+        PNGEncoder {
+            w,
+            compression: CompressionType::Fast,
+            filter: FilterType::Sub,
+        }
+    }
+
+    /// Create a new encoder that writes its output to ```w``` with
+    /// ```CompressionType``` ```compression``` and ```FilterType```
+    /// ```filter```
+    pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PNGEncoder<W> {
+        PNGEncoder {
+            w,
+            compression,
+            filter,
+        }
     }
 
     /// Encodes the image ```data```
@@ -232,10 +287,28 @@ impl<W: Write> PNGEncoder<W> {
                 UnsupportedErrorKind::Color(color.into()),
             ))),
         };
+        let comp = match self.compression {
+            CompressionType::Default => png::Compression::Default,
+            CompressionType::Fast => png::Compression::Fast,
+            CompressionType::Best => png::Compression::Best,
+            CompressionType::Huffman => png::Compression::Huffman,
+            CompressionType::Rle => png::Compression::Rle,
+            CompressionType::__NonExhaustive(marker) => match marker._private {},
+        };
+        let filt = match self.filter {
+            FilterType::NoFilter => png::FilterType::NoFilter,
+            FilterType::Sub => png::FilterType::Sub,
+            FilterType::Up => png::FilterType::Up,
+            FilterType::Avg => png::FilterType::Avg,
+            FilterType::Paeth => png::FilterType::Paeth,
+            FilterType::__NonExhaustive(marker) => match marker._private {},
+        };
 
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
+        encoder.set_compression(comp);
+        encoder.set_filter(filt);
         let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
         writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
     }

@@ -95,11 +95,36 @@ where
 }
 
 /// Iterate over rows of an image
+///
+/// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
+///
+/// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    chunks: Chunks<'a, P::Subpixel>,
+    pixels: Chunks<'a, P::Subpixel>,
+}
+
+impl<'a, P: Pixel + 'a> Rows<'a, P> {
+    /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
+    /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
+    fn with_image(pixels: &'a [P::Subpixel], width: u32, height: u32) -> Self {
+        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+        if row_len == 0 {
+            Rows {
+                pixels: [].chunks(1),
+            }
+        } else {
+            let pixels = pixels.get(..row_len*height as usize)
+                .expect("Pixel buffer has too few subpixels");
+            // Rows are physically present. In particular, height is smaller than `usize::MAX` as
+            // all subpixels can be indexed.
+            Rows {
+                pixels: pixels.chunks(row_len),
+            }
+        }
+    }
 }
 
 impl<'a, P: Pixel + 'a> Iterator for Rows<'a, P>
@@ -110,7 +135,9 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<Pixels<'a, P>> {
-        self.chunks.next().map(|row| Pixels {
+        let row = self.pixels.next()?;
+        Some(Pixels {
+            // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
@@ -121,7 +148,7 @@ where
     P::Subpixel: 'a,
 {
     fn len(&self) -> usize {
-        self.chunks.len()
+        self.pixels.len()
     }
 }
 
@@ -131,18 +158,45 @@ where
 {
     #[inline(always)]
     fn next_back(&mut self) -> Option<Pixels<'a, P>> {
-        self.chunks.next_back().map(|row| Pixels {
+        let row = self.pixels.next_back()?;
+        Some(Pixels {
+            // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
 
 /// Iterate over mutable rows of an image
+///
+/// This iterator is created with [`ImageBuffer::rows_mut`]. See its document for details.
+///
+/// [`ImageBuffer::rows_mut`]: ../struct.ImageBuffer.html#method.rows_mut
 pub struct RowsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    chunks: ChunksMut<'a, P::Subpixel>,
+    pixels: ChunksMut<'a, P::Subpixel>,
+}
+
+impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
+    /// Construct the iterator from image pixels. This is not public since it has a (hidden) panic
+    /// condition. The `pixels` slice must be large enough so that all pixels are addressable.
+    fn with_image(pixels: &'a mut [P::Subpixel], width: u32, height: u32) -> Self {
+        let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
+        if row_len == 0 {
+            RowsMut {
+                pixels: [].chunks_mut(1),
+            }
+        } else {
+            let pixels = pixels.get_mut(..row_len*height as usize)
+                .expect("Pixel buffer has too few subpixels");
+            // Rows are physically present. In particular, height is smaller than `usize::MAX` as
+            // all subpixels can be indexed.
+            RowsMut {
+                pixels: pixels.chunks_mut(row_len),
+            }
+        }
+    }
 }
 
 impl<'a, P: Pixel + 'a> Iterator for RowsMut<'a, P>
@@ -153,7 +207,9 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<PixelsMut<'a, P>> {
-        self.chunks.next().map(|row| PixelsMut {
+        let row = self.pixels.next()?;
+        Some(PixelsMut {
+            // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
@@ -164,7 +220,7 @@ where
     P::Subpixel: 'a,
 {
     fn len(&self) -> usize {
-        self.chunks.len()
+        self.pixels.len()
     }
 }
 
@@ -174,7 +230,9 @@ where
 {
     #[inline(always)]
     fn next_back(&mut self) -> Option<PixelsMut<'a, P>> {
-        self.chunks.next_back().map(|row| PixelsMut {
+        let row = self.pixels.next_back()?;
+        Some(PixelsMut {
+            // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
@@ -455,12 +513,12 @@ where
     }
 
     /// Returns an iterator over the rows of this image.
+    ///
+    /// Only non-empty rows can be iterated in this manner. In particular the iterator will not
+    /// yield any item when the width of the image is `0` or a pixel type without any channels is
+    /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows(&self) -> Rows<P> {
-        Rows {
-            chunks: self
-                .data
-                .chunks(<P as Pixel>::CHANNEL_COUNT as usize * self.width as usize),
-        }
+        Rows::with_image(&self.data, self.width, self.height)
     }
 
     /// Enumerates over the pixels of the image.
@@ -584,12 +642,12 @@ where
     }
 
     /// Returns an iterator over the mutable rows of this image.
+    ///
+    /// Only non-empty rows can be iterated in this manner. In particular the iterator will not
+    /// yield any item when the width of the image is `0` or a pixel type without any channels is
+    /// used. This ensures that its length can always be represented by `usize`.
     pub fn rows_mut(&mut self) -> RowsMut<P> {
-        RowsMut {
-            chunks: self
-                .data
-                .chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize * self.width as usize),
-        }
+        RowsMut::with_image(&mut self.data, self.width, self.height)
     }
 
     /// Enumerates over the pixels of the image.
@@ -1116,7 +1174,7 @@ mod tests_zero_width_nonzero_height {
     fn rows_mut() {
         let mut image = test_image();
         let rows = image.rows_mut();
-        assert_eq!(rows.count(), 2);
+        assert_eq!(rows.count(), 0);
     }
 
     #[test]
@@ -1130,7 +1188,7 @@ mod tests_zero_width_nonzero_height {
     fn rows() {
         let image = test_image();
         let rows = image.rows();
-        assert_eq!(rows.count(), 2);
+        assert_eq!(rows.count(), 0);
     }
 
     #[test]

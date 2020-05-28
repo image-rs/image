@@ -736,7 +736,7 @@ impl Sample for PbmBit {
         let count = (width*height*samples) as usize;
         let raw_samples = reader.bytes()
             .filter_map(|ascii| match ascii {
-                Ok(b'0') => Some(Ok(1)),
+                Ok(b'0') => Some(Ok(255)),
                 Ok(b'1') => Some(Ok(0)),
                 Err(err) => Some(Err(ImageError::IoError(err))),
                 Ok(b'\t')
@@ -1096,7 +1096,7 @@ ENDHDR
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
-        assert_eq!(image, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
+        assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
@@ -1128,7 +1128,7 @@ ENDHDR
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
-        assert_eq!(image, vec![1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]);
+        assert_eq!(image, vec![255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0]);
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,

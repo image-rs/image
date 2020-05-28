@@ -736,7 +736,7 @@ impl Sample for PbmBit {
         let count = (width*height*samples) as usize;
         let raw_samples = reader.bytes()
             .filter_map(|ascii| match ascii {
-                Ok(b'0') => Some(Ok(1)),
+                Ok(b'0') => Some(Ok(255)),
                 Ok(b'1') => Some(Ok(0)),
                 Err(err) => Some(Err(ImageError::IoError(err))),
                 Ok(b'\t')

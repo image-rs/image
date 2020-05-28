@@ -109,6 +109,22 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_gray() {
+        #[rustfmt::skip]
+        let buf: [u8; 16] = [
+            0, 0, 0, 255,
+            255, 255, 255, 255,
+            255, 0, 255, 0,
+            255, 0, 0, 0,
+        ];
+
+        execute_roundtrip_default(&buf, 4, 4, ColorType::L8);
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::ArbitraryMap);
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::Graymap(SampleEncoding::Ascii));
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::Graymap(SampleEncoding::Binary));
+    }
+
+    #[test]
     fn roundtrip_rgb() {
         #[rustfmt::skip]
         let buf: [u8; 27] = [

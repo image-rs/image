@@ -316,7 +316,7 @@ impl<W: Write> Encoder<W> {
         match color {
             ColorType::Rgb8 => self.encode_gif(Frame::from_rgb(width, height, data)),
             ColorType::Rgba8 => {
-                self.encode_gif(Frame::from_rgb(width, height, &mut data.to_owned()))
+                self.encode_gif(Frame::from_rgba(width, height, &mut data.to_owned()))
             },
             _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Gif.into(),

@@ -61,7 +61,7 @@ matrix:
         - cargo clippy
     - os: linux
       rust: stable
-      name: "Build fuzz targets (afl)"
+      name: "Fuzz targets (afl)"
       script:
         - cargo install afl
         - cd fuzz-afl
@@ -69,6 +69,12 @@ matrix:
         - cargo check --bin reproduce_pnm
         - cargo afl check --bin fuzz_webp
         - cargo afl check --bin fuzz_pnm
+    - os: linux
+      rust: nightly
+      name: "Fuzz targets (cargo-fuzz)"
+      script:
+        - cargo install cargo-fuzz
+        - cargo fuzz build
     - os: linux
       rust: nightly
       name: "Public private dependencies"

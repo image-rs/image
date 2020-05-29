@@ -583,25 +583,6 @@ pub trait GenericImageView {
     /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
-    /// Get the pixel value at (x, y) when in bounds.
-    ///
-    /// Return `Some(_)` with the pixel value if the coordinates are [`in_bounds`] and otherwise
-    /// returns `None`.
-    ///
-    /// This method can be overridden by image implementations to be more efficient than the manual
-    /// bounds check. In particular, `get_pixel` will often do its own bounds check and would
-    /// duplicate this prior step. The optimizer may not detect all of them.
-    ///
-    /// [`in_bounds`]: #method.in_bounds
-    // TODO: swap the default implementation to `get_pixel`.
-    fn opt_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel> {
-        if self.in_bounds(x, y) {
-            Some(self.get_pixel(x, y))
-        } else {
-            None
-        }
-    }
-
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
@@ -647,24 +628,6 @@ pub trait GenericImage: GenericImageView {
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
-    /// Gets a reference to the mutable pixel when location `(x, y)` is in bounds.
-    ///
-    /// Return `Some(_)` with the pixel value if the coordinates are [`in_bounds`] and otherwise
-    /// returns `None`.
-    ///
-    /// This method can be overridden by image implementations to be more efficient than the manual
-    /// bounds check. In particular, `get_pixel` will often do its own bounds check and would
-    /// duplicate this prior step. The optimizer may not detect all of them.
-    ///
-    /// [`in_bounds`]: trait.GenericImageView.html#method.in_bounds
-    fn opt_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel> {
-        if self.in_bounds(x, y) {
-            Some(self.get_pixel_mut(x, y))
-        } else {
-            None
-        }
-    }
 
     /// Put a pixel at location (x, y)
     ///

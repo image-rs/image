@@ -833,14 +833,6 @@ where
         *self.get_pixel(x, y)
     }
 
-    fn opt_pixel(&self, x: u32, y: u32) -> Option<P> {
-        if let Some(idx) = self.pixel_indices(x, y) {
-            Some(*P::from_slice(&self.data[idx]))
-        } else {
-            None
-        }
-    }
-
     /// Returns the pixel located at (x, y), ignoring bounds checking.
     #[inline(always)]
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
@@ -863,14 +855,6 @@ where
 
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.get_pixel_mut(x, y)
-    }
-
-    fn opt_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        if let Some(idx) = self.pixel_indices(x, y) {
-            Some(P::from_slice_mut(&mut self.data[idx]))
-        } else {
-            None
-        }
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {

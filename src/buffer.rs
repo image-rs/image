@@ -1123,117 +1123,36 @@ mod test {
         }
         assert_eq!(a.data[0], 42)
     }
-}
 
-#[cfg(test)]
-mod tests_zero_width_zero_height {
-    use super::{ImageBuffer, RgbaImage};
+    #[test]
+    fn zero_width_zero_height() {
+        let mut image = RgbImage::new(0, 0);
 
-    fn test_image() -> RgbaImage {
-        ImageBuffer::new(0, 0)
+        assert_eq!(image.rows_mut().count(), 0);
+        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.rows().count(), 0);
+        assert_eq!(image.pixels().count(), 0);
+    }
+
+
+    #[test]
+    fn zero_width_nonzero_height() {
+        let mut image = RgbImage::new(0, 2);
+
+        assert_eq!(image.rows_mut().count(), 0);
+        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.rows().count(), 0);
+        assert_eq!(image.pixels().count(), 0);
     }
 
     #[test]
-    fn rows_mut() {
-        let mut image = test_image();
-        let rows = image.rows_mut();
-        assert_eq!(rows.count(), 0);
-    }
+    fn nonzero_width_zero_height() {
+        let mut image = RgbImage::new(2, 0);
 
-    #[test]
-    fn pixels_mut() {
-        let mut image = test_image();
-        let rows = image.pixels_mut();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn rows() {
-        let image = test_image();
-        let rows = image.rows();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn pixels() {
-        let image = test_image();
-        let rows = image.pixels();
-        assert_eq!(rows.count(), 0);
-    }
-}
-
-#[cfg(test)]
-mod tests_zero_width_nonzero_height {
-    use super::{ImageBuffer, RgbaImage};
-
-    fn test_image() -> RgbaImage {
-        ImageBuffer::new(0, 2)
-    }
-
-    #[test]
-    fn rows_mut() {
-        let mut image = test_image();
-        let rows = image.rows_mut();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn pixels_mut() {
-        let mut image = test_image();
-        let rows = image.pixels_mut();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn rows() {
-        let image = test_image();
-        let rows = image.rows();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn pixels() {
-        let image = test_image();
-        let rows = image.pixels();
-        assert_eq!(rows.count(), 0);
-    }
-}
-
-
-#[cfg(test)]
-mod tests_nonzero_width_zero_height {
-    use super::{ImageBuffer, RgbaImage};
-
-    fn test_image() -> RgbaImage {
-        ImageBuffer::new(2, 0)
-    }
-
-    #[test]
-    fn rows_mut() {
-        let mut image = test_image();
-        let rows = image.rows_mut();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn pixels_mut() {
-        let mut image = test_image();
-        let rows = image.pixels_mut();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn rows() {
-        let image = test_image();
-        let rows = image.rows();
-        assert_eq!(rows.count(), 0);
-    }
-
-    #[test]
-    fn pixels() {
-        let image = test_image();
-        let rows = image.pixels();
-        assert_eq!(rows.count(), 0);
+        assert_eq!(image.rows_mut().count(), 0);
+        assert_eq!(image.pixels_mut().count(), 0);
+        assert_eq!(image.rows().count(), 0);
+        assert_eq!(image.pixels().count(), 0);
     }
 }
 

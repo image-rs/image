@@ -80,13 +80,15 @@ matrix:
 script:
   - if [ -n "${FEATURES+exists}" ]; then
       cargo build -v --no-default-features --features "$FEATURES" &&
-      if [ "$(cargo --version)" != "cargo 1.34"* ]; then
-        cargo test -v --no-default-features --features "$FEATURES";
-      fi &&
-      cargo doc -v --no-default-features --features "$FEATURES";
+      if [[ "$(cargo --version)" != "cargo 1.34"* ]]; then
+        cargo test -v --no-default-features --features "$FEATURES" &&
+        cargo doc -v --no-default-features --features "$FEATURES";
+      fi
     fi
   - if [ -n "${DEFAULT_FEATURES+exists}" ]; then
-      cargo test -v;
+      if [[ "$(cargo --version)" != "cargo 1.34"* ]]; then
+        cargo test -v;
+      fi
     fi
   - if [ -n "${BENCHMARKS+exists}" ]; then
       cargo build -v --benches --features=benchmarks;

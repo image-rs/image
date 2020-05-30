@@ -3,5 +3,5 @@
 extern crate image;
 
 fuzz_target!(|data: &[u8]| {
-    let _ = image::load_from_memory_with_format(data, image::ImageFormat::TIFF);
+    let _ = image::load_from_memory_with_format(data, image::ImageFormat::Tiff);
 });

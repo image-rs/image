@@ -35,6 +35,7 @@ matrix:
   allow_failures:
     - name: "Clippy"
     - name: "Public private dependencies"
+    - name: "Fuzz corpus"
     - rust: nightly
   include:
     - os: osx
@@ -61,7 +62,7 @@ matrix:
         - cargo clippy
     - os: linux
       rust: stable
-      name: "Build fuzz targets (afl)"
+      name: "Fuzz targets (afl)"
       script:
         - cargo install afl
         - cd fuzz-afl
@@ -69,6 +70,21 @@ matrix:
         - cargo check --bin reproduce_pnm
         - cargo afl check --bin fuzz_webp
         - cargo afl check --bin fuzz_pnm
+    - os: linux
+      rust: nightly
+      name: "Fuzz targets (cargo-fuzz)"
+      script:
+        - cargo install cargo-fuzz
+        - cargo fuzz build
+    - os: linux
+      rust: nightly
+      name: "Fuzz corpus"
+      script:
+        - cargo install cargo-fuzz
+        - cargo fuzz build
+        - for format in $(cargo fuzz list); do
+            cargo fuzz run "$format" -- -runs=0;
+          done
     - os: linux
       rust: nightly
       name: "Public private dependencies"

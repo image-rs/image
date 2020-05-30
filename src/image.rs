@@ -68,6 +68,33 @@ impl ImageFormat {
         crate::io::free_functions::guess_format_from_path_impl(path.as_ref())
             .map_err(Into::into)
     }
+
+    /// Return a list of applicable extensions for this format.
+    ///
+    /// All currently recognized image formats specify at least on extension but for future
+    /// compatibility you should not rely on this fact. The list may be empty if the format has no
+    /// recognized file representation, for example in case it is used as a purely transient memory
+    /// format.
+    ///
+    /// The method name `extensions` remains reserved for introducing another method in the future
+    /// that yields a slice of `OsStr` which is blocked by several features of const evaluation.
+    pub fn extensions_str(self) -> &'static [&'static str] {
+        match self {
+            ImageFormat::Png => &["png"],
+            ImageFormat::Jpeg => &["jpg", "jpeg"],
+            ImageFormat::Gif => &["gif"],
+            ImageFormat::WebP => &["webp"],
+            ImageFormat::Pnm => &["pbm", "pam", "ppm", "pgm"],
+            ImageFormat::Tiff => &["tiff", "tif"],
+            ImageFormat::Tga => &["tga"],
+            ImageFormat::Dds => &["dds"],
+            ImageFormat::Bmp => &["bmp"],
+            ImageFormat::Ico => &["ico"],
+            ImageFormat::Hdr => &["hdr"],
+            ImageFormat::Farbfeld => &["ff"],
+            ImageFormat::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
 }
 
 /// An enumeration of supported image formats for encoding.
@@ -1121,5 +1148,21 @@ mod tests {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
         assert!(image.sub_image(0, 0, 4, 4).copy_within(Rect { x: 1, y: 1, width: 3, height: 3 }, 0, 0));
         assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    fn image_formats_are_recognized() {
+        use ImageFormat::*;
+        const ALL_FORMATS: &'static [ImageFormat] = &[Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld];
+        for &format in ALL_FORMATS {
+            let mut file = Path::new("file.nothing").to_owned();
+            for ext in format.extensions_str() {
+                assert!(file.set_extension(ext));
+                match ImageFormat::from_path(&file) {
+                    Err(_) => panic!("Path {} not recognized as {:?}", file.display(), format),
+                    Ok(result) => assert_eq!(format, result),
+                }
+            }
+        }
     }
 }

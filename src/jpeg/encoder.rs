@@ -1,17 +1,18 @@
 #![allow(clippy::too_many_arguments)]
 
-use byteorder::{BigEndian, WriteBytesExt};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
-use crate::math::utils::clamp;
-use num_iter::range_step;
+use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use crate::color;
+use byteorder::{BigEndian, WriteBytesExt};
+use num_iter::range_step;
+
+use crate::{Bgr, Bgra, ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageEncoder, ImageFormat};
+use crate::math::utils::clamp;
 
 use super::entropy::build_huff_lut;
 use super::transform;
-use std::convert::TryFrom;
 
 // Markers
 // Baseline DCT
@@ -424,7 +425,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         self.pixel_density = pixel_density;
     }
 
-    /// Encodes the image ```image```
+    /// Encodes the image stored in the raw byte buffer ```image```
     /// that has dimensions ```width``` and ```height```
     /// and ```ColorType``` ```c```
     ///
@@ -434,9 +435,50 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         image: &[u8],
         width: u32,
         height: u32,
-        c: color::ColorType,
+        color_type: ColorType,
     ) -> ImageResult<()> {
-        let n = c.channel_count();
+        match color_type {
+            ColorType::L8 => {
+                let image: ImageBuffer<Luma<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            ColorType::La8 => {
+                let image: ImageBuffer<LumaA<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            ColorType::Rgb8 => {
+                let image: ImageBuffer<Rgb<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            ColorType::Rgba8 => {
+                let image: ImageBuffer<Rgba<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            ColorType::Bgr8 => {
+                let image: ImageBuffer<Bgr<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            ColorType::Bgra8 => {
+                let image: ImageBuffer<Bgra<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
+                self.encode_image(&image)
+            },
+            _ => {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Jpeg.into(),
+                        UnsupportedErrorKind::Color(color_type.into()),
+                    ),
+                ))
+            },
+        }
+    }
+
+    /// Encodes the given image
+    pub fn encode_image<I: GenericImageView>(
+        &mut self,
+        image: &I,
+    ) -> ImageResult<()> {
+        let n = I::Pixel::CHANNEL_COUNT;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_segment(SOI, None)?;
@@ -449,12 +491,12 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_frame_header(
             &mut buf,
             8,
-            u16::try_from(width).map_err(|_| {
+            u16::try_from(image.width()).map_err(|_| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
                 ))
             })?,
-            u16::try_from(height).map_err(|_| {
+            u16::try_from(image.height()).map_err(|_| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
                 ))
@@ -512,49 +554,29 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, Some(&buf))?;
 
-        match c {
-            color::ColorType::Rgb8 => {
-                self.encode_rgb(image, width as usize, height as usize, 3)?
-            }
-            color::ColorType::Rgba8 => {
-                self.encode_rgb(image, width as usize, height as usize, 4)?
-            }
-            color::ColorType::L8 => {
-                self.encode_gray(image, width as usize, height as usize, 1)?
-            }
-            color::ColorType::La8 => {
-                self.encode_gray(image, width as usize, height as usize, 2)?
-            }
-            _ => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Jpeg.into(),
-                        UnsupportedErrorKind::Color(c.into()),
-                    ),
-                ))
-            }
-        };
+
+        if I::Pixel::COLOR_TYPE.has_color() {
+            self.encode_rgb(image)
+        } else {
+            self.encode_gray(image)
+        }?;
 
         self.writer.pad_byte()?;
         self.writer.write_segment(EOI, None)?;
         Ok(())
     }
 
-    fn encode_gray(
+    fn encode_gray<I: GenericImageView>(
         &mut self,
-        image: &[u8],
-        width: usize,
-        height: usize,
-        bpp: usize,
+        image: &I,
     ) -> io::Result<()> {
         let mut yblock = [0u8; 64];
         let mut y_dcprev = 0;
         let mut dct_yblock = [0i32; 64];
 
-        for y in range_step(0, height, 8) {
-            for x in range_step(0, width, 8) {
-                // RGB -> YCbCr
-                copy_blocks_gray(image, x, y, width, bpp, &mut yblock);
+        for y in range_step(0, image.height(), 8) {
+            for x in range_step(0, image.width(), 8) {
+                copy_blocks_gray(image, x, y, &mut yblock);
 
                 // Level shift and fdct
                 // Coeffs are scaled by 8
@@ -575,12 +597,9 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         Ok(())
     }
 
-    fn encode_rgb(
+    fn encode_rgb<I: GenericImageView>(
         &mut self,
-        image: &[u8],
-        width: usize,
-        height: usize,
-        bpp: usize,
+        image: &I,
     ) -> io::Result<()> {
         let mut y_dcprev = 0;
         let mut cb_dcprev = 0;
@@ -594,15 +613,13 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         let mut cb_block = [0u8; 64];
         let mut cr_block = [0u8; 64];
 
-        for y in range_step(0, height, 8) {
-            for x in range_step(0, width, 8) {
+        for y in range_step(0, image.height(), 8) {
+            for x in range_step(0, image.width(), 8) {
                 // RGB -> YCbCr
                 copy_blocks_ycbcr(
                     image,
                     x,
                     y,
-                    width,
-                    bpp,
                     &mut yblock,
                     &mut cb_block,
                     &mut cr_block,
@@ -647,7 +664,7 @@ impl<'a, W: Write> ImageEncoder for JPEGEncoder<'a, W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        color_type: color::ColorType,
+        color_type: ColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
     }
@@ -771,82 +788,84 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
     (num_bits, val)
 }
 
-fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let r = f32::from(r);
-    let g = f32::from(g);
-    let b = f32::from(b);
+#[inline]
+fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
+    use num_traits::{cast::ToPrimitive, bounds::Bounded};
+    let [r, g, b] = pixel.to_rgb().0;
+    let max: f32 = P::Subpixel::max_value().to_f32().unwrap();
+    let r: f32 = r.to_f32().unwrap();
+    let g: f32 = g.to_f32().unwrap();
+    let b: f32 = b.to_f32().unwrap();
 
-    let y = 0.299f32 * r + 0.587f32 * g + 0.114f32 * b;
-    let cb = -0.1687f32 * r - 0.3313f32 * g + 0.5f32 * b + 128f32;
-    let cr = 0.5f32 * r - 0.4187f32 * g - 0.0813f32 * b + 128f32;
+    let y = 65.481 / max * r + 128.553 / max * g + 24.933 / max * b;
+    let cb = -37.797 / max * r - 74.203 / max * g + 112.0 / max * b + 128.;
+    let cr = 112. / max * r - 93.786 / max * g - 18.214 / max * b + 128.;
 
     (y as u8, cb as u8, cr as u8)
 }
 
-fn value_at(s: &[u8], index: usize) -> u8 {
-    if index < s.len() {
-        s[index]
+
+/// Returns the pixel at (x,y) if (x,y) is in the image,
+/// otherwise the closest pixel in the image
+#[inline]
+fn pixel_at_or_near<I: GenericImageView>(source: &I, x: u32, y: u32) -> I::Pixel {
+    if source.in_bounds(x, y) {
+        source.get_pixel(x, y)
     } else {
-        s[s.len() - 1]
+        source.get_pixel(
+            x.min(source.width() - 1),
+            y.min(source.height() - 1),
+        )
     }
 }
 
-fn copy_blocks_ycbcr(
-    source: &[u8],
-    x0: usize,
-    y0: usize,
-    width: usize,
-    bpp: usize,
+fn copy_blocks_ycbcr<I: GenericImageView>(
+    source: &I,
+    x0: u32,
+    y0: u32,
     yb: &mut [u8; 64],
     cbb: &mut [u8; 64],
     crb: &mut [u8; 64],
 ) {
-    for y in 0usize..8 {
-        let ystride = (y0 + y) * bpp * width;
+    for y in 0..8 {
+        for x in 0..8 {
+            let pixel = pixel_at_or_near(source, x + x0, y + y0);
+            let (yc, cb, cr) = rgb_to_ycbcr(pixel);
 
-        for x in 0usize..8 {
-            let xstride = x0 * bpp + x * bpp;
-
-            let r = value_at(source, ystride + xstride);
-            let g = value_at(source, ystride + xstride + 1);
-            let b = value_at(source, ystride + xstride + 2);
-
-            let (yc, cb, cr) = rgb_to_ycbcr(r, g, b);
-
-            yb[y * 8 + x] = yc;
-            cbb[y * 8 + x] = cb;
-            crb[y * 8 + x] = cr;
+            yb[(y * 8 + x) as usize] = yc;
+            cbb[(y * 8 + x) as usize] = cb;
+            crb[(y * 8 + x) as usize] = cr;
         }
     }
 }
 
-fn copy_blocks_gray(
-    source: &[u8],
-    x0: usize,
-    y0: usize,
-    width: usize,
-    bpp: usize,
+fn copy_blocks_gray<I: GenericImageView>(
+    source: &I,
+    x0: u32,
+    y0: u32,
     gb: &mut [u8; 64],
 ) {
-    for y in 0usize..8 {
-        let ystride = (y0 + y) * bpp * width;
-
-        for x in 0usize..8 {
-            let xstride = x0 * bpp + x * bpp;
-            gb[y * 8 + x] = value_at(source, ystride + xstride);
+    use num_traits::cast::ToPrimitive;
+    for y in 0..8 {
+        for x in 0..8 {
+            let pixel = pixel_at_or_near(source, x0 + x, y0 + y);
+            let [luma] = pixel.to_luma().0;
+            gb[(y * 8 + x) as usize] = luma.to_u8().unwrap();
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::JpegDecoder;
-    use super::{JPEGEncoder, PixelDensity, build_jfif_header};
-    use crate::color::ColorType;
-    use crate::image::ImageDecoder;
     use std::io::Cursor;
-    use crate::ImageError;
+
+    use crate::{Bgra, ImageBuffer, ImageEncoder, ImageError};
+    use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
+    use crate::image::ImageDecoder;
+
+    use super::{build_jfif_header, JPEGEncoder, PixelDensity};
+    use super::super::JpegDecoder;
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let decoder = JpegDecoder::new(Cursor::new(encoded))
@@ -865,9 +884,9 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            let encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 1, 1, ColorType::Rgb8)
+                .write_image(&img, 1, 1, ColorType::Rgb8)
                 .expect("Could not encode image");
         }
 
@@ -891,9 +910,9 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let mut encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            let encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
-                .encode(&img, 2, 2, ColorType::L8)
+                .write_image(&img[..], 2, 2, ColorType::L8)
                 .expect("Could not encode image");
         }
 
@@ -933,8 +952,8 @@ mod tests {
         let img = [0; 65_536];
         // Try to encode an image that is too large
         let mut encoded = Vec::new();
-        let mut encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
-        let result = encoder.encode(&img, 65_536, 1, ColorType::L8);
+        let encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
+        let result = encoder.write_image(&img, 65_536, 1, ColorType::L8);
         match result {
             Err(ImageError::Parameter(err)) => {
                 assert_eq!(err.kind(), DimensionMismatch)
@@ -944,5 +963,21 @@ mod tests {
                                 it returned {:?} instead", other)
             }
         }
+    }
+
+    #[test]
+    fn test_bgra16() {
+        // Test encoding an RGBA 16-bit image.
+        // Jpeg is RGB 8-bit, so the conversion should be done on the fly
+        let mut encoded = Vec::new();
+        let max = std::u16::MAX;
+        let image: ImageBuffer<Bgra<u16>, _> = ImageBuffer::from_raw(
+            1, 1, vec![0, max / 2, max, max]).unwrap();
+        let mut encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
+        encoder.encode_image(&image).unwrap();
+        let decoded = decode(&encoded);
+        assert!(decoded[0] > 200, "bad red channel in {:?}", &decoded);
+        assert!(100 < decoded[1] && decoded[1] < 150, "bad green channel in {:?}", &decoded);
+        assert!(decoded[2] < 50, "bad blue channel in {:?}", &decoded);
     }
 }

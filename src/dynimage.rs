@@ -28,7 +28,6 @@ use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, Par
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-#[cfg(feature = "farbfeld")]
 use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
@@ -738,9 +737,8 @@ impl DynamicImage {
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::Jpeg(quality) => {
-                let mut j = jpeg::JPEGEncoder::new_with_quality(w, quality);
-
-                j.encode(&bytes, width, height, color)?;
+                let j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+                j.write_image(&bytes, width, height, color)?;
                 Ok(())
             }
 

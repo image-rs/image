@@ -449,7 +449,7 @@ where
 ///
 /// image::imageops::overlay(&mut img, &on_top, 128, 128);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,

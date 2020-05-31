@@ -172,13 +172,15 @@ impl<R: Read> ReadDecoder<R> {
             if buf.is_empty() {
                 return Err(DecodingError::Format("unexpected EOF".into()));
             }
-            match self.decoder.update(buf, &mut vec![])? {
-                (_, Decoded::Nothing) => (),
-                (_, Decoded::ImageEnd) => self.at_eof = true,
-                (_, Decoded::ChunkComplete(_, _)) => return Ok(()),
-                (_, Decoded::ImageData) => { /*ignore more data*/ }
-                (_, Decoded::PartialChunk(_)) => {}
-                _ => unreachable!(),
+            let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
+            self.reader.consume(consumed);
+            match event {
+                Decoded::Nothing => (),
+                Decoded::ImageEnd => self.at_eof = true,
+                Decoded::ChunkComplete(_, _) => return Ok(()),
+                Decoded::ImageData => { /*ignore more data*/ }
+                Decoded::PartialChunk(_) => {}
+                new => unreachable!("{:?}", new),
             }
         }
 

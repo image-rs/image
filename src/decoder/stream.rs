@@ -140,9 +140,14 @@ impl From<DecodingError> for io::Error {
 pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
+    /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: InflateStream,
+    /// The complete image info read from all prior chunks.
     info: Option<Info>,
+    /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
+    /// Stores where in decoding an `fdAT` chunk we are.
+    apng_seq_handled: bool,
     have_idat: bool,
 }
 
@@ -168,6 +173,7 @@ impl StreamingDecoder {
             inflater: zlib_stream(),
             info: None,
             current_seq_no: None,
+            apng_seq_handled: false,
             have_idat: false,
         }
     }
@@ -181,6 +187,7 @@ impl StreamingDecoder {
         self.inflater = zlib_stream();
         self.info = None;
         self.current_seq_no = None;
+        self.apng_seq_handled = false;
         self.have_idat = false;
     }
 
@@ -265,6 +272,7 @@ impl StreamingDecoder {
                         self.current_chunk.crc.reset();
                         self.current_chunk.crc.update(&type_str);
                         self.current_chunk.remaining = length;
+                        self.apng_seq_handled = false;
                         goto!(
                             ReadChunk(type_str, true),
                             emit Decoded::ChunkBegin(length, type_str)
@@ -306,20 +314,27 @@ impl StreamingDecoder {
                         )
                     }
                     chunk::fdAT => {
+                        let data_start;
                         if let Some(seq_no) = self.current_seq_no {
-                            let mut buf = &self.current_chunk.raw_bytes[..];
-                            let next_seq_no = buf.read_be()?;
-                            if next_seq_no != seq_no + 1 {
-                                return Err(DecodingError::Format(
-                                    format!(
-                                        "Sequence is not in order, expected #{} got #{}.",
-                                        seq_no + 1,
-                                        next_seq_no
-                                    )
-                                    .into(),
-                                ));
+                            if !self.apng_seq_handled {
+                                data_start = 4;
+                                let mut buf = &self.current_chunk.raw_bytes[..];
+                                let next_seq_no = buf.read_be()?;
+                                if next_seq_no != seq_no + 1 {
+                                    return Err(DecodingError::Format(
+                                        format!(
+                                            "Sequence is not in order, expected #{} got #{}.",
+                                            seq_no + 1,
+                                            next_seq_no
+                                        )
+                                        .into(),
+                                    ));
+                                }
+                                self.current_seq_no = Some(next_seq_no);
+                                self.apng_seq_handled = true;
+                            } else {
+                                data_start = 0;
                             }
-                            self.current_seq_no = Some(next_seq_no);
                         } else {
                             return Err(DecodingError::Format(
                                 "fcTL chunk missing before fdAT chunk.".into(),
@@ -327,7 +342,7 @@ impl StreamingDecoder {
                         }
                         goto!(
                             0,
-                            DecodeData(type_str, 4),
+                            DecodeData(type_str, data_start),
                             emit Decoded::PartialChunk(type_str)
                         )
                     }

@@ -505,10 +505,16 @@ where
         self.height
     }
 
+    // TODO: choose name under which to expose.
+    fn inner_pixels(&self) -> &[P::Subpixel] {
+        let len = Self::image_buffer_len(self.width, self.height).unwrap();
+        &self.data[..len]
+    }
+
     /// Returns an iterator over the pixels of this image.
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
-            chunks: self.data.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels().chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -634,10 +640,16 @@ where
     P::Subpixel: 'static,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
+    // TODO: choose name under which to expose.
+    fn inner_pixels_mut(&mut self) -> &mut [P::Subpixel] {
+        let len = Self::image_buffer_len(self.width, self.height).unwrap();
+        &mut self.data[..len]
+    }
+
     /// Returns an iterator over the mutable pixels of this image.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.data.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels_mut().chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -1153,6 +1165,19 @@ mod test {
         assert_eq!(image.pixels_mut().count(), 0);
         assert_eq!(image.rows().count(), 0);
         assert_eq!(image.pixels().count(), 0);
+    }
+
+    #[test]
+    fn pixels_on_large_buffer() {
+        let mut image = RgbImage::from_raw(1, 1, vec![0; 6]).unwrap();
+
+        assert_eq!(image.pixels().count(), 1);
+        assert_eq!(image.enumerate_pixels().count(), 1);
+        assert_eq!(image.pixels_mut().count(), 1);
+        assert_eq!(image.enumerate_pixels_mut().count(), 1);
+
+        assert_eq!(image.rows().count(), 1);
+        assert_eq!(image.rows_mut().count(), 1);
     }
 }
 

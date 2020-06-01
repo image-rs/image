@@ -1,3 +1,13 @@
+## 0.16.4
+
+* The fdAT frames are no longer inspected when the main image is read. This
+  would previously be the case for non-interlaced images. This would lead to
+  incorrect failure and, e.g. an error of the form `"invalid filter method"`.
+* Fix always validating the last IDAT-chunks checksum, was sometimes ignored.
+* Prevent encoding color/bit-depth combinations forbidden by the specification.
+* The fixes for APNG/fdAT enable further implementation. The _next_ release is
+  expected to officially support APNG.
+
 ## 0.16.3
 
 * Fix encoding with filtering methods Up, Avg, Paeth

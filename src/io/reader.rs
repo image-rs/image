@@ -69,9 +69,9 @@ impl<R: Read> Reader<R> {
     /// Create a new image reader without a preset format.
     ///
     /// It is possible to guess the format based on the content of the read object with
-    /// [`guess_format`], or to set the format directly with [`set_format`].
+    /// [`with_guessed_format`], or to set the format directly with [`set_format`].
     ///
-    /// [`guess_format`]: #method.guess_format
+    /// [`with_guessed_format`]: #method.with_guessed_format
     /// [`set_format`]: method.set_format
     pub fn new(reader: R) -> Self {
         Reader {
@@ -118,9 +118,9 @@ impl Reader<BufReader<File>> {
     /// This will not attempt any io operation on the opened file.
     ///
     /// If you want to inspect the content for a better guess on the format, which does not depend
-    /// on file extensions, follow this call with a call to [`guess_format`].
+    /// on file extensions, follow this call with a call to [`with_guessed_format`].
     ///
-    /// [`guess_format`]: #method.guess_format
+    /// [`with_guessed_format`]: #method.with_guessed_format
     pub fn open<P>(path: P) -> io::Result<Self> where P: AsRef<Path> {
         Self::open_impl(path.as_ref())
     }

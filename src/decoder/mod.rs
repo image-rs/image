@@ -224,6 +224,7 @@ pub struct Reader<R: Read> {
 /// information and reuse the global interlace options. This struct encapsulates the state of where
 /// in a particular IDAT-frame or subframe we are.
 struct SubframeInfo {
+    width: u32,
     rowlen: usize,
     interlace: InterlaceIter,
 }
@@ -369,7 +370,19 @@ impl<R: Read> Reader<R> {
         }
     }
 
-    /// Decodes the next frame into `buf`
+    /// Decodes the next frame into `buf`.
+    ///
+    /// Note that this decodes raw subframes that need to be mixed according to blend-op and
+    /// dispose-op by the caller.
+    ///
+    /// The caller must always provide a buffer large enough to hold a complete frame (the APNG
+    /// specification restricts subframes to the dimensions given in the image header). The region
+    /// that has been written be checked afterwards by calling `info` after a successful call and
+    /// inspecting the `frame_control` data. This requirement may be lifted in a later version of
+    /// `png`.
+    ///
+    /// Output lines will be written in row-major, packed matrix with width and height of the read
+    /// frame (or subframe), all samples are in big endian byte order where this matters.
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
         // Advance until we've read the info / fcTL for this frame.
         self.init()?;
@@ -581,12 +594,12 @@ impl<R: Read> Reader<R> {
     }
 
     fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
-        let width = get_info!(self).width;
+        let width = self.subframe.width;
         let bytes = self.limits.bytes;
         if bytes < self.line_size(width) {
             return Err(DecodingError::LimitsExceeded);
         }
-        self.processed = vec![0; self.line_size(width)];
+        self.processed.resize(self.line_size(width), 0u8);
         Ok(())
     }
 
@@ -670,6 +683,7 @@ impl<R: Read> Reader<R> {
 impl SubframeInfo {
     fn not_yet_init() -> Self {
         SubframeInfo {
+            width: 0,
             rowlen: 0,
             interlace: InterlaceIter::None(0..0),
         }
@@ -691,6 +705,7 @@ impl SubframeInfo {
         };
 
         SubframeInfo {
+            width,
             rowlen: info.raw_row_length_from_width(width),
             interlace,
         }

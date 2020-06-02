@@ -3,6 +3,7 @@ extern crate libfuzzer_sys;
 use libfuzzer_sys::fuzz_target;
 extern crate png;
 
+use std::mem::discriminant;
 use std::io::{BufRead, Read, Result};
 
 /// A reader that reads at most `n` bytes.
@@ -66,13 +67,17 @@ fn png_compare<R: BufRead, S: BufRead>(reference: png::Decoder<R>, smal: png::De
     let mut ref_data = Vec::with_capacity(info.buffer_size());
     let mut smal_data = Vec::with_capacity(info.buffer_size());
 
+    use png::DecodingError::*;
+
     loop {
         let rref = reference.next_frame(&mut ref_data);
         let rsmal = smal.next_frame(&mut smal_data);
         match (rref, rsmal) {
             (Ok(()), Ok(())) if ref_data == smal_data => {},
             (Ok(()), Ok(())) => panic!("Deviating data decoded"),
-            (Err(_), Err(_)) => break Ok(sinfo),
+            (Err(Format(fr)), Err(Format(fs))) if fr != fs => panic!("Deviating format errors {} vs {}", fr, fs),
+            (Err(er), Err(es)) if discriminant(&er) == discriminant(&es) => break Ok(sinfo),
+            (Err(ferr), Err(serr)) => panic!("Deviating errors {:?} vs {:?}", ferr, serr),
             (Ok(_), Err(err)) => panic!("Small buffer failed {:?}", err),
             (Err(err), Ok(_)) => panic!("Unexpected success: {:?}", err),
         }

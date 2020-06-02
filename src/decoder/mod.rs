@@ -25,7 +25,7 @@ pub enum InterlaceHandling {
 */
 
 /// Output info
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct OutputInfo {
     pub width: u32,
     pub height: u32,

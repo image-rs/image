@@ -20,3 +20,7 @@ members = ["."]
 [[bin]]
 name = "decode"
 path = "fuzz_targets/decode.rs"
+
+[[bin]]
+name = "buf_independent"
+path = "fuzz_targets/buf_independent.rs"

@@ -480,6 +480,7 @@ impl StreamingDecoder {
                 None => return Err(DecodingError::Format("invalid blend operation".into())),
             },
         };
+        self.info.as_ref().unwrap().validate(&fc)?;
         self.info.as_mut().unwrap().frame_control = Some(fc);
         Ok(Decoded::FrameControl(fc))
     }
@@ -645,6 +646,21 @@ impl StreamingDecoder {
         Ok(Decoded::Header(
             width, height, bit_depth, color_type, interlaced,
         ))
+    }
+}
+
+impl Info {
+    fn validate(&self, fc: &FrameControl) -> Result<(), DecodingError> {
+        // Validate mathematically: fc.width + fc.x_offset <= self.width
+        let in_x_bounds = Some(fc.width) <= self.width.checked_sub(fc.x_offset);
+        // Validate mathematically: fc.height + fc.y_offset <= self.height
+        let in_y_bounds = Some(fc.height) <= self.height.checked_sub(fc.y_offset);
+
+        if !in_x_bounds || !in_y_bounds {
+            return Err(DecodingError::Format("Sub frame is out-of-bounds".into()));
+        }
+
+        Ok(())
     }
 }
 

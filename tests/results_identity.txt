@@ -182,3 +182,4 @@ tests/bugfixes/issue#202.png: 29900969
 tests/bugfixes/x_ihdr_missing.png: Expected failure
 tests/bugfixes/x_unexpected_eof.png: Expected failure
 tests/pngsuite/x_interlaced_chck.png: Expected failure
+tests/bugfixes/x_issue#214.png: Expected failure

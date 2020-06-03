@@ -8,7 +8,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
 use std::ops::Range;
 
-use crate::chunk::IDAT;
+use crate::chunk;
 use crate::common::{BitDepth, ColorType, Info, Transformations};
 use crate::filter::{unfilter, FilterType};
 use crate::utils;
@@ -25,7 +25,7 @@ pub enum InterlaceHandling {
 */
 
 /// Output info
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct OutputInfo {
     pub width: u32,
     pub height: u32,
@@ -172,13 +172,15 @@ impl<R: Read> ReadDecoder<R> {
             if buf.is_empty() {
                 return Err(DecodingError::Format("unexpected EOF".into()));
             }
-            match self.decoder.update(buf, &mut vec![])? {
-                (_, Decoded::Nothing) => (),
-                (_, Decoded::ImageEnd) => self.at_eof = true,
-                (_, Decoded::ChunkComplete(_, _)) => return Ok(()),
-                (_, Decoded::ImageData) => { /*ignore more data*/ }
-                (_, Decoded::PartialChunk(_)) => {}
-                _ => unreachable!(),
+            let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
+            self.reader.consume(consumed);
+            match event {
+                Decoded::Nothing => (),
+                Decoded::ImageEnd => self.at_eof = true,
+                Decoded::ChunkComplete(_, _) => return Ok(()),
+                Decoded::ImageData => { /*ignore more data*/ }
+                Decoded::PartialChunk(_) => {}
+                new => unreachable!("{:?}", new),
             }
         }
 
@@ -196,8 +198,12 @@ impl<R: Read> ReadDecoder<R> {
 pub struct Reader<R: Read> {
     decoder: ReadDecoder<R>,
     bpp: usize,
-    rowlen: usize,
-    interlace: InterlaceIter,
+    subframe: SubframeInfo,
+    /// Number of frame control chunks read.
+    /// By the APNG specification the total number must equal the count specified in the animation
+    /// control chunk. The IDAT image _may_ have such a chunk applying to it.
+    fctl_read: u32,
+    next_frame: SubframeIdx,
     /// Previous raw line
     prev: Vec<u8>,
     /// Current raw line
@@ -211,9 +217,36 @@ pub struct Reader<R: Read> {
     limits: Limits,
 }
 
+/// The subframe specific information.
+///
+/// In APNG the frames are constructed by combining previous frame and a new subframe (through a
+/// combination of `dispose_op` and `overlay_op`). These sub frames specify individual dimension
+/// information and reuse the global interlace options. This struct encapsulates the state of where
+/// in a particular IDAT-frame or subframe we are.
+struct SubframeInfo {
+    rowlen: usize,
+    interlace: InterlaceIter,
+}
+
+#[derive(Clone)]
 enum InterlaceIter {
     None(Range<u32>),
     Adam7(utils::Adam7Iterator),
+}
+
+/// Denote a frame as given by sequence numbers.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SubframeIdx {
+    /// The info has not yet been decoded.
+    Uninit,
+    /// The initial frame in an IDAT chunk without fcTL chunk applying to it.
+    /// Note that this variant precedes `Some` as IDAT frames precede fdAT frames and all fdAT
+    /// frames must have a fcTL applying to it.
+    Initial,
+    /// An IDAT frame with fcTL or an fdAT frame.
+    Some(u32),
+    /// The past-the-end index.
+    End,
 }
 
 macro_rules! get_info(
@@ -232,8 +265,9 @@ impl<R: Read> Reader<R> {
                 at_eof: false,
             },
             bpp: 0,
-            rowlen: 0,
-            interlace: InterlaceIter::None(0..0),
+            subframe: SubframeInfo::not_yet_init(),
+            fctl_read: 0,
+            next_frame: SubframeIdx::Initial,
             prev: Vec::new(),
             current: Vec::new(),
             scan_start: 0,
@@ -243,52 +277,112 @@ impl<R: Read> Reader<R> {
         }
     }
 
-    /// Reads all meta data until the first IDAT chunk
+    /// Reads all meta data until the next frame data starts.
+    /// Requires IHDR before the IDAT and fcTL before fdAT.
     fn init(&mut self) -> Result<(), DecodingError> {
-        use crate::Decoded::*;
-        if self.decoder.info().is_some() {
-            Ok(())
-        } else {
-            loop {
-                match self.decoder.decode_next(&mut Vec::new())? {
-                    Some(ChunkBegin(_, IDAT)) => break,
-                    None => return Err(DecodingError::Format("IDAT chunk missing".into())),
-                    _ => (),
-                }
-            }
-            {
-                let info = match self.decoder.info() {
-                    Some(info) => info,
-                    None => return Err(DecodingError::Format("IHDR chunk missing".into())),
-                };
-                self.bpp = info.bytes_per_pixel();
-                self.rowlen = info.raw_row_length();
-                self.interlace = if info.interlaced {
-                    InterlaceIter::Adam7(utils::Adam7Iterator::new(info.width, info.height))
-                } else {
-                    InterlaceIter::None(0..info.height)
-                }
-            }
-            self.allocate_out_buf()?;
-            self.prev = vec![0; self.rowlen];
-            Ok(())
+        if self.next_frame == self.subframe_idx() {
+            return Ok(());
+        } else if self.next_frame == SubframeIdx::End {
+            return Err(DecodingError::Other("End of image has been reached".into()));
         }
+
+        loop {
+            match self.decoder.decode_next(&mut Vec::new())? {
+                Some(Decoded::ChunkBegin(_, chunk::IDAT))
+                | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
+                Some(Decoded::FrameControl(_)) => {
+                    self.subframe = SubframeInfo::new(self.info());
+                    // The next frame is the one to which this chunk applies.
+                    self.next_frame = SubframeIdx::Some(self.fctl_read);
+                    // TODO: what about overflow here? That would imply there are more fctl chunks
+                    // than can be specified in the animation control but also that we have read
+                    // several gigabytes of data.
+                    self.fctl_read += 1;
+                }
+                None => return Err(DecodingError::Format("IDAT chunk missing".into())),
+                // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
+                // chunks and their control chunks.
+                _ => {}
+            }
+        }
+        {
+            let info = match self.decoder.info() {
+                Some(info) => info,
+                None => return Err(DecodingError::Format("IHDR chunk missing".into())),
+            };
+            self.bpp = info.bytes_per_pixel();
+            self.subframe = SubframeInfo::new(info);
+        }
+        self.allocate_out_buf()?;
+        self.prev = vec![0; self.subframe.rowlen];
+        Ok(())
     }
 
+    fn reset_current(&mut self) {
+        self.current.clear();
+        self.scan_start = 0;
+    }
+
+    /// Get information on the image.
+    ///
+    /// The structure will change as new frames of an animated image are decoded.
     pub fn info(&self) -> &Info {
         get_info!(self)
     }
 
+    /// Get the subframe index of the current info.
+    fn subframe_idx(&self) -> SubframeIdx {
+        let info = match self.decoder.info() {
+            None => return SubframeIdx::Uninit,
+            Some(info) => info,
+        };
+
+        match info.frame_control() {
+            None => SubframeIdx::Initial,
+            Some(_) => SubframeIdx::Some(self.fctl_read - 1),
+        }
+    }
+
+    /// Call after decoding an image, to advance expected state to the next.
+    fn finished_frame(&mut self) {
+        // Should only be called after frame is done, so we have an info.
+        let info = self.info();
+
+        let past_end_subframe = match info.animation_control() {
+            // a non-APNG has no subframes
+            None => 0,
+            // otherwise the count is the past-the-end index. It can not be 0 per spec.
+            Some(ac) => ac.num_frames,
+        };
+
+        self.next_frame = match self.next_frame {
+            SubframeIdx::Uninit => unreachable!("Next frame can never be initial"),
+            SubframeIdx::End => unreachable!("Next frame called when already at image end"),
+            // Reached the end of non-animated image.
+            SubframeIdx::Initial if past_end_subframe == 0 => SubframeIdx::End,
+            // An animated image, expecting first subframe.
+            SubframeIdx::Initial => SubframeIdx::Some(0),
+            // This was the last subframe, slightly fuzzy condition in case of programmer error.
+            SubframeIdx::Some(idx) if past_end_subframe <= idx + 1 => SubframeIdx::End,
+            // Expecting next subframe.
+            SubframeIdx::Some(idx) => SubframeIdx::Some(idx + 1),
+        }
+    }
+
     /// Decodes the next frame into `buf`
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
+        // Advance until we've read the info / fcTL for this frame.
+        self.init()?;
         // TODO 16 bit
         let (color_type, bit_depth) = self.output_color_type();
-        let width = get_info!(self).width;
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Other(
                 "supplied buffer is too small to hold the image".into(),
             ));
         }
+
+        self.reset_current();
+        let width = self.info().width;
         if get_info!(self).interlaced {
             while let Some((row, adam7)) = self.next_interlaced_row()? {
                 let (pass, line, _) = adam7.unwrap();
@@ -301,7 +395,11 @@ impl<R: Read> Reader<R> {
                 len += (&mut buf[len..]).write(row)?;
             }
         }
-        self.decoder.finished_decoding()
+        // Advance over the rest of data for this (sub-)frame.
+        self.decoder.finished_decoding()?;
+        // Advance our state to expect the next frame.
+        self.finished_frame();
+        Ok(())
     }
 
     /// Returns the next processed row of the image
@@ -493,7 +591,7 @@ impl<R: Read> Reader<R> {
     }
 
     fn next_pass(&mut self) -> Option<(usize, InterlaceInfo)> {
-        match self.interlace {
+        match self.subframe.interlace {
             InterlaceIter::Adam7(ref mut adam7) => {
                 let last_pass = adam7.current_pass();
                 let (pass, line, width) = adam7.next()?;
@@ -506,7 +604,7 @@ impl<R: Read> Reader<R> {
             }
             InterlaceIter::None(ref mut height) => {
                 let _ = height.next()?;
-                Some((self.rowlen, InterlaceInfo::None))
+                Some((self.subframe.rowlen, InterlaceInfo::None))
             }
         }
     }
@@ -514,7 +612,6 @@ impl<R: Read> Reader<R> {
     /// Returns the next raw scanline of the image interlace pass.
     /// The scanline is filtered against the previous scanline according to the specification.
     fn next_raw_interlaced_row(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
-        let _ = get_info!(self);
         let bpp = self.bpp;
         let (rowlen, passdata) = match self.next_pass() {
             Some((rowlen, passdata)) => (rowlen, passdata),
@@ -566,6 +663,36 @@ impl<R: Read> Reader<R> {
                     _ => (),
                 }
             }
+        }
+    }
+}
+
+impl SubframeInfo {
+    fn not_yet_init() -> Self {
+        SubframeInfo {
+            rowlen: 0,
+            interlace: InterlaceIter::None(0..0),
+        }
+    }
+
+    fn new(info: &Info) -> Self {
+        // The apng fctnl overrides width and height.
+        // All other data is set by the main info struct.
+        let (width, height) = if let Some(fc) = info.frame_control {
+            (fc.width, fc.height)
+        } else {
+            (info.width, info.height)
+        };
+
+        let interlace = if info.interlaced {
+            InterlaceIter::Adam7(utils::Adam7Iterator::new(width, height))
+        } else {
+            InterlaceIter::None(0..height)
+        };
+
+        SubframeInfo {
+            rowlen: info.raw_row_length_from_width(width),
+            interlace,
         }
     }
 }
@@ -628,5 +755,66 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
         utils::unpack_bits(buffer, 1, info.bit_depth as u8, |val, chunk| {
             chunk[0] = val * scaling_factor
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Decoder;
+    use std::io::{BufRead, Read, Result};
+    use std::mem::discriminant;
+
+    /// A reader that reads at most `n` bytes.
+    struct SmalBuf<R: BufRead> {
+        inner: R,
+        cap: usize,
+    }
+
+    impl<R: BufRead> SmalBuf<R> {
+        fn new(inner: R, cap: usize) -> Self {
+            SmalBuf { inner, cap }
+        }
+    }
+
+    impl<R: BufRead> Read for SmalBuf<R> {
+        fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+            let len = buf.len().min(self.cap);
+            self.inner.read(&mut buf[..len])
+        }
+    }
+
+    impl<R: BufRead> BufRead for SmalBuf<R> {
+        fn fill_buf(&mut self) -> Result<&[u8]> {
+            let buf = self.inner.fill_buf()?;
+            let len = buf.len().min(self.cap);
+            Ok(&buf[..len])
+        }
+
+        fn consume(&mut self, amt: usize) {
+            assert!(amt <= self.cap);
+            self.inner.consume(amt)
+        }
+    }
+
+    #[test]
+    fn no_data_dup_on_finish() {
+        const IMG: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/bugfixes/x_issue#214.png"
+        ));
+
+        let (info, mut normal) = Decoder::new(IMG).read_info().unwrap();
+
+        let mut buffer = vec![0; info.buffer_size()];
+        let normal = normal.next_frame(&mut buffer).unwrap_err();
+
+        let smal = Decoder::new(SmalBuf::new(IMG, 1))
+            .read_info()
+            .unwrap()
+            .1
+            .next_frame(&mut buffer)
+            .unwrap_err();
+
+        assert_eq!(discriminant(&normal), discriminant(&smal));
     }
 }

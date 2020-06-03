@@ -210,7 +210,7 @@ pub struct PNGEncoder<W: Write> {
     filter: FilterType,
 }
 
-/// Compression level of a PNG encoder. The default setting is ```Fast```.
+/// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompressionType {
     /// Default compression level
@@ -228,8 +228,10 @@ pub enum CompressionType {
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
-/// Filter algorithms used to process image data to improve compression. The
-/// default filter is ```Sub```.
+/// Filter algorithms used to process image data to improve compression.
+///
+/// The default filter is `Sub` though this default may change in the future, most notable if an
+/// adaptive encoding option is implemented.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FilterType {
     /// No processing done, best used for low bit depth greyscale or data with a
@@ -258,9 +260,20 @@ impl<W: Write> PNGEncoder<W> {
         }
     }
 
-    /// Create a new encoder that writes its output to ```w``` with
-    /// ```CompressionType``` ```compression``` and ```FilterType```
-    /// ```filter```
+    /// Create a new encoder that writes its output to `w` with `CompressionType` `compression` and
+    /// `FilterType` `filter`.
+    ///
+    /// It is best to view the options as a _hint_ to the implementation on the smallest or fastest
+    /// option for encoding a particular image. That is, using options that map directly to a PNG
+    /// image parameter will use this parameter where possible. But variants that have no direct
+    /// mapping may be interpreted differently in minor versions. The exact output is expressly
+    /// __not__ part the SemVer stability guarantee.
+    ///
+    /// Note that it is not optimal to use a single filter type. It is likely that the library used
+    /// will at some point gain the ability to use adaptive filtering methods per pixel row (or
+    /// even interlaced row). We might make it the new default variant in which case choosing a
+    /// particular filter method likely produces larger images. Be sure to check the release notes
+    /// once in a while.
     pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PNGEncoder<W> {
         PNGEncoder {
             w,
@@ -269,9 +282,7 @@ impl<W: Write> PNGEncoder<W> {
         }
     }
 
-    /// Encodes the image ```data```
-    /// that has dimensions ```width``` and ```height```
-    /// and ```ColorType``` ```c```
+    /// Encodes the image `data` that has dimensions `width` and `height` and `ColorType` `c`.
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
@@ -371,6 +382,18 @@ impl ImageError {
                 ))
             }
         }
+    }
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        CompressionType::Fast
+    }
+}
+
+impl Default for FilterType {
+    fn default() -> Self {
+        FilterType::Sub
     }
 }
 

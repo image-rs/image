@@ -95,6 +95,28 @@
 //! [`ImageBuffer`]: struct.ImageBuffer.html
 //! [`DynamicImage`]: enum.DynamicImage.html
 //! [`flat`]: flat/index.html
+//!
+//! ## A note on format specific features
+//!
+//! One of the main goals of `image` is stability, in runtime but also for programmers. This
+//! ensures that performance as well as safety fixes reach a majority of its user base with little
+//! effort. Re-exporting all details of its dependencies would run counter to this goal as it
+//! linked _all_ major version bumps between them and `image`. As such, we are wary of exposing too
+//! many details, or configuration options, that are not shared between different image formats.
+//!
+//! Nevertheless, the advantage of precise control is hard to ignore. We will thus consider
+//! _wrappers_, not direct re-exports, in either of the following cases:
+//!
+//! 1. A standard specifies that configuration _x_ is required for decoders/encoders and there
+//!    exists an essentially canonical way to control it.
+//! 2. At least two different implementations agree on some (sub-)set of features in practice.
+//! 3. A technical argument including measurements of the performance, space benefits, or otherwise
+//!    objectively quantified benefits can be made, and the added interface is unlikely to require
+//!    breaking changes.
+//!
+//! Features that fulfill two or more criteria are preferred.
+//!
+//! Re-exports of dependencies that reach version `1` will be discussed when it happens.
 
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]

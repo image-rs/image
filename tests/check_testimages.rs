@@ -11,13 +11,14 @@ use std::path::{Component, Path, PathBuf};
 use crc32fast::Hasher as Crc32;
 
 const BASE_PATH: [&'static str; 2] = [".", "tests"];
+const TEST_SUITES: [&'static str; 3] = ["pngsuite", "pngsuite-extra", "bugfixes"];
+const APNG_SUITES: [&'static str; 1] = ["animated"];
 
-fn process_images<F>(results_path: &str, func: F)
+fn process_images<F>(results_path: &str, test_suites: &[&'static str], func: F)
 where
     F: Fn(PathBuf) -> Result<u32, png::DecodingError>,
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let test_suites = &["pngsuite", "pngsuite-extra", "bugfixes"];
     let mut results = BTreeMap::new();
     let mut expected_failures = vec![];
     for suite in test_suites {
@@ -91,7 +92,7 @@ where
 
 #[test]
 fn render_images() {
-    process_images("results.txt", |path| {
+    process_images("results.txt", &TEST_SUITES, |path| {
         let decoder = png::Decoder::new(File::open(path)?);
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
@@ -113,7 +114,7 @@ fn render_images() {
 
 #[test]
 fn render_images_identity() {
-    process_images("results_identity.txt", |path| {
+    process_images("results_identity.txt", &TEST_SUITES, |path| {
         let mut decoder = png::Decoder::new(File::open(&path)?);
         decoder.set_transformations(png::Transformations::IDENTITY);
 
@@ -136,6 +137,45 @@ fn render_images_identity() {
         crc.update(&img_data);
         Ok(crc.finalize())
     });
+}
+
+#[test]
+fn apng_images() {
+    process_images("results_apng.txt", &APNG_SUITES, |path: PathBuf| {
+        let frame_count: usize = {
+            let stem = path
+                .file_stem()
+                .expect("Test images should all have filenames")
+                .to_str()
+                .expect("Test image names should be unicode");
+            let count = stem
+                .rsplit("_f")
+                .next()
+                .expect("Test image name should end with `_f0` to denote frame count")
+                .parse()
+                .expect("Test image frame could should be an integer");
+            count
+        };
+
+        let decoder = png::Decoder::new(File::open(&path)?);
+        let (info, mut reader) = decoder.read_info()?;
+        let mut img_data = vec![0; info.buffer_size()];
+        let real_frames = reader.info().animation_control().unwrap().num_frames;
+        // Print out frame info, helps with blessing the result file for new images.
+        println!(
+            "file {}; images to decode: {}, per actl: {}",
+            path.display(),
+            frame_count,
+            real_frames
+        );
+
+        let mut crc = Crc32::new();
+        for _ in 0..frame_count {
+            reader.next_frame(&mut img_data)?;
+            crc.update(&img_data);
+        }
+        Ok(crc.finalize())
+    })
 }
 
 // until rust standardizes path normalization, see https://github.com/rust-lang/rfcs/issues/2208

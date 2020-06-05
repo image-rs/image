@@ -416,6 +416,8 @@ where
 /// [`RgbImage`]: type.RgbImage.html
 /// [`GrayImage`]: type.GrayImage.html
 ///
+/// To convert between images of different Pixel types use [`DynamicImage`]: enum.DynamicImage.html
+///
 /// ## Examples
 ///
 /// Create a simple canvas and paint a small cross.
@@ -448,6 +450,15 @@ where
 /// });
 ///
 /// image::imageops::overlay(&mut img, &on_top, 128, 128);
+/// ```
+///
+/// Convert an RgbaImage to a GrayImage.
+///
+/// ```no_run
+/// use image::{open, DynamicImage};
+///
+/// let rgba = open("path/to/some.png").unwrap().into_rgba();
+/// let gray = DynamicImage::ImageRgba8(rgba).into_luma();
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {

@@ -114,7 +114,7 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use crate::color::{ColorType, ExtendedColorType};
+pub use crate::color::{ColorType, ExtendedColorType, FromColor};
 
 pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 

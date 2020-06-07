@@ -632,7 +632,7 @@ where
 
     /// Return a view on the raw sample buffer.
     ///
-    /// See `flattened` for more details.
+    /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
         where Container: AsRef<[P::Subpixel]>
     {

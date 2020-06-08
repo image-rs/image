@@ -1,8 +1,6 @@
 //!  Utilities
 
-use byteorder::{NativeEndian, ByteOrder};
 use num_iter::range_step;
-use std::mem;
 use std::iter::repeat;
 
 #[inline(always)]
@@ -69,15 +67,30 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
 // When no image formats that use it are enabled
 pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
     // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
-    vec_u16_copy_u8(&vec)
+    vec_copy_to_u8(&vec)
 }
 
 #[allow(dead_code)]
 // When no image formats that use it are enabled
-pub(crate) fn vec_u16_copy_u8(vec: &[u16]) -> Vec<u8> {
-    let mut new = vec![0; vec.len() * mem::size_of::<u16>()];
-    NativeEndian::write_u16_into(&vec[..], &mut new[..]);
-    new
+pub(crate) fn vec_u32_into_u8(vec: Vec<u32>) -> Vec<u8> {
+    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
+    vec_copy_to_u8(&vec)
+}
+
+#[allow(dead_code)]
+// When no image formats that use it are enabled
+pub(crate) fn vec_u64_into_u8(vec: Vec<u64>) -> Vec<u8> {
+    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
+    vec_copy_to_u8(&vec)
+}
+
+#[allow(dead_code)]
+// When no image formats that use it are enabled
+pub(crate) fn vec_copy_to_u8<T>(vec: &[T]) -> Vec<u8>
+where
+    T: bytemuck::Pod,
+{
+    bytemuck::cast_slice(vec).to_owned()
 }
 
 

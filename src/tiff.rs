@@ -13,15 +13,13 @@ use std::io::{self, Cursor, Read, Write, Seek};
 use std::marker::PhantomData;
 use std::mem;
 
-use byteorder::{NativeEndian, ByteOrder};
-
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
-use crate::utils::vec_u16_into_u8;
+use crate::utils;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -78,7 +76,7 @@ impl ImageError {
     fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) => {
+            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError => {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -96,7 +94,7 @@ impl ImageError {
     fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) => {
+            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError => {
                 ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -146,7 +144,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
             .map_err(ImageError::from_tiff_decode)?
         {
             tiff::decoder::DecodingResult::U8(v) => v,
-            tiff::decoder::DecodingResult::U16(v) => vec_u16_into_u8(v),
+            tiff::decoder::DecodingResult::U16(v) => utils::vec_u16_into_u8(v),
+            tiff::decoder::DecodingResult::U32(v) => utils::vec_u32_into_u8(v),
+            tiff::decoder::DecodingResult::U64(v) => utils::vec_u64_into_u8(v),
         };
 
         Ok(TiffReader(Cursor::new(buf), PhantomData))
@@ -163,7 +163,13 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
                 buf.copy_from_slice(&v);
             }
             tiff::decoder::DecodingResult::U16(v) => {
-                NativeEndian::write_u16_into(&v, buf);
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::U32(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::U64(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
         }
         Ok(())

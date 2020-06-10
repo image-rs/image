@@ -10,6 +10,21 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.5
+
+- The `png` encoder now allows configuring compression and filter type. The
+  output is not part of stability guarantees, see its documentation.
+- The `jpeg` encoder now accepts any implementor of `GenericImageView`. This
+  allows images that are only partially present in memory to be encoded.
+- `ImageBuffer` now derives `Hash`, `PartialEq`, `Eq`.
+- The `Pixels`/`PixelsMut` iterator no longer yields out-of-bounds pixels when
+  the underlying buffer is larger than required.
+- The `pbm` decoder correctly decodes ascii data again, fixing a regression
+  where it would use the sample value `1` as white instead of `255`.
+- Fix encoding of RGBA data in `gif` frames.
+- Constructing a `Rows`/`RowsMut` iterator no longer panics when the image has
+  a width or height of `0`.
+
 ### Version 0.23.4
 
 - Improved the performance of decoding animated gifs

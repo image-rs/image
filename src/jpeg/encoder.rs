@@ -473,7 +473,15 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         }
     }
 
-    /// Encodes the given image
+    /// Encodes the given image.
+    ///
+    /// As a special feature this does not require the whole image to be present in memory at the
+    /// same time such that it may be computed on the fly, which is why this method exists on this
+    /// encoder but not on others. Instead the encoder will iterate over 8-by-8 blocks of pixels at
+    /// a time, inspecting each pixel exactly once. You can rely on this behaviour when calling
+    /// this method.
+    ///
+    /// The Image in encoded with subsampling ratio 4:2:2
     pub fn encode_image<I: GenericImageView>(
         &mut self,
         image: &I,

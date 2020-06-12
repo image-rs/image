@@ -60,6 +60,10 @@ pub enum Decoded {
     FrameControl(FrameControl),
     /// Decoded raw image data.
     ImageData,
+    /// The last of a consecutive chunk of IDAT was done.
+    /// This is distinct from ChunkComplete which only marks that some IDAT chunk was completed but
+    /// not that no additional IDAT chunk follows.
+    ImageDataFlushed,
     PartialChunk(ChunkType),
     ImageEnd,
 }
@@ -143,6 +147,10 @@ pub struct StreamingDecoder {
 }
 
 struct ChunkState {
+    /// The type of the current chunk.
+    /// Relevant for `IDAT` and `fdAT` which aggregate consecutive chunks of their own type.
+    type_: ChunkType,
+
     /// Partial crc until now.
     crc: Crc32,
 
@@ -260,6 +268,20 @@ impl StreamingDecoder {
                             (val >> 8) as u8,
                             val as u8,
                         ];
+                        if type_str != self.current_chunk.type_
+                            && (self.current_chunk.type_ == IDAT
+                                || self.current_chunk.type_ == chunk::fdAT)
+                        {
+                            self.current_chunk.type_ = type_str;
+                            self.inflater.finish_compressed_chunks(image_data)?;
+                            self.inflater.reset();
+                            return goto!(
+                                0,
+                                U32Byte3(Type(length), val & !0xff),
+                                emit Decoded::ImageDataFlushed
+                            );
+                        }
+                        self.current_chunk.type_ = type_str;
                         self.current_chunk.crc.reset();
                         self.current_chunk.crc.update(&type_str);
                         self.current_chunk.remaining = length;
@@ -360,6 +382,7 @@ impl StreamingDecoder {
                         crc,
                         remaining,
                         raw_bytes,
+                        type_: _,
                     } = &mut self.current_chunk;
                     let buf_avail = raw_bytes.capacity() - raw_bytes.len();
                     let bytes_avail = min(buf.len(), buf_avail);
@@ -678,6 +701,7 @@ impl Default for StreamingDecoder {
 impl Default for ChunkState {
     fn default() -> Self {
         ChunkState {
+            type_: [0; 4],
             crc: Crc32::new(),
             remaining: 0,
             raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),

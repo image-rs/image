@@ -1,3 +1,12 @@
+## 0.16.5
+
+* Decoding of APNG subframes is now officially supported and specified. Note
+  that dispose ops and positioning in the image need to be done by the caller.
+* Added encoding of indexed data.
+* Switched to `miniz_oxide` for decompressing image data, with 30%-50% speedup
+  in common cases and up to 200% in special ones.
+* Fix accepting images only with consecutive IDAT chunks, rules out data loss.
+
 ## 0.16.4
 
 * The fdAT frames are no longer inspected when the main image is read. This

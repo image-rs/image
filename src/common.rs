@@ -311,19 +311,18 @@ impl Info {
 
     /// Returns the number of bytes needed for one deinterlaced row
     pub fn raw_row_length(&self) -> usize {
-        let bits = self.width as usize * self.color_type.samples() * self.bit_depth as usize;
-        let extra = bits % 8;
-        bits / 8
-            + match extra {
-                0 => 0,
-                _ => 1,
-            }
-            + 1 // filter method
+        self.raw_row_length_from_width(self.width)
     }
 
     /// Returns the number of bytes needed for one deinterlaced row of width `width`
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
-        let bits = width as usize * self.color_type.samples() * self.bit_depth as usize;
+        let bits = width as usize
+            * match self.color_type {
+                ColorType::Indexed => 1,
+                c @ _ => c.samples(),
+            }
+            * self.bit_depth as usize;
+
         let extra = bits % 8;
         bits / 8
             + match extra {

@@ -1,5 +1,4 @@
 extern crate crc32fast;
-extern crate inflate;
 
 use std::borrow::Cow;
 use std::cmp::min;
@@ -11,7 +10,7 @@ use std::io;
 
 use crc32fast::Hasher as Crc32;
 
-use self::inflate::InflateStream;
+use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
@@ -27,14 +26,6 @@ pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
 /// This is used only in fuzzing. `afl` automatically adds `--cfg fuzzing` to RUSTFLAGS which can
 /// be used to detect that build.
 const CHECKSUM_DISABLED: bool = cfg!(fuzzing);
-
-fn zlib_stream() -> InflateStream {
-    if CHECKSUM_DISABLED {
-        InflateStream::from_zlib_no_checksum()
-    } else {
-        InflateStream::from_zlib()
-    }
-}
 
 #[derive(Debug)]
 enum U32Value {
@@ -69,6 +60,10 @@ pub enum Decoded {
     FrameControl(FrameControl),
     /// Decoded raw image data.
     ImageData,
+    /// The last of a consecutive chunk of IDAT was done.
+    /// This is distinct from ChunkComplete which only marks that some IDAT chunk was completed but
+    /// not that no additional IDAT chunk follows.
+    ImageDataFlushed,
     PartialChunk(ChunkType),
     ImageEnd,
 }
@@ -141,7 +136,7 @@ pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
-    inflater: InflateStream,
+    inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
     info: Option<Info>,
     /// The animation chunk sequence number.
@@ -152,6 +147,10 @@ pub struct StreamingDecoder {
 }
 
 struct ChunkState {
+    /// The type of the current chunk.
+    /// Relevant for `IDAT` and `fdAT` which aggregate consecutive chunks of their own type.
+    type_: ChunkType,
+
     /// Partial crc until now.
     crc: Crc32,
 
@@ -170,7 +169,7 @@ impl StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: ChunkState::default(),
-            inflater: zlib_stream(),
+            inflater: ZlibStream::new(),
             info: None,
             current_seq_no: None,
             apng_seq_handled: false,
@@ -184,7 +183,7 @@ impl StreamingDecoder {
         self.current_chunk.crc = Crc32::new();
         self.current_chunk.remaining = 0;
         self.current_chunk.raw_bytes.clear();
-        self.inflater = zlib_stream();
+        self.inflater = ZlibStream::new();
         self.info = None;
         self.current_seq_no = None;
         self.apng_seq_handled = false;
@@ -269,6 +268,20 @@ impl StreamingDecoder {
                             (val >> 8) as u8,
                             val as u8,
                         ];
+                        if type_str != self.current_chunk.type_
+                            && (self.current_chunk.type_ == IDAT
+                                || self.current_chunk.type_ == chunk::fdAT)
+                        {
+                            self.current_chunk.type_ = type_str;
+                            self.inflater.finish_compressed_chunks(image_data)?;
+                            self.inflater.reset();
+                            return goto!(
+                                0,
+                                U32Byte3(Type(length), val & !0xff),
+                                emit Decoded::ImageDataFlushed
+                            );
+                        }
+                        self.current_chunk.type_ = type_str;
                         self.current_chunk.crc.reset();
                         self.current_chunk.crc.update(&type_str);
                         self.current_chunk.remaining = length;
@@ -369,6 +382,7 @@ impl StreamingDecoder {
                         crc,
                         remaining,
                         raw_bytes,
+                        type_: _,
                     } = &mut self.current_chunk;
                     let buf_avail = raw_bytes.capacity() - raw_bytes.len();
                     let bytes_avail = min(buf.len(), buf_avail);
@@ -393,10 +407,9 @@ impl StreamingDecoder {
             DecodeData(type_str, mut n) => {
                 let chunk_len = self.current_chunk.raw_bytes.len();
                 let chunk_data = &self.current_chunk.raw_bytes[n..];
-                let (c, data) = self.inflater.update(chunk_data)?;
-                image_data.extend_from_slice(data);
+                let c = self.inflater.decompress(chunk_data, image_data)?;
                 n += c;
-                if n == chunk_len && data.is_empty() && c == 0 {
+                if n == chunk_len && c == 0 {
                     goto!(
                         0,
                         ReadChunk(type_str, true),
@@ -477,7 +490,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = zlib_stream();
+        self.inflater = ZlibStream::new();
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,
@@ -679,9 +692,16 @@ impl Info {
     }
 }
 
+impl Default for StreamingDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Default for ChunkState {
     fn default() -> Self {
         ChunkState {
+            type_: [0; 4],
             crc: Crc32::new(),
             remaining: 0,
             raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),

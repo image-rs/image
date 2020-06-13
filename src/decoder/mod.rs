@@ -1,4 +1,5 @@
 mod stream;
+mod zlib;
 
 use self::stream::{get_info, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
@@ -170,21 +171,22 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
-                return Err(DecodingError::Format("unexpected EOF".into()));
+                return Err(DecodingError::Format("unexpected EOF after image".into()));
             }
             let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
             self.reader.consume(consumed);
             match event {
                 Decoded::Nothing => (),
                 Decoded::ImageEnd => self.at_eof = true,
-                Decoded::ChunkComplete(_, _) => return Ok(()),
-                Decoded::ImageData => { /*ignore more data*/ }
+                // ignore more data
+                Decoded::ChunkComplete(_, _) | Decoded::ChunkBegin(_, _) | Decoded::ImageData => {}
+                Decoded::ImageDataFlushed => return Ok(()),
                 Decoded::PartialChunk(_) => {}
                 new => unreachable!("{:?}", new),
             }
         }
 
-        Err(DecodingError::Format("unexpected EOF".into()))
+        Err(DecodingError::Format("unexpected EOF after image".into()))
     }
 
     fn info(&self) -> Option<&Info> {
@@ -227,6 +229,7 @@ struct SubframeInfo {
     width: u32,
     rowlen: usize,
     interlace: InterlaceIter,
+    consumed_and_flushed: bool,
 }
 
 #[derive(Clone)]
@@ -409,7 +412,9 @@ impl<R: Read> Reader<R> {
             }
         }
         // Advance over the rest of data for this (sub-)frame.
-        self.decoder.finished_decoding()?;
+        if !self.subframe.consumed_and_flushed {
+            self.decoder.finished_decoding()?;
+        }
         // Advance our state to expect the next frame.
         self.finished_frame();
         Ok(())
@@ -657,6 +662,12 @@ impl<R: Read> Reader<R> {
                     interlace: passdata,
                 }));
             } else {
+                if self.subframe.consumed_and_flushed {
+                    return Err(DecodingError::Format(
+                        format!("not enough data for image").into(),
+                    ));
+                }
+
                 // Clear the current buffer before appending more data.
                 if self.scan_start > 0 {
                     self.current.drain(..self.scan_start).for_each(drop);
@@ -666,6 +677,9 @@ impl<R: Read> Reader<R> {
                 let val = self.decoder.decode_next(&mut self.current)?;
                 match val {
                     Some(Decoded::ImageData) => {}
+                    Some(Decoded::ImageDataFlushed) => {
+                        self.subframe.consumed_and_flushed = true;
+                    }
                     None => {
                         if !self.current.is_empty() {
                             return Err(DecodingError::Format("file truncated".into()));
@@ -686,6 +700,7 @@ impl SubframeInfo {
             width: 0,
             rowlen: 0,
             interlace: InterlaceIter::None(0..0),
+            consumed_and_flushed: false,
         }
     }
 
@@ -708,6 +723,7 @@ impl SubframeInfo {
             width,
             rowlen: info.raw_row_length_from_width(width),
             interlace,
+            consumed_and_flushed: false,
         }
     }
 }

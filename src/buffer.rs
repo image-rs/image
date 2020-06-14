@@ -416,7 +416,15 @@ where
 /// [`RgbImage`]: type.RgbImage.html
 /// [`GrayImage`]: type.GrayImage.html
 ///
-/// To convert between images of different Pixel types use [`DynamicImage`]: enum.DynamicImage.html
+/// To convert between images of different Pixel types use [`DynamicImage`].
+///
+/// You can retrieve a complete description of the buffer's layout and contents through
+/// [`as_flat_samples`] and [`as_flat_samples_mut`]. This can be handy to also use the contents in
+/// a foreign language, map it as a GPU host buffer or other similar tasks.
+///
+/// [`DynamicImage`]: enum.DynamicImage.html
+/// [`as_flat_samples`]: #method.as_flat_samples
+/// [`as_flat_samples_mut`]: #method.as_flat_samples_mut
 ///
 /// ## Examples
 ///
@@ -639,6 +647,20 @@ where
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),
+            layout,
+            color_hint: Some(P::COLOR_TYPE),
+        }
+    }
+
+    /// Return a mutable view on the raw sample buffer.
+    ///
+    /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
+    pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
+        where Container: AsMut<[P::Subpixel]>
+    {
+        let layout = self.sample_layout();
+        FlatSamples {
+            samples: self.data.as_mut(),
             layout,
             color_hint: Some(P::COLOR_TYPE),
         }

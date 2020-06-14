@@ -51,7 +51,7 @@ use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::Pixel;
+use crate::traits::{Pixel, Primitive};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -853,6 +853,47 @@ impl<Buffer> FlatSamples<Buffer> {
     /// samples had aliased each other before.
     pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
         self.layout.shrink_to(channels, width, height)
+    }
+}
+
+impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
+    /// Create a monocolor image from a single pixel.
+    ///
+    /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
+    /// pixels of a single color, without any dynamic allocation.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # fn paint_something<T>(_: T) {}
+    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
+    ///
+    /// let background = Rgb([20, 20, 20]);
+    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
+    ///
+    /// let mut image = RgbImage::new(200, 200);
+    /// paint_something(&mut image);
+    ///
+    /// // Reset the canvas
+    /// image.copy_from(&bg.as_view().unwrap(), 0, 0);
+    /// ```
+    pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
+    where
+        P: Pixel<Subpixel=Subpixel>,
+        Subpixel: Primitive,
+    {
+        FlatSamples {
+            samples: pixel.channels(),
+            layout: SampleLayout {
+                channels: P::CHANNEL_COUNT,
+                channel_stride: 1,
+                width: width,
+                width_stride: 0,
+                height: height,
+                height_stride: 0,
+            },
+            color_hint: Some(P::COLOR_TYPE),
+        }
     }
 }
 

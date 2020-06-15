@@ -12,7 +12,7 @@ fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
         return Err(());
     }
 
-    let mut img_data = Vec::with_capacity(info.buffer_size());
+    let mut img_data = vec![0u8; info.buffer_size()];
 
     while let Ok(_) = reader.next_frame(&mut img_data) {}
 

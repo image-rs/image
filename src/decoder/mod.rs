@@ -116,6 +116,19 @@ impl<R: Read> Decoder<R> {
     pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
         let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
         r.init()?;
+
+        let color_type = r.info().color_type;
+        let bit_depth = r.info().bit_depth;
+        if color_type.is_combination_invalid(bit_depth) {
+            return Err(DecodingError::Format(
+                format!(
+                    "Invalid color/depth combination in header: {:?}/{:?}",
+                    color_type, bit_depth
+                )
+                .into(),
+            ));
+        }
+
         let (ct, bits) = r.output_color_type();
         let info = {
             let info = r.info();

@@ -49,6 +49,16 @@ impl ColorType {
             }
             + 1 // filter method
     }
+
+    pub(crate) fn is_combination_invalid(self, bit_depth: BitDepth) -> bool {
+        // Section 11.2.2 of the PNG standard disallows several combinations
+        // of bit depth and color type
+        ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
+            && (self == ColorType::RGB
+                || self == ColorType::GrayscaleAlpha
+                || self == ColorType::RGBA))
+            || (bit_depth == BitDepth::Sixteen && self == ColorType::Indexed)
+    }
 }
 
 /// Bit depth of the png file

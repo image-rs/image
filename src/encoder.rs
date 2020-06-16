@@ -523,6 +523,10 @@ mod tests {
 
             let palette: Vec<u8> = reader.info().palette.clone().unwrap();
             let mut decoded_pixels = vec![0; info.buffer_size()];
+            assert_eq!(
+                info.width as usize * info.height as usize * samples,
+                decoded_pixels.len()
+            );
             reader.next_frame(&mut decoded_pixels).unwrap();
 
             let pixels_per_byte = 8 / usize::from(bit_depth);

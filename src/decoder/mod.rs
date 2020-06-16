@@ -517,6 +517,10 @@ impl<R: Read> Reader<R> {
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
     pub fn output_color_type(&mut self) -> (ColorType, BitDepth) {
+        self.imm_output_color_type()
+    }
+
+    pub(crate) fn imm_output_color_type(&self) -> (ColorType, BitDepth) {
         use crate::common::ColorType::*;
         let t = self.transform;
         let info = get_info!(self);
@@ -559,16 +563,8 @@ impl<R: Read> Reader<R> {
 
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
-        let size = self.line_size(width);
-        if get_info!(self).bit_depth as u8 == 16
-            && self
-                .transform
-                .intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16)
-        {
-            size / 2
-        } else {
-            size
-        }
+        let (color, depth) = self.imm_output_color_type();
+        color.raw_row_length_from_width(depth, width) - 1
     }
 
     /// Returns the number of bytes required to decode a deinterlaced row.

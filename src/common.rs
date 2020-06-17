@@ -37,6 +37,28 @@ impl ColorType {
             _ => None,
         }
     }
+
+    pub(crate) fn raw_row_length_from_width(&self, depth: BitDepth, width: u32) -> usize {
+        let bits = width as usize * self.samples() * depth as usize;
+
+        let extra = bits % 8;
+        bits / 8
+            + match extra {
+                0 => 0,
+                _ => 1,
+            }
+            + 1 // filter method
+    }
+
+    pub(crate) fn is_combination_invalid(self, bit_depth: BitDepth) -> bool {
+        // Section 11.2.2 of the PNG standard disallows several combinations
+        // of bit depth and color type
+        ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
+            && (self == ColorType::RGB
+                || self == ColorType::GrayscaleAlpha
+                || self == ColorType::RGBA))
+            || (bit_depth == BitDepth::Sixteen && self == ColorType::Indexed)
+    }
 }
 
 /// Bit depth of the png file
@@ -316,20 +338,8 @@ impl Info {
 
     /// Returns the number of bytes needed for one deinterlaced row of width `width`
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
-        let bits = width as usize
-            * match self.color_type {
-                ColorType::Indexed => 1,
-                c @ _ => c.samples(),
-            }
-            * self.bit_depth as usize;
-
-        let extra = bits % 8;
-        bits / 8
-            + match extra {
-                0 => 0,
-                _ => 1,
-            }
-            + 1 // filter method
+        self.color_type
+            .raw_row_length_from_width(self.bit_depth, width)
     }
 }
 

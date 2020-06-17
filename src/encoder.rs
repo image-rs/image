@@ -143,7 +143,11 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format("Zero height not allowed".into()));
         }
 
-        if self.is_bit_depth_color_type_combination_invalid() {
+        if self
+            .info
+            .color_type
+            .is_combination_invalid(self.info.bit_depth)
+        {
             return Err(EncodingError::Format(
                 format!(
                     "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
@@ -167,19 +171,6 @@ impl<W: Write> Writer<W> {
         };
 
         Ok(self)
-    }
-
-    fn is_bit_depth_color_type_combination_invalid(&self) -> bool {
-        let bit_depth = self.info.bit_depth;
-        let color_type = self.info.color_type;
-
-        // Section 11.2.2 of the PNG standard disallows several combinations
-        // of bit depth and color type
-        ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
-            && (color_type == ColorType::RGB
-                || color_type == ColorType::GrayscaleAlpha
-                || color_type == ColorType::RGBA))
-            || (bit_depth == BitDepth::Sixteen && color_type == ColorType::Indexed)
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
@@ -523,6 +514,10 @@ mod tests {
 
             let palette: Vec<u8> = reader.info().palette.clone().unwrap();
             let mut decoded_pixels = vec![0; info.buffer_size()];
+            assert_eq!(
+                info.width as usize * info.height as usize * samples,
+                decoded_pixels.len()
+            );
             reader.next_frame(&mut decoded_pixels).unwrap();
 
             let pixels_per_byte = 8 / usize::from(bit_depth);

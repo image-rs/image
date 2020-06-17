@@ -174,8 +174,10 @@ impl<R: Read> PngDecoder<R> {
 
     /// Returns if the image contains an animation.
     ///
-    /// Note that file decides if the default image is considered to be part of the animation. When
-    /// it is not the common interpretation is to use it as a thumbnail.
+    /// Note that the file itself decides if the default image is considered to be part of the
+    /// animation. When it is not the common interpretation is to use it as a thumbnail.
+    ///
+    /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
     pub fn is_apng(&self) -> bool {
         self.reader.info().animation_control.is_some()
     }

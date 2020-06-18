@@ -805,6 +805,7 @@ fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
     let g: f32 = g.to_f32().unwrap();
     let b: f32 = b.to_f32().unwrap();
 
+    // Coefficients from JPEG File Interchange Format (Version 1.02), multiplied for 255 maximum.
     let y = 76.245 / max * r + 149.685 / max * g + 29.07 / max * b;
     let cb = -43.0185 / max * r - 84.4815 / max * g + 127.5 / max * b + 128.;
     let cr = 127.5 / max * r - 106.7685 / max * g - 20.7315 / max * b + 128.;

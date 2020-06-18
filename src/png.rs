@@ -9,11 +9,16 @@
 use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 
-use crate::color::{ColorType, ExtendedColorType};
+use num_rational::Ratio;
+use png::{BlendOp, DisposeOp};
+
+use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, RgbaImage, Rgb, Rgba};
+use crate::animation::{Delay, Frame, Frames};
+use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind
 };
-use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
+use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
 
 /// PNG Reader
 ///
@@ -99,13 +104,6 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
-        fn unsupported_color(ect: ExtendedColorType) -> ImageError {
-            ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormat::Png.into(),
-                UnsupportedErrorKind::Color(ect),
-            ))
-        }
-
         let limits = png::Limits {
             bytes: usize::max_value(),
         };
@@ -159,6 +157,37 @@ impl<R: Read> PngDecoder<R> {
 
         Ok(PngDecoder { color_type, reader })
     }
+
+    /// Turn this into an iterator over the animation frames.
+    ///
+    /// Reading the complete animation requires more memory than reading the data from the IDAT
+    /// frame–multiple frame buffers need to be reserved at the same time. We further do not
+    /// support compositing 16-bit colors. In any case this would be lossy as the interface of
+    /// animation decoders does not support 16-bit colors.
+    ///
+    /// If something is not supported or a limit is violated then the decoding step that requires
+    /// them will fail and an error will be returned instead of the frame. No further frames will
+    /// be returned.
+    pub fn apng(self) -> ApngDecoder<R> {
+        ApngDecoder::new(self)
+    }
+
+    /// Returns if the image contains an animation.
+    ///
+    /// Note that the file itself decides if the default image is considered to be part of the
+    /// animation. When it is not the common interpretation is to use it as a thumbnail.
+    ///
+    /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
+    pub fn is_apng(&self) -> bool {
+        self.reader.info().animation_control.is_some()
+    }
+}
+
+fn unsupported_color(ect: ExtendedColorType) -> ImageError {
+    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        ImageFormat::Png.into(),
+        UnsupportedErrorKind::Color(ect),
+    ))
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
@@ -200,6 +229,199 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     fn scanline_bytes(&self) -> u64 {
         let width = self.reader.info().width;
         self.reader.output_line_size(width) as u64
+    }
+}
+
+/// An [`AnimationDecoder`] adapter of [`PngDecoder`].
+///
+/// See [`PngDecoder::apng`] for more information.
+///
+/// [`AnimationDecoder`]: ../trait.AnimationDecoder.html
+/// [`PngDecoder`]: struct.PngDecoder.html
+/// [`PngDecoder::apng`]: struct.PngDecoder.html#method.apng
+pub struct ApngDecoder<R: Read> {
+    inner: PngDecoder<R>,
+    /// The current output buffer.
+    current: RgbaImage,
+    /// The previous output buffer, used for dispose op previous.
+    previous: RgbaImage,
+    /// The dispose op of the current frame.
+    dispose: DisposeOp,
+    /// The number of image still expected to be able to load.
+    remaining: u32,
+    /// The next (first) image is the thumbnail.
+    has_thumbnail: bool,
+}
+
+impl<R: Read> ApngDecoder<R> {
+    fn new(inner: PngDecoder<R>) -> Self {
+        let (width, height) = inner.dimensions();
+        let info = inner.reader.info();
+        let remaining = match info.animation_control() {
+            // The expected number of fcTL in the remaining image.
+            Some(actl) => actl.num_frames,
+            None => 0,
+        };
+        // If the IDAT has no fcTL then it is not part of the animation counted by
+        // num_frames. All following fdAT chunks must be preceded by an fcTL
+        let has_thumbnail = info.frame_control.is_none();
+        ApngDecoder {
+            inner,
+            // TODO: should we delay this allocation? At least if we support limits we should.
+            current: RgbaImage::new(width, height),
+            previous: RgbaImage::new(width, height),
+            dispose: DisposeOp::Background,
+            remaining,
+            has_thumbnail,
+        }
+    }
+
+    // TODO: thumbnail(&mut self) -> Option<impl ImageDecoder<'_>>
+
+    /// Decode one subframe and overlay it on the canvas.
+    fn mix_next_frame(&mut self) -> Result<Option<&RgbaImage>, ImageError> {
+        // Remove this image from remaining.
+        self.remaining = match self.remaining.checked_sub(1) {
+            None => return Ok(None),
+            Some(next) => next,
+        };
+
+        // Shorten ourselves to 0 in case of error.
+        let remaining = self.remaining;
+        self.remaining = 0;
+
+        // Skip the thumbnail that is not part of the animation.
+        if self.has_thumbnail {
+            self.has_thumbnail = false;
+            let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+            self.inner.reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+        }
+
+        self.animatable_color_type()?;
+
+        // Dispose of the previous frame.
+        match self.dispose {
+            DisposeOp::None => {
+                self.previous.clone_from(&self.current);
+            }
+            DisposeOp::Background => {
+                self.previous.clone_from(&self.current);
+                self.current.pixels_mut().for_each(|pixel| *pixel = Rgba([0, 0, 0, 0]));
+            }
+            DisposeOp::Previous => {
+                self.current.clone_from(&self.previous);
+            }
+        }
+
+        // Read next frame data.
+        let mut buffer = vec![0; self.inner.reader.output_buffer_size()];
+        self.inner.reader.next_frame(&mut buffer).map_err(ImageError::from_png)?;
+        let info = self.inner.reader.info();
+
+        // Find out how to interpret the decoded frame.
+        let (width, height, px, py, blend);
+        match info.frame_control() {
+            None => {
+                width = info.width;
+                height = info.height;
+                px = 0;
+                py = 0;
+                blend = BlendOp::Source;
+            }
+            Some(fc) => {
+                width = fc.width;
+                height = fc.height;
+                px = fc.x_offset;
+                py = fc.y_offset;
+                blend = fc.blend_op;
+                self.dispose = fc.dispose_op;
+            }
+        };
+
+        // Turn the data into an rgba image proper.
+        let source = match self.inner.color_type {
+            ColorType::L8 => {
+                let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicImage::ImageLuma8(image).into_rgba()
+            }
+            ColorType::La8 => {
+                let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicImage::ImageLumaA8(image).into_rgba()
+            }
+            ColorType::Rgb8 => {
+                let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
+                DynamicImage::ImageRgb8(image).into_rgba()
+            }
+            ColorType::Rgba8 => {
+                ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap()
+            }
+            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16 => {
+                // TODO: to enable remove restriction in `animatable_color_type` method.
+                unreachable!("16-bit apng not yet support")
+            }
+            _ => unreachable!("Invalid png color"),
+        };
+
+        match blend {
+            BlendOp::Source => {
+                self.current.copy_from(&source, px, py)
+                    .expect("Invalid png image not detected in png");
+            }
+            BlendOp::Over => {
+                // TODO: investigate speed, speed-ups, and bounds-checks.
+                for (x, y, p) in source.enumerate_pixels() {
+                    self.current.get_pixel_mut(x + px, y + py).blend(p);
+                }
+            }
+        }
+
+        // Ok, we can proceed with actually remaining images.
+        self.remaining = remaining;
+        // Return composited output buffer.
+        Ok(Some(&self.current))
+    }
+
+    fn animatable_color_type(&self) -> Result<(), ImageError> {
+        match self.inner.color_type {
+            ColorType::L8 | ColorType::Rgb8 | ColorType::La8 | ColorType::Rgba8 => Ok(()),
+            // TODO: do not handle multi-byte colors. Remember to implement it in `mix_next_frame`.
+            ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16  => {
+                return Err(unsupported_color(self.inner.color_type.into()))
+            },
+            _ => unreachable!("{:?} not a valid png color", self.inner.color_type),
+        }
+    }
+}
+
+impl<'a, R: Read + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
+    fn into_frames(self) -> Frames<'a> {
+        struct FrameIterator<R: Read>(ApngDecoder<R>);
+
+        impl<R: Read> Iterator for FrameIterator<R> {
+            type Item = ImageResult<Frame>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let image = match self.0.mix_next_frame() {
+                    Ok(Some(image)) => image.clone(),
+                    Ok(None) => return None,
+                    Err(err) => return Some(Err(err)),
+                };
+
+                let info = self.0.inner.reader.info();
+                let fc = info.frame_control().unwrap();
+                // PNG delays are rations in seconds.
+                let num = u32::from(fc.delay_num) * 1_000u32;
+                let denom = match fc.delay_den {
+                    // The standard dictates to replace by 100 when the denominator is 0.
+                    0 => 100,
+                    d => u32::from(d),
+                };
+                let delay = Delay::from_ratio(Ratio::new(num, denom));
+                Some(Ok(Frame::from_parts(image, 0, 0, delay)))
+            }
+        }
+
+        Frames::new(Box::new(FrameIterator(self)))
     }
 }
 

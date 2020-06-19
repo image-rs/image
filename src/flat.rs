@@ -61,7 +61,7 @@ use crate::traits::{Pixel, Primitive};
 /// but not every possible configuration can be interpreted as a [`GenericImageView`] or
 /// [`GenericImage`]. The methods [`as_view`] and [`as_view_mut`] construct the actual implementors
 /// of these traits and perform necessary checks. To manually perform this and other layout checks
-/// use [`check_index_validities`].
+/// use [`is_normal`] or [`has_aliased_samples`].
 ///
 /// Instances can be constructed not only by hand. The buffer instances returned by library
 /// functions such as [`ImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
@@ -71,6 +71,9 @@ use crate::traits::{Pixel, Primitive};
 ///
 /// [`GenericImage`]: ../trait.GenericImage.html
 /// [`GenericImageView`]: ../trait.GenericImageView.html
+/// [`ImageBuffer::as_flat_samples`]: ../struct.ImageBuffer.html#method.as_flat_samples
+/// [`is_normal`]: #method.is_normal
+/// [`has_aliased_samples`]: #method.has_aliased_samples
 /// [`as_view`]: #method.as_view
 /// [`as_view_mut`]: #method.as_view_mut
 /// [`with_monocolor`]: #method.with_monocolor

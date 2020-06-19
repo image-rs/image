@@ -129,6 +129,11 @@ impl<R: Read> Decoder<R> {
             ));
         }
 
+        // Check if the output buffer can be represented at all.
+        if r.checked_output_buffer_size().is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
         let (ct, bits) = r.output_color_type();
         let info = {
             let info = r.info();
@@ -485,7 +490,9 @@ impl<R: Read> Reader<R> {
             (info.color_type, info.bit_depth as u8, info.trns.is_some())
         };
         let output_buffer = if let InterlaceInfo::Adam7 { width, .. } = adam7 {
-            let width = self.line_size(width);
+            let width = self
+                .line_size(width)
+                .expect("Adam7 interlaced rows are shorter than the buffer.");
             &mut self.processed[..width]
         } else {
             &mut *self.processed
@@ -574,6 +581,14 @@ impl<R: Read> Reader<R> {
         size * height as usize
     }
 
+    fn checked_output_buffer_size(&self) -> Option<usize> {
+        let (width, height) = get_info!(self).size();
+        let (color, depth) = self.imm_output_color_type();
+        let rowlen = color.checked_raw_row_length(depth, width)? - 1;
+        let height: usize = std::convert::TryFrom::try_from(height).ok()?;
+        rowlen.checked_mul(height)
+    }
+
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let (color, depth) = self.imm_output_color_type();
@@ -581,39 +596,42 @@ impl<R: Read> Reader<R> {
     }
 
     /// Returns the number of bytes required to decode a deinterlaced row.
-    fn line_size(&self, width: u32) -> usize {
+    fn line_size(&self, width: u32) -> Option<usize> {
         use crate::common::ColorType::*;
         let t = self.transform;
         let info = get_info!(self);
         let trns = info.trns.is_some();
+
+        let expanded = if info.bit_depth == BitDepth::Sixteen {
+            BitDepth::Sixteen
+        } else {
+            BitDepth::Eight
+        };
+        // The color type and depth representing the decoded line
         // TODO 16 bit
-        let bits = match info.color_type {
-            Indexed if trns && t.contains(crate::Transformations::EXPAND) => 4 * 8,
-            Indexed if t.contains(crate::Transformations::EXPAND) => 3 * 8,
-            RGB if trns && t.contains(crate::Transformations::EXPAND) => 4 * 8,
-            Grayscale if trns && t.contains(crate::Transformations::EXPAND) => 2 * 8,
-            Grayscale if t.contains(crate::Transformations::EXPAND) => 1 * 8,
-            GrayscaleAlpha if t.contains(crate::Transformations::EXPAND) => 2 * 8,
-            // divide by 2 as it will get mutiplied by two later
-            _ if info.bit_depth as u8 == 16 => info.bits_per_pixel() / 2,
-            _ => info.bits_per_pixel(),
-        } * width as usize
-            * if info.bit_depth as u8 == 16 { 2 } else { 1 };
-        let len = bits / 8;
-        let extra = bits % 8;
-        len + match extra {
-            0 => 0,
-            _ => 1,
-        }
+        let (color, depth) = match info.color_type {
+            Indexed if trns && t.contains(Transformations::EXPAND) => (RGBA, expanded),
+            Indexed if t.contains(Transformations::EXPAND) => (RGB, expanded),
+            RGB if trns && t.contains(Transformations::EXPAND) => (RGBA, expanded),
+            Grayscale if trns && t.contains(Transformations::EXPAND) => (GrayscaleAlpha, expanded),
+            Grayscale if t.contains(Transformations::EXPAND) => (Grayscale, expanded),
+            GrayscaleAlpha if t.contains(Transformations::EXPAND) => (GrayscaleAlpha, expanded),
+            other => (other, info.bit_depth),
+        };
+
+        // Without the filter method byte
+        color.checked_raw_row_length(depth, width).map(|n| n - 1)
     }
 
     fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
         let width = self.subframe.width;
         let bytes = self.limits.bytes;
-        if bytes < self.line_size(width) {
-            return Err(DecodingError::LimitsExceeded);
-        }
-        self.processed.resize(self.line_size(width), 0u8);
+        let buflen = match self.line_size(width) {
+            Some(buflen) if buflen <= bytes => buflen,
+            // Should we differentiate between platform limits and others?
+            _ => return Err(DecodingError::LimitsExceeded),
+        };
+        self.processed.resize(buflen, 0u8);
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 //! Common types shared between the encoder and decoder
 use crate::filter;
 
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 
 /// Describes the layout of samples in a pixel
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,16 +38,36 @@ impl ColorType {
         }
     }
 
-    pub(crate) fn raw_row_length_from_width(&self, depth: BitDepth, width: u32) -> usize {
-        let bits = width as usize * self.samples() * depth as usize;
-
-        let extra = bits % 8;
-        bits / 8
-            + match extra {
-                0 => 0,
-                _ => 1,
+    pub(crate) fn checked_raw_row_length(&self, depth: BitDepth, width: u32) -> Option<usize> {
+        let width: usize = TryFrom::try_from(width).ok()?;
+        let total_samples = self.samples().checked_mul(width)?;
+        let bytes = match depth {
+            BitDepth::Sixteen => total_samples.checked_mul(2)?,
+            BitDepth::Eight => total_samples,
+            subbyte => {
+                let samples_per_byte = 8 / subbyte as usize;
+                let whole = total_samples / samples_per_byte;
+                let fract = usize::from(total_samples % samples_per_byte > 0);
+                // No overflow, this is at most `total_samples`
+                whole + fract
             }
-            + 1 // filter method
+        };
+        // Filter method.
+        bytes.checked_add(1)
+    }
+
+    pub(crate) fn raw_row_length_from_width(&self, depth: BitDepth, width: u32) -> usize {
+        let samples = width as usize * self.samples();
+        1 + match depth {
+            BitDepth::Sixteen => samples * 2,
+            BitDepth::Eight => samples,
+            subbyte => {
+                let samples_per_byte = 8 / subbyte as usize;
+                let whole = samples / samples_per_byte;
+                let fract = usize::from(samples % samples_per_byte > 0);
+                whole + fract
+            }
+        }
     }
 
     pub(crate) fn is_combination_invalid(self, bit_depth: BitDepth) -> bool {

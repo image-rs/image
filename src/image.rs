@@ -682,8 +682,14 @@ pub trait GenericImage: GenericImageView {
     ///
     /// In order to copy only a piece of the other image, use [`GenericImageView::view`].
     ///
+    /// You can use [`FlatSamples`] to source pixels from an arbitrary regular raster of channel
+    /// values, for example from a foreign interface or a fixed image.
+    ///
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
+    ///
+    /// [`GenericImageView::view`]: trait.GenericImageView.html#method.view
+    /// [`FlatSamples`]: flat/struct.FlatSamples.html
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,

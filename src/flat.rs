@@ -56,13 +56,24 @@ use crate::traits::{Pixel, Primitive};
 /// A flat buffer over a (multi channel) image.
 ///
 /// In contrast to `ImageBuffer`, this representation of a sample collection is much more lenient
-/// in the layout thereof. In particular, it also allows grouping by color planes instead of by
-/// pixel, at least for the purpose of a `GenericImageView`.
+/// in the layout thereof. It also allows grouping by color planes instead of by pixel as long as
+/// the strides of each extent are constant. This struct itself has no invariants on the strides
+/// but not every possible configuration can be interpreted as a [`GenericImageView`] or
+/// [`GenericImage`]. The methods [`as_view`] and [`as_view_mut`] construct the actual implementors
+/// of these traits and perform necessary checks. To manually perform this and other layout checks
+/// use [`check_index_validities`].
 ///
-/// Note that the strides need not conform to the assumption that constructed indices actually
-/// refer inside the underlying buffer but return values of library functions will always guarantee
-/// this. To manually make this check use `check_index_validities` and maybe put that inside an
-/// assert.
+/// Instances can be constructed not only by hand. The buffer instances returned by library
+/// functions such as [`ImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
+/// image or generic view succeeds. A very different constructor is [`with_monocolor`]. It uses a
+/// single pixel as the backing storage for an arbitrarily sized read-only raster by mapping each
+/// pixel to the same samples by setting some strides to `0`.
+///
+/// [`GenericImage`]: ../trait.GenericImage.html
+/// [`GenericImageView`]: ../trait.GenericImageView.html
+/// [`as_view`]: #method.as_view
+/// [`as_view_mut`]: #method.as_view_mut
+/// [`with_monocolor`]: #method.with_monocolor
 #[derive(Clone, Debug)]
 pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.

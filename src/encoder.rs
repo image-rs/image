@@ -419,6 +419,7 @@ mod tests {
                     // x* files are expected to fail to decode
                     continue;
                 }
+                eprintln!("{}", path.display());
                 // Decode image
                 let decoder = crate::Decoder::new(File::open(path).unwrap());
                 let (info, mut reader) = decoder.read_info().unwrap();
@@ -427,6 +428,7 @@ mod tests {
                     continue;
                 }
                 let mut buf = vec![0; info.buffer_size()];
+                eprintln!("{:?}", info);
                 reader.next_frame(&mut buf).unwrap();
                 // Encode decoded image
                 let mut out = Vec::new();

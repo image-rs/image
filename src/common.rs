@@ -17,8 +17,12 @@ pub enum ColorType {
 impl ColorType {
     /// Returns the number of samples used per pixel of `ColorType`
     pub fn samples(&self) -> usize {
+        self.samples_u8().into()
+    }
+
+    pub(crate) fn samples_u8(self) -> u8 {
         use self::ColorType::*;
-        match *self {
+        match self {
             Grayscale | Indexed => 1,
             RGB => 3,
             GrayscaleAlpha => 2,
@@ -39,21 +43,9 @@ impl ColorType {
     }
 
     pub(crate) fn checked_raw_row_length(&self, depth: BitDepth, width: u32) -> Option<usize> {
-        let width: usize = TryFrom::try_from(width).ok()?;
-        let total_samples = self.samples().checked_mul(width)?;
-        let bytes = match depth {
-            BitDepth::Sixteen => total_samples.checked_mul(2)?,
-            BitDepth::Eight => total_samples,
-            subbyte => {
-                let samples_per_byte = 8 / subbyte as usize;
-                let whole = total_samples / samples_per_byte;
-                let fract = usize::from(total_samples % samples_per_byte > 0);
-                // No overflow, this is at most `total_samples`
-                whole + fract
-            }
-        };
-        // Filter method.
-        bytes.checked_add(1)
+        // No overflow can occur in 64 bits, we multiply 32-bit with 5 more bits.
+        let bits = u64::from(width) * u64::from(self.samples_u8()) * u64::from(depth.into_u8());
+        TryFrom::try_from(1 + (bits + 7) / 8).ok()
     }
 
     pub(crate) fn raw_row_length_from_width(&self, depth: BitDepth, width: u32) -> usize {
@@ -97,13 +89,14 @@ pub enum BitDepth {
 /// of possible byte chunk lengths to a very small set of values appropriate to be defined as an
 /// enum.
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub(crate) enum BytesPerPixel {
-    One,
-    Two,
-    Three,
-    Four,
-    Six,
-    Eight,
+    One = 1,
+    Two = 2,
+    Three = 3,
+    Four = 4,
+    Six = 6,
+    Eight = 8,
 }
 
 impl BitDepth {
@@ -117,6 +110,10 @@ impl BitDepth {
             16 => Some(BitDepth::Sixteen),
             _ => None,
         }
+    }
+
+    pub(crate) fn into_u8(self) -> u8 {
+        self as u8
     }
 }
 
@@ -400,14 +397,7 @@ impl Info {
 
 impl BytesPerPixel {
     pub(crate) fn into_usize(self) -> usize {
-        match self {
-            BytesPerPixel::One => 1,
-            BytesPerPixel::Two => 2,
-            BytesPerPixel::Three => 3,
-            BytesPerPixel::Four => 4,
-            BytesPerPixel::Six => 6,
-            BytesPerPixel::Eight => 8,
-        }
+        self as usize
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::common::BytesPerPixel;
 use std;
 
 /// The byte level filter applied to scanlines to prepare them for compression.
@@ -49,14 +50,14 @@ fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
     }
 }
 
-pub fn unfilter(
+pub(crate) fn unfilter(
     filter: FilterType,
-    bpp: usize,
+    tbpp: BytesPerPixel,
     previous: &[u8],
     current: &mut [u8],
 ) -> std::result::Result<(), &'static str> {
     use self::FilterType::*;
-    assert!(bpp > 0);
+    let bpp = tbpp.into_usize();
     let len = current.len();
 
     fn require_length(slice: &[u8], length: usize) -> Result<&[u8], &'static str> {
@@ -131,14 +132,13 @@ pub fn unfilter(
             avg_tail!(avg_tail_2, 2);
             avg_tail!(avg_tail_1, 1);
 
-            match bpp {
-                8 => avg_tail_8(current, previous),
-                6 => avg_tail_6(current, previous),
-                4 => avg_tail_4(current, previous),
-                3 => avg_tail_3(current, previous),
-                2 => avg_tail_2(current, previous),
-                1 => avg_tail_1(current, previous),
-                _ => unreachable!("Invalid bytes per pixel"),
+            match tbpp {
+                BytesPerPixel::Eight => avg_tail_8(current, previous),
+                BytesPerPixel::Six => avg_tail_6(current, previous),
+                BytesPerPixel::Four => avg_tail_4(current, previous),
+                BytesPerPixel::Three => avg_tail_3(current, previous),
+                BytesPerPixel::Two => avg_tail_2(current, previous),
+                BytesPerPixel::One => avg_tail_1(current, previous),
             }
 
             Ok(())
@@ -180,9 +180,9 @@ pub fn unfilter(
     }
 }
 
-pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8]) {
+pub(crate) fn filter(method: FilterType, bpp: BytesPerPixel, previous: &[u8], current: &mut [u8]) {
     use self::FilterType::*;
-    assert!(bpp > 0);
+    let bpp = bpp.into_usize();
     let len = current.len();
 
     match method {
@@ -225,7 +225,7 @@ pub fn filter(method: FilterType, bpp: usize, previous: &[u8], current: &mut [u8
 
 #[cfg(test)]
 mod test {
-    use super::{filter, unfilter, FilterType};
+    use super::{filter, unfilter, BytesPerPixel, FilterType};
     use core::iter;
 
     #[test]
@@ -236,7 +236,7 @@ mod test {
         let mut current: Vec<_> = (0..LEN).collect();
         let expected = current.clone();
 
-        let mut roundtrip = |kind, bpp: usize| {
+        let mut roundtrip = |kind, bpp: BytesPerPixel| {
             filter(kind, bpp, &previous, &mut current);
             unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
             assert_eq!(
@@ -254,7 +254,14 @@ mod test {
             FilterType::Paeth,
         ];
 
-        let bpps = [1, 2, 3, 4, 6, 8];
+        let bpps = [
+            BytesPerPixel::One,
+            BytesPerPixel::Two,
+            BytesPerPixel::Three,
+            BytesPerPixel::Four,
+            BytesPerPixel::Six,
+            BytesPerPixel::Eight,
+        ];
 
         for &filter in filters.iter() {
             for &bpp in bpps.iter() {

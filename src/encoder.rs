@@ -11,7 +11,7 @@ use std::result;
 use crc32fast::Hasher as Crc32;
 
 use crate::chunk;
-use crate::common::{BitDepth, ColorType, Compression, Info};
+use crate::common::{BitDepth, BytesPerPixel, ColorType, Compression, Info};
 use crate::filter::{filter, FilterType};
 use crate::traits::WriteBytesExt;
 
@@ -143,6 +143,7 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format("Zero height not allowed".into()));
         }
 
+        // TODO: this could yield the typified BytesPerPixel.
         if self
             .info
             .color_type
@@ -187,7 +188,7 @@ impl<W: Write> Writer<W> {
             ));
         }
 
-        let bpp = self.info.bytes_per_pixel();
+        let bpp = self.info.bpp_in_prediction();
         let in_len = self.info.raw_row_length() - 1;
         let prev = vec![0; in_len];
         let mut prev = prev.as_slice();
@@ -330,13 +331,13 @@ pub struct StreamWriter<'a, W: Write> {
     prev_buf: Vec<u8>,
     curr_buf: Vec<u8>,
     index: usize,
-    bpp: usize,
+    bpp: BytesPerPixel,
     filter: FilterType,
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
-        let bpp = writer.as_mut().info.bytes_per_pixel();
+        let bpp = writer.as_mut().info.bpp_in_prediction();
         let in_len = writer.as_mut().info.raw_row_length() - 1;
         let filter = writer.as_mut().info.filter;
         let prev_buf = vec![0; in_len];

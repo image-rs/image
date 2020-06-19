@@ -72,6 +72,20 @@ pub enum BitDepth {
     Sixteen = 16,
 }
 
+/// Internal count of bytes per pixel.
+/// This is used for filtering which never uses sub-byte units. This essentially reduces the number
+/// of possible byte chunk lengths to a very small set of values appropriate to be defined as an
+/// enum.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum BytesPerPixel {
+    One,
+    Two,
+    Three,
+    Four,
+    Six,
+    Eight,
+}
+
 impl BitDepth {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<BitDepth> {
@@ -323,7 +337,28 @@ impl Info {
 
     /// Returns the bytes per pixel
     pub fn bytes_per_pixel(&self) -> usize {
+        // If adjusting this for expansion or other transformation passes, remember to keep the old
+        // implementation for bpp_in_prediction, which is internal to the png specification.
         self.color_type.samples() * ((self.bit_depth as usize + 7) >> 3)
+    }
+
+    /// Return the number of bytes for this pixel used in prediction.
+    ///
+    /// Some filters use prediction, over the raw bytes of a scanline. Where a previous pixel is
+    /// require for such forms the specification instead references previous bytes. That is, for
+    /// a gray pixel of bit depth 2, the pixel used in prediction is actually 4 pixels prior. This
+    /// has the consequence that the number of possible values is rather small. To make this fact
+    /// more obvious in the type system and the optimizer we use an explicit enum here.
+    pub(crate) fn bpp_in_prediction(&self) -> BytesPerPixel {
+        match self.bytes_per_pixel() {
+            1 => BytesPerPixel::One,
+            2 => BytesPerPixel::Two,
+            3 => BytesPerPixel::Three,
+            4 => BytesPerPixel::Four,
+            6 => BytesPerPixel::Six,   // Only rgb×16bit
+            8 => BytesPerPixel::Eight, // Only rgba×16bit
+            _ => unreachable!("Not a possible byte rounded pixel width"),
+        }
     }
 
     /// Returns the number of bytes needed for one deinterlaced image
@@ -340,6 +375,19 @@ impl Info {
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
         self.color_type
             .raw_row_length_from_width(self.bit_depth, width)
+    }
+}
+
+impl BytesPerPixel {
+    pub(crate) fn into_usize(self) -> usize {
+        match self {
+            BytesPerPixel::One => 1,
+            BytesPerPixel::Two => 2,
+            BytesPerPixel::Three => 3,
+            BytesPerPixel::Four => 4,
+            BytesPerPixel::Six => 6,
+            BytesPerPixel::Eight => 8,
+        }
     }
 }
 

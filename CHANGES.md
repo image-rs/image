@@ -10,6 +10,14 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.6
+
+- Added `png::ApngDecoder`, an adapter decoding the animation in an APNG.
+- Fixed a bug in `jpeg` encoding that would darken output colors.
+- Added a utility constructor `FlatSamples::with_monocolor`.
+- Added `ImageBuffer::as_flat_samples_mut` which is a mutable variant of the
+  existing ffi-helper `ImageBuffer::as_flat_samples`.
+
 ### Version 0.23.5
 
 - The `png` encoder now allows configuring compression and filter type. The

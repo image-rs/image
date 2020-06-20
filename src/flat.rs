@@ -51,18 +51,32 @@ use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::Pixel;
+use crate::traits::{Pixel, Primitive};
 
 /// A flat buffer over a (multi channel) image.
 ///
 /// In contrast to `ImageBuffer`, this representation of a sample collection is much more lenient
-/// in the layout thereof. In particular, it also allows grouping by color planes instead of by
-/// pixel, at least for the purpose of a `GenericImageView`.
+/// in the layout thereof. It also allows grouping by color planes instead of by pixel as long as
+/// the strides of each extent are constant. This struct itself has no invariants on the strides
+/// but not every possible configuration can be interpreted as a [`GenericImageView`] or
+/// [`GenericImage`]. The methods [`as_view`] and [`as_view_mut`] construct the actual implementors
+/// of these traits and perform necessary checks. To manually perform this and other layout checks
+/// use [`is_normal`] or [`has_aliased_samples`].
 ///
-/// Note that the strides need not conform to the assumption that constructed indices actually
-/// refer inside the underlying buffer but return values of library functions will always guarantee
-/// this. To manually make this check use `check_index_validities` and maybe put that inside an
-/// assert.
+/// Instances can be constructed not only by hand. The buffer instances returned by library
+/// functions such as [`ImageBuffer::as_flat_samples`] guarantee that the conversion to a generic
+/// image or generic view succeeds. A very different constructor is [`with_monocolor`]. It uses a
+/// single pixel as the backing storage for an arbitrarily sized read-only raster by mapping each
+/// pixel to the same samples by setting some strides to `0`.
+///
+/// [`GenericImage`]: ../trait.GenericImage.html
+/// [`GenericImageView`]: ../trait.GenericImageView.html
+/// [`ImageBuffer::as_flat_samples`]: ../struct.ImageBuffer.html#method.as_flat_samples
+/// [`is_normal`]: #method.is_normal
+/// [`has_aliased_samples`]: #method.has_aliased_samples
+/// [`as_view`]: #method.as_view
+/// [`as_view_mut`]: #method.as_view_mut
+/// [`with_monocolor`]: #method.with_monocolor
 #[derive(Clone, Debug)]
 pub struct FlatSamples<Buffer> {
     /// Underlying linear container holding sample values.
@@ -853,6 +867,47 @@ impl<Buffer> FlatSamples<Buffer> {
     /// samples had aliased each other before.
     pub fn shrink_to(&mut self, channels: u8, width: u32, height: u32) {
         self.layout.shrink_to(channels, width, height)
+    }
+}
+
+impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
+    /// Create a monocolor image from a single pixel.
+    ///
+    /// This can be used as a very cheap source of a `GenericImageView` with an arbitrary number of
+    /// pixels of a single color, without any dynamic allocation.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # fn paint_something<T>(_: T) {}
+    /// use image::{flat::FlatSamples, GenericImage, RgbImage, Rgb};
+    ///
+    /// let background = Rgb([20, 20, 20]);
+    /// let bg = FlatSamples::with_monocolor(&background, 200, 200);;
+    ///
+    /// let mut image = RgbImage::new(200, 200);
+    /// paint_something(&mut image);
+    ///
+    /// // Reset the canvas
+    /// image.copy_from(&bg.as_view().unwrap(), 0, 0);
+    /// ```
+    pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
+    where
+        P: Pixel<Subpixel=Subpixel>,
+        Subpixel: Primitive,
+    {
+        FlatSamples {
+            samples: pixel.channels(),
+            layout: SampleLayout {
+                channels: P::CHANNEL_COUNT,
+                channel_stride: 1,
+                width: width,
+                width_stride: 0,
+                height: height,
+                height_stride: 0,
+            },
+            color_hint: Some(P::COLOR_TYPE),
+        }
     }
 }
 

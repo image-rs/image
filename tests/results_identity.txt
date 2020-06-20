@@ -184,3 +184,4 @@ tests/bugfixes/x_unexpected_eof.png: Expected failure
 tests/pngsuite/x_interlaced_chck.png: Expected failure
 tests/bugfixes/x_issue#214.png: Expected failure
 tests/bugfixes/x_consecutive_idat.png: Expected failure
+tests/bugfixes/x_image-issue#1075.png: Expected failure

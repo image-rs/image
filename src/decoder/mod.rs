@@ -322,6 +322,9 @@ impl<R: Read> Reader<R> {
                     self.fctl_read += 1;
                 }
                 None => return Err(DecodingError::Format("IDAT chunk missing".into())),
+                Some(Decoded::Header { .. }) => {
+                    self.validate_buffer_sizes()?;
+                }
                 // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
                 // chunks and their control chunks.
                 _ => {}
@@ -333,6 +336,9 @@ impl<R: Read> Reader<R> {
                 None => return Err(DecodingError::Format("IHDR chunk missing".into())),
             };
             self.bpp = info.bpp_in_prediction();
+            // Check if the output buffer can be represented at all.
+            // Now we can init the subframe info.
+            // TODO: reuse the results obtained during the above check.
             self.subframe = SubframeInfo::new(info);
         }
         self.allocate_out_buf()?;
@@ -579,6 +585,20 @@ impl<R: Read> Reader<R> {
         let (width, height) = get_info!(self).size();
         let size = self.output_line_size(width);
         size * height as usize
+    }
+
+    fn validate_buffer_sizes(&self) -> Result<(), DecodingError> {
+        // Check if the decoding buffer of a single raw line has a valid size.
+        if self.info().checked_raw_row_length().is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        // Check if the output buffer has a valid size.
+        if self.checked_output_buffer_size().is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        Ok(())
     }
 
     fn checked_output_buffer_size(&self) -> Option<usize> {

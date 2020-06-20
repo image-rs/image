@@ -15,6 +15,7 @@ use crate::traits::{EncodableLayout, Pixel};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
+#[derive(Clone)]
 pub struct Pixels<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
@@ -99,6 +100,7 @@ where
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
 ///
 /// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
+#[derive(Clone)]
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -239,6 +241,7 @@ where
 }
 
 /// Enumerate the pixels of an image.
+#[derive(Clone)]
 pub struct EnumeratePixels<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -277,6 +280,7 @@ where
 }
 
 /// Enumerate the rows of an image.
+#[derive(Clone)]
 pub struct EnumerateRows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,

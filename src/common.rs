@@ -388,6 +388,11 @@ impl Info {
         self.raw_row_length_from_width(self.width)
     }
 
+    pub(crate) fn checked_raw_row_length(&self) -> Option<usize> {
+        self.color_type
+            .checked_raw_row_length(self.bit_depth, self.width)
+    }
+
     /// Returns the number of bytes needed for one deinterlaced row of width `width`
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
         self.color_type

@@ -49,6 +49,12 @@ where
     for line in BufReader::new(File::open(path).unwrap()).lines() {
         let line = line.unwrap();
         let parts: Vec<_> = line.split(": ").collect();
+        if parts.is_empty() {
+            panic!(
+                "Result file malformed, missing expected result in line {}",
+                line
+            );
+        }
         if parts[1] == "Expected failure" {
             failures.push(format!(
                 "{}",

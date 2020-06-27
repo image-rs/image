@@ -182,9 +182,15 @@ pub trait ColorMap {
     /// Returns the index of the closest match of `color`
     /// in the color map.
     fn index_of(&self, color: &Self::Color) -> usize;
-    /// Looks up color by index in the color map.  If `idx` is out of range for the color map,
-    /// `None` is returned.
-    fn lookup(&self, idx: usize) -> Option<Self::Color>;
+    /// Looks up color by index in the color map.  If `idx` is out of range for the color map, or
+    /// ColorMap doesn't implement `lookup` `None` is returned.
+    fn lookup(&self, _idx: usize) -> Option<Self::Color> {
+        None
+    }
+    /// Determine if this implementation of ColorMap overrides the default `lookup`.
+    fn has_lookup(&self) -> bool {
+        false
+    }
     /// Maps `color` to the closest color in the color map.
     fn map_color(&self, color: &mut Self::Color);
 }
@@ -243,6 +249,11 @@ impl ColorMap for BiLevel {
         }
     }
 
+    /// Indicate NeuQuant implements `lookup`.
+    fn has_lookup(&self) -> bool {
+        true
+    }
+
     #[inline(always)]
     fn map_color(&self, color: &mut Luma<u8>) {
         let new_color = 0xFF * self.index_of(color) as u8;
@@ -262,6 +273,11 @@ impl ColorMap for nq::NeuQuant {
     #[inline(always)]
     fn lookup(&self, idx: usize) -> Option<Self::Color> {
         self.lookup(idx).map(|p| p.into())
+    }
+
+    /// Indicate NeuQuant implements `lookup`.
+    fn has_lookup(&self) -> bool {
+        true
     }
 
     #[inline(always)]

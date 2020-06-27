@@ -64,8 +64,8 @@ fn png_compare<R: BufRead, S: BufRead>(reference: png::Decoder<R>, smal: png::De
         return Err(());
     }
 
-    let mut ref_data = Vec::with_capacity(info.buffer_size());
-    let mut smal_data = Vec::with_capacity(info.buffer_size());
+    let mut ref_data = vec![0; info.buffer_size()];
+    let mut smal_data = vec![0; info.buffer_size()];
 
     use png::DecodingError::*;
 

@@ -289,7 +289,7 @@ pub enum Compression {
 }
 
 /// PNG info struct
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Info {
     pub width: u32,
     pub height: u32,

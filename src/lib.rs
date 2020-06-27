@@ -15,9 +15,10 @@
 //!     let (info, mut reader) = decoder.read_info().unwrap();
 //!     // Allocate the output buffer.
 //!     let mut buf = vec![0; info.buffer_size()];
-//!     // Read the next frame. Currently this function should only called once.
-//!     // The default options
+//!     // Read the next frame. An APNG might contain multiple frames.
 //!     reader.next_frame(&mut buf).unwrap();
+//!     // Inspect more details of the last read frame.
+//!     let in_animation = reader.info().frame_control.is_some();
 //! ## Encoder
 //! ### Using the encoder
 //! ```no_run

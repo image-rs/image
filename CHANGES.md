@@ -1,3 +1,13 @@
+## 0.16.6
+
+* Fixed silent integer overflows in buffer size calculation, resulting in
+  panics from assertions and out-of-bounds accesses when actually decoding.
+  This improves the stability of 32-bit and 16-bit targets and make decoding
+  run as stable as on 64-bit.
+* Reject invalid color/depth combinations. Some would lead to mismatched output
+  buffer size and panics during decoding.
+* Add `Clone` impl for `Info` struct.
+
 ## 0.16.5
 
 * Decoding of APNG subframes is now officially supported and specified. Note

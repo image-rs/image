@@ -109,13 +109,12 @@ fn tga_dimensions(width: u32, height: u32) -> ImageResult<(u16, u16)> {
     )))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::super::TgaDecoder;
     use super::TgaEncoder;
     use crate::color::ColorType;
-    use crate::{ImageError, image::ImageDecoder, error::ParameterErrorKind};
+    use crate::{error::ParameterErrorKind, image::ImageDecoder, ImageError};
     use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
@@ -148,10 +147,12 @@ mod tests {
             Err(ImageError::Parameter(err)) => {
                 assert_eq!(err.kind(), ParameterErrorKind::DimensionMismatch)
             }
-            other => {
-                assert!(false, "Encoding an image that is too large should return a DimensionError \
-                                it returned {:?} instead", other)
-            }
+            other => assert!(
+                false,
+                "Encoding an image that is too large should return a DimensionError \
+                                it returned {:?} instead",
+                other
+            ),
         }
     }
 

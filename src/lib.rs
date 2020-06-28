@@ -26,7 +26,7 @@
 //! | WebP   | Lossy(Luma channel only) | No |
 //! | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 //! | DDS    | DXT1, DXT3, DXT5 | No |
-//! | TGA    | Yes | No |
+//! | TGA    | Yes | Yes |
 //! | farbfeld | Yes | Yes |
 //!
 //! ## Using images decoders

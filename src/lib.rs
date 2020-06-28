@@ -9,9 +9,9 @@
 //!
 //! # Overview
 //!
-//! There are two core problems for this library provides solutions: a unified interface for images
+//! There are two core problems for which this library provides solutions: a unified interface for image
 //! encodings and simple generic buffers for their content. It's possible to use either feature
-//! without the other. The focus is on small and stable set of common operations that can be
+//! without the other. The focus is on a small and stable set of common operations that can be
 //! supplemented by other specialized crates. The library also prefers safe solutions with few
 //! dependencies.
 //!
@@ -59,11 +59,11 @@
 //!
 //! Encoding pixel data is supported for the majority of formats but not quite as broadly.
 //!
-//! * [`DynamicImage::save`] is converse of `open` and stores a `DynamicImage`.
+//! * [`DynamicImage::save`] is the converse of `open` and stores a `DynamicImage`.
 //! * [`DynamicImage::write_to`] can be used to encode an image into any writer, for example into a
 //!   vector of bytes in memory.
-//! * [`save_buffer`], [`save_buffer_with_format`] are a low-level interface for saving an image
-//!   in the file system where the library initializes the chosen encoder.
+//! * [`save_buffer`], [`save_buffer_with_format`] provide a low-level interface for saving an image
+//!   in the file system, where the library initializes the chosen encoder.
 //! * [`ImageEncoder`] is a trait for encoding a byte buffer of image data and the inverse of the
 //!   `ImageDecoder` interface.
 //!
@@ -86,8 +86,8 @@
 //! functionality.
 //!
 //! Additionally, the [`flat`] module contains items for interoperability with generic channel
-//! matrices and foreign interface. While still strict typed these dynamically validate length and
-//! other layout assumptions required to provide the trait interface. While quite generic You
+//! matrices and foreign interface. While still strictly typed, these dynamically validate length and
+//! other layout assumptions required to provide the trait interface. While they are quite generic, you
 //! should be prepared for a bit of boilerplate when using these types.
 //!
 //! [`GenericImageView`]: trait.GenericImageView.html

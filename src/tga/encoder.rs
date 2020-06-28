@@ -1,12 +1,12 @@
 use byteorder::{LittleEndian, WriteBytesExt};
-use std::io::{self, Write};
+use std::{convert::TryFrom, io::Write};
 
 use super::image_type::{ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::color::ColorType;
-use crate::error::{EncodingError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{
+    ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
 use crate::{image::ImageEncoder, ImageError, ImageFormat};
-
-const MAX_IMAGE_DIMENSION: u32 = std::u16::MAX as u32;
 
 /// TGA encoder.
 pub struct TgaEncoder<W: Write> {
@@ -25,47 +25,14 @@ impl<W: Write> TgaEncoder<W> {
     /// The dimensions of the image must be between 1 and 65535 (inclusive) or
     /// an error will be returned.
     pub fn encode(
-        self,
-        buf: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ColorType,
-    ) -> ImageResult<()> {
-        match color_type {
-            ColorType::Rgba8
-            | ColorType::Bgra8
-            | ColorType::Rgb8
-            | ColorType::Bgr8
-            | ColorType::La8
-            | ColorType::L8 => self
-                .encode_impl(buf, width, height, color_type)
-                .map_err(|err| {
-                    ImageError::Encoding(EncodingError::new(ImageFormat::Tga.into(), err))
-                }),
-            _ => Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormat::Tga.into(),
-                    UnsupportedErrorKind::Color(color_type.into()),
-                ),
-            )),
-        }
-    }
-
-    fn encode_impl(
         mut self,
         buf: &[u8],
         width: u32,
         height: u32,
         color_type: ColorType,
-    ) -> io::Result<()> {
-        // Get pixel encoding data.
-        let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
-            ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),
-            ColorType::Rgb8 | ColorType::Bgr8 => (0, 24, ImageType::RawTrueColor),
-            ColorType::La8 => (8, 8, ImageType::RawGrayScale),
-            ColorType::L8 => (0, 8, ImageType::RawGrayScale),
-            _ => unreachable!(),
-        };
+    ) -> ImageResult<()> {
+        let (num_alpha_bits, other_channel_bits, image_type) = get_pixel_info(color_type)?;
+        let (width, height) = tga_dimensions(width, height)?;
 
         // Write TGA header.
         self.writer.write_u8(0)?; // No ID string.
@@ -76,8 +43,8 @@ impl<W: Write> TgaEncoder<W> {
         self.writer.write_u8(0)?; // No color map.
         self.writer.write_u16::<LittleEndian>(0)?; // X-origin.
         self.writer.write_u16::<LittleEndian>(0)?; // Y-origin.
-        self.write_dimension(width)?; // Width.
-        self.write_dimension(height)?; // Height.
+        self.writer.write_u16::<LittleEndian>(width)?; // Width.
+        self.writer.write_u16::<LittleEndian>(height)?; // Height.
         self.writer.write_u8(num_alpha_bits + other_channel_bits)?; // Bits per pixel.
         self.writer
             .write_u8((num_alpha_bits & ALPHA_BIT_MASK) | SCREEN_ORIGIN_BIT_MASK)?; // Upper left origin.
@@ -87,7 +54,7 @@ impl<W: Write> TgaEncoder<W> {
 
         match color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in image.chunks_mut(color_type.bytes_per_pixel() as usize) {
+                for chunk in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
                     chunk.swap(0, 2);
                 }
             }
@@ -96,19 +63,6 @@ impl<W: Write> TgaEncoder<W> {
 
         self.writer.write_all(&image)?;
         Ok(())
-    }
-
-    fn write_dimension(&mut self, value: u32) -> io::Result<()> {
-        if value < 1 || value > MAX_IMAGE_DIMENSION {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Invalid TGA dimensions (width and height must be between 1 and {})",
-                    MAX_IMAGE_DIMENSION
-                ),
-            ));
-        }
-        self.writer.write_u16::<LittleEndian>(value as u16)
     }
 }
 
@@ -121,5 +75,143 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
         color_type: ColorType,
     ) -> ImageResult<()> {
         self.encode(buf, width, height, color_type)
+    }
+}
+
+fn get_pixel_info(color_type: ColorType) -> ImageResult<(u8, u8, ImageType)> {
+    let sizes = match color_type {
+        ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),
+        ColorType::Rgb8 | ColorType::Bgr8 => (0, 24, ImageType::RawTrueColor),
+        ColorType::La8 => (8, 8, ImageType::RawGrayScale),
+        ColorType::L8 => (0, 8, ImageType::RawGrayScale),
+        _ => {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tga.into(),
+                    UnsupportedErrorKind::Color(color_type.into()),
+                ),
+            ))
+        }
+    };
+
+    Ok(sizes)
+}
+
+fn tga_dimensions(width: u32, height: u32) -> ImageResult<(u16, u16)> {
+    fn inner_dimensions(width: u32, height: u32) -> Option<(u16, u16)> {
+        let width = u16::try_from(width).ok()?;
+        let height = u16::try_from(height).ok()?;
+        Some((width, height))
+    }
+
+    inner_dimensions(width, height).ok_or(ImageError::Parameter(ParameterError::from_kind(
+        ParameterErrorKind::DimensionMismatch,
+    )))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::super::TgaDecoder;
+    use super::TgaEncoder;
+    use crate::color::ColorType;
+    use crate::image::ImageDecoder;
+    use std::io::Cursor;
+
+    fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
+        let mut encoded_data = Vec::new();
+        {
+            let encoder = TgaEncoder::new(&mut encoded_data);
+            encoder
+                .encode(&image, width, height, c)
+                .expect("could not encode image");
+        }
+
+        let decoder = TgaDecoder::new(Cursor::new(&encoded_data)).expect("failed to decode");
+
+        let mut buf = vec![0; decoder.total_bytes() as usize];
+        decoder.read_image(&mut buf).expect("failed to decode");
+        buf
+    }
+
+    // FIXME: Taking a really long time to run. Tried switching to Bgr8, but then it just panics.
+    // #[test]
+    // fn huge_files_return_error() {
+    //     let mut encoded_data = Vec::new();
+    //     let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap
+    //     let encoder = TgaEncoder::new(&mut encoded_data);
+    //     let result = encoder.encode(&image, 40_000, 40_000, ColorType::Rgb8);
+    //     assert!(result.is_err());
+    // }
+
+    #[test]
+    fn round_trip_single_pixel_rgb() {
+        let image = [0, 1, 2];
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgb8);
+        assert_eq!(3, decoded.len());
+        assert_eq!(0, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(2, decoded[2]);
+    }
+
+    #[test]
+    fn round_trip_single_pixel_rgba() {
+        let image = [0, 1, 2, 3];
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Rgba8);
+        assert_eq!(4, decoded.len());
+        assert_eq!(0, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(2, decoded[2]);
+        assert_eq!(3, decoded[3]);
+    }
+
+    #[test]
+    fn round_trip_single_pixel_bgr() {
+        let image = [0, 1, 2];
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgr8);
+        assert_eq!(3, decoded.len());
+        assert_eq!(2, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(0, decoded[2]);
+    }
+
+    #[test]
+    fn round_trip_single_pixel_bgra() {
+        let image = [0, 1, 2, 3];
+        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgra8);
+        assert_eq!(4, decoded.len());
+        assert_eq!(2, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(0, decoded[2]);
+        assert_eq!(3, decoded[3]);
+    }
+
+    #[test]
+    fn round_trip_3px_rgb() {
+        let image = [0; 3 * 3 * 3]; // 3x3 pixels, 3 bytes per pixel
+        let _decoded = round_trip_image(&image, 3, 3, ColorType::Rgb8);
+    }
+
+    #[test]
+    fn round_trip_gray() {
+        let image = [0, 1, 2]; // 3 pixels
+        let decoded = round_trip_image(&image, 3, 1, ColorType::L8);
+        assert_eq!(3, decoded.len());
+        assert_eq!(0, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(2, decoded[2]);
+    }
+
+    #[test]
+    fn round_trip_graya() {
+        let image = [0, 1, 2, 3, 4, 5]; // 3 pixels, each with an alpha channel
+        let decoded = round_trip_image(&image, 1, 3, ColorType::La8);
+        assert_eq!(6, decoded.len());
+        assert_eq!(0, decoded[0]);
+        assert_eq!(1, decoded[1]);
+        assert_eq!(2, decoded[2]);
+        assert_eq!(3, decoded[3]);
+        assert_eq!(4, decoded[4]);
+        assert_eq!(5, decoded[5]);
     }
 }

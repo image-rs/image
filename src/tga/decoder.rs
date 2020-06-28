@@ -75,7 +75,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
             image_type: ImageType::Unknown,
             color_type: ColorType::L8,
 
-            header: Header::new(),
+            header: Header::default(),
             color_map: None,
 
             line_read: None,

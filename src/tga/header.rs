@@ -2,9 +2,9 @@ use crate::{
     error::{ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind},
     ColorType, ImageError, ImageFormat, ImageResult,
 };
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::convert::TryFrom;
-use std::io::Read;
+use std::io::{Read, Write};
 
 pub(crate) const ALPHA_BIT_MASK: u8 = 0b1111;
 pub(crate) const SCREEN_ORIGIN_BIT_MASK: u8 = 0b10_0000;
@@ -69,7 +69,7 @@ impl ImageType {
 }
 
 /// Header used by TGA image files.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Header {
     pub(crate) id_length: u8,      // length of ID string
     pub(crate) map_type: u8,       // color map type
@@ -86,24 +86,6 @@ pub(crate) struct Header {
 }
 
 impl Header {
-    /// Create a header with all values set to zero.
-    pub(crate) fn new() -> Header {
-        Header {
-            id_length: 0,
-            map_type: 0,
-            image_type: 0, // NoImageData
-            map_origin: 0,
-            map_length: 0,
-            map_entry_size: 0,
-            x_origin: 0,
-            y_origin: 0,
-            image_width: 0,
-            image_height: 0,
-            pixel_depth: 0,
-            image_desc: 0,
-        }
-    }
-
     /// Load the header with values from the reader.
     pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
         Ok(Header {
@@ -128,7 +110,7 @@ impl Header {
         width: u32,
         height: u32,
     ) -> ImageResult<Header> {
-        let mut header = Self::new();
+        let mut header = Self::default();
 
         if width > 0 && height > 0 {
             header.image_width = u16::try_from(width).map_err(|_| {
@@ -165,5 +147,22 @@ impl Header {
         }
 
         Ok(header)
+    }
+
+    /// Write out the header values.
+    pub(crate) fn write_to(&self, w: &mut dyn Write) -> ImageResult<()> {
+        w.write_u8(self.id_length)?;
+        w.write_u8(self.map_type)?;
+        w.write_u8(self.image_type)?;
+        w.write_u16::<LittleEndian>(self.map_origin)?;
+        w.write_u16::<LittleEndian>(self.map_length)?;
+        w.write_u8(self.map_entry_size)?;
+        w.write_u16::<LittleEndian>(self.x_origin)?;
+        w.write_u16::<LittleEndian>(self.y_origin)?;
+        w.write_u16::<LittleEndian>(self.image_width)?;
+        w.write_u16::<LittleEndian>(self.image_height)?;
+        w.write_u8(self.pixel_depth)?;
+        w.write_u8(self.image_desc)?;
+        Ok(())
     }
 }

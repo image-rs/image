@@ -1,4 +1,3 @@
-use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::Write;
 
 use super::header::Header;
@@ -32,18 +31,7 @@ impl<W: Write> TgaEncoder<W> {
         let header = Header::from_pixel_info(color_type, width, height)?;
 
         // Write out TGA header.
-        self.writer.write_u8(header.id_length)?;
-        self.writer.write_u8(header.map_type)?;
-        self.writer.write_u8(header.image_type)?;
-        self.writer.write_u16::<LittleEndian>(header.map_origin)?;
-        self.writer.write_u16::<LittleEndian>(header.map_length)?;
-        self.writer.write_u8(header.map_entry_size)?;
-        self.writer.write_u16::<LittleEndian>(header.x_origin)?;
-        self.writer.write_u16::<LittleEndian>(header.y_origin)?;
-        self.writer.write_u16::<LittleEndian>(header.image_width)?;
-        self.writer.write_u16::<LittleEndian>(header.image_height)?;
-        self.writer.write_u8(header.pixel_depth)?;
-        self.writer.write_u8(header.image_desc)?;
+        header.write_to(&mut self.writer)?;
 
         // Write out Bgr(a)8 or L(a)8 image data.
         let mut image = Vec::from(buf);

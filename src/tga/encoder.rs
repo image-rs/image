@@ -28,9 +28,8 @@ impl<W: Write> TgaEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
-        let header = Header::from_pixel_info(color_type, width, height)?;
-
         // Write out TGA header.
+        let header = Header::from_pixel_info(color_type, width, height)?;
         header.write_to(&mut self.writer)?;
 
         // Write out Bgr(a)8 or L(a)8 image data.

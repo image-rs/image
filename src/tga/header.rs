@@ -86,24 +86,6 @@ pub(crate) struct Header {
 }
 
 impl Header {
-    /// Load the header with values from the reader.
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
-        Ok(Header {
-            id_length: r.read_u8()?,
-            map_type: r.read_u8()?,
-            image_type: r.read_u8()?,
-            map_origin: r.read_u16::<LittleEndian>()?,
-            map_length: r.read_u16::<LittleEndian>()?,
-            map_entry_size: r.read_u8()?,
-            x_origin: r.read_u16::<LittleEndian>()?,
-            y_origin: r.read_u16::<LittleEndian>()?,
-            image_width: r.read_u16::<LittleEndian>()?,
-            image_height: r.read_u16::<LittleEndian>()?,
-            pixel_depth: r.read_u8()?,
-            image_desc: r.read_u8()?,
-        })
-    }
-
     /// Load the header with values from pixel information.
     pub(crate) fn from_pixel_info(
         color_type: ColorType,
@@ -147,6 +129,24 @@ impl Header {
         }
 
         Ok(header)
+    }
+
+    /// Load the header with values from the reader.
+    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
+        Ok(Header {
+            id_length: r.read_u8()?,
+            map_type: r.read_u8()?,
+            image_type: r.read_u8()?,
+            map_origin: r.read_u16::<LittleEndian>()?,
+            map_length: r.read_u16::<LittleEndian>()?,
+            map_entry_size: r.read_u8()?,
+            x_origin: r.read_u16::<LittleEndian>()?,
+            y_origin: r.read_u16::<LittleEndian>()?,
+            image_width: r.read_u16::<LittleEndian>()?,
+            image_height: r.read_u16::<LittleEndian>()?,
+            pixel_depth: r.read_u8()?,
+            image_desc: r.read_u8()?,
+        })
     }
 
     /// Write out the header values.

@@ -3,19 +3,17 @@
 use num_traits::{Num, NumCast};
 use std::f64::consts::PI;
 
-use crate::ImageBuffer;
 use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
 use crate::math::nq;
 use crate::math::utils::clamp;
 use crate::traits::{Pixel, Primitive};
+use crate::ImageBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
 /// Convert the supplied image to grayscale
-pub fn grayscale<I: GenericImageView>(
-    image: &I,
-) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
+pub fn grayscale<I: GenericImageView>(image: &I) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
 where
     Subpixel<I>: 'static,
     <Subpixel<I> as Num>::FromStrRadixErr: 'static,
@@ -181,14 +179,51 @@ where
 pub trait ColorMap {
     /// The color type on which the map operates on
     type Color;
-    /// Returns the index of the closed match of `color`
+    /// Returns the index of the closest match of `color`
     /// in the color map.
     fn index_of(&self, color: &Self::Color) -> usize;
+    /// Looks up color by index in the color map.  If `idx` is out of range for the color map, or
+    /// ColorMap doesn't implement `lookup` `None` is returned.
+    fn lookup(&self, _idx: usize) -> Option<Self::Color> {
+        None
+    }
+    /// Determine if this implementation of ColorMap overrides the default `lookup`.
+    fn has_lookup(&self) -> bool {
+        false
+    }
     /// Maps `color` to the closest color in the color map.
     fn map_color(&self, color: &mut Self::Color);
 }
 
 /// A bi-level color map
+///
+/// # Examples
+/// ```
+/// use image::imageops::colorops::{index_colors, BiLevel, ColorMap};
+/// use image::{ImageBuffer, Luma};
+///
+/// let (w, h) = (16, 16);
+/// // Create an image with a smooth horizontal gradient from black (0) to white (255).
+/// let gray = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> { [(255 * x / w) as u8].into() });
+/// // Mapping the gray image through the `BiLevel` filter should map gray pixels less than half
+/// // intensity (127) to black (0), and anything greater to white (255).
+/// let cmap = BiLevel;
+/// let palletized = index_colors(&gray, &cmap);
+/// let mapped = ImageBuffer::from_fn(w, h, |x, y| {
+///     let p = palletized.get_pixel(x, y);
+///     cmap.lookup(p.0[0] as usize)
+///         .expect("indexed color out-of-range")
+/// });
+/// // Create an black and white image of expected output.
+/// let bw = ImageBuffer::from_fn(w, h, |x, y| -> Luma<u8> {
+///     if x <= (w / 2) {
+///         [0].into()
+///     } else {
+///         [255].into()
+///     }
+/// });
+/// assert_eq!(mapped, bw);
+/// ```
 #[derive(Clone, Copy)]
 pub struct BiLevel;
 
@@ -206,6 +241,20 @@ impl ColorMap for BiLevel {
     }
 
     #[inline(always)]
+    fn lookup(&self, idx: usize) -> Option<Self::Color> {
+        match idx {
+            0 => Some([0].into()),
+            1 => Some([255].into()),
+            _ => None,
+        }
+    }
+
+    /// Indicate NeuQuant implements `lookup`.
+    fn has_lookup(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
     fn map_color(&self, color: &mut Luma<u8>) {
         let new_color = 0xFF * self.index_of(color) as u8;
         let luma = &mut color.0;
@@ -219,6 +268,16 @@ impl ColorMap for nq::NeuQuant {
     #[inline(always)]
     fn index_of(&self, color: &Rgba<u8>) -> usize {
         self.index_of(color.channels())
+    }
+
+    #[inline(always)]
+    fn lookup(&self, idx: usize) -> Option<Self::Color> {
+        self.lookup(idx).map(|p| p.into())
+    }
+
+    /// Indicate NeuQuant implements `lookup`.
+    fn has_lookup(&self) -> bool {
+        true
     }
 
     #[inline(always)]

@@ -60,6 +60,44 @@ type Neuron = Quad<f64>;
 type Color = Quad<i32>;
 
 /// Neural network color quantizer
+///
+/// # Examples
+/// ```
+/// use image::imageops::colorops::{index_colors, ColorMap};
+/// use image::math::nq::NeuQuant;
+/// use image::{ImageBuffer, Rgba, RgbaImage};
+///
+/// // Create simple color image with RGBA pixels.
+/// let (w, h) = (2, 2);
+/// let red: Rgba<u8> = [255, 0, 0, 255].into();
+/// let green: Rgba<u8> = [0, 255, 0, 255].into();
+/// let blue: Rgba<u8> = [0, 0, 255, 255].into();
+/// let white: Rgba<u8> = [255, 255, 255, 255].into();
+/// let mut color_image = RgbaImage::new(w, h);
+/// color_image.put_pixel(0, 0, red);
+/// color_image.put_pixel(1, 0, green);
+/// color_image.put_pixel(0, 1, blue);
+/// color_image.put_pixel(1, 1, white);
+///
+/// // Create a `NeuQuant` colormap that will build an approximate color palette that best matches
+/// // the original image.
+/// // Note, the NeuQuant algorithm is only designed to work with 6-8 bit output, so `colors`
+/// // should be a power of 2 in the range [64, 256].
+/// let pixels = color_image.clone().into_raw();
+/// let cmap = NeuQuant::new(1, 256, &pixels);
+/// // Map the original image through the color map to create an indexed image stored in a
+/// // `GrayImage`.
+/// let palletized = index_colors(&color_image, &cmap);
+/// // Map indexed image back `RgbaImage`.  Note the NeuQuant algorithm creates an approximation of
+/// // the original colors, so even in this simple example the output is not pixel equivalent to
+/// // the original.
+/// let mapped = ImageBuffer::from_fn(w, h, |x, y| -> Rgba<u8> {
+///     let p = palletized.get_pixel(x, y);
+///     cmap.lookup(p.0[0] as usize)
+///         .expect("indexed color out-of-range")
+///         .into()
+/// });
+/// ```
 pub struct NeuQuant {
     network: Vec<Neuron>,
     colormap: Vec<Color>,
@@ -140,6 +178,13 @@ impl NeuQuant {
         match (pixel[0], pixel[1], pixel[2], pixel[3]) {
             (r, g, b, a) => self.search_netindex(b, g, r, a),
         }
+    }
+
+    /// Lookup pixel values for color at `idx` in the colormap.
+    pub fn lookup(&self, idx: usize) -> Option<[u8; 4]> {
+        self.colormap
+            .get(idx)
+            .map(|p| [p.r as u8, p.g as u8, p.b as u8, p.a as u8])
     }
 
     /// Move neuron i towards biased (a,b,g,r) by factor alpha

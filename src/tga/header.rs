@@ -91,7 +91,7 @@ impl Header {
         color_type: ColorType,
         width: u32,
         height: u32,
-    ) -> ImageResult<Header> {
+    ) -> ImageResult<Self> {
         let mut header = Self::default();
 
         if width > 0 && height > 0 {
@@ -132,8 +132,8 @@ impl Header {
     }
 
     /// Load the header with values from the reader.
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
-        Ok(Header {
+    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+        Ok(Self {
             id_length: r.read_u8()?,
             map_type: r.read_u8()?,
             image_type: r.read_u8()?,

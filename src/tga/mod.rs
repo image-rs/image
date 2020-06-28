@@ -14,4 +14,4 @@ pub use self::encoder::TgaEncoder;
 
 mod decoder;
 mod encoder;
-mod image_type;
+mod header;

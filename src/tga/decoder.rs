@@ -1,67 +1,12 @@
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::ReadBytesExt;
 use std::convert::TryFrom;
 use std::io;
 use std::io::{Read, Seek};
 
-use super::image_type::{ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
+use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageDecoder, ImageFormat, ImageReadBuffer};
-
-/// Header used by TGA image files
-#[derive(Debug)]
-struct Header {
-    id_length: u8,      // length of ID string
-    map_type: u8,       // color map type
-    image_type: u8,     // image type code
-    map_origin: u16,    // starting index of map
-    map_length: u16,    // length of map
-    map_entry_size: u8, // size of map entries in bits
-    x_origin: u16,      // x-origin of image
-    y_origin: u16,      // y-origin of image
-    image_width: u16,   // width of image
-    image_height: u16,  // height of image
-    pixel_depth: u8,    // bits per pixel
-    image_desc: u8,     // image descriptor
-}
-
-impl Header {
-    /// Create a header with all values set to zero
-    fn new() -> Header {
-        Header {
-            id_length: 0,
-            map_type: 0,
-            image_type: 0,
-            map_origin: 0,
-            map_length: 0,
-            map_entry_size: 0,
-            x_origin: 0,
-            y_origin: 0,
-            image_width: 0,
-            image_height: 0,
-            pixel_depth: 0,
-            image_desc: 0,
-        }
-    }
-
-    /// Load the header with values from the reader
-    fn from_reader(r: &mut dyn Read) -> ImageResult<Header> {
-        Ok(Header {
-            id_length: r.read_u8()?,
-            map_type: r.read_u8()?,
-            image_type: r.read_u8()?,
-            map_origin: r.read_u16::<LittleEndian>()?,
-            map_length: r.read_u16::<LittleEndian>()?,
-            map_entry_size: r.read_u8()?,
-            x_origin: r.read_u16::<LittleEndian>()?,
-            y_origin: r.read_u16::<LittleEndian>()?,
-            image_width: r.read_u16::<LittleEndian>()?,
-            image_height: r.read_u16::<LittleEndian>()?,
-            pixel_depth: r.read_u8()?,
-            image_desc: r.read_u8()?,
-        })
-    }
-}
 
 struct ColorMap {
     /// sizes in bytes

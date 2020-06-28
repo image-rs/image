@@ -182,6 +182,8 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "tiff")]
         "tif" | "tiff" => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),
+        #[cfg(feature = "tga")]
+        "tga" => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
     }
 }
@@ -212,6 +214,8 @@ pub(crate) fn save_buffer_with_format_impl(
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),
+        #[cfg(feature = "tga")]
+        image::ImageFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }

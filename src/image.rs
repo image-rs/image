@@ -128,6 +128,10 @@ pub enum ImageOutputFormat {
     /// An Image in farbfeld Format
     Farbfeld,
 
+    #[cfg(feature = "tga")]
+    /// An Image in TGA Format
+    Tga,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -154,6 +158,8 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Bmp => ImageOutputFormat::Bmp,
             #[cfg(feature = "farbfeld")]
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
+            #[cfg(feature = "tga")]
+            ImageFormat::Tga => ImageOutputFormat::Tga,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }

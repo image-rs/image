@@ -3,68 +3,10 @@ use std::convert::TryFrom;
 use std::io;
 use std::io::{Read, Seek};
 
+use super::image_type::{ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageDecoder, ImageFormat, ImageReadBuffer};
-
-enum ImageType {
-    NoImageData = 0,
-    /// Uncompressed images
-    RawColorMap = 1,
-    RawTrueColor = 2,
-    RawGrayScale = 3,
-    /// Run length encoded images
-    RunColorMap = 9,
-    RunTrueColor = 10,
-    RunGrayScale = 11,
-    Unknown,
-}
-
-impl ImageType {
-    /// Create a new image type from a u8
-    fn new(img_type: u8) -> ImageType {
-        match img_type {
-            0 => ImageType::NoImageData,
-
-            1 => ImageType::RawColorMap,
-            2 => ImageType::RawTrueColor,
-            3 => ImageType::RawGrayScale,
-
-            9 => ImageType::RunColorMap,
-            10 => ImageType::RunTrueColor,
-            11 => ImageType::RunGrayScale,
-
-            _ => ImageType::Unknown,
-        }
-    }
-
-    /// Check if the image format uses colors as opposed to gray scale
-    fn is_color(&self) -> bool {
-        match *self {
-            ImageType::RawColorMap
-            | ImageType::RawTrueColor
-            | ImageType::RunTrueColor
-            | ImageType::RunColorMap => true,
-            _ => false,
-        }
-    }
-
-    /// Does the image use a color map
-    fn is_color_mapped(&self) -> bool {
-        match *self {
-            ImageType::RawColorMap | ImageType::RunColorMap => true,
-            _ => false,
-        }
-    }
-
-    /// Is the image run length encoded
-    fn is_encoded(&self) -> bool {
-        match *self {
-            ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale => true,
-            _ => false,
-        }
-    }
-}
 
 /// Header used by TGA image files
 #[derive(Debug)]
@@ -236,7 +178,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
             ));
         }
 
-        let num_alpha_bits = self.header.image_desc & 0b1111;
+        let num_alpha_bits = self.header.image_desc & ALPHA_BIT_MASK;
 
         let other_channel_bits = if self.header.map_type != 0 {
             self.header.map_entry_size
@@ -440,7 +382,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// If it's 0, the origin is in the bottom left corner.
     /// This function checks the bit, and if it's 0, flips the image vertically.
     fn is_flipped_vertically(&self) -> bool {
-        let screen_origin_bit = 0b10_0000 & self.header.image_desc != 0;
+        let screen_origin_bit = SCREEN_ORIGIN_BIT_MASK & self.header.image_desc != 0;
         !screen_origin_bit
     }
 

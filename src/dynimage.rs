@@ -17,6 +17,8 @@ use crate::png;
 use crate::pnm;
 #[cfg(feature = "farbfeld")]
 use crate::farbfeld;
+#[cfg(feature = "tga")]
+use crate::tga;
 
 use crate::buffer_::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
@@ -767,6 +769,11 @@ impl DynamicImage {
             #[cfg(feature = "farbfeld")]
             image::ImageOutputFormat::Farbfeld => {
                 farbfeld::FarbfeldEncoder::new(w).write_image(&bytes, width, height, color)
+            }
+
+            #[cfg(feature = "tga")]
+            image::ImageOutputFormat::Tga => {
+                tga::TgaEncoder::new(w).write_image(&bytes, width, height, color)
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {

@@ -1,12 +1,14 @@
-use byteorder::{LittleEndian, ReadBytesExt};
-use std::convert::TryFrom;
-use std::io;
-use std::io::{Read, Seek};
-
 use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
-use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::image::{ImageDecoder, ImageFormat, ImageReadBuffer};
+use crate::{
+    color::{ColorType, ExtendedColorType},
+    error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind},
+    image::{ImageDecoder, ImageFormat, ImageReadBuffer},
+};
+use byteorder::ReadBytesExt;
+use std::{
+    convert::TryFrom,
+    io::{self, Read, Seek},
+};
 
 struct ColorMap {
     /// sizes in bytes
@@ -423,25 +425,5 @@ impl<R: Read + Seek> Read for TGAReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
-    }
-}
-
-impl Header {
-    /// Load the header with values from the reader.
-    pub(crate) fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
-        Ok(Self {
-            id_length: r.read_u8()?,
-            map_type: r.read_u8()?,
-            image_type: r.read_u8()?,
-            map_origin: r.read_u16::<LittleEndian>()?,
-            map_length: r.read_u16::<LittleEndian>()?,
-            map_entry_size: r.read_u8()?,
-            x_origin: r.read_u16::<LittleEndian>()?,
-            y_origin: r.read_u16::<LittleEndian>()?,
-            image_width: r.read_u16::<LittleEndian>()?,
-            image_height: r.read_u16::<LittleEndian>()?,
-            pixel_depth: r.read_u8()?,
-            image_desc: r.read_u8()?,
-        })
     }
 }

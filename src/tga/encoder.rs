@@ -107,7 +107,7 @@ mod tests {
                     .unwrap()
                     .downcast_ref::<EncoderError>()
                     .unwrap();
-                assert_eq!(*err, EncoderError::InvalidWidth(dimension));
+                assert_eq!(*err, EncoderError::WidthInvalid(dimension));
             }
             other => panic!(
                 "Encoding an image that is too wide should return a InvalidWidth \
@@ -135,7 +135,7 @@ mod tests {
                     .unwrap()
                     .downcast_ref::<EncoderError>()
                     .unwrap();
-                assert_eq!(*err, EncoderError::InvalidHeight(dimension));
+                assert_eq!(*err, EncoderError::HeightInvalid(dimension));
             }
             other => panic!(
                 "Encoding an image that is too tall should return a InvalidHeight \

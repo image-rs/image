@@ -31,7 +31,7 @@ https://docs.rs/image
 | WebP   | Lossy(Luma channel only) | No |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |
-| TGA    | Yes | Yes |
+| TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
 | farbfeld | Yes | Yes |
 
 ### 2.2 The `ImageDecoder` and `ImageDecoderExt` Traits

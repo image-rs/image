@@ -15,15 +15,18 @@ pub(crate) const SCREEN_ORIGIN_BIT_MASK: u8 = 0b10_0000;
 /// Errors that can occur during encoding and saving of a TGA image.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum EncoderError {
-    InvalidWidth(u32),
-    InvalidHeight(u32),
+    /// Invalid TGA width.
+    WidthInvalid(u32),
+
+    /// Invalid TGA height.
+    HeightInvalid(u32),
 }
 
 impl fmt::Display for EncoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EncoderError::InvalidWidth(s) => f.write_fmt(format_args!("Invalid TGA width: {}", s)),
-            EncoderError::InvalidHeight(s) => {
+            EncoderError::WidthInvalid(s) => f.write_fmt(format_args!("Invalid TGA width: {}", s)),
+            EncoderError::HeightInvalid(s) => {
                 f.write_fmt(format_args!("Invalid TGA height: {}", s))
             }
         }
@@ -125,10 +128,10 @@ impl Header {
 
         if width > 0 && height > 0 {
             header.image_width = u16::try_from(width)
-                .map_err(|_| ImageError::from(EncoderError::InvalidWidth(width)))?;
+                .map_err(|_| ImageError::from(EncoderError::WidthInvalid(width)))?;
 
             header.image_height = u16::try_from(height)
-                .map_err(|_| ImageError::from(EncoderError::InvalidHeight(height)))?;
+                .map_err(|_| ImageError::from(EncoderError::HeightInvalid(height)))?;
 
             let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
                 ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),

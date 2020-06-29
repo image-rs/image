@@ -1,13 +1,42 @@
 use crate::{
-    error::{ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind},
+    error::{EncodingError, UnsupportedError, UnsupportedErrorKind},
     ColorType, ImageError, ImageFormat, ImageResult,
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::convert::TryFrom;
-use std::io::{Read, Write};
+use std::{
+    error, fmt,
+    io::{Read, Write},
+};
 
 pub(crate) const ALPHA_BIT_MASK: u8 = 0b1111;
 pub(crate) const SCREEN_ORIGIN_BIT_MASK: u8 = 0b10_0000;
+
+/// Errors that can occur during encoding and saving of a TGA image.
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum EncoderError {
+    InvalidWidth(u32),
+    InvalidHeight(u32),
+}
+
+impl fmt::Display for EncoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EncoderError::InvalidWidth(s) => f.write_fmt(format_args!("Invalid TGA width: {}", s)),
+            EncoderError::InvalidHeight(s) => {
+                f.write_fmt(format_args!("Invalid TGA height: {}", s))
+            }
+        }
+    }
+}
+
+impl From<EncoderError> for ImageError {
+    fn from(e: EncoderError) -> ImageError {
+        ImageError::Encoding(EncodingError::new(ImageFormat::Tga.into(), e))
+    }
+}
+
+impl error::Error for EncoderError {}
 
 pub(crate) enum ImageType {
     NoImageData = 0,
@@ -95,17 +124,11 @@ impl Header {
         let mut header = Self::default();
 
         if width > 0 && height > 0 {
-            header.image_width = u16::try_from(width).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?;
+            header.image_width = u16::try_from(width)
+                .map_err(|_| ImageError::from(EncoderError::InvalidWidth(width)))?;
 
-            header.image_height = u16::try_from(height).map_err(|_| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
-                ))
-            })?;
+            header.image_height = u16::try_from(height)
+                .map_err(|_| ImageError::from(EncoderError::InvalidHeight(height)))?;
 
             let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
                 ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),

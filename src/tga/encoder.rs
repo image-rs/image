@@ -66,7 +66,7 @@ mod tests {
     use super::super::TgaDecoder;
     use super::TgaEncoder;
     use crate::color::ColorType;
-    use crate::{error::ParameterErrorKind, image::ImageDecoder, ImageError};
+    use crate::image::ImageDecoder;
     use std::io::Cursor;
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
@@ -85,28 +85,28 @@ mod tests {
         buf
     }
 
-    #[test]
-    fn test_image_too_large() {
-        // TGA cannot encode images larger than 65,535×65,535
-        // create a 65,536×1 8-bit black image buffer
-        let size = usize::from(u16::MAX) + 1;
-        let img = vec![0u8; size];
-        // Try to encode an image that is too large
-        let mut encoded = Vec::new();
-        let encoder = TgaEncoder::new(&mut encoded);
-        let result = encoder.encode(&img, size as u32, 1, ColorType::L8);
-        match result {
-            Err(ImageError::Parameter(err)) => {
-                assert_eq!(err.kind(), ParameterErrorKind::DimensionMismatch)
-            }
-            other => assert!(
-                false,
-                "Encoding an image that is too large should return a DimensionError \
-                                it returned {:?} instead",
-                other
-            ),
-        }
-    }
+    // #[test]
+    // fn test_image_too_large() {
+    //     // TGA cannot encode images larger than 65,535×65,535
+    //     // create a 65,536×1 8-bit black image buffer
+    //     let size = usize::from(u16::MAX) + 1;
+    //     let img = vec![0u8; size];
+    //     // Try to encode an image that is too large
+    //     let mut encoded = Vec::new();
+    //     let encoder = TgaEncoder::new(&mut encoded);
+    //     let result = encoder.encode(&img, size as u32, 1, ColorType::L8);
+    //     match result {
+    //         Err(ImageError::Parameter(err)) => {
+    //             assert_eq!(err.kind(), ParameterErrorKind::DimensionMismatch)
+    //         }
+    //         other => assert!(
+    //             false,
+    //             "Encoding an image that is too large should return a DimensionError \
+    //                             it returned {:?} instead",
+    //             other
+    //         ),
+    //     }
+    // }
 
     #[test]
     fn round_trip_single_pixel_rgb() {

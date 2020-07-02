@@ -136,6 +136,22 @@ pub enum ExtendedColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
+    /// BLock compression format BC1
+    Bc1,
+    /// BLock compression format BC2
+    Bc2,
+    /// BLock compression format BC3
+    Bc3,
+    /// BLock compression format BC4
+    Bc4,
+    /// BLock compression format BC5
+    Bc5,
+
+    /// Packed Y, Cb and Cr channels, each 8-bits.
+    Yuv444,
+    /// YUYV format, also known as YUV4:2:2
+    Yuyv,
+
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
@@ -157,25 +173,48 @@ impl ExtendedColorType {
             ExtendedColorType::L4 |
             ExtendedColorType::L8 |
             ExtendedColorType::L16 |
+            ExtendedColorType::Bc4 |
             ExtendedColorType::Unknown(_) => 1,
             ExtendedColorType::La1 |
             ExtendedColorType::La2 |
             ExtendedColorType::La4 |
             ExtendedColorType::La8 |
-            ExtendedColorType::La16 => 2,
+            ExtendedColorType::La16 |
+            ExtendedColorType::Bc5 => 2,
             ExtendedColorType::Rgb1 |
             ExtendedColorType::Rgb2 |
             ExtendedColorType::Rgb4 |
             ExtendedColorType::Rgb8 |
             ExtendedColorType::Rgb16 |
-            ExtendedColorType::Bgr8 => 3,
+            ExtendedColorType::Bgr8 |
+            ExtendedColorType::Bc1 |
+            ExtendedColorType::Yuv444 => 3,
+            ExtendedColorType::Yuyv => 3,
             ExtendedColorType::Rgba1 |
             ExtendedColorType::Rgba2 |
             ExtendedColorType::Rgba4 |
             ExtendedColorType::Rgba8 |
             ExtendedColorType::Rgba16 |
-            ExtendedColorType::Bgra8 => 4,
+            ExtendedColorType::Bgra8 |
+            ExtendedColorType::Bc2 |
+            ExtendedColorType::Bc3 => 4,
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
+
+    /// Return the dimensions of a single indivisible "macro pixel" in this color type.
+    ///
+    /// This value is typically (1, 1) except in the case of block compression or packed formats
+    /// like YUYV.
+    pub fn macro_pixel_dimensions(self) -> (u8, u8) {
+        match self {
+            ExtendedColorType::Bc1 |
+            ExtendedColorType::Bc2 |
+            ExtendedColorType::Bc3 |
+            ExtendedColorType::Bc4 |
+            ExtendedColorType::Bc5 => (4, 4),
+            ExtendedColorType::Yuyv => (2, 1),
+            _ => (1, 1),
         }
     }
 }

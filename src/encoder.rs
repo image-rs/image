@@ -71,6 +71,10 @@ impl<W: Write> Encoder<W> {
         self.info.palette = Some(palette);
     }
 
+    pub fn set_trns(&mut self, trns: Vec<u8>) {
+        self.info.trns = Some(trns);
+    }
+
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info).init()
     }
@@ -170,6 +174,10 @@ impl<W: Write> Writer<W> {
         if let Some(p) = &self.info.palette {
             write_chunk(&mut self.w, chunk::PLTE, p)?;
         };
+
+        if let Some(t) = &self.info.trns {
+            write_chunk(&mut self.w, chunk::tRNS, t)?;
+        }
 
         Ok(self)
     }

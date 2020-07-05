@@ -140,6 +140,8 @@ pub use crate::color::{ColorType, ExtendedColorType};
 
 pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
+pub use crate::convert::{ConvertError, Converter, NormalizeConverter};
+
 pub use crate::error::{ImageError, ImageResult};
 
 pub use crate::image::{AnimationDecoder,
@@ -240,6 +242,7 @@ mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
 mod color;
+mod convert;
 mod dynimage;
 mod image;
 mod traits;

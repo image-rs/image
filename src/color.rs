@@ -178,6 +178,36 @@ impl ExtendedColorType {
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
+
+    /// Get the number of bits taken by a single pixel of this color type.
+    pub(crate) fn bits_per_pixel(self) -> u8 {
+        match self {
+            ExtendedColorType::L1 => 1,
+            ExtendedColorType::L2 => 2,
+            ExtendedColorType::L4 => 4,
+            ExtendedColorType::L8 => 8,
+            ExtendedColorType::L16 => 16,
+            ExtendedColorType::La1 => 2,
+            ExtendedColorType::La2 => 4,
+            ExtendedColorType::La4 => 8,
+            ExtendedColorType::La8 => 16,
+            ExtendedColorType::La16 => 32,
+            ExtendedColorType::Rgb1 => 3,
+            ExtendedColorType::Rgb2 => 6,
+            ExtendedColorType::Rgb4 => 12,
+            ExtendedColorType::Rgb8 => 24,
+            ExtendedColorType::Rgb16 => 48,
+            ExtendedColorType::Bgr8 => 24,
+            ExtendedColorType::Rgba1 => 4,
+            ExtendedColorType::Rgba2 => 8,
+            ExtendedColorType::Rgba4 => 16,
+            ExtendedColorType::Rgba8 => 32,
+            ExtendedColorType::Rgba16 => 64,
+            ExtendedColorType::Bgra8 => 48,
+            ExtendedColorType::Unknown(b) => b,
+            ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
 }
 impl From<ColorType> for ExtendedColorType {
     fn from(c: ColorType) -> Self {

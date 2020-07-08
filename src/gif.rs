@@ -385,6 +385,7 @@ impl<W: Write> Encoder<W> {
             Some((width, height))
         }
 
+        // TODO: this is not very idiomatic yet. Should return an EncodingError.
         inner_dimensions(width, height).ok_or(ImageError::Parameter(ParameterError::from_kind(
             ParameterErrorKind::DimensionMismatch
         )))

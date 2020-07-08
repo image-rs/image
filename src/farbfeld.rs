@@ -226,11 +226,8 @@ impl<W: Write> FarbfeldEncoder<W> {
     /// Encodes the image ```data``` (native endian)
     /// that has dimensions ```width``` and ```height```
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
-        self.encode_impl(data, width, height).map_err(|err|
-            ImageError::Encoding(EncodingError::new(
-                ImageFormat::Farbfeld.into(),
-                err,
-            )))
+        self.encode_impl(data, width, height)?;
+        Ok(())
     }
 
     fn encode_impl(mut self, data: &[u8], width: u32, height: u32) -> io::Result<()> {

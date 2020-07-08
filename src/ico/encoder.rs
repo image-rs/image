@@ -103,6 +103,8 @@ fn write_direntry<W: Write>(
 /// Encode a width/height value as a single byte, where 0 means 256.
 fn write_width_or_height<W: Write>(w: &mut W, value: u32) -> io::Result<()> {
     if value < 1 || value > 256 {
+        // TODO: this is not very idiomatic yet. Should return an EncodingError and be checked
+        // prior to encoding.
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Invalid ICO dimensions (width and \

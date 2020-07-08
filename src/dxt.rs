@@ -81,6 +81,9 @@ impl<R: Read> DxtDecoder<R> {
         variant: DXTVariant,
     ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
+            // TODO: this is actually a bit of a weird case. We could return `DecodingError` but
+            // it's not really the format that is wrong However, the encoder should surely return
+            // `EncodingError` so it would be the logical choice for symmetry.
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )));
@@ -206,6 +209,7 @@ impl<W: Write> DXTEncoder<W> {
         variant: DXTVariant,
     ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
+            // TODO: this is not very idiomatic yet. Should return an EncodingError.
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )));

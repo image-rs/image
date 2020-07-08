@@ -499,6 +499,8 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_frame_header(
             &mut buf,
             8,
+            // TODO: not idiomatic yet. Should be an EncodingError and mention jpg. Further it
+            // should check dimensions prior to writing.
             u16::try_from(image.width()).map_err(|_| {
                 ImageError::Parameter(ParameterError::from_kind(
                     ParameterErrorKind::DimensionMismatch,
@@ -681,6 +683,7 @@ impl<'a, W: Write> ImageEncoder for JPEGEncoder<'a, W> {
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     m.clear();
 
+    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
     let _ = write!(m, "JFIF");
     let _ = m.write_all(&[0]);
     let _ = m.write_all(&[0x01]);
@@ -705,6 +708,7 @@ fn build_frame_header(
 ) {
     m.clear();
 
+    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
     let _ = m.write_all(&[precision]);
     let _ = m.write_u16::<BigEndian>(height);
     let _ = m.write_u16::<BigEndian>(width);
@@ -721,6 +725,7 @@ fn build_frame_header(
 fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     m.clear();
 
+    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
     let _ = m.write_all(&[components.len() as u8]);
 
     for &comp in components.iter() {
@@ -744,6 +749,7 @@ fn build_huffman_segment(
 ) {
     m.clear();
 
+    // TODO: More idiomatic would be pub, extend_from_slice
     let tcth = (class << 4) | destination;
     let _ = m.write_u8(tcth);
 
@@ -766,6 +772,7 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
     assert_eq!(qtable.len() % 64, 0);
     m.clear();
 
+    // TODO: More idiomatic would be pub, extend_from_slice
     let p = if precision == 8 { 0 } else { 1 };
 
     let pqtq = (p << 4) | identifier;

@@ -166,7 +166,7 @@ pub use crate::buffer_::{
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::{Primitive, Pixel};
+pub use crate::traits::{EncodableLayout, Primitive, Pixel};
 
 // Opening and loading images
 pub use crate::io::free_functions::{guess_format, load};

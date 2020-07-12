@@ -10,6 +10,13 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.7
+
+- Iterators over immutable pixels of `ImageBuffer` can now be cloned
+- Added a `tga` encoder
+- Added `ColorMap::lookup`, an optional reversal of the map
+- The `EncodableLayout` trait is now exported
+
 ### Version 0.23.6
 
 - Added `png::ApngDecoder`, an adapter decoding the animation in an APNG.

@@ -184,7 +184,8 @@ pub trait ColorMap {
     fn index_of(&self, color: &Self::Color) -> usize;
     /// Looks up color by index in the color map.  If `idx` is out of range for the color map, or
     /// ColorMap doesn't implement `lookup` `None` is returned.
-    fn lookup(&self, _idx: usize) -> Option<Self::Color> {
+    fn lookup(&self, index: usize) -> Option<Self::Color> {
+        let _ = index;
         None
     }
     /// Determine if this implementation of ColorMap overrides the default `lookup`.

@@ -25,6 +25,8 @@ pub const bKGD: ChunkType = [b'b', b'K', b'G', b'D'];
 pub const tIME: ChunkType = [b't', b'I', b'M', b'E'];
 /// Physical pixel dimensions
 pub const pHYs: ChunkType = [b'p', b'H', b'Y', b's'];
+/// Color primary chromaticities
+pub const cHRM: ChunkType = [b'c', b'H', b'R', b'M'];
 
 // -- Extension chunks --
 

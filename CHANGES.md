@@ -1,3 +1,7 @@
+## 0.16.7
+
+* Added `Encoder::set_trns` to register a transparency table to be written.
+
 ## 0.16.6
 
 * Fixed silent integer overflows in buffer size calculation, resulting in

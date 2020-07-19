@@ -164,6 +164,32 @@ where
     }
 }
 
+/// Tile an image by repeating it multiple times
+///
+/// # Examples
+/// ```no_run
+/// use image::{RgbaImage};
+///
+/// fn main() {
+///      let mut img = RgbaImage::new(1920, 1080);
+///      let tile = image::open("tile.png").unwrap();
+///
+///      image::imageops::tile(&mut img, &tile);
+///      img.save("tiled_wallpaper.png").unwrap();
+/// }
+/// ```
+pub fn tile<I, J>(bottom: &mut I, top: &J)
+where
+    I: GenericImage,
+    J: GenericImageView<Pixel = I::Pixel>,
+{
+    for x in (0..bottom.width()).step_by(top.width() as usize) {
+        for y in (0..bottom.height()).step_by(top.height() as usize) {
+            overlay(bottom, top, x, y);
+        }
+    }
+}
+
 /// Replace the contents of an image at a given coordinate (x, y)
 pub fn replace<I, J>(bottom: &mut I, top: &J, x: u32, y: u32)
 where

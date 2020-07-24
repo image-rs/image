@@ -535,6 +535,7 @@ where
     }
 
     /// Returns an iterator over the pixels of this image.
+    /// The iteration order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
             chunks: self.inner_pixels().chunks(<P as Pixel>::CHANNEL_COUNT as usize),
@@ -553,6 +554,7 @@ where
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
+    /// The iteration order is x = 0 to width then y = 0 to height
     pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
         EnumeratePixels {
             pixels: self.pixels(),

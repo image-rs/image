@@ -318,7 +318,7 @@ macro_rules! do_dithering(
 /// Floyd-Steinberg dithering to improve the visual conception
 pub fn dither<Pix, Map>(image: &mut ImageBuffer<Pix, Vec<u8>>, color_map: &Map)
 where
-    Map: ColorMap<Color = Pix>,
+    Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
 {
     let (width, height) = image.dimensions();
@@ -359,7 +359,7 @@ pub fn index_colors<Pix, Map>(
     color_map: &Map,
 ) -> ImageBuffer<Luma<u8>, Vec<u8>>
 where
-    Map: ColorMap<Color = Pix>,
+    Map: ColorMap<Color = Pix> + ?Sized,
     Pix: Pixel<Subpixel = u8> + 'static,
 {
     let mut indices = ImageBuffer::new(image.width(), image.height());

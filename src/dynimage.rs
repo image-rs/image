@@ -722,7 +722,7 @@ impl DynamicImage {
             }
             #[cfg(feature = "pnm")]
             image::ImageOutputFormat::Pnm(subtype) => {
-                let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
+                let mut p = pnm::PnmEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
@@ -739,7 +739,7 @@ impl DynamicImage {
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::Jpeg(quality) => {
-                let j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+                let j = jpeg::JpegEncoder::new_with_quality(w, quality);
                 j.write_image(&bytes, width, height, color)?;
                 Ok(())
             }

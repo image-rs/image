@@ -5,11 +5,13 @@
 //! variants for now as alpha color types are unsupported.
 use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
-pub use self::encoder::PNMEncoder;
+#[allow(deprecated)]
+pub use self::encoder::{PnmEncoder, PNMEncoder};
 use self::header::HeaderRecord;
 pub use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader,
                        PixmapHeader};
-pub use self::header::{PNMHeader, PNMSubtype, SampleEncoding};
+#[allow(deprecated)]
+pub use self::header::{PnmHeader, PNMHeader, PnmSubtype, PNMSubtype, SampleEncoding};
 
 mod autobreak;
 mod decoder;
@@ -27,7 +29,7 @@ mod tests {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");
@@ -53,12 +55,12 @@ mod tests {
         width: u32,
         height: u32,
         color: ColorType,
-        subtype: PNMSubtype,
+        subtype: PnmSubtype,
     ) {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer).with_subtype(subtype);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer).with_subtype(subtype);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");
@@ -84,7 +86,7 @@ mod tests {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");
@@ -119,9 +121,9 @@ mod tests {
         ];
 
         execute_roundtrip_default(&buf, 4, 4, ColorType::L8);
-        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::ArbitraryMap);
-        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::Graymap(SampleEncoding::Ascii));
-        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PNMSubtype::Graymap(SampleEncoding::Binary));
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PnmSubtype::ArbitraryMap);
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PnmSubtype::Graymap(SampleEncoding::Ascii));
+        execute_roundtrip_with_subtype(&buf, 4, 4, ColorType::L8, PnmSubtype::Graymap(SampleEncoding::Binary));
     }
 
     #[test]
@@ -139,20 +141,20 @@ mod tests {
             255, 255, 255,
         ];
         execute_roundtrip_default(&buf, 3, 3, ColorType::Rgb8);
-        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::Rgb8, PNMSubtype::ArbitraryMap);
+        execute_roundtrip_with_subtype(&buf, 3, 3, ColorType::Rgb8, PnmSubtype::ArbitraryMap);
         execute_roundtrip_with_subtype(
             &buf,
             3,
             3,
             ColorType::Rgb8,
-            PNMSubtype::Pixmap(SampleEncoding::Binary),
+            PnmSubtype::Pixmap(SampleEncoding::Binary),
         );
         execute_roundtrip_with_subtype(
             &buf,
             3,
             3,
             ColorType::Rgb8,
-            PNMSubtype::Pixmap(SampleEncoding::Ascii),
+            PnmSubtype::Pixmap(SampleEncoding::Ascii),
         );
     }
 

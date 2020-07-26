@@ -5,7 +5,7 @@ use crate::color::ColorType;
 use crate::error::ImageResult;
 use crate::image::ImageEncoder;
 
-use crate::png::PNGEncoder;
+use crate::png::PngEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -36,7 +36,7 @@ impl<W: Write> ICOEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         let mut image_data: Vec<u8> = Vec::new();
-        PNGEncoder::new(&mut image_data).encode(data, width, height, color)?;
+        PngEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
         write_icondir(&mut self.w, 1)?;
         write_direntry(

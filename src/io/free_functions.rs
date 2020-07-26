@@ -162,7 +162,7 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
-        "png" => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
+        "png" => png::PngEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pbm" => pnm::PNMEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
@@ -178,7 +178,7 @@ pub(crate) fn save_buffer_impl(
         #[cfg(feature = "pnm")]
         "pam" => pnm::PNMEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
+        "bmp" => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
         "tif" | "tiff" => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),
@@ -208,9 +208,9 @@ pub(crate) fn save_buffer_with_format_impl(
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),

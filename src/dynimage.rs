@@ -705,7 +705,7 @@ impl DynamicImage {
         match format {
             #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
-                let p = png::PNGEncoder::new(w);
+                let p = png::PngEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
@@ -761,7 +761,7 @@ impl DynamicImage {
 
             #[cfg(feature = "bmp")]
             image::ImageOutputFormat::Bmp => {
-                let mut b = bmp::BMPEncoder::new(w);
+                let mut b = bmp::BmpEncoder::new(w);
                 b.encode(&bytes, width, height, color)?;
                 Ok(())
             }

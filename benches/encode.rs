@@ -1,7 +1,7 @@
 extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use image::{ColorType, bmp::BMPEncoder, jpeg::JPEGEncoder};
+use image::{ColorType, bmp::BmpEncoder, jpeg::JPEGEncoder};
 
 use std::fs::File;
 use std::io::{BufWriter, Write, Seek, SeekFrom};
@@ -109,7 +109,7 @@ impl<T: EncoderBase> Encoder for T {
 
 impl EncoderBase for Bmp {
     fn encode(&self, mut into: impl Write, im: &[u8], size: u32, color: ColorType) {
-        let mut x = BMPEncoder::new(&mut into);
+        let mut x = BmpEncoder::new(&mut into);
         x.encode(im, size, size, color).unwrap();
     }
 }

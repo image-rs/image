@@ -20,19 +20,28 @@ use crate::error::{
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
 
-/// PNG Reader
+/// Png Reader
 ///
 /// This reader will try to read the png one row at a time,
 /// however for interlaced png files this is not possible and
 /// these are therefore read at once.
-pub struct PNGReader<R: Read> {
+pub struct PngReader<R: Read> {
     reader: png::Reader<R>,
     buffer: Vec<u8>,
     index: usize,
 }
 
-impl<R: Read> PNGReader<R> {
-    fn new(mut reader: png::Reader<R>) -> ImageResult<PNGReader<R>> {
+/// PNG Reader
+///
+/// An alias of [`PngReader`].
+///
+/// [`PngReader`]: struct.PngReader.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `PngReader` instead")]
+pub type PNGReader<R> = PngReader<R>;
+
+impl<R: Read> PngReader<R> {
+    fn new(mut reader: png::Reader<R>) -> ImageResult<PngReader<R>> {
         let len = reader.output_buffer_size();
         // Since interlaced images do not come in
         // scanline order it is almost impossible to
@@ -47,7 +56,7 @@ impl<R: Read> PNGReader<R> {
             Vec::new()
         };
 
-        Ok(PNGReader {
+        Ok(PngReader {
             reader,
             buffer,
             index: 0,
@@ -55,7 +64,7 @@ impl<R: Read> PNGReader<R> {
     }
 }
 
-impl<R: Read> Read for PNGReader<R> {
+impl<R: Read> Read for PngReader<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         // io::Write::write for slice cannot fail
         let readed = buf.write(&self.buffer[self.index..]).unwrap();
@@ -191,7 +200,7 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
-    type Reader = PNGReader<R>;
+    type Reader = PngReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
         self.reader.info().size()
@@ -202,7 +211,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        PNGReader::new(self.reader)
+        PngReader::new(self.reader)
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -426,11 +435,20 @@ impl<'a, R: Read + 'a> AnimationDecoder<'a> for ApngDecoder<R> {
 }
 
 /// PNG encoder
-pub struct PNGEncoder<W: Write> {
+pub struct PngEncoder<W: Write> {
     w: W,
     compression: CompressionType,
     filter: FilterType,
 }
+
+/// PNG Encoder
+///
+/// An alias of [`PngEncoder`].
+///
+/// [`PngEncoder`]: struct.PngEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `PngEncoder` instead")]
+pub type PNGEncoder<W> = PngEncoder<W>;
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -472,10 +490,10 @@ pub enum FilterType {
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
-impl<W: Write> PNGEncoder<W> {
+impl<W: Write> PngEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> PNGEncoder<W> {
-        PNGEncoder {
+    pub fn new(w: W) -> PngEncoder<W> {
+        PngEncoder {
             w,
             compression: CompressionType::Fast,
             filter: FilterType::Sub,
@@ -496,8 +514,8 @@ impl<W: Write> PNGEncoder<W> {
     /// even interlaced row). We might make it the new default variant in which case choosing a
     /// particular filter method likely produces larger images. Be sure to check the release notes
     /// once in a while.
-    pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PNGEncoder<W> {
-        PNGEncoder {
+    pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PngEncoder<W> {
+        PngEncoder {
             w,
             compression,
             filter,
@@ -547,7 +565,7 @@ impl<W: Write> PNGEncoder<W> {
     }
 }
 
-impl<W: Write> ImageEncoder for PNGEncoder<W> {
+impl<W: Write> ImageEncoder for PngEncoder<W> {
     fn write_image(
         self,
         buf: &[u8],

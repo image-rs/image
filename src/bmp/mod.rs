@@ -8,16 +8,8 @@
 //!
 
 pub use self::decoder::BmpDecoder;
-pub use self::encoder::BmpEncoder;
-
-/// BMP Encoder
-///
-/// An alias of [`BmpEncoder`].
-///
-/// [`BmpEncoder`]: struct.BmpEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `BmpEncoder` instead")]
-pub type BMPEncoder<'a, W> = BmpEncoder<'a, W>;
+#[allow(deprecated)]
+pub use self::encoder::{BmpEncoder, BMPEncoder};
 
 mod decoder;
 mod encoder;

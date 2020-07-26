@@ -156,9 +156,9 @@ pub(crate) fn save_buffer_impl(
 
     match &*ext {
         #[cfg(feature = "gif")]
-        "gif" => gif::Encoder::new(fout).encode(buf, width, height, color),
+        "gif" => gif::GifEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        "ico" => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
+        "ico" => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
@@ -202,9 +202,9 @@ pub(crate) fn save_buffer_with_format_impl(
 
     match format {
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::Encoder::new(fout).encode(buf, width, height, color),
+        image::ImageFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]

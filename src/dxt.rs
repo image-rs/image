@@ -18,7 +18,7 @@ use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progres
 /// Note that DXT2 and DXT4 are left away as they're
 /// just DXT3 and DXT5 with premultiplied alpha
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DXTVariant {
+pub enum DxtVariant {
     /// The DXT1 format. 48 bytes of RGB data in a 4x4 pixel square is
     /// compressed into an 8 byte block of DXT1 data
     DXT1,
@@ -30,29 +30,38 @@ pub enum DXTVariant {
     DXT5,
 }
 
-impl DXTVariant {
+/// DXT compression version.
+///
+/// An alias of [`DxtVariant`].
+///
+/// [`DxtVariant`]: enum.DxtVariant.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `DxtVariant` instead")]
+pub type DXTVariant = DxtVariant;
+
+impl DxtVariant {
     /// Returns the amount of bytes of raw image data
     /// that is encoded in a single DXTn block
     fn decoded_bytes_per_block(self) -> usize {
         match self {
-            DXTVariant::DXT1 => 48,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
+            DxtVariant::DXT1 => 48,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => 64,
         }
     }
 
     /// Returns the amount of bytes per block of encoded DXTn data
     fn encoded_bytes_per_block(self) -> usize {
         match self {
-            DXTVariant::DXT1 => 8,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
+            DxtVariant::DXT1 => 8,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => 16,
         }
     }
 
     /// Returns the color type that is stored in this DXT variant
     pub fn color_type(self) -> ColorType {
         match self {
-            DXTVariant::DXT1 => ColorType::Rgb8,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
+            DxtVariant::DXT1 => ColorType::Rgb8,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => ColorType::Rgba8,
         }
     }
 }
@@ -62,7 +71,7 @@ pub struct DxtDecoder<R: Read> {
     inner: R,
     width_blocks: u32,
     height_blocks: u32,
-    variant: DXTVariant,
+    variant: DxtVariant,
     row: u32,
 }
 
@@ -78,7 +87,7 @@ impl<R: Read> DxtDecoder<R> {
         r: R,
         width: u32,
         height: u32,
-        variant: DXTVariant,
+        variant: DxtVariant,
     ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is actually a bit of a weird case. We could return `DecodingError` but
@@ -106,9 +115,9 @@ impl<R: Read> DxtDecoder<R> {
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
         self.inner.read_exact(&mut src)?;
         match self.variant {
-            DXTVariant::DXT1 => decode_dxt1_row(&src, buf),
-            DXTVariant::DXT3 => decode_dxt3_row(&src, buf),
-            DXTVariant::DXT5 => decode_dxt5_row(&src, buf),
+            DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
+            DxtVariant::DXT3 => decode_dxt3_row(&src, buf),
+            DxtVariant::DXT5 => decode_dxt5_row(&src, buf),
         }
         self.row += 1;
         Ok(buf.len())
@@ -118,7 +127,7 @@ impl<R: Read> DxtDecoder<R> {
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
 impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
-    type Reader = DXTReader<R>;
+    type Reader = DxtReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.width_blocks * 4, self.height_blocks * 4)
@@ -133,7 +142,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(DXTReader {
+        Ok(DxtReader {
             buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
             decoder: self,
         })
@@ -175,11 +184,21 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
 }
 
 /// DXT reader
-pub struct DXTReader<R: Read> {
+pub struct DxtReader<R: Read> {
     buffer: ImageReadBuffer,
     decoder: DxtDecoder<R>,
 }
-impl<R: Read> Read for DXTReader<R> {
+
+/// DXT reader
+///
+/// An alias of [`DxtReader`].
+///
+/// [`DxtReader`]: struct.DxtReader.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `DxtReader` instead")]
+pub type DXTReader<R> = DxtReader<R>;
+
+impl<R: Read> Read for DxtReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
@@ -187,14 +206,23 @@ impl<R: Read> Read for DXTReader<R> {
 }
 
 /// DXT encoder
-pub struct DXTEncoder<W: Write> {
+pub struct DxtEncoder<W: Write> {
     w: W,
 }
 
-impl<W: Write> DXTEncoder<W> {
+/// DXT encoder
+///
+/// An alias of [`DxtEncoder`].
+///
+/// [`DxtEncoder`]: struct.DxtEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `DxtEncoder` instead")]
+pub type DXTEncoder<W> = DxtEncoder<W>;
+
+impl<W: Write> DxtEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> DXTEncoder<W> {
-        DXTEncoder { w }
+    pub fn new(w: W) -> DxtEncoder<W> {
+        DxtEncoder { w }
     }
 
     /// Encodes the image data ```data```
@@ -206,7 +234,7 @@ impl<W: Write> DXTEncoder<W> {
         data: &[u8],
         width: u32,
         height: u32,
-        variant: DXTVariant,
+        variant: DxtVariant,
     ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is not very idiomatic yet. Should return an EncodingError.
@@ -223,9 +251,9 @@ impl<W: Write> DXTEncoder<W> {
 
         for chunk in data.chunks(width_blocks as usize * stride) {
             let data = match variant {
-                DXTVariant::DXT1 => encode_dxt1_row(chunk),
-                DXTVariant::DXT3 => encode_dxt3_row(chunk),
-                DXTVariant::DXT5 => encode_dxt5_row(chunk),
+                DxtVariant::DXT1 => encode_dxt1_row(chunk),
+                DxtVariant::DXT3 => encode_dxt3_row(chunk),
+                DxtVariant::DXT5 => encode_dxt5_row(chunk),
             };
             self.w.write_all(&data)?;
         }

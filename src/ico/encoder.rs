@@ -15,14 +15,23 @@ const ICO_ICONDIR_SIZE: u32 = 6;
 const ICO_DIRENTRY_SIZE: u32 = 16;
 
 /// ICO encoder
-pub struct ICOEncoder<W: Write> {
+pub struct IcoEncoder<W: Write> {
     w: W,
 }
 
-impl<W: Write> ICOEncoder<W> {
+/// ICO encoder
+///
+/// An alias of [`IcoEncoder`].
+///
+/// [`IcoEncoder`]: struct.IcoEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `IcoEncoder` instead")]
+pub type ICOEncoder<W> = IcoEncoder<W>;
+
+impl<W: Write> IcoEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
-    pub fn new(w: W) -> ICOEncoder<W> {
-        ICOEncoder { w }
+    pub fn new(w: W) -> IcoEncoder<W> {
+        IcoEncoder { w }
     }
 
     /// Encodes the image ```image``` that has dimensions ```width``` and
@@ -52,7 +61,7 @@ impl<W: Write> ICOEncoder<W> {
     }
 }
 
-impl<W: Write> ImageEncoder for ICOEncoder<W> {
+impl<W: Write> ImageEncoder for IcoEncoder<W> {
     fn write_image(
         self,
         buf: &[u8],

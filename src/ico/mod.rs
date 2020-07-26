@@ -7,7 +7,8 @@
 //!  * <https://en.wikipedia.org/wiki/ICO_%28file_format%29>
 
 pub use self::decoder::IcoDecoder;
-pub use self::encoder::ICOEncoder;
+#[allow(deprecated)]
+pub use self::encoder::{IcoEncoder, ICOEncoder};
 
 mod decoder;
 mod encoder;

@@ -14,6 +14,15 @@ pub struct BmpEncoder<'a, W: 'a> {
     writer: &'a mut W,
 }
 
+/// BMP Encoder
+///
+/// An alias of [`BmpEncoder`].
+///
+/// [`BmpEncoder`]: struct.BmpEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `BmpEncoder` instead")]
+pub type BMPEncoder<'a, W> = BmpEncoder<'a, W>;
+
 impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: &'a mut W) -> Self {

@@ -746,14 +746,14 @@ impl DynamicImage {
 
             #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
-                let mut g = gif::Encoder::new(w);
+                let mut g = gif::GifEncoder::new(w);
                 g.encode_frame(crate::animation::Frame::new(self.to_rgba()))?;
                 Ok(())
             }
 
             #[cfg(feature = "ico")]
             image::ImageOutputFormat::Ico => {
-                let i = ico::ICOEncoder::new(w);
+                let i = ico::IcoEncoder::new(w);
 
                 i.encode(&bytes, width, height, color)?;
                 Ok(())

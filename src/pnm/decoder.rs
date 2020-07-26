@@ -8,7 +8,7 @@ use std::mem;
 use std::num::ParseIntError;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
-use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
+use super::{HeaderRecord, PnmHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
@@ -230,21 +230,21 @@ impl<R: Read> PnmDecoder<R> {
         let magic = buf.read_magic_constant()?;
 
         let subtype = match magic {
-            [b'P', b'1'] => PnmSubtype::Bitmap(SampleEncoding::Ascii),
-            [b'P', b'2'] => PnmSubtype::Graymap(SampleEncoding::Ascii),
-            [b'P', b'3'] => PnmSubtype::Pixmap(SampleEncoding::Ascii),
-            [b'P', b'4'] => PnmSubtype::Bitmap(SampleEncoding::Binary),
-            [b'P', b'5'] => PnmSubtype::Graymap(SampleEncoding::Binary),
-            [b'P', b'6'] => PnmSubtype::Pixmap(SampleEncoding::Binary),
-            [b'P', b'7'] => PnmSubtype::ArbitraryMap,
+            [b'P', b'1'] => PNMSubtype::Bitmap(SampleEncoding::Ascii),
+            [b'P', b'2'] => PNMSubtype::Graymap(SampleEncoding::Ascii),
+            [b'P', b'3'] => PNMSubtype::Pixmap(SampleEncoding::Ascii),
+            [b'P', b'4'] => PNMSubtype::Bitmap(SampleEncoding::Binary),
+            [b'P', b'5'] => PNMSubtype::Graymap(SampleEncoding::Binary),
+            [b'P', b'6'] => PNMSubtype::Pixmap(SampleEncoding::Binary),
+            [b'P', b'7'] => PNMSubtype::ArbitraryMap,
             _ => Err(DecoderError::PnmMagicInvalid(magic))?,
         };
 
         match subtype {
-            PnmSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
-            PnmSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
-            PnmSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
-            PnmSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
+            PNMSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
+            PNMSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
+            PNMSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
+            PNMSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
         }
     }
 
@@ -608,7 +608,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
-    pub fn subtype(&self) -> PnmSubtype {
+    pub fn subtype(&self) -> PNMSubtype {
         self.header.subtype()
     }
 }
@@ -913,7 +913,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (4, 4));
-        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -956,7 +956,7 @@ ENDHDR
         let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
-        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -999,7 +999,7 @@ ENDHDR
         let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::Rgb8);
         assert_eq!(decoder.dimensions(), (2, 2));
-        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1035,7 +1035,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(
             decoder.subtype(),
-            PnmSubtype::Bitmap(SampleEncoding::Binary)
+            PNMSubtype::Bitmap(SampleEncoding::Binary)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1092,7 +1092,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
-        assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1124,7 +1124,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
-        assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1157,7 +1157,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
-            PnmSubtype::Graymap(SampleEncoding::Binary)
+            PNMSubtype::Graymap(SampleEncoding::Binary)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1190,7 +1190,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
-            PnmSubtype::Graymap(SampleEncoding::Ascii)
+            PNMSubtype::Graymap(SampleEncoding::Ascii)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();

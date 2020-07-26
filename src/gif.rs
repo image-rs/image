@@ -299,6 +299,8 @@ pub struct GifEncoder<W: Write> {
 ///
 /// An alias of [`GifEncoder`].
 ///
+/// TODO: remove
+///
 /// [`GifEncoder`]: struct.GifEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `GifEncoder` instead")]

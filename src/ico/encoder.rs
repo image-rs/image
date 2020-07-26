@@ -23,6 +23,8 @@ pub struct IcoEncoder<W: Write> {
 ///
 /// An alias of [`IcoEncoder`].
 ///
+/// TODO: remove
+///
 /// [`IcoEncoder`]: struct.IcoEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `IcoEncoder` instead")]

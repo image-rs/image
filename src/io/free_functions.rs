@@ -165,15 +165,15 @@ pub(crate) fn save_buffer_impl(
         "png" => png::PngEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pbm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary))
+            .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pgm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary))
+            .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "ppm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary))
+            .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
         "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),

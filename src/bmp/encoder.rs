@@ -18,6 +18,8 @@ pub struct BmpEncoder<'a, W: 'a> {
 ///
 /// An alias of [`BmpEncoder`].
 ///
+/// TODO: remove
+///
 /// [`BmpEncoder`]: struct.BmpEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `BmpEncoder` instead")]

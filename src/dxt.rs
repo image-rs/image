@@ -17,8 +17,14 @@ use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progres
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
 /// just DXT3 and DXT5 with premultiplied alpha
+///
+/// DEPRECATED: The name of this enum will be changed to [`DxtVariant`].
+///
+/// TODO: rename to [`DxtVariant`]
+///
+/// [`DxtVariant`]: type.DxtVariant.html
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DxtVariant {
+pub enum DXTVariant {
     /// The DXT1 format. 48 bytes of RGB data in a 4x4 pixel square is
     /// compressed into an 8 byte block of DXT1 data
     DXT1,
@@ -32,36 +38,37 @@ pub enum DxtVariant {
 
 /// DXT compression version.
 ///
-/// An alias of [`DxtVariant`].
+/// An alias of [`DXTVariant`].
 ///
-/// [`DxtVariant`]: enum.DxtVariant.html
+/// TODO: remove when [`DXTVariant`] is renamed.
+///
+/// [`DXTVariant`]: enum.DXTVariant.html
 #[allow(dead_code)]
-#[deprecated(note = "Use `DxtVariant` instead")]
-pub type DXTVariant = DxtVariant;
+pub type DxtVariant = DXTVariant;
 
-impl DxtVariant {
+impl DXTVariant {
     /// Returns the amount of bytes of raw image data
     /// that is encoded in a single DXTn block
     fn decoded_bytes_per_block(self) -> usize {
         match self {
-            DxtVariant::DXT1 => 48,
-            DxtVariant::DXT3 | DxtVariant::DXT5 => 64,
+            DXTVariant::DXT1 => 48,
+            DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
         }
     }
 
     /// Returns the amount of bytes per block of encoded DXTn data
     fn encoded_bytes_per_block(self) -> usize {
         match self {
-            DxtVariant::DXT1 => 8,
-            DxtVariant::DXT3 | DxtVariant::DXT5 => 16,
+            DXTVariant::DXT1 => 8,
+            DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
         }
     }
 
     /// Returns the color type that is stored in this DXT variant
     pub fn color_type(self) -> ColorType {
         match self {
-            DxtVariant::DXT1 => ColorType::Rgb8,
-            DxtVariant::DXT3 | DxtVariant::DXT5 => ColorType::Rgba8,
+            DXTVariant::DXT1 => ColorType::Rgb8,
+            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
         }
     }
 }
@@ -71,7 +78,7 @@ pub struct DxtDecoder<R: Read> {
     inner: R,
     width_blocks: u32,
     height_blocks: u32,
-    variant: DxtVariant,
+    variant: DXTVariant,
     row: u32,
 }
 
@@ -87,7 +94,7 @@ impl<R: Read> DxtDecoder<R> {
         r: R,
         width: u32,
         height: u32,
-        variant: DxtVariant,
+        variant: DXTVariant,
     ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is actually a bit of a weird case. We could return `DecodingError` but
@@ -115,9 +122,9 @@ impl<R: Read> DxtDecoder<R> {
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
         self.inner.read_exact(&mut src)?;
         match self.variant {
-            DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
-            DxtVariant::DXT3 => decode_dxt3_row(&src, buf),
-            DxtVariant::DXT5 => decode_dxt5_row(&src, buf),
+            DXTVariant::DXT1 => decode_dxt1_row(&src, buf),
+            DXTVariant::DXT3 => decode_dxt3_row(&src, buf),
+            DXTVariant::DXT5 => decode_dxt5_row(&src, buf),
         }
         self.row += 1;
         Ok(buf.len())
@@ -193,6 +200,8 @@ pub struct DxtReader<R: Read> {
 ///
 /// An alias of [`DxtReader`].
 ///
+/// TODO: remove
+///
 /// [`DxtReader`]: struct.DxtReader.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `DxtReader` instead")]
@@ -214,6 +223,8 @@ pub struct DxtEncoder<W: Write> {
 ///
 /// An alias of [`DxtEncoder`].
 ///
+/// TODO: remove
+///
 /// [`DxtEncoder`]: struct.DxtEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `DxtEncoder` instead")]
@@ -234,7 +245,7 @@ impl<W: Write> DxtEncoder<W> {
         data: &[u8],
         width: u32,
         height: u32,
-        variant: DxtVariant,
+        variant: DXTVariant,
     ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is not very idiomatic yet. Should return an EncodingError.
@@ -251,9 +262,9 @@ impl<W: Write> DxtEncoder<W> {
 
         for chunk in data.chunks(width_blocks as usize * stride) {
             let data = match variant {
-                DxtVariant::DXT1 => encode_dxt1_row(chunk),
-                DxtVariant::DXT3 => encode_dxt3_row(chunk),
-                DxtVariant::DXT5 => encode_dxt5_row(chunk),
+                DXTVariant::DXT1 => encode_dxt1_row(chunk),
+                DXTVariant::DXT3 => encode_dxt3_row(chunk),
+                DXTVariant::DXT5 => encode_dxt5_row(chunk),
             };
             self.w.write_all(&data)?;
         }

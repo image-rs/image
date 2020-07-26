@@ -13,6 +13,8 @@ pub struct HdrEncoder<W: Write> {
 ///
 /// An alias of [`HdrEncoder`].
 ///
+/// TODO: remove
+///
 /// [`HdrEncoder`]: struct.HdrEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `HdrEncoder` instead")]

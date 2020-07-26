@@ -344,6 +344,8 @@ pub struct JpegEncoder<'a, W: 'a> {
 ///
 /// An alias of [`JpegEncoder`].
 ///
+/// TODO: remove
+///
 /// [`JpegEncoder`]: struct.JpegEncoder.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `JpegEncoder` instead")]

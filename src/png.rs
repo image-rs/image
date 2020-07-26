@@ -35,6 +35,8 @@ pub struct PngReader<R: Read> {
 ///
 /// An alias of [`PngReader`].
 ///
+/// TODO: remove
+///
 /// [`PngReader`]: struct.PngReader.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `PngReader` instead")]
@@ -444,6 +446,8 @@ pub struct PngEncoder<W: Write> {
 /// PNG Encoder
 ///
 /// An alias of [`PngEncoder`].
+///
+/// TODO: remove
 ///
 /// [`PngEncoder`]: struct.PngEncoder.html
 #[allow(dead_code)]

@@ -11,7 +11,7 @@ use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
-use crate::dxt::{DxtDecoder, DxtReader, DxtVariant};
+use crate::dxt::{DxtDecoder, DxtReader, DXTVariant};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
@@ -169,9 +169,9 @@ impl<R: Read> DdsDecoder<R> {
 
         if header.pixel_format.flags & 0x4 != 0 {
             let variant = match &header.pixel_format.fourcc {
-                b"DXT1" => DxtVariant::DXT1,
-                b"DXT3" => DxtVariant::DXT3,
-                b"DXT5" => DxtVariant::DXT5,
+                b"DXT1" => DXTVariant::DXT1,
+                b"DXT3" => DXTVariant::DXT3,
+                b"DXT5" => DXTVariant::DXT5,
                 fourcc => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(

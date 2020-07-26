@@ -125,6 +125,8 @@ pub struct HdrAdapter<R: BufRead> {
 ///
 /// An alias of [`HdrAdapter`].
 ///
+/// TODO: remove
+///
 /// [`HdrAdapter`]: struct.HdrAdapter.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `HdrAdapter` instead")]
@@ -247,6 +249,8 @@ pub struct Rgbe8Pixel {
 /// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
 ///
 /// An alias of [`Rgbe8Pixel`].
+///
+/// TODO: remove
 ///
 /// [`Rgbe8Pixel`]: struct.Rgbe8Pixel.html
 #[allow(dead_code)]
@@ -508,6 +512,8 @@ pub struct HdrImageDecoderIterator<R: BufRead> {
 ///
 /// An alias of [`HdrImageDecoderIterator`].
 ///
+/// TODO: remove
+///
 /// [`HdrImageDecoderIterator`]: struct.HdrImageDecoderIterator.html
 #[allow(dead_code)]
 #[deprecated(note = "Use `HdrImageDecoderIterator` instead")]
@@ -756,6 +762,8 @@ pub struct HdrMetadata {
 /// HDR MetaData
 ///
 /// An alias of [`HdrMetadata`].
+///
+/// TODO: remove
 ///
 /// [`HdrMetadata`]: struct.HdrMetadata.html
 #[allow(dead_code)]

@@ -10,6 +10,12 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.8
+
+- `flat::Error` now implements the standard `Error` trait
+- The type parameter of `Map` has been relaxed to `?Sized`
+- Added the `imageops::tile` function that repeats one image across another
+
 ### Version 0.23.7
 
 - Iterators over immutable pixels of `ImageBuffer` can now be cloned

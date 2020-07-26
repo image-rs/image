@@ -23,7 +23,7 @@ use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
-use crate::error::{EncodingError, DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader

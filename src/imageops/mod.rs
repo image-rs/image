@@ -1,8 +1,10 @@
 //! Image Processing Functions
 use std::cmp;
 
+use num_traits::{NumCast};
+
 use crate::image::{GenericImage, GenericImageView, SubImage};
-use crate::traits::Pixel;
+use crate::traits::{Lerp, Primitive, Pixel};
 
 pub use self::sample::FilterType;
 
@@ -186,6 +188,76 @@ where
     for x in (0..bottom.width()).step_by(top.width() as usize) {
         for y in (0..bottom.height()).step_by(top.height() as usize) {
             overlay(bottom, top, x, y);
+        }
+    }
+}
+
+/// Fill the image with a linear vertical gradient
+/// 
+/// This function assumes a linear color space.
+/// 
+/// # Examples
+/// ```no_run
+/// use image::{Rgba, RgbaImage, Pixel};
+/// 
+/// fn main() {
+///     let mut img = RgbaImage::new(100, 100);
+///     let start = Rgba::from_slice(&[0, 128, 0, 0]);
+///     let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// 
+///     image::imageops::vertical_gradient(&mut img, start, end);
+///     img.save("vertical_gradient.png").unwrap();
+/// }
+pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
+where
+    I: GenericImage<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
+    S: Primitive + Lerp + 'static
+{
+    for y in 0..img.height() {
+        let pixel = start.map2(stop, |a, b| {
+            let y = <S::SignedLarger as NumCast>::from(y).unwrap();
+            let height = <S::SignedLarger as NumCast>::from(img.height()).unwrap();
+            S::lerp(a, b, y, height)
+        });
+        
+        for x in 0..img.width() {
+            img.put_pixel(x, y, pixel);
+        }
+    }
+}
+
+/// Fill the image with a linear horizontal gradient
+/// 
+/// This function assumes a linear color space.
+///
+/// # Examples
+/// ```no_run
+/// use image::{Rgba, RgbaImage, Pixel};
+/// 
+/// fn main() {
+///     let mut img = RgbaImage::new(100, 100);
+///     let start = Rgba::from_slice(&[0, 128, 0, 0]);
+///     let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// 
+///     image::imageops::horizontal_gradient(&mut img, start, end);
+///     img.save("horizontal_gradient.png").unwrap();
+/// }
+pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
+where
+    I: GenericImage<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
+    S: Primitive + Lerp + 'static
+{
+    for x in 0..img.width() {
+        let pixel = start.map2(stop, |a, b| {
+            let x = <S::SignedLarger as NumCast>::from(x).unwrap();
+            let width = <S::SignedLarger as NumCast>::from(img.width()).unwrap();
+            S::lerp(a, b, x, width)
+        });
+        
+        for y in 0..img.height() {
+            img.put_pixel(x, y, pixel);
         }
     }
 }

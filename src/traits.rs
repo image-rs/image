@@ -3,7 +3,7 @@
 // Note copied from the stdlib under MIT license
 
 use num_traits::{Bounded, Num, NumCast};
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Neg};
 
 use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
@@ -65,6 +65,40 @@ impl Enlargeable for u16 {
 }
 impl Enlargeable for u32 {
     type Larger = u64;
+}
+
+/// Linear interpolation without involving floating numbers.
+pub trait Lerp: Sized + Bounded + NumCast {
+    type SignedLarger: Primitive + AddAssign + Neg + 'static;
+
+    fn lerp(a: Self, b: Self, i: Self::SignedLarger, n: Self::SignedLarger) -> Self {
+        let a = <Self::SignedLarger as NumCast>::from(a).unwrap();
+        let b = <Self::SignedLarger as NumCast>::from(b).unwrap();
+        let i = <Self::SignedLarger as NumCast>::from(i).unwrap();
+        let n = <Self::SignedLarger as NumCast>::from(n).unwrap();
+
+        let res = a + (i * (b - a) / n);
+
+        if res > NumCast::from(Self::max_value()).unwrap() {
+            Self::max_value()
+        } else if res < NumCast::from(0).unwrap() {
+            NumCast::from(0).unwrap()
+        } else {
+            NumCast::from(res).unwrap()
+        }
+    }
+}
+
+impl Lerp for u8 {
+    type SignedLarger = i32;
+}
+
+impl Lerp for u16 {
+    type SignedLarger = i32;
+}
+
+impl Lerp for u32 {
+    type SignedLarger = i64;
 }
 
 /// A generalized pixel.

@@ -231,7 +231,8 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
         .and_then(|s| s.to_str())
         .map(str::to_ascii_lowercase);
 
-    let ext = ext.as_deref();
+    let ext = ext.as_ref()
+        .map(String::as_str);
 
     Ok(match ext {
         Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,

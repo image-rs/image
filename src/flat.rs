@@ -901,9 +901,9 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
             layout: SampleLayout {
                 channels: P::CHANNEL_COUNT,
                 channel_stride: 1,
-                width: width,
+                width,
                 width_stride: 0,
-                height: height,
+                height,
                 height_stride: 0,
             },
             color_hint: Some(P::COLOR_TYPE),

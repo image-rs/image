@@ -77,7 +77,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
             // Assume BGRA32
             self.writer.write_u32::<LittleEndian>(0xff << 16)?; // red mask
             self.writer.write_u32::<LittleEndian>(0xff << 8)?; // green mask
-            self.writer.write_u32::<LittleEndian>(0xff << 0)?; // blue mask
+            self.writer.write_u32::<LittleEndian>(0xff)?; // blue mask
             self.writer.write_u32::<LittleEndian>(0xff << 24)?; // alpha mask
             self.writer.write_u32::<LittleEndian>(0x73524742)?; // colorspace - sRGB
 

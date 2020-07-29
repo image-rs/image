@@ -386,7 +386,7 @@ impl<R: Read> ApngDecoder<R> {
             ColorType::L8 | ColorType::Rgb8 | ColorType::La8 | ColorType::Rgba8 => Ok(()),
             // TODO: do not handle multi-byte colors. Remember to implement it in `mix_next_frame`.
             ColorType::L16 | ColorType::Rgb16 | ColorType::La16 | ColorType::Rgba16  => {
-                return Err(unsupported_color(self.inner.color_type.into()))
+                Err(unsupported_color(self.inner.color_type.into()))
             },
             _ => unreachable!("{:?} not a valid png color", self.inner.color_type),
         }

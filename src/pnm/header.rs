@@ -11,6 +11,12 @@ pub enum SampleEncoding {
 }
 
 /// Denotes the category of the magic number
+///
+/// DEPRECATED: The name of this enum will be changed to [`PnmSubtype`].
+///
+/// TODO: rename to [`PnmSubtype`].
+///
+/// [`PnmSubtype`]: type.PnmSubtype.html
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PNMSubtype {
     /// Magic numbers P1 and P4
@@ -26,16 +32,37 @@ pub enum PNMSubtype {
     ArbitraryMap,
 }
 
+/// PNM Subtype
+///
+/// An alias of [`PNMSubtype`].
+///
+/// TODO: remove when [`DXTVariant`] is renamed.
+///
+/// [`PNMSubtype`]: enum.PNMSubtype.html
+#[allow(dead_code)]
+pub type PnmSubtype = PNMSubtype;
+
 /// Stores the complete header data of a file.
 ///
 /// Internally, provides mechanisms for lossless reencoding. After reading a file with the decoder
 /// it is possible to recover the header and construct an encoder. Using the encoder on the just
 /// loaded image should result in a byte copy of the original file (for single image pnms without
 /// additional trailing data).
-pub struct PNMHeader {
+pub struct PnmHeader {
     pub(crate) decoded: HeaderRecord,
     pub(crate) encoded: Option<Vec<u8>>,
 }
+
+/// PNM Header
+///
+/// An alias of [`PnmHeader`].
+///
+/// TODO: remove
+///
+/// [`PnmHeader`]: struct.PnmHeader.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `PnmHeader` instead")]
+pub type PNMHeader = PnmHeader;
 
 pub(crate) enum HeaderRecord {
     Bitmap(BitmapHeader),
@@ -172,7 +199,7 @@ impl PNMSubtype {
     }
 }
 
-impl PNMHeader {
+impl PnmHeader {
     /// Retrieve the format subtype from which the header was created.
     pub fn subtype(&self) -> PNMSubtype {
         match self.decoded {
@@ -249,11 +276,11 @@ impl PNMHeader {
     pub fn write(&self, writer: &mut dyn io::Write) -> io::Result<()> {
         writer.write_all(self.subtype().magic_constant())?;
         match *self {
-            PNMHeader {
+            PnmHeader {
                 encoded: Some(ref content),
                 ..
             } => writer.write_all(content),
-            PNMHeader {
+            PnmHeader {
                 decoded:
                     HeaderRecord::Bitmap(BitmapHeader {
                         encoding: _encoding,
@@ -262,7 +289,7 @@ impl PNMHeader {
                     }),
                 ..
             } => writeln!(writer, "\n{} {}", width, height),
-            PNMHeader {
+            PnmHeader {
                 decoded:
                     HeaderRecord::Graymap(GraymapHeader {
                         encoding: _encoding,
@@ -272,7 +299,7 @@ impl PNMHeader {
                     }),
                 ..
             } => writeln!(writer, "\n{} {} {}", width, height, maxwhite),
-            PNMHeader {
+            PnmHeader {
                 decoded:
                     HeaderRecord::Pixmap(PixmapHeader {
                         encoding: _encoding,
@@ -282,7 +309,7 @@ impl PNMHeader {
                     }),
                 ..
             } => writeln!(writer, "\n{} {} {}", width, height, maxval),
-            PNMHeader {
+            PnmHeader {
                 decoded:
                     HeaderRecord::Arbitrary(ArbitraryHeader {
                         width,
@@ -313,36 +340,36 @@ impl PNMHeader {
     }
 }
 
-impl From<BitmapHeader> for PNMHeader {
+impl From<BitmapHeader> for PnmHeader {
     fn from(header: BitmapHeader) -> Self {
-        PNMHeader {
+        PnmHeader {
             decoded: HeaderRecord::Bitmap(header),
             encoded: None,
         }
     }
 }
 
-impl From<GraymapHeader> for PNMHeader {
+impl From<GraymapHeader> for PnmHeader {
     fn from(header: GraymapHeader) -> Self {
-        PNMHeader {
+        PnmHeader {
             decoded: HeaderRecord::Graymap(header),
             encoded: None,
         }
     }
 }
 
-impl From<PixmapHeader> for PNMHeader {
+impl From<PixmapHeader> for PnmHeader {
     fn from(header: PixmapHeader) -> Self {
-        PNMHeader {
+        PnmHeader {
             decoded: HeaderRecord::Pixmap(header),
             encoded: None,
         }
     }
 }
 
-impl From<ArbitraryHeader> for PNMHeader {
+impl From<ArbitraryHeader> for PnmHeader {
     fn from(header: ArbitraryHeader) -> Self {
-        PNMHeader {
+        PnmHeader {
             decoded: HeaderRecord::Arbitrary(header),
             encoded: None,
         }

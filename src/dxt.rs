@@ -17,6 +17,12 @@ use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progres
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
 /// just DXT3 and DXT5 with premultiplied alpha
+///
+/// DEPRECATED: The name of this enum will be changed to [`DxtVariant`].
+///
+/// TODO: rename to [`DxtVariant`]
+///
+/// [`DxtVariant`]: type.DxtVariant.html
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DXTVariant {
     /// The DXT1 format. 48 bytes of RGB data in a 4x4 pixel square is
@@ -29,6 +35,16 @@ pub enum DXTVariant {
     /// compressed into a 16 byte block of DXT5 data
     DXT5,
 }
+
+/// DXT compression version.
+///
+/// An alias of [`DXTVariant`].
+///
+/// TODO: remove when [`DXTVariant`] is renamed.
+///
+/// [`DXTVariant`]: enum.DXTVariant.html
+#[allow(dead_code)]
+pub type DxtVariant = DXTVariant;
 
 impl DXTVariant {
     /// Returns the amount of bytes of raw image data
@@ -118,7 +134,7 @@ impl<R: Read> DxtDecoder<R> {
 // Note that, due to the way that DXT compression works, a scanline is considered to consist out of
 // 4 lines of pixels.
 impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
-    type Reader = DXTReader<R>;
+    type Reader = DxtReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
         (self.width_blocks * 4, self.height_blocks * 4)
@@ -133,7 +149,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(DXTReader {
+        Ok(DxtReader {
             buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
             decoder: self,
         })
@@ -175,11 +191,23 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
 }
 
 /// DXT reader
-pub struct DXTReader<R: Read> {
+pub struct DxtReader<R: Read> {
     buffer: ImageReadBuffer,
     decoder: DxtDecoder<R>,
 }
-impl<R: Read> Read for DXTReader<R> {
+
+/// DXT reader
+///
+/// An alias of [`DxtReader`].
+///
+/// TODO: remove
+///
+/// [`DxtReader`]: struct.DxtReader.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `DxtReader` instead")]
+pub type DXTReader<R> = DxtReader<R>;
+
+impl<R: Read> Read for DxtReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let decoder = &mut self.decoder;
         self.buffer.read(buf, |buf| decoder.read_scanline(buf))
@@ -187,14 +215,25 @@ impl<R: Read> Read for DXTReader<R> {
 }
 
 /// DXT encoder
-pub struct DXTEncoder<W: Write> {
+pub struct DxtEncoder<W: Write> {
     w: W,
 }
 
-impl<W: Write> DXTEncoder<W> {
+/// DXT encoder
+///
+/// An alias of [`DxtEncoder`].
+///
+/// TODO: remove
+///
+/// [`DxtEncoder`]: struct.DxtEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `DxtEncoder` instead")]
+pub type DXTEncoder<W> = DxtEncoder<W>;
+
+impl<W: Write> DxtEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> DXTEncoder<W> {
-        DXTEncoder { w }
+    pub fn new(w: W) -> DxtEncoder<W> {
+        DxtEncoder { w }
     }
 
     /// Encodes the image data ```data```

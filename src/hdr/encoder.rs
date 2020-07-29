@@ -1,18 +1,29 @@
 use crate::color::Rgb;
 use crate::error::ImageResult;
-use crate::hdr::{rgbe8, RGBE8Pixel, SIGNATURE};
+use crate::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use std::io::{Result, Write};
 use std::cmp::Ordering;
 
 /// Radiance HDR encoder
-pub struct HDREncoder<W: Write> {
+pub struct HdrEncoder<W: Write> {
     w: W,
 }
 
-impl<W: Write> HDREncoder<W> {
+/// HDR Encoder
+///
+/// An alias of [`HdrEncoder`].
+///
+/// TODO: remove
+///
+/// [`HdrEncoder`]: struct.HdrEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `HdrEncoder` instead")]
+pub type HDREncoder<R> = HdrEncoder<R>;
+
+impl<W: Write> HdrEncoder<W> {
     /// Creates encoder
-    pub fn new(w: W) -> HDREncoder<W> {
-        HDREncoder { w }
+    pub fn new(w: W) -> HdrEncoder<W> {
+        HdrEncoder { w }
     }
 
     /// Encodes the image ```data```
@@ -220,16 +231,16 @@ fn rle_compress(data: &[u8], rle: &mut Vec<u8>) {
     }
 }
 
-fn write_rgbe8<W: Write>(w: &mut W, v: RGBE8Pixel) -> Result<()> {
+fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
     w.write_all(&[v.c[0], v.c[1], v.c[2], v.e])
 }
 
 /// Converts ```Rgb<f32>``` into ```RGBE8Pixel```
-pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
+pub fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
     let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
     if mx <= 0.0 {
-        RGBE8Pixel { c: [0, 0, 0], e: 0 }
+        Rgbe8Pixel { c: [0, 0, 0], e: 0 }
     } else {
         // let (frac, exp) = mx.frexp(); // unstable yet
         let exp = mx.log2().floor() as i32 + 1;
@@ -238,7 +249,7 @@ pub fn to_rgbe8(pix: Rgb<f32>) -> RGBE8Pixel {
         for (cv, &sv) in conv.iter_mut().zip(pix.iter()) {
             *cv = f32::trunc(sv / mul * 256.0) as u8;
         }
-        RGBE8Pixel {
+        Rgbe8Pixel {
             c: conv,
             e: (exp + 128) as u8,
         }

@@ -5,11 +5,13 @@
 //! variants for now as alpha color types are unsupported.
 use self::autobreak::AutoBreak;
 pub use self::decoder::PnmDecoder;
-pub use self::encoder::PNMEncoder;
+#[allow(deprecated)] // TODO: when `PNMEncoder` is removed, remove this flag
+pub use self::encoder::{PnmEncoder, PNMEncoder};
 use self::header::HeaderRecord;
 pub use self::header::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader,
                        PixmapHeader};
-pub use self::header::{PNMHeader, PNMSubtype, SampleEncoding};
+#[allow(deprecated)] // TODO: when `PnmHeader` and `PNMSubtype` are removed, remove this flag
+pub use self::header::{PnmHeader, PNMHeader, PNMSubtype, PnmSubtype, SampleEncoding};
 
 mod autobreak;
 mod decoder;
@@ -27,7 +29,7 @@ mod tests {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");
@@ -58,7 +60,7 @@ mod tests {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer).with_subtype(subtype);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer).with_subtype(subtype);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");
@@ -84,7 +86,7 @@ mod tests {
         let mut encoded_buffer = Vec::new();
 
         {
-            let mut encoder = PNMEncoder::new(&mut encoded_buffer);
+            let mut encoder = PnmEncoder::new(&mut encoded_buffer);
             encoder
                 .encode(buffer, width, height, color)
                 .expect("Failed to encode the image buffer");

@@ -705,7 +705,7 @@ impl DynamicImage {
         match format {
             #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
-                let p = png::PNGEncoder::new(w);
+                let p = png::PngEncoder::new(w);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
@@ -722,7 +722,7 @@ impl DynamicImage {
             }
             #[cfg(feature = "pnm")]
             image::ImageOutputFormat::Pnm(subtype) => {
-                let mut p = pnm::PNMEncoder::new(w).with_subtype(subtype);
+                let mut p = pnm::PnmEncoder::new(w).with_subtype(subtype);
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
                         bytes = self.to_rgba().iter().cloned().collect();
@@ -739,21 +739,21 @@ impl DynamicImage {
             }
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::Jpeg(quality) => {
-                let j = jpeg::JPEGEncoder::new_with_quality(w, quality);
+                let j = jpeg::JpegEncoder::new_with_quality(w, quality);
                 j.write_image(&bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
-                let mut g = gif::Encoder::new(w);
+                let mut g = gif::GifEncoder::new(w);
                 g.encode_frame(crate::animation::Frame::new(self.to_rgba()))?;
                 Ok(())
             }
 
             #[cfg(feature = "ico")]
             image::ImageOutputFormat::Ico => {
-                let i = ico::ICOEncoder::new(w);
+                let i = ico::IcoEncoder::new(w);
 
                 i.encode(&bytes, width, height, color)?;
                 Ok(())
@@ -761,7 +761,7 @@ impl DynamicImage {
 
             #[cfg(feature = "bmp")]
             image::ImageOutputFormat::Bmp => {
-                let mut b = bmp::BMPEncoder::new(w);
+                let mut b = bmp::BmpEncoder::new(w);
                 b.encode(&bytes, width, height, color)?;
                 Ok(())
             }

@@ -10,14 +10,25 @@ const BITMAPINFOHEADER_SIZE: u32 = 40;
 const BITMAPV4HEADER_SIZE: u32 = 108;
 
 /// The representation of a BMP encoder.
-pub struct BMPEncoder<'a, W: 'a> {
+pub struct BmpEncoder<'a, W: 'a> {
     writer: &'a mut W,
 }
 
-impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
+/// BMP Encoder
+///
+/// An alias of [`BmpEncoder`].
+///
+/// TODO: remove
+///
+/// [`BmpEncoder`]: struct.BmpEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `BmpEncoder` instead")]
+pub type BMPEncoder<'a, W> = BmpEncoder<'a, W>;
+
+impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: &'a mut W) -> Self {
-        BMPEncoder { writer: w }
+        BmpEncoder { writer: w }
     }
 
     /// Encodes the image ```image```
@@ -211,7 +222,7 @@ impl<'a, W: Write + 'a> BMPEncoder<'a, W> {
     }
 }
 
-impl<'a, W: Write> ImageEncoder for BMPEncoder<'a, W> {
+impl<'a, W: Write> ImageEncoder for BmpEncoder<'a, W> {
     fn write_image(
         mut self,
         buf: &[u8],
@@ -251,7 +262,7 @@ fn get_pixel_info(c: color::ColorType) -> io::Result<(u32, u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::super::BmpDecoder;
-    use super::BMPEncoder;
+    use super::BmpEncoder;
     use crate::color::ColorType;
     use crate::image::ImageDecoder;
     use std::io::Cursor;
@@ -259,7 +270,7 @@ mod tests {
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
         let mut encoded_data = Vec::new();
         {
-            let mut encoder = BMPEncoder::new(&mut encoded_data);
+            let mut encoder = BmpEncoder::new(&mut encoded_data);
             encoder
                 .encode(&image, width, height, c)
                 .expect("could not encode image");
@@ -286,7 +297,7 @@ mod tests {
     fn huge_files_return_error() {
         let mut encoded_data = Vec::new();
         let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap
-        let mut encoder = BMPEncoder::new(&mut encoded_data);
+        let mut encoder = BmpEncoder::new(&mut encoded_data);
         let result = encoder.encode(&image, 40_000, 40_000, ColorType::Rgb8);
         assert!(result.is_err());
     }

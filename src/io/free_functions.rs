@@ -85,7 +85,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HDRAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         #[cfg(feature = "farbfeld")]
@@ -131,7 +131,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => hdr::HDRAdapter::new(fin)?.dimensions(),
+        image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
             pnm::PnmDecoder::new(fin)?.dimensions()
@@ -156,29 +156,29 @@ pub(crate) fn save_buffer_impl(
 
     match &*ext {
         #[cfg(feature = "gif")]
-        "gif" => gif::Encoder::new(fout).encode(buf, width, height, color),
+        "gif" => gif::GifEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        "ico" => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
+        "ico" => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
+        "jpg" | "jpeg" => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
-        "png" => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
+        "png" => png::PngEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pbm" => pnm::PNMEncoder::new(fout)
+        "pbm" => pnm::PnmEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pgm" => pnm::PNMEncoder::new(fout)
+        "pgm" => pnm::PnmEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "ppm" => pnm::PNMEncoder::new(fout)
+        "ppm" => pnm::PnmEncoder::new(fout)
             .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        "pam" => pnm::PNMEncoder::new(fout).write_image(buf, width, height, color),
+        "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        "bmp" => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
+        "bmp" => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
         "tif" | "tiff" => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),
@@ -202,15 +202,15 @@ pub(crate) fn save_buffer_with_format_impl(
 
     match format {
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::Encoder::new(fout).encode(buf, width, height, color),
+        image::ImageFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::ICOEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JPEGEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Jpeg => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PNGEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BMPEncoder::new(fout).write_image(buf, width, height, color),
+        image::ImageFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
         image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
             .write_image(buf, width, height, color),

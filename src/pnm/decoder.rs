@@ -8,7 +8,7 @@ use std::mem;
 use std::num::ParseIntError;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
-use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
+use super::{HeaderRecord, PnmHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
@@ -219,7 +219,7 @@ trait DecodableImageHeader {
 /// PNM decoder
 pub struct PnmDecoder<R> {
     reader: BufReader<R>,
-    header: PNMHeader,
+    header: PnmHeader,
     tuple: TupleType,
 }
 
@@ -249,7 +249,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     /// Extract the reader and header after an image has been read.
-    pub fn into_inner(self) -> (R, PNMHeader) {
+    pub fn into_inner(self) -> (R, PnmHeader) {
         (self.reader.into_inner(), self.header)
     }
 
@@ -261,7 +261,7 @@ impl<R: Read> PnmDecoder<R> {
         Ok(PnmDecoder {
             reader,
             tuple: TupleType::PbmBit,
-            header: PNMHeader {
+            header: PnmHeader {
                 decoded: HeaderRecord::Bitmap(header),
                 encoded: None,
             },
@@ -277,7 +277,7 @@ impl<R: Read> PnmDecoder<R> {
         Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
-            header: PNMHeader {
+            header: PnmHeader {
                 decoded: HeaderRecord::Graymap(header),
                 encoded: None,
             },
@@ -293,7 +293,7 @@ impl<R: Read> PnmDecoder<R> {
         Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
-            header: PNMHeader {
+            header: PnmHeader {
                 decoded: HeaderRecord::Pixmap(header),
                 encoded: None,
             },
@@ -306,7 +306,7 @@ impl<R: Read> PnmDecoder<R> {
         Ok(PnmDecoder {
             reader,
             tuple: tuple_type,
-            header: PNMHeader {
+            header: PnmHeader {
                 decoded: HeaderRecord::Arbitrary(header),
                 encoded: None,
             },
@@ -925,7 +925,7 @@ ENDHDR
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Arbitrary(ArbitraryHeader {
                             width: 4,
@@ -968,7 +968,7 @@ ENDHDR
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Arbitrary(ArbitraryHeader {
                             width: 4,
@@ -1008,7 +1008,7 @@ ENDHDR
         match PnmDecoder::new(&pamdata[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Arbitrary(ArbitraryHeader {
                             maxval: 255,
@@ -1043,7 +1043,7 @@ ENDHDR
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Bitmap(BitmapHeader {
                             encoding: SampleEncoding::Binary,
@@ -1100,7 +1100,7 @@ ENDHDR
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Bitmap(BitmapHeader {
                             encoding: SampleEncoding::Ascii,
@@ -1132,7 +1132,7 @@ ENDHDR
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Bitmap(BitmapHeader {
                             encoding: SampleEncoding::Ascii,
@@ -1165,7 +1165,7 @@ ENDHDR
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Graymap(GraymapHeader {
                             encoding: SampleEncoding::Binary,
@@ -1198,7 +1198,7 @@ ENDHDR
         match PnmDecoder::new(&pbmbinary[..]).unwrap().into_inner() {
             (
                 _,
-                PNMHeader {
+                PnmHeader {
                     decoded:
                         HeaderRecord::Graymap(GraymapHeader {
                             encoding: SampleEncoding::Ascii,

@@ -6,7 +6,7 @@ use std::io::Write;
 
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
-use super::{HeaderRecord, PNMHeader, PNMSubtype, SampleEncoding};
+use super::{HeaderRecord, PnmHeader, PNMSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
@@ -19,7 +19,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 enum HeaderStrategy {
     Dynamic,
     Subtype(PNMSubtype),
-    Chosen(PNMHeader),
+    Chosen(PnmHeader),
 }
 
 #[derive(Clone, Copy)]
@@ -29,10 +29,21 @@ pub enum FlatSamples<'a> {
 }
 
 /// Encodes images to any of the `pnm` image formats.
-pub struct PNMEncoder<W: Write> {
+pub struct PnmEncoder<W: Write> {
     writer: W,
     header: HeaderStrategy,
 }
+
+/// PNM Encoder
+///
+/// An alias of [`PnmEncoder`].
+///
+/// TODO: remove
+///
+/// [`PnmEncoder`]: struct.PnmEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `PnmEncoder` instead")]
+pub type PNMEncoder<W> = PnmEncoder<W>;
 
 /// Encapsulate the checking system in the type system. Non of the fields are actually accessed
 /// but requiring them forces us to validly construct the struct anyways.
@@ -45,7 +56,7 @@ struct CheckedImageBuffer<'a> {
 
 // Check the header against the buffer. Each struct produces the next after a check.
 struct UncheckedHeader<'a> {
-    header: &'a PNMHeader,
+    header: &'a PnmHeader,
 }
 
 struct CheckedDimensions<'a> {
@@ -78,14 +89,14 @@ enum TupleEncoding<'a> {
     },
 }
 
-impl<W: Write> PNMEncoder<W> {
+impl<W: Write> PnmEncoder<W> {
     /// Create new PNMEncoder from the `writer`.
     ///
     /// The encoded images will have some `pnm` format. If more control over the image type is
     /// required, use either one of `with_subtype` or `with_header`. For more information on the
     /// behaviour, see `with_dynamic_header`.
     pub fn new(writer: W) -> Self {
-        PNMEncoder {
+        PnmEncoder {
             writer,
             header: HeaderStrategy::Dynamic,
         }
@@ -99,7 +110,7 @@ impl<W: Write> PNMEncoder<W> {
     ///
     /// This will overwrite the effect of earlier calls to `with_header` and `with_dynamic_header`.
     pub fn with_subtype(self, subtype: PNMSubtype) -> Self {
-        PNMEncoder {
+        PnmEncoder {
             writer: self.writer,
             header: HeaderStrategy::Subtype(subtype),
         }
@@ -114,8 +125,8 @@ impl<W: Write> PNMEncoder<W> {
     /// Choose this option if you want a lossless decoding/encoding round trip.
     ///
     /// This will overwrite the effect of earlier calls to `with_subtype` and `with_dynamic_header`.
-    pub fn with_header(self, header: PNMHeader) -> Self {
-        PNMEncoder {
+    pub fn with_header(self, header: PnmHeader) -> Self {
+        PnmEncoder {
             writer: self.writer,
             header: HeaderStrategy::Chosen(header),
         }
@@ -129,7 +140,7 @@ impl<W: Write> PNMEncoder<W> {
     ///
     /// This will overwrite the effect of earlier calls to `with_subtype` and `with_header`.
     pub fn with_dynamic_header(self) -> Self {
-        PNMEncoder {
+        PnmEncoder {
             writer: self.writer,
             header: HeaderStrategy::Dynamic,
         }
@@ -193,7 +204,7 @@ impl<W: Write> PNMEncoder<W> {
             }
         };
 
-        let header = PNMHeader {
+        let header = PnmHeader {
             decoded: HeaderRecord::Arbitrary(ArbitraryHeader {
                 width,
                 height,
@@ -220,7 +231,7 @@ impl<W: Write> PNMEncoder<W> {
             (PNMSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
             }
-            (PNMSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PNMHeader {
+            (PNMSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PnmHeader {
                 decoded: HeaderRecord::Pixmap(PixmapHeader {
                     encoding,
                     width,
@@ -229,7 +240,7 @@ impl<W: Write> PNMEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Graymap(encoding), ExtendedColorType::L8) => PNMHeader {
+            (PNMSubtype::Graymap(encoding), ExtendedColorType::L8) => PnmHeader {
                 decoded: HeaderRecord::Graymap(GraymapHeader {
                     encoding,
                     width,
@@ -239,7 +250,7 @@ impl<W: Write> PNMEncoder<W> {
                 encoded: None,
             },
             (PNMSubtype::Bitmap(encoding), ExtendedColorType::L8)
-            | (PNMSubtype::Bitmap(encoding), ExtendedColorType::L1) => PNMHeader {
+            | (PNMSubtype::Bitmap(encoding), ExtendedColorType::L1) => PnmHeader {
                 decoded: HeaderRecord::Bitmap(BitmapHeader {
                     encoding,
                     width,
@@ -264,7 +275,7 @@ impl<W: Write> PNMEncoder<W> {
     /// Returns how the body should be written if successful.
     fn write_with_header(
         writer: &mut dyn Write,
-        header: &PNMHeader,
+        header: &PnmHeader,
         image: FlatSamples,
         width: u32,
         height: u32,
@@ -281,7 +292,7 @@ impl<W: Write> PNMEncoder<W> {
     }
 }
 
-impl<W: Write> ImageEncoder for PNMEncoder<W> {
+impl<W: Write> ImageEncoder for PnmEncoder<W> {
     fn write_image(
         mut self,
         buf: &[u8],
@@ -350,7 +361,7 @@ impl<'a> CheckedDimensions<'a> {
         let components = u32::from(color.channel_count());
 
         match *self.unchecked.header {
-            PNMHeader {
+            PnmHeader {
                 decoded: HeaderRecord::Bitmap(_),
                 ..
             } => match color {
@@ -363,7 +374,7 @@ impl<'a> CheckedDimensions<'a> {
                     )))
                 }
             },
-            PNMHeader {
+            PnmHeader {
                 decoded: HeaderRecord::Graymap(_),
                 ..
             } => match color {
@@ -376,7 +387,7 @@ impl<'a> CheckedDimensions<'a> {
                     )))
                 }
             },
-            PNMHeader {
+            PnmHeader {
                 decoded: HeaderRecord::Pixmap(_),
                 ..
             } => match color {
@@ -389,7 +400,7 @@ impl<'a> CheckedDimensions<'a> {
                     )))
                 }
             },
-            PNMHeader {
+            PnmHeader {
                 decoded:
                     HeaderRecord::Arbitrary(ArbitraryHeader {
                         depth,
@@ -509,7 +520,7 @@ impl<'a> CheckedHeader<'a> {
         Ok(self.encoding)
     }
 
-    fn header(&self) -> &PNMHeader {
+    fn header(&self) -> &PnmHeader {
         self.color.dimensions.unchecked.header
     }
 }

@@ -11,7 +11,7 @@ use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
-use crate::dxt::{DxtDecoder, DXTReader, DXTVariant};
+use crate::dxt::{DxtDecoder, DxtReader, DXTVariant};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
@@ -196,7 +196,7 @@ impl<R: Read> DdsDecoder<R> {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
-    type Reader = DXTReader<R>;
+    type Reader = DxtReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
         self.inner.dimensions()

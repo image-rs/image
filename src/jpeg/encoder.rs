@@ -326,7 +326,7 @@ impl Default for PixelDensity {
 }
 
 /// The representation of a JPEG encoder
-pub struct JPEGEncoder<'a, W: 'a> {
+pub struct JpegEncoder<'a, W: 'a> {
     writer: BitWriter<'a, W>,
 
     components: Vec<Component>,
@@ -340,16 +340,27 @@ pub struct JPEGEncoder<'a, W: 'a> {
     pixel_density: PixelDensity,
 }
 
-impl<'a, W: Write> JPEGEncoder<'a, W> {
+/// JPEG Encoder
+///
+/// An alias of [`JpegEncoder`].
+///
+/// TODO: remove
+///
+/// [`JpegEncoder`]: struct.JpegEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `JpegEncoder` instead")]
+pub type JPEGEncoder<'a, W> = JpegEncoder<'a, W>;
+
+impl<'a, W: Write> JpegEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: &mut W) -> JPEGEncoder<W> {
-        JPEGEncoder::new_with_quality(w, 75)
+    pub fn new(w: &mut W) -> JpegEncoder<W> {
+        JpegEncoder::new_with_quality(w, 75)
     }
 
     /// Create a new encoder that writes its output to ```w```, and has
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
-    pub fn new_with_quality(w: &mut W, quality: u8) -> JPEGEncoder<W> {
+    pub fn new_with_quality(w: &mut W, quality: u8) -> JpegEncoder<W> {
         let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
         let la = build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
 
@@ -403,7 +414,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
         tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
 
-        JPEGEncoder {
+        JpegEncoder {
             writer: BitWriter::new(w),
 
             components,
@@ -668,7 +679,7 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
     }
 }
 
-impl<'a, W: Write> ImageEncoder for JPEGEncoder<'a, W> {
+impl<'a, W: Write> ImageEncoder for JpegEncoder<'a, W> {
     fn write_image(
         mut self,
         buf: &[u8],
@@ -880,7 +891,7 @@ mod tests {
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
 
-    use super::{build_jfif_header, JPEGEncoder, PixelDensity};
+    use super::{build_jfif_header, JpegEncoder, PixelDensity};
     use super::super::JpegDecoder;
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
@@ -900,7 +911,7 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            let encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
                 .write_image(&img, 1, 1, ColorType::Rgb8)
                 .expect("Could not encode image");
@@ -926,7 +937,7 @@ mod tests {
         // encode it into a memory buffer
         let mut encoded_img = Vec::new();
         {
-            let encoder = JPEGEncoder::new_with_quality(&mut encoded_img, 100);
+            let encoder = JpegEncoder::new_with_quality(&mut encoded_img, 100);
             encoder
                 .write_image(&img[..], 2, 2, ColorType::L8)
                 .expect("Could not encode image");
@@ -968,7 +979,7 @@ mod tests {
         let img = [0; 65_536];
         // Try to encode an image that is too large
         let mut encoded = Vec::new();
-        let encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
+        let encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
         let result = encoder.write_image(&img, 65_536, 1, ColorType::L8);
         match result {
             Err(ImageError::Parameter(err)) => {
@@ -989,7 +1000,7 @@ mod tests {
         let max = std::u16::MAX;
         let image: ImageBuffer<Bgra<u16>, _> = ImageBuffer::from_raw(
             1, 1, vec![0, max / 2, max, max]).unwrap();
-        let mut encoder = JPEGEncoder::new_with_quality(&mut encoded, 100);
+        let mut encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
         encoder.encode_image(&image).unwrap();
         let decoded = decode(&encoded);
         assert!(decoded[0] > 200, "bad red channel in {:?}", &decoded);

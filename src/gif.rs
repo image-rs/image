@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //! ```rust,no_run
-//! use image::gif::{GifDecoder, Encoder};
+//! use image::gif::{GifDecoder, GifEncoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
 //! # fn main() -> std::io::Result<()> {
@@ -19,7 +19,7 @@
 //!
 //! // Encode frames into a gif and save to a file
 //! let mut file_out = File::open("out.gif")?;
-//! let mut encoder = Encoder::new(file_out);
+//! let mut encoder = GifEncoder::new(file_out);
 //! encoder.encode_frames(frames.into_iter());
 //! # Ok(())
 //! # }
@@ -290,15 +290,26 @@ impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
 }
 
 /// GIF encoder.
-pub struct Encoder<W: Write> {
+pub struct GifEncoder<W: Write> {
     w: Option<W>,
     gif_encoder: Option<gif::Encoder<W>>,
 }
 
-impl<W: Write> Encoder<W> {
+/// GIF encoder
+///
+/// An alias of [`GifEncoder`].
+///
+/// TODO: remove
+///
+/// [`GifEncoder`]: struct.GifEncoder.html
+#[allow(dead_code)]
+#[deprecated(note = "Use `GifEncoder` instead")]
+pub type Encoder<W> = GifEncoder<W>;
+
+impl<W: Write> GifEncoder<W> {
     /// Creates a new GIF encoder.
-    pub fn new(w: W) -> Encoder<W> {
-        Encoder {
+    pub fn new(w: W) -> GifEncoder<W> {
+        GifEncoder {
             w: Some(w),
             gif_encoder: None,
         }

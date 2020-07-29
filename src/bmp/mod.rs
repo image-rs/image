@@ -8,7 +8,8 @@
 //!
 
 pub use self::decoder::BmpDecoder;
-pub use self::encoder::BMPEncoder;
+#[allow(deprecated)] // TODO: when `BMPEncoder` is removed, remove this flag
+pub use self::encoder::{BmpEncoder, BMPEncoder};
 
 mod decoder;
 mod encoder;

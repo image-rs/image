@@ -138,7 +138,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// Make a format guess based on the content, replacing it on success.
     ///
     /// Returns `Ok` with the guess if no io error occurs. Additionally, replaces the current
-    /// format if the guess was successful. If the guess was not unable to determine a format then
+    /// format if the guess was successful. If the guess was unable to determine a format then
     /// the current format of the reader is unchanged.
     ///
     /// Returns an error if the underlying reader fails. The format is unchanged. The error is a

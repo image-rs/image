@@ -677,7 +677,11 @@ pub trait GenericImage: GenericImageView {
     /// Puts a pixel at location (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[allow(clippy::missing_safety_doc)]
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }

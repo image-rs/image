@@ -619,7 +619,11 @@ pub trait GenericImageView {
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
-    #[allow(clippy::missing_safety_doc)]
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: #method.in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }

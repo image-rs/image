@@ -237,7 +237,7 @@ impl<R: Read> PnmDecoder<R> {
             [b'P', b'5'] => PNMSubtype::Graymap(SampleEncoding::Binary),
             [b'P', b'6'] => PNMSubtype::Pixmap(SampleEncoding::Binary),
             [b'P', b'7'] => PNMSubtype::ArbitraryMap,
-            _ => Err(DecoderError::PnmMagicInvalid(magic))?,
+            _ => return Err(DecoderError::PnmMagicInvalid(magic).into()),
         };
 
         match subtype {
@@ -345,7 +345,7 @@ trait HeaderReader: BufRead {
                         break; // We're done as we already have some content
                     }
                 }
-                Ok(byte) if !byte.is_ascii() => Err(DecoderError::NonAsciiByteInHeader(byte))?,
+                Ok(byte) if !byte.is_ascii() => return Err(DecoderError::NonAsciiByteInHeader(byte).into()),
                 Ok(byte) => {
                     bytes.push(byte);
                 },
@@ -423,7 +423,7 @@ trait HeaderReader: BufRead {
     fn read_arbitrary_header(&mut self) -> ImageResult<ArbitraryHeader> {
         fn parse_single_value_line(line_val: &mut Option<u32>, rest: &str, line: PnmHeaderLine) -> ImageResult<()> {
             if line_val.is_some() {
-                return Err(DecoderError::HeaderLineDuplicated(line).into());
+                Err(DecoderError::HeaderLineDuplicated(line).into())
             } else {
                 let v = rest.trim().parse().map_err(|err| DecoderError::UnparsableValue(ErrorDataSource::Line(line), rest.to_owned(), err))?;
                 *line_val = Some(v);

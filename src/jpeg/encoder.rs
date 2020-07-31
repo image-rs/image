@@ -474,7 +474,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 self.encode_image(&image)
             },
             _ => {
-                return Err(ImageError::Unsupported(
+                Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Jpeg.into(),
                         UnsupportedErrorKind::Color(color_type.into()),

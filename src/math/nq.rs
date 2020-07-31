@@ -160,24 +160,20 @@ impl NeuQuant {
     #[inline(always)]
     pub fn map_pixel(&self, pixel: &mut [u8]) {
         assert_eq!(pixel.len(), 4);
-        match (pixel[0], pixel[1], pixel[2], pixel[3]) {
-            (r, g, b, a) => {
-                let i = self.search_netindex(b, g, r, a);
-                pixel[0] = self.colormap[i].r as u8;
-                pixel[1] = self.colormap[i].g as u8;
-                pixel[2] = self.colormap[i].b as u8;
-                pixel[3] = self.colormap[i].a as u8;
-            }
-        }
+        let (r, g, b, a) = (pixel[0], pixel[1], pixel[2], pixel[3]);
+        let i = self.search_netindex(b, g, r, a);
+        pixel[0] = self.colormap[i].r as u8;
+        pixel[1] = self.colormap[i].g as u8;
+        pixel[2] = self.colormap[i].b as u8;
+        pixel[3] = self.colormap[i].a as u8;
     }
 
     /// Finds the best-matching index in the color map for `pixel`
     #[inline(always)]
     pub fn index_of(&self, pixel: &[u8]) -> usize {
         assert_eq!(pixel.len(), 4);
-        match (pixel[0], pixel[1], pixel[2], pixel[3]) {
-            (r, g, b, a) => self.search_netindex(b, g, r, a),
-        }
+        let (r, g, b, a) = (pixel[0], pixel[1], pixel[2], pixel[3]);
+        self.search_netindex(b, g, r, a)
     }
 
     /// Lookup pixel values for color at `idx` in the colormap.

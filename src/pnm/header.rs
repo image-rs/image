@@ -324,7 +324,7 @@ impl PnmHeader {
                 impl<'a> fmt::Display for TupltypeWriter<'a> {
                     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                         match self.0 {
-                            Some(tt) => write!(f, "TUPLTYPE {}\n", tt.name()),
+                            Some(tt) => writeln!(f, "TUPLTYPE {}", tt.name()),
                             None => Ok(()),
                         }
                     }

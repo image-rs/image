@@ -216,7 +216,7 @@ pub(crate) fn save_buffer_with_format_impl(
             .write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+        format => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
 
@@ -255,7 +255,7 @@ pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, Pa
     })
 }
 
-static MAGIC_BYTES: [(&'static [u8], ImageFormat); 19] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 19] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),

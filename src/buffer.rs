@@ -15,7 +15,6 @@ use crate::traits::{EncodableLayout, Pixel};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
-#[derive(Clone)]
 pub struct Pixels<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
@@ -51,6 +50,12 @@ where
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
         self.chunks.next_back().map(|v| <P as Pixel>::from_slice(v))
+    }
+}
+
+impl<P: Pixel> Clone for Pixels<'_, P> {
+    fn clone(&self) -> Self {
+        Pixels { chunks: self.chunks.clone() }
     }
 }
 
@@ -100,7 +105,6 @@ where
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
 ///
 /// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
-#[derive(Clone)]
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -165,6 +169,12 @@ where
             // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
         })
+    }
+}
+
+impl<P: Pixel> Clone for Rows<'_, P> {
+    fn clone(&self) -> Self {
+        Rows { pixels: self.pixels.clone() }
     }
 }
 
@@ -241,7 +251,6 @@ where
 }
 
 /// Enumerate the pixels of an image.
-#[derive(Clone)]
 pub struct EnumeratePixels<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -279,8 +288,16 @@ where
     }
 }
 
+impl<P: Pixel> Clone for EnumeratePixels<'_, P> {
+    fn clone(&self) -> Self {
+        EnumeratePixels {
+            pixels: self.pixels.clone(),
+            ..*self
+        }
+    }
+}
+
 /// Enumerate the rows of an image.
-#[derive(Clone)]
 pub struct EnumerateRows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -320,6 +337,15 @@ where
 {
     fn len(&self) -> usize {
         self.rows.len()
+    }
+}
+
+impl<P: Pixel> Clone for EnumerateRows<'_, P> {
+    fn clone(&self) -> Self {
+        EnumerateRows {
+            rows: self.rows.clone(),
+            ..*self
+        }
     }
 }
 

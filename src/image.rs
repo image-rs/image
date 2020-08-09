@@ -573,6 +573,12 @@ impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
     }
 }
 
+impl<I: ?Sized> Clone for Pixels<'_, I> {
+    fn clone(&self) -> Self {
+        Pixels { ..*self }
+    }
+}
+
 /// Trait to inspect an image.
 pub trait GenericImageView {
     /// The type of pixel.

@@ -543,6 +543,7 @@ pub trait ImageEncoder {
 }
 
 /// Immutable pixel iterator
+#[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
     x: u32,

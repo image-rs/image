@@ -1,5 +1,6 @@
 //! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
+use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
@@ -15,7 +16,6 @@ use crate::traits::{EncodableLayout, Pixel};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
-#[derive(Clone)]
 pub struct Pixels<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
@@ -51,6 +51,24 @@ where
     #[inline(always)]
     fn next_back(&mut self) -> Option<&'a P> {
         self.chunks.next_back().map(|v| <P as Pixel>::from_slice(v))
+    }
+}
+
+impl<P: Pixel> Clone for Pixels<'_, P> {
+    fn clone(&self) -> Self {
+        Pixels { chunks: self.chunks.clone() }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for Pixels<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("Pixels")
+            .field("chunks", &self.chunks)
+            .finish()
     }
 }
 
@@ -95,12 +113,23 @@ where
     }
 }
 
+impl<P: Pixel> fmt::Debug for PixelsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("PixelsMut")
+            .field("chunks", &self.chunks)
+            .finish()
+    }
+}
+
 /// Iterate over rows of an image
 ///
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
 ///
 /// [`ImageBuffer::rows`]: ../struct.ImageBuffer.html#method.rows
-#[derive(Clone)]
 pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -165,6 +194,24 @@ where
             // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
+    }
+}
+
+impl<P: Pixel> Clone for Rows<'_, P> {
+    fn clone(&self) -> Self {
+        Rows { pixels: self.pixels.clone() }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for Rows<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("Rows")
+            .field("pixels", &self.pixels)
+            .finish()
     }
 }
 
@@ -240,8 +287,19 @@ where
     }
 }
 
+impl<P: Pixel> fmt::Debug for RowsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("RowsMut")
+            .field("pixels", &self.pixels)
+            .finish()
+    }
+}
+
 /// Enumerate the pixels of an image.
-#[derive(Clone)]
 pub struct EnumeratePixels<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -279,8 +337,31 @@ where
     }
 }
 
+impl<P: Pixel> Clone for EnumeratePixels<'_, P> {
+    fn clone(&self) -> Self {
+        EnumeratePixels {
+            pixels: self.pixels.clone(),
+            ..*self
+        }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumeratePixels<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumeratePixels")
+          .field("pixels", &self.pixels)
+          .field("x", &self.x)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
+    }
+}
+
 /// Enumerate the rows of an image.
-#[derive(Clone)]
 pub struct EnumerateRows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
@@ -323,6 +404,29 @@ where
     }
 }
 
+impl<P: Pixel> Clone for EnumerateRows<'_, P> {
+    fn clone(&self) -> Self {
+        EnumerateRows {
+            rows: self.rows.clone(),
+            ..*self
+        }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumerateRows<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumerateRows")
+          .field("rows", &self.rows)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
+    }
+}
+
 /// Enumerate the pixels of an image.
 pub struct EnumeratePixelsMut<'a, P: Pixel + 'a>
 where
@@ -358,6 +462,21 @@ where
 {
     fn len(&self) -> usize {
         self.pixels.len()
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumeratePixelsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumeratePixelsMut")
+          .field("pixels", &self.pixels)
+          .field("x", &self.x)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
     }
 }
 
@@ -401,6 +520,20 @@ where
 {
     fn len(&self) -> usize {
         self.rows.len()
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumerateRowsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumerateRowsMut")
+          .field("rows", &self.rows)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
     }
 }
 

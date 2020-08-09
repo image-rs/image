@@ -543,6 +543,7 @@ pub trait ImageEncoder {
 }
 
 /// Immutable pixel iterator
+#[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
     x: u32,
@@ -570,6 +571,12 @@ impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
 
             Some(p)
         }
+    }
+}
+
+impl<I: ?Sized> Clone for Pixels<'_, I> {
+    fn clone(&self) -> Self {
+        Pixels { ..*self }
     }
 }
 

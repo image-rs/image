@@ -3,7 +3,7 @@ use num_traits::Zero;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
-use std::slice::{Chunks, ChunksMut};
+use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use crate::flat::{FlatSamples, SampleLayout};
@@ -20,7 +20,7 @@ pub struct Pixels<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
 {
-    chunks: Chunks<'a, P::Subpixel>,
+    chunks: ChunksExact<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P>
@@ -59,7 +59,7 @@ pub struct PixelsMut<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
 {
-    chunks: ChunksMut<'a, P::Subpixel>,
+    chunks: ChunksExactMut<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P>
@@ -105,7 +105,7 @@ pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: Chunks<'a, P::Subpixel>,
+    pixels: ChunksExact<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Rows<'a, P> {
@@ -115,7 +115,7 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
         let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
         if row_len == 0 {
             Rows {
-                pixels: [].chunks(1),
+                pixels: [].chunks_exact(1),
             }
         } else {
             let pixels = pixels.get(..row_len*height as usize)
@@ -123,7 +123,7 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
             Rows {
-                pixels: pixels.chunks(row_len),
+                pixels: pixels.chunks_exact(row_len),
             }
         }
     }
@@ -140,7 +140,7 @@ where
         let row = self.pixels.next()?;
         Some(Pixels {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -163,7 +163,7 @@ where
         let row = self.pixels.next_back()?;
         Some(Pixels {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -177,7 +177,7 @@ pub struct RowsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: ChunksMut<'a, P::Subpixel>,
+    pixels: ChunksExactMut<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
@@ -187,7 +187,7 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
         let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
         if row_len == 0 {
             RowsMut {
-                pixels: [].chunks_mut(1),
+                pixels: [].chunks_exact_mut(1),
             }
         } else {
             let pixels = pixels.get_mut(..row_len*height as usize)
@@ -195,7 +195,7 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
             RowsMut {
-                pixels: pixels.chunks_mut(row_len),
+                pixels: pixels.chunks_exact_mut(row_len),
             }
         }
     }
@@ -212,7 +212,7 @@ where
         let row = self.pixels.next()?;
         Some(PixelsMut {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -235,7 +235,7 @@ where
         let row = self.pixels.next_back()?;
         Some(PixelsMut {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -538,7 +538,7 @@ where
     /// The iteration order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
-            chunks: self.inner_pixels().chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels().chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -688,7 +688,7 @@ where
     /// Returns an iterator over the mutable pixels of this image.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.inner_pixels_mut().chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels_mut().chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 

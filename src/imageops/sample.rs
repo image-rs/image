@@ -78,7 +78,7 @@ use crate::traits::{Enlargeable, Pixel, Primitive};
 ///     <td>1170 ms</td>
 ///   </tr>
 /// </table>
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FilterType {
     /// Nearest Neighbor
     Nearest,

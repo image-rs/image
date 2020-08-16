@@ -442,6 +442,7 @@ impl StreamingDecoder {
             chunk::PLTE => self.parse_plte(),
             chunk::tRNS => self.parse_trns(),
             chunk::pHYs => self.parse_phys(),
+            chunk::gAMA => self.parse_gama(),
             chunk::acTL => self.parse_actl(),
             chunk::fcTL => self.parse_fctl(),
             chunk::cHRM => self.parse_chrm(),
@@ -646,6 +647,20 @@ impl StreamingDecoder {
         Ok(Decoded::Nothing)
     }
 
+    fn parse_gama(&mut self) -> Result<Decoded, DecodingError> {
+        if self.have_idat {
+            Err(DecodingError::Format(
+                "gAMA chunk appeared after first IDAT chunk".into(),
+            ))
+        } else {
+            let mut buf = &self.current_chunk.raw_bytes[..];
+            let source_gamma: u32 = buf.read_be()?;
+            let scale_factor = 100000.;
+            self.info.as_mut().unwrap().source_gamma = Some(source_gamma as f32 / scale_factor);
+            Ok(Decoded::Nothing)
+        }
+    }
+
     fn parse_ihdr(&mut self) -> Result<Decoded, DecodingError> {
         // TODO: check if color/bit depths combination is valid
         let mut buf = &self.current_chunk.raw_bytes[..];
@@ -745,4 +760,51 @@ impl Default for ChunkState {
 #[inline(always)]
 pub fn get_info(d: &StreamingDecoder) -> Option<&Info> {
     d.info.as_ref()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+
+    #[test]
+    fn image_gamma() -> Result<(), ()> {
+        fn trial(path: &str, expected: Option<f32>) {
+            let decoder = crate::Decoder::new(File::open(path).unwrap());
+            let (_, reader) = decoder.read_info().unwrap();
+            let source_gamma: Option<f32> = reader.info().source_gamma;
+            assert!(source_gamma == expected);
+        }
+        trial("tests/pngsuite/f00n0g08.png", None);
+        trial("tests/pngsuite/f00n2c08.png", None);
+        trial("tests/pngsuite/f01n0g08.png", None);
+        trial("tests/pngsuite/f01n2c08.png", None);
+        trial("tests/pngsuite/f02n0g08.png", None);
+        trial("tests/pngsuite/f02n2c08.png", None);
+        trial("tests/pngsuite/f03n0g08.png", None);
+        trial("tests/pngsuite/f03n2c08.png", None);
+        trial("tests/pngsuite/f04n0g08.png", None);
+        trial("tests/pngsuite/f04n2c08.png", None);
+        trial("tests/pngsuite/f99n0g04.png", None);
+        trial("tests/pngsuite/tm3n3p02.png", None);
+        trial("tests/pngsuite/g03n0g16.png", Some(0.35));
+        trial("tests/pngsuite/g03n2c08.png", Some(0.35));
+        trial("tests/pngsuite/g03n3p04.png", Some(0.35));
+        trial("tests/pngsuite/g04n0g16.png", Some(0.45));
+        trial("tests/pngsuite/g04n2c08.png", Some(0.45));
+        trial("tests/pngsuite/g04n3p04.png", Some(0.45));
+        trial("tests/pngsuite/g05n0g16.png", Some(0.55));
+        trial("tests/pngsuite/g05n2c08.png", Some(0.55));
+        trial("tests/pngsuite/g05n3p04.png", Some(0.55));
+        trial("tests/pngsuite/g07n0g16.png", Some(0.7));
+        trial("tests/pngsuite/g07n2c08.png", Some(0.7));
+        trial("tests/pngsuite/g07n3p04.png", Some(0.7));
+        trial("tests/pngsuite/g10n0g16.png", Some(1.0));
+        trial("tests/pngsuite/g10n2c08.png", Some(1.0));
+        trial("tests/pngsuite/g10n3p04.png", Some(1.0));
+        trial("tests/pngsuite/g25n0g16.png", Some(2.5));
+        trial("tests/pngsuite/g25n2c08.png", Some(2.5));
+        trial("tests/pngsuite/g25n3p04.png", Some(2.5));
+        Ok(())
+    }
 }

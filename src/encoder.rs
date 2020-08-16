@@ -75,6 +75,11 @@ impl<W: Write> Encoder<W> {
         self.info.trns = Some(trns);
     }
 
+    pub fn set_source_gamma(&mut self, source_gamma: f32) {
+        assert!(source_gamma > 0.);
+        self.info.source_gamma = Some(source_gamma);
+    }
+
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info).init()
     }
@@ -177,6 +182,12 @@ impl<W: Write> Writer<W> {
 
         if let Some(t) = &self.info.trns {
             write_chunk(&mut self.w, chunk::tRNS, t)?;
+        }
+
+        if let Some(g) = &self.info.source_gamma {
+            let scale_factor = 100000.;
+            let g = (g * scale_factor).floor() as u32;
+            write_chunk(&mut self.w, chunk::gAMA, &g.to_be_bytes())?;
         }
 
         Ok(self)
@@ -791,6 +802,43 @@ mod tests {
         roundtrip(FilterType::Up)?;
         roundtrip(FilterType::Avg)?;
         roundtrip(FilterType::Paeth)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn some_gamma_roundtrip() -> io::Result<()> {
+        let pixel: Vec<_> = (0..48).collect();
+
+        let roundtrip = |gamma: Option<f32>| -> io::Result<()> {
+            let mut buffer = vec![];
+            let mut encoder = Encoder::new(&mut buffer, 4, 4);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::RGB);
+            encoder.set_filter(FilterType::Avg);
+            if let Some(gamma) = gamma {
+                encoder.set_source_gamma(gamma);
+            }
+            encoder.write_header()?.write_image_data(&pixel)?;
+
+            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let (info, mut reader) = decoder.read_info()?;
+            assert_eq!(reader.info().source_gamma, gamma, "Deviation with gamma {:?}", gamma);
+            assert_eq!(info.width, 4);
+            assert_eq!(info.height, 4);
+            let mut dest = vec![0; pixel.len()];
+            reader.next_frame(&mut dest)?;
+
+            Ok(())
+        };
+
+        roundtrip(None)?;
+        roundtrip(Some(0.35))?;
+        roundtrip(Some(0.45))?;
+        roundtrip(Some(0.55))?;
+        roundtrip(Some(0.7))?;
+        roundtrip(Some(1.0))?;
+        roundtrip(Some(2.5))?;
 
         Ok(())
     }

@@ -218,7 +218,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         "in {} ({} chunks, {:.1}% compression)",
                         fname,
                         n_chunks,
-                        100.0 * (1.0 - c_ratio!())
+                        100.0 * (1.0 - c_ratio!()),
                     )
                 }
                 break;

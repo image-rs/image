@@ -35,6 +35,8 @@
 //! let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
 //! encoder.set_color(png::ColorType::RGBA);
 //! encoder.set_depth(png::BitDepth::Eight);
+//! encoder.set_trns(vec!(0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8));
+//! encoder.set_source_gamma(45455); // 100000 / 2.2 (default png scaling to u32)
 //! let mut writer = encoder.write_header().unwrap();
 //!
 //! let data = [255, 0, 0, 255, 0, 0, 0, 255]; // An array containing a RGBA sequence. First pixel is red and second pixel is black.

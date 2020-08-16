@@ -289,7 +289,7 @@ pub enum Compression {
 }
 
 /// Chromaticities of the color space primaries
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct PrimaryChromaticities {
     pub white_point: (f32, f32),
     pub red: (f32, f32),
@@ -307,6 +307,8 @@ pub struct Info {
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
     pub pixel_dims: Option<PixelDimensions>,
+    /// Source system's gamma
+    pub source_gamma: Option<f32>,
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
@@ -326,6 +328,7 @@ impl Default for Info {
             palette: None,
             trns: None,
             pixel_dims: None,
+            source_gamma: None,
             frame_control: None,
             animation_control: None,
             // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub`

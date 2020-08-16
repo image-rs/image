@@ -27,6 +27,8 @@ pub const tIME: ChunkType = [b't', b'I', b'M', b'E'];
 pub const pHYs: ChunkType = [b'p', b'H', b'Y', b's'];
 /// Color primary chromaticities
 pub const cHRM: ChunkType = [b'c', b'H', b'R', b'M'];
+/// Source system's gamma value (multiplied by 100000)
+pub const gAMA: ChunkType = [b'g', b'A', b'M', b'A'];
 
 // -- Extension chunks --
 

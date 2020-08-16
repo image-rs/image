@@ -79,6 +79,18 @@ impl<W: Write> Encoder<W> {
         assert!(source_gamma > 0.);
         self.info.source_gamma = Some(source_gamma);
     }
+    
+    pub fn set_primary_chromaticities(&mut self, primary_chromaticities: super::PrimaryChromaticities) {
+        assert!(primary_chromaticities.white_point.0 >= 0.);
+        assert!(primary_chromaticities.white_point.1 >= 0.);
+        assert!(primary_chromaticities.red.0 >= 0.);
+        assert!(primary_chromaticities.red.1 >= 0.);
+        assert!(primary_chromaticities.green.0 >= 0.);
+        assert!(primary_chromaticities.green.1 >= 0.);
+        assert!(primary_chromaticities.blue.0 >= 0.);
+        assert!(primary_chromaticities.blue.1 >= 0.);
+        self.info.primary_chromaticities = Some(primary_chromaticities);
+    }
 
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info).init()
@@ -188,6 +200,29 @@ impl<W: Write> Writer<W> {
             let scale_factor = 100000.;
             let g = (g * scale_factor).floor() as u32;
             write_chunk(&mut self.w, chunk::gAMA, &g.to_be_bytes())?;
+        }
+
+        if let Some(c) = &self.info.primary_chromaticities {
+            let scale_factor = 100000.;
+            let white_x = ((c.white_point.0 * scale_factor).round() as u32).to_be_bytes();
+            let white_y = ((c.white_point.1 * scale_factor).round() as u32).to_be_bytes();
+            let red_x = ((c.red.0 * scale_factor).round() as u32).to_be_bytes();
+            let red_y = ((c.red.1 * scale_factor).round() as u32).to_be_bytes();
+            let green_x = ((c.green.0 * scale_factor).round() as u32).to_be_bytes();
+            let green_y = ((c.green.1 * scale_factor).round() as u32).to_be_bytes();
+            let blue_x = ((c.blue.0 * scale_factor).round() as u32).to_be_bytes();
+            let blue_y = ((c.blue.1 * scale_factor).round() as u32).to_be_bytes();
+            let enc = [
+                white_x[0], white_x[1], white_x[2], white_x[3],
+                white_y[0], white_y[1], white_y[2], white_y[3],
+                  red_x[0],   red_x[1],   red_x[2],   red_x[3],
+                  red_y[0],   red_y[1],   red_y[2],   red_y[3],
+                green_x[0], green_x[1], green_x[2], green_x[3],
+                green_y[0], green_y[1], green_y[2], green_y[3],
+                 blue_x[0],  blue_x[1],  blue_x[2],  blue_x[3],
+                 blue_y[0],  blue_y[1],  blue_y[2],  blue_y[3],
+            ];
+            write_chunk(&mut self.w, chunk::cHRM, &enc)?;
         }
 
         Ok(self)

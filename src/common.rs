@@ -288,6 +288,15 @@ pub enum Compression {
     Rle,
 }
 
+/// Chromaticities of the color space primaries
+#[derive(Debug, Clone)]
+pub struct PrimaryChromaticities {
+    pub white_point: (f32, f32),
+    pub red: (f32, f32),
+    pub green: (f32, f32),
+    pub blue: (f32, f32),
+}
+
 /// PNG info struct
 #[derive(Clone, Debug)]
 pub struct Info {
@@ -303,6 +312,7 @@ pub struct Info {
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
     pub filter: filter::FilterType,
+    pub primary_chromaticities: Option<PrimaryChromaticities>,
 }
 
 impl Default for Info {
@@ -322,6 +332,7 @@ impl Default for Info {
             // to maintain backward compatible output.
             compression: Compression::Fast,
             filter: filter::FilterType::Sub,
+            primary_chromaticities: None,
         }
     }
 }

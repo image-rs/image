@@ -14,7 +14,7 @@ use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
-    Unit,
+    PrimaryChromaticities, Unit,
 };
 use crate::traits::ReadBytesExt;
 
@@ -444,6 +444,7 @@ impl StreamingDecoder {
             chunk::pHYs => self.parse_phys(),
             chunk::acTL => self.parse_actl(),
             chunk::fcTL => self.parse_fctl(),
+            chunk::cHRM => self.parse_chrm(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
@@ -611,6 +612,38 @@ impl StreamingDecoder {
             self.info.as_mut().unwrap().pixel_dims = Some(pixel_dims);
             Ok(Decoded::PixelDimensions(pixel_dims))
         }
+    }
+
+    fn parse_chrm(&mut self) -> Result<Decoded, DecodingError> {
+        let mut buf = &self.current_chunk.raw_bytes[..];
+        let white_x: u32 = buf.read_be()?;
+        let white_y: u32 = buf.read_be()?;
+        let red_x: u32 = buf.read_be()?;
+        let red_y: u32 = buf.read_be()?;
+        let green_x: u32 = buf.read_be()?;
+        let green_y: u32 = buf.read_be()?;
+        let blue_x: u32 = buf.read_be()?;
+        let blue_y: u32 = buf.read_be()?;
+
+        let scale_factor = 100000.;
+        let primary_chromaticities = PrimaryChromaticities {
+            white_point: (white_x as f32 / scale_factor, white_y as f32 / scale_factor),
+            red: (red_x as f32 / scale_factor, red_y as f32 / scale_factor),
+            green: (green_x as f32 / scale_factor, green_y as f32 / scale_factor),
+            blue: (blue_x as f32 / scale_factor, blue_y as f32 / scale_factor),
+        };
+
+        let info = match self.info {
+            Some(ref mut info) => info,
+            None => {
+                return Err(DecodingError::Format(
+                    "tRNS chunk occured before IHDR chunk".into(),
+                ))
+            }
+        };
+
+        info.primary_chromaticities = Some(primary_chromaticities);
+        Ok(Decoded::Nothing)
     }
 
     fn parse_ihdr(&mut self) -> Result<Decoded, DecodingError> {

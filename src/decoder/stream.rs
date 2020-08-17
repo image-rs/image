@@ -14,7 +14,7 @@ use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
-    PrimaryChromaticities, Unit,
+    ScaledFloat, PrimaryChromaticities, Unit,
 };
 use crate::traits::ReadBytesExt;
 
@@ -626,12 +626,11 @@ impl StreamingDecoder {
         let blue_x: u32 = buf.read_be()?;
         let blue_y: u32 = buf.read_be()?;
 
-        let scale_factor = 100000.;
         let primary_chromaticities = PrimaryChromaticities {
-            white_point: (white_x as f32 / scale_factor, white_y as f32 / scale_factor),
-            red: (red_x as f32 / scale_factor, red_y as f32 / scale_factor),
-            green: (green_x as f32 / scale_factor, green_y as f32 / scale_factor),
-            blue: (blue_x as f32 / scale_factor, blue_y as f32 / scale_factor),
+            white: (ScaledFloat::from_scaled(white_x), ScaledFloat::from_scaled(white_y)),
+            red: (ScaledFloat::from_scaled(red_x), ScaledFloat::from_scaled(red_y)),
+            green: (ScaledFloat::from_scaled(green_x), ScaledFloat::from_scaled(green_y)),
+            blue: (ScaledFloat::from_scaled(blue_x), ScaledFloat::from_scaled(blue_y)),
         };
 
         let info = match self.info {
@@ -655,8 +654,7 @@ impl StreamingDecoder {
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let source_gamma: u32 = buf.read_be()?;
-            let scale_factor = 100000.;
-            self.info.as_mut().unwrap().source_gamma = Some(source_gamma as f32 / scale_factor);
+            self.info.as_mut().unwrap().source_gamma = Some(ScaledFloat::from_scaled(source_gamma));
             Ok(Decoded::Nothing)
         }
     }
@@ -766,13 +764,14 @@ pub fn get_info(d: &StreamingDecoder) -> Option<&Info> {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
+    use super::ScaledFloat;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {
-        fn trial(path: &str, expected: Option<f32>) {
+        fn trial(path: &str, expected: Option<ScaledFloat>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
             let (_, reader) = decoder.read_info().unwrap();
-            let source_gamma: Option<f32> = reader.info().source_gamma;
+            let source_gamma: Option<ScaledFloat> = reader.info().source_gamma;
             assert!(source_gamma == expected);
         }
         trial("tests/pngsuite/f00n0g08.png", None);
@@ -787,24 +786,24 @@ mod tests {
         trial("tests/pngsuite/f04n2c08.png", None);
         trial("tests/pngsuite/f99n0g04.png", None);
         trial("tests/pngsuite/tm3n3p02.png", None);
-        trial("tests/pngsuite/g03n0g16.png", Some(0.35));
-        trial("tests/pngsuite/g03n2c08.png", Some(0.35));
-        trial("tests/pngsuite/g03n3p04.png", Some(0.35));
-        trial("tests/pngsuite/g04n0g16.png", Some(0.45));
-        trial("tests/pngsuite/g04n2c08.png", Some(0.45));
-        trial("tests/pngsuite/g04n3p04.png", Some(0.45));
-        trial("tests/pngsuite/g05n0g16.png", Some(0.55));
-        trial("tests/pngsuite/g05n2c08.png", Some(0.55));
-        trial("tests/pngsuite/g05n3p04.png", Some(0.55));
-        trial("tests/pngsuite/g07n0g16.png", Some(0.7));
-        trial("tests/pngsuite/g07n2c08.png", Some(0.7));
-        trial("tests/pngsuite/g07n3p04.png", Some(0.7));
-        trial("tests/pngsuite/g10n0g16.png", Some(1.0));
-        trial("tests/pngsuite/g10n2c08.png", Some(1.0));
-        trial("tests/pngsuite/g10n3p04.png", Some(1.0));
-        trial("tests/pngsuite/g25n0g16.png", Some(2.5));
-        trial("tests/pngsuite/g25n2c08.png", Some(2.5));
-        trial("tests/pngsuite/g25n3p04.png", Some(2.5));
+        trial("tests/pngsuite/g03n0g16.png", Some(ScaledFloat::new(0.35)));
+        trial("tests/pngsuite/g03n2c08.png", Some(ScaledFloat::new(0.35)));
+        trial("tests/pngsuite/g03n3p04.png", Some(ScaledFloat::new(0.35)));
+        trial("tests/pngsuite/g04n0g16.png", Some(ScaledFloat::new(0.45)));
+        trial("tests/pngsuite/g04n2c08.png", Some(ScaledFloat::new(0.45)));
+        trial("tests/pngsuite/g04n3p04.png", Some(ScaledFloat::new(0.45)));
+        trial("tests/pngsuite/g05n0g16.png", Some(ScaledFloat::new(0.55)));
+        trial("tests/pngsuite/g05n2c08.png", Some(ScaledFloat::new(0.55)));
+        trial("tests/pngsuite/g05n3p04.png", Some(ScaledFloat::new(0.55)));
+        trial("tests/pngsuite/g07n0g16.png", Some(ScaledFloat::new(0.7)));
+        trial("tests/pngsuite/g07n2c08.png", Some(ScaledFloat::new(0.7)));
+        trial("tests/pngsuite/g07n3p04.png", Some(ScaledFloat::new(0.7)));
+        trial("tests/pngsuite/g10n0g16.png", Some(ScaledFloat::new(1.0)));
+        trial("tests/pngsuite/g10n2c08.png", Some(ScaledFloat::new(1.0)));
+        trial("tests/pngsuite/g10n3p04.png", Some(ScaledFloat::new(1.0)));
+        trial("tests/pngsuite/g25n0g16.png", Some(ScaledFloat::new(2.5)));
+        trial("tests/pngsuite/g25n2c08.png", Some(ScaledFloat::new(2.5)));
+        trial("tests/pngsuite/g25n3p04.png", Some(ScaledFloat::new(2.5)));
         Ok(())
     }
 }

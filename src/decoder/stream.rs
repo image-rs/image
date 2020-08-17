@@ -827,8 +827,24 @@ mod tests {
             let actual: Option<SourceChromaticities> = reader.info().source_chromaticities;
             assert!(actual == expected);
         }
-        trial("tests/pngsuite/ccwn2c08.png", Some(SourceChromaticities::new((0.3127, 0.3290), (0.64, 0.33), (0.30, 0.60), (0.15, 0.06))));
-        trial("tests/pngsuite/ccwn3p08.png", Some(SourceChromaticities::new((0.3127, 0.3290), (0.64, 0.33), (0.30, 0.60), (0.15, 0.06))));
+        trial(
+            "tests/pngsuite/ccwn2c08.png",
+            Some(SourceChromaticities::new(
+                (0.3127, 0.3290),
+                (0.64, 0.33),
+                (0.30, 0.60),
+                (0.15, 0.06),
+            )),
+        );
+        trial(
+            "tests/pngsuite/ccwn3p08.png",
+            Some(SourceChromaticities::new(
+                (0.3127, 0.3290),
+                (0.64, 0.33),
+                (0.30, 0.60),
+                (0.15, 0.06),
+            )),
+        );
         trial("tests/pngsuite/basi0g01.png", None);
         trial("tests/pngsuite/basi0g02.png", None);
         trial("tests/pngsuite/basi0g04.png", None);

@@ -290,7 +290,7 @@ pub enum Compression {
 
 /// An unsigned integer scaled version of a floating point value,
 /// equivalent to an integer quotient with fixed denominator (100000)).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScaledFloat(u32);
 
 impl ScaledFloat {
@@ -341,7 +341,7 @@ impl ScaledFloat {
 }
 
 /// Chromaticities of the color space primaries
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SourceChromaticities {
     pub white: (ScaledFloat, ScaledFloat),
     pub red: (ScaledFloat, ScaledFloat),

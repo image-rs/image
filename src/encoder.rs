@@ -75,12 +75,18 @@ impl<W: Write> Encoder<W> {
         self.info.trns = Some(trns);
     }
 
+    /// Set the display gamma of the source system on which the image was generated or last edited.
     pub fn set_source_gamma(&mut self, source_gamma: ScaledFloat) {
         self.info.source_gamma = Some(source_gamma);
     }
-    
-    pub fn set_primary_chromaticities(&mut self, primary_chromaticities: super::PrimaryChromaticities) {
-        self.info.primary_chromaticities = Some(primary_chromaticities);
+
+    /// Set the chromaticities for the source system's display channels (red, green, blue) and the whitepoint
+    /// of the source system on which the image was generated or last edited.
+    pub fn set_source_chromaticities(
+        &mut self,
+        source_chromaticities: super::SourceChromaticities,
+    ) {
+        self.info.source_chromaticities = Some(source_chromaticities);
     }
 
     pub fn write_header(self) -> Result<Writer<W>> {
@@ -191,7 +197,7 @@ impl<W: Write> Writer<W> {
             write_chunk(&mut self.w, chunk::gAMA, &g.into_scaled().to_be_bytes())?;
         }
 
-        if let Some(c) = &self.info.primary_chromaticities {
+        if let Some(c) = &self.info.source_chromaticities {
             let enc = Self::chromaticities_to_be_bytes(&c);
             write_chunk(&mut self.w, chunk::cHRM, &enc)?;
         }
@@ -200,7 +206,7 @@ impl<W: Write> Writer<W> {
     }
 
     #[rustfmt::skip]
-    fn chromaticities_to_be_bytes(c: &super::common::PrimaryChromaticities) -> [u8; 32] {
+    fn chromaticities_to_be_bytes(c: &super::common::SourceChromaticities) -> [u8; 32] {
         let white_x = c.white.0.into_scaled().to_be_bytes();
         let white_y = c.white.1.into_scaled().to_be_bytes();
         let red_x = c.red.0.into_scaled().to_be_bytes();
@@ -851,7 +857,12 @@ mod tests {
 
             let decoder = crate::Decoder::new(io::Cursor::new(buffer));
             let (info, mut reader) = decoder.read_info()?;
-            assert_eq!(reader.info().source_gamma, gamma, "Deviation with gamma {:?}", gamma);
+            assert_eq!(
+                reader.info().source_gamma,
+                gamma,
+                "Deviation with gamma {:?}",
+                gamma
+            );
             assert_eq!(info.width, 4);
             assert_eq!(info.height, 4);
             let mut dest = vec![0; pixel.len()];

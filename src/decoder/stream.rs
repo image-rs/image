@@ -14,7 +14,7 @@ use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
-    ScaledFloat, PrimaryChromaticities, Unit,
+    ScaledFloat, SourceChromaticities, Unit,
 };
 use crate::traits::ReadBytesExt;
 
@@ -626,11 +626,23 @@ impl StreamingDecoder {
         let blue_x: u32 = buf.read_be()?;
         let blue_y: u32 = buf.read_be()?;
 
-        let primary_chromaticities = PrimaryChromaticities {
-            white: (ScaledFloat::from_scaled(white_x), ScaledFloat::from_scaled(white_y)),
-            red: (ScaledFloat::from_scaled(red_x), ScaledFloat::from_scaled(red_y)),
-            green: (ScaledFloat::from_scaled(green_x), ScaledFloat::from_scaled(green_y)),
-            blue: (ScaledFloat::from_scaled(blue_x), ScaledFloat::from_scaled(blue_y)),
+        let source_chromaticities = SourceChromaticities {
+            white: (
+                ScaledFloat::from_scaled(white_x),
+                ScaledFloat::from_scaled(white_y),
+            ),
+            red: (
+                ScaledFloat::from_scaled(red_x),
+                ScaledFloat::from_scaled(red_y),
+            ),
+            green: (
+                ScaledFloat::from_scaled(green_x),
+                ScaledFloat::from_scaled(green_y),
+            ),
+            blue: (
+                ScaledFloat::from_scaled(blue_x),
+                ScaledFloat::from_scaled(blue_y),
+            ),
         };
 
         let info = match self.info {
@@ -642,7 +654,7 @@ impl StreamingDecoder {
             }
         };
 
-        info.primary_chromaticities = Some(primary_chromaticities);
+        info.source_chromaticities = Some(source_chromaticities);
         Ok(Decoded::Nothing)
     }
 
@@ -760,11 +772,10 @@ pub fn get_info(d: &StreamingDecoder) -> Option<&Info> {
     d.info.as_ref()
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
     use super::ScaledFloat;
+    use std::fs::File;
 
     #[test]
     fn image_gamma() -> Result<(), ()> {

@@ -11,7 +11,7 @@ use std::result;
 use crc32fast::Hasher as Crc32;
 
 use crate::chunk;
-use crate::common::{BitDepth, BytesPerPixel, ColorType, Compression, Info};
+use crate::common::{BitDepth, BytesPerPixel, ColorType, Compression, Info, ScaledFloat};
 use crate::filter::{filter, FilterType};
 use crate::traits::WriteBytesExt;
 
@@ -73,6 +73,20 @@ impl<W: Write> Encoder<W> {
 
     pub fn set_trns(&mut self, trns: Vec<u8>) {
         self.info.trns = Some(trns);
+    }
+
+    /// Set the display gamma of the source system on which the image was generated or last edited.
+    pub fn set_source_gamma(&mut self, source_gamma: ScaledFloat) {
+        self.info.source_gamma = Some(source_gamma);
+    }
+
+    /// Set the chromaticities for the source system's display channels (red, green, blue) and the whitepoint
+    /// of the source system on which the image was generated or last edited.
+    pub fn set_source_chromaticities(
+        &mut self,
+        source_chromaticities: super::SourceChromaticities,
+    ) {
+        self.info.source_chromaticities = Some(source_chromaticities);
     }
 
     pub fn write_header(self) -> Result<Writer<W>> {
@@ -179,7 +193,38 @@ impl<W: Write> Writer<W> {
             write_chunk(&mut self.w, chunk::tRNS, t)?;
         }
 
+        if let Some(g) = &self.info.source_gamma {
+            write_chunk(&mut self.w, chunk::gAMA, &g.into_scaled().to_be_bytes())?;
+        }
+
+        if let Some(c) = &self.info.source_chromaticities {
+            let enc = Self::chromaticities_to_be_bytes(&c);
+            write_chunk(&mut self.w, chunk::cHRM, &enc)?;
+        }
+
         Ok(self)
+    }
+
+    #[rustfmt::skip]
+    fn chromaticities_to_be_bytes(c: &super::common::SourceChromaticities) -> [u8; 32] {
+        let white_x = c.white.0.into_scaled().to_be_bytes();
+        let white_y = c.white.1.into_scaled().to_be_bytes();
+        let red_x = c.red.0.into_scaled().to_be_bytes();
+        let red_y = c.red.1.into_scaled().to_be_bytes();
+        let green_x = c.green.0.into_scaled().to_be_bytes();
+        let green_y = c.green.1.into_scaled().to_be_bytes();
+        let blue_x = c.blue.0.into_scaled().to_be_bytes();
+        let blue_y = c.blue.1.into_scaled().to_be_bytes();
+        [
+            white_x[0], white_x[1], white_x[2], white_x[3],
+            white_y[0], white_y[1], white_y[2], white_y[3],
+            red_x[0],   red_x[1],   red_x[2],   red_x[3],
+            red_y[0],   red_y[1],   red_y[2],   red_y[3],
+            green_x[0], green_x[1], green_x[2], green_x[3],
+            green_y[0], green_y[1], green_y[2], green_y[3],
+            blue_x[0],  blue_x[1],  blue_x[2],  blue_x[3],
+            blue_y[0],  blue_y[1],  blue_y[2],  blue_y[3],
+        ]
     }
 
     pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
@@ -791,6 +836,48 @@ mod tests {
         roundtrip(FilterType::Up)?;
         roundtrip(FilterType::Avg)?;
         roundtrip(FilterType::Paeth)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn some_gamma_roundtrip() -> io::Result<()> {
+        let pixel: Vec<_> = (0..48).collect();
+
+        let roundtrip = |gamma: Option<ScaledFloat>| -> io::Result<()> {
+            let mut buffer = vec![];
+            let mut encoder = Encoder::new(&mut buffer, 4, 4);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::RGB);
+            encoder.set_filter(FilterType::Avg);
+            if let Some(gamma) = gamma {
+                encoder.set_source_gamma(gamma);
+            }
+            encoder.write_header()?.write_image_data(&pixel)?;
+
+            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let (info, mut reader) = decoder.read_info()?;
+            assert_eq!(
+                reader.info().source_gamma,
+                gamma,
+                "Deviation with gamma {:?}",
+                gamma
+            );
+            assert_eq!(info.width, 4);
+            assert_eq!(info.height, 4);
+            let mut dest = vec![0; pixel.len()];
+            reader.next_frame(&mut dest)?;
+
+            Ok(())
+        };
+
+        roundtrip(None)?;
+        roundtrip(Some(ScaledFloat::new(0.35)))?;
+        roundtrip(Some(ScaledFloat::new(0.45)))?;
+        roundtrip(Some(ScaledFloat::new(0.55)))?;
+        roundtrip(Some(ScaledFloat::new(0.7)))?;
+        roundtrip(Some(ScaledFloat::new(1.0)))?;
+        roundtrip(Some(ScaledFloat::new(2.5)))?;
 
         Ok(())
     }

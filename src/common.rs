@@ -288,6 +288,78 @@ pub enum Compression {
     Rle,
 }
 
+/// An unsigned integer scaled version of a floating point value,
+/// equivalent to an integer quotient with fixed denominator (100000)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScaledFloat(u32);
+
+impl ScaledFloat {
+    const SCALING: f32 = 100000.0;
+
+    /// Gets whether the value is within the clamped range of this type.
+    pub fn in_range(value: f32) -> bool {
+        value >= 0.0 && (value * Self::SCALING).floor() <= std::u32::MAX as f32
+    }
+
+    /// Gets whether the value can be exactly converted in round-trip.
+    pub fn exact(value: f32) -> bool {
+        let there = Self::forward(value);
+        let back = Self::reverse(there);
+        value == back
+    }
+
+    fn forward(value: f32) -> u32 {
+        (value.max(0.0) * Self::SCALING).floor() as u32
+    }
+
+    fn reverse(encoded: u32) -> f32 {
+        encoded as f32 / Self::SCALING
+    }
+
+    /// Slightly inaccurate scaling and quantization.
+    /// Clamps the value into the representible range if it is negative of too large.
+    pub fn new(value: f32) -> Self {
+        Self {
+            0: Self::forward(value),
+        }
+    }
+
+    /// Fully accurate construction from a value scaled as per specification.
+    pub fn from_scaled(val: u32) -> Self {
+        Self { 0: val }
+    }
+
+    /// Get the accurate encoded value.
+    pub fn into_scaled(&self) -> u32 {
+        self.0
+    }
+
+    /// Get the unscaled value as a floating point.
+    pub fn into_value(&self) -> f32 {
+        Self::reverse(self.0) as f32
+    }
+}
+
+/// Chromaticities of the color space primaries
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceChromaticities {
+    pub white: (ScaledFloat, ScaledFloat),
+    pub red: (ScaledFloat, ScaledFloat),
+    pub green: (ScaledFloat, ScaledFloat),
+    pub blue: (ScaledFloat, ScaledFloat),
+}
+
+impl SourceChromaticities {
+    pub fn new(white: (f32, f32), red: (f32, f32), green: (f32, f32), blue: (f32, f32)) -> Self {
+        SourceChromaticities {
+            white: (ScaledFloat::new(white.0), ScaledFloat::new(white.1)),
+            red: (ScaledFloat::new(red.0), ScaledFloat::new(red.1)),
+            green: (ScaledFloat::new(green.0), ScaledFloat::new(green.1)),
+            blue: (ScaledFloat::new(blue.0), ScaledFloat::new(blue.1)),
+        }
+    }
+}
+
 /// PNG info struct
 #[derive(Clone, Debug)]
 pub struct Info {
@@ -298,11 +370,14 @@ pub struct Info {
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
     pub pixel_dims: Option<PixelDimensions>,
+    /// Source system's gamma
+    pub source_gamma: Option<ScaledFloat>,
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
     pub filter: filter::FilterType,
+    pub source_chromaticities: Option<SourceChromaticities>,
 }
 
 impl Default for Info {
@@ -316,12 +391,14 @@ impl Default for Info {
             palette: None,
             trns: None,
             pixel_dims: None,
+            source_gamma: None,
             frame_control: None,
             animation_control: None,
             // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub`
             // to maintain backward compatible output.
             compression: Compression::Fast,
             filter: filter::FilterType::Sub,
+            source_chromaticities: None,
         }
     }
 }

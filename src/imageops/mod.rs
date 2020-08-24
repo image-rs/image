@@ -216,9 +216,9 @@ where
 {
     for y in 0..img.height() {
         let pixel = start.map2(stop, |a, b| {
-            let y = <S::SignedLarger as NumCast>::from(y).unwrap();
-            let height = <S::SignedLarger as NumCast>::from(img.height()).unwrap();
-            S::lerp(a, b, y, height)
+            let y = <S::Ratio as NumCast>::from(y).unwrap();
+            let height = <S::Ratio as NumCast>::from(img.height() - 1).unwrap();
+            S::lerp(a, b, y / height)
         });
         
         for x in 0..img.width() {
@@ -251,9 +251,9 @@ where
 {
     for x in 0..img.width() {
         let pixel = start.map2(stop, |a, b| {
-            let x = <S::SignedLarger as NumCast>::from(x).unwrap();
-            let width = <S::SignedLarger as NumCast>::from(img.width()).unwrap();
-            S::lerp(a, b, x, width)
+            let x = <S::Ratio as NumCast>::from(x).unwrap();
+            let width = <S::Ratio as NumCast>::from(img.width() - 1).unwrap();
+            S::lerp(a, b, x / width)
         });
         
         for y in 0..img.height() {
@@ -335,5 +335,35 @@ mod tests {
         assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
         assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
+    }
+
+    use super::{horizontal_gradient, vertical_gradient};
+
+    #[test]
+    /// Test that horizontal gradients are correctly generated
+    fn test_image_horizontal_gradient_limits() {
+        let mut img = ImageBuffer::new(100, 1);
+
+        let start = Rgb([0u8, 128, 0]);
+        let end = Rgb([255u8, 255, 255]);
+
+        horizontal_gradient(&mut img, &start, &end);
+
+        assert_eq!(img.get_pixel(0, 0), &start);
+        assert_eq!(img.get_pixel(img.width() - 1, 0), &end);
+    }
+
+    #[test]
+    /// Test that vertical gradients are correctly generated
+    fn test_image_vertical_gradient_limits() {
+        let mut img = ImageBuffer::new(1, 100);
+
+        let start = Rgb([0u8, 128, 0]);
+        let end = Rgb([255u8, 255, 255]);
+
+        vertical_gradient(&mut img, &start, &end);
+
+        assert_eq!(img.get_pixel(0, 0), &start);
+        assert_eq!(img.get_pixel(0, img.height() - 1), &end);
     }
 }

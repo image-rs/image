@@ -57,32 +57,70 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## 4 Images
-### 4.1 The `GenericImage` Trait
+### 4.1 The `GenericImage` and `GenericImageView` Traits
 
-A trait that provides functions for manipulating images, parameterised over the image's pixel type.
+Traits that provide functions for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
 
 ```rust
-# use image::{Pixel, Pixels};
-pub trait GenericImage {
-    /// The pixel type.
+# use image::{Pixel, Pixels, SubImage};
+/// Trait to inspect an image.
+pub trait GenericImageView {
+    /// The type of pixel.
     type Pixel: Pixel;
+
+    /// Underlying image type.
+    type InnerImageView: GenericImageView<Pixel = Self::Pixel>;
 
     /// The width and height of this image.
     fn dimensions(&self) -> (u32, u32);
 
+    /// The width of this image.
+    fn width(&self) -> u32;
+
+    /// The height of this image.
+    fn height(&self) -> u32;
+
     /// The bounding rectangle of this image.
     fn bounds(&self) -> (u32, u32, u32, u32);
 
-    /// Return the pixel located at (x, y)
+    /// Returns the pixel located at (x, y)
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
+
+    /// Returns an Iterator over the pixels of this image.
+    fn pixels(&self) -> Pixels<Self>;
+
+    /// Returns a reference to the underlying image.
+    fn inner(&self) -> &Self::InnerImageView;
+
+    /// Returns an subimage that is an immutable view into this image.
+    /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
+    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView>;
+}
+
+/// A trait for manipulating images.
+pub trait GenericImage: GenericImageView {
+    /// Underlying image type.
+    type InnerImage: GenericImage<Pixel = Self::Pixel>;
+
+    /// Gets a reference to the mutable pixel at location `(x, y)`
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y)
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
-    /// Return an Iterator over the pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with their value
-    fn pixels(&self) -> Pixels<Self>;
+    /// Copies all of the pixels from another image into this image.
+    fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
+    where O: GenericImageView<Pixel = Self::Pixel>;
+
+    /// Copies all of the pixels from one part of this image to another part of this image.
+    fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool;
+
+    /// Returns a mutable reference to the underlying image.
+    fn inner_mut(&mut self) -> &mut Self::InnerImage;
+
+    /// Returns a mutable subimage that is a view into this image.
+    /// If you want an immutable subimage instead, use [`GenericImageView::view`]
+    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&mut Self::InnerImage>;
 }
 ```
 

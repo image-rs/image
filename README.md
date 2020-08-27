@@ -8,7 +8,7 @@ Maintainers: @HeroicKatora, @fintelia
 
 This crate provides basic imaging processing functions and methods for converting to and from image formats.
 
-All image processing functions provided operate on types that implement the `GenericImage` trait and return an `ImageBuffer`.
+All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
 
 ## 1. Documentation
 
@@ -34,7 +34,7 @@ https://docs.rs/image
 | TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
 | farbfeld | Yes | Yes |
 
-### 2.2 The `ImageDecoder` and `ImageDecoderExt` Traits
+### 2.2 The [`ImageDecoder`](https://docs.rs/image/0.23.8/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/0.23.8/image/trait.ImageDecoderExt.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
@@ -57,40 +57,24 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## 4 Images
-### 4.1 The `GenericImage` Trait
+### 4.1 The [`GenericImageView`](https://docs.rs/image/0.23.8/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/0.23.8/image/trait.GenericImage.html) Traits
 
-A trait that provides functions for manipulating images, parameterised over the image's pixel type.
+Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
 
-```rust
-# use image::{Pixel, Pixels};
-pub trait GenericImage {
-    /// The pixel type.
-    type Pixel: Pixel;
+Some of these methods for `GenericImageView` are...
++ **dimensions**: Return a tuple containing the width and height of the image.
++ **get_pixel**: Returns the pixel located at (x, y).
++ **pixels**: Returns an Iterator over the pixels of this image.
 
-    /// The width and height of this image.
-    fn dimensions(&self) -> (u32, u32);
-
-    /// The bounding rectangle of this image.
-    fn bounds(&self) -> (u32, u32, u32, u32);
-
-    /// Return the pixel located at (x, y)
-    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
-
-    /// Put a pixel at location (x, y)
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
-
-    /// Return an Iterator over the pixels of this image.
-    /// The iterator yields the coordinates of each pixel
-    /// along with their value
-    fn pixels(&self) -> Pixels<Self>;
-}
-```
+While some of the methods for `GenericImage` are...
++ **put_pixel**: Put a pixel at location (x, y).
++ **copy_from**: Copies all of the pixels from another image into this image.
 
 ### 4.2 Representation of Images
 `image` provides two main ways of representing image data:
 
-#### 4.2.1 `ImageBuffer`
-An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImage` trait.
+#### 4.2.1 [`ImageBuffer`](https://docs.rs/image/0.23.8/image/struct.ImageBuffer.html)
+An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
 
 ```rust
 extern crate image;
@@ -127,14 +111,14 @@ for pixel in img.pixels() {
 }
 ```
 
-#### 4.2.2 `DynamicImage`
+#### 4.2.2 [`DynamicImage`](https://docs.rs/image/0.23.8/image/enum.DynamicImage.html)
 A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
-For convenience `DynamicImage`'s reimplement all image processing functions.
+For convenience `DynamicImage` reimplements all image processing functions.
 
-`DynamicImage` implement the `GenericImage` trait for RGBA pixels.
+`DynamicImage` implement the `GenericImageView` and `GenericImage` traits for RGBA pixels.
 
-#### 4.2.3 `SubImage`
+#### 4.2.3 [`SubImage`](https://docs.rs/image/0.23.8/image/struct.SubImage.html)
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
@@ -171,7 +155,7 @@ These are the functions defined in the `imageops` module. All functions operate 
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 
 ## 6 Examples
-### 6.1 Opening And Saving Images
+### 6.1 Opening and Saving Images
 
 `image` provides the `open` function for opening images from a path.  The image
 format is determined from the path's file extension. An `io` module provides a

@@ -10,6 +10,17 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.9
+
+- Introduced correctly capitalized aliases for some scream case types
+- Introduced `imageops::{vertical_gradient, horizontal_gradient}` for writing
+  simple color gradients into an image.
+- Sped up methods iterating over `Pixels`, `PixelsMut`, etc. by using exact
+  chunks internally. This should auto-vectorize `ImageBuffer::from_pixel`.
+- Adjusted `Clone` impls of iterators to not require a bound on the pixel.
+- Add `Debug` impls for iterators where the pixel's channel implements it.
+- Add comparison impls for `FilterType`
+
 ### Version 0.23.8
 
 - `flat::Error` now implements the standard `Error` trait

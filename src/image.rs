@@ -16,7 +16,7 @@ use crate::traits::Pixel;
 use crate::animation::Frames;
 
 #[cfg(feature = "pnm")]
-use crate::pnm::PNMSubtype;
+use crate::pnm::PnmSubtype;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
@@ -221,7 +221,7 @@ pub enum ImageOutputFormat {
 
     #[cfg(feature = "pnm")]
     /// An Image in one of the PNM Formats
-    Pnm(PNMSubtype),
+    Pnm(PnmSubtype),
 
     #[cfg(feature = "gif")]
     /// An Image in GIF Format
@@ -264,7 +264,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "jpeg")]
             ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
             #[cfg(feature = "pnm")]
-            ImageFormat::Pnm => ImageOutputFormat::Pnm(PNMSubtype::ArbitraryMap),
+            ImageFormat::Pnm => ImageOutputFormat::Pnm(PnmSubtype::ArbitraryMap),
             #[cfg(feature = "gif")]
             ImageFormat::Gif => ImageOutputFormat::Gif,
             #[cfg(feature = "ico")]

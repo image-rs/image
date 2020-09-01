@@ -6,7 +6,7 @@ use std::io::Write;
 
 use super::AutoBreak;
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
-use super::{HeaderRecord, PnmHeader, PNMSubtype, SampleEncoding};
+use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
@@ -18,7 +18,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 enum HeaderStrategy {
     Dynamic,
-    Subtype(PNMSubtype),
+    Subtype(PnmSubtype),
     Chosen(PnmHeader),
 }
 
@@ -33,17 +33,6 @@ pub struct PnmEncoder<W: Write> {
     writer: W,
     header: HeaderStrategy,
 }
-
-/// PNM Encoder
-///
-/// An alias of [`PnmEncoder`].
-///
-/// TODO: remove
-///
-/// [`PnmEncoder`]: struct.PnmEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PnmEncoder` instead")]
-pub type PNMEncoder<W> = PnmEncoder<W>;
 
 /// Encapsulate the checking system in the type system. Non of the fields are actually accessed
 /// but requiring them forces us to validly construct the struct anyways.
@@ -109,7 +98,7 @@ impl<W: Write> PnmEncoder<W> {
     /// RGB image as Graymap) will result in an error.
     ///
     /// This will overwrite the effect of earlier calls to `with_header` and `with_dynamic_header`.
-    pub fn with_subtype(self, subtype: PNMSubtype) -> Self {
+    pub fn with_subtype(self, subtype: PnmSubtype) -> Self {
         PnmEncoder {
             writer: self.writer,
             header: HeaderStrategy::Subtype(subtype),
@@ -221,17 +210,17 @@ impl<W: Write> PnmEncoder<W> {
     /// Try to encode the image with the chosen format, give its corresponding pixel encoding type.
     fn write_subtyped_header(
         &mut self,
-        subtype: PNMSubtype,
+        subtype: PnmSubtype,
         image: FlatSamples,
         width: u32,
         height: u32,
         color: ExtendedColorType,
     ) -> ImageResult<()> {
         let header = match (subtype, color) {
-            (PNMSubtype::ArbitraryMap, color) => {
+            (PnmSubtype::ArbitraryMap, color) => {
                 return self.write_dynamic_header(image, width, height, color)
             }
-            (PNMSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PnmHeader {
+            (PnmSubtype::Pixmap(encoding), ExtendedColorType::Rgb8) => PnmHeader {
                 decoded: HeaderRecord::Pixmap(PixmapHeader {
                     encoding,
                     width,
@@ -240,7 +229,7 @@ impl<W: Write> PnmEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Graymap(encoding), ExtendedColorType::L8) => PnmHeader {
+            (PnmSubtype::Graymap(encoding), ExtendedColorType::L8) => PnmHeader {
                 decoded: HeaderRecord::Graymap(GraymapHeader {
                     encoding,
                     width,
@@ -249,8 +238,8 @@ impl<W: Write> PnmEncoder<W> {
                 }),
                 encoded: None,
             },
-            (PNMSubtype::Bitmap(encoding), ExtendedColorType::L8)
-            | (PNMSubtype::Bitmap(encoding), ExtendedColorType::L1) => PnmHeader {
+            (PnmSubtype::Bitmap(encoding), ExtendedColorType::L8)
+            | (PnmSubtype::Bitmap(encoding), ExtendedColorType::L1) => PnmHeader {
                 decoded: HeaderRecord::Bitmap(BitmapHeader {
                     encoding,
                     width,

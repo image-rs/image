@@ -8,8 +8,7 @@
 //!
 
 pub use self::decoder::JpegDecoder;
-#[allow(deprecated)] // TODO: when `JPEGEncoder` is removed, remove this tag
-pub use self::encoder::{JpegEncoder, PixelDensity, PixelDensityUnit, JPEGEncoder};
+pub use self::encoder::{JpegEncoder, PixelDensity, PixelDensityUnit};
 
 mod decoder;
 mod encoder;

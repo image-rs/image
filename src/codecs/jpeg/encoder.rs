@@ -335,17 +335,6 @@ pub struct JpegEncoder<'a, W: 'a> {
     pixel_density: PixelDensity,
 }
 
-/// JPEG Encoder
-///
-/// An alias of [`JpegEncoder`].
-///
-/// TODO: remove
-///
-/// [`JpegEncoder`]: struct.JpegEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `JpegEncoder` instead")]
-pub type JPEGEncoder<'a, W> = JpegEncoder<'a, W>;
-
 impl<'a, W: Write> JpegEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: &mut W) -> JpegEncoder<W> {

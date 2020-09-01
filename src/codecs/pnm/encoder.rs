@@ -79,7 +79,7 @@ enum TupleEncoding<'a> {
 }
 
 impl<W: Write> PnmEncoder<W> {
-    /// Create new PNMEncoder from the `writer`.
+    /// Create new PnmEncoder from the `writer`.
     ///
     /// The encoded images will have some `pnm` format. If more control over the image type is
     /// required, use either one of `with_subtype` or `with_header`. For more information on the

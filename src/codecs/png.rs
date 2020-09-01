@@ -31,17 +31,6 @@ pub struct PngReader<R: Read> {
     index: usize,
 }
 
-/// PNG Reader
-///
-/// An alias of [`PngReader`].
-///
-/// TODO: remove
-///
-/// [`PngReader`]: struct.PngReader.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PngReader` instead")]
-pub type PNGReader<R> = PngReader<R>;
-
 impl<R: Read> PngReader<R> {
     fn new(mut reader: png::Reader<R>) -> ImageResult<PngReader<R>> {
         let len = reader.output_buffer_size();
@@ -447,17 +436,6 @@ pub struct PngEncoder<W: Write> {
     compression: CompressionType,
     filter: FilterType,
 }
-
-/// PNG Encoder
-///
-/// An alias of [`PngEncoder`].
-///
-/// TODO: remove
-///
-/// [`PngEncoder`]: struct.PngEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PngEncoder` instead")]
-pub type PNGEncoder<W> = PngEncoder<W>;
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -9,17 +9,6 @@ pub struct HdrEncoder<W: Write> {
     w: W,
 }
 
-/// HDR Encoder
-///
-/// An alias of [`HdrEncoder`].
-///
-/// TODO: remove
-///
-/// [`HdrEncoder`]: struct.HdrEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrEncoder` instead")]
-pub type HDREncoder<R> = HdrEncoder<R>;
-
 impl<W: Write> HdrEncoder<W> {
     /// Creates encoder
     pub fn new(w: W) -> HdrEncoder<W> {
@@ -235,7 +224,7 @@ fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
     w.write_all(&[v.c[0], v.c[1], v.c[2], v.e])
 }
 
-/// Converts ```Rgb<f32>``` into ```RGBE8Pixel```
+/// Converts ```Rgb<f32>``` into ```Rgbe8Pixel```
 pub fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
     let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));

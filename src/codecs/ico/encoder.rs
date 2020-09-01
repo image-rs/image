@@ -19,17 +19,6 @@ pub struct IcoEncoder<W: Write> {
     w: W,
 }
 
-/// ICO encoder
-///
-/// An alias of [`IcoEncoder`].
-///
-/// TODO: remove
-///
-/// [`IcoEncoder`]: struct.IcoEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `IcoEncoder` instead")]
-pub type ICOEncoder<W> = IcoEncoder<W>;
-
 impl<W: Write> IcoEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> IcoEncoder<W> {

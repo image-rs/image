@@ -8,7 +8,7 @@
 
 pub use self::decoder::IcoDecoder;
 #[allow(deprecated)]
-pub use self::encoder::{IcoEncoder, ICOEncoder};
+pub use self::encoder::IcoEncoder;
 
 mod decoder;
 mod encoder;

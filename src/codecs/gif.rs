@@ -343,17 +343,6 @@ pub struct GifEncoder<W: Write> {
     repeat: Option<Repeat>,
 }
 
-/// GIF encoder
-///
-/// An alias of [`GifEncoder`].
-///
-/// TODO: remove
-///
-/// [`GifEncoder`]: struct.GifEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `GifEncoder` instead")]
-pub type Encoder<W> = GifEncoder<W>;
-
 impl<W: Write> GifEncoder<W> {
     /// Creates a new GIF encoder.
     pub fn new(w: W) -> GifEncoder<W> {

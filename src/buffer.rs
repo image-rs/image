@@ -646,6 +646,11 @@ where
         self.data
     }
 
+    /// Returns the underlying raw buffer
+    pub fn as_raw(&self) -> &Container {
+        &self.data
+    }
+
     /// The width and height of this image.
     pub fn dimensions(&self) -> (u32, u32) {
         (self.width, self.height)

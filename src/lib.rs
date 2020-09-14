@@ -235,6 +235,8 @@ pub mod tiff;
 pub mod webp;
 #[cfg(feature = "farbfeld")]
 pub mod farbfeld;
+#[cfg(feature = "avif")]
+pub mod avif;
 
 mod animation;
 #[path = "buffer.rs"]

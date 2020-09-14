@@ -31,6 +31,7 @@ env:
     - FEATURES='webp'
     - FEATURES='hdr'
     - FEATURES='farbfeld'
+    - FEATURES='ravif'
 matrix:
   allow_failures:
     - name: "Clippy"

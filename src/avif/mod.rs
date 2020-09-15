@@ -1,15 +1,20 @@
+use std::borrow::Cow;
 use std::io::Write;
 
-use crate::{flat, ColorType, DynamicImage, ImageBuffer, ImageFormat, Rgba, Pixel};
+use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
+use crate::buffer::ConvertBuffer;
+use crate::color::{FromColor, Luma, LumaA, Bgr, Bgra, Rgb, Rgba};
 use crate::error::{EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 
+use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
+use num_traits::Zero;
 use ravif::{Img, ColorSpace, Config, RGBA8, encode_rgba};
 use rgb::AsPixels;
 
 pub struct AvifEncoder<W> {
     inner: W,
-    fallback: Vec<RGBA8>,
+    fallback: Vec<u8>,
 }
 
 impl<W: Write> AvifEncoder<W> {
@@ -45,6 +50,7 @@ impl<W: Write> AvifEncoder<W> {
     fn encode_as_img<'buf>(&'buf mut self, data: &'buf [u8], width: u32, height: u32, color: ColorType)
         -> ImageResult<Img<&'buf [RGBA8]>>
     {
+        // Error wrapping utility for color dependent buffer dimensions.
         fn try_from_raw<P: Pixel + 'static>(data: &[P::Subpixel], width: u32, height: u32)
             -> ImageResult<ImageBuffer<P, &[P::Subpixel]>>
         {
@@ -52,6 +58,52 @@ impl<W: Write> AvifEncoder<W> {
                 ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch))
             })
         };
+
+        // Convert to target color type using few buffer allocations.
+        fn convert_into<'buf, P>(buf: &'buf mut Vec<u8>, image: ImageBuffer<P, &[P::Subpixel]>)
+            -> Img<&'buf [RGBA8]>
+        where
+            P: Pixel + 'static,
+            Rgba<u8>: FromColor<P>,
+        {
+            let (width, height) = image.dimensions();
+            // TODO: conversion re-using the target buffer?
+            let image: ImageBuffer<Rgba<u8>, _> = image.convert();
+            *buf = image.into_raw();
+            Img::new(buf.as_pixels(), width as usize, height as usize)
+        }
+
+        // Cast the input slice using few buffer allocations if possible.
+        // In particular try not to allocate if the caller did the infallible reverse.
+        fn cast_buffer<Channel>(buf: &[u8]) -> ImageResult<Cow<[Channel]>>
+        where
+            Channel: Pod + Zero,
+        {
+            match try_cast_slice(buf) {
+                Ok(slice) => Ok(Cow::Borrowed(slice)),
+                Err(PodCastError::OutputSliceWouldHaveSlop) => {
+                    Err(ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))
+                }
+                Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
+                    // Sad, but let's allocate.
+                    // bytemuck checks alignment _before_ slop but size mismatch before this..
+                    if buf.len() % std::mem::size_of::<Channel>() != 0 {
+                        Err(ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))
+                    } else {
+                        let len = buf.len() / std::mem::size_of::<Channel>();
+                        let mut data = vec![Channel::zero(); len];
+                        let view = try_cast_slice_mut::<_, u8>(data.as_mut_slice()).unwrap();
+                        view.copy_from_slice(buf);
+                        Ok(Cow::Owned(data))
+                    }
+                }
+                Err(err) => { // Are you trying to encode a ZST??
+                    Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::Generic(format!("{:?}", err))
+                    )))
+                }
+            }
+        }
 
         match color {
             ColorType::Rgba8 => {
@@ -66,12 +118,46 @@ impl<W: Write> AvifEncoder<W> {
                 Ok(Img::new(rgb::AsPixels::as_pixels(data), width as usize, height as usize))
             },
             // we need a separate buffer..
-            ColorType::L8 | ColorType::La8 | ColorType::Rgb8 | ColorType::Bgr8 | ColorType::Bgra8 => {
-                todo!()
+            ColorType::L8 => {
+                let image = try_from_raw::<Luma<u8>>(data, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::La8 => {
+                let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::Rgb8 => {
+                let image = try_from_raw::<Rgb<u8>>(data, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::Bgr8 => {
+                let image = try_from_raw::<Bgr<u8>>(data, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::Bgra8 => {
+                let image = try_from_raw::<Bgra<u8>>(data, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
             }
             // we need to really convert data..
-            ColorType::L16 | ColorType::La16 | ColorType::Rgb16 | ColorType::Rgba16 => {
-                todo!()
+            ColorType::L16 => {
+                let buffer = cast_buffer(data)?;
+                let image = try_from_raw::<Luma<u16>>(&buffer, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::La16 => {
+                let buffer = cast_buffer(data)?;
+                let image = try_from_raw::<LumaA<u16>>(&buffer, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::Rgb16 => {
+                let buffer = cast_buffer(data)?;
+                let image = try_from_raw::<Rgb<u16>>(&buffer, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
+            }
+            ColorType::Rgba16 => {
+                let buffer = cast_buffer(data)?;
+                let image = try_from_raw::<Rgba<u16>>(&buffer, width, height)?;
+                Ok(convert_into(&mut self.fallback, image))
             }
             // for cases we do not support at all?
             _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(

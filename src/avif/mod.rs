@@ -1,3 +1,8 @@
+//! Encoding of AVIF images.
+///
+/// The [AVIF] specification defines an image derivative of the AV1 bitstream, an open video codec.
+///
+/// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -12,6 +17,9 @@ use num_traits::Zero;
 use ravif::{Img, ColorSpace, Config, RGBA8, encode_rgba};
 use rgb::AsPixels;
 
+/// AVIF Encoder.
+///
+/// Writes one image into the chosen output.
 pub struct AvifEncoder<W> {
     inner: W,
     fallback: Vec<u8>,
@@ -23,6 +31,11 @@ impl<W: Write> AvifEncoder<W> {
         AvifEncoder { inner: w, fallback: vec![] }
     }
 
+    /// Encode image data with the indicated color type.
+    ///
+    /// The encoder currently requires all data to be RGBA8, it will be converted internally if
+    /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
+    /// conversion may be more efficient.
     pub fn encode(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let config = self.config(color);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily

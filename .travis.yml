@@ -31,7 +31,6 @@ env:
     - FEATURES='webp'
     - FEATURES='hdr'
     - FEATURES='farbfeld'
-    - FEATURES='ravif'
 matrix:
   allow_failures:
     - name: "Clippy"
@@ -39,6 +38,9 @@ matrix:
     - name: "Fuzz corpus"
     - rust: nightly
   include:
+    - os: linux
+      rust: stable
+      env: FEATURES='ravif'
     - os: osx
       rust: 1.34.2
     - os: windows

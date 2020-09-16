@@ -28,6 +28,8 @@ use crate::tiff;
 use crate::webp;
 #[cfg(feature = "farbfeld")]
 use crate::farbfeld;
+#[cfg(feature = "avif")]
+use crate::avif;
 
 use crate::color;
 use crate::image;
@@ -184,6 +186,8 @@ pub(crate) fn save_buffer_impl(
             .write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
         "tga" => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "avif")]
+        "avif" => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
         _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
     }
 }

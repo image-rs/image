@@ -36,7 +36,7 @@ impl<W: Write> AvifEncoder<W> {
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
-    pub fn encode(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+    pub fn write_image(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let config = self.config(color);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.

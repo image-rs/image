@@ -57,6 +57,9 @@ pub enum ImageFormat {
     /// An Image in farbfeld Format
     Farbfeld,
 
+    /// An Image in AVIF format.
+    Avif,
+
     #[doc(hidden)]
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
@@ -92,6 +95,8 @@ impl ImageFormat {
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
             ImageFormat::Farbfeld => &["ff"],
+            // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
+            ImageFormat::Avif => &["avif", "heif", "heifs", "hif"],
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }

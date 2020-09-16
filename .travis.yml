@@ -38,6 +38,9 @@ matrix:
     - name: "Fuzz corpus"
     - rust: nightly
   include:
+    - os: linux
+      rust: stable
+      env: FEATURES='ravif'
     - os: osx
       rust: 1.34.2
     - os: windows

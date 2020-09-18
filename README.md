@@ -29,6 +29,7 @@ https://docs.rs/image
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax support) + LZW + PackBits | RGB(8), RGBA(8), Gray(8) |
 | WebP   | Lossy(Luma channel only) | No |
+| AVIF   | No | Lossy |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |
 | TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |

@@ -4,7 +4,6 @@ extern crate png;
 
 use std::borrow::Cow;
 use std::env;
-use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::path;

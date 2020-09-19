@@ -54,6 +54,8 @@
 //!
 //#![cfg_attr(test, feature(test))]
 
+#![forbid(unsafe_code)]
+
 #[macro_use]
 extern crate bitflags;
 

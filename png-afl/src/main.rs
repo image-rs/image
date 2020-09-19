@@ -1,3 +1,6 @@
+
+#![forbid(unsafe_code)]
+
 #[macro_use]
 extern crate afl;
 extern crate png;

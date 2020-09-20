@@ -32,30 +32,30 @@ use std::io::{self, Cursor, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
 
-use gif::{ColorOutput, SetParameter};
+use gif::ColorOutput;
 use gif::{DisposalMethod, Frame};
 use num_rational::Ratio;
 
 use crate::animation;
 use crate::ImageBuffer;
 use crate::color::{ColorType, Rgba};
-use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{self, AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::traits::Pixel;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
-    reader: gif::Reader<R>,
+    reader: gif::Decoder<R>,
 }
 
 impl<R: Read> GifDecoder<R> {
     /// Creates a new decoder that decodes the input steam ```r```
     pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
-        let mut decoder = gif::Decoder::new(r);
-        decoder.set(ColorOutput::RGBA);
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(ColorOutput::RGBA);
 
         Ok(GifDecoder {
-            reader: decoder.read_info().map_err(ImageError::from_gif)?,
+            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
         })
     }
 }
@@ -96,7 +96,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         let (f_width, f_height, left, top);
 
-        if let Some(frame) = self.reader.next_frame_info().map_err(ImageError::from_gif)? {
+        if let Some(frame) = self.reader.next_frame_info().map_err(ImageError::from_decoding)? {
             left = u32::from(frame.left);
             top = u32::from(frame.top);
             f_width = u32::from(frame.width);
@@ -107,7 +107,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             ));
         }
 
-        self.reader.read_into_buffer(buf).map_err(ImageError::from_gif)?;
+        self.reader.read_into_buffer(buf).map_err(ImageError::from_decoding)?;
 
         let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
         if (left, top) != (0, 0) || (width, height) != (f_width, f_height) {
@@ -144,7 +144,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 }
 
 struct GifFrameIterator<R: Read> {
-    reader: gif::Reader<R>,
+    reader: gif::Decoder<R>,
 
     width: u32,
     height: u32,
@@ -198,12 +198,12 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                     return None;
                 }
             },
-            Err(err) => return Some(Err(ImageError::from_gif(err))),
+            Err(err) => return Some(Err(ImageError::from_decoding(err))),
         }
 
         let mut vec = vec![0; self.reader.buffer_size()];
         if let Err(err) = self.reader.read_into_buffer(&mut vec) {
-            return Some(Err(ImageError::from_gif(err)));
+            return Some(Err(ImageError::from_decoding(err)));
         }
 
         // create the image buffer from the raw frame.
@@ -408,20 +408,29 @@ impl<W: Write> GifEncoder<W> {
             gif_encoder = encoder;
         } else {
             let writer = self.w.take().unwrap();
-            let encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])?;
+            let encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])
+                .map_err(ImageError::from_encoding)?;
             self.gif_encoder = Some(encoder);
             gif_encoder = self.gif_encoder.as_mut().unwrap()
         }
 
-        gif_encoder.write_frame(&frame).map_err(|err| err.into())
+        gif_encoder.write_frame(&frame).map_err(ImageError::from_encoding)
     }
 }
 
 impl ImageError {
-    fn from_gif(err: gif::DecodingError) -> ImageError {
+    fn from_decoding(err: gif::DecodingError) -> ImageError {
         use gif::DecodingError::*;
         match err {
-            err @ Format(_) | err @ Internal(_) => ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), err)),
+            err @ Format(_) => ImageError::Decoding(DecodingError::new(ImageFormat::Gif.into(), err)),
+            Io(io_err) => ImageError::IoError(io_err),
+        }
+    }
+
+    fn from_encoding(err: gif::EncodingError) -> ImageError {
+        use gif::EncodingError::*;
+        match err {
+            err @ Format(_) => ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), err)),
             Io(io_err) => ImageError::IoError(io_err),
         }
     }

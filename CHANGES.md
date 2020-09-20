@@ -10,6 +10,13 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.10
+
+- Added AVIF encoding capabilities using the `ravif` crate. Please note that
+  the feature targets the latest stable compiler and is not enabled by default.
+- Added `ImageBuffer::as_raw` to inspect the underlying container.
+- Updated `gif` to `0.11` with large performance improvements.
+
 ### Version 0.23.9
 
 - Introduced correctly capitalized aliases for some scream case types

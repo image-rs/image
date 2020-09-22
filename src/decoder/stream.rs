@@ -262,12 +262,12 @@ impl StreamingDecoder {
                 match type_ {
                     Length => goto!(U32(Type(val))),
                     Type(length) => {
-                        let type_str = [
+                        let type_str = ChunkType([
                             (val >> 24) as u8,
                             (val >> 16) as u8,
                             (val >> 8) as u8,
                             val as u8,
-                        ];
+                        ]);
                         if type_str != self.current_chunk.type_
                             && (self.current_chunk.type_ == IDAT
                                 || self.current_chunk.type_ == chunk::fdAT)
@@ -283,7 +283,7 @@ impl StreamingDecoder {
                         }
                         self.current_chunk.type_ = type_str;
                         self.current_chunk.crc.reset();
-                        self.current_chunk.crc.update(&type_str);
+                        self.current_chunk.crc.update(&type_str.0);
                         self.current_chunk.remaining = length;
                         self.apng_seq_handled = false;
                         goto!(
@@ -426,15 +426,11 @@ impl StreamingDecoder {
         }
     }
 
-    fn parse_chunk(&mut self, type_str: [u8; 4]) -> Result<Decoded, DecodingError> {
+    fn parse_chunk(&mut self, type_str: ChunkType) -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
         if self.info.is_none() && type_str != IHDR {
             return Err(DecodingError::Format(
-                format!(
-                    "{} chunk appeared before IHDR chunk",
-                    String::from_utf8_lossy(&type_str)
-                )
-                .into(),
+                format!("{:?} chunk appeared before IHDR chunk", type_str).into(),
             ));
         }
         match match type_str {
@@ -759,7 +755,7 @@ impl Default for StreamingDecoder {
 impl Default for ChunkState {
     fn default() -> Self {
         ChunkState {
-            type_: [0; 4],
+            type_: ChunkType([0; 4]),
             crc: Crc32::new(),
             remaining: 0,
             raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),

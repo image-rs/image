@@ -10,7 +10,7 @@ use std::result;
 
 use crc32fast::Hasher as Crc32;
 
-use crate::chunk;
+use crate::chunk::{self, ChunkType};
 use crate::common::{BitDepth, BytesPerPixel, ColorType, Compression, Info, ScaledFloat};
 use crate::filter::{filter, FilterType};
 use crate::traits::WriteBytesExt;
@@ -136,12 +136,12 @@ pub struct Writer<W: Write> {
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
 
-fn write_chunk<W: Write>(mut w: W, name: [u8; 4], data: &[u8]) -> Result<()> {
+fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8]) -> Result<()> {
     w.write_be(data.len() as u32)?;
-    w.write_all(&name)?;
+    w.write_all(&name.0)?;
     w.write_all(data)?;
     let mut crc = Crc32::new();
-    crc.update(&name);
+    crc.update(&name.0);
     crc.update(data);
     w.write_be(crc.finalize())?;
     Ok(())
@@ -227,7 +227,7 @@ impl<W: Write> Writer<W> {
         ]
     }
 
-    pub fn write_chunk(&mut self, name: [u8; 4], data: &[u8]) -> Result<()> {
+    pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {
         write_chunk(&mut self.w, name, data)
     }
 

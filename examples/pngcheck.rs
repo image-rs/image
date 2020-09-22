@@ -238,15 +238,15 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         use png::chunk;
                         n_chunks += 1;
                         if c.verbose {
-                            let chunk = String::from_utf8_lossy(&type_str);
+                            let chunk = type_str;
                             println!("");
                             print!("  chunk ");
                             if c.color {
                                 t.fg(color::YELLOW)?;
-                                write!(t, "{}", chunk)?;
+                                write!(t, "{:?}", chunk)?;
                                 t.reset()?;
                             } else {
-                                print!("{}", chunk)
+                                print!("{:?}", chunk)
                             }
                             print!(
                                 " at offset {:#07x}, length {}",

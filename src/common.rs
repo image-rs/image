@@ -16,7 +16,7 @@ pub enum ColorType {
 
 impl ColorType {
     /// Returns the number of samples used per pixel of `ColorType`
-    pub fn samples(&self) -> usize {
+    pub fn samples(self) -> usize {
         self.samples_u8().into()
     }
 
@@ -42,13 +42,13 @@ impl ColorType {
         }
     }
 
-    pub(crate) fn checked_raw_row_length(&self, depth: BitDepth, width: u32) -> Option<usize> {
+    pub(crate) fn checked_raw_row_length(self, depth: BitDepth, width: u32) -> Option<usize> {
         // No overflow can occur in 64 bits, we multiply 32-bit with 5 more bits.
         let bits = u64::from(width) * u64::from(self.samples_u8()) * u64::from(depth.into_u8());
         TryFrom::try_from(1 + (bits + 7) / 8).ok()
     }
 
-    pub(crate) fn raw_row_length_from_width(&self, depth: BitDepth, width: u32) -> usize {
+    pub(crate) fn raw_row_length_from_width(self, depth: BitDepth, width: u32) -> usize {
         let samples = width as usize * self.samples();
         1 + match depth {
             BitDepth::Sixteen => samples * 2,
@@ -330,12 +330,12 @@ impl ScaledFloat {
     }
 
     /// Get the accurate encoded value.
-    pub fn into_scaled(&self) -> u32 {
+    pub fn into_scaled(self) -> u32 {
         self.0
     }
 
     /// Get the unscaled value as a floating point.
-    pub fn into_value(&self) -> f32 {
+    pub fn into_value(self) -> f32 {
         Self::reverse(self.0) as f32
     }
 }

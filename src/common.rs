@@ -289,12 +289,12 @@ pub enum Compression {
 }
 
 /// An unsigned integer scaled version of a floating point value,
-/// equivalent to an integer quotient with fixed denominator (100000)).
+/// equivalent to an integer quotient with fixed denominator (100_000)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScaledFloat(u32);
 
 impl ScaledFloat {
-    const SCALING: f32 = 100000.0;
+    const SCALING: f32 = 100_000.0;
 
     /// Gets whether the value is within the clamped range of this type.
     pub fn in_range(value: f32) -> bool {
@@ -302,6 +302,7 @@ impl ScaledFloat {
     }
 
     /// Gets whether the value can be exactly converted in round-trip.
+    #[allow(clippy::float_cmp)] // Stupid tool, the exact float compare is _the entire point_.
     pub fn exact(value: f32) -> bool {
         let there = Self::forward(value);
         let back = Self::reverse(there);

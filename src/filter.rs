@@ -1,5 +1,4 @@
 use crate::common::BytesPerPixel;
-use std;
 
 /// The byte level filter applied to scanlines to prepare them for compression.
 ///
@@ -160,7 +159,7 @@ pub(crate) fn unfilter(
             let mut lprevious = current.next().unwrap();
             let mut lpprevious = previous.next().unwrap();
 
-            while let Some(pprevious) = previous.next() {
+            for pprevious in previous {
                 let pcurrent = current.next().unwrap();
 
                 for i in 0..bpp {

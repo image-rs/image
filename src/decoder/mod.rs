@@ -710,9 +710,7 @@ impl<R: Read> Reader<R> {
                 }));
             } else {
                 if self.subframe.consumed_and_flushed {
-                    return Err(DecodingError::Format(
-                        format!("not enough data for image").into(),
-                    ));
+                    return Err(DecodingError::Format("not enough data for image".into()));
                 }
 
                 // Clear the current buffer before appending more data.

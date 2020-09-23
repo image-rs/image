@@ -20,7 +20,23 @@ pub type Result<T> = result::Result<T, EncodingError>;
 #[derive(Debug)]
 pub enum EncodingError {
     IoError(io::Error),
-    Format(Cow<'static, str>),
+    Format(FormatError),
+}
+
+#[derive(Debug)]
+pub struct FormatError {
+    inner: FormatErrorKind,
+}
+
+#[derive(Debug)]
+enum FormatErrorKind {
+    ZeroWidth,
+    ZeroHeight,
+    InvalidColorCombination(BitDepth, ColorType),
+    NoPalette,
+    WrongDataSize(usize, usize),
+    // TODO: wait, what?
+    WrittenTooMuch(usize),
 }
 
 impl error::Error for EncodingError {
@@ -42,14 +58,42 @@ impl fmt::Display for EncodingError {
     }
 }
 
+impl fmt::Display for FormatError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        use FormatErrorKind::*;
+        match self.inner {
+            ZeroWidth => write!(fmt, "Zero width not allowed"),
+            ZeroHeight => write!(fmt, "Zero height not allowed"),
+            InvalidColorCombination(depth, color) => write!(
+                fmt,
+                "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
+                depth, color
+            ),
+            NoPalette => write!(fmt, "can't write indexed image without palette"),
+            WrongDataSize(expected, got) => {
+                write!(fmt, "wrong data size, expected {} got {}", expected, got)
+            }
+            WrittenTooMuch(index) => write!(fmt, "wrong data size, got {} bytes too many", index),
+        }
+    }
+}
+
 impl From<io::Error> for EncodingError {
     fn from(err: io::Error) -> EncodingError {
         EncodingError::IoError(err)
     }
 }
+
 impl From<EncodingError> for io::Error {
     fn from(err: EncodingError) -> io::Error {
         io::Error::new(io::ErrorKind::Other, err.to_string())
+    }
+}
+
+// Private impl.
+impl From<FormatErrorKind> for FormatError {
+    fn from(kind: FormatErrorKind) -> Self {
+        FormatError { inner: kind }
     }
 }
 
@@ -154,11 +198,11 @@ impl<W: Write> Writer<W> {
 
     fn init(mut self) -> Result<Self> {
         if self.info.width == 0 {
-            return Err(EncodingError::Format("Zero width not allowed".into()));
+            return Err(EncodingError::Format(FormatErrorKind::ZeroWidth.into()));
         }
 
         if self.info.height == 0 {
-            return Err(EncodingError::Format("Zero height not allowed".into()));
+            return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
         }
 
         // TODO: this could yield the typified BytesPerPixel.
@@ -168,11 +212,8 @@ impl<W: Write> Writer<W> {
             .is_combination_invalid(self.info.bit_depth)
         {
             return Err(EncodingError::Format(
-                format!(
-                    "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
-                    self.info.bit_depth, self.info.color_type
-                )
-                .into(),
+                FormatErrorKind::InvalidColorCombination(self.info.bit_depth, self.info.color_type)
+                    .into(),
             ));
         }
 
@@ -236,9 +277,7 @@ impl<W: Write> Writer<W> {
         const MAX_CHUNK_LEN: u32 = (1u32 << 31) - 1;
 
         if self.info.color_type == ColorType::Indexed && self.info.palette.is_none() {
-            return Err(EncodingError::Format(
-                "can't write indexed image without palette".into(),
-            ));
+            return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
         let bpp = self.info.bpp_in_prediction();
@@ -248,8 +287,9 @@ impl<W: Write> Writer<W> {
         let mut current = vec![0; in_len];
         let data_size = in_len * self.info.height as usize;
         if data_size != data.len() {
-            let message = format!("wrong data size, expected {} got {}", data_size, data.len());
-            return Err(EncodingError::Format(message.into()));
+            return Err(EncodingError::Format(
+                FormatErrorKind::WrongDataSize(data_size, data.len()).into(),
+            ));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());
         let filter_method = self.info.filter;
@@ -436,8 +476,8 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()?;
         if self.index > 0 {
-            let message = format!("wrong data size, got {} bytes too many", self.index);
-            return Err(EncodingError::Format(message.into()).into());
+            let err = EncodingError::Format(FormatErrorKind::WrittenTooMuch(self.index).into());
+            return Err(err.into());
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.23.9"
+version = "0.23.10"
 edition = "2018"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -53,11 +53,15 @@ hdr = ["scoped_threadpool"]
 dxt = []
 dds = ["dxt"]
 farbfeld = []
-
+# Enables multi-threading.
+# Requires latest stable Rust.
 jpeg_rayon = ["jpeg/rayon"]
-
+# Non-default, enables avif encoding.
+# Requires latest stable Rust.
 avif = ["ravif", "rgb"]
 
+# Build some inline benchmarks. Useful only during development.
+# Requires rustc nightly for feature test.
 benchmarks = []
 
 [[bench]]

@@ -19,6 +19,8 @@ use crate::pnm;
 use crate::farbfeld;
 #[cfg(feature = "tga")]
 use crate::tga;
+#[cfg(feature = "avif")]
+use crate::avif;
 
 use crate::buffer_::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
@@ -774,6 +776,11 @@ impl DynamicImage {
             #[cfg(feature = "tga")]
             image::ImageOutputFormat::Tga => {
                 tga::TgaEncoder::new(w).write_image(&bytes, width, height, color)
+            }
+
+            #[cfg(feature = "avif")]
+            image::ImageOutputFormat::Avif => {
+                avif::AvifEncoder::new(w).write_image(&bytes, width, height, color)
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {

@@ -330,7 +330,7 @@ pub struct JpegEncoder<'a, W: 'a> {
     writer: BitWriter<'a, W>,
 
     components: Vec<Component>,
-    tables: Vec<u8>,
+    tables: Vec<[u8; 64]>,
 
     luma_dctable: Vec<(u8, u16)>,
     luma_actable: Vec<(u8, u16)>,
@@ -405,14 +405,14 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             200 - scale * 2
         };
 
-        let mut tables = Vec::new();
-        let scale_value = |&v: &u8| {
-            let value = (u32::from(v) * scale + 50) / 100;
+        let mut tables = vec![STD_LUMA_QTABLE.clone(), STD_CHROMA_QTABLE.clone()];
+        let scale_value = |v: &mut u8| {
+            let value = (u32::from(*v) * scale + 50) / 100;
 
-            clamp(value, 1, u32::from(u8::max_value())) as u8
+            *v = clamp(value, 1, u32::from(u8::max_value())) as u8;
         };
-        tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
-        tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
+        tables[0].iter_mut().for_each(scale_value);
+        tables[1].iter_mut().for_each(scale_value);
 
         JpegEncoder {
             writer: BitWriter::new(w),
@@ -526,10 +526,10 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         );
         self.writer.write_segment(SOF0, Some(&buf))?;
 
-        assert_eq!(self.tables.len() / 64, 2);
+        assert_eq!(self.tables.len(), 2);
         let numtables = if num_components == 1 { 1 } else { 2 };
 
-        for (i, table) in self.tables.chunks(64).enumerate().take(numtables) {
+        for (i, table) in self.tables[..numtables].iter().enumerate() {
             build_quantization_segment(&mut buf, 8, i as u8, table);
             self.writer.write_segment(DQT, Some(&buf))?;
         }
@@ -604,8 +604,8 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
-                for (i, dct) in dct_yblock.iter_mut().enumerate().take(64) {
-                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                for (i, dct) in dct_yblock.iter_mut().enumerate() {
+                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -655,12 +655,12 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 // Quantization
                 for i in 0usize..64 {
                     dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
+                        / f32::from(self.tables[1][i]))
                         .round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
+                        / f32::from(self.tables[1][i]))
                         .round() as i32;
                 }
 
@@ -763,8 +763,7 @@ fn build_huffman_segment(
     m.extend_from_slice(values);
 }
 
-fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8]) {
-    assert_eq!(qtable.len() % 64, 0);
+fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8; 64]) {
     m.clear();
 
     let p = if precision == 8 { 0 } else { 1 };

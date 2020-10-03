@@ -231,8 +231,8 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         // Figure F.2
         let mut zero_run = 0;
 
-        for k in 1usize..=63 {
-            if block[UNZIGZAG[k] as usize] == 0 {
+        for &k in &UNZIGZAG[1..] {
+            if block[k as usize] == 0 {
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
@@ -240,17 +240,13 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = encode_coefficient(block[UNZIGZAG[k] as usize]);
+                let (size, value) = encode_coefficient(block[k as usize]);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode(symbol, actable)?;
                 self.write_bits(value, size)?;
 
                 zero_run = 0;
-
-                if k == 63 {
-                    break;
-                }
             }
         }
 

@@ -761,28 +761,24 @@ fn build_huffman_segment(
     m: &mut Vec<u8>,
     class: u8,
     destination: u8,
-    numcodes: &[u8],
+    numcodes: &[u8; 16],
     values: &[u8],
 ) {
     m.clear();
 
-    // TODO: More idiomatic would be pub, extend_from_slice
     let tcth = (class << 4) | destination;
-    let _ = m.write_u8(tcth);
+    m.push(tcth);
 
-    assert_eq!(numcodes.len(), 16);
+    m.extend_from_slice(numcodes);
 
-    let _ = m.write_all(numcodes);
-
-    let mut sum = 0usize;
-
-    for &i in numcodes.iter() {
-        sum += i as usize;
-    }
+    let sum: usize = numcodes
+                        .iter()
+                        .map(|&x| x as usize)
+                        .sum();
 
     assert_eq!(sum, values.len());
 
-    let _ = m.write_all(values);
+    m.extend_from_slice(values);
 }
 
 fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8]) {
@@ -898,6 +894,13 @@ mod tests {
     use crate::image::ImageDecoder;
 
     use super::{build_jfif_header, JpegEncoder, PixelDensity};
+    use crate::jpeg::encoder::{
+        build_huffman_segment,
+        DCCLASS,
+        LUMADESTINATION,
+        STD_LUMA_DC_CODE_LENGTHS,
+        STD_LUMA_DC_VALUES
+    };
     use super::super::JpegDecoder;
 
     #[cfg(feature = "benchmarks")]
@@ -1020,6 +1023,18 @@ mod tests {
         assert!(decoded[2] < 50, "bad blue channel in {:?}", &decoded);
     }
 
+    #[test]
+    fn bench_build_huffman_segment() {
+        let mut buf = vec![];
+        build_huffman_segment(
+            &mut buf,
+            DCCLASS,
+            LUMADESTINATION,
+            &STD_LUMA_DC_CODE_LENGTHS,
+            &STD_LUMA_DC_VALUES,
+        );
+        assert_eq!(buf, vec![0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    }
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_jpeg_encoder_new(b: &mut Bencher) {
@@ -1028,5 +1043,4 @@ mod tests {
             let x = JpegEncoder::new(&mut y);
         })
     }
-
 }

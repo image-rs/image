@@ -73,16 +73,6 @@ pub enum DecodingError {
     IoError(io::Error),
     Format(Cow<'static, str>),
     FormatNew(FormatError),
-    InvalidSignature,
-    CrcMismatch {
-        /// bytes to skip to try to recover from this error
-        recover: usize,
-        /// Stored CRC32 value
-        crc_val: u32,
-        /// Calculated CRC32 sum
-        crc_sum: u32,
-        chunk: ChunkType,
-    },
     /// An interface was used incorrectly.
     ///
     /// This is used in cases where it's expected that the programmer might trip up and stability
@@ -99,7 +89,6 @@ pub enum DecodingError {
     ///
     /// If you're an application you might want to signal that a bug report is appreciated.
     Parameter(Cow<'static, str>),
-    CorruptFlateStream,
     LimitsExceeded,
 }
 
@@ -109,7 +98,7 @@ pub struct FormatError {
 }
 
 #[derive(Debug)]
-enum FormatErrorInner {
+pub(crate) enum FormatErrorInner {
     CrcMismatch {
         /// bytes to skip to try to recover from this error
         recover: usize,
@@ -164,6 +153,10 @@ enum FormatErrorInner {
     UnknownFilterMethod(u8),
     UnknownInterlaceMethod(u8),
     BadSubFrameBounds {},
+    InvalidSignature,
+    CorruptFlateStream {
+        err: miniz_oxide::inflate::TINFLStatus,
+    },
 }
 
 impl error::Error for DecodingError {
@@ -182,9 +175,6 @@ impl fmt::Display for DecodingError {
             IoError(err) => write!(fmt, "{}", err),
             Format(desc) | Parameter(desc) => write!(fmt, "{}", &desc),
             FormatNew(desc) => write!(fmt, "{}", desc),
-            InvalidSignature => write!(fmt, "invalid signature"),
-            CrcMismatch { .. } => write!(fmt, "CRC error"),
-            CorruptFlateStream => write!(fmt, "compressed data stream corrupted"),
             LimitsExceeded => write!(fmt, "limits are exceeded"),
         }
     }
@@ -236,6 +226,9 @@ impl fmt::Display for FormatError {
             UnknownFilterMethod(nr) => write!(fmt, "Unknown filter method {}.", nr),
             UnknownInterlaceMethod(nr) => write!(fmt, "Unknown interlace method {}.", nr),
             BadSubFrameBounds {} => write!(fmt, "Sub frame is out-of-bounds."),
+            InvalidSignature => write!(fmt, "Invalid PNG signature."),
+            // TODO: figure out a good way to print the error.
+            CorruptFlateStream { err: _ } => write!(fmt, "Corrupt deflate stream."),
         }
     }
 }
@@ -385,7 +378,9 @@ impl StreamingDecoder {
             {
                 goto!(U32(U32Value::Length))
             }
-            Signature(..) => Err(DecodingError::InvalidSignature),
+            Signature(..) => Err(DecodingError::FormatNew(
+                FormatErrorInner::InvalidSignature.into(),
+            )),
             U32Byte3(type_, mut val) => {
                 use self::U32Value::*;
                 val |= u32::from(current_byte);
@@ -433,12 +428,15 @@ impl StreamingDecoder {
                                 }
                             )
                         } else {
-                            Err(DecodingError::CrcMismatch {
-                                recover: 1,
-                                crc_val: val,
-                                crc_sum: sum,
-                                chunk: type_str,
-                            })
+                            Err(DecodingError::FormatNew(
+                                FormatErrorInner::CrcMismatch {
+                                    recover: 1,
+                                    crc_val: val,
+                                    crc_sum: sum,
+                                    chunk: type_str,
+                                }
+                                .into(),
+                            ))
                         }
                     }
                 }

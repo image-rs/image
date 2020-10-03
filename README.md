@@ -1,6 +1,10 @@
-# Image [![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image) [![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image) [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+# Image
+[![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image)
+[![Documentation](https://docs.rs/image/badge.svg)](https://docs.rs/image)
+[![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image)
+[![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-Maintainers: @HeroicKatora, @fintelia
+Maintainers: [@HeroicKatora](https://github.com/HeroicKatora), [@fintelia](https://github.com/fintelia)
 
 [How to contribute](https://github.com/image-rs/organization/blob/master/CONTRIBUTING.md)
 
@@ -10,15 +14,9 @@ This crate provides basic imaging processing functions and methods for convertin
 
 All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
 
-## 1. Documentation
-
-https://docs.rs/image
-
-## 2. Supported Image Formats
+## Supported Image Formats
 
 `image` provides implementations of common image format encoders and decoders.
-
-### 2.1 Supported Image Formats
 
 | Format | Decoding | Encoding |
 | ------ | -------- | -------- |
@@ -35,7 +33,7 @@ https://docs.rs/image
 | TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
 | farbfeld | Yes | Yes |
 
-### 2.2 The [`ImageDecoder`](https://docs.rs/image/0.23.8/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/0.23.8/image/trait.ImageDecoderExt.html) Traits
+### The [`ImageDecoder`](https://docs.rs/image/0.23.8/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/0.23.8/image/trait.ImageDecoderExt.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
@@ -47,7 +45,7 @@ The most important methods for decoders are...
 + **color_type**: Return the color type of the image data produced by this decoder.
 + **read_image**: Decode the entire image into a slice of bytes.
 
-## 3 Pixels
+## Pixels
 
 `image` provides the following pixel types:
 + **Rgb**: RGB pixel
@@ -57,8 +55,8 @@ The most important methods for decoders are...
 
 All pixels are parameterised by their component type.
 
-## 4 Images
-### 4.1 The [`GenericImageView`](https://docs.rs/image/0.23.8/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/0.23.8/image/trait.GenericImage.html) Traits
+## Images
+### The [`GenericImageView`](https://docs.rs/image/0.23.8/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/0.23.8/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
 
@@ -71,10 +69,10 @@ While some of the methods for `GenericImage` are...
 + **put_pixel**: Put a pixel at location (x, y).
 + **copy_from**: Copies all of the pixels from another image into this image.
 
-### 4.2 Representation of Images
+### Representation of Images
 `image` provides two main ways of representing image data:
 
-#### 4.2.1 [`ImageBuffer`](https://docs.rs/image/0.23.8/image/struct.ImageBuffer.html)
+#### [`ImageBuffer`](https://docs.rs/image/0.23.8/image/struct.ImageBuffer.html)
 An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
 
 ```rust
@@ -112,14 +110,14 @@ for pixel in img.pixels() {
 }
 ```
 
-#### 4.2.2 [`DynamicImage`](https://docs.rs/image/0.23.8/image/enum.DynamicImage.html)
+#### [`DynamicImage`](https://docs.rs/image/0.23.8/image/enum.DynamicImage.html)
 A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience `DynamicImage` reimplements all image processing functions.
 
 `DynamicImage` implement the `GenericImageView` and `GenericImage` traits for RGBA pixels.
 
-#### 4.2.3 [`SubImage`](https://docs.rs/image/0.23.8/image/struct.SubImage.html)
+#### [`SubImage`](https://docs.rs/image/0.23.8/image/struct.SubImage.html)
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
@@ -134,7 +132,7 @@ let subimg = imageops::crop(&mut img, 0, 0, 100, 100);
 assert!(subimg.dimensions() == (100, 100));
 ```
 
-## 5 Image Processing Functions
+## Image Processing Functions
 These are the functions defined in the `imageops` module. All functions operate on types that implement the `GenericImage` trait.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
@@ -155,8 +153,8 @@ These are the functions defined in the `imageops` module. All functions operate 
 
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 
-## 6 Examples
-### 6.1 Opening and Saving Images
+## Examples
+### Opening and Saving Images
 
 `image` provides the `open` function for opening images from a path.  The image
 format is determined from the path's file extension. An `io` module provides a
@@ -183,7 +181,7 @@ fn main() {
 }
 ```
 
-### 6.2 Generating Fractals
+### Generating Fractals
 
 ```rust,no_run
 //! An example of generating julia fractals.
@@ -237,7 +235,7 @@ Example output:
 
 <img src="examples/fractal.png" alt="A Julia Fractal, c: -0.4 + 0.6i" width="500" />
 
-### 6.3 Writing raw buffers
+### Writing raw buffers
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
 
 ```rust,no_run

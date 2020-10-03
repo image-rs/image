@@ -71,7 +71,6 @@ pub enum Decoded {
 #[derive(Debug)]
 pub enum DecodingError {
     IoError(io::Error),
-    Format(Cow<'static, str>),
     FormatNew(FormatError),
     /// An interface was used incorrectly.
     ///
@@ -99,6 +98,7 @@ pub struct FormatError {
 
 #[derive(Debug)]
 pub(crate) enum FormatErrorInner {
+    /// Bad framing.
     CrcMismatch {
         /// bytes to skip to try to recover from this error
         recover: usize,
@@ -108,10 +108,19 @@ pub(crate) enum FormatErrorInner {
         crc_sum: u32,
         chunk: ChunkType,
     },
+    /// Not a PNG, the magic signature is missing.
+    InvalidSignature,
+    /// End of file, within a chunk event.
+    UnexpectedEof,
+    /// End of file, while expecting more image data.
+    UnexpectedEndOfChunk,
+    // Errors of chunk level ordering, missing etc.
     /// Ihdr must occur.
     MissingIhdr,
     /// Fctl must occur if an animated chunk occurs.
     MissingFctl,
+    /// Image data that was indicated in IHDR or acTL is missing.
+    MissingImageData,
     /// 4.3., Must be first.
     ChunkBeforeIhdr {
         kind: ChunkType,
@@ -139,9 +148,15 @@ pub(crate) enum FormatErrorInner {
         /// The one that should have been present.
         expected: u32,
     },
+    // Errors specific to particular chunk data to be validated.
     ShortPalette {
         expected: usize,
         len: usize,
+    },
+    PaletteRequired,
+    InvalidColorBitDepth {
+        color: ColorType,
+        depth: BitDepth,
     },
     ColorWithBadTrns(ColorType),
     InvalidBitDepth(u8),
@@ -152,11 +167,18 @@ pub(crate) enum FormatErrorInner {
     UnknownCompressionMethod(u8),
     UnknownFilterMethod(u8),
     UnknownInterlaceMethod(u8),
+    // TODO: fields with relevant data.
     BadSubFrameBounds {},
-    InvalidSignature,
+    // Errors specific to the IDAT/fDAT chunks.
+    /// The compression of the data stream was faulty.
     CorruptFlateStream {
         err: miniz_oxide::inflate::TINFLStatus,
     },
+    /// The image data chunk was too short for the expected pixel count.
+    NoMoreImageData,
+    // TODO: strictly type this.
+    /// Filtering of a row has failed.
+    BadFilter(&'static str),
 }
 
 impl error::Error for DecodingError {
@@ -173,7 +195,7 @@ impl fmt::Display for DecodingError {
         use self::DecodingError::*;
         match self {
             IoError(err) => write!(fmt, "{}", err),
-            Format(desc) | Parameter(desc) => write!(fmt, "{}", &desc),
+            Parameter(desc) => write!(fmt, "{}", &desc),
             FormatNew(desc) => write!(fmt, "{}", desc),
             LimitsExceeded => write!(fmt, "limits are exceeded"),
         }
@@ -193,6 +215,7 @@ impl fmt::Display for FormatError {
             ),
             MissingIhdr => write!(fmt, "IHDR chunk missing"),
             MissingFctl => write!(fmt, "fcTL chunk missing before fdAT chunk."),
+            MissingImageData => write!(fmt, "IDAT or fDAT chunk is missing."),
             ChunkBeforeIhdr { kind } => write!(fmt, "{:?} chunk appeared before IHDR chunk", kind),
             AfterIdat { kind } => write!(fmt, "Chunk {:?} is invalid after IDAT chunk.", kind),
             AfterPlte { kind } => write!(fmt, "Chunk {:?} is invalid after PLTE chunk.", kind),
@@ -212,6 +235,12 @@ impl fmt::Display for FormatError {
                 "Not enough palette entries, expect {} got {}.",
                 expected, len
             ),
+            PaletteRequired => write!(fmt, "Missing palette of indexed image."),
+            InvalidColorBitDepth { color, depth } => write!(
+                fmt,
+                "Invalid color/depth combination in header: {:?}/{:?}",
+                color, depth,
+            ),
             ColorWithBadTrns(color_type) => write!(
                 fmt,
                 "Transparency chunk found for color type {:?}.",
@@ -227,8 +256,12 @@ impl fmt::Display for FormatError {
             UnknownInterlaceMethod(nr) => write!(fmt, "Unknown interlace method {}.", nr),
             BadSubFrameBounds {} => write!(fmt, "Sub frame is out-of-bounds."),
             InvalidSignature => write!(fmt, "Invalid PNG signature."),
+            UnexpectedEof => write!(fmt, "Unexpected end of data before image end."),
+            UnexpectedEndOfChunk => write!(fmt, "Unexpected end of data within a chunk."),
+            NoMoreImageData => write!(fmt, "IDAT or fDAT chunk is has not enough data for image."),
             // TODO: figure out a good way to print the error.
             CorruptFlateStream { err: _ } => write!(fmt, "Corrupt deflate stream."),
+            BadFilter(message) => write!(fmt, "{}.", message),
         }
     }
 }

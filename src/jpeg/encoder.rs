@@ -742,19 +742,15 @@ fn build_frame_header(
 fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     m.clear();
 
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = m.write_all(&[components.len() as u8]);
+    let _ = m.push(components.len() as u8);
 
     for &comp in components.iter() {
-        let _ = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ = m.write_all(&[tables]);
+        let _ = m.extend_from_slice(&[comp.id, tables]);
     }
 
     // spectral start and end, approx. high and low
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[63]);
-    let _ = m.write_all(&[0]);
+    m.extend_from_slice(&[0, 63, 0]);
 }
 
 fn build_huffman_segment(

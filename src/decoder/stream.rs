@@ -83,7 +83,22 @@ pub enum DecodingError {
         crc_sum: u32,
         chunk: ChunkType,
     },
-    Other(Cow<'static, str>),
+    /// An interface was used incorrectly.
+    ///
+    /// This is used in cases where it's expected that the programmer might trip up and stability
+    /// could be affected. For example when:
+    ///
+    /// * The decoder is polled for more animation frames despite being done (or not being animated
+    ///   in the first place).
+    /// * The output buffer does not have the required size.
+    ///
+    /// As a rough guideline for introducing new variants parts of the requirements are dynamically
+    /// derived from the (untrusted) input data while the other half is from the caller. In the
+    /// above cases the number of frames respectively the size is determined by the file while the
+    /// number of calls
+    ///
+    /// If you're an application you might want to signal that a bug report is appreciated.
+    Parameter(Cow<'static, str>),
     CorruptFlateStream,
     LimitsExceeded,
 }
@@ -165,7 +180,7 @@ impl fmt::Display for DecodingError {
         use self::DecodingError::*;
         match self {
             IoError(err) => write!(fmt, "{}", err),
-            Format(desc) | Other(desc) => write!(fmt, "{}", &desc),
+            Format(desc) | Parameter(desc) => write!(fmt, "{}", &desc),
             FormatNew(desc) => write!(fmt, "{}", desc),
             InvalidSignature => write!(fmt, "invalid signature"),
             CrcMismatch { .. } => write!(fmt, "CRC error"),
@@ -228,12 +243,6 @@ impl fmt::Display for FormatError {
 impl From<io::Error> for DecodingError {
     fn from(err: io::Error) -> DecodingError {
         DecodingError::IoError(err)
-    }
-}
-
-impl From<String> for DecodingError {
-    fn from(err: String) -> DecodingError {
-        DecodingError::Other(err.into())
     }
 }
 

@@ -305,7 +305,9 @@ impl<R: Read> Reader<R> {
         if self.next_frame == self.subframe_idx() {
             return Ok(());
         } else if self.next_frame == SubframeIdx::End {
-            return Err(DecodingError::Other("End of image has been reached".into()));
+            return Err(DecodingError::Parameter(
+                "End of image has been reached".into(),
+            ));
         }
 
         loop {
@@ -416,7 +418,7 @@ impl<R: Read> Reader<R> {
         // TODO 16 bit
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
-            return Err(DecodingError::Other(
+            return Err(DecodingError::Parameter(
                 "supplied buffer is too small to hold the image".into(),
             ));
         }

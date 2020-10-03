@@ -102,7 +102,7 @@ impl ZlibStream {
             TINFLStatus::Done | TINFLStatus::HasMoreOutput | TINFLStatus::NeedsMoreInput => {
                 Ok(in_consumed)
             }
-            err => Err(DecodingError::FormatNew(
+            err => Err(DecodingError::Format(
                 FormatErrorInner::CorruptFlateStream { err }.into(),
             )),
         }
@@ -161,7 +161,7 @@ impl ZlibStream {
                     );
                 }
                 err => {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::CorruptFlateStream { err }.into(),
                     ));
                 }

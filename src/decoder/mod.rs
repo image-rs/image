@@ -119,7 +119,7 @@ impl<R: Read> Decoder<R> {
         let color_type = r.info().color_type;
         let bit_depth = r.info().bit_depth;
         if color_type.is_combination_invalid(bit_depth) {
-            return Err(DecodingError::FormatNew(
+            return Err(DecodingError::Format(
                 FormatErrorInner::InvalidColorBitDepth {
                     color: color_type,
                     depth: bit_depth,
@@ -170,7 +170,7 @@ impl<R: Read> ReadDecoder<R> {
             let (consumed, result) = {
                 let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::UnexpectedEof.into(),
                     ));
                 }
@@ -190,7 +190,7 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::UnexpectedEof.into(),
                 ));
             }
@@ -207,7 +207,7 @@ impl<R: Read> ReadDecoder<R> {
             }
         }
 
-        Err(DecodingError::FormatNew(
+        Err(DecodingError::Format(
             FormatErrorInner::UnexpectedEof.into(),
         ))
     }
@@ -329,7 +329,7 @@ impl<R: Read> Reader<R> {
                     self.fctl_read += 1;
                 }
                 None => {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::MissingImageData.into(),
                     ))
                 }
@@ -344,11 +344,7 @@ impl<R: Read> Reader<R> {
         {
             let info = match self.decoder.info() {
                 Some(info) => info,
-                None => {
-                    return Err(DecodingError::FormatNew(
-                        FormatErrorInner::MissingIhdr.into(),
-                    ))
-                }
+                None => return Err(DecodingError::Format(FormatErrorInner::MissingIhdr.into())),
             };
             self.bpp = info.bpp_in_prediction();
             // Check if the output buffer can be represented at all.
@@ -703,7 +699,7 @@ impl<R: Read> Reader<R> {
                 let filter = match FilterType::from_u8(row[0]) {
                     None => {
                         self.scan_start += rowlen;
-                        return Err(DecodingError::FormatNew(
+                        return Err(DecodingError::Format(
                             FormatErrorInner::UnknownFilterMethod(row[0]).into(),
                         ));
                     }
@@ -713,7 +709,7 @@ impl<R: Read> Reader<R> {
                 if let Err(message) =
                     unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen])
                 {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::BadFilter(message).into(),
                     ));
                 }
@@ -727,7 +723,7 @@ impl<R: Read> Reader<R> {
                 }));
             } else {
                 if self.subframe.consumed_and_flushed {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::NoMoreImageData.into(),
                     ));
                 }
@@ -746,7 +742,7 @@ impl<R: Read> Reader<R> {
                     }
                     None => {
                         if !self.current.is_empty() {
-                            return Err(DecodingError::FormatNew(
+                            return Err(DecodingError::Format(
                                 FormatErrorInner::UnexpectedEndOfChunk.into(),
                             ));
                         } else {
@@ -798,7 +794,7 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
     if let Some(palette) = info.palette.as_ref() {
         if let BitDepth::Sixteen = info.bit_depth {
             // This should have been caught earlier but let's check again. Can't hurt.
-            Err(DecodingError::FormatNew(
+            Err(DecodingError::Format(
                 FormatErrorInner::InvalidColorBitDepth {
                     color: ColorType::Indexed,
                     depth: BitDepth::Sixteen,
@@ -833,7 +829,7 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
             Ok(())
         }
     } else {
-        Err(DecodingError::FormatNew(
+        Err(DecodingError::Format(
             FormatErrorInner::PaletteRequired.into(),
         ))
     }

@@ -71,7 +71,7 @@ pub enum Decoded {
 #[derive(Debug)]
 pub enum DecodingError {
     IoError(io::Error),
-    FormatNew(FormatError),
+    Format(FormatError),
     /// An interface was used incorrectly.
     ///
     /// This is used in cases where it's expected that the programmer might trip up and stability
@@ -196,7 +196,7 @@ impl fmt::Display for DecodingError {
         match self {
             IoError(err) => write!(fmt, "{}", err),
             Parameter(desc) => write!(fmt, "{}", &desc),
-            FormatNew(desc) => write!(fmt, "{}", desc),
+            Format(desc) => write!(fmt, "{}", desc),
             LimitsExceeded => write!(fmt, "limits are exceeded"),
         }
     }
@@ -411,7 +411,7 @@ impl StreamingDecoder {
             {
                 goto!(U32(U32Value::Length))
             }
-            Signature(..) => Err(DecodingError::FormatNew(
+            Signature(..) => Err(DecodingError::Format(
                 FormatErrorInner::InvalidSignature.into(),
             )),
             U32Byte3(type_, mut val) => {
@@ -461,7 +461,7 @@ impl StreamingDecoder {
                                 }
                             )
                         } else {
-                            Err(DecodingError::FormatNew(
+                            Err(DecodingError::Format(
                                 FormatErrorInner::CrcMismatch {
                                     recover: 1,
                                     crc_val: val,
@@ -495,7 +495,7 @@ impl StreamingDecoder {
                                 let mut buf = &self.current_chunk.raw_bytes[..];
                                 let next_seq_no = buf.read_be()?;
                                 if next_seq_no != seq_no + 1 {
-                                    return Err(DecodingError::FormatNew(
+                                    return Err(DecodingError::Format(
                                         FormatErrorInner::ApngOrder {
                                             present: next_seq_no,
                                             expected: seq_no + 1,
@@ -509,7 +509,7 @@ impl StreamingDecoder {
                                 data_start = 0;
                             }
                         } else {
-                            return Err(DecodingError::FormatNew(
+                            return Err(DecodingError::Format(
                                 FormatErrorInner::MissingFctl.into(),
                             ));
                         }
@@ -589,7 +589,7 @@ impl StreamingDecoder {
     fn parse_chunk(&mut self, type_str: ChunkType) -> Result<Decoded, DecodingError> {
         self.state = Some(State::U32(U32Value::Crc(type_str)));
         if self.info.is_none() && type_str != IHDR {
-            return Err(DecodingError::FormatNew(
+            return Err(DecodingError::Format(
                 FormatErrorInner::ChunkBeforeIhdr { kind: type_str }.into(),
             ));
         }
@@ -616,7 +616,7 @@ impl StreamingDecoder {
     fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
         self.info
             .as_ref()
-            .ok_or_else(|| DecodingError::FormatNew(FormatErrorInner::MissingIhdr.into()))
+            .ok_or_else(|| DecodingError::Format(FormatErrorInner::MissingIhdr.into()))
     }
 
     fn parse_fctl(&mut self) -> Result<Decoded, DecodingError> {
@@ -626,7 +626,7 @@ impl StreamingDecoder {
         // Asuming that fcTL is required before *every* fdAT-sequence
         self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
             if next_seq_no != seq_no + 1 {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::ApngOrder {
                         expected: seq_no + 1,
                         present: next_seq_no,
@@ -637,7 +637,7 @@ impl StreamingDecoder {
             next_seq_no
         } else {
             if next_seq_no != 0 {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::ApngOrder {
                         expected: 0,
                         present: next_seq_no,
@@ -661,7 +661,7 @@ impl StreamingDecoder {
                 match DisposeOp::from_u8(dispose_op) {
                     Some(dispose_op) => dispose_op,
                     None => {
-                        return Err(DecodingError::FormatNew(
+                        return Err(DecodingError::Format(
                             FormatErrorInner::InvalidDisposeOp(dispose_op).into(),
                         ))
                     }
@@ -672,7 +672,7 @@ impl StreamingDecoder {
                 match BlendOp::from_u8(blend_op) {
                     Some(blend_op) => blend_op,
                     None => {
-                        return Err(DecodingError::FormatNew(
+                        return Err(DecodingError::Format(
                             FormatErrorInner::InvalidBlendOp(blend_op).into(),
                         ))
                     }
@@ -686,7 +686,7 @@ impl StreamingDecoder {
 
     fn parse_actl(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
-            Err(DecodingError::FormatNew(
+            Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::acTL }.into(),
             ))
         } else {
@@ -718,7 +718,7 @@ impl StreamingDecoder {
         let info = match self.info {
             Some(ref mut info) => info,
             None => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::ChunkBeforeIhdr { kind: chunk::tRNS }.into(),
                 ))
             }
@@ -728,7 +728,7 @@ impl StreamingDecoder {
         match color_type {
             Grayscale => {
                 if len < 2 {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::ShortPalette { expected: 2, len }.into(),
                     ));
                 }
@@ -740,7 +740,7 @@ impl StreamingDecoder {
             }
             RGB => {
                 if len < 6 {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::ShortPalette { expected: 6, len }.into(),
                     ));
                 }
@@ -755,13 +755,11 @@ impl StreamingDecoder {
             Indexed => {
                 // FIXME: what's going on here??
                 let _ = info.palette.as_ref().ok_or_else(|| {
-                    DecodingError::FormatNew(
-                        FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into(),
-                    )
+                    DecodingError::Format(FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into())
                 });
                 Ok(Decoded::Nothing)
             }
-            c => Err(DecodingError::FormatNew(
+            c => Err(DecodingError::Format(
                 FormatErrorInner::ColorWithBadTrns(c).into(),
             )),
         }
@@ -769,7 +767,7 @@ impl StreamingDecoder {
 
     fn parse_phys(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
-            Err(DecodingError::FormatNew(
+            Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::pHYs }.into(),
             ))
         } else {
@@ -780,7 +778,7 @@ impl StreamingDecoder {
             let unit = match Unit::from_u8(unit) {
                 Some(unit) => unit,
                 None => {
-                    return Err(DecodingError::FormatNew(
+                    return Err(DecodingError::Format(
                         FormatErrorInner::InvalidUnit(unit).into(),
                     ))
                 }
@@ -824,7 +822,7 @@ impl StreamingDecoder {
         let info = match self.info {
             Some(ref mut info) => info,
             None => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::ChunkBeforeIhdr { kind: chunk::tRNS }.into(),
                 ))
             }
@@ -836,7 +834,7 @@ impl StreamingDecoder {
 
     fn parse_gama(&mut self) -> Result<Decoded, DecodingError> {
         if self.have_idat {
-            Err(DecodingError::FormatNew(
+            Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::gAMA }.into(),
             ))
         } else {
@@ -856,7 +854,7 @@ impl StreamingDecoder {
         let bit_depth = match BitDepth::from_u8(bit_depth) {
             Some(bits) => bits,
             None => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::InvalidBitDepth(bit_depth).into(),
                 ))
             }
@@ -865,7 +863,7 @@ impl StreamingDecoder {
         let color_type = match ColorType::from_u8(color_type) {
             Some(color_type) => color_type,
             None => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::InvalidColorType(color_type).into(),
                 ))
             }
@@ -874,7 +872,7 @@ impl StreamingDecoder {
             // compression method
             0u8 => (),
             n => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::UnknownCompressionMethod(n).into(),
                 ))
             }
@@ -883,7 +881,7 @@ impl StreamingDecoder {
             // filter method
             0u8 => (),
             n => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::UnknownFilterMethod(n).into(),
                 ))
             }
@@ -892,7 +890,7 @@ impl StreamingDecoder {
             0u8 => false,
             1 => true,
             n => {
-                return Err(DecodingError::FormatNew(
+                return Err(DecodingError::Format(
                     FormatErrorInner::UnknownInterlaceMethod(n).into(),
                 ))
             }
@@ -919,7 +917,7 @@ impl Info {
         let in_y_bounds = Some(fc.height) <= self.height.checked_sub(fc.y_offset);
 
         if !in_x_bounds || !in_y_bounds {
-            return Err(DecodingError::FormatNew(
+            return Err(DecodingError::Format(
                 // TODO: do we want to display the bad bounds?
                 FormatErrorInner::BadSubFrameBounds {}.into(),
             ));

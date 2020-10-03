@@ -10,7 +10,7 @@ Maintainers: [@HeroicKatora](https://github.com/HeroicKatora), [@fintelia](https
 
 ## An Image Processing Library
 
-This crate provides basic imaging processing functions and methods for converting to and from image formats.
+This crate provides basic image processing functions and methods for converting to and from various image formats.
 
 All image processing functions provided operate on types that implement the `GenericImageView` and `GenericImage` traits and return an `ImageBuffer`.
 
@@ -33,7 +33,7 @@ All image processing functions provided operate on types that implement the `Gen
 | TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
 | farbfeld | Yes | Yes |
 
-### The [`ImageDecoder`](https://docs.rs/image/0.23.8/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/0.23.8/image/trait.ImageDecoderExt.html) Traits
+### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/*/image/trait.ImageDecoderExt.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
@@ -56,7 +56,7 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## Images
-### The [`GenericImageView`](https://docs.rs/image/0.23.8/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/0.23.8/image/trait.GenericImage.html) Traits
+### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
 
@@ -72,7 +72,7 @@ While some of the methods for `GenericImage` are...
 ### Representation of Images
 `image` provides two main ways of representing image data:
 
-#### [`ImageBuffer`](https://docs.rs/image/0.23.8/image/struct.ImageBuffer.html)
+#### [`ImageBuffer`](https://docs.rs/image/*/image/struct.ImageBuffer.html)
 An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
 
 ```rust
@@ -110,14 +110,14 @@ for pixel in img.pixels() {
 }
 ```
 
-#### [`DynamicImage`](https://docs.rs/image/0.23.8/image/enum.DynamicImage.html)
+#### [`DynamicImage`](https://docs.rs/image/*/image/enum.DynamicImage.html)
 A `DynamicImage` is an enumeration over all supported `ImageBuffer<P>` types.
 Its exact image type is determined at runtime. It is the type returned when opening an image.
 For convenience `DynamicImage` reimplements all image processing functions.
 
 `DynamicImage` implement the `GenericImageView` and `GenericImage` traits for RGBA pixels.
 
-#### [`SubImage`](https://docs.rs/image/0.23.8/image/struct.SubImage.html)
+#### [`SubImage`](https://docs.rs/image/*/image/struct.SubImage.html)
 A view into another image, delimited by the coordinates of a rectangle.
 This is used to perform image processing functions on a subregion of an image.
 

@@ -68,22 +68,30 @@ pub struct Decoder<R: Read> {
 }
 
 /// A row of data with interlace information attached.
-#[derive(Debug)]
-#[non_exhaustive]
+#[derive(Clone, Copy, Debug)]
 pub struct InterlacedRow<'data> {
-    pub data: &'data [u8],
-    pub interlace: InterlaceInfo,
+    data: &'data [u8],
+    interlace: InterlaceInfo,
+}
+
+impl<'data> InterlacedRow<'data> {
+    pub fn data(&self) -> &'data [u8] {
+        self.data
+    }
+
+    pub fn interlace(&self) -> InterlaceInfo {
+        self.interlace
+    }
 }
 
 /// PNG (2003) specifies two interlace modes, but reserves future extensions.
-#[derive(Debug)]
-#[non_exhaustive]
+#[derive(Clone, Copy, Debug)]
 pub enum InterlaceInfo {
     /// the null method means no interlacing
     Null,
     /// Adam7 derives its name from doing 7 passes over the image, only decoding a subset of all pixels in each pass.
     /// The following table shows pictorially what parts of each 8x8 area of the image is found in each pass:
-    /// 
+    ///
     /// 1 6 4 6 2 6 4 6
     /// 7 7 7 7 7 7 7 7
     /// 5 6 5 6 5 6 5 6
@@ -96,10 +104,15 @@ pub enum InterlaceInfo {
 }
 
 /// A row of data without interlace information.
-#[derive(Debug)]
-#[non_exhaustive]
+#[derive(Clone, Copy, Debug)]
 pub struct Row<'data> {
-    pub data: &'data [u8],
+    data: &'data [u8],
+}
+
+impl<'data> Row<'data> {
+    pub fn data(&self) -> &'data [u8] {
+        self.data
+    }
 }
 
 impl<R: Read> Decoder<R> {
@@ -449,7 +462,12 @@ impl<R: Read> Reader<R> {
         self.reset_current();
         let width = self.info().width;
         if self.info().interlaced {
-            while let Some(InterlacedRow { data: row, interlace }) = self.next_interlaced_row()? {
+            while let Some(InterlacedRow {
+                data: row,
+                interlace,
+                ..
+            }) = self.next_interlaced_row()?
+            {
                 let (line, pass) = match interlace {
                     InterlaceInfo::Adam7 { line, pass, .. } => (line, pass),
                     InterlaceInfo::Null => unreachable!("expected interlace information"),
@@ -459,7 +477,7 @@ impl<R: Read> Reader<R> {
             }
         } else {
             let mut len = 0;
-            while let Some(Row { data: row }) = self.next_row()? {
+            while let Some(Row { data: row, .. }) = self.next_row()? {
                 len += (&mut buf[len..]).write(row)?;
             }
         }
@@ -474,19 +492,16 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next processed row of the image
     pub fn next_row(&mut self) -> Result<Option<Row>, DecodingError> {
-        self.next_interlaced_row().map(|v| v.map(|v| Row { data: v.data }))
+        self.next_interlaced_row()
+            .map(|v| v.map(|v| Row { data: v.data }))
     }
 
     /// Returns the next processed row of the image
-    pub fn next_interlaced_row(
-        &mut self,
-    ) -> Result<Option<InterlacedRow>, DecodingError> {
+    pub fn next_interlaced_row(&mut self) -> Result<Option<InterlacedRow>, DecodingError> {
         match self.next_interlaced_row_impl() {
             Err(err) => Err(err),
             Ok(None) => Ok(None),
-            Ok(s) => {
-                Ok(s)
-            }
+            Ok(s) => Ok(s),
         }
     }
 

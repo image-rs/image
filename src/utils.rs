@@ -100,7 +100,7 @@ pub fn expand_trns_line16(buf: &mut [u8], trns: &[u8], channels: usize) {
 ///     77777777
 ///
 #[derive(Clone)]
-pub struct Adam7Iterator {
+pub(crate) struct Adam7Iterator {
     line: u32,
     lines: u32,
     line_width: u32,
@@ -151,7 +151,7 @@ impl Adam7Iterator {
 /// Iterates over the (passes, lines, widths)
 impl Iterator for Adam7Iterator {
     type Item = (u8, u32, u32);
-    fn next(&mut self) -> Option<(u8, u32, u32)> {
+    fn next(&mut self) -> Option<Self::Item> {
         if self.line < self.lines && self.line_width > 0 {
             let this_line = self.line;
             self.line += 1;

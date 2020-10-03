@@ -693,21 +693,16 @@ impl<'a, W: Write> ImageEncoder for JpegEncoder<'a, W> {
 
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     m.clear();
-
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = write!(m, "JFIF");
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[0x01]);
-    let _ = m.write_all(&[0x02]);
-    let _ = m.write_all(&[match density.unit {
+    m.extend_from_slice("JFIF".as_bytes());
+    m.extend_from_slice(&[0, 0x01, 0x02,
+        match density.unit {
         PixelDensityUnit::PixelAspectRatio => 0x00,
         PixelDensityUnit::Inches => 0x01,
         PixelDensityUnit::Centimeters => 0x02,
     }]);
-    let _ = m.write_u16::<BigEndian>(density.density.0);
-    let _ = m.write_u16::<BigEndian>(density.density.1);
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[0]);
+    m.extend_from_slice(&density.density.0.to_be_bytes());
+    m.extend_from_slice(&density.density.1.to_be_bytes());
+    m.extend_from_slice(&[0, 0]);
 }
 
 fn build_frame_header(
@@ -719,28 +714,25 @@ fn build_frame_header(
 ) {
     m.clear();
 
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = m.write_all(&[precision]);
-    let _ = m.write_u16::<BigEndian>(height);
-    let _ = m.write_u16::<BigEndian>(width);
-    let _ = m.write_all(&[components.len() as u8]);
+    m.push(precision);
+    m.extend_from_slice(&height.to_be_bytes());
+    m.extend_from_slice(&width.to_be_bytes());
+    m.push(components.len() as u8);
 
     for &comp in components.iter() {
-        let _ = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _ = m.write_all(&[hv]);
-        let _ = m.write_all(&[comp.tq]);
+        m.extend_from_slice(&[comp.id, hv, comp.tq]);
     }
 }
 
 fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     m.clear();
 
-    let _ = m.push(components.len() as u8);
+    m.push(components.len() as u8);
 
     for &comp in components.iter() {
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ = m.extend_from_slice(&[comp.id, tables]);
+        m.extend_from_slice(&[comp.id, tables]);
     }
 
     // spectral start and end, approx. high and low
@@ -775,14 +767,13 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
     assert_eq!(qtable.len() % 64, 0);
     m.clear();
 
-    // TODO: More idiomatic would be pub, extend_from_slice
     let p = if precision == 8 { 0 } else { 1 };
 
     let pqtq = (p << 4) | identifier;
-    let _ = m.write_u8(pqtq);
+    m.push(pqtq);
 
     for &i in &UNZIGZAG[..] {
-        let _ = m.write_u8(qtable[i as usize]);
+        m.push(qtable[i as usize]);
     }
 }
 
@@ -883,20 +874,21 @@ mod tests {
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
 
-    use super::{build_jfif_header, JpegEncoder, PixelDensity};
-    use crate::jpeg::encoder::{
+    use super::{
+        build_jfif_header,
         build_huffman_segment,
+        build_scan_header,
+        build_quantization_segment,
+        build_frame_header,
+        Component,
         DCCLASS,
+        JpegEncoder,
         LUMADESTINATION,
+        PixelDensity,
         STD_LUMA_DC_CODE_LENGTHS,
-        STD_LUMA_DC_VALUES
+        STD_LUMA_DC_VALUES,
     };
     use super::super::JpegDecoder;
-
-    #[cfg(feature = "benchmarks")]
-    extern crate test;
-    #[cfg(feature = "benchmarks")]
-    use test::{Bencher};
 
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
@@ -976,7 +968,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_image_too_large() {
         // JPEG cannot encode images larger than 65,535×65,535
@@ -1014,7 +1005,69 @@ mod tests {
     }
 
     #[test]
-    fn bench_build_huffman_segment() {
+    fn test_build_jfif_header() {
+        let mut buf = vec![];
+        let density = PixelDensity::dpi(100);
+        build_jfif_header(&mut buf, density);
+        assert_eq!(buf, [0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0, 100, 0, 100, 0, 0]);
+    }
+
+    #[test]
+    fn test_build_frame_header() {
+        let mut buf = vec![];
+        let components = vec![
+            Component {
+                id: 1,
+                h: 1,
+                v: 1,
+                tq: 5,
+                dc_table: 5,
+                ac_table: 5,
+                _dc_pred: 0,
+            },
+            Component {
+                id: 2,
+                h: 1,
+                v: 1,
+                tq: 4,
+                dc_table: 4,
+                ac_table: 4,
+                _dc_pred: 0,
+            },
+        ];
+        build_frame_header(&mut buf, 5, 100, 150, &components);
+        assert_eq!(buf, [5, 0, 150, 0, 100, 2, 1, 1 << 4 | 1, 5, 2, 1 << 4 | 1, 4]);
+    }
+
+    #[test]
+    fn test_build_scan_header() {
+        let mut buf = vec![];
+        let components = vec![
+            Component {
+                id: 1,
+                h: 1,
+                v: 1,
+                tq: 5,
+                dc_table: 5,
+                ac_table: 5,
+                _dc_pred: 0,
+            },
+            Component {
+                id: 2,
+                h: 1,
+                v: 1,
+                tq: 4,
+                dc_table: 4,
+                ac_table: 4,
+                _dc_pred: 0,
+            },
+        ];
+        build_scan_header(&mut buf, &components);
+        assert_eq!(buf, [2, 1, 5 << 4 | 5, 2, 4 << 4 | 4, 0, 63, 0]);
+    }
+
+    #[test]
+    fn test_build_huffman_segment() {
         let mut buf = vec![];
         build_huffman_segment(
             &mut buf,
@@ -1025,12 +1078,15 @@ mod tests {
         );
         assert_eq!(buf, vec![0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     }
-    #[cfg(feature = "benchmarks")]
-    #[bench]
-    fn bench_jpeg_encoder_new(b: &mut Bencher) {
-        b.iter(|| {
-            let mut y = vec![];
-            let x = JpegEncoder::new(&mut y);
-        })
+
+    #[test]
+    fn test_build_quantization_segment() {
+        let mut buf = vec![];
+        let qtable = [0u8; 64];
+        build_quantization_segment(&mut buf, 8, 1, &qtable);
+        let mut expected = vec![];
+        expected.push(0 << 4 | 1);
+        expected.extend_from_slice(&[0; 64]);
+        assert_eq!(buf, expected)
     }
 }

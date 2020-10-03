@@ -67,14 +67,39 @@ pub struct Decoder<R: Read> {
     limits: Limits,
 }
 
-struct InterlacedRow<'data> {
-    data: &'data [u8],
-    interlace: InterlaceInfo,
+/// A row of data with interlace information attached.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct InterlacedRow<'data> {
+    pub data: &'data [u8],
+    pub interlace: InterlaceInfo,
 }
 
-enum InterlaceInfo {
-    None,
+/// PNG (2003) specifies two interlace modes, but reserves future extensions.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum InterlaceInfo {
+    /// the null method means no interlacing
+    Null,
+    /// Adam7 derives its name from doing 7 passes over the image, only decoding a subset of all pixels in each pass.
+    /// The following table shows pictorially what parts of each 8x8 area of the image is found in each pass:
+    /// 
+    /// 1 6 4 6 2 6 4 6
+    /// 7 7 7 7 7 7 7 7
+    /// 5 6 5 6 5 6 5 6
+    /// 7 7 7 7 7 7 7 7
+    /// 3 6 4 6 3 6 4 6
+    /// 7 7 7 7 7 7 7 7
+    /// 5 6 5 6 5 6 5 6
+    /// 7 7 7 7 7 7 7 7
     Adam7 { pass: u8, line: u32, width: u32 },
+}
+
+/// A row of data without interlace information.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Row<'data> {
+    pub data: &'data [u8],
 }
 
 impl<R: Read> Decoder<R> {
@@ -355,7 +380,7 @@ impl<R: Read> Reader<R> {
     ///
     /// The structure will change as new frames of an animated image are decoded.
     pub fn info(&self) -> &Info {
-        get_info!(self)
+        self.decoder.info().unwrap()
     }
 
     /// Get the subframe index of the current info.
@@ -423,15 +448,18 @@ impl<R: Read> Reader<R> {
 
         self.reset_current();
         let width = self.info().width;
-        if get_info!(self).interlaced {
-            while let Some((row, adam7)) = self.next_interlaced_row()? {
-                let (pass, line, _) = adam7.unwrap();
+        if self.info().interlaced {
+            while let Some(InterlacedRow { data: row, interlace }) = self.next_interlaced_row()? {
+                let (line, pass) = match interlace {
+                    InterlaceInfo::Adam7 { line, pass, .. } => (line, pass),
+                    InterlaceInfo::Null => unreachable!("expected interlace information"),
+                };
                 let samples = color_type.samples() as u8;
                 utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
             }
         } else {
             let mut len = 0;
-            while let Some(row) = self.next_row()? {
+            while let Some(Row { data: row }) = self.next_row()? {
                 len += (&mut buf[len..]).write(row)?;
             }
         }
@@ -445,30 +473,25 @@ impl<R: Read> Reader<R> {
     }
 
     /// Returns the next processed row of the image
-    pub fn next_row(&mut self) -> Result<Option<&[u8]>, DecodingError> {
-        self.next_interlaced_row().map(|v| v.map(|v| v.0))
+    pub fn next_row(&mut self) -> Result<Option<Row>, DecodingError> {
+        self.next_interlaced_row().map(|v| v.map(|v| Row { data: v.data }))
     }
 
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(
         &mut self,
-    ) -> Result<Option<(&[u8], Option<(u8, u32, u32)>)>, DecodingError> {
+    ) -> Result<Option<InterlacedRow>, DecodingError> {
         match self.next_interlaced_row_impl() {
             Err(err) => Err(err),
             Ok(None) => Ok(None),
-            Ok(Some(row)) => {
-                let interlace = match row.interlace {
-                    InterlaceInfo::None => None,
-                    InterlaceInfo::Adam7 { pass, line, width } => Some((pass, line, width)),
-                };
-
-                Ok(Some((row.data, interlace)))
+            Ok(s) => {
+                Ok(s)
             }
         }
     }
 
     /// Fetch the next interlaced row and filter it according to our own transformations.
-    fn next_interlaced_row_impl(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
+    fn next_interlaced_row_impl(&mut self) -> Result<Option<InterlacedRow>, DecodingError> {
         use crate::common::ColorType::*;
         let transform = self.transform;
 
@@ -482,7 +505,7 @@ impl<R: Read> Reader<R> {
             (&mut buffer[..]).write_all(row.data)?;
             (true, row.interlace)
         } else {
-            (false, InterlaceInfo::None)
+            (false, InterlaceInfo::Null)
         };
         // swap back
         let _ = mem::replace(&mut self.processed, buffer);
@@ -492,7 +515,7 @@ impl<R: Read> Reader<R> {
         }
 
         let (color_type, bit_depth, trns) = {
-            let info = get_info!(self);
+            let info = self.info();
             (info.color_type, info.bit_depth as u8, info.trns.is_some())
         };
         let output_buffer = if let InterlaceInfo::Adam7 { width, .. } = adam7 {
@@ -549,7 +572,7 @@ impl<R: Read> Reader<R> {
     pub(crate) fn imm_output_color_type(&self) -> (ColorType, BitDepth) {
         use crate::common::ColorType::*;
         let t = self.transform;
-        let info = get_info!(self);
+        let info = self.info();
         if t == crate::Transformations::IDENTITY {
             (info.color_type, info.bit_depth)
         } else {
@@ -582,7 +605,7 @@ impl<R: Read> Reader<R> {
     /// Returns the number of bytes required to hold a deinterlaced image frame
     /// that is decoded using the given input transformations.
     pub fn output_buffer_size(&self) -> usize {
-        let (width, height) = get_info!(self).size();
+        let (width, height) = self.info().size();
         let size = self.output_line_size(width);
         size * height as usize
     }
@@ -602,7 +625,7 @@ impl<R: Read> Reader<R> {
     }
 
     fn checked_output_buffer_size(&self) -> Option<usize> {
-        let (width, height) = get_info!(self).size();
+        let (width, height) = self.info().size();
         let (color, depth) = self.imm_output_color_type();
         let rowlen = color.checked_raw_row_length(depth, width)? - 1;
         let height: usize = std::convert::TryFrom::try_from(height).ok()?;
@@ -619,7 +642,7 @@ impl<R: Read> Reader<R> {
     fn line_size(&self, width: u32) -> Option<usize> {
         use crate::common::ColorType::*;
         let t = self.transform;
-        let info = get_info!(self);
+        let info = self.info();
         let trns = info.trns.is_some();
 
         let expanded = if info.bit_depth == BitDepth::Sixteen {
@@ -660,7 +683,7 @@ impl<R: Read> Reader<R> {
             InterlaceIter::Adam7(ref mut adam7) => {
                 let last_pass = adam7.current_pass();
                 let (pass, line, width) = adam7.next()?;
-                let rowlen = get_info!(self).raw_row_length_from_width(width);
+                let rowlen = self.info().raw_row_length_from_width(width);
                 if last_pass != pass {
                     self.prev.clear();
                     self.prev.resize(rowlen, 0u8);
@@ -669,7 +692,7 @@ impl<R: Read> Reader<R> {
             }
             InterlaceIter::None(ref mut height) => {
                 let _ = height.next()?;
-                Some((self.subframe.rowlen, InterlaceInfo::None))
+                Some((self.subframe.rowlen, InterlaceInfo::Null))
             }
         }
     }

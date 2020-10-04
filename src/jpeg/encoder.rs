@@ -402,13 +402,13 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         };
 
         let mut tables = vec![STD_LUMA_QTABLE.clone(), STD_CHROMA_QTABLE.clone()];
-        let scale_value = |v: &mut u8| {
-            let value = (u32::from(*v) * scale + 50) / 100;
-
-            *v = clamp(value, 1, u32::from(u8::max_value())) as u8;
-        };
-        tables[0].iter_mut().for_each(scale_value);
-        tables[1].iter_mut().for_each(scale_value);
+        tables.iter_mut().for_each(|t|
+            t.iter_mut().for_each(|v| {
+                *v = clamp(
+                    (u32::from(*v) * scale + 50) / 100,
+                    1, u32::from(u8::max_value())) as u8;
+            })
+        );
 
         JpegEncoder {
             writer: BitWriter::new(w),

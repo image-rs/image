@@ -231,8 +231,8 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         // Figure F.2
         let mut zero_run = 0;
 
-        for k in 1usize..=63 {
-            if block[UNZIGZAG[k] as usize] == 0 {
+        for &k in &UNZIGZAG[1..] {
+            if block[k as usize] == 0 {
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
@@ -240,17 +240,13 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = encode_coefficient(block[UNZIGZAG[k] as usize]);
+                let (size, value) = encode_coefficient(block[k as usize]);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode(symbol, actable)?;
                 self.write_bits(value, size)?;
 
                 zero_run = 0;
-
-                if k == 63 {
-                    break;
-                }
             }
         }
 
@@ -260,7 +256,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
         Ok(dcval)
     }
-    
+
     fn write_segment(&mut self, marker: u8, data: Option<&[u8]>) -> io::Result<()> {
         self.w.write_all(&[0xFF, marker])?;
 
@@ -330,7 +326,7 @@ pub struct JpegEncoder<'a, W: 'a> {
     writer: BitWriter<'a, W>,
 
     components: Vec<Component>,
-    tables: Vec<u8>,
+    tables: Vec<[u8; 64]>,
 
     luma_dctable: Vec<(u8, u16)>,
     luma_actable: Vec<(u8, u16)>,
@@ -405,14 +401,14 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             200 - scale * 2
         };
 
-        let mut tables = Vec::new();
-        let scale_value = |&v: &u8| {
-            let value = (u32::from(v) * scale + 50) / 100;
-
-            clamp(value, 1, u32::from(u8::max_value())) as u8
-        };
-        tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
-        tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
+        let mut tables = vec![STD_LUMA_QTABLE.clone(), STD_CHROMA_QTABLE.clone()];
+        tables.iter_mut().for_each(|t|
+            t.iter_mut().for_each(|v| {
+                *v = clamp(
+                    (u32::from(*v) * scale + 50) / 100,
+                    1, u32::from(u8::max_value())) as u8;
+            })
+        );
 
         JpegEncoder {
             writer: BitWriter::new(w),
@@ -526,10 +522,10 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         );
         self.writer.write_segment(SOF0, Some(&buf))?;
 
-        assert_eq!(self.tables.len() / 64, 2);
+        assert_eq!(self.tables.len(), 2);
         let numtables = if num_components == 1 { 1 } else { 2 };
 
-        for (i, table) in self.tables.chunks(64).enumerate().take(numtables) {
+        for (i, table) in self.tables[..numtables].iter().enumerate() {
             build_quantization_segment(&mut buf, 8, i as u8, table);
             self.writer.write_segment(DQT, Some(&buf))?;
         }
@@ -604,8 +600,8 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 transform::fdct(&yblock, &mut dct_yblock);
 
                 // Quantization
-                for (i, dct) in dct_yblock.iter_mut().enumerate().take(64) {
-                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                for (i, dct) in dct_yblock.iter_mut().enumerate() {
+                    *dct = ((*dct / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
                 }
 
                 let la = &*self.luma_actable;
@@ -655,12 +651,12 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 // Quantization
                 for i in 0usize..64 {
                     dct_yblock[i] =
-                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[i])).round() as i32;
+                        ((dct_yblock[i] / 8) as f32 / f32::from(self.tables[0][i])).round() as i32;
                     dct_cb_block[i] = ((dct_cb_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
+                        / f32::from(self.tables[1][i]))
                         .round() as i32;
                     dct_cr_block[i] = ((dct_cr_block[i] / 8) as f32
-                        / f32::from(self.tables[64+i]))
+                        / f32::from(self.tables[1][i]))
                         .round() as i32;
                 }
 
@@ -693,21 +689,16 @@ impl<'a, W: Write> ImageEncoder for JpegEncoder<'a, W> {
 
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     m.clear();
-
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = write!(m, "JFIF");
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[0x01]);
-    let _ = m.write_all(&[0x02]);
-    let _ = m.write_all(&[match density.unit {
+    m.extend_from_slice("JFIF".as_bytes());
+    m.extend_from_slice(&[0, 0x01, 0x02,
+        match density.unit {
         PixelDensityUnit::PixelAspectRatio => 0x00,
         PixelDensityUnit::Inches => 0x01,
         PixelDensityUnit::Centimeters => 0x02,
     }]);
-    let _ = m.write_u16::<BigEndian>(density.density.0);
-    let _ = m.write_u16::<BigEndian>(density.density.1);
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[0]);
+    m.extend_from_slice(&density.density.0.to_be_bytes());
+    m.extend_from_slice(&density.density.1.to_be_bytes());
+    m.extend_from_slice(&[0, 0]);
 }
 
 fn build_frame_header(
@@ -719,78 +710,65 @@ fn build_frame_header(
 ) {
     m.clear();
 
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = m.write_all(&[precision]);
-    let _ = m.write_u16::<BigEndian>(height);
-    let _ = m.write_u16::<BigEndian>(width);
-    let _ = m.write_all(&[components.len() as u8]);
+    m.push(precision);
+    m.extend_from_slice(&height.to_be_bytes());
+    m.extend_from_slice(&width.to_be_bytes());
+    m.push(components.len() as u8);
 
     for &comp in components.iter() {
-        let _ = m.write_all(&[comp.id]);
         let hv = (comp.h << 4) | comp.v;
-        let _ = m.write_all(&[hv]);
-        let _ = m.write_all(&[comp.tq]);
+        m.extend_from_slice(&[comp.id, hv, comp.tq]);
     }
 }
 
 fn build_scan_header(m: &mut Vec<u8>, components: &[Component]) {
     m.clear();
 
-    // TODO: More idiomatic would be extend_from_slice, to_be_bytes
-    let _ = m.write_all(&[components.len() as u8]);
+    m.push(components.len() as u8);
 
     for &comp in components.iter() {
-        let _ = m.write_all(&[comp.id]);
         let tables = (comp.dc_table << 4) | comp.ac_table;
-        let _ = m.write_all(&[tables]);
+        m.extend_from_slice(&[comp.id, tables]);
     }
 
     // spectral start and end, approx. high and low
-    let _ = m.write_all(&[0]);
-    let _ = m.write_all(&[63]);
-    let _ = m.write_all(&[0]);
+    m.extend_from_slice(&[0, 63, 0]);
 }
 
 fn build_huffman_segment(
     m: &mut Vec<u8>,
     class: u8,
     destination: u8,
-    numcodes: &[u8],
+    numcodes: &[u8; 16],
     values: &[u8],
 ) {
     m.clear();
 
-    // TODO: More idiomatic would be pub, extend_from_slice
     let tcth = (class << 4) | destination;
-    let _ = m.write_u8(tcth);
+    m.push(tcth);
 
-    assert_eq!(numcodes.len(), 16);
+    m.extend_from_slice(numcodes);
 
-    let _ = m.write_all(numcodes);
-
-    let mut sum = 0usize;
-
-    for &i in numcodes.iter() {
-        sum += i as usize;
-    }
+    let sum: usize = numcodes
+                        .iter()
+                        .map(|&x| x as usize)
+                        .sum();
 
     assert_eq!(sum, values.len());
 
-    let _ = m.write_all(values);
+    m.extend_from_slice(values);
 }
 
-fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8]) {
-    assert_eq!(qtable.len() % 64, 0);
+fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qtable: &[u8; 64]) {
     m.clear();
 
-    // TODO: More idiomatic would be pub, extend_from_slice
     let p = if precision == 8 { 0 } else { 1 };
 
     let pqtq = (p << 4) | identifier;
-    let _ = m.write_u8(pqtq);
+    m.push(pqtq);
 
     for &i in &UNZIGZAG[..] {
-        let _ = m.write_u8(qtable[i as usize]);
+        m.push(qtable[i as usize]);
     }
 }
 
@@ -891,8 +869,22 @@ mod tests {
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
 
-    use super::{build_jfif_header, JpegEncoder, PixelDensity};
+    use super::{
+        build_jfif_header,
+        build_huffman_segment,
+        build_scan_header,
+        build_quantization_segment,
+        build_frame_header,
+        Component,
+        DCCLASS,
+        JpegEncoder,
+        LUMADESTINATION,
+        PixelDensity,
+        STD_LUMA_DC_CODE_LENGTHS,
+        STD_LUMA_DC_VALUES,
+    };
     use super::super::JpegDecoder;
+
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let decoder = JpegDecoder::new(Cursor::new(encoded))
@@ -971,7 +963,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_image_too_large() {
         // JPEG cannot encode images larger than 65,535×65,535
@@ -1006,5 +997,91 @@ mod tests {
         assert!(decoded[0] > 200, "bad red channel in {:?}", &decoded);
         assert!(100 < decoded[1] && decoded[1] < 150, "bad green channel in {:?}", &decoded);
         assert!(decoded[2] < 50, "bad blue channel in {:?}", &decoded);
+    }
+
+    #[test]
+    fn test_build_jfif_header() {
+        let mut buf = vec![];
+        let density = PixelDensity::dpi(100);
+        build_jfif_header(&mut buf, density);
+        assert_eq!(buf, [0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x01, 0, 100, 0, 100, 0, 0]);
+    }
+
+    #[test]
+    fn test_build_frame_header() {
+        let mut buf = vec![];
+        let components = vec![
+            Component {
+                id: 1,
+                h: 1,
+                v: 1,
+                tq: 5,
+                dc_table: 5,
+                ac_table: 5,
+                _dc_pred: 0,
+            },
+            Component {
+                id: 2,
+                h: 1,
+                v: 1,
+                tq: 4,
+                dc_table: 4,
+                ac_table: 4,
+                _dc_pred: 0,
+            },
+        ];
+        build_frame_header(&mut buf, 5, 100, 150, &components);
+        assert_eq!(buf, [5, 0, 150, 0, 100, 2, 1, 1 << 4 | 1, 5, 2, 1 << 4 | 1, 4]);
+    }
+
+    #[test]
+    fn test_build_scan_header() {
+        let mut buf = vec![];
+        let components = vec![
+            Component {
+                id: 1,
+                h: 1,
+                v: 1,
+                tq: 5,
+                dc_table: 5,
+                ac_table: 5,
+                _dc_pred: 0,
+            },
+            Component {
+                id: 2,
+                h: 1,
+                v: 1,
+                tq: 4,
+                dc_table: 4,
+                ac_table: 4,
+                _dc_pred: 0,
+            },
+        ];
+        build_scan_header(&mut buf, &components);
+        assert_eq!(buf, [2, 1, 5 << 4 | 5, 2, 4 << 4 | 4, 0, 63, 0]);
+    }
+
+    #[test]
+    fn test_build_huffman_segment() {
+        let mut buf = vec![];
+        build_huffman_segment(
+            &mut buf,
+            DCCLASS,
+            LUMADESTINATION,
+            &STD_LUMA_DC_CODE_LENGTHS,
+            &STD_LUMA_DC_VALUES,
+        );
+        assert_eq!(buf, vec![0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    }
+
+    #[test]
+    fn test_build_quantization_segment() {
+        let mut buf = vec![];
+        let qtable = [0u8; 64];
+        build_quantization_segment(&mut buf, 8, 1, &qtable);
+        let mut expected = vec![];
+        expected.push(0 << 4 | 1);
+        expected.extend_from_slice(&[0; 64]);
+        assert_eq!(buf, expected)
     }
 }

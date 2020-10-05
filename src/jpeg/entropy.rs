@@ -6,13 +6,12 @@ fn derive_codes_and_sizes(bits: &[u8]) -> (Vec<u8>, Vec<u16>) {
     let mut huffcode = vec![0u16; 256];
 
     let mut k = 0;
-    let mut j;
 
     // Annex C.2
     // Figure C.1
     // Generate table of individual code lengths
     for i in 0u8..16 {
-        j = 0;
+        let mut j = 0;
 
         while j < bits[usize::from(i)] {
             huffsize[k] = i + 1;

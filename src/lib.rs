@@ -126,6 +126,7 @@
 #![cfg_attr(all(test, feature = "benchmarks"), feature(test))]
 // it's a bit of a pain otherwise
 #![allow(clippy::many_single_char_names)]
+#![cfg_attr(test, allow(deprecated))]
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -170,6 +171,7 @@ pub use crate::traits::{EncodableLayout, Primitive, Pixel};
 
 // Opening and loading images
 pub use crate::io::free_functions::{guess_format, load};
+#[allow(deprecated)]
 pub use crate::dynimage::{load_from_memory, load_from_memory_with_format, open,
                    save_buffer, save_buffer_with_format, image_dimensions};
 

@@ -988,12 +988,13 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 /// content before its path.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[deprecated = "Use `io::Reader`, it combines input functions in more flexible and consistent interface."]
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::open_impl(path.as_ref())
+    crate::io::Reader::open(path)?
+        .decode()
 }
 
 /// Read the dimensions of the image located at the specified path.
@@ -1003,12 +1004,13 @@ where
 /// content before its path or manually supplying the format.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[deprecated = "Use `io::Reader`, it combines input functions in more flexible and consistent interface."]
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::image_dimensions_impl(path.as_ref())
+    crate::io::Reader::open(path)?
+        .into_dimensions()
 }
 
 /// Saves the supplied buffer to a file at the path specified.
@@ -1063,9 +1065,12 @@ where
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[deprecated = "Use `io::Reader`, it combines input functions in more flexible and consistent interface."]
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
-    let format = free_functions::guess_format(buffer)?;
-    load_from_memory_with_format(buffer, format)
+    let b = io::Cursor::new(buffer);
+    crate::io::Reader::new(b)
+        .with_guessed_format()?
+        .decode()
 }
 
 /// Create a new image from a byte slice
@@ -1078,9 +1083,10 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// [`load`]: fn.load.html
 /// [`io::Reader`]: io/struct.Reader.html
 #[inline(always)]
-pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = io::Cursor::new(buf);
-    free_functions::load(b, format)
+#[deprecated = "Use `io::Reader`, it combines input functions in more flexible and consistent interface."]
+pub fn load_from_memory_with_format(buffer: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
+    let b = io::Cursor::new(buffer);
+    crate::io::Reader::with_format(b, format).decode()
 }
 
 /// Calculates the width and height an image should be resized to.

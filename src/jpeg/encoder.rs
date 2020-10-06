@@ -215,7 +215,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
 
     fn write_block(
         &mut self,
-        block: &[i32],
+        block: &[i32; 64],
         prevdc: i32,
         dctable: &[(u8, u16)],
         actable: &[(u8, u16)],

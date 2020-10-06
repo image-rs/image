@@ -3,7 +3,6 @@
 use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use byteorder::{BigEndian, WriteBytesExt};
 use num_iter::range_step;
 
 use crate::{Bgr, Bgra, ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
@@ -257,14 +256,14 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         Ok(dcval)
     }
 
-    fn write_segment(&mut self, marker: u8, data: Option<&[u8]>) -> io::Result<()> {
-        self.w.write_all(&[0xFF, marker])?;
+    fn write_marker(&mut self, marker: u8) -> io::Result<()> {
+        self.w.write_all(&[0xFF, marker])
+    }
 
-        if let Some(b) = data {
-            self.w.write_u16::<BigEndian>(b.len() as u16 + 2)?;
-            self.w.write_all(b)?;
-        }
-        Ok(())
+    fn write_segment(&mut self, marker: u8, data: &[u8]) -> io::Result<()> {
+        self.w.write_all(&[0xFF, marker])?;
+        self.w.write_all(&(data.len() as u16 + 2).to_be_bytes())?;
+        self.w.write_all(data)
     }
 }
 
@@ -496,12 +495,12 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         let n = I::Pixel::CHANNEL_COUNT;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
-        self.writer.write_segment(SOI, None)?;
+        self.writer.write_marker(SOI)?;
 
         let mut buf = Vec::new();
 
         build_jfif_header(&mut buf, self.pixel_density);
-        self.writer.write_segment(APP0, Some(&buf))?;
+        self.writer.write_segment(APP0, &buf)?;
 
         build_frame_header(
             &mut buf,
@@ -520,14 +519,14 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             })?,
             &self.components[..num_components],
         );
-        self.writer.write_segment(SOF0, Some(&buf))?;
+        self.writer.write_segment(SOF0, &buf)?;
 
         assert_eq!(self.tables.len(), 2);
         let numtables = if num_components == 1 { 1 } else { 2 };
 
         for (i, table) in self.tables[..numtables].iter().enumerate() {
             build_quantization_segment(&mut buf, 8, i as u8, table);
-            self.writer.write_segment(DQT, Some(&buf))?;
+            self.writer.write_segment(DQT, &buf)?;
         }
 
         build_huffman_segment(
@@ -537,7 +536,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             &STD_LUMA_DC_CODE_LENGTHS,
             &STD_LUMA_DC_VALUES,
         );
-        self.writer.write_segment(DHT, Some(&buf))?;
+        self.writer.write_segment(DHT, &buf)?;
 
         build_huffman_segment(
             &mut buf,
@@ -546,7 +545,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             &STD_LUMA_AC_CODE_LENGTHS,
             &STD_LUMA_AC_VALUES,
         );
-        self.writer.write_segment(DHT, Some(&buf))?;
+        self.writer.write_segment(DHT, &buf)?;
 
         if num_components == 3 {
             build_huffman_segment(
@@ -556,7 +555,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 &STD_CHROMA_DC_CODE_LENGTHS,
                 &STD_CHROMA_DC_VALUES,
             );
-            self.writer.write_segment(DHT, Some(&buf))?;
+            self.writer.write_segment(DHT, &buf)?;
 
             build_huffman_segment(
                 &mut buf,
@@ -565,11 +564,11 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 &STD_CHROMA_AC_CODE_LENGTHS,
                 &STD_CHROMA_AC_VALUES,
             );
-            self.writer.write_segment(DHT, Some(&buf))?;
+            self.writer.write_segment(DHT, &buf)?;
         }
 
         build_scan_header(&mut buf, &self.components[..num_components]);
-        self.writer.write_segment(SOS, Some(&buf))?;
+        self.writer.write_segment(SOS, &buf)?;
 
 
         if I::Pixel::COLOR_TYPE.has_color() {
@@ -579,7 +578,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         }?;
 
         self.writer.pad_byte()?;
-        self.writer.write_segment(EOI, None)?;
+        self.writer.write_marker(EOI)?;
         Ok(())
     }
 

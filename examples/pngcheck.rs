@@ -179,7 +179,11 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         match decoder.update(buf, &mut Vec::new()) {
             Ok((_, ImageEnd)) => {
                 if !have_idat {
-                    display_error(png::DecodingError::Format("IDAT chunk missing".into()))?;
+                    // This isn't beautiful. But it works.
+                    display_error(png::DecodingError::IoError(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "IDAT chunk missing",
+                    )))?;
                     break;
                 }
                 if !c.verbose && !c.quiet {

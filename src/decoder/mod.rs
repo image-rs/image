@@ -91,7 +91,13 @@ impl<R: Read> Decoder<R> {
         }
     }
 
-    /// Limit resource usage
+    /// Limit resource usage.
+    ///
+    /// Note that Your allocations, e.g. when reading into a pre-allocated buffer, is __NOT__
+    /// considered part of the limits. Nevertheless, required intermediate buffers such as for
+    /// singular lines is checked against the limit.
+    ///
+    /// Note that this is a best-effort basis.
     ///
     /// ```
     /// use std::fs::File;

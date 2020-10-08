@@ -68,9 +68,21 @@ pub enum Decoded {
     ImageEnd,
 }
 
+/// Any kind of error during PNG decoding.
+///
+/// This enumeration provides a very rough analysis on the origin of the failure. That is, each
+/// variant corresponds to one kind of actor causing the error. It should not be understood as a
+/// direct blame but can inform the search for a root cause or if such a search is required.
 #[derive(Debug)]
 pub enum DecodingError {
+    /// An error in IO of the underlying reader.
     IoError(io::Error),
+    /// The input image was not a valid PNG.
+    ///
+    /// There isn't a lot that can be done here, except if the program itself was responsible for
+    /// creating this image then investigate the generator. This is internally implemented with a
+    /// large Enum. If You are interested in accessing some of the more exact information on the
+    /// variant then we can discuss in an issue.
     Format(FormatError),
     /// An interface was used incorrectly.
     ///
@@ -88,6 +100,13 @@ pub enum DecodingError {
     ///
     /// If you're an application you might want to signal that a bug report is appreciated.
     Parameter(Cow<'static, str>),
+    /// The image would have required exceeding the limits configured with the decoder.
+    ///
+    /// Note that Your allocations, e.g. when reading into a pre-allocated buffer, is __NOT__
+    /// considered part of the limits. Nevertheless, required intermediate buffers such as for
+    /// singular lines is checked against the limit.
+    ///
+    /// Note that this is a best-effort basis.
     LimitsExceeded,
 }
 
@@ -134,10 +153,12 @@ pub(crate) enum FormatErrorInner {
         kind: ChunkType,
     },
     /// 4.3., some chunks must be between PLTE and IDAT.
+    // FIXME: why are we not using this?
     OutsidePlteIdat {
         kind: ChunkType,
     },
     /// 4.3., some chunks must be unique.
+    // FIXME: why are we not using this?
     DuplicateChunk {
         kind: ChunkType,
     },
@@ -149,11 +170,14 @@ pub(crate) enum FormatErrorInner {
         expected: u32,
     },
     // Errors specific to particular chunk data to be validated.
+    /// The palette did not even contain a single pixel data.
     ShortPalette {
         expected: usize,
         len: usize,
     },
+    /// A palletized image did not have a palette.
     PaletteRequired,
+    /// The color-depth combination is not valid according to Table 11.1.
     InvalidColorBitDepth {
         color: ColorType,
         depth: BitDepth,
@@ -167,7 +191,8 @@ pub(crate) enum FormatErrorInner {
     UnknownCompressionMethod(u8),
     UnknownFilterMethod(u8),
     UnknownInterlaceMethod(u8),
-    // TODO: fields with relevant data.
+    /// The subframe is not in bounds of the image.
+    /// TODO: fields with relevant data.
     BadSubFrameBounds {},
     // Errors specific to the IDAT/fDAT chunks.
     /// The compression of the data stream was faulty.

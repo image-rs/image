@@ -165,13 +165,13 @@ pub trait Pixel: Copy + Clone {
     /// Returns a view into a slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
-    /// that the slice is long enough to present panics if the pixel is used later on.
+    /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice(slice: &[Self::Subpixel]) -> &Self;
 
     /// Returns mutable view into a mutable slice.
     ///
     /// Note: The slice length is not checked on creation. Thus the caller has to ensure
-    /// that the slice is long enough to present panics if the pixel is used later on.
+    /// that the slice is long enough to prevent panics if the pixel is used later on.
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
     /// Convert this pixel to RGB

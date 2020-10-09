@@ -264,7 +264,32 @@ impl ColorMap for BiLevel {
     }
 }
 
+#[allow(deprecated)]
 impl ColorMap for nq::NeuQuant {
+    type Color = Rgba<u8>;
+
+    #[inline(always)]
+    fn index_of(&self, color: &Rgba<u8>) -> usize {
+        self.index_of(color.channels())
+    }
+
+    #[inline(always)]
+    fn lookup(&self, idx: usize) -> Option<Self::Color> {
+        self.lookup(idx).map(|p| p.into())
+    }
+
+    /// Indicate NeuQuant implements `lookup`.
+    fn has_lookup(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    fn map_color(&self, color: &mut Rgba<u8>) {
+        self.map_pixel(color.channels_mut())
+    }
+}
+
+impl ColorMap for color_quant::NeuQuant {
     type Color = Rgba<u8>;
 
     #[inline(always)]

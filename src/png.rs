@@ -69,7 +69,7 @@ impl<R: Read> PngReader<R> {
 impl<R: Read> Read for PngReader<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         // io::Write::write for slice cannot fail
-        let readed = buf.write(&self.buffer[self.index..]).unwrap();
+        let readed = buf.write(&self.buffer[self.index..])?;
 
         let mut bytes = readed;
         self.index += readed;
@@ -78,7 +78,7 @@ impl<R: Read> Read for PngReader<R> {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
-                    let readed  = buf.write(row).unwrap();
+                    let readed  = buf.write(row)?;
                     bytes += readed;
 
                     self.buffer = (&row[readed..]).to_owned();

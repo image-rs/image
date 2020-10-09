@@ -400,7 +400,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             200 - scale * 2
         };
 
-        let mut tables = vec![STD_LUMA_QTABLE.clone(), STD_CHROMA_QTABLE.clone()];
+        let mut tables = vec![STD_LUMA_QTABLE, STD_CHROMA_QTABLE];
         tables.iter_mut().for_each(|t|
             t.iter_mut().for_each(|v| {
                 *v = clamp(

@@ -70,4 +70,33 @@
 /// });
 /// ```
 #[deprecated(note = "Use the `color_quant` crate instead")]
-pub type NeuQuant = color_quant::NeuQuant;
+pub struct NeuQuant {
+    inner: color_quant::NeuQuant,
+}
+
+/// The implementation only calls the corresponding inner `color_quant` methods.
+///
+/// These exist purely to keep a type separate from [`color_quant::NeuQuant`] and the interface
+/// stable for this major version. The type will be changed to a pure re-export in the next
+/// version or might be removed.
+///
+/// [`color_quant::NeuQuant`]: https://docs.rs/color_quant/1.1.0/color_quant/struct.NeuQuant.html
+#[allow(deprecated)]
+#[allow(missing_docs)]
+impl NeuQuant {
+    pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> Self {
+        NeuQuant { inner: color_quant::NeuQuant::new(samplefac, colors, pixels) }
+    }
+    pub fn init(&mut self, pixels: &[u8]) {
+        self.inner.init(pixels)
+    }
+    pub fn map_pixel(&self, pixel: &mut [u8]) {
+        self.inner.map_pixel(pixel)
+    }
+    pub fn index_of(&self, pixel: &[u8]) -> usize {
+        self.inner.index_of(pixel)
+    }
+    pub fn lookup(&self, idx: usize) -> Option<[u8; 4]> {
+        self.inner.lookup(idx)
+    }
+}

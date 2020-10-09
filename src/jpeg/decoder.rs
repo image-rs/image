@@ -33,6 +33,33 @@ impl<R: Read> JpegDecoder<R> {
             metadata,
         })
     }
+
+    /// Configure the decoder to scale the image during decoding.
+    ///
+    /// This efficiently scales the image by the smallest supported
+    /// scale factor that produces an image larger than or equal to
+    /// the requested size in at least one axis. The currently
+    /// implemented scale factors are 1/8, 1/4, 1/2 and 1.
+    ///
+    /// To generate a thumbnail of an exact size, pass the desired
+    /// size and then scale to the final size using a traditional
+    /// resampling algorithm.
+    ///
+    /// The size of the image to be loaded, with the scale factor
+    /// applied, is returned.
+    pub fn scale(
+        &mut self,
+        requested_width: u16,
+        requested_height: u16
+    ) -> ImageResult<(u16, u16)> {
+        let result = self.decoder.scale(requested_width, requested_height)
+            .map_err(ImageError::from_jpeg)?;
+
+        self.metadata.width = result.0;
+        self.metadata.height = result.1;
+
+        Ok(result)
+    }
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`

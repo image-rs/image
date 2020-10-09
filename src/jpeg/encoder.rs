@@ -688,7 +688,7 @@ impl<'a, W: Write> ImageEncoder for JpegEncoder<'a, W> {
 
 fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     m.clear();
-    m.extend_from_slice("JFIF".as_bytes());
+    m.extend_from_slice(b"JFIF");
     m.extend_from_slice(&[0, 0x01, 0x02,
         match density.unit {
         PixelDensityUnit::PixelAspectRatio => 0x00,

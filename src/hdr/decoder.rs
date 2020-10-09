@@ -884,10 +884,10 @@ fn parse_dimensions_line(line: &str, strict: bool) -> ImageResult<(u32, u32)> {
     const DIMENSIONS_COUNT: usize = 4;
 
     let mut dim_parts = line.split_whitespace();
-    let c1_tag = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(0, DIMENSIONS_COUNT))?;
-    let c1_str = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(1, DIMENSIONS_COUNT))?;
-    let c2_tag = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(2, DIMENSIONS_COUNT))?;
-    let c2_str = dim_parts.next().ok_or_else(|| DecoderError::DimensionsLineTooShort(3, DIMENSIONS_COUNT))?;
+    let c1_tag = dim_parts.next().ok_or(DecoderError::DimensionsLineTooShort(0, DIMENSIONS_COUNT))?;
+    let c1_str = dim_parts.next().ok_or(DecoderError::DimensionsLineTooShort(1, DIMENSIONS_COUNT))?;
+    let c2_tag = dim_parts.next().ok_or(DecoderError::DimensionsLineTooShort(2, DIMENSIONS_COUNT))?;
+    let c2_str = dim_parts.next().ok_or(DecoderError::DimensionsLineTooShort(3, DIMENSIONS_COUNT))?;
     if strict && dim_parts.next().is_some() {
         // extra data in dimensions line
         return Err(DecoderError::DimensionsLineTooLong(DIMENSIONS_COUNT).into());

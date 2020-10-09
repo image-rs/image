@@ -93,8 +93,13 @@ impl<R: Read> Read for PngReader<R> {
 
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         let mut bytes = self.buffer.len();
-        buf.extend_from_slice(&self.buffer);
-        self.buffer = Vec::new();
+        if buf.is_empty() {
+            std::mem::swap(&mut self.buffer, buf);
+        } else {
+            buf.extend_from_slice(&self.buffer);
+            self.buffer.clear();
+        }
+
         self.index = 0;
 
         while let Some(row) = self.reader.next_row()? {

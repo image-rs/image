@@ -230,27 +230,23 @@ pub(crate) fn save_buffer_with_format_impl(
 /// `PathError::UnknownExtension` containing the extension if  it can not be convert to a `str`.
 pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, PathError> {
     let exact_ext = path.extension();
-
     let ext = exact_ext
         .and_then(|s| s.to_str())
-        .map(str::to_ascii_lowercase);
+        .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
-    let ext = ext.as_ref()
-        .map(String::as_str);
-
-    Ok(match ext {
-        Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
-        Some("png") => image::ImageFormat::Png,
-        Some("gif") => image::ImageFormat::Gif,
-        Some("webp") => image::ImageFormat::WebP,
-        Some("tif") | Some("tiff") => image::ImageFormat::Tiff,
-        Some("tga") => image::ImageFormat::Tga,
-        Some("dds") => image::ImageFormat::Dds,
-        Some("bmp") => image::ImageFormat::Bmp,
-        Some("ico") => image::ImageFormat::Ico,
-        Some("hdr") => image::ImageFormat::Hdr,
-        Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
-        Some("ff") | Some("farbfeld") => image::ImageFormat::Farbfeld,
+    Ok(match ext.as_str() {
+        "jpg" | "jpeg" => image::ImageFormat::Jpeg,
+        "png" => image::ImageFormat::Png,
+        "gif" => image::ImageFormat::Gif,
+        "webp" => image::ImageFormat::WebP,
+        "tif" | "tiff" => image::ImageFormat::Tiff,
+        "tga" => image::ImageFormat::Tga,
+        "dds" => image::ImageFormat::Dds,
+        "bmp" => image::ImageFormat::Bmp,
+        "ico" => image::ImageFormat::Ico,
+        "hdr" => image::ImageFormat::Hdr,
+        "pbm" | "pam" | "ppm" | "pgm" => image::ImageFormat::Pnm,
+        "ff" | "farbfeld" => image::ImageFormat::Farbfeld,
         // The original extension is used, instead of _format
         _ => return match exact_ext {
             None => Err(PathError::NoExtension),

@@ -85,7 +85,7 @@ pub struct NeuQuant {
 #[allow(missing_docs)]
 impl NeuQuant {
     pub fn new(samplefac: i32, colors: usize, pixels: &[u8]) -> Self {
-        NeuQuant { inner: color_quant::NeuQuant::new(samplefac, colors, pixels) }
+        color_quant::NeuQuant::new(samplefac, colors, pixels).into()
     }
     pub fn init(&mut self, pixels: &[u8]) {
         self.inner.init(pixels)
@@ -98,5 +98,19 @@ impl NeuQuant {
     }
     pub fn lookup(&self, idx: usize) -> Option<[u8; 4]> {
         self.inner.lookup(idx)
+    }
+}
+
+#[allow(deprecated)]
+impl From<color_quant::NeuQuant> for NeuQuant {
+    fn from(inner: color_quant::NeuQuant) -> Self {
+        NeuQuant { inner }
+    }
+}
+
+#[allow(deprecated)]
+impl From<NeuQuant> for color_quant::NeuQuant {
+    fn from(this: NeuQuant) -> Self {
+        this.inner
     }
 }

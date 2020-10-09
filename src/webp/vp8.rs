@@ -1292,7 +1292,7 @@ impl<R: Read> Vp8Decoder<R> {
             let luma = self.b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
             mb.luma_mode = LumaMode::from_i8(luma)
-                .ok_or_else(|| DecoderError::LumaPredictionModeInvalid(luma))?;
+                .ok_or(DecoderError::LumaPredictionModeInvalid(luma))?;
 
             match mb.luma_mode.into_intra() {
                 // `LumaMode::B` - This is predicted individually
@@ -1307,7 +1307,7 @@ impl<R: Read> Vp8Decoder<R> {
                                 0,
                             );
                             let bmode = IntraMode::from_i8(intra)
-                                .ok_or_else(|| DecoderError::IntraPredictionModeInvalid(intra))?;
+                                .ok_or(DecoderError::IntraPredictionModeInvalid(intra))?;
                             mb.bpred[x + y * 4] = bmode;
 
                             self.top[mbx].bpred[12 + x] = bmode;
@@ -1326,7 +1326,7 @@ impl<R: Read> Vp8Decoder<R> {
             let chroma = self.b
                 .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
             mb.chroma_mode = ChromaMode::from_i8(chroma)
-                .ok_or_else(|| DecoderError::ChromaPredictionModeInvalid(chroma))?;
+                .ok_or(DecoderError::ChromaPredictionModeInvalid(chroma))?;
         }
 
         self.top[mbx].chroma_mode = mb.chroma_mode;

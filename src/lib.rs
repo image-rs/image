@@ -208,35 +208,41 @@ pub mod io;
 // Buffer representations for ffi.
 pub mod flat;
 
-// Image codecs
-#[cfg(feature = "bmp")]
-pub mod bmp;
-#[cfg(feature = "dds")]
-pub mod dds;
-#[cfg(feature = "dxt")]
-pub mod dxt;
-#[cfg(feature = "gif")]
-pub mod gif;
-#[cfg(feature = "hdr")]
-pub mod hdr;
-#[cfg(feature = "ico")]
-pub mod ico;
-#[cfg(feature = "jpeg")]
-pub mod jpeg;
-#[cfg(feature = "png")]
-pub mod png;
-#[cfg(feature = "pnm")]
-pub mod pnm;
-#[cfg(feature = "tga")]
-pub mod tga;
-#[cfg(feature = "tiff")]
-pub mod tiff;
-#[cfg(feature = "webp")]
-pub mod webp;
-#[cfg(feature = "farbfeld")]
-pub mod farbfeld;
-#[cfg(feature = "avif")]
-pub mod avif;
+/// Encoding and decoding for various image file formats.
+pub mod codecs {
+	#[cfg(feature = "bmp")]
+	pub mod bmp;
+	#[cfg(feature = "dds")]
+	pub mod dds;
+	#[cfg(feature = "dxt")]
+	pub mod dxt;
+	#[cfg(feature = "gif")]
+	pub mod gif;
+	#[cfg(feature = "hdr")]
+	pub mod hdr;
+	#[cfg(feature = "ico")]
+	pub mod ico;
+	#[cfg(feature = "jpeg")]
+	pub mod jpeg;
+	#[cfg(feature = "png")]
+	pub mod png;
+	#[cfg(feature = "pnm")]
+	pub mod pnm;
+	#[cfg(feature = "tga")]
+	pub mod tga;
+	#[cfg(feature = "tiff")]
+	pub mod tiff;
+	#[cfg(feature = "webp")]
+	pub mod webp;
+	#[cfg(feature = "farbfeld")]
+	pub mod farbfeld;
+	#[cfg(feature = "avif")]
+	pub mod avif;
+}
+
+// Note: Due to #47236 this deprecation warning isn't actually displayed.
+#[deprecated = "Import via image::codecs:: instead."]
+pub use crate::codecs::*;
 
 mod animation;
 #[path = "buffer.rs"]

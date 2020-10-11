@@ -113,6 +113,20 @@ pub struct NonExhaustiveMarker {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Empty { }
 
+#[inline]
+pub(crate) fn clamp<N>(a: N, min: N, max: N) -> N
+where
+    N: PartialOrd,
+{
+    if a < min {
+        min
+    } else if a > max {
+        max
+    } else {
+        a
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]

@@ -23,7 +23,7 @@ use crate::error::{
 };
 use crate::image::ImageFormat;
 
-use crate::math::utils::clamp;
+use crate::utils::clamp;
 
 const MAX_SEGMENTS: usize = 4;
 const NUM_DCT_TOKENS: usize = 12;

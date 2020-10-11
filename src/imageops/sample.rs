@@ -9,7 +9,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::ImageBuffer;
 use crate::image::GenericImageView;
-use crate::math::utils::clamp;
+use crate::utils::clamp;
 use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// Available Sampling Filters.

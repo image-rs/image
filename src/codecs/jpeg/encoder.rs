@@ -8,7 +8,7 @@ use num_iter::range_step;
 use crate::{Bgr, Bgra, ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageEncoder, ImageFormat};
-use crate::math::utils::clamp;
+use crate::utils::clamp;
 
 use super::entropy::build_huff_lut;
 use super::transform;

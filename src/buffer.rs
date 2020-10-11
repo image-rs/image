@@ -1249,6 +1249,18 @@ where
     FromType::Subpixel: 'static,
     ToType::Subpixel: 'static,
 {
+    /// # Examples
+    /// Convert RGB image to gray image.
+    /// ```
+    /// use image::buffer::ConvertBuffer;
+    /// use image::GrayImage;
+    /// 
+    /// let image = image::open(&image_path)
+    ///     .expect("Open file failed")
+    ///     .to_rgba();
+    /// 
+    /// let gray_image: GrayImage = image.convert();
+    /// ```
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
             ImageBuffer::new(self.width, self.height);

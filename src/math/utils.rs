@@ -10,6 +10,7 @@
 /// assert_eq!(utils::clamp(15, 0, 10), 10);
 /// ```
 #[inline]
+#[deprecated]
 pub fn clamp<N>(a: N, min: N, max: N) -> N
 where
     N: PartialOrd,

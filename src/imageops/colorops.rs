@@ -7,7 +7,7 @@ use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
 #[allow(deprecated)]
 use crate::math::nq;
-use crate::math::utils::clamp;
+use crate::utils::clamp;
 use crate::traits::{Pixel, Primitive};
 use crate::ImageBuffer;
 

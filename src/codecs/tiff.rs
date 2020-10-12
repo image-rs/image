@@ -147,6 +147,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
             tiff::decoder::DecodingResult::U16(v) => utils::vec_u16_into_u8(v),
             tiff::decoder::DecodingResult::U32(v) => utils::vec_u32_into_u8(v),
             tiff::decoder::DecodingResult::U64(v) => utils::vec_u64_into_u8(v),
+            tiff::decoder::DecodingResult::F32(v) => bytemuck::cast_slice::<f32, u8>(v.as_slice()).to_owned(),
+            tiff::decoder::DecodingResult::F64(v) => bytemuck::cast_slice::<f64, u8>(v.as_slice()).to_owned(),
         };
 
         Ok(TiffReader(Cursor::new(buf), PhantomData))
@@ -169,6 +171,12 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
             tiff::decoder::DecodingResult::U64(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::F32(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::F64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
         }

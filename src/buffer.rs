@@ -1255,6 +1255,7 @@ where
     /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
     /// 
+    /// let image_path = "example/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba();

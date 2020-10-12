@@ -1251,7 +1251,7 @@ where
 {
     /// # Examples
     /// Convert RGB image to gray image.
-    /// ```
+    /// ```no_run
     /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
     /// 

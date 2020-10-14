@@ -332,13 +332,15 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                 let mask_start = r.seek(SeekFrom::Current(0))?;
                 let mask_end =
                     u64::from(self.selected_entry.image_offset + self.selected_entry.image_length);
-                let mask_length = mask_end - mask_start;
 
-                if mask_length > 0 {
+                if mask_end > mask_start {
                     // A mask row contains 1 bit per pixel, padded to 4 bytes.
                     let mask_row_bytes = ((width + 31) / 32) * 4;
                     let expected_length = u64::from(mask_row_bytes) * u64::from(height);
-                    if mask_length < expected_length {
+
+                    let actual_length = mask_end - mask_start;
+
+                    if actual_length < expected_length {
                         return Err(DecoderError::BmpIcoMaskTooShortForImage.into());
                     }
 

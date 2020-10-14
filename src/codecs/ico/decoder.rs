@@ -31,7 +31,9 @@ enum DecoderError {
     /// The enclosed PNG is not in RGBA, which is invalid: https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/.
     PngNotRgba,
 
-    /// The optional mask row, containing 1 bit per pixel, padded to 4 bytes, was too short for this image.
+    /// This could be replaced with some error about the image_length in the header, or potentially merged with ImageEntryDimensionMismatch
+    #[allow(dead_code)]
+    #[deprecated = "There is no encoding for the length of the mask or flat to indicate its presence, so this error was reporting a different error than it claimed"]
     BmpIcoMaskTooShortForImage,
 
     /// The dimensions specified by the entry does not match the dimensions in the header of the enclosed image.
@@ -58,6 +60,7 @@ impl fmt::Display for DecoderError {
                 f.write_str("Entry specified a length that is shorter than PNG header!"),
             DecoderError::PngNotRgba =>
                 f.write_str("The PNG is not in RGBA format!"),
+            #[allow(deprecated)]
             DecoderError::BmpIcoMaskTooShortForImage =>
                 f.write_str("ICO mask too short for the image"),
             DecoderError::ImageEntryDimensionMismatch { format, entry, image } =>
@@ -329,21 +332,22 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
                 // If there's an AND mask following the image, read and apply it.
                 let r = decoder.reader();
-                let mask_start = r.seek(SeekFrom::Current(0))?;
-                let mask_end =
+                let image_end = r.seek(SeekFrom::Current(0))?;
+                let data_end =
                     u64::from(self.selected_entry.image_offset + self.selected_entry.image_length);
 
-                if mask_end > mask_start {
-                    // A mask row contains 1 bit per pixel, padded to 4 bytes.
-                    let mask_row_bytes = ((width + 31) / 32) * 4;
-                    let expected_length = u64::from(mask_row_bytes) * u64::from(height);
+                // A mask row contains 1 bit per pixel, padded to 4 bytes.
+                let mask_row_bytes = ((width + 31) / 32) * 4;
+                let mask_length = u64::from(mask_row_bytes) * u64::from(height);
 
-                    let actual_length = mask_end - mask_start;
+                // data_end should be either exactly mask_start + mask_length. or exactly mask_start.
+                // Only attempt to parse the mask if it exactly matches the first case. This allows
+                // leniant parsing of ico files with an incorrect image_length that don't match the
+                // second case either.
 
-                    if actual_length < expected_length {
-                        return Err(DecoderError::BmpIcoMaskTooShortForImage.into());
-                    }
-
+                // Support for this leniency varies across other libraries, for example as of this
+                // comment Firefox is strict about image_length while Chrome and GIMP are not.
+                if data_end == image_end + mask_length {
                     for y in 0..height {
                         let mut x = 0;
                         for _ in 0..mask_row_bytes {

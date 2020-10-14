@@ -210,39 +210,145 @@ pub mod flat;
 
 /// Encoding and decoding for various image file formats.
 pub mod codecs {
-	#[cfg(feature = "bmp")]
-	pub mod bmp;
-	#[cfg(feature = "dds")]
-	pub mod dds;
-	#[cfg(feature = "dxt")]
-	pub mod dxt;
-	#[cfg(feature = "gif")]
-	pub mod gif;
-	#[cfg(feature = "hdr")]
-	pub mod hdr;
-	#[cfg(feature = "ico")]
-	pub mod ico;
-	#[cfg(feature = "jpeg")]
-	pub mod jpeg;
-	#[cfg(feature = "png")]
-	pub mod png;
-	#[cfg(feature = "pnm")]
-	pub mod pnm;
-	#[cfg(feature = "tga")]
-	pub mod tga;
-	#[cfg(feature = "tiff")]
-	pub mod tiff;
-	#[cfg(feature = "webp")]
-	pub mod webp;
-	#[cfg(feature = "farbfeld")]
-	pub mod farbfeld;
-	#[cfg(feature = "avif")]
-	pub mod avif;
+    #[cfg(feature = "avif")]
+    pub mod avif;
+    #[cfg(feature = "bmp")]
+    pub mod bmp;
+    #[cfg(feature = "dds")]
+    pub mod dds;
+    #[cfg(feature = "dxt")]
+    pub mod dxt;
+    #[cfg(feature = "farbfeld")]
+    pub mod farbfeld;
+    #[cfg(feature = "gif")]
+    pub mod gif;
+    #[cfg(feature = "hdr")]
+    pub mod hdr;
+    #[cfg(feature = "ico")]
+    pub mod ico;
+    #[cfg(feature = "jpeg")]
+    pub mod jpeg;
+    #[cfg(feature = "png")]
+    pub mod png;
+    #[cfg(feature = "pnm")]
+    pub mod pnm;
+    #[cfg(feature = "tga")]
+    pub mod tga;
+    #[cfg(feature = "tiff")]
+    pub mod tiff;
+    #[cfg(feature = "webp")]
+    pub mod webp;
 }
 
-// Note: Due to #47236 this deprecation warning isn't actually displayed.
-#[deprecated = "Import via image::codecs:: instead."]
-pub use crate::codecs::*;
+#[cfg(feature = "avif")]
+#[deprecated = "Use codecs::avif instead"]
+pub mod avif {
+    //! Encoding of AVIF images.
+    pub use crate::codecs::avif::AvifEncoder;
+}
+#[cfg(feature = "bmp")]
+#[deprecated = "Use codecs::bmp instead"]
+pub mod bmp {
+    //! Decoding and Encoding of BMP Images
+    #[allow(deprecated)]
+    pub use crate::codecs::bmp::{BMPEncoder, BmpDecoder, BmpEncoder};
+}
+#[cfg(feature = "dds")]
+#[deprecated = "Use codecs::dds instead"]
+pub mod dds {
+    //! Decoding of DDS images
+    pub use crate::codecs::dds::DdsDecoder;
+}
+#[cfg(feature = "dxt")]
+#[deprecated = "Use codecs:: instead"]
+pub mod dxt {
+    //! Decoding of DXT (S3TC) compression
+    #[allow(deprecated)]
+    pub use crate::codecs::dxt::{
+        DXTEncoder, DXTReader, DXTVariant, DxtDecoder, DxtEncoder, DxtReader, DxtVariant,
+    };
+}
+#[cfg(feature = "farbfeld")]
+#[deprecated = "Use codecs::farbfeld instead"]
+pub mod farbfeld {
+    //! Decoding of farbfeld images
+    pub use crate::codecs::farbfeld::{FarbfeldDecoder, FarbfeldEncoder, FarbfeldReader};
+}
+#[cfg(feature = "gif")]
+#[deprecated = "Use codecs::gif instead"]
+pub mod gif {
+    //! Decoding of GIF Images
+    #[allow(deprecated)]
+    pub use crate::codecs::gif::{Encoder, GifDecoder, GifEncoder, GifReader};
+}
+#[cfg(feature = "hdr")]
+#[deprecated = "Use codecs::hdr instead"]
+pub mod hdr {
+    //! Decoding of Radiance HDR Images
+    #[allow(deprecated)]
+    pub use crate::codecs::hdr::{
+        read_raw_file, rgbe8, to_rgbe8, HDRAdapter, HDREncoder, HDRImageDecoderIterator,
+        HDRMetadata, HdrAdapter, HdrDecoder, HdrEncoder, HdrImageDecoderIterator, HdrMetadata,
+        HdrReader, RGBE8Pixel, Rgbe8Pixel, SIGNATURE,
+    };
+}
+#[cfg(feature = "ico")]
+#[deprecated = "Use codecs::ico instead"]
+pub mod ico {
+    //! Decoding and Encoding of ICO files
+    #[allow(deprecated)]
+    pub use crate::codecs::ico::{ICOEncoder, IcoDecoder, IcoEncoder};
+}
+#[cfg(feature = "jpeg")]
+#[deprecated = "Use codecs::jpeg instead"]
+pub mod jpeg {
+    //! Decoding and Encoding of JPEG Images
+    #[allow(deprecated)]
+    pub use crate::codecs::jpeg::{
+        JPEGEncoder, JpegDecoder, JpegEncoder, PixelDensity, PixelDensityUnit,
+    };
+}
+#[cfg(feature = "png")]
+#[deprecated = "Use codecs::png instead"]
+pub mod png {
+    //! Decoding and Encoding of PNG Images
+    #[allow(deprecated)]
+    pub use crate::codecs::png::{
+        ApngDecoder, PNGEncoder, PNGReader, PngDecoder, PngEncoder, PngReader,
+    };
+}
+#[cfg(feature = "pnm")]
+#[deprecated = "Use codecs::pnm instead"]
+pub mod pnm {
+    //! Decoding and Encoding of netpbm image formats (pbm, pgm, ppm and pam)
+    #[allow(deprecated)]
+    pub use crate::codecs::pnm::{
+        ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PNMEncoder, PNMHeader,
+        PNMSubtype, PixmapHeader, PnmDecoder, PnmEncoder, PnmHeader, PnmSubtype, SampleEncoding,
+    };
+}
+#[cfg(feature = "tga")]
+#[deprecated = "Use codecs::tga instead"]
+pub mod tga {
+    //! Decoding and Encoding of TGA Images
+    #[allow(deprecated)]
+    pub use crate::codecs::tga::{TgaDecoder, TgaEncoder};
+}
+#[cfg(feature = "tiff")]
+#[deprecated = "Use codecs::tiff instead"]
+pub mod tiff {
+    //! Decoding and Encoding of TIFF Images
+    #[allow(deprecated)]
+    pub use crate::codecs::tiff::{TiffDecoder, TiffEncoder, TiffReader};
+}
+#[cfg(feature = "webp")]
+#[deprecated = "Use codecs::webp instead"]
+pub mod webp {
+    //! Decoding of WebP Images
+    #[allow(deprecated)]
+    pub use crate::codecs::webp::{vp8, WebPDecoder};
+}
+
 
 mod animation;
 #[path = "buffer.rs"]

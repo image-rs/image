@@ -31,8 +31,8 @@ enum DecoderError {
     /// The enclosed PNG is not in RGBA, which is invalid: https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473/.
     PngNotRgba,
 
-    /// The optional mask row, containing 1 bit per pixel, padded to 4 bytes, was too short for this image.
-    BmpIcoMaskTooShortForImage,
+    /// The entry is in BMP format and specified a data size that is not correct for the image and optional mask data.
+    InvalidDataSize,
 
     /// The dimensions specified by the entry does not match the dimensions in the header of the enclosed image.
     ImageEntryDimensionMismatch {
@@ -58,8 +58,8 @@ impl fmt::Display for DecoderError {
                 f.write_str("Entry specified a length that is shorter than PNG header!"),
             DecoderError::PngNotRgba =>
                 f.write_str("The PNG is not in RGBA format!"),
-            DecoderError::BmpIcoMaskTooShortForImage =>
-                f.write_str("ICO mask too short for the image"),
+            DecoderError::InvalidDataSize =>
+                f.write_str("ICO image data size did not match expected size"),
             DecoderError::ImageEntryDimensionMismatch { format, entry, image } =>
                 f.write_fmt(format_args!("Entry{:?} and {}{:?} dimensions do not match!", entry, format, image)),
         }
@@ -327,21 +327,23 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
                 decoder.read_image_data(buf)?;
 
-                // If there's an AND mask following the image, read and apply it.
                 let r = decoder.reader();
-                let mask_start = r.seek(SeekFrom::Current(0))?;
-                let mask_end =
+                let image_end = r.seek(SeekFrom::Current(0))?;
+                let data_end =
                     u64::from(self.selected_entry.image_offset + self.selected_entry.image_length);
-                let mask_length = mask_end - mask_start;
 
-                if mask_length > 0 {
-                    // A mask row contains 1 bit per pixel, padded to 4 bytes.
-                    let mask_row_bytes = ((width + 31) / 32) * 4;
-                    let expected_length = u64::from(mask_row_bytes) * u64::from(height);
-                    if mask_length < expected_length {
-                        return Err(DecoderError::BmpIcoMaskTooShortForImage.into());
-                    }
+                let mask_row_bytes = ((width + 31) / 32) * 4;
+                let mask_length = u64::from(mask_row_bytes) * u64::from(height);
 
+                // data_end should be image_end + the mask length (mask_row_bytes * height).
+                // According to
+                // https://devblogs.microsoft.com/oldnewthing/20101021-00/?p=12483
+                // the mask is required, but according to Wikipedia
+                // https://en.wikipedia.org/wiki/ICO_(file_format)
+                // the mask is not required. Unfortunately, Wikipedia does not have a citation
+                // for that claim, so we can't be sure which is correct.
+                if data_end >= image_end + mask_length {
+                    // If there's an AND mask following the image, read and apply it.
                     for y in 0..height {
                         let mut x = 0;
                         for _ in 0..mask_row_bytes {
@@ -359,8 +361,14 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                             }
                         }
                     }
+
+                    Ok(())
+                } else if data_end == image_end {
+                    // accept images with no mask data
+                    Ok(())
+                } else {
+                    Err(DecoderError::InvalidDataSize.into())
                 }
-                Ok(())
             }
         }
     }

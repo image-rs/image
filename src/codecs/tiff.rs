@@ -36,8 +36,22 @@ impl<R> TiffDecoder<R>
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
-        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
-        let color_type = match inner.colortype().map_err(ImageError::from_tiff_decode)? {
+
+        let dimensions = inner.dimensions()
+            .map_err(ImageError::from_tiff_decode)?;
+        let color_type = inner.colortype()
+            .map_err(ImageError::from_tiff_decode)?;
+        match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
+            Ok(Some(sample_formats)) => {
+                for format in sample_formats {
+                    check_sample_format(format)?;
+                }
+            }
+            Ok(None) => { /* assume UInt format */ },
+            Err(other) => return Err(ImageError::from_tiff_decode(other)),
+        };
+
+        let color_type = match color_type {
             tiff::ColorType::Gray(8) => ColorType::L8,
             tiff::ColorType::Gray(16) => ColorType::L16,
             tiff::ColorType::GrayA(8) => ColorType::La8,
@@ -62,6 +76,25 @@ impl<R> TiffDecoder<R>
             color_type,
             inner,
         })
+    }
+}
+
+fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
+    match tiff::tags::SampleFormat::from_u16(sample_format) {
+        Some(tiff::tags::SampleFormat::Uint) => Ok({}),
+        Some(other) => {
+            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormat::Tiff.into(),
+                UnsupportedErrorKind::GenericFeature(
+                    format!("Unhandled TIFF sample format {:?}", other)
+                ),
+            )))
+        }
+        None => {
+            Err(ImageError::Decoding(
+                    DecodingError::from_format_hint(ImageFormat::Tiff.into())
+            ))
+        }
     }
 }
 

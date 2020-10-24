@@ -1,4 +1,5 @@
 language: rust
+dist: focal
 sudo: false
 notifications:
   webhooks:
@@ -41,6 +42,12 @@ matrix:
     - os: linux
       rust: stable
       env: FEATURES='ravif'
+      before_install:
+        - sudo apt-get update && 
+          sudo apt-get -y install nasm;
+      script:
+        - cargo test -v --no-default-features --features "$FEATURES" &&
+          cargo doc -v --no-default-features --features "$FEATURES";
     - os: osx
       rust: 1.34.2
     - os: windows

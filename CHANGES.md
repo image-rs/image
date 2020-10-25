@@ -10,6 +10,18 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.11
+
+- The `NeuQuant` implementation is now supplied by `color_quant`. Use of the
+  type defined by this library is discouraged.
+- The `jpeg` decoder can now downscale images that are decoded by 1,2,4,8.
+- Optimized the jpeg encoding ~5-15%.
+- Deprecated the `clamp` function. Use `num-traits` instead.
+- The ICO decoder now accepts an empty mask.
+- Fixed an overflow in ICO mask decoding potentially leading to panic.
+- Added `ImageOutputFormat` for `AVIF`
+- Updated `tiff` to `0.6` with lzw performance improvements.
+
 ### Version 0.23.10
 
 - Added AVIF encoding capabilities using the `ravif` crate. Please note that

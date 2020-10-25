@@ -521,6 +521,46 @@ impl FromColor<LumaA<u16>> for Luma<u8> {
     }
 }
 
+impl FromColor<LumaA<u8>> for Luma<u16> {
+    fn from_color(&mut self, other: &LumaA<u8>) {
+        let la8 = other.channels();
+        let gray = self.channels_mut();
+        gray[0] = upcast_channel(la8[0]);
+    }
+}
+
+impl FromColor<Rgb<u8>> for Luma<u16> {
+    fn from_color(&mut self, other: &Rgb<u8>) {
+        let rgb = other.channels();
+        let gray = self.channels_mut();
+        gray[0] = upcast_channel(rgb_to_luma(rgb));
+    }
+}
+
+impl FromColor<Rgba<u8>> for Luma<u16> {
+    fn from_color(&mut self, other: &Rgba<u8>) {
+        let rgba = other.channels();
+        let gray = self.channels_mut();
+        gray[0] = upcast_channel(rgb_to_luma(rgba));
+    }
+}
+
+impl FromColor<Bgr<u8>> for Luma<u16> {
+    fn from_color(&mut self, other: &Bgr<u8>) {
+        let bgr = other.channels();
+        let gray = self.channels_mut();
+        gray[0] = upcast_channel(bgr_to_luma(bgr));
+    }
+}
+
+impl FromColor<Bgra<u8>> for Luma<u16> {
+    fn from_color(&mut self, other: &Bgra<u8>) {
+        let bgra = other.channels();
+        let gray = self.channels_mut();
+        gray[0] = upcast_channel(bgr_to_luma(bgra));
+    }
+}
+
 
 // `FromColor` for LumaA
 
@@ -585,6 +625,51 @@ impl FromColor<LumaA<u8>> for LumaA<u16> {
         let alpha = other.channels()[1];
         la8[0] = upcast_channel(gray);
         la8[1] = upcast_channel(alpha);
+    }
+}
+
+impl FromColor<Luma<u8>> for LumaA<u16> {
+    fn from_color(&mut self, other: &Luma<u8>) {
+        let l8 = other.channels()[0];
+        let gray_a = self.channels_mut();
+        gray_a[0] = upcast_channel(l8);
+        gray_a[1] = u16::max_value();
+    }
+}
+
+impl FromColor<Rgb<u8>> for LumaA<u16> {
+    fn from_color(&mut self, other: &Rgb<u8>) {
+        let rgb = other.channels();
+        let gray_a = self.channels_mut();
+        gray_a[0] = upcast_channel(rgb_to_luma(rgb));
+        gray_a[1] = u16::max_value();
+    }
+}
+
+impl FromColor<Rgba<u8>> for LumaA<u16> {
+    fn from_color(&mut self, other: &Rgba<u8>) {
+        let rgba = other.channels();
+        let gray_a = self.channels_mut();
+        gray_a[0] = upcast_channel(rgb_to_luma(rgba));
+        gray_a[1] = upcast_channel(rgba[3]);
+    }
+}
+
+impl FromColor<Bgr<u8>> for LumaA<u16> {
+    fn from_color(&mut self, other: &Bgr<u8>) {
+        let bgr = other.channels();
+        let gray_a = self.channels_mut();
+        gray_a[0] = upcast_channel(bgr_to_luma(bgr));
+        gray_a[1] = u16::max_value();
+    }
+}
+
+impl FromColor<Bgra<u8>> for LumaA<u16> {
+    fn from_color(&mut self, other: &Bgra<u8>) {
+        let bgra = other.channels();
+        let gray_a = self.channels_mut();
+        gray_a[0] = upcast_channel(bgr_to_luma(bgra));
+        gray_a[1] = upcast_channel(bgra[3]);
     }
 }
 
@@ -668,6 +753,63 @@ impl FromColor<Rgba<u8>> for Rgba<u16> {
     }
 }
 
+impl FromColor<LumaA<u8>> for Rgba<u16> {
+    fn from_color(&mut self, other: &LumaA<u8>) {
+        let la8 = other.channels();
+        let gray = upcast_channel(la8[0]);
+        let alpha = upcast_channel(la8[1]);
+        let rgba = self.channels_mut();
+        rgba[0] = gray;
+        rgba[1] = gray;
+        rgba[2] = gray;
+        rgba[3] = alpha;
+    }
+}
+
+impl FromColor<Rgb<u8>> for Rgba<u16> {
+    fn from_color(&mut self, other: &Rgb<u8>) {
+        let rgb = other.channels();
+        let rgba = self.channels_mut();
+        rgba[0] = upcast_channel(rgb[0]);
+        rgba[1] = upcast_channel(rgb[1]);
+        rgba[2] = upcast_channel(rgb[2]);
+        rgba[3] = u16::max_value();
+    }
+}
+
+impl FromColor<Luma<u8>> for Rgba<u16> {
+    fn from_color(&mut self, other: &Luma<u8>) {
+        let l8 = other.channels();
+        let rgba = self.channels_mut();
+        let gray = upcast_channel(l8[0]);
+        rgba[0] = gray;
+        rgba[1] = gray;
+        rgba[2] = gray;
+        rgba[3] = u16::max_value();
+    }
+}
+
+impl FromColor<Bgr<u8>> for Rgba<u16> {
+    fn from_color(&mut self, other: &Bgr<u8>) {
+        let bgr = other.channels();
+        let rgba = self.channels_mut();
+        rgba[0] = upcast_channel(bgr[2]);
+        rgba[1] = upcast_channel(bgr[1]);
+        rgba[2] = upcast_channel(bgr[0]);
+        rgba[3] = u16::max_value();
+    }
+}
+
+impl FromColor<Bgra<u8>> for Rgba<u16> {
+    fn from_color(&mut self, other: &Bgra<u8>) {
+        let bgra = other.channels();
+        let rgba = self.channels_mut();
+        rgba[0] = upcast_channel(bgra[2]);
+        rgba[1] = upcast_channel(bgra[1]);
+        rgba[2] = upcast_channel(bgra[0]);
+        rgba[3] = upcast_channel(bgra[3]);
+    }
+}
 
 // `FromColor` for BGRA
 
@@ -792,6 +934,58 @@ impl FromColor<Rgb<u8>> for Rgb<u16> {
         for (c8, &c16) in self.channels_mut().iter_mut().zip(other.channels()) {
             *c8 = upcast_channel(c16);
         }
+    }
+}
+
+impl FromColor<LumaA<u8>> for Rgb<u16> {
+    fn from_color(&mut self, other: &LumaA<u8>) {
+        let la8 = other.channels();
+        let gray = upcast_channel(la8[0]);
+        let rgb = self.channels_mut();
+        rgb[0] = gray;
+        rgb[1] = gray;
+        rgb[2] = gray;
+    }
+}
+
+impl FromColor<Rgba<u8>> for Rgb<u16> {
+    fn from_color(&mut self, other: &Rgba<u8>) {
+        let rgba = other.channels();
+        let rgb = self.channels_mut();
+        rgb[0] = upcast_channel(rgba[0]);
+        rgb[1] = upcast_channel(rgba[1]);
+        rgb[2] = upcast_channel(rgba[2]);
+    }
+}
+
+impl FromColor<Luma<u8>> for Rgb<u16> {
+    fn from_color(&mut self, other: &Luma<u8>) {
+        let l8 = other.channels();
+        let rgb = self.channels_mut();
+        let gray = upcast_channel(l8[0]);
+        rgb[0] = gray;
+        rgb[1] = gray;
+        rgb[2] = gray;
+    }
+}
+
+impl FromColor<Bgr<u8>> for Rgb<u16> {
+    fn from_color(&mut self, other: &Bgr<u8>) {
+        let bgr = other.channels();
+        let rgb = self.channels_mut();
+        rgb[0] = upcast_channel(bgr[2]);
+        rgb[1] = upcast_channel(bgr[1]);
+        rgb[2] = upcast_channel(bgr[0]);
+    }
+}
+
+impl FromColor<Bgra<u8>> for Rgb<u16> {
+    fn from_color(&mut self, other: &Bgra<u8>) {
+        let bgra = other.channels();
+        let rgb = self.channels_mut();
+        rgb[0] = upcast_channel(bgra[2]);
+        rgb[1] = upcast_channel(bgra[1]);
+        rgb[2] = upcast_channel(bgra[0]);
     }
 }
 

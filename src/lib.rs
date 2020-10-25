@@ -43,6 +43,7 @@
 //! img2.write_to(&mut bytes, image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "png"))] fn main() {}
 //! ```
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).

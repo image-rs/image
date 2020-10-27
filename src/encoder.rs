@@ -21,6 +21,8 @@ pub type Result<T> = result::Result<T, EncodingError>;
 pub enum EncodingError {
     IoError(io::Error),
     Format(FormatError),
+    Parameter(Cow<'static, str>),
+    LimitsExceeded,
 }
 
 #[derive(Debug)]
@@ -54,6 +56,8 @@ impl fmt::Display for EncodingError {
         match self {
             IoError(err) => write!(fmt, "{}", err),
             Format(desc) => write!(fmt, "{}", desc),
+            Parameter(desc) => write!(fmt, "{}", desc),
+            LimitsExceeded => write!(fmt, "Limits are exceeded."),
         }
     }
 }

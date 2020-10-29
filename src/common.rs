@@ -524,6 +524,35 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub struct ParameterError {
+    inner: ParameterErrorKind,
+}
+
+#[derive(Debug)]
+pub(crate) enum ParameterErrorKind {
+    WrongDataSize(usize, usize),
+    EndOfImageReached,
+}
+
+impl From<ParameterErrorKind> for ParameterError {
+    fn from(inner: ParameterErrorKind) -> Self {
+        ParameterError { inner }
+    }
+}
+
+impl fmt::Display for ParameterError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use ParameterErrorKind::*;
+        match self.inner {
+            WrongDataSize(expected, got) => {
+                write!(fmt, "wrong data size, expected {} got {}", expected, got)
+            }
+            EndOfImageReached => write!(fmt, "End of image has been reached"),
+        }
+    }
+}
+
 /// Mod to encapsulate the converters depending on the `deflate` crate.
 ///
 /// Since this only contains trait impls, there is no need to make this public, they are simply

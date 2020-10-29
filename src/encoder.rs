@@ -1,7 +1,6 @@
 extern crate crc32fast;
 extern crate deflate;
 
-use std::borrow::Cow;
 use std::error;
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -11,7 +10,10 @@ use std::result;
 use crc32fast::Hasher as Crc32;
 
 use crate::chunk::{self, ChunkType};
-use crate::common::{BitDepth, BytesPerPixel, ColorType, Compression, Info, ScaledFloat};
+use crate::common::{
+    BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
+    ScaledFloat,
+};
 use crate::filter::{filter, FilterType};
 use crate::traits::WriteBytesExt;
 
@@ -21,7 +23,7 @@ pub type Result<T> = result::Result<T, EncodingError>;
 pub enum EncodingError {
     IoError(io::Error),
     Format(FormatError),
-    Parameter(Cow<'static, str>),
+    Parameter(ParameterError),
     LimitsExceeded,
 }
 
@@ -36,7 +38,6 @@ enum FormatErrorKind {
     ZeroHeight,
     InvalidColorCombination(BitDepth, ColorType),
     NoPalette,
-    WrongDataSize(usize, usize),
     // TODO: wait, what?
     WrittenTooMuch(usize),
 }
@@ -74,9 +75,6 @@ impl fmt::Display for FormatError {
                 depth, color
             ),
             NoPalette => write!(fmt, "can't write indexed image without palette"),
-            WrongDataSize(expected, got) => {
-                write!(fmt, "wrong data size, expected {} got {}", expected, got)
-            }
             WrittenTooMuch(index) => write!(fmt, "wrong data size, got {} bytes too many", index),
         }
     }
@@ -291,8 +289,8 @@ impl<W: Write> Writer<W> {
         let mut current = vec![0; in_len];
         let data_size = in_len * self.info.height as usize;
         if data_size != data.len() {
-            return Err(EncodingError::Format(
-                FormatErrorKind::WrongDataSize(data_size, data.len()).into(),
+            return Err(EncodingError::Parameter(
+                ParameterErrorKind::WrongDataSize(data_size, data.len()).into(),
             ));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());

@@ -9,7 +9,9 @@ use std::mem;
 use std::ops::Range;
 
 use crate::chunk;
-use crate::common::{BitDepth, BytesPerPixel, ColorType, Info, Transformations};
+use crate::common::{
+    BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
+};
 use crate::filter::{unfilter, FilterType};
 use crate::utils;
 
@@ -317,7 +319,7 @@ impl<R: Read> Reader<R> {
             return Ok(());
         } else if self.next_frame == SubframeIdx::End {
             return Err(DecodingError::Parameter(
-                "End of image has been reached".into(),
+                ParameterErrorKind::EndOfImageReached.into(),
             ));
         }
 
@@ -434,7 +436,7 @@ impl<R: Read> Reader<R> {
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Parameter(
-                "supplied buffer is too small to hold the image".into(),
+                ParameterErrorKind::WrongDataSize(buf.len(), self.output_buffer_size()).into(),
             ));
         }
 

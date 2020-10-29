@@ -1,6 +1,5 @@
 extern crate crc32fast;
 
-use std::borrow::Cow;
 use std::cmp::min;
 use std::convert::From;
 use std::default::Default;
@@ -13,8 +12,8 @@ use crc32fast::Hasher as Crc32;
 use super::zlib::ZlibStream;
 use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
 use crate::common::{
-    AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, PixelDimensions,
-    ScaledFloat, SourceChromaticities, Unit,
+    AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
+    PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
 };
 use crate::traits::ReadBytesExt;
 
@@ -99,7 +98,7 @@ pub enum DecodingError {
     /// number of calls
     ///
     /// If you're an application you might want to signal that a bug report is appreciated.
-    Parameter(Cow<'static, str>),
+    Parameter(ParameterError),
     /// The image would have required exceeding the limits configured with the decoder.
     ///
     /// Note that Your allocations, e.g. when reading into a pre-allocated buffer, is __NOT__

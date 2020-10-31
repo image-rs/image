@@ -358,15 +358,15 @@ impl<R: Read> ApngDecoder<R> {
         let source = match self.inner.color_type {
             ColorType::L8 => {
                 let image = ImageBuffer::<Luma<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLuma8(image).into_rgba()
+                DynamicImage::ImageLuma8(image).into_rgba8()
             }
             ColorType::La8 => {
                 let image = ImageBuffer::<LumaA<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageLumaA8(image).into_rgba()
+                DynamicImage::ImageLumaA8(image).into_rgba8()
             }
             ColorType::Rgb8 => {
                 let image = ImageBuffer::<Rgb<_>, _>::from_raw(width, height, buffer).unwrap();
-                DynamicImage::ImageRgb8(image).into_rgba()
+                DynamicImage::ImageRgb8(image).into_rgba8()
             }
             ColorType::Rgba8 => {
                 ImageBuffer::<Rgba<_>, _>::from_raw(width, height, buffer).unwrap()

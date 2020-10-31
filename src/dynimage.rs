@@ -194,42 +194,118 @@ impl DynamicImage {
     }
 
     /// Returns a copy of this image as an RGB image.
+    #[deprecated = "replaced by `to_rgb8`"]
     pub fn to_rgb(&self) -> RgbImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
+    /// Returns a copy of this image as an RGB image.
+    pub fn to_rgb8(&self) -> RgbImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as an RGB image.
+    pub fn to_rgb16(&self) -> Rgb16Image {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Returns a copy of this image as an RGBA image.
+    #[deprecated = "replaced by `to_rgba8`"]
     pub fn to_rgba(&self) -> RgbaImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
+    /// Returns a copy of this image as an RGBA image.
+    pub fn to_rgba8(&self) -> RgbaImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as an RGBA image.
+    pub fn to_rgba16(&self) -> Rgba16Image {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Returns a copy of this image as an BGR image.
+    #[deprecated = "replaced by `to_bgr8`"]
     pub fn to_bgr(&self) -> BgrImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
+    /// Returns a copy of this image as an BGR image.
+    pub fn to_bgr8(&self) -> BgrImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Returns a copy of this image as an BGRA image.
+    #[deprecated = "replaced by `to_bgra8`"]
     pub fn to_bgra(&self) -> BgraImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
+    /// Returns a copy of this image as an BGRA image.
+    pub fn to_bgra8(&self) -> BgraImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Returns a copy of this image as a Luma image.
+    #[deprecated = "replaced by `to_luma8`"]
     pub fn to_luma(&self) -> GrayImage {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
     }
 
+    /// Returns a copy of this image as a Luma image.
+    pub fn to_luma8(&self) -> GrayImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as a Luma image.
+    pub fn to_luma16(&self) -> Gray16Image {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Returns a copy of this image as a LumaA image.
+    #[deprecated = "replaced by `to_luma_alpha8`"]
     pub fn to_luma_alpha(&self) -> GrayAlphaImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as a LumaA image.
+    pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as a LumaA image.
+    pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
         dynamic_map!(*self, ref p -> {
             p.convert()
         })
@@ -239,10 +315,33 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_rgb8`"]
     pub fn into_rgb(self) -> RgbImage {
         match self {
             DynamicImage::ImageRgb8(x) => x,
-            x => x.to_rgb(),
+            x => x.to_rgb8(),
+        }
+    }
+
+    /// Consume the image and returns a RGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgb8(self) -> RgbImage {
+        match self {
+            DynamicImage::ImageRgb8(x) => x,
+            x => x.to_rgb8(),
+        }
+    }
+
+    /// Consume the image and returns a RGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgb16(self) -> Rgb16Image {
+        match self {
+            DynamicImage::ImageRgb16(x) => x,
+            x => x.to_rgb16(),
         }
     }
 
@@ -250,10 +349,33 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_rgba8`"]
     pub fn into_rgba(self) -> RgbaImage {
         match self {
             DynamicImage::ImageRgba8(x) => x,
-            x => x.to_rgba(),
+            x => x.to_rgba8(),
+        }
+    }
+
+    /// Consume the image and returns a RGBA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgba8(self) -> RgbaImage {
+        match self {
+            DynamicImage::ImageRgba8(x) => x,
+            x => x.to_rgba8(),
+        }
+    }
+
+    /// Consume the image and returns a RGBA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgba16(self) -> Rgba16Image {
+        match self {
+            DynamicImage::ImageRgba16(x) => x,
+            x => x.to_rgba16(),
         }
     }
 
@@ -261,10 +383,36 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_bgra8`"]
     pub fn into_bgr(self) -> BgrImage {
         match self {
             DynamicImage::ImageBgr8(x) => x,
-            x => x.to_bgr(),
+            x => x.to_bgr8(),
+        }
+    }
+
+    /// Consume the image and returns a BGR image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_bgr8(self) -> BgrImage {
+        match self {
+            DynamicImage::ImageBgr8(x) => x,
+            x => x.to_bgr8(),
+        }
+    }
+
+    // NOTE: DynamicImage::ImageBgr16 variant does not currently exist, so there is no `into_bgr16`
+
+    /// Consume the image and returns a BGRA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_bgra8`"]
+    pub fn into_bgra(self) -> BgraImage {
+        match self {
+            DynamicImage::ImageBgra8(x) => x,
+            x => x.to_bgra8(),
         }
     }
 
@@ -272,10 +420,24 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_bgra(self) -> BgraImage {
+    pub fn into_bgra8(self) -> BgraImage {
         match self {
             DynamicImage::ImageBgra8(x) => x,
-            x => x.to_bgra(),
+            x => x.to_bgra8(),
+        }
+    }
+
+    // NOTE: DynamicImage::ImageBgra16 variant does not currently exist, so there is no `into_bgra16`
+
+    /// Consume the image and returns a Luma image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_luma8`"]
+    pub fn into_luma(self) -> GrayImage {
+        match self {
+            DynamicImage::ImageLuma8(x) => x,
+            x => x.to_luma8(),
         }
     }
 
@@ -283,10 +445,21 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_luma(self) -> GrayImage {
+    pub fn into_luma8(self) -> GrayImage {
         match self {
             DynamicImage::ImageLuma8(x) => x,
-            x => x.to_luma(),
+            x => x.to_luma8(),
+        }
+    }
+
+    /// Consume the image and returns a Luma image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_luma16(self) -> Gray16Image {
+        match self {
+            DynamicImage::ImageLuma16(x) => x,
+            x => x.to_luma16(),
         }
     }
 
@@ -294,10 +467,33 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_luma_alpha8`"]
     pub fn into_luma_alpha(self) -> GrayAlphaImage {
         match self {
             DynamicImage::ImageLumaA8(x) => x,
-            x => x.to_luma_alpha(),
+            x => x.to_luma_alpha8(),
+        }
+    }
+
+    /// Consume the image and returns a LumaA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_luma_alpha8(self) -> GrayAlphaImage {
+        match self {
+            DynamicImage::ImageLumaA8(x) => x,
+            x => x.to_luma_alpha8(),
+        }
+    }
+
+    /// Consume the image and returns a LumaA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_luma_alpha16(self) -> GrayAlpha16Image {
+        match self {
+            DynamicImage::ImageLumaA16(x) => x,
+            x => x.to_luma_alpha16(),
         }
     }
 

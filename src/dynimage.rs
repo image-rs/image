@@ -1212,13 +1212,7 @@ fn image_into_bytes(image: DynamicImage) -> Vec<u8> {
 }
 
 fn image_as_bytes(image: &DynamicImage) -> &[u8] {
-    fn cast_slice(src: &[u16]) -> &[u8] {
-        unsafe {
-            let len = 2 * src.len();
-            let ptr = src.as_ptr();
-            std::slice::from_raw_parts(ptr as *const u8, len)
-        }
-    }
+    use bytemuck::cast_slice;
     match image {
         DynamicImage::ImageLuma8(a) => &a.as_flat_samples().samples,
         DynamicImage::ImageLumaA8(a) => &a.as_flat_samples().samples,

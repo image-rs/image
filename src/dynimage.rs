@@ -694,7 +694,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return this image's pixels as a byte slice.
+    /// Return this image's pixels as a native endian byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         image_as_bytes(self)
     }

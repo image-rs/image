@@ -694,7 +694,17 @@ impl DynamicImage {
         }
     }
 
+    /// Return this image's pixels as a byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        image_as_bytes(self)
+    }
+
     /// Return this image's pixels as a byte vector.
+    pub fn into_bytes(self) -> Vec<u8> {
+        image_into_bytes(self)
+    }
+
+    /// Return a copy of this image's pixels as a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         image_to_bytes(self)
     }
@@ -1174,6 +1184,52 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
         DynamicImage::ImageRgb16(ref a) => a.as_bytes().to_vec(),
 
         DynamicImage::ImageRgba16(ref a) => a.as_bytes().to_vec(),
+    }
+}
+
+fn image_into_bytes(image: DynamicImage) -> Vec<u8> {
+    fn cast_vec(mut src: Vec<u16>) -> Vec<u8> {
+        unsafe {
+            let len = 2 * src.len();
+            let cap = 2 * src.capacity();
+            let ptr = src.as_mut_ptr();
+            std::mem::forget(src);
+            Vec::from_raw_parts(ptr as *mut u8, len, cap)
+        }
+    }
+    match image {
+        DynamicImage::ImageLuma8(a) => a.into_raw(),
+        DynamicImage::ImageLumaA8(a) => a.into_raw(),
+        DynamicImage::ImageRgb8(a) => a.into_raw(),
+        DynamicImage::ImageRgba8(a) => a.into_raw(),
+        DynamicImage::ImageBgr8(a) => a.into_raw(),
+        DynamicImage::ImageBgra8(a) => a.into_raw(),
+        DynamicImage::ImageLuma16(a) => cast_vec(a.into_raw()),
+        DynamicImage::ImageLumaA16(a) => cast_vec(a.into_raw()),
+        DynamicImage::ImageRgb16(a) => cast_vec(a.into_raw()),
+        DynamicImage::ImageRgba16(a) => cast_vec(a.into_raw()),
+    }
+}
+
+fn image_as_bytes(image: &DynamicImage) -> &[u8] {
+    fn cast_slice(src: &[u16]) -> &[u8] {
+        unsafe {
+            let len = 2 * src.len();
+            let ptr = src.as_ptr();
+            std::slice::from_raw_parts(ptr as *const u8, len)
+        }
+    }
+    match image {
+        DynamicImage::ImageLuma8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageLumaA8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageRgb8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageRgba8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageBgr8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageBgra8(a) => &a.as_flat_samples().samples,
+        DynamicImage::ImageLuma16(a) => cast_slice(&a.as_flat_samples().samples),
+        DynamicImage::ImageLumaA16(a) => cast_slice(&a.as_flat_samples().samples),
+        DynamicImage::ImageRgb16(a) => cast_slice(&a.as_flat_samples().samples),
+        DynamicImage::ImageRgba16(a) => cast_slice(&a.as_flat_samples().samples),
     }
 }
 

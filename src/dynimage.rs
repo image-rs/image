@@ -1214,16 +1214,16 @@ fn image_into_bytes(image: DynamicImage) -> Vec<u8> {
 fn image_as_bytes(image: &DynamicImage) -> &[u8] {
     use bytemuck::cast_slice;
     match image {
-        DynamicImage::ImageLuma8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageLumaA8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageRgb8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageRgba8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageBgr8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageBgra8(a) => &a.as_flat_samples().samples,
-        DynamicImage::ImageLuma16(a) => cast_slice(&a.as_flat_samples().samples),
-        DynamicImage::ImageLumaA16(a) => cast_slice(&a.as_flat_samples().samples),
-        DynamicImage::ImageRgb16(a) => cast_slice(&a.as_flat_samples().samples),
-        DynamicImage::ImageRgba16(a) => cast_slice(&a.as_flat_samples().samples),
+        DynamicImage::ImageLuma8(a) => &*a,
+        DynamicImage::ImageLumaA8(a) => &*a,
+        DynamicImage::ImageRgb8(a) => &*a,
+        DynamicImage::ImageRgba8(a) => &*a,
+        DynamicImage::ImageBgr8(a) => &*a,
+        DynamicImage::ImageBgra8(a) => &*a,
+        DynamicImage::ImageLuma16(a) => cast_slice(&*a),
+        DynamicImage::ImageLumaA16(a) => cast_slice(&*a),
+        DynamicImage::ImageRgb16(a) => cast_slice(&*a),
+        DynamicImage::ImageRgba16(a) => cast_slice(&*a),
     }
 }
 

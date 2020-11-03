@@ -694,7 +694,19 @@ impl DynamicImage {
         }
     }
 
-    /// Return this image's pixels as a byte vector.
+    /// Return this image's pixels as a native endian byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        image_as_bytes(self)
+    }
+
+    /// Return this image's pixels as a byte vector. If the `ImageBuffer`
+    /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
+    /// is returned.
+    pub fn into_bytes(self) -> Vec<u8> {
+        image_into_bytes(self)
+    }
+
+    /// Return a copy of this image's pixels as a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         image_to_bytes(self)
     }
@@ -1174,6 +1186,37 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
         DynamicImage::ImageRgb16(ref a) => a.as_bytes().to_vec(),
 
         DynamicImage::ImageRgba16(ref a) => a.as_bytes().to_vec(),
+    }
+}
+
+fn image_into_bytes(image: DynamicImage) -> Vec<u8> {
+    match image {
+        DynamicImage::ImageLuma8(a) => a.into_raw(),
+        DynamicImage::ImageLumaA8(a) => a.into_raw(),
+        DynamicImage::ImageRgb8(a) => a.into_raw(),
+        DynamicImage::ImageRgba8(a) => a.into_raw(),
+        DynamicImage::ImageBgr8(a) => a.into_raw(),
+        DynamicImage::ImageBgra8(a) => a.into_raw(),
+        DynamicImage::ImageLuma16(_) => image.to_bytes(),
+        DynamicImage::ImageLumaA16(_) => image.to_bytes(),
+        DynamicImage::ImageRgb16(_) => image.to_bytes(),
+        DynamicImage::ImageRgba16(_) => image.to_bytes(),
+    }
+}
+
+fn image_as_bytes(image: &DynamicImage) -> &[u8] {
+    use bytemuck::cast_slice;
+    match image {
+        DynamicImage::ImageLuma8(a) => &*a,
+        DynamicImage::ImageLumaA8(a) => &*a,
+        DynamicImage::ImageRgb8(a) => &*a,
+        DynamicImage::ImageRgba8(a) => &*a,
+        DynamicImage::ImageBgr8(a) => &*a,
+        DynamicImage::ImageBgra8(a) => &*a,
+        DynamicImage::ImageLuma16(a) => cast_slice(&*a),
+        DynamicImage::ImageLumaA16(a) => cast_slice(&*a),
+        DynamicImage::ImageRgb16(a) => cast_slice(&*a),
+        DynamicImage::ImageRgba16(a) => cast_slice(&*a),
     }
 }
 

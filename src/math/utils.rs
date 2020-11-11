@@ -24,6 +24,18 @@ where
     a
 }
 
+/// Resizes the given size to fit into a new size while preserving the aspect ratio.
+/// The returned size can be smaller than the requested size in one or the other dimension.
+pub fn resize_to_fit(size: (u32, u32), new_size: (u32, u32)) -> (u32, u32) {
+    resize_dimensions(size.0, size.1, new_size.0, new_size.1, false)
+}
+
+/// Resizes the given size to fill a new size while preserving the aspect ratio.
+/// The returned size can be larger than the requested size in one or the other dimension.
+pub fn resize_to_fill(size: (u32, u32), new_size: (u32, u32)) -> (u32, u32) {
+    resize_dimensions(size.0, size.1, new_size.0, new_size.1, true)
+}
+
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint
@@ -31,7 +43,7 @@ where
 /// aspect ratio), or will shrink so that both dimensions are
 /// completely contained with in the given `width` and `height`,
 /// with empty space on one axis.
-pub(crate) fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
+fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
     let ratio = u64::from(width) * u64::from(nheight);
     let nratio = u64::from(nwidth) * u64::from(height);
 

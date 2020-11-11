@@ -35,7 +35,7 @@ use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, Im
 use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
-use crate::math::resize_dimensions;
+use crate::math;
 use crate::traits::Pixel;
 
 /// A Dynamic Image
@@ -756,7 +756,7 @@ impl DynamicImage {
     /// within the bounds specified by ```nwidth``` and ```nheight```.
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+            math::resize_to_fit((self.width(), self.height()), (nwidth, nheight));
 
         self.resize_exact(width2, height2, filter)
     }
@@ -783,7 +783,7 @@ impl DynamicImage {
     /// May give aliasing artifacts if new size is close to old size.
     pub fn thumbnail(&self, nwidth: u32, nheight: u32) -> DynamicImage {
         let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+            math::resize_to_fit((self.width(), self.height()), (nwidth, nheight));
         self.thumbnail_exact(width2, height2)
     }
 
@@ -810,7 +810,7 @@ impl DynamicImage {
         filter: imageops::FilterType,
     ) -> DynamicImage {
         let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, true);
+            math::resize_to_fill((self.width(), self.height()), (nwidth, nheight));
 
         let mut intermediate = self.resize_exact(width2, height2, filter);
         let (iwidth, iheight) = intermediate.dimensions();

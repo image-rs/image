@@ -253,7 +253,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     }
     fn from_slice_mut(slice: &mut [T]) -> &mut $ident<T> {
         assert_eq!(slice.len(), $channels);
-        unsafe { &mut *(slice.as_ptr() as *mut $ident<T>) }
+        unsafe { &mut *(slice.as_mut_ptr() as *mut $ident<T>) }
     }
 
     fn to_rgb(&self) -> Rgb<T> {

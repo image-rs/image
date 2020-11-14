@@ -67,6 +67,15 @@ pub enum ImageFormat {
 
 impl ImageFormat {
     /// Return the image format specified by a path's file extension.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_extension("jpg");
+    /// assert_eq!(format, Some(ImageFormat::Jpeg));
+    /// ```
     #[inline]
     pub fn from_extension<S>(ext: S) -> Option<Self> where S: AsRef<OsStr> {
         // thin wrapper function to strip generics
@@ -94,6 +103,17 @@ impl ImageFormat {
     }
 
     /// Return the image format specified by the path's file extension.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_path("images/ferris.png")?;
+    /// assert_eq!(format, ImageFormat::Png);
+    ///
+    /// # Ok::<(), image::error::ImageError>(())
+    /// ```
     #[inline]
     pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
         // thin wrapper function to strip generics

@@ -8,7 +8,7 @@ use std::usize;
 
 use crate::ImageBuffer;
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind};
 use crate::math::Rect;
 use crate::traits::Pixel;
 
@@ -65,11 +65,46 @@ pub enum ImageFormat {
 }
 
 impl ImageFormat {
+    /// Return the image format specified by a path's file extension.
+    pub fn from_extension(ext: &str) -> Option<Self> {
+        let ext = ext.to_ascii_lowercase();
+
+        Some(match ext.as_str() {
+            "jpg" | "jpeg" => ImageFormat::Jpeg,
+            "png" => ImageFormat::Png,
+            "gif" => ImageFormat::Gif,
+            "webp" => ImageFormat::WebP,
+            "tif" | "tiff" => ImageFormat::Tiff,
+            "tga" => ImageFormat::Tga,
+            "dds" => ImageFormat::Dds,
+            "bmp" => ImageFormat::Bmp,
+            "ico" => ImageFormat::Ico,
+            "hdr" => ImageFormat::Hdr,
+            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
+            "ff" | "farbfeld" => ImageFormat::Farbfeld,
+            _ => return None,
+        })
+    }
+
     /// Return the image format specified by the path's file extension.
+    #[inline]
     pub fn from_path<P>(path: P) -> ImageResult<Self> where P : AsRef<Path> {
-        // thin wrapper function to strip generics before calling from_path_impl
-        crate::io::free_functions::guess_format_from_path_impl(path.as_ref())
-            .map_err(Into::into)
+        // thin wrapper function to strip generics
+        fn inner(path: &Path) -> ImageResult<ImageFormat> {
+            let exact_ext = path.extension();
+            exact_ext
+                .and_then(|s| s.to_str())
+                .and_then(|ext| ImageFormat::from_extension(ext))
+                .ok_or_else(|| {
+                    let format_hint = match exact_ext {
+                        None => ImageFormatHint::Unknown,
+                        Some(os) => ImageFormatHint::PathExtension(os.into()),
+                    };
+                    ImageError::Unsupported(format_hint.into())
+                })
+        }
+
+        inner(path.as_ref())
     }
 
     /// Return a list of applicable extensions for this format.

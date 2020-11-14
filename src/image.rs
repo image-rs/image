@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 use std::convert::TryFrom;
+use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
@@ -66,24 +67,30 @@ pub enum ImageFormat {
 
 impl ImageFormat {
     /// Return the image format specified by a path's file extension.
-    pub fn from_extension(ext: &str) -> Option<Self> {
-        let ext = ext.to_ascii_lowercase();
+    #[inline]
+    pub fn from_extension<S>(ext: S) -> Option<Self> where S: AsRef<OsStr> {
+        // thin wrapper function to strip generics
+        fn inner(ext: &OsStr) -> Option<ImageFormat> {
+            let ext = ext.to_str()?.to_ascii_lowercase();
 
-        Some(match ext.as_str() {
-            "jpg" | "jpeg" => ImageFormat::Jpeg,
-            "png" => ImageFormat::Png,
-            "gif" => ImageFormat::Gif,
-            "webp" => ImageFormat::WebP,
-            "tif" | "tiff" => ImageFormat::Tiff,
-            "tga" => ImageFormat::Tga,
-            "dds" => ImageFormat::Dds,
-            "bmp" => ImageFormat::Bmp,
-            "ico" => ImageFormat::Ico,
-            "hdr" => ImageFormat::Hdr,
-            "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
-            "ff" | "farbfeld" => ImageFormat::Farbfeld,
-            _ => return None,
-        })
+            Some(match ext.as_str() {
+                "jpg" | "jpeg" => ImageFormat::Jpeg,
+                "png" => ImageFormat::Png,
+                "gif" => ImageFormat::Gif,
+                "webp" => ImageFormat::WebP,
+                "tif" | "tiff" => ImageFormat::Tiff,
+                "tga" => ImageFormat::Tga,
+                "dds" => ImageFormat::Dds,
+                "bmp" => ImageFormat::Bmp,
+                "ico" => ImageFormat::Ico,
+                "hdr" => ImageFormat::Hdr,
+                "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
+                "ff" | "farbfeld" => ImageFormat::Farbfeld,
+                _ => return None,
+            })
+        }
+
+        inner(ext.as_ref())
     }
 
     /// Return the image format specified by the path's file extension.
@@ -93,7 +100,6 @@ impl ImageFormat {
         fn inner(path: &Path) -> ImageResult<ImageFormat> {
             let exact_ext = path.extension();
             exact_ext
-                .and_then(|s| s.to_str())
                 .and_then(|ext| ImageFormat::from_extension(ext))
                 .ok_or_else(|| {
                     let format_hint = match exact_ext {

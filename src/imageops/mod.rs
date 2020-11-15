@@ -286,6 +286,7 @@ where
 mod tests {
 
     use super::overlay;
+    use crate::RgbaImage;
     use crate::ImageBuffer;
     use crate::color::Rgb;
 
@@ -365,5 +366,12 @@ mod tests {
 
         assert_eq!(img.get_pixel(0, 0), &start);
         assert_eq!(img.get_pixel(0, img.height() - 1), &end);
+    }
+
+    #[test]
+    /// Test blur doens't panick when passed 0.0
+    fn test_blur_zero() {
+        let image = RgbaImage::new(50, 50);
+        let _ = super::blur(&image, 0.0);
     }
 }

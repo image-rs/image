@@ -755,7 +755,7 @@ pub fn blur<I: GenericImageView>(
 where
     I::Pixel: 'static,
 {
-    let sigma = if sigma < 0.0 { 1.0 } else { sigma };
+    let sigma = if sigma <= 0.0 { 1.0 } else { sigma };
 
     let mut method = Filter {
         kernel: Box::new(|x| gaussian(x, sigma)),

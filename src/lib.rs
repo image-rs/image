@@ -317,7 +317,8 @@ pub mod png {
     //! Decoding and Encoding of PNG Images
     #[allow(deprecated)]
     pub use crate::codecs::png::{
-        ApngDecoder, PNGEncoder, PNGReader, PngDecoder, PngEncoder, PngReader,
+        ApngDecoder, CompressionType, FilterType, PNGEncoder, PNGReader, PngDecoder, PngEncoder,
+        PngReader,
     };
 }
 #[cfg(feature = "pnm")]

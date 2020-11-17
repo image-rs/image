@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 pub(crate) const ALPHA_BIT_MASK: u8 = 0b1111;
 pub(crate) const SCREEN_ORIGIN_BIT_MASK: u8 = 0b10_0000;
 
+#[derive(PartialEq)]
 pub(crate) enum ImageType {
     NoImageData = 0,
     /// Uncompressed images.

@@ -125,11 +125,13 @@ impl<R: Read + Seek> TgaDecoder<R> {
             ));
         }
 
-        let num_alpha_bits = self.header.image_desc & ALPHA_BIT_MASK;
-
-        let other_channel_bits = if self.header.map_type != 0 {
-            self.header.map_entry_size
+        let num_alpha_bits;
+        let other_channel_bits;
+        if self.image_type == ImageType::RawColorMap || self.image_type == ImageType::RunColorMap {
+            num_alpha_bits = 0;
+            other_channel_bits = self.header.map_entry_size;
         } else {
+            num_alpha_bits = self.header.image_desc & ALPHA_BIT_MASK;
             if num_alpha_bits > self.header.pixel_depth {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -140,9 +142,9 @@ impl<R: Read + Seek> TgaDecoder<R> {
                     ),
                 ));
             }
+            other_channel_bits = self.header.pixel_depth - num_alpha_bits;
+        }
 
-            self.header.pixel_depth - num_alpha_bits
-        };
         let color = self.image_type.is_color();
 
         match (num_alpha_bits, other_channel_bits, color) {
@@ -288,7 +290,13 @@ impl<R: Read + Seek> TgaDecoder<R> {
         // We only need to reverse the encoding of color images
         match self.color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
+                let chunk_size = if self.image_type.is_color_mapped() {
+                    (self.header.map_entry_size as usize + 7) / 8
+                } else {
+                    self.bytes_per_pixel
+                };
+
+                for chunk in pixels.chunks_mut(chunk_size) {
                     chunk.swap(0, 2);
                 }
             }

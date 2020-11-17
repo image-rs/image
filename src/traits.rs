@@ -27,7 +27,7 @@ impl EncodableLayout for [u16] {
 }
 
 /// Primitive trait from old stdlib
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {}
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + Default {}
 
 impl Primitive for usize {}
 impl Primitive for u8 {}

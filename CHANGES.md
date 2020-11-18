@@ -10,6 +10,24 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.12
+
+- Fix a soundness issue affecting the impls of `Pixel::from_slice_mut`. This
+  would previously reborrow the mutable input reference as a shared one but
+  then proceed to construct the mutable result reference from it. While UB
+  according to Rust's memory model, we're fairly certain that no miscompilation
+  can happen with the LLVM codegen in practice.
+  See 5cbe1e6767d11aff3f14c7ad69a06b04e8d583c7 for more details.
+- Fix `imageops::blur` panicking when `sigma = 0.0`. It now defaults to `1.0`
+  as all negative values.
+- Fix re-exporting `png::{CompressionType, FilterType}` to maintain SemVer
+  compatibility with the `0.23` releases.
+
+- Add ImageFormat::from_extension
+- Add copyless DynamicImage to byte slice/vec conversion.
+- Add bit-depth specific `into_` and `to_` DynamicImage conversion methods.
+
+
 ### Version 0.23.11
 
 - The `NeuQuant` implementation is now supplied by `color_quant`. Use of the

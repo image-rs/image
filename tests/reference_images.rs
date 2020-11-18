@@ -46,7 +46,7 @@ fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
         println!("render_images {}", path.display());
         let img = match image::open(&path) {
-            Ok(img) => img.to_rgba(),
+            Ok(img) => img.to_rgba8(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
@@ -156,7 +156,7 @@ fn check_references() {
         println!("check_references {}", path.display());
 
         let ref_img = match image::open(&path) {
-            Ok(img) => img.to_rgba(),
+            Ok(img) => img.to_rgba8(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
@@ -257,7 +257,7 @@ fn check_references() {
             ReferenceTestKind::SingleImage => {
                 // Read the input file as a single image
                 match image::open(&img_path) {
-                    Ok(img) => test_img = Some(img.to_rgba()),
+                    Ok(img) => test_img = Some(img.to_rgba8()),
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.

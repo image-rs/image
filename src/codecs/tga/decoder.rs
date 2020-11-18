@@ -1,4 +1,4 @@
-use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
+use super::header::{Header, ImageType, SCREEN_ORIGIN_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
     error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind},
@@ -125,47 +125,21 @@ impl<R: Read + Seek> TgaDecoder<R> {
             ));
         }
 
-        let num_alpha_bits;
-        let other_channel_bits;
-        if self.image_type == ImageType::RawColorMap || self.image_type == ImageType::RunColorMap {
-            num_alpha_bits = 0;
-            other_channel_bits = self.header.map_entry_size;
-        } else {
-            num_alpha_bits = self.header.image_desc & ALPHA_BIT_MASK;
-            if num_alpha_bits > self.header.pixel_depth {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(
-                            self.header.pixel_depth,
-                        )),
-                    ),
-                ));
+        if self.image_type.is_gray() {
+            self.color_type = if self.header.pixel_depth == 8 {
+                ColorType::L8
+            } else {
+                ColorType::La8
             }
-            other_channel_bits = self.header.pixel_depth - num_alpha_bits;
-        }
-
-        let color = self.image_type.is_color();
-
-        match (num_alpha_bits, other_channel_bits, color) {
-            // really, the encoding is BGR and BGRA, this is fixed
-            // up with `TgaDecoder::reverse_encoding`.
-            (0, 32, true) => self.color_type = ColorType::Rgba8,
-            (8, 24, true) => self.color_type = ColorType::Rgba8,
-            (0, 24, true) => self.color_type = ColorType::Rgb8,
-            (8, 8, false) => self.color_type = ColorType::La8,
-            (0, 8, false) => self.color_type = ColorType::L8,
-            _ => {
-                return Err(ImageError::Unsupported(
-                    UnsupportedError::from_format_and_kind(
-                        ImageFormat::Tga.into(),
-                        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(
-                            self.header.pixel_depth,
-                        )),
-                    ),
-                ))
+        } else if self.image_type.is_color() {
+            // 8 bits and 16 bits images will be converted to 24 bits
+            self.color_type = if self.header.pixel_depth <= 24 {
+                ColorType::Rgb8
+            } else {
+                ColorType::Rgba8
             }
         }
+
         Ok(())
     }
 
@@ -288,19 +262,16 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// the blue and red bytes in the `pixels` array.
     fn reverse_encoding(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
-        match self.color_type {
-            ColorType::Rgb8 | ColorType::Rgba8 => {
-                let chunk_size = if self.image_type.is_color_mapped() {
-                    (self.header.map_entry_size as usize + 7) / 8
-                } else {
-                    self.bytes_per_pixel
-                };
+        let chunk_size = match self.color_type {
+            ColorType::Rgb8 => 3,
+            ColorType::Rgba8 => 4,
+            _ => 0,
+        };
 
-                for chunk in pixels.chunks_mut(chunk_size) {
-                    chunk.swap(0, 2);
-                }
+        if chunk_size > 0 {
+            for chunk in pixels.chunks_mut(chunk_size) {
+                chunk.swap(0, 2);
             }
-            _ => {}
         }
     }
 
@@ -373,6 +344,20 @@ impl<R: Read + Seek> TgaDecoder<R> {
     }
 }
 
+fn bgr555_to_888(raw: &[u8]) -> [u8; 3] {
+    assert_eq!(raw.len(), 2);
+
+    let c = ((raw[1] as u16) << 8) | raw[0] as u16;
+    let p = 0b_1111_1111 as f32 / 0b_1_1111 as f32;
+
+    [
+        // ARGB
+        (((c & 0b_0000_0000_0001_1111) >> 0) as f32 * p) as u8,
+        (((c & 0b_0000_0011_1110_0000) >> 5) as f32 * p) as u8,
+        (((c & 0b_0111_1100_0000_0000) >> 10) as f32 * p) as u8,
+    ]
+}
+
 impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     type Reader = TGAReader<R>;
 
@@ -401,7 +386,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         // read the pixels from the data region
-        let len = if self.image_type.is_encoded() {
+        let mut len = if self.image_type.is_encoded() {
             let pixel_data = self.read_all_encoded_data()?;
             buf[0..pixel_data.len()].copy_from_slice(&pixel_data);
             pixel_data.len()
@@ -414,6 +399,16 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
             let pixel_data = self.expand_color_map(&buf[0..len]);
+            buf[0..pixel_data.len()].copy_from_slice(&pixel_data);
+            len = pixel_data.len();
+        }
+
+        // convert bgr555 to bgr888 if necessar
+        if self.bytes_per_pixel == 2 && self.color_type == ColorType::Rgb8 {
+            let mut pixel_data = Vec::with_capacity(self.total_bytes() as usize);
+            for chunk in buf[0..len].chunks(2) {
+                pixel_data.extend(bgr555_to_888(chunk).iter());
+            }
             buf.copy_from_slice(&pixel_data);
         }
 

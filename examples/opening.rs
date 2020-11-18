@@ -11,7 +11,8 @@ fn main() {
     let file = if env::args().count() == 2 {
         env::args().nth(1).unwrap()
     } else {
-        panic!("Please enter a file")
+        //panic!("Please enter a file")
+        "tests/images/tga/testsuite/ccm8.tga".to_string()
     };
 
     // Use the open function to load an image from a Path.

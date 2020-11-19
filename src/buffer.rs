@@ -938,6 +938,21 @@ where
     }
 }
 
+impl<P, Container> Default for ImageBuffer<P, Container>
+where
+    P: Pixel,
+    Container: Default,
+{
+    fn default() -> Self {
+        Self {
+            width: Default::default(),
+            height: Default::default(),
+            _phantom: PhantomData,
+            data: Default::default(),
+        }
+    }
+}
+
 impl<P, Container> Deref for ImageBuffer<P, Container>
 where
     P: Pixel + 'static,
@@ -1296,7 +1311,7 @@ pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 #[cfg(test)]
 mod test {
     use super::{ImageBuffer, RgbImage};
-    use crate::color;
+    use crate::{color, Rgb};
 
     #[test]
     /// Tests if image buffers from slices work
@@ -1368,6 +1383,12 @@ mod test {
 
         assert_eq!(image.rows().count(), 1);
         assert_eq!(image.rows_mut().count(), 1);
+    }
+
+    #[test]
+    fn default() {
+        let image = ImageBuffer::<Rgb<u8>, Vec<u8>>::default();
+        assert_eq!(image.dimensions(), (0, 0));
     }
 }
 

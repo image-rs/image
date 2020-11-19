@@ -39,6 +39,13 @@ impl ImageType {
         }
     }
 
+    pub(crate) fn is_gray(&self) -> bool {
+        match *self {
+            ImageType::RawGrayScale | ImageType::RunGrayScale => true,
+            _ => false,
+        }
+    }
+
     /// Check if the image format uses colors as opposed to gray scale.
     pub(crate) fn is_color(&self) -> bool {
         match *self {

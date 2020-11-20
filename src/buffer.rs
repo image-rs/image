@@ -945,8 +945,8 @@ where
 {
     fn default() -> Self {
         Self {
-            width: Default::default(),
-            height: Default::default(),
+            width: 0,
+            height: 0,
             _phantom: PhantomData,
             data: Default::default(),
         }

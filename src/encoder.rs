@@ -290,7 +290,7 @@ impl<W: Write> Writer<W> {
         let data_size = in_len * self.info.height as usize;
         if data_size != data.len() {
             return Err(EncodingError::Parameter(
-                ParameterErrorKind::WrongDataSize(data_size, data.len()).into(),
+                ParameterErrorKind::ImageBufferSize(data_size, data.len()).into(),
             ));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());

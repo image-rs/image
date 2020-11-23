@@ -531,8 +531,19 @@ pub struct ParameterError {
 
 #[derive(Debug)]
 pub(crate) enum ParameterErrorKind {
-    WrongDataSize(usize, usize),
-    EndOfImageReached,
+    /// A provided buffer must be large enough to hold the image data. Where the buffer can be
+    /// allocated by the caller, it must ensure that it has a minimum size as hinted previously.
+    /// Even though the size is calculated from image data, this does counts as a parameter error
+    /// because they must react to a value produced by this library, which can have been subjected
+    /// to limits.
+    ImageBufferSize(usize, usize),
+    /// A bit like return `None` from an iterator.
+    /// We use it to differentiate between failing to seek to the next image in a sequence and the
+    /// absence of a next image. This is an error of the caller because they should have checked
+    /// the number of images by inspecting the header data returned when opening the image. This
+    /// library will perform the checks necessary to ensure that data was accurate or error with a
+    /// format error otherwise.
+    PolledAfterEndOfImage,
 }
 
 impl From<ParameterErrorKind> for ParameterError {
@@ -545,10 +556,10 @@ impl fmt::Display for ParameterError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         use ParameterErrorKind::*;
         match self.inner {
-            WrongDataSize(expected, got) => {
+            ImageBufferSize(expected, got) => {
                 write!(fmt, "wrong data size, expected {} got {}", expected, got)
             }
-            EndOfImageReached => write!(fmt, "End of image has been reached"),
+            PolledAfterEndOfImage => write!(fmt, "End of image has been reached"),
         }
     }
 }

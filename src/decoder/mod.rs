@@ -319,7 +319,7 @@ impl<R: Read> Reader<R> {
             return Ok(());
         } else if self.next_frame == SubframeIdx::End {
             return Err(DecodingError::Parameter(
-                ParameterErrorKind::EndOfImageReached.into(),
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
             ));
         }
 
@@ -436,7 +436,7 @@ impl<R: Read> Reader<R> {
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Parameter(
-                ParameterErrorKind::WrongDataSize(buf.len(), self.output_buffer_size()).into(),
+                ParameterErrorKind::ImageBufferSize(buf.len(), self.output_buffer_size()).into(),
             ));
         }
 

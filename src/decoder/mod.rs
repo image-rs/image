@@ -95,7 +95,7 @@ impl<R: Read> Decoder<R> {
 
     /// Limit resource usage.
     ///
-    /// Note that Your allocations, e.g. when reading into a pre-allocated buffer, is __NOT__
+    /// Note that your allocations, e.g. when reading into a pre-allocated buffer, are __NOT__
     /// considered part of the limits. Nevertheless, required intermediate buffers such as for
     /// singular lines is checked against the limit.
     ///
@@ -436,7 +436,11 @@ impl<R: Read> Reader<R> {
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Parameter(
-                ParameterErrorKind::ImageBufferSize(buf.len(), self.output_buffer_size()).into(),
+                ParameterErrorKind::ImageBufferSize {
+                    expected: buf.len(),
+                    actual: self.output_buffer_size(),
+                }
+                .into(),
             ));
         }
 

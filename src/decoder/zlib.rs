@@ -1,4 +1,4 @@
-use super::{DecodingError, CHUNCK_BUFFER_SIZE};
+use super::{stream::FormatErrorInner, DecodingError, CHUNCK_BUFFER_SIZE};
 
 use miniz_oxide::inflate::core::{decompress, inflate_flags, DecompressorOxide};
 use miniz_oxide::inflate::TINFLStatus;
@@ -102,7 +102,9 @@ impl ZlibStream {
             TINFLStatus::Done | TINFLStatus::HasMoreOutput | TINFLStatus::NeedsMoreInput => {
                 Ok(in_consumed)
             }
-            _err => Err(DecodingError::CorruptFlateStream),
+            err => Err(DecodingError::Format(
+                FormatErrorInner::CorruptFlateStream { err }.into(),
+            )),
         }
     }
 
@@ -158,8 +160,10 @@ impl ZlibStream {
                         "No more forward progress made in stream decoding."
                     );
                 }
-                _err => {
-                    return Err(DecodingError::CorruptFlateStream);
+                err => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::CorruptFlateStream { err }.into(),
+                    ));
                 }
             }
         }

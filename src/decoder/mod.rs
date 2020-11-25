@@ -1,16 +1,17 @@
 mod stream;
 mod zlib;
 
-use self::stream::{get_info, CHUNCK_BUFFER_SIZE};
+use self::stream::{get_info, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
-use std::borrow;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
 use std::ops::Range;
 
 use crate::chunk;
-use crate::common::{BitDepth, BytesPerPixel, ColorType, Info, Transformations};
+use crate::common::{
+    BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
+};
 use crate::filter::{unfilter, FilterType};
 use crate::utils;
 
@@ -130,7 +131,13 @@ impl<R: Read> Decoder<R> {
         }
     }
 
-    /// Limit resource usage
+    /// Limit resource usage.
+    ///
+    /// Note that your allocations, e.g. when reading into a pre-allocated buffer, are __NOT__
+    /// considered part of the limits. Nevertheless, required intermediate buffers such as for
+    /// singular lines is checked against the limit.
+    ///
+    /// Note that this is a best-effort basis.
     ///
     /// ```
     /// use std::fs::File;
@@ -159,10 +166,10 @@ impl<R: Read> Decoder<R> {
         let bit_depth = r.info().bit_depth;
         if color_type.is_combination_invalid(bit_depth) {
             return Err(DecodingError::Format(
-                format!(
-                    "Invalid color/depth combination in header: {:?}/{:?}",
-                    color_type, bit_depth
-                )
+                FormatErrorInner::InvalidColorBitDepth {
+                    color: color_type,
+                    depth: bit_depth,
+                }
                 .into(),
             ));
         }
@@ -209,7 +216,9 @@ impl<R: Read> ReadDecoder<R> {
             let (consumed, result) = {
                 let buf = self.reader.fill_buf()?;
                 if buf.is_empty() {
-                    return Err(DecodingError::Format("unexpected EOF".into()));
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::UnexpectedEof.into(),
+                    ));
                 }
                 self.decoder.update(buf, image_data)?
             };
@@ -227,7 +236,9 @@ impl<R: Read> ReadDecoder<R> {
         while !self.at_eof {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
-                return Err(DecodingError::Format("unexpected EOF after image".into()));
+                return Err(DecodingError::Format(
+                    FormatErrorInner::UnexpectedEof.into(),
+                ));
             }
             let (consumed, event) = self.decoder.update(buf, &mut vec![])?;
             self.reader.consume(consumed);
@@ -242,7 +253,9 @@ impl<R: Read> ReadDecoder<R> {
             }
         }
 
-        Err(DecodingError::Format("unexpected EOF after image".into()))
+        Err(DecodingError::Format(
+            FormatErrorInner::UnexpectedEof.into(),
+        ))
     }
 
     fn info(&self) -> Option<&Info> {
@@ -343,7 +356,9 @@ impl<R: Read> Reader<R> {
         if self.next_frame == self.subframe_idx() {
             return Ok(());
         } else if self.next_frame == SubframeIdx::End {
-            return Err(DecodingError::Other("End of image has been reached".into()));
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
+            ));
         }
 
         loop {
@@ -359,7 +374,11 @@ impl<R: Read> Reader<R> {
                     // several gigabytes of data.
                     self.fctl_read += 1;
                 }
-                None => return Err(DecodingError::Format("IDAT chunk missing".into())),
+                None => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::MissingImageData.into(),
+                    ))
+                }
                 Some(Decoded::Header { .. }) => {
                     self.validate_buffer_sizes()?;
                 }
@@ -371,7 +390,7 @@ impl<R: Read> Reader<R> {
         {
             let info = match self.decoder.info() {
                 Some(info) => info,
-                None => return Err(DecodingError::Format("IHDR chunk missing".into())),
+                None => return Err(DecodingError::Format(FormatErrorInner::MissingIhdr.into())),
             };
             self.bpp = info.bpp_in_prediction();
             // Check if the output buffer can be represented at all.
@@ -454,8 +473,12 @@ impl<R: Read> Reader<R> {
         // TODO 16 bit
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
-            return Err(DecodingError::Other(
-                "supplied buffer is too small to hold the image".into(),
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::ImageBufferSize {
+                    expected: buf.len(),
+                    actual: self.output_buffer_size(),
+                }
+                .into(),
             ));
         }
 
@@ -727,7 +750,7 @@ impl<R: Read> Reader<R> {
                     None => {
                         self.scan_start += rowlen;
                         return Err(DecodingError::Format(
-                            format!("invalid filter method ({})", row[0]).into(),
+                            FormatErrorInner::UnknownFilterMethod(row[0]).into(),
                         ));
                     }
                     Some(filter) => filter,
@@ -736,7 +759,9 @@ impl<R: Read> Reader<R> {
                 if let Err(message) =
                     unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen])
                 {
-                    return Err(DecodingError::Format(borrow::Cow::Borrowed(message)));
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::BadFilter(message).into(),
+                    ));
                 }
 
                 self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
@@ -748,7 +773,9 @@ impl<R: Read> Reader<R> {
                 }));
             } else {
                 if self.subframe.consumed_and_flushed {
-                    return Err(DecodingError::Format("not enough data for image".into()));
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::NoMoreImageData.into(),
+                    ));
                 }
 
                 // Clear the current buffer before appending more data.
@@ -765,7 +792,9 @@ impl<R: Read> Reader<R> {
                     }
                     None => {
                         if !self.current.is_empty() {
-                            return Err(DecodingError::Format("file truncated".into()));
+                            return Err(DecodingError::Format(
+                                FormatErrorInner::UnexpectedEndOfChunk.into(),
+                            ));
                         } else {
                             return Ok(None);
                         }
@@ -814,8 +843,13 @@ impl SubframeInfo {
 fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
     if let Some(palette) = info.palette.as_ref() {
         if let BitDepth::Sixteen = info.bit_depth {
+            // This should have been caught earlier but let's check again. Can't hurt.
             Err(DecodingError::Format(
-                "Bit depth '16' is not valid for paletted images".into(),
+                FormatErrorInner::InvalidColorBitDepth {
+                    color: ColorType::Indexed,
+                    depth: BitDepth::Sixteen,
+                }
+                .into(),
             ))
         } else {
             let black = [0, 0, 0];
@@ -845,7 +879,9 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
             Ok(())
         }
     } else {
-        Err(DecodingError::Format("missing palette".into()))
+        Err(DecodingError::Format(
+            FormatErrorInner::PaletteRequired.into(),
+        ))
     }
 }
 

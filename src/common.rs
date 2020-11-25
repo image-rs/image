@@ -522,6 +522,46 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub struct ParameterError {
+    inner: ParameterErrorKind,
+}
+
+#[derive(Debug)]
+pub(crate) enum ParameterErrorKind {
+    /// A provided buffer must be have the exact size to hold the image data. Where the buffer can
+    /// be allocated by the caller, they must ensure that it has a minimum size as hinted previously.
+    /// Even though the size is calculated from image data, this does counts as a parameter error
+    /// because they must react to a value produced by this library, which can have been subjected
+    /// to limits.
+    ImageBufferSize { expected: usize, actual: usize },
+    /// A bit like return `None` from an iterator.
+    /// We use it to differentiate between failing to seek to the next image in a sequence and the
+    /// absence of a next image. This is an error of the caller because they should have checked
+    /// the number of images by inspecting the header data returned when opening the image. This
+    /// library will perform the checks necessary to ensure that data was accurate or error with a
+    /// format error otherwise.
+    PolledAfterEndOfImage,
+}
+
+impl From<ParameterErrorKind> for ParameterError {
+    fn from(inner: ParameterErrorKind) -> Self {
+        ParameterError { inner }
+    }
+}
+
+impl fmt::Display for ParameterError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use ParameterErrorKind::*;
+        match self.inner {
+            ImageBufferSize { expected, actual } => {
+                write!(fmt, "wrong data size, expected {} got {}", expected, actual)
+            }
+            PolledAfterEndOfImage => write!(fmt, "End of image has been reached"),
+        }
+    }
+}
+
 /// Mod to encapsulate the converters depending on the `deflate` crate.
 ///
 /// Since this only contains trait impls, there is no need to make this public, they are simply

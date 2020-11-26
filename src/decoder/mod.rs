@@ -572,7 +572,7 @@ impl<R: Read> Reader<R> {
                 Grayscale | GrayscaleAlpha if bit_depth < 8 => {
                     expand_gray_u8(output_buffer, get_info!(self))
                 }
-                Grayscale | RGB if trns => {
+                Grayscale | Rgb if trns => {
                     let channels = color_type.samples();
                     let trns = get_info!(self).trns.as_ref().unwrap();
                     if bit_depth == 8 {
@@ -628,9 +628,9 @@ impl<R: Read> Reader<R> {
                 let has_trns = info.trns.is_some();
                 match info.color_type {
                     Grayscale if has_trns => GrayscaleAlpha,
-                    RGB if has_trns => RGBA,
-                    Indexed if has_trns => RGBA,
-                    Indexed => RGB,
+                    Rgb if has_trns => Rgba,
+                    Indexed if has_trns => Rgba,
+                    Indexed => Rgb,
                     ct => ct,
                 }
             } else {
@@ -691,9 +691,9 @@ impl<R: Read> Reader<R> {
         // The color type and depth representing the decoded line
         // TODO 16 bit
         let (color, depth) = match info.color_type {
-            Indexed if trns && t.contains(Transformations::EXPAND) => (RGBA, expanded),
-            Indexed if t.contains(Transformations::EXPAND) => (RGB, expanded),
-            RGB if trns && t.contains(Transformations::EXPAND) => (RGBA, expanded),
+            Indexed if trns && t.contains(Transformations::EXPAND) => (Rgba, expanded),
+            Indexed if t.contains(Transformations::EXPAND) => (Rgb, expanded),
+            Rgb if trns && t.contains(Transformations::EXPAND) => (Rgba, expanded),
             Grayscale if trns && t.contains(Transformations::EXPAND) => (GrayscaleAlpha, expanded),
             Grayscale if t.contains(Transformations::EXPAND) => (Grayscale, expanded),
             GrayscaleAlpha if t.contains(Transformations::EXPAND) => (GrayscaleAlpha, expanded),

@@ -8,10 +8,10 @@ use std::{convert::TryFrom, fmt};
 #[repr(u8)]
 pub enum ColorType {
     Grayscale = 0,
-    RGB = 2,
+    Rgb = 2,
     Indexed = 3,
     GrayscaleAlpha = 4,
-    RGBA = 6,
+    Rgba = 6,
 }
 
 impl ColorType {
@@ -24,9 +24,9 @@ impl ColorType {
         use self::ColorType::*;
         match self {
             Grayscale | Indexed => 1,
-            RGB => 3,
+            Rgb => 3,
             GrayscaleAlpha => 2,
-            RGBA => 4,
+            Rgba => 4,
         }
     }
 
@@ -34,10 +34,10 @@ impl ColorType {
     pub fn from_u8(n: u8) -> Option<ColorType> {
         match n {
             0 => Some(ColorType::Grayscale),
-            2 => Some(ColorType::RGB),
+            2 => Some(ColorType::Rgb),
             3 => Some(ColorType::Indexed),
             4 => Some(ColorType::GrayscaleAlpha),
-            6 => Some(ColorType::RGBA),
+            6 => Some(ColorType::Rgba),
             _ => None,
         }
     }
@@ -66,9 +66,9 @@ impl ColorType {
         // Section 11.2.2 of the PNG standard disallows several combinations
         // of bit depth and color type
         ((bit_depth == BitDepth::One || bit_depth == BitDepth::Two || bit_depth == BitDepth::Four)
-            && (self == ColorType::RGB
+            && (self == ColorType::Rgb
                 || self == ColorType::GrayscaleAlpha
-                || self == ColorType::RGBA))
+                || self == ColorType::Rgba))
             || (bit_depth == BitDepth::Sixteen && self == ColorType::Indexed)
     }
 }

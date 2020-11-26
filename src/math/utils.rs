@@ -45,6 +45,7 @@ pub(crate) fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u
     } else {
         u64::from(width) * u64::from(nheight) / u64::from(height)
     };
+    let intermediate = std::cmp::max(1, intermediate);
     if use_width {
         if intermediate <= u64::from(::std::u32::MAX) {
             (nwidth, intermediate as u32)
@@ -91,6 +92,13 @@ mod test {
         let result = super::resize_dimensions(200, 100, 500, 200, true);
         assert!(result.0 == 500);
         assert!(result.1 == 250);
+    }
+
+    #[test]
+    fn resize_never_rounds_to_zero() {
+        let result = super::resize_dimensions(1, 150, 128, 128, false);
+        assert!(result.0 > 0);
+        assert!(result.1 > 0);
     }
 
     #[test]

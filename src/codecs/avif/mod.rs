@@ -5,6 +5,7 @@
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::borrow::Cow;
 use std::io::Write;
+use std::cmp::{min, max};
 
 use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
@@ -37,7 +38,20 @@ impl<W: Write> AvifEncoder<W> {
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
     pub fn write_image(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        let config = self.config(color);
+        self.write_image_with_speed_quality(data, width, height, color, 100, 1)
+    }
+
+    /// Encode image data with the indicated color type, quality and speed.
+    ///
+    /// The encoder currently requires all data to be RGBA8, it will be converted internally if
+    /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
+    /// conversion may be more efficient.
+    pub fn write_image_with_speed_quality(mut self, data: &[u8], width: u32, height: u32, color: ColorType, quality: u8, speed: u8) -> ImageResult<()> {
+        // Clamp quality and speed to range
+        let quality = max(1, min(quality, 100));
+        let speed = max(1, min(speed, 10));
+
+        let config = self.config(color, quality, speed);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
@@ -50,11 +64,11 @@ impl<W: Write> AvifEncoder<W> {
         Ok(())
     }
 
-    fn config(&self, _color: ColorType) -> Config {
+    fn config(&self, _color: ColorType, quality: u8, speed: u8) -> Config {
         Config {
-            quality: 100,
-            alpha_quality: 100,
-            speed: 1,
+            quality: quality,
+            alpha_quality: quality,
+            speed: speed,
             premultiplied_alpha: false,
             color_space: ColorSpace::RGB,
         }

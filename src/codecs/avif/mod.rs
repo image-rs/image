@@ -49,7 +49,7 @@ impl<W: Write> AvifEncoder<W> {
     pub fn write_image_with_speed_quality(mut self, data: &[u8], width: u32, height: u32, color: ColorType, quality: u8, speed: u8) -> ImageResult<()> {
         // Clamp quality and speed to range
         let quality = max(0, min(quality, 100));
-        let speed = max(1, min(speed, 10));
+        let speed = max(0, min(speed, 10));
 
         let config = self.config(color, quality, speed);
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily

@@ -732,7 +732,6 @@ impl StreamingDecoder {
     }
 
     fn parse_trns(&mut self) -> Result<Decoded, DecodingError> {
-        use crate::common::ColorType::*;
         let (color_type, bit_depth) = {
             let info = self.get_info_or_err()?;
             (info.color_type, info.bit_depth as u8)
@@ -750,7 +749,7 @@ impl StreamingDecoder {
         info.trns = Some(vec);
         let vec = info.trns.as_mut().unwrap();
         match color_type {
-            Grayscale => {
+            ColorType::Grayscale => {
                 if len < 2 {
                     return Err(DecodingError::Format(
                         FormatErrorInner::ShortPalette { expected: 2, len }.into(),
@@ -762,7 +761,7 @@ impl StreamingDecoder {
                 }
                 Ok(Decoded::Nothing)
             }
-            RGB => {
+            ColorType::Rgb => {
                 if len < 6 {
                     return Err(DecodingError::Format(
                         FormatErrorInner::ShortPalette { expected: 6, len }.into(),
@@ -776,7 +775,7 @@ impl StreamingDecoder {
                 }
                 Ok(Decoded::Nothing)
             }
-            Indexed => {
+            ColorType::Indexed => {
                 // FIXME: what's going on here??
                 let _ = info.palette.as_ref().ok_or_else(|| {
                     DecodingError::Format(FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into())

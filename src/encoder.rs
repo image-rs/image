@@ -679,7 +679,7 @@ mod tests {
         let writer = Cursor::new(output);
         let mut encoder = Encoder::new(writer, width as u32, height as u32);
         encoder.set_depth(BitDepth::Eight);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         let mut png_writer = encoder.write_header()?;
 
         let correct_image_size = width * height * 3;
@@ -718,7 +718,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::One);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -728,12 +728,12 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::One);
-        encoder.set_color(ColorType::RGBA);
+        encoder.set_color(ColorType::Rgba);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Two);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -743,12 +743,12 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Two);
-        encoder.set_color(ColorType::RGBA);
+        encoder.set_color(ColorType::Rgba);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Four);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -758,7 +758,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Four);
-        encoder.set_color(ColorType::RGBA);
+        encoder.set_color(ColorType::Rgba);
         assert!(encoder.write_header().is_err());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -813,7 +813,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Eight);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         assert!(encoder.write_header().is_ok());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -828,7 +828,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Eight);
-        encoder.set_color(ColorType::RGBA);
+        encoder.set_color(ColorType::Rgba);
         assert!(encoder.write_header().is_ok());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -838,7 +838,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Sixteen);
-        encoder.set_color(ColorType::RGB);
+        encoder.set_color(ColorType::Rgb);
         assert!(encoder.write_header().is_ok());
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
@@ -848,7 +848,7 @@ mod tests {
 
         let mut encoder = Encoder::new(&mut writer, 1, 1);
         encoder.set_depth(BitDepth::Sixteen);
-        encoder.set_color(ColorType::RGBA);
+        encoder.set_color(ColorType::Rgba);
         assert!(encoder.write_header().is_ok());
 
         Ok(())
@@ -862,7 +862,7 @@ mod tests {
             let mut buffer = vec![];
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
-            encoder.set_color(ColorType::RGB);
+            encoder.set_color(ColorType::Rgb);
             encoder.set_filter(filter);
             encoder.write_header()?.write_image_data(&pixel)?;
 
@@ -894,7 +894,7 @@ mod tests {
             let mut buffer = vec![];
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
-            encoder.set_color(ColorType::RGB);
+            encoder.set_color(ColorType::Rgb);
             encoder.set_filter(FilterType::Avg);
             if let Some(gamma) = gamma {
                 encoder.set_source_gamma(gamma);

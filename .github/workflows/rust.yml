@@ -9,39 +9,33 @@ jobs:
     strategy:
       matrix:
         rust: ["1.34.2", stable, beta, nightly]
-        command: [build, test]
-        runs-on: [ubuntu-latest, 	windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - run: rustup default ${{ matrix.rust }}
+    - run: |
+        rustup toolchain add ${{ matrix.rust }}
+        rustup default ${{ matrix.rust }}
     - name: build
       run: |
         cargo build --verbose
         cargo doc --verbose
-      env:
-        FEATURES: ${{ matrix.features }}
   mips_cross:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: rustup default ${{ matrix.rust }}
     - name: add_cross_target
-      run: >
-        rustup target add $CROSS_TARGET
-      env:
-        CROSS_TARGET: mips64-unknown-linux-gnuabi64
-    - name: run
-      run: >
-        cargo build --all-features --target $CROSS_TARGET
-    - name: doc
+      run: |
+        rustup target add mips64-unknown-linux-gnuabi64
+        cargo build --all-features --target mips64-unknown-linux-gnuabi64
   test_all:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: rustup default ${{ matrix.rust }}
+    - run: rustup default stable
     - name: test
       run: >
         cargo test -v --tests --benches --all-features
-      if: ${{ matrix.rust != '1.34.2' }}
   rustfmt:
     runs-on: ubuntu-latest
     steps:

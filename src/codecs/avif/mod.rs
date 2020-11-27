@@ -5,7 +5,7 @@
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::borrow::Cow;
 use std::io::Write;
-use std::cmp::{min, max};
+use std::cmp::min;
 
 use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
@@ -24,12 +24,33 @@ use rgb::AsPixels;
 pub struct AvifEncoder<W> {
     inner: W,
     fallback: Vec<u8>,
+    config: Config
 }
 
 impl<W: Write> AvifEncoder<W> {
     /// Create a new encoder that writes its output to `w`.
     pub fn new(w: W) -> Self {
-        AvifEncoder { inner: w, fallback: vec![] }
+        AvifEncoder::new_with_speed_quality(w, 1, 100)
+    }
+
+    /// Create a new encoder with specified speed and quality,
+    /// that writes its output to `w`.
+    pub fn new_with_speed_quality(w: W, speed: u8, quality: u8) -> Self {
+        // Clamp quality and speed to range
+        let quality = min(quality, 100);
+        let speed = min(speed, 10);
+
+        AvifEncoder {
+            inner: w,
+            fallback: vec![],
+            config: Config {
+                quality,
+                alpha_quality: quality,
+                speed,
+                premultiplied_alpha: false,
+                color_space: ColorSpace::RGB,
+            } 
+        }
     }
 
     /// Encode image data with the indicated color type.
@@ -38,20 +59,8 @@ impl<W: Write> AvifEncoder<W> {
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
     pub fn write_image(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
-        self.write_image_with_speed_quality(data, width, height, color, 100, 1)
-    }
-
-    /// Encode image data with the indicated color type, quality and speed.
-    ///
-    /// The encoder currently requires all data to be RGBA8, it will be converted internally if
-    /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
-    /// conversion may be more efficient.
-    pub fn write_image_with_speed_quality(mut self, data: &[u8], width: u32, height: u32, color: ColorType, quality: u8, speed: u8) -> ImageResult<()> {
-        // Clamp quality and speed to range
-        let quality = max(0, min(quality, 100));
-        let speed = max(0, min(speed, 10));
-
-        let config = self.config(color, quality, speed);
+        self.set_color(color);
+        let config = self.config;
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
@@ -64,14 +73,9 @@ impl<W: Write> AvifEncoder<W> {
         Ok(())
     }
 
-    fn config(&self, _color: ColorType, quality: u8, speed: u8) -> Config {
-        Config {
-            quality: quality,
-            alpha_quality: quality,
-            speed: speed,
-            premultiplied_alpha: false,
-            color_space: ColorSpace::RGB,
-        }
+    // Does not currently do anything. Mirrors behaviour of old config function.
+    fn set_color(&mut self, _color: ColorType) {
+        // self.config.color_space = ColorSpace::RGB;
     }
 
     fn encode_as_img<'buf>(&'buf mut self, data: &'buf [u8], width: u32, height: u32, color: ColorType)

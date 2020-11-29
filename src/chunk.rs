@@ -31,6 +31,8 @@ pub const pHYs: ChunkType = ChunkType([b'p', b'H', b'Y', b's']);
 pub const cHRM: ChunkType = ChunkType([b'c', b'H', b'R', b'M']);
 /// Source system's gamma value
 pub const gAMA: ChunkType = ChunkType([b'g', b'A', b'M', b'A']);
+/// sRGB color space chunk
+pub const sRGB: ChunkType = ChunkType([b's', b'R', b'G', b'B']);
 
 // -- Extension chunks --
 

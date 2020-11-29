@@ -361,6 +361,38 @@ impl SourceChromaticities {
     }
 }
 
+/// The rendering intent for an sRGB image.
+///
+/// Presence of this data also indicates that the image conforms to the sRGB color space.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SrgbRenderingIntent {
+    /// For images preferring good adaptation to the output device gamut at the expense of colorimetric accuracy, such as photographs.
+    Perceptual = 0,
+    /// For images requiring colour appearance matching (relative to the output device white point), such as logos.
+    RelativeColorimetric = 1,
+    /// For images preferring preservation of saturation at the expense of hue and lightness, such as charts and graphs.
+    Saturation = 2,
+    /// For images requiring preservation of absolute colorimetry, such as previews of images destined for a different output device (proofs).
+    AbsoluteColorimetric = 3,
+}
+
+impl SrgbRenderingIntent {
+    pub(crate) fn into_raw(self) -> u8 {
+        self as u8
+    }
+
+    pub(crate) fn from_raw(raw: u8) -> Option<Self> {
+        match raw {
+            0 => Some(SrgbRenderingIntent::Perceptual),
+            1 => Some(SrgbRenderingIntent::RelativeColorimetric),
+            2 => Some(SrgbRenderingIntent::Saturation),
+            3 => Some(SrgbRenderingIntent::AbsoluteColorimetric),
+            _ => None,
+        }
+    }
+}
+
 /// PNG info struct
 #[derive(Clone, Debug)]
 pub struct Info {
@@ -371,14 +403,19 @@ pub struct Info {
     pub interlaced: bool,
     pub trns: Option<Vec<u8>>,
     pub pixel_dims: Option<PixelDimensions>,
-    /// Source system's gamma
+    /// Gamma of the source system.
     pub source_gamma: Option<ScaledFloat>,
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
     pub filter: filter::FilterType,
+    /// Chromaticities of the source system.
     pub source_chromaticities: Option<SourceChromaticities>,
+    /// The rendering intent of an SRGB image.
+    ///
+    /// Presence of this value also indicates that the image conforms to the SRGB color space.
+    pub srgb: Option<SrgbRenderingIntent>,
 }
 
 impl Default for Info {
@@ -400,6 +437,7 @@ impl Default for Info {
             compression: Compression::Fast,
             filter: filter::FilterType::Sub,
             source_chromaticities: None,
+            srgb: None,
         }
     }
 }

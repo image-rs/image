@@ -135,6 +135,14 @@ impl<W: Write> Encoder<W> {
         self.info.source_chromaticities = Some(source_chromaticities);
     }
 
+    /// Mark the image data as conforming to the SRGB color space with the specified rendering intent.
+    ///
+    /// Matching source gamma and chromaticities chunks are added automatically.
+    /// Any manually specified source gamma or chromaticities will be ignored.
+    pub fn set_srgb(&mut self, rendering_intent: super::SrgbRenderingIntent) {
+        self.info.srgb = Some(rendering_intent);
+    }
+
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info).init()
     }
@@ -236,13 +244,23 @@ impl<W: Write> Writer<W> {
             write_chunk(&mut self.w, chunk::tRNS, t)?;
         }
 
-        if let Some(g) = &self.info.source_gamma {
-            write_chunk(&mut self.w, chunk::gAMA, &g.into_scaled().to_be_bytes())?;
-        }
+        // If specified, the sRGB information overrides the source gamma and chromaticities.
+        if let Some(srgb) = &self.info.srgb {
+            let gamma = crate::srgb::substitute_gamma().into_scaled().to_be_bytes();
+            let chromaticities =
+                Self::chromaticities_to_be_bytes(&crate::srgb::substitute_chromaticities());
+            write_chunk(&mut self.w, chunk::sRGB, &[srgb.into_raw()])?;
+            write_chunk(&mut self.w, chunk::gAMA, &gamma)?;
+            write_chunk(&mut self.w, chunk::cHRM, &chromaticities)?;
+        } else {
+            if let Some(g) = &self.info.source_gamma {
+                write_chunk(&mut self.w, chunk::gAMA, &g.into_scaled().to_be_bytes())?;
+            }
 
-        if let Some(c) = &self.info.source_chromaticities {
-            let enc = Self::chromaticities_to_be_bytes(&c);
-            write_chunk(&mut self.w, chunk::cHRM, &enc)?;
+            if let Some(c) = &self.info.source_chromaticities {
+                let enc = Self::chromaticities_to_be_bytes(&c);
+                write_chunk(&mut self.w, chunk::cHRM, &enc)?;
+            }
         }
 
         Ok(self)

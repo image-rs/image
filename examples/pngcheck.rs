@@ -56,10 +56,10 @@ fn display_image_type(bits: u8, color: png::ColorType) -> String {
         bits,
         match color {
             Grayscale => "grayscale",
-            RGB => "RGB",
+            Rgb => "RGB",
             Indexed => "palette",
             GrayscaleAlpha => "grayscale+alpha",
-            RGBA => "RGB+alpha",
+            Rgba => "RGB+alpha",
         }
     )
 }
@@ -68,10 +68,10 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     use png::ColorType::*;
     match c {
         Grayscale => 1 + if trns { 1 } else { 0 },
-        RGB => 3,
+        Rgb => 3,
         Indexed => 3 + if trns { 1 } else { 0 },
         GrayscaleAlpha => 2,
-        RGBA => 4,
+        Rgba => 4,
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {

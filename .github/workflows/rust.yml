@@ -13,9 +13,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - run: |
-        rustup toolchain add ${{ matrix.rust }}
-        rustup default ${{ matrix.rust }}
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
     - name: build
       run: |
         cargo build --verbose

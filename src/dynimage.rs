@@ -905,7 +905,7 @@ impl DynamicImage {
         // When no features are supported
         let w = w;
         #[allow(unused_variables,unused_mut)]
-        let mut bytes = self.to_bytes();
+        let mut bytes = self.as_bytes();
         #[allow(unused_variables)]
         let (width, height) = self.dimensions();
         #[allow(unused_variables,unused_mut)]
@@ -917,13 +917,16 @@ impl DynamicImage {
             #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
                 let p = png::PngEncoder::new(w);
+                let converted;
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes = self.to_rgba().iter().cloned().collect();
+                        converted = self.to_rgba().into_raw();
+                        bytes = &converted;
                         color = color::ColorType::Rgba8;
                     }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes = self.to_rgb().iter().cloned().collect();
+                        converted = self.to_rgb().into_raw();
+                        bytes = &converted;
                         color = color::ColorType::Rgb8;
                     }
                     _ => {}
@@ -931,27 +934,32 @@ impl DynamicImage {
                 p.encode(&bytes, width, height, color)?;
                 Ok(())
             }
+
             #[cfg(feature = "pnm")]
             image::ImageOutputFormat::Pnm(subtype) => {
                 let mut p = pnm::PnmEncoder::new(w).with_subtype(subtype);
+                let converted;
                 match *self {
                     DynamicImage::ImageBgra8(_) => {
-                        bytes = self.to_rgba().iter().cloned().collect();
+                        converted = self.to_rgba().into_raw();
+                        bytes = &converted;
                         color = color::ColorType::Rgba8;
                     }
                     DynamicImage::ImageBgr8(_) => {
-                        bytes = self.to_rgb().iter().cloned().collect();
+                        converted = self.to_rgb().into_raw();
+                        bytes = &converted;
                         color = color::ColorType::Rgb8;
                     }
                     _ => {}
                 }
-                p.encode(&bytes[..], width, height, color)?;
+                p.encode(bytes, width, height, color)?;
                 Ok(())
             }
+
             #[cfg(feature = "jpeg")]
             image::ImageOutputFormat::Jpeg(quality) => {
                 let j = jpeg::JpegEncoder::new_with_quality(w, quality);
-                j.write_image(&bytes, width, height, color)?;
+                j.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -965,31 +973,30 @@ impl DynamicImage {
             #[cfg(feature = "ico")]
             image::ImageOutputFormat::Ico => {
                 let i = ico::IcoEncoder::new(w);
-
-                i.encode(&bytes, width, height, color)?;
+                i.encode(bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "bmp")]
             image::ImageOutputFormat::Bmp => {
                 let mut b = bmp::BmpEncoder::new(w);
-                b.encode(&bytes, width, height, color)?;
+                b.encode(bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "farbfeld")]
             image::ImageOutputFormat::Farbfeld => {
-                farbfeld::FarbfeldEncoder::new(w).write_image(&bytes, width, height, color)
+                farbfeld::FarbfeldEncoder::new(w).write_image(bytes, width, height, color)
             }
 
             #[cfg(feature = "tga")]
             image::ImageOutputFormat::Tga => {
-                tga::TgaEncoder::new(w).write_image(&bytes, width, height, color)
+                tga::TgaEncoder::new(w).write_image(bytes, width, height, color)
             }
 
             #[cfg(feature = "avif")]
             image::ImageOutputFormat::Avif => {
-                avif::AvifEncoder::new(w).write_image(&bytes, width, height, color)
+                avif::AvifEncoder::new(w).write_image(bytes, width, height, color)
             }
 
             image::ImageOutputFormat::Unsupported(msg) => {
@@ -1162,30 +1169,20 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
     }
 }
 
-#[allow(deprecated)]
 fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
     use crate::traits::EncodableLayout;
 
     match *image {
         // TODO: consider transmuting
-        DynamicImage::ImageLuma8(ref a) => a.iter().cloned().collect(),
-
-        DynamicImage::ImageLumaA8(ref a) => a.iter().cloned().collect(),
-
-        DynamicImage::ImageRgb8(ref a) => a.iter().cloned().collect(),
-
-        DynamicImage::ImageRgba8(ref a) => a.iter().cloned().collect(),
-
-        DynamicImage::ImageBgr8(ref a) => a.iter().cloned().collect(),
-
-        DynamicImage::ImageBgra8(ref a) => a.iter().cloned().collect(),
-
+        DynamicImage::ImageLuma8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageLumaA8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageRgb8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageRgba8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageBgr8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageBgra8(ref a) => a.as_raw().clone(),
         DynamicImage::ImageLuma16(ref a) => a.as_bytes().to_vec(),
-
         DynamicImage::ImageLumaA16(ref a) => a.as_bytes().to_vec(),
-
         DynamicImage::ImageRgb16(ref a) => a.as_bytes().to_vec(),
-
         DynamicImage::ImageRgba16(ref a) => a.as_bytes().to_vec(),
     }
 }

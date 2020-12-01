@@ -33,8 +33,9 @@ impl<W: Write> AvifEncoder<W> {
         AvifEncoder::new_with_speed_quality(w, 1, 100)
     }
 
-    /// Create a new encoder with specified speed and quality,
-    /// that writes its output to `w`.
+    /// Create a new encoder with specified speed and quality, that writes its output to `w`.
+    /// `speed` accepts a value in the range 0-10, where 0 is the slowest and 10 is the fastest.
+    /// `quality` accepts a value in the range 0-100, where 0 is the worst and 100 is the best.
     pub fn new_with_speed_quality(w: W, speed: u8, quality: u8) -> Self {
         // Clamp quality and speed to range
         let quality = min(quality, 100);

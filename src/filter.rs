@@ -269,4 +269,46 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn roundtrip_ascending_previous_line() {
+        // A multiple of 8, 6, 4, 3, 2, 1
+        const LEN: u8 = 240;
+        let previous: Vec<_> = (0..LEN).collect();
+        let mut current: Vec<_> = (0..LEN).collect();
+        let expected = current.clone();
+
+        let mut roundtrip = |kind, bpp: BytesPerPixel| {
+            filter(kind, bpp, &previous, &mut current);
+            unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
+            assert_eq!(
+                current, expected,
+                "Filtering {:?} with {:?} does not roundtrip",
+                bpp, kind
+            );
+        };
+
+        let filters = [
+            FilterType::NoFilter,
+            FilterType::Sub,
+            FilterType::Up,
+            FilterType::Avg,
+            FilterType::Paeth,
+        ];
+
+        let bpps = [
+            BytesPerPixel::One,
+            BytesPerPixel::Two,
+            BytesPerPixel::Three,
+            BytesPerPixel::Four,
+            BytesPerPixel::Six,
+            BytesPerPixel::Eight,
+        ];
+
+        for &filter in filters.iter() {
+            for &bpp in bpps.iter() {
+                roundtrip(filter, bpp);
+            }
+        }
+    }
 }

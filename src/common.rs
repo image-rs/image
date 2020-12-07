@@ -274,11 +274,11 @@ pub struct AnimationControl {
 /// The type and strength of applied compression.
 #[derive(Debug, Clone)]
 pub enum Compression {
-    /// Default level  
+    /// Default level
     Default,
     /// Fast minimal compression
     Fast,
-    /// Higher compression level  
+    /// Higher compression level
     ///
     /// Best in this context isn't actually the highest possible level
     /// the encoder can do, but is meant to emulate the `Best` setting in the `Flate2`
@@ -409,7 +409,7 @@ pub struct Info {
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
-    pub filter: filter::FilterType,
+    pub filter: Option<filter::FilterType>,
     /// Chromaticities of the source system.
     pub source_chromaticities: Option<SourceChromaticities>,
     /// The rendering intent of an SRGB image.
@@ -435,7 +435,7 @@ impl Default for Info {
             // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub`
             // to maintain backward compatible output.
             compression: Compression::Fast,
-            filter: filter::FilterType::Sub,
+            filter: Some(filter::FilterType::Sub),
             source_chromaticities: None,
             srgb: None,
         }

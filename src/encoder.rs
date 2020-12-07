@@ -175,9 +175,14 @@ impl<W: Write> Encoder<W> {
     /// sample values based on the previous. For a potentially better compression ratio, at the
     /// cost of more complex processing, try out [`FilterType::Paeth`].
     ///
+    /// A filter type of `None` sets the filter to Adaptive. Adaptive filtering
+    /// attempts to select the best filter for each line based on a heuristic
+    /// described in the PNG standard. This can result in smaller file sizes
+    /// but is not guaranteed to produce the best compression ratio.
+    ///
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
-    pub fn set_filter(&mut self, filter: FilterType) {
+    pub fn set_filter(&mut self, filter: Option<FilterType>) {
         self.info.filter = filter;
     }
 }
@@ -319,8 +324,8 @@ impl<W: Write> Writer<W> {
         let filter_method = self.info.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
-            zlib.write_all(&[filter_method as u8])?;
-            filter(filter_method, bpp, &prev, &mut current);
+            let filter_type = filter(filter_method, bpp, &prev, &mut current);
+            zlib.write_all(&[filter_type as u8])?;
             zlib.write_all(&current)?;
             prev = line;
         }
@@ -449,7 +454,7 @@ pub struct StreamWriter<'a, W: Write> {
     curr_buf: Vec<u8>,
     index: usize,
     bpp: BytesPerPixel,
-    filter: FilterType,
+    filter: Option<FilterType>,
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
@@ -487,8 +492,8 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
         self.index += written;
 
         if self.index >= self.curr_buf.len() {
-            self.writer.write_all(&[self.filter as u8])?;
-            filter(self.filter, self.bpp, &self.prev_buf, &mut self.curr_buf);
+            let filter_type = filter(self.filter, self.bpp, &self.prev_buf, &mut self.curr_buf);
+            self.writer.write_all(&[filter_type as u8])?;
             self.writer.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;
@@ -881,7 +886,7 @@ mod tests {
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
             encoder.set_color(ColorType::Rgb);
-            encoder.set_filter(filter);
+            encoder.set_filter(Some(filter));
             encoder.write_header()?.write_image_data(&pixel)?;
 
             let decoder = crate::Decoder::new(io::Cursor::new(buffer));
@@ -913,7 +918,7 @@ mod tests {
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
             encoder.set_color(ColorType::Rgb);
-            encoder.set_filter(FilterType::Avg);
+            encoder.set_filter(Some(FilterType::Avg));
             if let Some(gamma) = gamma {
                 encoder.set_source_gamma(gamma);
             }

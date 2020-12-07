@@ -187,6 +187,8 @@ pub(crate) enum FormatErrorInner {
     InvalidDisposeOp(u8),
     InvalidBlendOp(u8),
     InvalidUnit(u8),
+    /// The rendering intent of the sRGB chunk is invalid.
+    InvalidSrgbRenderingIntent(u8),
     UnknownCompressionMethod(u8),
     UnknownFilterMethod(u8),
     UnknownInterlaceMethod(u8),
@@ -275,6 +277,7 @@ impl fmt::Display for FormatError {
             InvalidDisposeOp(nr) => write!(fmt, "Invalid dispose op {}.", nr),
             InvalidBlendOp(nr) => write!(fmt, "Invalid blend op {}.", nr),
             InvalidUnit(nr) => write!(fmt, "Invalid physical pixel size unit {}.", nr),
+            InvalidSrgbRenderingIntent(nr) => write!(fmt, "Invalid sRGB rendering intent {}.", nr),
             UnknownCompressionMethod(nr) => write!(fmt, "Unknown compression method {}.", nr),
             UnknownFilterMethod(nr) => write!(fmt, "Unknown filter method {}.", nr),
             UnknownInterlaceMethod(nr) => write!(fmt, "Unknown interlace method {}.", nr),
@@ -293,6 +296,12 @@ impl fmt::Display for FormatError {
 impl From<io::Error> for DecodingError {
     fn from(err: io::Error) -> DecodingError {
         DecodingError::IoError(err)
+    }
+}
+
+impl From<FormatError> for DecodingError {
+    fn from(err: FormatError) -> DecodingError {
+        DecodingError::Format(err)
     }
 }
 
@@ -626,6 +635,7 @@ impl StreamingDecoder {
             chunk::acTL => self.parse_actl(),
             chunk::fcTL => self.parse_fctl(),
             chunk::cHRM => self.parse_chrm(),
+            chunk::sRGB => self.parse_srgb(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
@@ -813,46 +823,55 @@ impl StreamingDecoder {
     }
 
     fn parse_chrm(&mut self) -> Result<Decoded, DecodingError> {
-        let mut buf = &self.current_chunk.raw_bytes[..];
-        let white_x: u32 = buf.read_be()?;
-        let white_y: u32 = buf.read_be()?;
-        let red_x: u32 = buf.read_be()?;
-        let red_y: u32 = buf.read_be()?;
-        let green_x: u32 = buf.read_be()?;
-        let green_y: u32 = buf.read_be()?;
-        let blue_x: u32 = buf.read_be()?;
-        let blue_y: u32 = buf.read_be()?;
+        if self.have_idat {
+            Err(DecodingError::Format(
+                FormatErrorInner::AfterIdat { kind: chunk::gAMA }.into(),
+            ))
+        } else if self.info.as_ref().unwrap().srgb.is_some() {
+            // Ignore chromaticities if sRGB profile is used.
+            Ok(Decoded::Nothing)
+        } else {
+            let mut buf = &self.current_chunk.raw_bytes[..];
+            let white_x: u32 = buf.read_be()?;
+            let white_y: u32 = buf.read_be()?;
+            let red_x: u32 = buf.read_be()?;
+            let red_y: u32 = buf.read_be()?;
+            let green_x: u32 = buf.read_be()?;
+            let green_y: u32 = buf.read_be()?;
+            let blue_x: u32 = buf.read_be()?;
+            let blue_y: u32 = buf.read_be()?;
 
-        let source_chromaticities = SourceChromaticities {
-            white: (
-                ScaledFloat::from_scaled(white_x),
-                ScaledFloat::from_scaled(white_y),
-            ),
-            red: (
-                ScaledFloat::from_scaled(red_x),
-                ScaledFloat::from_scaled(red_y),
-            ),
-            green: (
-                ScaledFloat::from_scaled(green_x),
-                ScaledFloat::from_scaled(green_y),
-            ),
-            blue: (
-                ScaledFloat::from_scaled(blue_x),
-                ScaledFloat::from_scaled(blue_y),
-            ),
-        };
+            let source_chromaticities = SourceChromaticities {
+                white: (
+                    ScaledFloat::from_scaled(white_x),
+                    ScaledFloat::from_scaled(white_y),
+                ),
+                red: (
+                    ScaledFloat::from_scaled(red_x),
+                    ScaledFloat::from_scaled(red_y),
+                ),
+                green: (
+                    ScaledFloat::from_scaled(green_x),
+                    ScaledFloat::from_scaled(green_y),
+                ),
+                blue: (
+                    ScaledFloat::from_scaled(blue_x),
+                    ScaledFloat::from_scaled(blue_y),
+                ),
+            };
 
-        let info = match self.info {
-            Some(ref mut info) => info,
-            None => {
-                return Err(DecodingError::Format(
-                    FormatErrorInner::ChunkBeforeIhdr { kind: chunk::tRNS }.into(),
-                ))
-            }
-        };
+            let info = match self.info {
+                Some(ref mut info) => info,
+                None => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::ChunkBeforeIhdr { kind: chunk::tRNS }.into(),
+                    ))
+                }
+            };
 
-        info.source_chromaticities = Some(source_chromaticities);
-        Ok(Decoded::Nothing)
+            info.source_chromaticities = Some(source_chromaticities);
+            Ok(Decoded::Nothing)
+        }
     }
 
     fn parse_gama(&mut self) -> Result<Decoded, DecodingError> {
@@ -860,10 +879,34 @@ impl StreamingDecoder {
             Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::gAMA }.into(),
             ))
+        } else if self.info.as_ref().unwrap().srgb.is_some() {
+            // Ignore gamma data if sRGB profile is used.
+            Ok(Decoded::Nothing)
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let source_gamma: u32 = buf.read_be()?;
             self.info.as_mut().unwrap().source_gamma = Some(ScaledFloat::from_scaled(source_gamma));
+            Ok(Decoded::Nothing)
+        }
+    }
+
+    fn parse_srgb(&mut self) -> Result<Decoded, DecodingError> {
+        if self.have_idat {
+            Err(DecodingError::Format(
+                FormatErrorInner::AfterIdat { kind: chunk::acTL }.into(),
+            ))
+        } else {
+            let mut buf = &self.current_chunk.raw_bytes[..];
+            let raw: u8 = buf.read_be()?; // BE is is nonsense for single bytes, but this way the size is checked.
+            let rendering_intent = crate::SrgbRenderingIntent::from_raw(raw).ok_or_else(|| {
+                FormatError::from(FormatErrorInner::InvalidSrgbRenderingIntent(raw))
+            })?;
+
+            // Set srgb and override source gamma and chromaticities.
+            let info = self.info.as_mut().unwrap();
+            info.srgb = Some(rendering_intent);
+            info.source_gamma = Some(crate::srgb::substitute_gamma());
+            info.source_chromaticities = Some(crate::srgb::substitute_chromaticities());
             Ok(Decoded::Nothing)
         }
     }

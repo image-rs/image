@@ -65,6 +65,7 @@ mod decoder;
 #[cfg(feature = "png-encoding")]
 mod encoder;
 mod filter;
+mod srgb;
 mod traits;
 mod utils;
 

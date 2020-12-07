@@ -198,8 +198,9 @@ pub(crate) fn filter(method: FilterType, bpp: BytesPerPixel, previous: &[u8], cu
         }
         Avg => {
             for i in (bpp..len).rev() {
-                current[i] =
-                    current[i].wrapping_sub(current[i - bpp].wrapping_add(previous[i]) / 2);
+                current[i] = current[i].wrapping_sub(
+                    ((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8,
+                );
             }
 
             for i in 0..bpp {

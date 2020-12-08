@@ -35,6 +35,10 @@ impl FilterType {
     }
 }
 
+/// The filtering method for preprocessing scanline data before compression.
+///
+/// Adaptive filtering performs additional computation in an attempt to maximize
+/// the compression of the data. [`NonAdaptive`] filtering is the default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AdaptiveFilterType {
@@ -198,40 +202,98 @@ pub(crate) fn unfilter(
     }
 }
 
-fn sub(bpp: usize, len: usize, current: &mut [u8]) {
-    for i in (bpp..len).rev() {
-        current[i] = current[i].wrapping_sub(current[i - bpp]);
+fn filter_internal(
+    method: FilterType,
+    bpp: usize,
+    len: usize,
+    previous: &[u8],
+    current: &mut [u8],
+) -> FilterType {
+    use self::FilterType::*;
+
+    match method {
+        NoFilter => NoFilter,
+        Sub => {
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub(current[i - bpp]);
+            }
+            Sub
+        }
+        Up => {
+            for i in 0..len {
+                current[i] = current[i].wrapping_sub(previous[i]);
+            }
+            Up
+        }
+        Avg => {
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub(
+                    ((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8,
+                );
+            }
+
+            for i in 0..bpp {
+                current[i] = current[i].wrapping_sub(previous[i] / 2);
+            }
+            Avg
+        }
+        Paeth => {
+            for i in (bpp..len).rev() {
+                current[i] = current[i].wrapping_sub(filter_paeth(
+                    current[i - bpp],
+                    previous[i],
+                    previous[i - bpp],
+                ));
+            }
+
+            for i in 0..bpp {
+                current[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
+            }
+            Paeth
+        }
     }
 }
 
-fn up(len: usize, previous: &[u8], current: &mut [u8]) {
-    for i in 0..len {
-        current[i] = current[i].wrapping_sub(previous[i]);
-    }
-}
+pub(crate) fn filter(
+    method: FilterType,
+    adaptive: AdaptiveFilterType,
+    bpp: BytesPerPixel,
+    previous: &[u8],
+    current: &mut [u8],
+) -> FilterType {
+    use FilterType::*;
+    let bpp = bpp.into_usize();
+    let len = current.len();
 
-fn avg(bpp: usize, len: usize, previous: &[u8], current: &mut [u8]) {
-    for i in (bpp..len).rev() {
-        current[i] = current[i]
-            .wrapping_sub(((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8);
-    }
+    match adaptive {
+        AdaptiveFilterType::NonAdaptive => filter_internal(method, bpp, len, previous, current),
+        AdaptiveFilterType::Adaptive => {
+            // Filter the current buffer with each filter type. Sum the absolute
+            // values of each filtered buffer treating the bytes as signed
+            // integers. Choose the filter with the smallest sum.
+            let mut filtered_buffer = vec![0; len];
+            filtered_buffer.copy_from_slice(&current);
+            let mut scratch = vec![0; len];
 
-    for i in 0..bpp {
-        current[i] = current[i].wrapping_sub(previous[i] / 2);
-    }
-}
+            // Initialize min_sum with the NoFilter buffer sum
+            let mut min_sum: usize = sum_buffer(&filtered_buffer);
+            let mut filter_choice = FilterType::NoFilter;
 
-fn paeth(bpp: usize, len: usize, previous: &[u8], current: &mut [u8]) {
-    for i in (bpp..len).rev() {
-        current[i] = current[i].wrapping_sub(filter_paeth(
-            current[i - bpp],
-            previous[i],
-            previous[i - bpp],
-        ));
-    }
+            for &filter in [Sub, Up, Avg, Paeth].iter() {
+                scratch.copy_from_slice(&current);
+                filter_internal(filter, bpp, len, previous, &mut scratch);
+                let sum = sum_buffer(&scratch);
+                if sum < min_sum {
+                    min_sum = sum;
+                    filter_choice = filter;
+                    core::mem::swap(&mut filtered_buffer, &mut scratch);
+                }
+            }
 
-    for i in 0..bpp {
-        current[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
+            current.copy_from_slice(&filtered_buffer);
+
+            filter_choice
+        }
     }
 }
 
@@ -241,91 +303,9 @@ fn sum_buffer(buf: &[u8]) -> usize {
         .fold(0, |acc, &x| acc.saturating_add((x as i8).abs() as usize))
 }
 
-pub(crate) fn filter(
-    method: Option<FilterType>,
-    bpp: BytesPerPixel,
-    previous: &[u8],
-    current: &mut [u8],
-) -> FilterType {
-    use self::FilterType::*;
-    let bpp = bpp.into_usize();
-    let len = current.len();
-
-    match method {
-        Some(NoFilter) => NoFilter,
-        Some(Sub) => {
-            sub(bpp, len, current);
-            Sub
-        }
-        Some(Up) => {
-            up(len, previous, current);
-            Up
-        }
-        Some(Avg) => {
-            avg(bpp, len, previous, current);
-            Avg
-        }
-        Some(Paeth) => {
-            paeth(bpp, len, previous, current);
-            Paeth
-        }
-        None => {
-            // Filter the current buffer with each filter type. Sum the absolute
-            // values of each filtered buffer treating the bytes as signed
-            // integers. Choose the filter with the smallest sum.
-            let mut filtered_buffer = vec![0; len];
-            filtered_buffer.copy_from_slice(&current);
-            let mut scratch = vec![0; len];
-            scratch.copy_from_slice(&current);
-            let mut filter_type = NoFilter;
-
-            // Initialize min_sum with the NoFilter buffer sum
-            let mut min_sum: usize = sum_buffer(&filtered_buffer);
-
-            sub(bpp, len, &mut scratch);
-            let sum = sum_buffer(&scratch);
-            if sum < min_sum {
-                min_sum = sum;
-                filter_type = Sub;
-                core::mem::swap(&mut filtered_buffer, &mut scratch);
-            }
-
-            scratch.copy_from_slice(&current);
-            up(len, previous, &mut scratch);
-            let sum = sum_buffer(&scratch);
-            if sum < min_sum {
-                min_sum = sum;
-                filter_type = Up;
-                core::mem::swap(&mut filtered_buffer, &mut scratch);
-            }
-
-            scratch.copy_from_slice(&current);
-            avg(bpp, len, previous, &mut scratch);
-            let sum = sum_buffer(&scratch);
-            if sum < min_sum {
-                min_sum = sum;
-                filter_type = Avg;
-                core::mem::swap(&mut filtered_buffer, &mut scratch);
-            }
-
-            scratch.copy_from_slice(&current);
-            paeth(bpp, len, previous, &mut scratch);
-            let sum = sum_buffer(&scratch);
-            if sum < min_sum {
-                filter_type = Paeth;
-                core::mem::swap(&mut filtered_buffer, &mut scratch);
-            }
-
-            current.copy_from_slice(&filtered_buffer);
-
-            filter_type
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::{filter, unfilter, BytesPerPixel, FilterType};
+    use super::{filter, unfilter, AdaptiveFilterType, BytesPerPixel, FilterType};
     use core::iter;
 
     #[test]
@@ -335,9 +315,10 @@ mod test {
         let previous: Vec<_> = iter::repeat(1).take(LEN.into()).collect();
         let mut current: Vec<_> = (0..LEN).collect();
         let expected = current.clone();
+        let adaptive = AdaptiveFilterType::NonAdaptive;
 
         let mut roundtrip = |kind, bpp: BytesPerPixel| {
-            filter(Some(kind), bpp, &previous, &mut current);
+            filter(kind, adaptive, bpp, &previous, &mut current);
             unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
             assert_eq!(
                 current, expected,
@@ -377,9 +358,10 @@ mod test {
         let previous: Vec<_> = (0..LEN).collect();
         let mut current: Vec<_> = (0..LEN).collect();
         let expected = current.clone();
+        let adaptive = AdaptiveFilterType::NonAdaptive;
 
         let mut roundtrip = |kind, bpp: BytesPerPixel| {
-            filter(Some(kind), bpp, &previous, &mut current);
+            filter(kind, adaptive, bpp, &previous, &mut current);
             unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
             assert_eq!(
                 current, expected,

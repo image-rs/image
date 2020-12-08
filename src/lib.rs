@@ -75,4 +75,4 @@ pub use crate::decoder::{
 };
 #[cfg(feature = "png-encoding")]
 pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
-pub use crate::filter::FilterType;
+pub use crate::filter::{AdaptiveFilterType, FilterType};

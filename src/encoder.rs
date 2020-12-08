@@ -14,7 +14,7 @@ use crate::common::{
     BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
     ScaledFloat,
 };
-use crate::filter::{filter, FilterType};
+use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -103,6 +103,8 @@ impl From<FormatErrorKind> for FormatError {
 pub struct Encoder<W: Write> {
     w: W,
     info: Info,
+    filter: FilterType,
+    adaptive_filter: AdaptiveFilterType,
 }
 
 impl<W: Write> Encoder<W> {
@@ -110,7 +112,12 @@ impl<W: Write> Encoder<W> {
         let mut info = Info::default();
         info.width = width;
         info.height = height;
-        Encoder { w, info }
+        Encoder {
+            w,
+            info,
+            filter: FilterType::default(),
+            adaptive_filter: AdaptiveFilterType::default(),
+        }
     }
 
     pub fn set_palette(&mut self, palette: Vec<u8>) {
@@ -144,7 +151,7 @@ impl<W: Write> Encoder<W> {
     }
 
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(self.w, self.info).init()
+        Writer::new(self.w, self.info, self.filter, self.adaptive_filter).init()
     }
 
     /// Set the color of the encoded image.
@@ -178,7 +185,19 @@ impl<W: Write> Encoder<W> {
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
-        self.info.filter = filter;
+        self.filter = filter;
+    }
+
+    /// Set the adaptive filter type.
+    ///
+    /// Adaptive filtering attempts to select the best filter for each line
+    /// based on heuristics which minimize the file size for compression rather
+    /// than use a single filter for the entire image. The default method is
+    /// [`AdaptiveFilterType::NonAdaptive`].
+    ///
+    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
+    pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
+        self.adaptive_filter = adaptive_filter;
     }
 }
 
@@ -186,6 +205,8 @@ impl<W: Write> Encoder<W> {
 pub struct Writer<W: Write> {
     w: W,
     info: Info,
+    filter: FilterType,
+    adaptive_filter: AdaptiveFilterType,
 }
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
@@ -202,8 +223,13 @@ fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8]) -> Resul
 }
 
 impl<W: Write> Writer<W> {
-    fn new(w: W, info: Info) -> Writer<W> {
-        Writer { w, info }
+    fn new(w: W, info: Info, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W> {
+        Writer {
+            w,
+            info,
+            filter,
+            adaptive_filter,
+        }
     }
 
     fn init(mut self) -> Result<Self> {
@@ -316,11 +342,12 @@ impl<W: Write> Writer<W> {
             ));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());
-        let filter_method = self.info.filter;
+        let filter_method = self.filter;
+        let adaptive_method = self.adaptive_filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
-            zlib.write_all(&[filter_method as u8])?;
-            filter(filter_method, bpp, &prev, &mut current);
+            let filter_type = filter(filter_method, adaptive_method, bpp, &prev, &mut current);
+            zlib.write_all(&[filter_type as u8])?;
             zlib.write_all(&current)?;
             prev = line;
         }
@@ -450,13 +477,15 @@ pub struct StreamWriter<'a, W: Write> {
     index: usize,
     bpp: BytesPerPixel,
     filter: FilterType,
+    adaptive_filter: AdaptiveFilterType,
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
         let bpp = writer.as_mut().info.bpp_in_prediction();
         let in_len = writer.as_mut().info.raw_row_length() - 1;
-        let filter = writer.as_mut().info.filter;
+        let filter = writer.as_mut().filter;
+        let adaptive_filter = writer.as_mut().adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 
@@ -471,6 +500,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             curr_buf,
             bpp,
             filter,
+            adaptive_filter,
         }
     }
 
@@ -487,8 +517,14 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
         self.index += written;
 
         if self.index >= self.curr_buf.len() {
-            self.writer.write_all(&[self.filter as u8])?;
-            filter(self.filter, self.bpp, &self.prev_buf, &mut self.curr_buf);
+            let filter_type = filter(
+                self.filter,
+                self.adaptive_filter,
+                self.bpp,
+                &self.prev_buf,
+                &mut self.curr_buf,
+            );
+            self.writer.write_all(&[filter_type as u8])?;
             self.writer.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;

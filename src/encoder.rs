@@ -14,7 +14,7 @@ use crate::common::{
     BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
     ScaledFloat,
 };
-use crate::filter::{filter, FilterType};
+use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -103,6 +103,8 @@ impl From<FormatErrorKind> for FormatError {
 pub struct Encoder<W: Write> {
     w: W,
     info: Info,
+    filter: FilterType,
+    adaptive_filter: AdaptiveFilterType,
 }
 
 impl<W: Write> Encoder<W> {
@@ -110,7 +112,12 @@ impl<W: Write> Encoder<W> {
         let mut info = Info::default();
         info.width = width;
         info.height = height;
-        Encoder { w, info }
+        Encoder {
+            w,
+            info,
+            filter: FilterType::default(),
+            adaptive_filter: AdaptiveFilterType::default(),
+        }
     }
 
     pub fn set_palette(&mut self, palette: Vec<u8>) {
@@ -144,7 +151,7 @@ impl<W: Write> Encoder<W> {
     }
 
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(self.w, self.info).init()
+        Writer::new(self.w, self.info, self.filter, self.adaptive_filter).init()
     }
 
     /// Set the color of the encoded image.
@@ -175,15 +182,19 @@ impl<W: Write> Encoder<W> {
     /// sample values based on the previous. For a potentially better compression ratio, at the
     /// cost of more complex processing, try out [`FilterType::Paeth`].
     ///
-    /// A filter type of `None` sets the filter to Adaptive. Adaptive filtering
-    /// attempts to select the best filter for each line based on a heuristic
-    /// described in the PNG standard. This can result in smaller file sizes
-    /// but is not guaranteed to produce the best compression ratio.
-    ///
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
-    pub fn set_filter(&mut self, filter: Option<FilterType>) {
-        self.info.filter = filter;
+    pub fn set_filter(&mut self, filter: FilterType) {
+        self.filter = filter;
+    }
+
+    /// Set the adaptive filter type.
+    ///
+    /// Adaptive filtering attempts to select the best filter for each line
+    /// based on heuristics which minimize the file size for compression rather
+    /// than use a single filter for the entire image.
+    pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
+        self.adaptive_filter = adaptive_filter;
     }
 }
 
@@ -191,6 +202,8 @@ impl<W: Write> Encoder<W> {
 pub struct Writer<W: Write> {
     w: W,
     info: Info,
+    filter: FilterType,
+    adaptive_filter: AdaptiveFilterType,
 }
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
@@ -207,8 +220,13 @@ fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8]) -> Resul
 }
 
 impl<W: Write> Writer<W> {
-    fn new(w: W, info: Info) -> Writer<W> {
-        Writer { w, info }
+    fn new(w: W, info: Info, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W> {
+        Writer {
+            w,
+            info,
+            filter,
+            adaptive_filter,
+        }
     }
 
     fn init(mut self) -> Result<Self> {
@@ -321,7 +339,7 @@ impl<W: Write> Writer<W> {
             ));
         }
         let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());
-        let filter_method = self.info.filter;
+        let filter_method = self.filter;
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
             let filter_type = filter(filter_method, bpp, &prev, &mut current);
@@ -454,14 +472,14 @@ pub struct StreamWriter<'a, W: Write> {
     curr_buf: Vec<u8>,
     index: usize,
     bpp: BytesPerPixel,
-    filter: Option<FilterType>,
+    filter: FilterType,
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
         let bpp = writer.as_mut().info.bpp_in_prediction();
         let in_len = writer.as_mut().info.raw_row_length() - 1;
-        let filter = writer.as_mut().info.filter;
+        let filter = writer.as_mut().filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 
@@ -886,7 +904,7 @@ mod tests {
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
             encoder.set_color(ColorType::Rgb);
-            encoder.set_filter(Some(filter));
+            encoder.set_filter(filter);
             encoder.write_header()?.write_image_data(&pixel)?;
 
             let decoder = crate::Decoder::new(io::Cursor::new(buffer));
@@ -918,7 +936,7 @@ mod tests {
             let mut encoder = Encoder::new(&mut buffer, 4, 4);
             encoder.set_depth(BitDepth::Eight);
             encoder.set_color(ColorType::Rgb);
-            encoder.set_filter(Some(FilterType::Avg));
+            encoder.set_filter(FilterType::Avg);
             if let Some(gamma) = gamma {
                 encoder.set_source_gamma(gamma);
             }

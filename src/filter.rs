@@ -15,6 +15,12 @@ pub enum FilterType {
     Paeth = 4,
 }
 
+impl Default for FilterType {
+    fn default() -> Self {
+        FilterType::Sub
+    }
+}
+
 impl FilterType {
     /// u8 -> Self. Temporary solution until Rust provides a canonical one.
     pub fn from_u8(n: u8) -> Option<FilterType> {
@@ -26,6 +32,19 @@ impl FilterType {
             4 => Some(FilterType::Paeth),
             _ => None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum AdaptiveFilterType {
+    Adaptive,
+    NonAdaptive,
+}
+
+impl Default for AdaptiveFilterType {
+    fn default() -> Self {
+        AdaptiveFilterType::NonAdaptive
     }
 }
 

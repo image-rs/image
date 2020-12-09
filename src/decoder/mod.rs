@@ -142,7 +142,7 @@ impl<R: Read> Decoder<R> {
     /// ```
     /// use std::fs::File;
     /// use png::{Decoder, Limits};
-    /// // This image is 32x32 pixels, so the deocder will allocate more than four bytes
+    /// // This image is 32x32 pixels, so the decoder will allocate more than four bytes
     /// let mut limits = Limits::default();
     /// limits.bytes = 4;
     /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);

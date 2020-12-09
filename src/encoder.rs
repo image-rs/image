@@ -358,14 +358,14 @@ impl<W: Write> Writer<W> {
         Ok(())
     }
 
-    /// Create an stream writer.
+    /// Create a stream writer.
     ///
-    /// This allows you create images that do not fit in memory. The default
-    /// chunk size is 4K, use `stream_writer_with_size` to set another chuck
+    /// This allows you to create images that do not fit in memory. The default
+    /// chunk size is 4K, use `stream_writer_with_size` to set another chunk
     /// size.
     ///
-    /// This borrows the writer. This preserves it which allows manually
-    /// appending additional chunks after the image data has been written
+    /// This borrows the writer which allows for manually appending additional
+    /// chunks after the image data has been written.
     pub fn stream_writer(&mut self) -> StreamWriter<W> {
         self.stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
@@ -381,8 +381,8 @@ impl<W: Write> Writer<W> {
 
     /// Turn this into a stream writer for image data.
     ///
-    /// This allows you create images that do not fit in memory. The default
-    /// chunk size is 4K, use `stream_writer_with_size` to set another chuck
+    /// This allows you to create images that do not fit in memory. The default
+    /// chunk size is 4K, use `stream_writer_with_size` to set another chunk
     /// size.
     pub fn into_stream_writer(self) -> StreamWriter<'static, W> {
         self.into_stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
@@ -466,7 +466,7 @@ impl<'a, W: Write> Drop for ChunkWriter<'a, W> {
     }
 }
 
-/// Streaming png writer
+/// Streaming PNG writer
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
 /// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping.

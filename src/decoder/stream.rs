@@ -343,7 +343,7 @@ struct ChunkState {
     /// Partial crc until now.
     crc: Crc32,
 
-    /// Remanining bytes to be read.
+    /// Remaining bytes to be read.
     remaining: u32,
 
     /// Non-decoded bytes in the chunk.
@@ -657,7 +657,7 @@ impl StreamingDecoder {
         let mut buf = &self.current_chunk.raw_bytes[..];
         let next_seq_no = buf.read_be()?;
 
-        // Asuming that fcTL is required before *every* fdAT-sequence
+        // Assuming that fcTL is required before *every* fdAT-sequence
         self.current_seq_no = Some(if let Some(seq_no) = self.current_seq_no {
             if next_seq_no != seq_no + 1 {
                 return Err(DecodingError::Format(

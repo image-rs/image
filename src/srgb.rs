@@ -1,12 +1,12 @@
 use crate::{ScaledFloat, SourceChromaticities};
 
-/// Get the gamma that should be subsituted for images conforming to the sRGB color space.
+/// Get the gamma that should be substituted for images conforming to the sRGB color space.
 pub fn substitute_gamma() -> ScaledFloat {
     // Value taken from https://www.w3.org/TR/2003/REC-PNG-20031110/#11sRGB
     ScaledFloat::from_scaled(45455)
 }
 
-/// Get the chromaticities that should be subsituted for images conforming to the sRGB color space.
+/// Get the chromaticities that should be substituted for images conforming to the sRGB color space.
 pub fn substitute_chromaticities() -> SourceChromaticities {
     // Values taken from https://www.w3.org/TR/2003/REC-PNG-20031110/#11sRGB
     SourceChromaticities {

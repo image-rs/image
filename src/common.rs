@@ -591,6 +591,13 @@ impl Transformations {
     }
 }
 
+/// Instantiate the default transformations, the identity transform.
+impl Default for Transformations {
+    fn default() -> Transformations {
+        Transformations::IDENTITY
+    }
+}
+
 #[derive(Debug)]
 pub struct ParameterError {
     inner: ParameterErrorKind,

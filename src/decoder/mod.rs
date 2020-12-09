@@ -117,16 +117,16 @@ impl<'data> Row<'data> {
 }
 
 impl<R: Read> Decoder<R> {
+    /// Create a new decoder configuration with default limits.
     pub fn new(r: R) -> Decoder<R> {
         Decoder::new_with_limits(r, Limits::default())
     }
 
+    /// Create a new decoder configuration with custom limits.
     pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
         Decoder {
             r,
-            transform: crate::Transformations::EXPAND
-                | crate::Transformations::SCALE_16
-                | crate::Transformations::STRIP_16,
+            transform: Transformations::IDENTITY,
             limits,
         }
     }
@@ -142,11 +142,12 @@ impl<R: Read> Decoder<R> {
     /// ```
     /// use std::fs::File;
     /// use png::{Decoder, Limits};
-    /// // This image is 32x32 pixels, so the decoder will allocate more than four bytes
+    /// // This image is 32×32, 1bit per pixel. The reader buffers one row which requires 4 bytes.
     /// let mut limits = Limits::default();
-    /// limits.bytes = 4;
+    /// limits.bytes = 3;
     /// let mut decoder = Decoder::new_with_limits(File::open("tests/pngsuite/basi0g01.png").unwrap(), limits);
     /// assert!(decoder.read_info().is_err());
+    ///
     /// // This image is 32x32 pixels, so the decoder will allocate less than 10Kib
     /// let mut limits = Limits::default();
     /// limits.bytes = 10*1024;
@@ -533,7 +534,7 @@ impl<R: Read> Reader<R> {
         use crate::common::ColorType::*;
         let transform = self.transform;
 
-        if transform == crate::Transformations::IDENTITY {
+        if transform == Transformations::IDENTITY {
             return self.next_raw_interlaced_row();
         }
 
@@ -566,7 +567,7 @@ impl<R: Read> Reader<R> {
         };
 
         let mut len = output_buffer.len();
-        if transform.contains(crate::Transformations::EXPAND) {
+        if transform.contains(Transformations::EXPAND) {
             match color_type {
                 Indexed => expand_paletted(output_buffer, get_info!(self))?,
                 Grayscale | GrayscaleAlpha if bit_depth < 8 => {
@@ -585,10 +586,7 @@ impl<R: Read> Reader<R> {
             }
         }
 
-        if bit_depth == 16
-            && transform
-                .intersects(crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16)
-        {
+        if bit_depth == 16 && transform.intersects(Transformations::STRIP_16) {
             len /= 2;
             for i in 0..len {
                 output_buffer[i] = output_buffer[2 * i];
@@ -611,20 +609,15 @@ impl<R: Read> Reader<R> {
         use crate::common::ColorType::*;
         let t = self.transform;
         let info = self.info();
-        if t == crate::Transformations::IDENTITY {
+        if t == Transformations::IDENTITY {
             (info.color_type, info.bit_depth)
         } else {
             let bits = match info.bit_depth as u8 {
-                16 if t.intersects(
-                    crate::Transformations::SCALE_16 | crate::Transformations::STRIP_16,
-                ) =>
-                {
-                    8
-                }
-                n if n < 8 && t.contains(crate::Transformations::EXPAND) => 8,
+                16 if t.intersects(Transformations::STRIP_16) => 8,
+                n if n < 8 && t.contains(Transformations::EXPAND) => 8,
                 n => n,
             };
-            let color_type = if t.contains(crate::Transformations::EXPAND) {
+            let color_type = if t.contains(Transformations::EXPAND) {
                 let has_trns = info.trns.is_some();
                 match info.color_type {
                     Grayscale if has_trns => GrayscaleAlpha,

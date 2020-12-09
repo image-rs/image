@@ -39,6 +39,8 @@ impl FilterType {
 ///
 /// Adaptive filtering performs additional computation in an attempt to maximize
 /// the compression of the data. [`NonAdaptive`] filtering is the default.
+///
+/// [`NonAdaptive`]: enum.AdaptiveFilterType.html#variant.NonAdaptive
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AdaptiveFilterType {

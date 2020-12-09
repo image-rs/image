@@ -71,7 +71,7 @@ impl ColorType {
     }
 }
 
-/// Bit depth of the png file
+/// Bit depth of the PNG file
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BitDepth {
@@ -316,7 +316,7 @@ impl ScaledFloat {
     }
 
     /// Slightly inaccurate scaling and quantization.
-    /// Clamps the value into the representible range if it is negative of too large.
+    /// Clamps the value into the representable range if it is negative or too large.
     pub fn new(value: f32) -> Self {
         Self {
             0: Self::forward(value),
@@ -395,7 +395,9 @@ impl SrgbRenderingIntent {
 /// compression.
 ///
 /// Currently, the only filter method is adaptive filtering with any of the
-/// five filters in [crate::filter::FilterType].
+/// five filters in [`filter::FilterType`].
+///
+/// [`filter::FilterType`]: enum.FilterType.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum InfoFilterType {
@@ -441,7 +443,7 @@ impl Default for Info {
             source_gamma: None,
             frame_control: None,
             animation_control: None,
-            // Default to `deflate::Compresion::Fast` and `filter::FilterType::Sub`
+            // Default to `deflate::Compression::Fast` and `filter::FilterType::Sub`
             // to maintain backward compatible output.
             compression: Compression::Fast,
             filter: InfoFilterType::Adaptive,

@@ -99,7 +99,8 @@ where
 #[test]
 fn render_images() {
     process_images("results.txt", &TEST_SUITES, |path| {
-        let decoder = png::Decoder::new(File::open(path)?);
+        let mut decoder = png::Decoder::new(File::open(path)?);
+        decoder.set_transformations(png::Transformations::normalize_to_color8());
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
         reader.next_frame(&mut img_data)?;
@@ -121,9 +122,7 @@ fn render_images() {
 #[test]
 fn render_images_identity() {
     process_images("results_identity.txt", &TEST_SUITES, |path| {
-        let mut decoder = png::Decoder::new(File::open(&path)?);
-        decoder.set_transformations(png::Transformations::IDENTITY);
-
+        let decoder = png::Decoder::new(File::open(&path)?);
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
         reader.next_frame(&mut img_data)?;
@@ -163,7 +162,8 @@ fn apng_images() {
             count
         };
 
-        let decoder = png::Decoder::new(File::open(&path)?);
+        let mut decoder = png::Decoder::new(File::open(&path)?);
+        decoder.set_transformations(png::Transformations::normalize_to_color8());
         let (info, mut reader) = decoder.read_info()?;
         let mut img_data = vec![0; info.buffer_size()];
         let real_frames = reader.info().animation_control().unwrap().num_frames;

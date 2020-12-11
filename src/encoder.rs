@@ -552,8 +552,7 @@ impl<'a, W: Write> Drop for StreamWriter<'a, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    extern crate glob;
+    use crate::Decoder;
 
     use rand::{thread_rng, Rng};
     use std::fs::File;
@@ -574,7 +573,7 @@ mod tests {
                 }
                 eprintln!("{}", path.display());
                 // Decode image
-                let decoder = crate::Decoder::new(File::open(path).unwrap());
+                let decoder = Decoder::new(File::open(path).unwrap());
                 let (info, mut reader) = decoder.read_info().unwrap();
                 if info.line_size != 32 {
                     // TODO encoding only works with line size 32?
@@ -597,7 +596,7 @@ mod tests {
                     encoder.write_image_data(&buf).unwrap();
                 }
                 // Decode encoded decoded image
-                let decoder = crate::Decoder::new(&*out);
+                let decoder = Decoder::new(&*out);
                 let (info, mut reader) = decoder.read_info().unwrap();
                 let mut buf2 = vec![0; info.buffer_size()];
                 reader.next_frame(&mut buf2).unwrap();
@@ -620,7 +619,7 @@ mod tests {
                     continue;
                 }
                 // Decode image
-                let decoder = crate::Decoder::new(File::open(path).unwrap());
+                let decoder = Decoder::new(File::open(path).unwrap());
                 let (info, mut reader) = decoder.read_info().unwrap();
                 if info.line_size != 32 {
                     // TODO encoding only works with line size 32?
@@ -649,7 +648,7 @@ mod tests {
                     outer_wrapper.write_all(&buf).unwrap();
                 }
                 // Decode encoded decoded image
-                let decoder = crate::Decoder::new(&*out);
+                let decoder = Decoder::new(&*out);
                 let (info, mut reader) = decoder.read_info().unwrap();
                 let mut buf2 = vec![0; info.buffer_size()];
                 reader.next_frame(&mut buf2).unwrap();
@@ -661,44 +660,20 @@ mod tests {
 
     #[test]
     fn image_palette() -> Result<()> {
-        let samples = 3;
         for bit_depth in vec![1u8, 2, 4, 8] {
             // Do a reference decoding, choose a fitting palette image from pngsuite
             let path = format!("tests/pngsuite/basn3p0{}.png", bit_depth);
-            let decoder = crate::Decoder::new(File::open(&path).unwrap());
+            let decoder = Decoder::new(File::open(&path).unwrap());
             let (info, mut reader) = decoder.read_info().unwrap();
 
             let palette: Vec<u8> = reader.info().palette.clone().unwrap();
             let mut decoded_pixels = vec![0; info.buffer_size()];
             assert_eq!(
-                info.width as usize * info.height as usize * samples,
-                decoded_pixels.len()
+                info.width as usize * info.height as usize * usize::from(bit_depth),
+                decoded_pixels.len() * 8
             );
             reader.next_frame(&mut decoded_pixels).unwrap();
-
-            let pixels_per_byte = 8 / usize::from(bit_depth);
-            let mut indexed_data = vec![0; decoded_pixels.len() / samples];
-            {
-                // Retransform the image into palette bits.
-                let mut indexes = vec![];
-                for color in decoded_pixels.chunks(samples) {
-                    let j = palette
-                        .chunks(samples)
-                        .position(|pcolor| color == pcolor)
-                        .unwrap();
-                    indexes.push(j as u8);
-                }
-
-                let idx_per_byte = indexes.chunks(pixels_per_byte);
-                indexed_data.truncate(idx_per_byte.len());
-                for (pixels, byte) in idx_per_byte.zip(&mut indexed_data) {
-                    let mut shift = 8;
-                    for idx in pixels {
-                        shift -= bit_depth;
-                        *byte = *byte | idx << shift;
-                    }
-                }
-            };
+            let indexed_data = decoded_pixels;
 
             let mut out = Vec::new();
             {
@@ -712,12 +687,12 @@ mod tests {
             }
 
             // Decode re-encoded image
-            let decoder = crate::Decoder::new(&*out);
+            let decoder = Decoder::new(&*out);
             let (info, mut reader) = decoder.read_info().unwrap();
             let mut redecoded = vec![0; info.buffer_size()];
             reader.next_frame(&mut redecoded).unwrap();
             // check if the encoded image is ok:
-            assert_eq!(decoded_pixels, redecoded);
+            assert_eq!(indexed_data, redecoded);
         }
         Ok(())
     }

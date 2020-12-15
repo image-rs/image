@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra, Argb};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::dynimage::{save_buffer, save_buffer_with_format};
 use crate::error::ImageResult;

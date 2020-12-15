@@ -1007,6 +1007,19 @@ impl FromColor<Argb<u16>> for Argb<u8> {
     }
 }
 
+impl FromColor<Argb<u8>> for Argb<u16> {
+    fn from_color(&mut self, other: &Argb<u8>) {
+        let argb = self.channels_mut();
+        let argb8 = other.channels();
+        argb[0] = upcast_channel(argb8[0]);
+        argb[1] = upcast_channel(argb8[1]);
+        argb[2] = upcast_channel(argb8[2]);
+        argb[3] = upcast_channel(argb8[3]);
+
+    }
+}
+
+
 impl FromColor<Rgba<u8>> for Argb<u16> {
     fn from_color(&mut self, other: &Rgba<u8>) {
         let argb = self.channels_mut();
@@ -1020,17 +1033,6 @@ impl FromColor<Rgba<u8>> for Argb<u16> {
 }
 
 
-impl FromColor<Argb<u8>> for Argb<u16> {
-    fn from_color(&mut self, other: &Argb<u8>) {
-        let argb = self.channels_mut();
-        let argb8 = other.channels();
-        argb[0] = upcast_channel(argb8[0]);
-        argb[1] = upcast_channel(argb8[1]);
-        argb[2] = upcast_channel(argb8[2]);
-        argb[3] = upcast_channel(argb8[3]);
-
-    }
-}
 
 impl FromColor<LumaA<u8>> for Argb<u16> {
     fn from_color(&mut self, other: &LumaA<u8>) {
@@ -1386,10 +1388,12 @@ macro_rules! downcast_bit_depth_early {
 downcast_bit_depth_early!(Luma, Luma, LumaA);
 downcast_bit_depth_early!(Rgb, Rgb, LumaA);
 downcast_bit_depth_early!(Rgba, Rgba, LumaA);
+downcast_bit_depth_early!(Argb, Argb, LumaA);
 // Rgb
 downcast_bit_depth_early!(Luma, Luma, Rgb);
 downcast_bit_depth_early!(LumaA, LumaA, Rgb);
 downcast_bit_depth_early!(Rgba, Rgba, Rgb);
+downcast_bit_depth_early!(Argb, Argb, Rgb);
 // Rgba
 downcast_bit_depth_early!(Luma, Luma, Rgba);
 downcast_bit_depth_early!(LumaA, LumaA, Rgba);
@@ -1399,11 +1403,13 @@ downcast_bit_depth_early!(Luma, Luma, Bgr);
 downcast_bit_depth_early!(LumaA, LumaA, Bgr);
 downcast_bit_depth_early!(Rgb, Rgb, Bgr);
 downcast_bit_depth_early!(Rgba, Rgba, Bgr);
+downcast_bit_depth_early!(Argb, Argb, Bgr);
 // Bgra
 downcast_bit_depth_early!(Luma, Luma, Bgra);
 downcast_bit_depth_early!(LumaA, LumaA, Bgra);
 downcast_bit_depth_early!(Rgb, Rgb, Bgra);
 downcast_bit_depth_early!(Rgba, Rgba, Bgra);
+downcast_bit_depth_early!(Argb, Argb, Bgra);
 // Argb
 downcast_bit_depth_early!(Luma, Luma, Argb);
 downcast_bit_depth_early!(LumaA, LumaA, Argb);

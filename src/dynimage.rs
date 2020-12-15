@@ -25,7 +25,7 @@ use crate::codecs::avif;
 use crate::buffer_::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
     GrayImage, Gray16Image, ImageBuffer, RgbImage, Rgb16Image, RgbaImage,
-    Rgba16Image,
+    Rgba16Image, ArgbImage, Argb16Image
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
@@ -59,6 +59,9 @@ pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Bgr with alpha
     ImageBgra8(BgraImage),
 
+    /// Each pixel in this image is 8-bit Argb
+    ImageArgb8(ArgbImage),
+
     /// Each pixel in this image is 16-bit Luma
     ImageLuma16(Gray16Image),
 
@@ -70,6 +73,11 @@ pub enum DynamicImage {
 
     /// Each pixel in this image is 16-bit Rgb with alpha
     ImageRgba16(Rgba16Image),
+
+    /// Each pixel in this image is 16-bit Argb
+    ImageArgb16(Argb16Image),
+
+
 }
 
 macro_rules! dynamic_map(
@@ -81,10 +89,12 @@ macro_rules! dynamic_map(
                         DynamicImage::ImageRgba8(ref $image) => DynamicImage::ImageRgba8($action),
                         DynamicImage::ImageBgr8(ref $image) => DynamicImage::ImageBgr8($action),
                         DynamicImage::ImageBgra8(ref $image) => DynamicImage::ImageBgra8($action),
+                        DynamicImage::ImageArgb8(ref $image) => DynamicImage::ImageArgb8($action),
                         DynamicImage::ImageLuma16(ref $image) => DynamicImage::ImageLuma16($action),
                         DynamicImage::ImageLumaA16(ref $image) => DynamicImage::ImageLumaA16($action),
                         DynamicImage::ImageRgb16(ref $image) => DynamicImage::ImageRgb16($action),
                         DynamicImage::ImageRgba16(ref $image) => DynamicImage::ImageRgba16($action),
+                        DynamicImage::ImageArgb16(ref $image) => DynamicImage::ImageArgb16($action)
                 }
         );
 
@@ -96,10 +106,12 @@ macro_rules! dynamic_map(
                         DynamicImage::ImageRgba8(ref mut $image) => DynamicImage::ImageRgba8($action),
                         DynamicImage::ImageBgr8(ref mut $image) => DynamicImage::ImageBgr8($action),
                         DynamicImage::ImageBgra8(ref mut $image) => DynamicImage::ImageBgra8($action),
+                        DynamicImage::ImageArgb8(ref mut $image) => DynamicImage::ImageArgb8($action),
                         DynamicImage::ImageLuma16(ref mut $image) => DynamicImage::ImageLuma16($action),
                         DynamicImage::ImageLumaA16(ref mut $image) => DynamicImage::ImageLumaA16($action),
                         DynamicImage::ImageRgb16(ref mut $image) => DynamicImage::ImageRgb16($action),
                         DynamicImage::ImageRgba16(ref mut $image) => DynamicImage::ImageRgba16($action),
+                        DynamicImage::ImageArgb16(ref mut $image) => DynamicImage::ImageArgb16($action)
                 }
         );
 
@@ -111,10 +123,12 @@ macro_rules! dynamic_map(
                         DynamicImage::ImageRgba8(ref $image) => $action,
                         DynamicImage::ImageBgr8(ref $image) => $action,
                         DynamicImage::ImageBgra8(ref $image) => $action,
+                        DynamicImage::ImageArgb8(ref $image) => $action,
                         DynamicImage::ImageLuma16(ref $image) => $action,
                         DynamicImage::ImageLumaA16(ref $image) => $action,
                         DynamicImage::ImageRgb16(ref $image) => $action,
                         DynamicImage::ImageRgba16(ref $image) => $action,
+                        DynamicImage::ImageArgb16(ref $image) => $action
                 }
         );
 
@@ -126,10 +140,12 @@ macro_rules! dynamic_map(
                         DynamicImage::ImageRgba8(ref mut $image) => $action,
                         DynamicImage::ImageBgr8(ref mut $image) => $action,
                         DynamicImage::ImageBgra8(ref mut $image) => $action,
+                        DynamicImage::ImageArgb8(ref mut $image) => $action,
                         DynamicImage::ImageLuma16(ref mut $image) => $action,
                         DynamicImage::ImageLumaA16(ref mut $image) => $action,
                         DynamicImage::ImageRgb16(ref mut $image) => $action,
                         DynamicImage::ImageRgba16(ref mut $image) => $action,
+                        DynamicImage::ImageArgb16(ref mut $image) => $action
                 }
         );
 );
@@ -166,6 +182,10 @@ impl DynamicImage {
         DynamicImage::ImageBgr8(ImageBuffer::new(w, h))
     }
 
+    /// Creates a dynamic image backed by a buffer of ARGB pixels.
+    pub fn new_argb8(w: u32, h: u32) -> DynamicImage{
+        DynamicImage::ImageArgb8(ImageBuffer::new(w, h))
+    }
     /// Creates a dynamic image backed by a buffer of grey pixels.
     pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
@@ -185,6 +205,10 @@ impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
     pub fn new_rgba16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba16(ImageBuffer::new(w, h))
+    }
+    /// Creates a dynamic image backed by a buffer of ARGB pixels.
+    pub fn new_argb16(w: u32, h: u32) -> DynamicImage{
+        DynamicImage::ImageArgb16(ImageBuffer::new(w, h))
     }
 
     /// Decodes an encoded image into a dynamic image.
@@ -312,6 +336,20 @@ impl DynamicImage {
         })
     }
 
+    /// Returns a copy of this image as an ARGB image{
+    pub fn to_argb8(&self) -> ArgbImage{
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
+    /// Returns a copy of this image as an ARGB image{
+    pub fn to_argb16(&self) -> Argb16Image{
+        dynamic_map!(*self, ref p -> {
+            p.convert()
+        })
+    }
+
     /// Consume the image and returns a RGB image.
     ///
     /// If the image was already the correct format, it is returned as is.
@@ -377,6 +415,40 @@ impl DynamicImage {
         match self {
             DynamicImage::ImageRgba16(x) => x,
             x => x.to_rgba16(),
+        }
+    }
+
+    /// Consume the image and returns a ARGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    #[deprecated = "replaced by `into_argb8`"]
+    pub fn into_argb(self) -> ArgbImage {
+        match self {
+            DynamicImage::ImageArgb8(x) => x,
+            x => x.to_argb8(),
+        }
+    }
+
+    /// Consume the image and returns a ARGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_argb8(self) -> ArgbImage {
+        match self {
+            DynamicImage::ImageArgb8(x) => x,
+            x => x.to_argb8(),
+        }
+    }
+
+    /// Consume the image and returns a ARGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_argb16(self) -> Argb16Image {
+        match self {
+            DynamicImage::ImageArgb16(x) => x,
+            x => x.to_argb16(),
         }
     }
 
@@ -559,6 +631,22 @@ impl DynamicImage {
         }
     }
 
+    /// Return a reference to an 8bit ARGB image
+    pub fn as_argb8(&self) -> Option<&ArgbImage> {
+        match *self {
+            DynamicImage::ImageArgb8(ref p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a mutable reference to an 8bit ARGB image
+    pub fn as_mut_argb8(&mut self) -> Option<&mut ArgbImage> {
+        match *self {
+            DynamicImage::ImageArgb8(ref mut p) => Some(p),
+            _ => None,
+        }
+    }
+
     /// Return a reference to an 8bit BGRA image
     pub fn as_bgra8(&self) -> Option<&BgraImage> {
         match *self {
@@ -639,6 +727,22 @@ impl DynamicImage {
         }
     }
 
+    /// Return a reference to an 16bit ARGB image
+    pub fn as_argb16(&self) -> Option<&Argb16Image> {
+        match *self {
+            DynamicImage::ImageArgb16(ref p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a mutable reference to an 16bit ARGB image
+    pub fn as_mut_argb16(&mut self) -> Option<&mut Argb16Image> {
+        match *self {
+            DynamicImage::ImageArgb16(ref mut p) => Some(p),
+            _ => None,
+        }
+    }
+
     /// Return a reference to an 16bit Grayscale image
     pub fn as_luma16(&self) -> Option<&Gray16Image> {
         match *self {
@@ -678,6 +782,7 @@ impl DynamicImage {
             DynamicImage::ImageLumaA8(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageRgb8(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageRgba8(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageArgb8(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageBgr8(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageBgra8(ref p) => Some(p.as_flat_samples()),
             _ => None,
@@ -691,6 +796,7 @@ impl DynamicImage {
             DynamicImage::ImageLumaA16(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageRgb16(ref p) => Some(p.as_flat_samples()),
             DynamicImage::ImageRgba16(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageArgb16(ref p) => Some(p.as_flat_samples()),
             _ => None,
         }
     }
@@ -721,10 +827,12 @@ impl DynamicImage {
             DynamicImage::ImageRgba8(_) => color::ColorType::Rgba8,
             DynamicImage::ImageBgra8(_) => color::ColorType::Bgra8,
             DynamicImage::ImageBgr8(_) => color::ColorType::Bgr8,
+            DynamicImage::ImageArgb8(_) => color::ColorType::Argb8,
             DynamicImage::ImageLuma16(_) => color::ColorType::L16,
             DynamicImage::ImageLumaA16(_) => color::ColorType::La16,
             DynamicImage::ImageRgb16(_) => color::ColorType::Rgb16,
             DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
+            DynamicImage::ImageArgb16(_) => color::ColorType::Argb16
         }
     }
 
@@ -737,10 +845,12 @@ impl DynamicImage {
             DynamicImage::ImageRgba8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
             DynamicImage::ImageBgr8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
             DynamicImage::ImageBgra8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageArgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
             DynamicImage::ImageLuma16(ref p) => DynamicImage::ImageLuma16(p.clone()),
             DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
             DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
             DynamicImage::ImageRgba16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
+            DynamicImage::ImageArgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p))
         }
     }
 
@@ -1070,10 +1180,12 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
             DynamicImage::ImageBgr8(ref mut p) => p.put_pixel(x, y, pixel.to_bgr()),
             DynamicImage::ImageBgra8(ref mut p) => p.put_pixel(x, y, pixel.to_bgra()),
+            DynamicImage::ImageArgb8(ref mut p) => p.put_pixel(x,y,pixel.to_argb()),
             DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
             DynamicImage::ImageLumaA16(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha().into_color()),
             DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageArgb16(ref mut p) => p.put_pixel(x,y,pixel.to_argb().into_color())
         }
     }
     /// DEPRECATED: Use iterator `pixels_mut` to blend the pixels directly.
@@ -1085,10 +1197,12 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
             DynamicImage::ImageBgr8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgr()),
             DynamicImage::ImageBgra8(ref mut p) => p.blend_pixel(x, y, pixel.to_bgra()),
+            DynamicImage::ImageArgb8(ref mut p) => p.blend_pixel(x,y,pixel.to_argb()),
             DynamicImage::ImageLuma16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma().into_color()),
             DynamicImage::ImageLumaA16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha().into_color()),
             DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageArgb16(ref mut p) => p.blend_pixel(x,y,pixel.to_argb().into_color())
         }
     }
 
@@ -1138,6 +1252,11 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
+        color::ColorType::Argb8 =>{
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w,h,buf).map(DynamicImage::ImageArgb8)
+        }
+
         color::ColorType::Rgb16 => {
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
@@ -1155,6 +1274,11 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
         color::ColorType::La16 => {
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
+        }
+
+        color::ColorType::Argb16 =>{
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w,h,buf).map(DynamicImage::ImageArgb16)
         }
         _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
             ImageFormatHint::Unknown,
@@ -1180,10 +1304,12 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
         DynamicImage::ImageRgba8(ref a) => a.as_raw().clone(),
         DynamicImage::ImageBgr8(ref a) => a.as_raw().clone(),
         DynamicImage::ImageBgra8(ref a) => a.as_raw().clone(),
+        DynamicImage::ImageArgb8(ref a) => a.as_raw().clone(),
         DynamicImage::ImageLuma16(ref a) => a.as_bytes().to_vec(),
         DynamicImage::ImageLumaA16(ref a) => a.as_bytes().to_vec(),
         DynamicImage::ImageRgb16(ref a) => a.as_bytes().to_vec(),
         DynamicImage::ImageRgba16(ref a) => a.as_bytes().to_vec(),
+        DynamicImage::ImageArgb16(ref a) => a.as_bytes().to_vec()
     }
 }
 
@@ -1195,10 +1321,12 @@ fn image_into_bytes(image: DynamicImage) -> Vec<u8> {
         DynamicImage::ImageRgba8(a) => a.into_raw(),
         DynamicImage::ImageBgr8(a) => a.into_raw(),
         DynamicImage::ImageBgra8(a) => a.into_raw(),
+        DynamicImage::ImageArgb8(a) => a.into_raw(),
         DynamicImage::ImageLuma16(_) => image.to_bytes(),
         DynamicImage::ImageLumaA16(_) => image.to_bytes(),
         DynamicImage::ImageRgb16(_) => image.to_bytes(),
         DynamicImage::ImageRgba16(_) => image.to_bytes(),
+        DynamicImage::ImageArgb16(_) => image.to_bytes(),
     }
 }
 
@@ -1211,10 +1339,12 @@ fn image_as_bytes(image: &DynamicImage) -> &[u8] {
         DynamicImage::ImageRgba8(a) => &*a,
         DynamicImage::ImageBgr8(a) => &*a,
         DynamicImage::ImageBgra8(a) => &*a,
+        DynamicImage::ImageArgb8(a) => &*a,
         DynamicImage::ImageLuma16(a) => cast_slice(&*a),
         DynamicImage::ImageLumaA16(a) => cast_slice(&*a),
         DynamicImage::ImageRgb16(a) => cast_slice(&*a),
         DynamicImage::ImageRgba16(a) => cast_slice(&*a),
+        DynamicImage::ImageArgb16(a) => cast_slice(&*a)
     }
 }
 

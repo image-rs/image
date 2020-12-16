@@ -1,7 +1,7 @@
 /// Given an array containing the number of codes of each code length,
 /// this function generates the huffman codes lengths and their respective
 /// code lengths as specified by the JPEG spec.
-fn derive_codes_and_sizes(bits: &[u8]) -> ([u8; 256], [u16; 256]) {
+fn derive_codes_and_sizes(bits: &[u8; 16]) -> ([u8; 256], [u16; 256]) {
     let mut huffsize = [0u8; 256];
     let mut huffcode = [0u16; 256];
 
@@ -48,7 +48,7 @@ fn derive_codes_and_sizes(bits: &[u8]) -> ([u8; 256], [u16; 256]) {
     (huffsize, huffcode)
 }
 
-pub(crate) fn build_huff_lut(bits: &[u8], huffval: &[u8]) -> [(u8, u16); 256] {
+pub(crate) fn build_huff_lut(bits: &[u8; 16], huffval: &[u8]) -> [(u8, u16); 256] {
     let mut lut = [(17u8, 0u16); 256];
     let (huffsize, huffcode) = derive_codes_and_sizes(bits);
 

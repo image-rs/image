@@ -1,7 +1,7 @@
-use std::mem;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
+use rgb::FromSlice;
 
 use crate::traits::{Pixel, Primitive};
 
@@ -206,7 +206,12 @@ macro_rules! define_colors {
         $interpretation: expr,
         $color_type_u8: expr,
         $color_type_u16: expr,
-        $( $rgb_equiv:ident )::*,
+        (
+            $( $rgb_equiv:ident )::*,
+            $from_slice_meth:ident,
+            $from_slice_mut_meth:ident,
+            |$rgb_val:ident| $rgb_val_as_arr:expr
+        ),
         #[$doc:meta];
     )*} => {
 
@@ -370,25 +375,25 @@ impl<T: Primitive> Deref for $ident<T> {
     type Target = $( $rgb_equiv )::* <T>;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { mem::transmute(&self.0) }
+        &self.0.$from_slice_meth()[0]
     }
 }
 
 impl<T: Primitive> DerefMut for $ident<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { mem::transmute(&mut self.0) }
+        &mut self.0.$from_slice_mut_meth()[0]
     }
 }
 
 impl<T: Primitive> From<$( $rgb_equiv )::* <T>> for $ident<T> {
-    fn from(value: $( $rgb_equiv )::* <T>) -> Self {
-        unsafe { mem::transmute_copy(&value) }
+    fn from($rgb_val: $( $rgb_equiv )::* <T>) -> Self {
+        $ident($rgb_val_as_arr)
     }
 }
 
 impl<T: Primitive> From<$ident<T>> for $( $rgb_equiv )::* <T> {
     fn from(value: $ident<T>) -> Self {
-        unsafe { mem::transmute_copy(&value) }
+        *value
     }
 }
 )* // END Structure definitions
@@ -397,12 +402,12 @@ impl<T: Primitive> From<$ident<T>> for $( $rgb_equiv )::* <T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", ColorType::Rgb8, ColorType::Rgb16, rgb::RGB, #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", ColorType::Bgr8, ColorType::Bgr8, rgb::alt::BGR, #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ColorType::L8, ColorType::L16, rgb::alt::Gray, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", ColorType::Rgba8, ColorType::Rgba16, rgb::RGBA, #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", ColorType::Bgra8, ColorType::Bgra8, rgb::alt::BGRA, #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ColorType::La8, ColorType::La16, rgb::alt::GrayAlpha, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", ColorType::Rgb8, ColorType::Rgb16, (rgb::RGB, as_rgb, as_rgb_mut, |p| [p.r, p.g, p.b]), #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::Bgr8, ColorType::Bgr8, (rgb::alt::BGR, as_bgr, as_bgr_mut, |p| [p.b, p.g, p.r]), #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", ColorType::L8, ColorType::L16, (rgb::alt::Gray, as_gray, as_gray_mut, |p| [p.0]), #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", ColorType::Rgba8, ColorType::Rgba16, (rgb::RGBA, as_rgba, as_rgba_mut, |p| [p.r, p.g, p.b, p.a]), #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::Bgra8, ColorType::Bgra8, (rgb::alt::BGRA, as_bgra, as_bgra_mut, |p| [p.b, p.g, p.r, p.a]), #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::La8, ColorType::La16, (rgb::alt::GrayAlpha, as_gray_alpha, as_gray_alpha_mut, |p| [p.0, p.1]), #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.

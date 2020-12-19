@@ -202,7 +202,7 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         self.write_bits(0x7F, 7)
     }
 
-    fn huffman_encode(&mut self, val: u8, table: &[(u8, u16)]) -> io::Result<()> {
+    fn huffman_encode(&mut self, val: u8, table: &[(u8, u16); 256]) -> io::Result<()> {
         let (size, code) = table[val as usize];
 
         if size > 16 {
@@ -216,8 +216,8 @@ impl<'a, W: Write + 'a> BitWriter<'a, W> {
         &mut self,
         block: &[i32; 64],
         prevdc: i32,
-        dctable: &[(u8, u16)],
-        actable: &[(u8, u16)],
+        dctable: &[(u8, u16); 256],
+        actable: &[(u8, u16); 256],
     ) -> io::Result<i32> {
         // Differential DC encoding
         let dcval = block[0];
@@ -327,10 +327,10 @@ pub struct JpegEncoder<'a, W: 'a> {
     components: Vec<Component>,
     tables: Vec<[u8; 64]>,
 
-    luma_dctable: Vec<(u8, u16)>,
-    luma_actable: Vec<(u8, u16)>,
-    chroma_dctable: Vec<(u8, u16)>,
-    chroma_actable: Vec<(u8, u16)>,
+    luma_dctable: Box<[(u8, u16); 256]>,
+    luma_actable: Box<[(u8, u16); 256]>,
+    chroma_dctable: Box<[(u8, u16); 256]>,
+    chroma_actable: Box<[(u8, u16); 256]>,
 
     pixel_density: PixelDensity,
 }
@@ -356,11 +356,11 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
     pub fn new_with_quality(w: &mut W, quality: u8) -> JpegEncoder<W> {
-        let ld = build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES);
-        let la = build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES);
+        let ld = Box::new(build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES));
+        let la = Box::new(build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES));
 
-        let cd = build_huff_lut(&STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES);
-        let ca = build_huff_lut(&STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES);
+        let cd = Box::new(build_huff_lut(&STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES));
+        let ca = Box::new(build_huff_lut(&STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES));
 
         let components = vec![
             Component {
@@ -863,6 +863,11 @@ fn copy_blocks_gray<I: GenericImageView>(
 mod tests {
     use std::io::Cursor;
 
+    #[cfg(feature = "benchmarks")]
+    extern crate test;
+    #[cfg(feature = "benchmarks")]
+    use test::{Bencher};
+
     use crate::{Bgra, ImageBuffer, ImageEncoder, ImageError};
     use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
@@ -1083,4 +1088,14 @@ mod tests {
         expected.extend_from_slice(&[0; 64]);
         assert_eq!(buf, expected)
     }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_jpeg_encoder_new(b: &mut Bencher) {
+        b.iter(|| {
+            let mut y = vec![];
+            let x = JpegEncoder::new(&mut y);
+        })
+    }
+
 }

@@ -133,6 +133,23 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
+    /// Return if the current path is can be read by the lib.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let result = ImageFormat::can_read("images/ferris.png");
+    /// assert_eq!(result, true);
+    /// ```
+    #[inline]
+    pub fn can_read<P>(path: P) -> bool where P : AsRef<Path> {
+        path.as_ref()
+            .extension()
+            .map_or(false, |ext| ImageFormat::from_extension(ext).is_some())
+    }
+
     /// Return a list of applicable extensions for this format.
     ///
     /// All currently recognized image formats specify at least on extension but for future
@@ -1265,5 +1282,12 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn image_formats_can_be_queried() {
+        assert_eq!(ImageFormat::can_read("img.png"), true);
+        assert_eq!(ImageFormat::can_read("img.mp4"), false);
+        assert_eq!(ImageFormat::can_read("extensionless"), false);
     }
 }

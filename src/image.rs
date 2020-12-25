@@ -139,6 +139,7 @@ impl ImageFormat {
     ///
     /// ```
     /// use image::ImageFormat;
+    /// #[cfg(feature = "png")]
     /// assert_eq!(ImageFormat::Png.can_read(), true);
     /// ```
     #[inline]
@@ -179,7 +180,9 @@ impl ImageFormat {
     ///
     /// ```
     /// use image::ImageFormat;
+    /// #[cfg(feature = "png")]
     /// assert_eq!(ImageFormat::Png.can_write(), true);
+    /// #[cfg(feature = "pnm")]
     /// assert_eq!(ImageFormat::Pnm.can_write(), false);
     /// ```
     #[inline]

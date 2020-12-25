@@ -139,15 +139,69 @@ impl ImageFormat {
     ///
     /// ```
     /// use image::ImageFormat;
-    ///
-    /// let result = ImageFormat::can_read("images/ferris.png");
-    /// assert_eq!(result, true);
+    /// assert_eq!(ImageFormat::Png.can_read(), true);
     /// ```
     #[inline]
-    pub fn can_read<P>(path: P) -> bool where P : AsRef<Path> {
-        path.as_ref()
-            .extension()
-            .map_or(false, |ext| ImageFormat::from_extension(ext).is_some())
+    pub fn can_read(&self) -> bool {
+        // Needs to be updated once a new variant's decoder is added to free_functions.rs::load
+        match self {
+            #[cfg(feature = "png")]
+            ImageFormat::Png => true,
+            #[cfg(feature = "gif")]
+            ImageFormat::Gif => true,
+            #[cfg(feature = "jpeg")]
+            ImageFormat::Jpeg => true,
+            #[cfg(feature = "webp")]
+            ImageFormat::WebP => true,
+            #[cfg(feature = "tiff")]
+            ImageFormat::Tiff => true,
+            #[cfg(feature = "tga")]
+            ImageFormat::Tga => true,
+            #[cfg(feature = "dds")]
+            ImageFormat::Dds => true,
+            #[cfg(feature = "bmp")]
+            ImageFormat::Bmp => true,
+            #[cfg(feature = "ico")]
+            ImageFormat::Ico => true,
+            #[cfg(feature = "hdr")]
+            ImageFormat::Hdr => true,
+            #[cfg(feature = "pnm")]
+            ImageFormat::Pnm => true,
+            #[cfg(feature = "farbfeld")]
+            ImageFormat::Farbfeld => true,
+            _ => false,
+        }
+    }
+
+/// Return if the current path is can be read by the lib.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    /// assert_eq!(ImageFormat::Png.can_write(), true);
+    /// assert_eq!(ImageFormat::Pnm.can_write(), false);
+    /// ```
+    #[inline]
+    pub fn can_write(&self) -> bool {
+        // Needs to be updated once a new variant's encoder is added to free_functions.rs::save_buffer_with_format_impl
+        match self {
+            #[cfg(feature = "gif")]
+            ImageFormat::Gif => true,
+            #[cfg(feature = "ico")]
+            ImageFormat::Ico => true,
+            #[cfg(feature = "jpeg")]
+            ImageFormat::Jpeg => true,
+            #[cfg(feature = "png")]
+            ImageFormat::Png => true,
+            #[cfg(feature = "bmp")]
+            ImageFormat::Bmp => true,
+            #[cfg(feature = "tiff")]
+            ImageFormat::Tiff => true,
+            #[cfg(feature = "tga")]
+            ImageFormat::Tga => true,
+            _ => false,
+        }
     }
 
     /// Return a list of applicable extensions for this format.
@@ -1282,12 +1336,5 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn image_formats_can_be_queried() {
-        assert_eq!(ImageFormat::can_read("img.png"), true);
-        assert_eq!(ImageFormat::can_read("img.mp4"), false);
-        assert_eq!(ImageFormat::can_read("extensionless"), false);
     }
 }

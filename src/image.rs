@@ -133,7 +133,7 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
-    /// Return if the current path is can be read by the lib.
+    /// Return if the ImageFormat can be decoded by the lib.
     ///
     /// # Example
     ///
@@ -173,7 +173,7 @@ impl ImageFormat {
         }
     }
 
-/// Return if the current path is can be read by the lib.
+    /// Return if the ImageFormat can be encoded by the lib.
     ///
     /// # Example
     ///

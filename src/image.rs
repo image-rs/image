@@ -133,6 +133,50 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
+    /// Return if the ImageFormat can be decoded by the lib.
+    #[inline]
+    pub fn can_read(&self) -> bool {
+        // Needs to be updated once a new variant's decoder is added to free_functions.rs::load
+        match self {
+            ImageFormat::Png => true,
+            ImageFormat::Gif => true,
+            ImageFormat::Jpeg => true,
+            ImageFormat::WebP => true,
+            ImageFormat::Tiff => true,
+            ImageFormat::Tga => true,
+            ImageFormat::Dds => false,
+            ImageFormat::Bmp => true,
+            ImageFormat::Ico => true,
+            ImageFormat::Hdr => true,
+            ImageFormat::Pnm => true,
+            ImageFormat::Farbfeld => true,
+            ImageFormat::Avif => false,
+            ImageFormat::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
+
+    /// Return if the ImageFormat can be encoded by the lib.
+    #[inline]
+    pub fn can_write(&self) -> bool {
+        // Needs to be updated once a new variant's encoder is added to free_functions.rs::save_buffer_with_format_impl
+        match self {
+            ImageFormat::Gif => true,
+            ImageFormat::Ico => true,
+            ImageFormat::Jpeg => true,
+            ImageFormat::Png => true,
+            ImageFormat::Bmp => true,
+            ImageFormat::Tiff => true,
+            ImageFormat::Tga => true,
+            ImageFormat::Pnm => true,
+            ImageFormat::Farbfeld => true,
+            ImageFormat::Avif => true,
+            ImageFormat::WebP => false,
+            ImageFormat::Hdr => false,
+            ImageFormat::Dds => false,
+            ImageFormat::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
+
     /// Return a list of applicable extensions for this format.
     ///
     /// All currently recognized image formats specify at least on extension but for future

@@ -143,44 +143,8 @@ pub(crate) fn save_buffer_impl(
     color: color::ColorType,
 ) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
-    let ext = path.extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    match &*ext {
-        #[cfg(feature = "gif")]
-        "gif" => gif::GifEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        "ico" => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "png")]
-        "png" => png::PngEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pbm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pgm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "ppm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        "bmp" => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "tga")]
-        "tga" => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "avif")]
-        "avif" => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
-        _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
-    }
+    let format =  ImageFormat::from_path(path)?;
+    save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
 #[allow(unused_variables)]
@@ -204,6 +168,31 @@ pub(crate) fn save_buffer_with_format_impl(
         image::ImageFormat::Jpeg => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "png")]
         image::ImageFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "pnm")]
+        image::ImageFormat::Pnm => {
+            let ext = path.extension()
+            .and_then(|s| s.to_str())
+            .map_or("".to_string(), |s| s.to_ascii_lowercase());
+            match &*ext {
+                "pbm" => pnm::PnmEncoder::new(fout)
+                    .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
+                    .write_image(buf, width, height, color),
+                "pgm" => pnm::PnmEncoder::new(fout)
+                    .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
+                    .write_image(buf, width, height, color),
+                "ppm" => pnm::PnmEncoder::new(fout)
+                    .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
+                    .write_image(buf, width, height, color),
+                "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
+                _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())), // Unsupported Pnm subtype.
+            }
+        },
+        #[cfg(feature = "farbfeld")]
+        image::ImageFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "avif")]
+        image::ImageFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+        // #[cfg(feature = "hdr")]
+        // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
         #[cfg(feature = "bmp")]
         image::ImageFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]

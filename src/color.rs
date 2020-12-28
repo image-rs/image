@@ -1,4 +1,6 @@
+use std::mem;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::slice;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 use rgb::FromSlice;
@@ -207,9 +209,12 @@ macro_rules! define_colors {
         $color_type_u8: expr,
         $color_type_u16: expr,
         (
+            $proxy_ty:ident,
+            [ $( $proxy_cmp:ident ),+ ]
+        ),
+        (
             $( $rgb_equiv:ident )::*,
             $from_slice_meth:ident,
-            $from_slice_mut_meth:ident,
             |$rgb_val:ident| $rgb_val_as_arr:expr
         ),
         #[$doc:meta];
@@ -371,17 +376,32 @@ impl<T: Primitive + 'static> From<[T; $channels]> for $ident<T> {
     }
 }
 
+#[derive(PartialEq, Eq, Clone, Debug, Copy, Hash)]
+#[repr(C)]
+#[allow(missing_docs)]
+pub struct $proxy_ty<T: Primitive> {
+    $(
+        pub $proxy_cmp: T,
+    )+
+}
+
 impl<T: Primitive> Deref for $ident<T> {
-    type Target = $( $rgb_equiv )::* <T>;
+    type Target = $proxy_ty<T>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.$from_slice_meth()[0]
+        debug_assert_eq!(mem::size_of_val(&self.0), mem::size_of::<$proxy_ty<T>>());
+
+        let proxy_slice = unsafe { slice::from_raw_parts(self.0.as_ptr() as *const _, 1) };
+        &proxy_slice[0]
     }
 }
 
 impl<T: Primitive> DerefMut for $ident<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0.$from_slice_mut_meth()[0]
+        debug_assert_eq!(mem::size_of_val(&self.0), mem::size_of::<$proxy_ty<T>>());
+
+        let proxy_slice = unsafe { slice::from_raw_parts_mut(self.0.as_mut_ptr() as *mut _, 1) };
+        &mut proxy_slice[0]
     }
 }
 
@@ -393,7 +413,7 @@ impl<T: Primitive> From<$( $rgb_equiv )::* <T>> for $ident<T> {
 
 impl<T: Primitive> From<$ident<T>> for $( $rgb_equiv )::* <T> {
     fn from(value: $ident<T>) -> Self {
-        *value
+        FromSlice::$from_slice_meth(&value.0[..])[0]
     }
 }
 )* // END Structure definitions
@@ -402,12 +422,12 @@ impl<T: Primitive> From<$ident<T>> for $( $rgb_equiv )::* <T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", ColorType::Rgb8, ColorType::Rgb16, (rgb::RGB, as_rgb, as_rgb_mut, |p| [p.r, p.g, p.b]), #[doc = "RGB colors"];
-    Bgr, 3, 0, "BGR", ColorType::Bgr8, ColorType::Bgr8, (rgb::alt::BGR, as_bgr, as_bgr_mut, |p| [p.b, p.g, p.r]), #[doc = "BGR colors"];
-    Luma, 1, 0, "Y", ColorType::L8, ColorType::L16, (rgb::alt::Gray, as_gray, as_gray_mut, |p| [p.0]), #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", ColorType::Rgba8, ColorType::Rgba16, (rgb::RGBA, as_rgba, as_rgba_mut, |p| [p.r, p.g, p.b, p.a]), #[doc = "RGB colors + alpha channel"];
-    Bgra, 4, 1, "BGRA", ColorType::Bgra8, ColorType::Bgra8, (rgb::alt::BGRA, as_bgra, as_bgra_mut, |p| [p.b, p.g, p.r, p.a]), #[doc = "BGR colors + alpha channel"];
-    LumaA, 2, 1, "YA", ColorType::La8, ColorType::La16, (rgb::alt::GrayAlpha, as_gray_alpha, as_gray_alpha_mut, |p| [p.0, p.1]), #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, "RGB", ColorType::Rgb8, ColorType::Rgb16, (RgbProxy, [r, g, b]), (rgb::RGB, as_rgb, |p| [p.r, p.g, p.b]), #[doc = "RGB colors"];
+    Bgr, 3, 0, "BGR", ColorType::Bgr8, ColorType::Bgr8, (BgrProxy, [b, g, r]), (rgb::alt::BGR, as_bgr, |p| [p.b, p.g, p.r]), #[doc = "BGR colors"];
+    Luma, 1, 0, "Y", ColorType::L8, ColorType::L16, (LumaProxy, [y]), (rgb::alt::Gray, as_gray, |p| [p.0]), #[doc = "Grayscale colors"];
+    Rgba, 4, 1, "RGBA", ColorType::Rgba8, ColorType::Rgba16, (RgbaProxy, [r, g, b, a]), (rgb::RGBA, as_rgba, |p| [p.r, p.g, p.b, p.a]), #[doc = "RGB colors + alpha channel"];
+    Bgra, 4, 1, "BGRA", ColorType::Bgra8, ColorType::Bgra8, (BgraProxy, [b, g, r, a]), (rgb::alt::BGRA, as_bgra, |p| [p.b, p.g, p.r, p.a]), #[doc = "BGR colors + alpha channel"];
+    LumaA, 2, 1, "YA", ColorType::La8, ColorType::La16, (LumaAProxy, [y, a]), (rgb::alt::GrayAlpha, as_gray_alpha, |p| [p.0, p.1]), #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Provides color conversions for the different pixel types.
@@ -1587,17 +1607,17 @@ mod tests {
     #[test]
     fn test_deref_luma() {
         let mut luma = Luma([1]);
-        assert_eq!([(*luma).0], [1]);
-        (*luma).0 = 2;
+        assert_eq!([luma.y], [1]);
+        luma.y = 2;
         assert_eq!(luma, Luma([2]));
     }
 
     #[test]
     fn test_deref_luma_a() {
         let mut luma_a = LumaA([1, 2]);
-        assert_eq!([(*luma_a).0, (*luma_a).1], [1, 2]);
-        (*luma_a).0 = 3;
-        (*luma_a).1 = 4;
+        assert_eq!([luma_a.y, luma_a.a], [1, 2]);
+        luma_a.y = 3;
+        luma_a.a = 4;
         assert_eq!(luma_a, LumaA([3, 4]));
     }
 

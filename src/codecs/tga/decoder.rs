@@ -153,6 +153,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
             (0, 24, true) => self.color_type = ColorType::Rgb8,
             (8, 8, false) => self.color_type = ColorType::La8,
             (0, 8, false) => self.color_type = ColorType::L8,
+            (8, 0, false) => self.color_type = ColorType::L8, // alpha-only image is treated as L8
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

@@ -1,19 +1,24 @@
 //! Common types shared between the encoder and decoder
 use std::{convert::TryFrom, fmt};
 
-/// Describes the layout of samples in a pixel
+/// Describes how a pixel is encoded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ColorType {
+    /// 1 grayscale sample.
     Grayscale = 0,
+    /// 1 red sample, 1 green sample, 1 blue sample.
     Rgb = 2,
+    /// 1 sample for the palette index.
     Indexed = 3,
+    /// 1 grayscale sample, then 1 alpha sample.
     GrayscaleAlpha = 4,
+    /// 1 red sample, 1 green sample, 1 blue sample, and finally, 1 alpha sample.
     Rgba = 6,
 }
 
 impl ColorType {
-    /// Returns the number of samples used per pixel of `ColorType`
+    /// Returns the number of samples used per pixel encoded in this way.
     pub fn samples(self) -> usize {
         self.samples_u8().into()
     }
@@ -71,7 +76,8 @@ impl ColorType {
     }
 }
 
-/// Bit depth of the PNG file
+/// Bit depth of the PNG file.
+/// Specifies the number of bits per sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BitDepth {
@@ -410,12 +416,15 @@ pub struct Info {
     pub width: u32,
     pub height: u32,
     pub bit_depth: BitDepth,
+    /// How colors are stored in the image.
     pub color_type: ColorType,
     pub interlaced: bool,
+    /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
     pub trns: Option<Vec<u8>>,
     pub pixel_dims: Option<PixelDimensions>,
     /// Gamma of the source system.
     pub source_gamma: Option<ScaledFloat>,
+    /// The image's `PLTE` chunk, if present; contains the RGB channels (in that order) of the image's palettes, 3 bytes per entry (1 per channel).
     pub palette: Option<Vec<u8>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
@@ -454,7 +463,7 @@ impl Default for Info {
 }
 
 impl Info {
-    /// Size of the image
+    /// Size of the image, width then height.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
     }
@@ -464,7 +473,7 @@ impl Info {
         self.frame_control.is_some() && self.animation_control.is_some()
     }
 
-    /// Returns the frame control information of the image
+    /// Returns the frame control information of the image.
     pub fn animation_control(&self) -> Option<&AnimationControl> {
         self.animation_control.as_ref()
     }
@@ -474,12 +483,12 @@ impl Info {
         self.frame_control.as_ref()
     }
 
-    /// Returns the bits per pixel
+    /// Returns the number of bits per pixel.
     pub fn bits_per_pixel(&self) -> usize {
         self.color_type.samples() * self.bit_depth as usize
     }
 
-    /// Returns the bytes per pixel
+    /// Returns the number of bytes per pixel.
     pub fn bytes_per_pixel(&self) -> usize {
         // If adjusting this for expansion or other transformation passes, remember to keep the old
         // implementation for bpp_in_prediction, which is internal to the png specification.
@@ -505,12 +514,12 @@ impl Info {
         }
     }
 
-    /// Returns the number of bytes needed for one deinterlaced image
+    /// Returns the number of bytes needed for one deinterlaced image.
     pub fn raw_bytes(&self) -> usize {
         self.height as usize * self.raw_row_length()
     }
 
-    /// Returns the number of bytes needed for one deinterlaced row
+    /// Returns the number of bytes needed for one deinterlaced row.
     pub fn raw_row_length(&self) -> usize {
         self.raw_row_length_from_width(self.width)
     }
@@ -520,7 +529,7 @@ impl Info {
             .checked_raw_row_length(self.bit_depth, self.width)
     }
 
-    /// Returns the number of bytes needed for one deinterlaced row of width `width`
+    /// Returns the number of bytes needed for one deinterlaced row of width `width`.
     pub fn raw_row_length_from_width(&self, width: u32) -> usize {
         self.color_type
             .raw_row_length_from_width(self.bit_depth, width)
@@ -541,32 +550,32 @@ bitflags! {
     #[doc = "
     ```c
     /// Discard the alpha channel
-    const STRIP_ALPHA         = 0x0002; // read only */
+    const STRIP_ALPHA         = 0x0002; // read only
     /// Expand 1; 2 and 4-bit samples to bytes
-    const PACKING             = 0x0004; // read and write */
+    const PACKING             = 0x0004; // read and write
     /// Change order of packed pixels to LSB first
-    const PACKSWAP            = 0x0008; // read and write */
+    const PACKSWAP            = 0x0008; // read and write
     /// Invert monochrome images
-    const INVERT_MONO         = 0x0020; // read and write */
+    const INVERT_MONO         = 0x0020; // read and write
     /// Normalize pixels to the sBIT depth
-    const SHIFT               = 0x0040; // read and write */
+    const SHIFT               = 0x0040; // read and write
     /// Flip RGB to BGR; RGBA to BGRA
-    const BGR                 = 0x0080; // read and write */
+    const BGR                 = 0x0080; // read and write
     /// Flip RGBA to ARGB or GA to AG
-    const SWAP_ALPHA          = 0x0100; // read and write */
+    const SWAP_ALPHA          = 0x0100; // read and write
     /// Byte-swap 16-bit samples
-    const SWAP_ENDIAN         = 0x0200; // read and write */
+    const SWAP_ENDIAN         = 0x0200; // read and write
     /// Change alpha from opacity to transparency
-    const INVERT_ALPHA        = 0x0400; // read and write */
-    const STRIP_FILLER        = 0x0800; // write only */
+    const INVERT_ALPHA        = 0x0400; // read and write
+    const STRIP_FILLER        = 0x0800; // write only
     const STRIP_FILLER_BEFORE = 0x0800; // write only
-    const STRIP_FILLER_AFTER  = 0x1000; // write only */
-    const GRAY_TO_RGB         = 0x2000; // read only */
-    const EXPAND_16           = 0x4000; // read only */
+    const STRIP_FILLER_AFTER  = 0x1000; // write only
+    const GRAY_TO_RGB         = 0x2000; // read only
+    const EXPAND_16           = 0x4000; // read only
     /// Similar to STRIP_16 but in libpng considering gamma?
     /// Not entirely sure the documentation says it is more
     /// accurate but doesn't say precisely how.
-    const SCALE_16            = 0x8000; // read only */
+    const SCALE_16            = 0x8000; // read only
     ```
     "]
     pub struct Transformations: u32 {

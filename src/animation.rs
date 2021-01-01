@@ -83,6 +83,11 @@ impl Frame {
         &self.buffer
     }
 
+    /// Returns a mutable image buffer
+    pub fn buffer_mut(&mut self) -> &mut RgbaImage {
+        &mut self.buffer
+    }
+
     /// Returns the image buffer
     pub fn into_buffer(self) -> RgbaImage {
         self.buffer

@@ -289,11 +289,30 @@ impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     }
 }
 
+/// Number of repetitions for a GIF animation
+#[derive(Clone, Copy)]
+pub enum Repeat {
+    /// Finite number of repetitions
+    Finite(u16),
+    /// Looping GIF
+    Infinite,
+}
+
+impl Repeat {
+    pub(crate) fn to_gif_enum(&self) -> gif::Repeat {
+        match self {
+            Repeat::Finite(n) => gif::Repeat::Finite(*n),
+            Repeat::Infinite => gif::Repeat::Infinite,
+        }
+    }
+}
+
 /// GIF encoder.
 pub struct GifEncoder<W: Write> {
     w: Option<W>,
     gif_encoder: Option<gif::Encoder<W>>,
     speed: i32,
+    repeat: Option<Repeat>,
 }
 
 /// GIF encoder
@@ -322,7 +341,17 @@ impl<W: Write> GifEncoder<W> {
             w: Some(w),
             gif_encoder: None,
             speed,
+            repeat: None,
         }
+    }
+
+    /// Set the repeat behaviour of the encoded GIF
+    pub fn set_repeat(&mut self, repeat: Repeat) -> ImageResult<()> {
+        if let Some(ref mut encoder) = self.gif_encoder {
+            encoder.set_repeat(repeat.to_gif_enum()).map_err(ImageError::from_encoding)?;
+        }
+        self.repeat = Some(repeat);
+        Ok(())
     }
 
     /// Encode a single image.
@@ -418,8 +447,11 @@ impl<W: Write> GifEncoder<W> {
             gif_encoder = encoder;
         } else {
             let writer = self.w.take().unwrap();
-            let encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])
+            let mut encoder = gif::Encoder::new(writer, frame.width, frame.height, &[])
                 .map_err(ImageError::from_encoding)?;
+            if let Some(ref repeat) = self.repeat {
+                encoder.set_repeat(repeat.to_gif_enum()).map_err(ImageError::from_encoding)?;
+            }
             self.gif_encoder = Some(encoder);
             gif_encoder = self.gif_encoder.as_mut().unwrap()
         }

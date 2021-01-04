@@ -282,7 +282,7 @@ pub mod farbfeld {
 pub mod gif {
     //! Decoding of GIF Images
     #[allow(deprecated)]
-    pub use crate::codecs::gif::{Encoder, GifDecoder, GifEncoder, GifReader};
+    pub use crate::codecs::gif::{Encoder, GifDecoder, GifEncoder, GifReader, Repeat};
 }
 #[cfg(feature = "hdr")]
 #[deprecated = "Use codecs::hdr instead"]

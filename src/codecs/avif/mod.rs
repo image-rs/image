@@ -4,6 +4,8 @@
 ///
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 
+pub use self::decoder::AvifDecoder;
 pub use self::encoder::AvifEncoder;
 
+mod decoder;
 mod encoder;

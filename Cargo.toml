@@ -46,6 +46,7 @@ quickcheck = "0.9"
 criterion = "0.3"
 
 [features]
+# TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon"]
 
 ico = ["bmp", "png"]

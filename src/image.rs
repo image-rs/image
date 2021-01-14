@@ -83,6 +83,7 @@ impl ImageFormat {
             let ext = ext.to_str()?.to_ascii_lowercase();
 
             Some(match ext.as_str() {
+                "avif" => ImageFormat::Avif,
                 "jpg" | "jpeg" => ImageFormat::Jpeg,
                 "png" => ImageFormat::Png,
                 "gif" => ImageFormat::Gif,
@@ -150,7 +151,7 @@ impl ImageFormat {
             ImageFormat::Hdr => true,
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
-            ImageFormat::Avif => false,
+            ImageFormat::Avif => true,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -201,7 +202,7 @@ impl ImageFormat {
             ImageFormat::Hdr => &["hdr"],
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
-            ImageFormat::Avif => &["avif", "heif", "heifs", "hif"],
+            ImageFormat::Avif => &["avif"],
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -1203,6 +1204,7 @@ mod tests {
         assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
+        assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
     }
@@ -1298,7 +1300,7 @@ mod tests {
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;
-        const ALL_FORMATS: &'static [ImageFormat] = &[Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld];
+        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {

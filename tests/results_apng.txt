@@ -1,0 +1,1 @@
+tests/animated/basic_f20.png: 284018616

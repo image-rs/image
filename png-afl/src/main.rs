@@ -1,3 +1,7 @@
+
+#![forbid(unsafe_code)]
+
+#[macro_use]
 extern crate afl;
 extern crate png;
 
@@ -18,15 +22,14 @@ fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
         return Err(());
     }
 
-    let mut img_data = Vec::with_capacity(info.buffer_size());
+    let mut img_data = vec![0u8; info.buffer_size()];
     reader.next_frame(&mut img_data).map_err(|_| ())?;
 
     Ok((info, img_data))
 }
 
 fn main() {
-    afl::fuzz(|data| {
-    //afl::read_stdio_bytes(|data| {
-        png_decode(&data);
+    fuzz!(|data: &[u8]| {
+        let _ = png_decode(&data);
     });
 }

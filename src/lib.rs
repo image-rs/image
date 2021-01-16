@@ -15,50 +15,64 @@
 //!     let (info, mut reader) = decoder.read_info().unwrap();
 //!     // Allocate the output buffer.
 //!     let mut buf = vec![0; info.buffer_size()];
-//!     // Read the next frame. Currently this function should only called once.
-//!     // The default options
+//!     // Read the next frame. An APNG might contain multiple frames.
 //!     reader.next_frame(&mut buf).unwrap();
+//!     // Inspect more details of the last read frame.
+//!     let in_animation = reader.info().frame_control.is_some();
 //! ## Encoder
 //! ### Using the encoder
-//! ```ignore
-//!     // For reading and opening files
-//!     use std::path::Path;
-//!     use std::fs::File;
-//!     use std::io::BufWriter;
-//!     // To use encoder.set()
-//!     use png::HasParameters;
+//! ```no_run
+//! # #[cfg(feature = "png-encoding")] {
+//! // For reading and opening files
+//! use std::path::Path;
+//! use std::fs::File;
+//! use std::io::BufWriter;
 //!
-//!     let path = Path::new(r"/path/to/image.png");
-//!     let file = File::create(path).unwrap();
-//!     let ref mut w = BufWriter::new(file);
+//! let path = Path::new(r"/path/to/image.png");
+//! let file = File::create(path).unwrap();
+//! let ref mut w = BufWriter::new(file);
 //!
-//!     let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
-//!     encoder.set(png::ColorType::RGBA).set(png::BitDepth::Eight);
-//!      let mut writer = encoder.write_header().unwrap();
+//! let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
+//! encoder.set_color(png::ColorType::Rgba);
+//! encoder.set_depth(png::BitDepth::Eight);
+//! encoder.set_trns(vec!(0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8));
+//! encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
+//! encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
+//! let source_chromaticities = png::SourceChromaticities::new(     // Using unscaled instantiation here
+//!     (0.31270, 0.32900),
+//!     (0.64000, 0.33000),
+//!     (0.30000, 0.60000),
+//!     (0.15000, 0.06000)
+//! );
+//! encoder.set_source_chromaticities(source_chromaticities);
+//! let mut writer = encoder.write_header().unwrap();
 //!
-//!     let data = [255, 0, 0, 255, 0, 0, 0, 255]; // An array containing a RGBA sequence. First pixel is red and second pixel is black.
-//!     writer.write_image_data(&data).unwrap(); // Save
+//! let data = [255, 0, 0, 255, 0, 0, 0, 255]; // An array containing a RGBA sequence. First pixel is red and second pixel is black.
+//! writer.write_image_data(&data).unwrap(); // Save
+//! # }
 //! ```
 //!
 //#![cfg_attr(test, feature(test))]
 
-#[macro_use] extern crate bitflags;
+#![forbid(unsafe_code)]
 
-extern crate num_iter;
+#[macro_use]
+extern crate bitflags;
 
 pub mod chunk;
-mod crc;
+mod common;
 mod decoder;
 #[cfg(feature = "png-encoding")]
 mod encoder;
 mod filter;
+mod srgb;
 mod traits;
-mod common;
 mod utils;
 
-pub use common::*;
-pub use decoder::{Decoder, Reader, OutputInfo, StreamingDecoder, Decoded, DecodingError};
+pub use crate::common::*;
+pub use crate::decoder::{
+    Decoded, Decoder, DecodingError, Limits, OutputInfo, Reader, StreamingDecoder,
+};
 #[cfg(feature = "png-encoding")]
-pub use encoder::{Encoder, Writer, EncodingError};
-
-pub use traits::{Parameter, HasParameters};
+pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
+pub use crate::filter::{AdaptiveFilterType, FilterType};

@@ -3,18 +3,17 @@
 extern crate getopts;
 extern crate glob;
 extern crate png;
-extern crate term;
 
+use std::env;
+use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use std::fs::File;
-use std::env;
 
 use getopts::{Matches, Options, ParsingStyle};
 use term::{color, Attr};
 
-fn parse_args() -> Option<Matches> {
+fn parse_args() -> Matches {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
     opts.optflag("c", "", "colorize output (for ANSI terminals)")
@@ -24,19 +23,22 @@ fn parse_args() -> Option<Matches> {
         .parsing_style(ParsingStyle::StopAtFirstFree);
     if args.len() > 1 {
         match opts.parse(&args[1..]) {
-            Ok(matches) => return Some(matches),
-            Err(err) => println!("{}", err)
+            Ok(matches) => return matches,
+            Err(err) => println!("{}", err),
         }
     }
-    println!("{}", opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]")));
-    None
+    println!(
+        "{}",
+        opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]"))
+    );
+    std::process::exit(0);
 }
 
 #[derive(Clone, Copy)]
 struct Config {
     quiet: bool,
     verbose: bool,
-    color: bool
+    color: bool,
 }
 
 fn display_interlaced(i: bool) -> &'static str {
@@ -54,10 +56,10 @@ fn display_image_type(bits: u8, color: png::ColorType) -> String {
         bits,
         match color {
             Grayscale => "grayscale",
-            RGB => "RGB",
+            Rgb => "RGB",
             Indexed => "palette",
             GrayscaleAlpha => "grayscale+alpha",
-            RGBA => "RGB+alpha"
+            Rgba => "RGB+alpha",
         }
     )
 }
@@ -66,24 +68,23 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     use png::ColorType::*;
     match c {
         Grayscale => 1 + if trns { 1 } else { 0 },
-        RGB => 3,
+        Rgb => 3,
         Indexed => 3 + if trns { 1 } else { 0 },
         GrayscaleAlpha => 2,
-        RGBA => 4
+        Rgba => 4,
     }
 }
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     // TODO improve performance by resusing allocations from decoder
     use png::Decoded::*;
-    let mut t = try!(term::stdout().ok_or(io::Error::new(
+    let mut t = term::stdout().ok_or(io::Error::new(
         io::ErrorKind::Other,
-        "could not open terminal"
-    )));
-    let mut data = vec![0; 10*1024];
-    let data_p = data.as_mut_ptr();
-    let mut reader = io::BufReader::new(try!(File::open(&fname)));
+        "could not open terminal",
+    ))?;
+    let data = &mut vec![0; 10 * 1024][..];
+    let mut reader = io::BufReader::new(File::open(&fname)?);
     let fname = fname.as_ref().to_string_lossy();
-    let n = try!(reader.read(&mut data));
+    let n = reader.read(data)?;
     let mut buf = &data[..n];
     let mut pos = 0;
     let mut decoder = png::StreamingDecoder::new();
@@ -107,85 +108,94 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         });
     );
     let display_error = |err| -> Result<_, io::Error> {
-        let mut t = try!(term::stdout().ok_or(io::Error::new(
+        let mut t = term::stdout().ok_or(io::Error::new(
             io::ErrorKind::Other,
-            "could not open terminal"
-        )));
+            "could not open terminal",
+        ))?;
         if c.verbose {
             if c.color {
                 print!(": ");
-                try!(t.fg(color::RED));
-                try!(writeln!(t, "{}", err));
-                try!(t.attr(Attr::Bold));
-                try!(write!(t, "ERRORS DETECTED"));
-                try!(t.reset());
+                t.fg(color::RED)?;
+                writeln!(t, "{}", err)?;
+                t.attr(Attr::Bold)?;
+                write!(t, "ERRORS DETECTED")?;
+                t.reset()?;
             } else {
                 println!(": {}", err);
                 print!("ERRORS DETECTED")
             }
             println!(" in {}", fname);
         } else {
-            if !c.quiet { if c.color {
-                try!(t.fg(color::RED));
-                try!(t.attr(Attr::Bold));
-                try!(write!(t, "ERROR"));
-                try!(t.reset());
-                try!(write!(t, ": "));
-                try!(t.fg(color::YELLOW));
-                try!(writeln!(t, "{}", fname));
-                try!(t.reset());
-            } else {
-                println!("ERROR: {}", fname)
-            }}
+            if !c.quiet {
+                if c.color {
+                    t.fg(color::RED)?;
+                    t.attr(Attr::Bold)?;
+                    write!(t, "ERROR")?;
+                    t.reset()?;
+                    write!(t, ": ")?;
+                    t.fg(color::YELLOW)?;
+                    writeln!(t, "{}", fname)?;
+                    t.reset()?;
+                } else {
+                    println!("ERROR: {}", fname)
+                }
+            }
             print!("{}: ", fname);
             if c.color {
-                try!(t.fg(color::RED));
-                try!(writeln!(t, "{}", err));
-                try!(t.reset());
+                t.fg(color::RED)?;
+                writeln!(t, "{}", err)?;
+                t.reset()?;
             } else {
                 println!("{}", err);
             }
-            
         }
         Ok(())
     };
-    
+
     if c.verbose {
         print!("File: ");
         if c.color {
-            try!(t.attr(Attr::Bold));
-            try!(write!(t, "{}", fname));
-            try!(t.reset());
+            t.attr(Attr::Bold)?;
+            write!(t, "{}", fname)?;
+            t.reset()?;
         } else {
             print!("{}", fname);
         }
         print!(" ({}) bytes", data.len())
-            
     }
     loop {
         if buf.len() == 0 {
             // circumvent borrow checker
-            let n = try!(reader.read(unsafe {
-                ::std::slice::from_raw_parts_mut(data_p, data.len())
-            }));
+            assert!(!data.is_empty());
+            let n = reader.read(data)?;
+
+            // EOF
+            if n == 0 {
+                println!("ERROR: premature end of file {}", fname);
+                break;
+            }
             buf = &data[..n];
         }
-        match decoder.update(buf) {
+        match decoder.update(buf, &mut Vec::new()) {
             Ok((_, ImageEnd)) => {
                 if !have_idat {
-                    try!(display_error(png::DecodingError::Format("IDAT chunk missing".into())));
+                    // This isn't beautiful. But it works.
+                    display_error(png::DecodingError::IoError(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "IDAT chunk missing",
+                    )))?;
                     break;
                 }
                 if !c.verbose && !c.quiet {
                     if c.color {
-                        try!(t.fg(color::GREEN));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "OK"));
-                        try!(t.reset());
-                        try!(write!(t, ": "));
-                        try!(t.fg(color::YELLOW));
-                        try!(write!(t, "{}", fname));
-                        try!(t.reset());
+                        t.fg(color::GREEN)?;
+                        t.attr(Attr::Bold)?;
+                        write!(t, "OK")?;
+                        t.reset()?;
+                        write!(t, ": ")?;
+                        t.fg(color::YELLOW)?;
+                        write!(t, "{}", fname)?;
+                        t.reset()?;
                     } else {
                         print!("OK: {}", fname)
                     }
@@ -196,15 +206,15 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         display_image_type(bits, color),
                         (if trns { "+trns" } else { "" }),
                         display_interlaced(interlaced),
-                        100.0*(1.0-c_ratio!())
+                        100.0 * (1.0 - c_ratio!())
                     )
                 } else if !c.quiet {
                     println!("");
                     if c.color {
-                        try!(t.fg(color::GREEN));
-                        try!(t.attr(Attr::Bold));
-                        try!(write!(t, "No errors detected "));
-                        try!(t.reset());
+                        t.fg(color::GREEN)?;
+                        t.attr(Attr::Bold)?;
+                        write!(t, "No errors detected ")?;
+                        t.reset()?;
                     } else {
                         print!("No errors detected ");
                     }
@@ -212,11 +222,11 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         "in {} ({} chunks, {:.1}% compression)",
                         fname,
                         n_chunks,
-                        100.0*(1.0-c_ratio!())
+                        100.0 * (1.0 - c_ratio!()),
                     )
                 }
-                break
-            },
+                break;
+            }
             Ok((n, res)) => {
                 buf = &buf[n..];
                 pos += n;
@@ -232,15 +242,15 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         use png::chunk;
                         n_chunks += 1;
                         if c.verbose {
-                            let chunk = String::from_utf8_lossy(&type_str);
+                            let chunk = type_str;
                             println!("");
                             print!("  chunk ");
                             if c.color {
-                                try!(t.fg(color::YELLOW));
-                                try!(write!(t, "{}", chunk));
-                                try!(t.reset());
+                                t.fg(color::YELLOW)?;
+                                write!(t, "{:?}", chunk)?;
+                                t.reset()?;
                             } else {
-                                print!("{}", chunk)
+                                print!("{:?}", chunk)
                             }
                             print!(
                                 " at offset {:#07x}, length {}",
@@ -252,14 +262,14 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                             chunk::IDAT => {
                                 have_idat = true;
                                 compressed_size += len
-                            },
+                            }
                             chunk::tRNS => {
                                 trns = true;
-                            },    
-                            _ => ()
+                            }
+                            _ => (),
                         }
                     }
-                    ImageData(_) => {
+                    ImageData => {
                         //println!("got {} bytes of image data", data.len())
                     }
                     ChunkComplete(_, type_str) if c.verbose => {
@@ -276,16 +286,12 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                                     display_interlaced(interlaced),
                                 );
                             }
-                            _ => ()
+                            _ => (),
                         }
                     }
                     AnimationControl(actl) => {
                         println!("");
-                        print!(
-                            "    {} frames, {} plays",
-                            actl.num_frames,
-                            actl.num_plays,
-                        );
+                        print!("    {} frames, {} plays", actl.num_frames, actl.num_plays,);
                     }
                     FrameControl(fctl) => {
                         println!("");
@@ -304,18 +310,22 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         print!(
                             "    {}/{} s delay, dispose: {}, blend: {}",
                             fctl.delay_num,
-                            if fctl.delay_den == 0 { 100 } else {fctl.delay_den},
+                            if fctl.delay_den == 0 {
+                                100
+                            } else {
+                                fctl.delay_den
+                            },
                             fctl.dispose_op,
                             fctl.blend_op,
                         );
                     }
-                    _ => ()
+                    _ => (),
                 }
                 //println!("{} {:?}", n, res)
-            },
+            }
             Err(err) => {
                 let _ = display_error(err);
-                break
+                break;
             }
         }
     }
@@ -323,34 +333,32 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
 }
 
 fn main() {
-    if let Some(m) = parse_args() {
-        let config = Config {
-            quiet: m.opt_present("q"),
-            verbose: m.opt_present("v"),
-            color: m.opt_present("c")
+    let m = parse_args();
+
+    let config = Config {
+        quiet: m.opt_present("q"),
+        verbose: m.opt_present("v"),
+        color: m.opt_present("c"),
+    };
+
+    for file in m.free {
+        let result = if file.contains("*") {
+            glob::glob(&file)
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                .and_then(|mut glob| {
+                    glob.try_for_each(|entry| {
+                        entry
+                            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                            .and_then(|file| check_image(config, file))
+                    })
+                })
+        } else {
+            check_image(config, &file)
         };
-        for file in m.free {
-            match if file.contains("*") {
-                (|| -> io::Result<_> {
-                    for entry in try!(glob::glob(&file).map_err(|err| {
-                        io::Error::new(io::ErrorKind::Other, err.msg)
-                    })) {
-                        try!(check_image(config, try!(entry.map_err(|_| {
-                            io::Error::new(io::ErrorKind::Other, "glob error")
-                        }))))
-                    }
-                    Ok(())
-                })()
-            } else {
-                check_image(config, &file)
-            } {
-                Ok(_) => (),
-                Err(err) => {
-                    println!("{}: {}", file, err);
-                    break
-                }
-            }
-            
-        }
+
+        result.unwrap_or_else(|err| {
+            println!("{}: {}", file, err);
+            std::process::exit(1)
+        });
     }
 }

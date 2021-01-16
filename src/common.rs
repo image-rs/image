@@ -618,11 +618,11 @@ impl Info {
             let gamma = crate::srgb::substitute_gamma();
             let chromaticities = crate::srgb::substitute_chromaticities();
             srgb.encode(&mut w)?;
-            gamma.encode(&mut w)?;
+            gamma.encode_gama(&mut w)?;
             chromaticities.encode(&mut w)?;
         } else {
             if let Some(gma) = self.source_gamma {
-                gma.encode(&mut w)?
+                gma.encode_gama(&mut w)?
             }
             if let Some(chrms) = self.source_chromaticities {
                 chrms.encode(&mut w)?;

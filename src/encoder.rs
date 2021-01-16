@@ -211,7 +211,7 @@ pub struct Writer<W: Write> {
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
 
-fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8]) -> Result<()> {
+pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8]) -> Result<()> {
     w.write_be(data.len() as u32)?;
     w.write_all(&name.0)?;
     w.write_all(data)?;
@@ -253,65 +253,9 @@ impl<W: Write> Writer<W> {
             ));
         }
 
-        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
-        let mut data = [0; 13];
-        (&mut data[..]).write_be(self.info.width)?;
-        (&mut data[4..]).write_be(self.info.height)?;
-        data[8] = self.info.bit_depth as u8;
-        data[9] = self.info.color_type as u8;
-        data[12] = if self.info.interlaced { 1 } else { 0 };
-        self.write_chunk(chunk::IHDR, &data)?;
-
-        if let Some(p) = &self.info.palette {
-            write_chunk(&mut self.w, chunk::PLTE, p)?;
-        };
-
-        if let Some(t) = &self.info.trns {
-            write_chunk(&mut self.w, chunk::tRNS, t)?;
-        }
-
-        // If specified, the sRGB information overrides the source gamma and chromaticities.
-        if let Some(srgb) = &self.info.srgb {
-            let gamma = crate::srgb::substitute_gamma().into_scaled().to_be_bytes();
-            let chromaticities =
-                Self::chromaticities_to_be_bytes(&crate::srgb::substitute_chromaticities());
-            write_chunk(&mut self.w, chunk::sRGB, &[srgb.into_raw()])?;
-            write_chunk(&mut self.w, chunk::gAMA, &gamma)?;
-            write_chunk(&mut self.w, chunk::cHRM, &chromaticities)?;
-        } else {
-            if let Some(g) = &self.info.source_gamma {
-                write_chunk(&mut self.w, chunk::gAMA, &g.into_scaled().to_be_bytes())?;
-            }
-
-            if let Some(c) = &self.info.source_chromaticities {
-                let enc = Self::chromaticities_to_be_bytes(&c);
-                write_chunk(&mut self.w, chunk::cHRM, &enc)?;
-            }
-        }
+        self.info.encode(&mut self.w)?;
 
         Ok(self)
-    }
-
-    #[rustfmt::skip]
-    fn chromaticities_to_be_bytes(c: &super::common::SourceChromaticities) -> [u8; 32] {
-        let white_x = c.white.0.into_scaled().to_be_bytes();
-        let white_y = c.white.1.into_scaled().to_be_bytes();
-        let red_x = c.red.0.into_scaled().to_be_bytes();
-        let red_y = c.red.1.into_scaled().to_be_bytes();
-        let green_x = c.green.0.into_scaled().to_be_bytes();
-        let green_y = c.green.1.into_scaled().to_be_bytes();
-        let blue_x = c.blue.0.into_scaled().to_be_bytes();
-        let blue_y = c.blue.1.into_scaled().to_be_bytes();
-        [
-            white_x[0], white_x[1], white_x[2], white_x[3],
-            white_y[0], white_y[1], white_y[2], white_y[3],
-            red_x[0],   red_x[1],   red_x[2],   red_x[3],
-            red_y[0],   red_y[1],   red_y[2],   red_y[3],
-            green_x[0], green_x[1], green_x[2], green_x[3],
-            green_y[0], green_y[1], green_y[2], green_y[3],
-            blue_x[0],  blue_x[1],  blue_x[2],  blue_x[3],
-            blue_y[0],  blue_y[1],  blue_y[2],  blue_y[3],
-        ]
     }
 
     pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {

@@ -370,7 +370,7 @@ impl ScaledFloat {
         Self::reverse(self.0) as f32
     }
 
-    pub fn encode<W: Write>(self, w: &mut W) -> encoder::Result<()> {
+    pub(crate) fn encode_gama<W: Write>(self, w: &mut W) -> encoder::Result<()> {
         encoder::write_chunk(w, chunk::gAMA, &self.into_scaled().to_be_bytes())
     }
 }

@@ -1,14 +1,14 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::{Num, NumCast};
+use num_traits::{Bounded, Num, NumCast};
 use std::f64::consts::PI;
 
 use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
 #[allow(deprecated)]
 use crate::math::nq;
-use crate::utils::clamp;
 use crate::traits::{Pixel, Primitive};
+use crate::utils::clamp;
 use crate::ImageBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
@@ -50,6 +50,8 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 /// Adjust the contrast of the supplied image.
 /// ```contrast``` is the amount to adjust the contrast by.
 /// Negative values decrease the contrast and positive values increase the contrast.
+///
+/// *[See also `contrast_in_place`.][contrast_in_place]*
 pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -82,9 +84,43 @@ where
     out
 }
 
+/// Adjust the contrast of the supplied image in place.
+/// ```contrast``` is the amount to adjust the contrast by.
+/// Negative values decrease the contrast and positive values increase the contrast.
+///
+/// *[See also `contrast`.][contrast]*
+pub fn contrast_in_place<I>(image: &mut I, contrast: f32)
+where
+    I: GenericImage,
+{
+    let (width, height) = image.dimensions();
+
+    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
+    let max: f32 = NumCast::from(max).unwrap();
+
+    let percent = ((100.0 + contrast) / 100.0).powi(2);
+
+    for y in 0..height {
+        for x in 0..width {
+            let f = image.get_pixel(x, y).map(|b| {
+                let c: f32 = NumCast::from(b).unwrap();
+
+                let d = ((c / max - 0.5) * percent + 0.5) * max;
+                let e = clamp(d, 0.0, max);
+
+                NumCast::from(e).unwrap()
+            });
+
+            image.put_pixel(x, y, f);
+        }
+    }
+}
+
 /// Brighten the supplied image.
 /// ```value``` is the amount to brighten each pixel by.
 /// Negative values decrease the brightness and positive values increase it.
+///
+/// *[See also `brighten_in_place`.][brighten_in_place]*
 pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -116,10 +152,43 @@ where
     out
 }
 
+/// Brighten the supplied image in place.
+/// ```value``` is the amount to brighten each pixel by.
+/// Negative values decrease the brightness and positive values increase it.
+///
+/// *[See also `brighten`.][brighten]*
+pub fn brighten_in_place<I>(image: &mut I, value: i32)
+where
+    I: GenericImage,
+{
+    let (width, height) = image.dimensions();
+
+    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
+    let max: i32 = NumCast::from(max).unwrap();
+
+    for y in 0..height {
+        for x in 0..width {
+            let e = image.get_pixel(x, y).map_with_alpha(
+                |b| {
+                    let c: i32 = NumCast::from(b).unwrap();
+                    let d = clamp(c + value, 0, max);
+
+                    NumCast::from(d).unwrap()
+                },
+                |alpha| alpha,
+            );
+
+            image.put_pixel(x, y, e);
+        }
+    }
+}
+
 /// Hue rotate the supplied image.
 /// `value` is the degrees to rotate each pixel by.
 /// 0 and 360 do nothing, the rest rotates by the given degree value.
 /// just like the css webkit filter hue-rotate(180)
+///
+/// *[See also `huerotate_in_place`.][huerotate_in_place]*
 pub fn huerotate<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
@@ -174,6 +243,67 @@ where
         *pixel = outpixel;
     }
     out
+}
+
+/// Hue rotate the supplied image in place.
+/// `value` is the degrees to rotate each pixel by.
+/// 0 and 360 do nothing, the rest rotates by the given degree value.
+/// just like the css webkit filter hue-rotate(180)
+///
+/// *[See also `huerotate`.][huerotate]*
+pub fn huerotate_in_place<I>(image: &mut I, value: i32)
+where
+    I: GenericImage,
+{
+    let (width, height) = image.dimensions();
+
+    let angle: f64 = NumCast::from(value).unwrap();
+
+    let cosv = (angle * PI / 180.0).cos();
+    let sinv = (angle * PI / 180.0).sin();
+    let matrix: [f64; 9] = [
+        // Reds
+        0.213 + cosv * 0.787 - sinv * 0.213,
+        0.715 - cosv * 0.715 - sinv * 0.715,
+        0.072 - cosv * 0.072 + sinv * 0.928,
+        // Greens
+        0.213 - cosv * 0.213 + sinv * 0.143,
+        0.715 + cosv * 0.285 + sinv * 0.140,
+        0.072 - cosv * 0.072 - sinv * 0.283,
+        // Blues
+        0.213 - cosv * 0.213 - sinv * 0.787,
+        0.715 - cosv * 0.715 + sinv * 0.715,
+        0.072 + cosv * 0.928 + sinv * 0.072,
+    ];
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let (k1, k2, k3, k4) = pixel.channels4();
+            let vec: (f64, f64, f64, f64) = (
+                NumCast::from(k1).unwrap(),
+                NumCast::from(k2).unwrap(),
+                NumCast::from(k3).unwrap(),
+                NumCast::from(k4).unwrap(),
+            );
+
+            let r = vec.0;
+            let g = vec.1;
+            let b = vec.2;
+
+            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
+            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
+            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+            let max = 255f64;
+            let outpixel = Pixel::from_channels(
+                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
+            );
+
+            image.put_pixel(x, y, outpixel);
+        }
+    }
 }
 
 /// A color map

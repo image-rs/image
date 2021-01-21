@@ -240,12 +240,28 @@ impl<R: Read> PnmDecoder<R> {
             _ => return Err(DecoderError::PnmMagicInvalid(magic).into()),
         };
 
-        match subtype {
+        let decoder = match subtype {
             PNMSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
             PNMSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
             PNMSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
             PNMSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
-        }
+        }?;
+
+        utils::check_dimension_overflow(
+            decoder.dimensions().0,
+            decoder.dimensions().1,
+            decoder.color_type().bytes_per_pixel(),
+            Some(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Pnm.into(),
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Image dimensions ({}x{}) are too large",
+                        decoder.dimensions().0, decoder.dimensions().1
+                    )),
+                ),
+            )))?;
+
+        Ok(decoder)
     }
 
     /// Extract the reader and header after an image has been read.
@@ -1211,5 +1227,20 @@ ENDHDR
             ) => (),
             _ => panic!("Decoded header is incorrect"),
         }
+    }
+
+    #[test]
+    fn dimension_overflow() {
+        let pamdata = b"P7
+# Comment line
+MAXVAL 255
+TUPLTYPE RGB
+DEPTH 3
+WIDTH 4294967295
+HEIGHT 4294967295
+ENDHDR
+\xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
+        
+        assert!(PnmDecoder::new(&pamdata[..]).is_err());
     }
 }

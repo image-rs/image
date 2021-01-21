@@ -63,6 +63,28 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     p
 }
 
+/// Checks if the provided dimensions would cause an overflow.
+/// 
+/// Returns the optionally provided `ImageError` on overflow or defaults to `LimitErrorKind::DimensionError`.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
+pub(crate) fn check_dimension_overflow(
+    width: u32,
+    height: u32,
+    bytes_per_pixel: u8,
+    error: Option<crate::ImageError>,
+) -> crate::ImageResult<()> {
+    use crate::error::{ImageError, LimitError, LimitErrorKind};
+
+    (width as u64)
+        .checked_mul(height as u64)
+        .and_then(|size| size.checked_mul(bytes_per_pixel as u64))
+        .map(|_| ())
+        .ok_or(error.unwrap_or(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::DimensionError,
+        ))))
+}
+
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {

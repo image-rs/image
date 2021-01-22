@@ -439,7 +439,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         let written = buf.read(&mut self.buffer[self.index..])?;
         self.index += written;
 
-        if self.index + 1 >= self.buffer.len() {
+        if self.index >= self.buffer.len() {
             self.writer
                 .as_mut()
                 .write_chunk(chunk::IDAT, &self.buffer)?;
@@ -453,7 +453,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         if self.index > 0 {
             self.writer
                 .as_mut()
-                .write_chunk(chunk::IDAT, &self.buffer[..=self.index])?;
+                .write_chunk(chunk::IDAT, &self.buffer[..self.index])?;
         }
         self.index = 0;
         Ok(())

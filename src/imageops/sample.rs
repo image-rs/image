@@ -261,10 +261,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t1, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t2, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t3, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t4, 0.0, max).round()).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -344,10 +344,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
+                NumCast::from(clamp(t1, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t2, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t3, 0.0, max).round()).unwrap(),
+                NumCast::from(clamp(t4, 0.0, max).round()).unwrap(),
             );
 
             out.put_pixel(x, outy, t);
@@ -869,5 +869,35 @@ mod tests {
             test::black_box(image.thumbnail(256, 256));
         });
         b.bytes = 193 * 193 * 4 + 256 * 256 * 4;
+    }
+
+    #[test]
+    fn resize_transparent_image() {
+        use super::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
+        use crate::imageops::crop_imm;
+        use crate::RgbaImage;
+
+        fn assert_resize(image: &RgbaImage, filter: FilterType) {
+            let resized = resize(image, 16, 16, filter);
+            let cropped = crop_imm(&resized, 5, 5, 6, 6).to_image();
+            for pixel in cropped.pixels() {
+                let alpha = pixel.0[3];
+                assert!(
+                    alpha != 254 && alpha != 253,
+                    format!("alpha value: {}, {:?}", alpha, filter)
+                );
+            }
+        }
+
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/png/transparency/tp1n3p08.png"
+        );
+        let img = crate::open(path).unwrap();
+        let rgba8 = img.as_rgba8().unwrap();
+        let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
+        for filter in filters {
+            assert_resize(rgba8, filter.clone());
+        }
     }
 }

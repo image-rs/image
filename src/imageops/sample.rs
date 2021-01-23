@@ -872,6 +872,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "png")]
     fn resize_transparent_image() {
         use super::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
         use crate::imageops::crop_imm;

@@ -344,7 +344,7 @@ impl<R: BufRead> HdrDecoder<R> {
     ///   could consume file size worth of memory in the process.
     pub fn with_strictness(mut reader: R, strict: bool) -> ImageResult<HdrDecoder<R>> {
         let mut attributes = HdrMetadata::new();
-
+        
         {
             // scope to make borrowck happy
             let r = &mut reader;
@@ -394,6 +394,19 @@ impl<R: BufRead> HdrDecoder<R> {
                 parse_dimensions_line(&dimensions, strict)?
             }
         };
+
+        // color type is always rgb8
+        if crate::utils::check_dimension_overflow(width, height, ColorType::Rgb8.bytes_per_pixel()) {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Hdr.into(),
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Image dimensions ({}x{}) are too large",
+                        width, height
+                    )),
+                ),
+            ));
+        }
 
         Ok(HdrDecoder {
             r: reader,
@@ -1007,4 +1020,18 @@ pub fn read_raw_file<P: AsRef<Path>>(path: P) -> ::std::io::Result<Vec<Rgb<f32>>
         ret.push(Rgb([cr, cg, cb]));
     }
     Ok(ret)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn dimension_overflow() {
+        let data = b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n -Y 4294967295 +X 4294967295";
+
+        assert!(HdrAdapter::new(Cursor::new(data)).is_err());
+        assert!(HdrAdapter::new_nonstrict(Cursor::new(data)).is_err());
+    }    
 }

@@ -63,6 +63,13 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     p
 }
 
+/// Checks if the provided dimensions would cause an overflow.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
+pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel: u8) -> bool {
+    width as u64 * height as u64 > std::u64::MAX / bytes_per_pixel as u64
+}
+
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {

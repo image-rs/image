@@ -63,13 +63,32 @@ impl<R: Read> FarbfeldReader<R> {
             )));
         }
 
-        Ok(FarbfeldReader {
+        let reader = FarbfeldReader {
             width: read_dimm(&mut inner)?,
             height: read_dimm(&mut inner)?,
             inner,
             current_offset: 0,
             cached_byte: None,
-        })
+        };
+        
+        if crate::utils::check_dimension_overflow(
+            reader.width,
+            reader.height,
+            // ColorType is always rgba16
+            ColorType::Rgba16.bytes_per_pixel(),
+        ) {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::Farbfeld.into(),
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Image dimensions ({}x{}) are too large",
+                        reader.width, reader.height
+                    )),
+                ),
+            ));
+        }
+
+        Ok(reader)
     }
 }
 
@@ -330,6 +349,13 @@ mod tests {
             .unwrap();
         let exp = degenerate_pixels(RECTANGLE_OUT);
         assert_eq!(&out_buf[..exp.len()], &exp[..]);
+    }
+
+    #[test]
+    fn dimension_overflow() {        
+        let header = b"farbfeld\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF";
+        
+        assert!(FarbfeldDecoder::new(Cursor::new(header)).is_err());
     }
 
     fn read_rect(x: u32, y: u32, width: u32, height: u32, exp_wide: &[u16]) {

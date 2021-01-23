@@ -247,19 +247,22 @@ impl<R: Read> PnmDecoder<R> {
             PNMSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
         }?;
 
-        utils::check_dimension_overflow(
+        if utils::check_dimension_overflow(
             decoder.dimensions().0,
             decoder.dimensions().1,
             decoder.color_type().bytes_per_pixel(),
-            Some(ImageError::Unsupported(
+        ) {
+            return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Pnm.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
                         "Image dimensions ({}x{}) are too large",
-                        decoder.dimensions().0, decoder.dimensions().1
+                        decoder.dimensions().0,
+                        decoder.dimensions().1
                     )),
                 ),
-            )))?;
+            ));
+        }
 
         Ok(decoder)
     }

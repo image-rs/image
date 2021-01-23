@@ -70,13 +70,14 @@ impl<R: Read> FarbfeldReader<R> {
             current_offset: 0,
             cached_byte: None,
         };
-
-        crate::utils::check_dimension_overflow(
+        
+        if crate::utils::check_dimension_overflow(
             reader.width,
             reader.height,
             // ColorType is always rgba16
             ColorType::Rgba16.bytes_per_pixel(),
-            Some(ImageError::Unsupported(
+        ) {
+            return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Farbfeld.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
@@ -84,7 +85,8 @@ impl<R: Read> FarbfeldReader<R> {
                         reader.width, reader.height
                     )),
                 ),
-            )))?;
+            ));
+        }
 
         Ok(reader)
     }

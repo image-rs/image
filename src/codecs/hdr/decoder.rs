@@ -395,12 +395,9 @@ impl<R: BufRead> HdrDecoder<R> {
             }
         };
 
-        crate::utils::check_dimension_overflow(
-            width,
-            height,
-            // color type is always rgb8
-            ColorType::Rgb8.bytes_per_pixel(),
-            Some(ImageError::Unsupported(
+        // color type is always rgb8
+        if crate::utils::check_dimension_overflow(width, height, ColorType::Rgb8.bytes_per_pixel()) {
+            return Err(ImageError::Unsupported(
                 UnsupportedError::from_format_and_kind(
                     ImageFormat::Hdr.into(),
                     UnsupportedErrorKind::GenericFeature(format!(
@@ -408,7 +405,8 @@ impl<R: BufRead> HdrDecoder<R> {
                         width, height
                     )),
                 ),
-            )))?;
+            ));
+        }
 
         Ok(HdrDecoder {
             r: reader,

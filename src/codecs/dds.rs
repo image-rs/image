@@ -182,11 +182,12 @@ impl<R: Read> DdsDecoder<R> {
                 }
             };
 
-            crate::utils::check_dimension_overflow(
+            if crate::utils::check_dimension_overflow(
                 header.width,
                 header.height,
                 variant.color_type().bytes_per_pixel(),
-                Some(ImageError::Unsupported(
+            ) {
+                return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Dds.into(),
                         UnsupportedErrorKind::GenericFeature(format!(
@@ -194,8 +195,8 @@ impl<R: Read> DdsDecoder<R> {
                             header.width, header.height
                         )),
                     ),
-                )),
-            )?;
+                ));
+            }
 
             let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
             Ok(Self { inner })

@@ -105,6 +105,20 @@ pub(crate) struct Filter<'a> {
     pub(crate) support: f32,
 }
 
+struct FloatNearest(f32);
+
+impl ToPrimitive for FloatNearest {
+    fn to_i64(&self) -> Option<i64> {
+        NumCast::from(self.0.round())
+    }
+    fn to_u64(&self) -> Option<u64> {
+        NumCast::from(self.0.round())
+    }
+    fn to_f64(&self) -> Option<f64> {
+        NumCast::from(self.0)
+    }
+}
+
 // sinc function: the ideal sampling filter.
 fn sinc(t: f32) -> f32 {
     let a = t * f32::consts::PI;
@@ -261,10 +275,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max).round()).unwrap(),
+                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -344,10 +358,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max).round()).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max).round()).unwrap(),
+                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
             );
 
             out.put_pixel(x, outy, t);

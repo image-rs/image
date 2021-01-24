@@ -39,7 +39,7 @@ use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 
 /// A Dynamic Image
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum DynamicImage {
     /// Each pixel in this image is 8-bit Luma
     ImageLuma8(GrayImage),

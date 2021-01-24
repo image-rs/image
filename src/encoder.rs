@@ -6,13 +6,22 @@ use std::result;
 
 use crc32fast::Hasher as Crc32;
 
-use crate::chunk::{self, ChunkType};
-use crate::common::{
-    BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
-    ScaledFloat,
-};
-use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::traits::WriteBytesExt;
+use crate::{
+    chunk::{self, ChunkType},
+    AnimationControl,
+};
+use crate::{
+    common::{
+        BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
+        ScaledFloat,
+    },
+    FrameControl,
+};
+use crate::{
+    filter::{filter, AdaptiveFilterType, FilterType},
+    BlendOp, DisposeOp,
+};
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -37,6 +46,9 @@ enum FormatErrorKind {
     NoPalette,
     // TODO: wait, what?
     WrittenTooMuch(usize),
+    NotAnimated,
+    OutOfBounds,
+    EndReached,
 }
 
 impl error::Error for EncodingError {
@@ -73,6 +85,12 @@ impl fmt::Display for FormatError {
             ),
             NoPalette => write!(fmt, "can't write indexed image without palette"),
             WrittenTooMuch(index) => write!(fmt, "wrong data size, got {} bytes too many", index),
+            NotAnimated => write!(fmt, "not an animation"),
+            OutOfBounds => write!(
+                fmt,
+                "the dimension and position go over the frame boundaries"
+            ),
+            EndReached => write!(fmt, "all the frames have been already written"),
         }
     }
 }
@@ -102,18 +120,56 @@ pub struct Encoder<W: Write> {
     info: Info,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
+    sep_def_img: bool,
 }
 
 impl<W: Write> Encoder<W> {
     pub fn new(w: W, width: u32, height: u32) -> Encoder<W> {
-        let mut info = Info::default();
-        info.width = width;
-        info.height = height;
+        let info = Info {
+            width,
+            height,
+            ..Default::default()
+        };
         Encoder {
             w,
             info,
             filter: FilterType::default(),
             adaptive_filter: AdaptiveFilterType::default(),
+            sep_def_img: false,
+        }
+    }
+
+    pub fn new_animated(
+        w: W,
+        width: u32,
+        height: u32,
+        num_frames: u32,
+        num_plays: u32,
+        sep_def_img: bool,
+    ) -> Encoder<W> {
+        let actl = AnimationControl {
+            num_frames,
+            num_plays,
+        };
+        let fctl = FrameControl {
+            sequence_number: 0,
+            width,
+            height,
+            ..Default::default()
+        };
+        let info = Info {
+            width,
+            height,
+            animation_control: Some(actl),
+            frame_control: Some(fctl),
+            ..Default::default()
+        };
+        Encoder {
+            w,
+            info,
+            filter: FilterType::default(),
+            adaptive_filter: AdaptiveFilterType::default(),
+            sep_def_img,
         }
     }
 
@@ -148,7 +204,14 @@ impl<W: Write> Encoder<W> {
     }
 
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(self.w, self.info, self.filter, self.adaptive_filter).init()
+        Writer::new(
+            self.w,
+            self.info,
+            self.filter,
+            self.adaptive_filter,
+            self.sep_def_img,
+        )
+        .init()
     }
 
     /// Set the color of the encoded image.
@@ -196,6 +259,37 @@ impl<W: Write> Encoder<W> {
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.adaptive_filter = adaptive_filter;
     }
+
+    /// Sets the dispose operation for each frame.
+    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.delay_den = delay_den;
+            fctl.delay_num = delay_num;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the blend operation for each frame.
+    pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.blend_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the dispose operation for each frame.
+    pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.dispose_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
 }
 
 /// PNG writer
@@ -204,6 +298,8 @@ pub struct Writer<W: Write> {
     info: Info,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
+    sep_def_img: bool,
+    written: u32,
 }
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
@@ -220,12 +316,20 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
 }
 
 impl<W: Write> Writer<W> {
-    fn new(w: W, info: Info, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W> {
+    fn new(
+        w: W,
+        info: Info,
+        filter: FilterType,
+        adaptive_filter: AdaptiveFilterType,
+        sep_def_img: bool,
+    ) -> Writer<W> {
         Writer {
             w,
             info,
             filter,
             adaptive_filter,
+            sep_def_img,
+            written: 0,
         }
     }
 
@@ -238,7 +342,6 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
         }
 
-        // TODO: this could yield the typified BytesPerPixel.
         if self
             .info
             .color_type
@@ -250,7 +353,7 @@ impl<W: Write> Writer<W> {
             ));
         }
 
-        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
+        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
         self.info.encode(&mut self.w)?;
 
         Ok(self)
@@ -262,18 +365,34 @@ impl<W: Write> Writer<W> {
 
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
-        const MAX_CHUNK_LEN: u32 = (1u32 << 31) - 1;
+        const MAX_IDAT_CHUNK_LEN: u32 = (1u32 << 31) - 1;
+        const MAX_fdAT_CHUNK_LEN: u32 = u32::MAX - 4;
 
         if self.info.color_type == ColorType::Indexed && self.info.palette.is_none() {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
-        let bpp = self.info.bpp_in_prediction();
-        let in_len = self.info.raw_row_length() - 1;
-        let prev = vec![0; in_len];
-        let mut prev = prev.as_slice();
-        let mut current = vec![0; in_len];
-        let data_size = in_len * self.info.height as usize;
+        let max = match self.info.animation_control {
+            Some(actl) if self.sep_def_img => actl.num_frames + 1,
+            Some(actl) => actl.num_frames,
+            None => 1,
+        };
+        if self.written > max {
+            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
+        }
+
+        let width: usize;
+        let height: usize;
+        if let Some(ref mut fctl) = self.info.frame_control {
+            width = fctl.width as usize;
+            height = fctl.height as usize;
+        } else {
+            width = self.info.width as usize;
+            height = self.info.height as usize;
+        }
+
+        let in_len = self.info.raw_row_length_from_width(width as u32) - 1;
+        let data_size = in_len * height;
         if data_size != data.len() {
             return Err(EncodingError::Parameter(
                 ParameterErrorKind::ImageBufferSize {
@@ -283,10 +402,16 @@ impl<W: Write> Writer<W> {
                 .into(),
             ));
         }
+
+        let prev = vec![0; in_len];
+        let mut prev = prev.as_slice();
+        let mut current = vec![0; in_len];
+
         let mut zlib = deflate::write::ZlibEncoder::new(
             Vec::new(),
             self.info.compression.clone().to_options(),
         );
+        let bpp = self.info.bpp_in_prediction();
         let filter_method = self.filter;
         let adaptive_method = self.adaptive_filter;
         for line in data.chunks(in_len) {
@@ -297,10 +422,135 @@ impl<W: Write> Writer<W> {
             prev = line;
         }
         let zlib_encoded = zlib.finish()?;
-        for chunk in zlib_encoded.chunks(MAX_CHUNK_LEN as usize) {
-            self.write_chunk(chunk::IDAT, &chunk)?;
+        if self.sep_def_img || self.info.frame_control.is_none() {
+            self.sep_def_img = false;
+            for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
+                self.write_chunk(chunk::IDAT, &chunk)?;
+            }
+        } else if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.encode(&mut self.w)?;
+            fctl.sequence_number += 1;
+
+            if self.written == 0 {
+                for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
+                    self.write_chunk(chunk::IDAT, &chunk)?;
+                }
+            } else {
+                let mut alldata = vec![0u8; 4 + MAX_fdAT_CHUNK_LEN as usize];
+                for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
+                    alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                    alldata[4..].copy_from_slice(chunk);
+                    write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
+                    fctl.sequence_number += 1;
+                }
+            }
+        } else {
+            unreachable!(); // this should be unreachable
         }
+        self.written += 1;
         Ok(())
+    }
+
+    /// Set the used filter type for the next frame.
+    ///
+    /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
+    /// sample values based on the previous. For a potentially better compression ratio, at the
+    /// cost of more complex processing, try out [`FilterType::Paeth`].
+    ///
+    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
+    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
+    pub fn set_filter(&mut self, filter: FilterType) {
+        self.filter = filter;
+    }
+
+    /// Set the adaptive filter type for the next frame.
+    ///
+    /// Adaptive filtering attempts to select the best filter for each line
+    /// based on heuristics which minimize the file size for compression rather
+    /// than use a single filter for the entire image. The default method is
+    /// [`AdaptiveFilterType::NonAdaptive`].
+    ///
+    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
+    pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
+        self.adaptive_filter = adaptive_filter;
+    }
+
+    /// Sets the dispose operation for the next frame.
+    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.delay_den = delay_den;
+            fctl.delay_num = delay_num;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            if width + fctl.x_offset > self.info.width || height + fctl.y_offset > self.info.height
+            {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            }
+            fctl.width = width;
+            fctl.height = height;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            if fctl.width + x > self.info.width || fctl.height + y > self.info.height {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            }
+            fctl.x_offset = x;
+            fctl.y_offset = y;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn reset_frame_dimesion(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.width = self.info.width;
+            fctl.height = self.info.height;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn reset_frame_position(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.x_offset = 0;
+            fctl.y_offset = 0;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the blend operation for the next frame.
+    pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.blend_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the dispose operation for the next frame.
+    pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.dispose_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
     }
 
     /// Create a stream writer.
@@ -512,7 +762,7 @@ mod tests {
                 .unwrap()
                 .map(|r| r.unwrap())
             {
-                if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
+                if path.file_name().unwrap().to_str().unwrap().starts_with('x') {
                     // x* files are expected to fail to decode
                     continue;
                 }
@@ -559,7 +809,7 @@ mod tests {
                 .unwrap()
                 .map(|r| r.unwrap())
             {
-                if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
+                if path.file_name().unwrap().to_str().unwrap().starts_with('x') {
                     // x* files are expected to fail to decode
                     continue;
                 }
@@ -605,7 +855,7 @@ mod tests {
 
     #[test]
     fn image_palette() -> Result<()> {
-        for bit_depth in vec![1u8, 2, 4, 8] {
+        for &bit_depth in &[1u8, 2, 4, 8] {
             // Do a reference decoding, choose a fitting palette image from pngsuite
             let path = format!("tests/pngsuite/basn3p0{}.png", bit_depth);
             let decoder = Decoder::new(File::open(&path).unwrap());

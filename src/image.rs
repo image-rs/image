@@ -841,8 +841,8 @@ pub trait GenericImage: GenericImageView {
             )));
         }
 
-        for i in 0..other.width() {
-            for k in 0..other.height() {
+        for k in 0..other.height() {
+            for i in 0..other.width() {
                 let p = other.get_pixel(i, k);
                 self.put_pixel(i + x, k + y, p);
             }

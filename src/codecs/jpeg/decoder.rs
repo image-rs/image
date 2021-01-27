@@ -21,7 +21,9 @@ impl<R: Read> JpegDecoder<R> {
         let mut decoder = jpeg::Decoder::new(r);
 
         decoder.read_info().map_err(ImageError::from_jpeg)?;
-        let mut metadata = decoder.info().unwrap();
+        let mut metadata = decoder.info().ok_or_else(|| {
+            ImageError::Decoding(DecodingError::from_format_hint(ImageFormat::Jpeg.into()))
+        })?;
 
         // We convert CMYK data to RGB before returning it to the user.
         if metadata.pixel_format == jpeg::PixelFormat::CMYK32 {

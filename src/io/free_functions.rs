@@ -28,7 +28,7 @@ use crate::codecs::webp;
 #[cfg(feature = "farbfeld")]
 use crate::codecs::farbfeld;
 #[cfg(feature = "avif")]
-use crate::avif;
+use crate::codecs::avif;
 
 use crate::color;
 use crate::image;
@@ -59,6 +59,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
+        #[cfg(feature = "avif")]
+        image::ImageFormat::Avif => DynamicImage::from_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
         image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
         #[cfg(feature = "gif")]
@@ -105,6 +107,8 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
     // Default is unreachable if all features are supported.
     // Code after the match is unreachable if none are.
     Ok(match format {
+        #[cfg(feature = "avif")]
+        image::ImageFormat::Avif => avif::AvifDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "png")]
@@ -204,7 +208,7 @@ pub(crate) fn save_buffer_with_format_impl(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 19] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 20] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -224,6 +228,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 19] = [
     (b"P6", ImageFormat::Pnm),
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
+    (b"\0\0\0 ftypavif", ImageFormat::Avif),
 ];
 
 /// Guess image format from memory block

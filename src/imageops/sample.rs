@@ -105,6 +105,22 @@ pub(crate) struct Filter<'a> {
     pub(crate) support: f32,
 }
 
+struct FloatNearest(f32);
+
+// to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
+// Note that to_f64 by default calls to_i64 and thus needs to be overridden.
+impl ToPrimitive for FloatNearest {
+    fn to_i64(&self) -> Option<i64> {
+        NumCast::from(self.0.round())
+    }
+    fn to_u64(&self) -> Option<u64> {
+        NumCast::from(self.0.round())
+    }
+    fn to_f64(&self) -> Option<f64> {
+        NumCast::from(self.0)
+    }
+}
+
 // sinc function: the ideal sampling filter.
 fn sinc(t: f32) -> f32 {
     let a = t * f32::consts::PI;
@@ -261,10 +277,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
+                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -344,10 +360,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(clamp(t1, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t2, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t3, 0.0, max)).unwrap(),
-                NumCast::from(clamp(t4, 0.0, max)).unwrap(),
+                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
             );
 
             out.put_pixel(x, outy, t);
@@ -869,5 +885,36 @@ mod tests {
             test::black_box(image.thumbnail(256, 256));
         });
         b.bytes = 193 * 193 * 4 + 256 * 256 * 4;
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn resize_transparent_image() {
+        use super::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Triangle};
+        use crate::imageops::crop_imm;
+        use crate::RgbaImage;
+
+        fn assert_resize(image: &RgbaImage, filter: FilterType) {
+            let resized = resize(image, 16, 16, filter);
+            let cropped = crop_imm(&resized, 5, 5, 6, 6).to_image();
+            for pixel in cropped.pixels() {
+                let alpha = pixel.0[3];
+                assert!(
+                    alpha != 254 && alpha != 253,
+                    format!("alpha value: {}, {:?}", alpha, filter)
+                );
+            }
+        }
+
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/png/transparency/tp1n3p08.png"
+        );
+        let img = crate::open(path).unwrap();
+        let rgba8 = img.as_rgba8().unwrap();
+        let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
+        for filter in filters {
+            assert_resize(rgba8, filter.clone());
+        }
     }
 }

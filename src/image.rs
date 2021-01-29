@@ -731,7 +731,7 @@ pub trait GenericImageView {
         x >= ix && x < ix + iw && y >= iy && y < iy + ih
     }
 
-    /// Returns the pixel located at (x, y)
+    /// Returns the pixel located at (x, y). Indexed from top left.
     ///
     /// # Panics
     ///
@@ -740,7 +740,7 @@ pub trait GenericImageView {
     /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
-    /// Returns the pixel located at (x, y)
+    /// Returns the pixel located at (x, y). Indexed from top left.
     ///
     /// This function can be implemented in a way that ignores bounds checking.
     /// # Safety
@@ -784,21 +784,21 @@ pub trait GenericImage: GenericImageView {
     /// indirections and it eases the use of nested SubImages.
     type InnerImage: GenericImage<Pixel = Self::Pixel>;
 
-    /// Gets a reference to the mutable pixel at location `(x, y)`
+    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
-    /// Put a pixel at location (x, y)
+    /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
-    /// Puts a pixel at location (x, y)
+    /// Puts a pixel at location (x, y). Indexed from top left.
     ///
     /// This function can be implemented in a way that ignores bounds checking.
     /// # Safety

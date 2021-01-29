@@ -56,6 +56,7 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## Images
+Individual pixels within images are indexed with (0,0) at the top left corner. 
 ### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.

@@ -693,6 +693,7 @@ where
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
     /// The iteration order is x = 0 to width then y = 0 to height
+    /// Starting from the top left.
     pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
         EnumeratePixels {
             pixels: self.pixels(),

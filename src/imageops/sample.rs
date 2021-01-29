@@ -107,7 +107,7 @@ pub(crate) struct Filter<'a> {
 
 struct FloatNearest(f32);
 
-// to_i64, to_u64, and to_f64 implicitly affects all other lower conversions.
+// to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
 // Note that to_f64 by default calls to_i64 and thus needs to be overridden.
 impl ToPrimitive for FloatNearest {
     fn to_i64(&self) -> Option<i64> {

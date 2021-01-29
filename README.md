@@ -56,6 +56,7 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## Images
+Individual pixels within images are indexed with (0,0) at the top left corner. 
 ### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
@@ -119,6 +120,7 @@ For convenience `DynamicImage` reimplements all image processing functions.
 
 #### [`SubImage`](https://docs.rs/image/*/image/struct.SubImage.html)
 A view into another image, delimited by the coordinates of a rectangle.
+The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
 ```rust

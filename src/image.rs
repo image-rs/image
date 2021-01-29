@@ -731,7 +731,7 @@ pub trait GenericImageView {
         x >= ix && x < ix + iw && y >= iy && y < iy + ih
     }
 
-    /// Returns the pixel located at (x, y)
+    /// Returns the pixel located at (x, y). Indexed from top left.
     ///
     /// # Panics
     ///
@@ -740,7 +740,7 @@ pub trait GenericImageView {
     /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
-    /// Returns the pixel located at (x, y)
+    /// Returns the pixel located at (x, y). Indexed from top left.
     ///
     /// This function can be implemented in a way that ignores bounds checking.
     /// # Safety
@@ -772,6 +772,7 @@ pub trait GenericImageView {
 
     /// Returns an subimage that is an immutable view into this image.
     /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
+    /// The coordinates set the position of the top left corner of the view.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
         SubImage::new(self.inner(), x, y, width, height)
     }
@@ -784,21 +785,21 @@ pub trait GenericImage: GenericImageView {
     /// indirections and it eases the use of nested SubImages.
     type InnerImage: GenericImage<Pixel = Self::Pixel>;
 
-    /// Gets a reference to the mutable pixel at location `(x, y)`
+    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
-    /// Put a pixel at location (x, y)
+    /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
-    /// Puts a pixel at location (x, y)
+    /// Puts a pixel at location (x, y). Indexed from top left.
     ///
     /// This function can be implemented in a way that ignores bounds checking.
     /// # Safety
@@ -898,6 +899,7 @@ pub trait GenericImage: GenericImageView {
 
     /// Returns a mutable subimage that is a view into this image.
     /// If you want an immutable subimage instead, use [`GenericImageView::view`]
+    /// The coordinates set the position of the top left corner of the SubImage.
     fn sub_image(
         &mut self,
         x: u32,
@@ -931,6 +933,7 @@ type DerefSubpixel<I> = <DerefPixel<I> as Pixel>::Subpixel;
 
 impl<I> SubImage<I> {
     /// Construct a new subimage
+    /// The coordinates set the position of the top left corner of the SubImage.
     pub fn new(image: I, x: u32, y: u32, width: u32, height: u32) -> SubImage<I> {
         SubImage {
             image,

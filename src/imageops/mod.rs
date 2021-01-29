@@ -30,6 +30,7 @@ pub mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
+/// The coordinates set the position of the top left corner of the crop.
 pub fn crop<I: GenericImageView>(
     image: &mut I,
     x: u32,
@@ -42,6 +43,7 @@ pub fn crop<I: GenericImageView>(
 }
 
 /// Return an immutable view into an image
+/// The coordinates set the position of the top left corner of the crop.
 pub fn crop_imm<I: GenericImageView>(
     image: &I,
     x: u32,

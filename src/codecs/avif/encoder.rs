@@ -15,7 +15,7 @@ use crate::error::{EncodingError, ParameterError, ParameterErrorKind, Unsupporte
 
 use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
 use num_traits::Zero;
-use ravif::{Img, ColorSpace, Config, RGBA8, encode_rgba};
+use ravif::{Img, Config, RGBA8, encode_rgba};
 use rgb::AsPixels;
 
 /// AVIF Encoder.
@@ -25,6 +25,28 @@ pub struct AvifEncoder<W> {
     inner: W,
     fallback: Vec<u8>,
     config: Config
+}
+
+/// An enumeration over supported AVIF color spaces
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ColorSpace {
+    /// sRGB colorspace
+    Srgb,
+    /// BT.709 colorspace
+    Bt709,
+
+    #[doc(hidden)]
+    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+}
+
+impl ColorSpace {
+    fn to_ravif(self) -> ravif::ColorSpace {
+        match self {
+            Self::Srgb => ravif::ColorSpace::RGB,
+            Self::Bt709 => ravif::ColorSpace::YCbCr,
+            Self::__NonExhaustive(marker) => match marker._private {},
+        }
+    }
 }
 
 impl<W: Write> AvifEncoder<W> {
@@ -49,9 +71,15 @@ impl<W: Write> AvifEncoder<W> {
                 alpha_quality: quality,
                 speed,
                 premultiplied_alpha: false,
-                color_space: ColorSpace::RGB,
+                color_space: ravif::ColorSpace::RGB,
             } 
         }
+    }
+
+    /// Encode with the specified `color_space`.
+    pub fn with_colorspace(mut self, color_space: ColorSpace) -> Self {
+        self.config.color_space = color_space.to_ravif();
+        self
     }
 
     /// Encode image data with the indicated color type.

@@ -58,12 +58,17 @@ hdr = ["scoped_threadpool"]
 dxt = []
 dds = ["dxt"]
 farbfeld = []
+
 # Enables multi-threading.
 # Requires latest stable Rust.
 jpeg_rayon = ["jpeg/rayon"]
-# Non-default, enables avif encoding.
+# Non-default, enables avif support.
 # Requires latest stable Rust.
-avif = ["mp4parse", "dav1d", "dcv-color-primitives", "ravif", "rgb"]
+avif = ["avif-encoder"]
+# Requires latest stable Rust and recent nasm (>= 2.14).
+avif-encoder = ["ravif", "rgb"]
+# Non-default, even in `avif`. Requires stable Rust and native dependency libdav1d.
+avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
 
 # Build some inline benchmarks. Useful only during development.
 # Requires rustc nightly for feature test.

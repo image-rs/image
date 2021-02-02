@@ -27,7 +27,7 @@ use crate::codecs::tiff;
 use crate::codecs::webp;
 #[cfg(feature = "farbfeld")]
 use crate::codecs::farbfeld;
-#[cfg(feature = "avif")]
+#[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
 use crate::codecs::avif;
 
 use crate::color;
@@ -59,7 +59,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
-        #[cfg(feature = "avif")]
+        #[cfg(feature = "avif-decoder")]
         image::ImageFormat::Avif => DynamicImage::from_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
         image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
@@ -107,7 +107,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
     // Default is unreachable if all features are supported.
     // Code after the match is unreachable if none are.
     Ok(match format {
-        #[cfg(feature = "avif")]
+        #[cfg(feature = "avif-decoder")]
         image::ImageFormat::Avif => avif::AvifDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "jpeg")]
         image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
@@ -193,7 +193,7 @@ pub(crate) fn save_buffer_with_format_impl(
         },
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "avif")]
+        #[cfg(feature = "avif-encoder")]
         image::ImageFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize

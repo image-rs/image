@@ -213,7 +213,7 @@ pub mod flat;
 ///
 /// Re-exports of dependencies that reach version `1` will be discussed when it happens.
 pub mod codecs {
-    #[cfg(feature = "avif")]
+    #[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
     pub mod avif;
     #[cfg(feature = "bmp")]
     pub mod bmp;
@@ -243,7 +243,7 @@ pub mod codecs {
     pub mod webp;
 }
 
-#[cfg(feature = "avif")]
+#[cfg(feature = "avif-encoder")]
 #[deprecated = "Use codecs::avif instead"]
 pub mod avif {
     //! Encoding of AVIF images.

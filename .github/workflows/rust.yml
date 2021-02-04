@@ -52,8 +52,20 @@ jobs:
         override: true
     - name: build
       run: cargo build -v --no-default-features --features="avif"
-    # We don't test this yet, as it requires libdav1d which isn't in ubuntu 20.04
-    # run: cargo build -v --no-default-features --features="avif-decoding"
+  test_avif_decoding:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: install-dependencies
+      run: sudo apt update && sudo apt install ninja-build meson nasm
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    - name: build
+      run: cargo build -v --no-default-features --features="avif-decoder"
+      env:
+        SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
   clippy:
     runs-on: ubuntu-latest
     steps:

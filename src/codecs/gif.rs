@@ -94,51 +94,61 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        let (f_width, f_height, left, top);
+        let frame = match self.reader.next_frame_info()
+            .map_err(ImageError::from_decoding)? {                
+            Some(frame) => FrameInfo::new_from_frame(frame),
+            None => {
+                return Err(ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::NoMoreData,
+                )))
+            }
+        };
 
-        if let Some(frame) = self.reader.next_frame_info().map_err(ImageError::from_decoding)? {
-            left = u32::from(frame.left);
-            top = u32::from(frame.top);
-            f_width = u32::from(frame.width);
-            f_height = u32::from(frame.height);
+        let (width, height) = self.dimensions();
+
+        if (frame.left, frame.top) == (0, 0) && (frame.width, frame.height) != self.dimensions() {
+            // If the frame matches the logical screen, directly read into it
+            self.reader.read_into_buffer(buf).map_err(ImageError::from_decoding)?;
         } else {
-            return Err(ImageError::Parameter(
-                ParameterError::from_kind(ParameterErrorKind::NoMoreData)
-            ));
-        }
+            // If the frame does not match the logical screen, read into an extra buffer
+            // and 'insert' the frame from left/top to logical screen width/height.
+            let mut frame_buffer = vec![0; self.reader.buffer_size()];
+            self.reader.read_into_buffer(&mut frame_buffer[..]).map_err(ImageError::from_decoding)?;
 
-        self.reader.read_into_buffer(buf).map_err(ImageError::from_decoding)?;
+            let frame_buffer = ImageBuffer::from_raw(frame.width, frame.height, frame_buffer);
+            let image_buffer = ImageBuffer::from_raw(width, height, buf);
 
-        let (width, height) = (u32::from(self.reader.width()), u32::from(self.reader.height()));
-        if (left, top) != (0, 0) || (width, height) != (f_width, f_height) {
-            // This is somewhat of an annoying case. The image we read into `buf` doesn't take up
-            // the whole buffer and now we need to properly insert borders. For simplicity this code
-            // currently takes advantage of the `ImageBuffer::from_fn` function to make a second
-            // ImageBuffer that is properly positioned, and then copies it back into `buf`.
-            //
-            // TODO: Implement this without any allocation.
-
-            // Recover the full image
-            let image_buffer = {
-                // See the comments inside `<GifFrameIterator as Iterator>::next` about
-                // the error handling of `from_raw`.
-                let image = ImageBuffer::from_raw(f_width, f_height, &mut *buf).ok_or_else(
-                    || ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+            // `buffer_size` uses wrapping arithmetics, thus might not report the
+            // correct storage requirement if the result does not fit in `usize`.
+            // `ImageBuffer::from_raw` detects overflow and reports by returning `None`.
+            if frame_buffer.is_none() || image_buffer.is_none() {
+                return Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
                         ImageFormat::Gif.into(),
-                        UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}, {}) are too large", f_width, f_height)))))?;
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Image dimensions ({}, {}) are too large",
+                            frame.width, frame.height
+                        )),
+                    ),
+                ));
+            }
 
-                ImageBuffer::from_fn(width, height, |x, y| {
-                    let x = x.wrapping_sub(left);
-                    let y = y.wrapping_sub(top);
-                    if x < image.width() && y < image.height() {
-                        *image.get_pixel(x, y)
-                    } else {
-                        Rgba([0, 0, 0, 0])
-                    }
-                })
-            };
-            buf.copy_from_slice(&image_buffer.into_raw());
+            let frame_buffer = frame_buffer.unwrap();
+            let mut image_buffer = image_buffer.unwrap();
+
+            for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
+                let frame_x = x.wrapping_sub(frame.left);
+                let frame_y = y.wrapping_sub(frame.top);
+
+                if frame_x < frame.width && frame_y < frame.height {
+                    *pixel = *frame_buffer.get_pixel(frame_x, frame_y);
+                } else {
+                    // this is only necessary in case the buffer is not zeroed
+                    *pixel = Rgba([0, 0, 0, 0]);
+                }
+            }
         }
+
         Ok(())
     }
 }
@@ -151,7 +161,6 @@ struct GifFrameIterator<R: Read> {
 
     non_disposed_frame: ImageBuffer<Rgba<u8>, Vec<u8>>,
 }
-
 
 impl<R: Read> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
@@ -174,32 +183,23 @@ impl<R: Read> GifFrameIterator<R> {
     }
 }
 
-
 impl<R: Read> Iterator for GifFrameIterator<R> {
     type Item = ImageResult<animation::Frame>;
 
     fn next(&mut self) -> Option<ImageResult<animation::Frame>> {
         // begin looping over each frame
-        let (left, top, delay, dispose, f_width, f_height);
 
-        match self.reader.next_frame_info() {
+        let frame = match self.reader.next_frame_info() {
             Ok(frame_info) => {
                 if let Some(frame) = frame_info {
-                    left = u32::from(frame.left);
-                    top = u32::from(frame.top);
-                    f_width = u32::from(frame.width);
-                    f_height = u32::from(frame.height);
-
-                    // frame.delay is in units of 10ms so frame.delay*10 is in ms
-                    delay = Ratio::new(u32::from(frame.delay) * 10, 1);
-                    dispose = frame.dispose;
+                    FrameInfo::new_from_frame(frame)
                 } else {
                     // no more frames
                     return None;
                 }
-            },
+            }
             Err(err) => return Some(Err(ImageError::from_decoding(err))),
-        }
+        };
 
         let mut vec = vec![0; self.reader.buffer_size()];
         if let Err(err) = self.reader.read_into_buffer(&mut vec) {
@@ -211,13 +211,18 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // correct storage requirement if the result does not fit in `usize`.
         // on the other hand, `ImageBuffer::from_raw` detects overflow and
         // reports by returning `None`.
-        let mut frame_buffer = match ImageBuffer::from_raw(f_width, f_height, vec) {
+        let mut frame_buffer = match ImageBuffer::from_raw(frame.width, frame.height, vec) {
             Some(frame_buffer) => frame_buffer,
             None => {
-                return Some(Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormat::Gif.into(),
-                    UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}, {}) are too large", f_width, f_height)),
-                ))))
+                return Some(Err(ImageError::Unsupported(
+                    UnsupportedError::from_format_and_kind(
+                        ImageFormat::Gif.into(),
+                        UnsupportedErrorKind::GenericFeature(format!(
+                            "Image dimensions ({}, {}) are too large",
+                            frame.width, frame.height
+                        )),
+                    ),
+                )))
             }
         };
 
@@ -253,22 +258,22 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         // if `frame_buffer`'s frame exactly matches the entire image, then
         // use it directly, else create a new buffer to hold the composited
         // image.
-        let image_buffer = if (left, top) == (0, 0)
+        let image_buffer = if (frame.left, frame.top) == (0, 0)
                 && (self.width, self.height) == frame_buffer.dimensions() {
             for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
                 let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
-                blend_and_dispose_pixel(dispose, previous_pixel, pixel);
+                blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
             }
             frame_buffer
         } else {
             ImageBuffer::from_fn(self.width, self.height, |x, y| {
-                let frame_x = x.wrapping_sub(left);
-                let frame_y = y.wrapping_sub(top);
+                let frame_x = x.wrapping_sub(frame.left);
+                let frame_y = y.wrapping_sub(frame.top);
                 let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
 
                 if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
                     let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
-                    blend_and_dispose_pixel(dispose, previous_pixel, &mut pixel);
+                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
                     pixel
                 } else {
                     // out of bounds, return pixel from previous frame
@@ -278,7 +283,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         };
 
         Some(Ok(animation::Frame::from_parts(
-            image_buffer, 0, 0, animation::Delay::from_ratio(delay),
+            image_buffer, 0,0, frame.delay,
         )))
     }
 }
@@ -286,6 +291,29 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
 impl<'a, R: Read + 'a> AnimationDecoder<'a> for GifDecoder<R> {
     fn into_frames(self) -> animation::Frames<'a> {
         animation::Frames::new(Box::new(GifFrameIterator::new(self)))
+    }
+}
+
+struct FrameInfo {
+    left: u32,
+    top: u32,
+    width: u32,
+    height: u32,
+    disposal_method: DisposalMethod,
+    delay: animation::Delay,
+}
+
+impl FrameInfo {
+    fn new_from_frame(frame: &Frame) -> FrameInfo {
+        FrameInfo {
+            left: u32::from(frame.left),
+            top: u32::from(frame.top),
+            width: u32::from(frame.width),
+            height: u32::from(frame.height),
+            disposal_method: frame.dispose,
+            // frame.delay is in units of 10ms so frame.delay*10 is in ms
+            delay: animation::Delay::from_ratio(Ratio::new(u32::from(frame.delay) * 10, 1)),
+        }
     }
 }
 
@@ -475,5 +503,28 @@ impl ImageError {
             err @ Format(_) => ImageError::Encoding(EncodingError::new(ImageFormat::Gif.into(), err)),
             Io(io_err) => ImageError::IoError(io_err),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn frames_exceeding_logical_screen_size() {
+        // This is a gif with 10x10 logical screen, but a 16x16 frame + 6px offset inside.
+        let data = vec![
+            0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x0A, 0x00, 0x0A, 0x00, 0xF0, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x0E, 0xFF, 0x1F, 0x21, 0xF9, 0x04, 0x09, 0x64, 0x00, 0x00, 0x00, 0x2C,
+            0x06, 0x00, 0x06, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x23, 0x84, 0x8F, 0xA9,
+            0xBB, 0xE1, 0xE8, 0x42, 0x8A, 0x0F, 0x50, 0x79, 0xAE, 0xD1, 0xF9, 0x7A, 0xE8, 0x71,
+            0x5B, 0x48, 0x81, 0x64, 0xD5, 0x91, 0xCA, 0x89, 0x4D, 0x21, 0x63, 0x89, 0x4C, 0x09,
+            0x77, 0xF5, 0x6D, 0x14, 0x00, 0x3B,
+        ];
+
+        let decoder = GifDecoder::new(Cursor::new(data)).unwrap();
+        let mut buf = vec![0u8; decoder.total_bytes() as usize];
+
+        assert!(decoder.read_image(&mut buf).is_ok());
     }
 }

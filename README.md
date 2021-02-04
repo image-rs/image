@@ -138,20 +138,20 @@ assert!(subimg.dimensions() == (100, 100));
 These are the functions defined in the `imageops` module. All functions operate on types that implement the `GenericImage` trait.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
-+ **brighten**: Brighten the supplied image
-+ **huerotate**: Hue rotate the supplied image by degrees
-+ **contrast**: Adjust the contrast of the supplied image
-+ **crop**: Return a mutable view into an image
++ **brighten**: Brighten the supplied image.
++ **huerotate**: Hue rotate the supplied image by degrees.
++ **contrast**: Adjust the contrast of the supplied image.
++ **crop**: Return a mutable view into an image.
 + **filter3x3**: Perform a 3x3 box filter on the supplied image.
-+ **flip_horizontal**: Flip an image horizontally
-+ **flip_vertical**: Flip an image vertically
-+ **grayscale**: Convert the supplied image to grayscale
++ **flip_horizontal**: Flip an image horizontally.
++ **flip_vertical**: Flip an image vertically.
++ **grayscale**: Convert the supplied image to grayscale.
 + **invert**: Invert each pixel within the supplied image This function operates in place.
-+ **resize**: Resize the supplied image to the specified dimensions
++ **resize**: Resize the supplied image to the specified dimensions. Note that this is very slow in debug mode. Make sure to use release mode when using this.
 + **rotate180**: Rotate an image 180 degrees clockwise.
 + **rotate270**: Rotate an image 270 degrees clockwise.
 + **rotate90**: Rotate an image 90 degrees clockwise.
-+ **unsharpen**: Performs an unsharpen mask on the supplied image
++ **unsharpen**: Performs an unsharpen mask on the supplied image.
 
 For more options, see the [`imageproc`](https://crates.io/crates/imageproc) crate.
 

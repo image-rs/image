@@ -10,6 +10,30 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.13
+
+- Fix an inconsistency in supported formats of different methods for encoding
+  an image.
+- Fix `thumbnail` choosing an empty image. It now always prefer non-empty image
+  dimensions.
+- Fix integer overflow in calculating requires bytes for decoded image buffers
+  for farbfeld, hdr, and pnm decoders. These will now error early.
+- Fix a panic decoding certain `jpeg` image without frames or meta data.
+- Optimized the `jpeg` encoder.
+- Optimized `GenericImage::copy_from` default impl in various cases.
+
+- Add `avif` decoders. You must enable it explicitly and it is not covered by
+  our usual MSRV policy of Rust 1.34. Instead, only latest stable is supported.
+- Add `ImageFormat::{can_read, can_write}`
+- Add `Frame::buffer_mut`
+- Add speed and quality options on `avif` encoder.
+- Add speed parameter to `gif` encoder.
+- Expose control over sequence repeat to the `gif` encoder.
+- Add `{contrast,brighten,huerotate}_in_place` functions in imageproc.
+
+- Relax `Default` impl of `ImageBuffer`, removing the bound on the color type.
+- Derive Debug, Hash, PartialEq, Eq for DynamicImage
+
 ### Version 0.23.12
 
 - Fix a soundness issue affecting the impls of `Pixel::from_slice_mut`. This
@@ -23,7 +47,7 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 - Fix re-exporting `png::{CompressionType, FilterType}` to maintain SemVer
   compatibility with the `0.23` releases.
 
-- Add ImageFormat::from_extension
+- Add `ImageFormat::from_extension`
 - Add copyless DynamicImage to byte slice/vec conversion.
 - Add bit-depth specific `into_` and `to_` DynamicImage conversion methods.
 

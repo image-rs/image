@@ -136,6 +136,7 @@ assert!(subimg.dimensions() == (100, 100));
 
 ## Image Processing Functions
 These are the functions defined in the `imageops` module. All functions operate on types that implement the `GenericImage` trait.
+Note that some of the functions are very slow in debug mode. Make sure to use release mode if you experience any performance issues.
 
 + **blur**: Performs a Gaussian blur on the supplied image.
 + **brighten**: Brighten the supplied image.
@@ -147,7 +148,7 @@ These are the functions defined in the `imageops` module. All functions operate 
 + **flip_vertical**: Flip an image vertically.
 + **grayscale**: Convert the supplied image to grayscale.
 + **invert**: Invert each pixel within the supplied image This function operates in place.
-+ **resize**: Resize the supplied image to the specified dimensions. Note that this is very slow in debug mode. Make sure to use release mode when using this.
++ **resize**: Resize the supplied image to the specified dimensions.
 + **rotate180**: Rotate an image 180 degrees clockwise.
 + **rotate270**: Rotate an image 270 degrees clockwise.
 + **rotate90**: Rotate an image 90 degrees clockwise.

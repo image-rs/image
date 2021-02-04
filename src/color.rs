@@ -91,6 +91,8 @@ impl ColorType {
 /// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum ExtendedColorType {
+    /// Pixel is 8-bit alpha
+    A8,
     /// Pixel is 1-bit luminance
     L1,
     /// Pixel is 1-bit luminance with an alpha channel
@@ -152,6 +154,7 @@ impl ExtendedColorType {
     /// an opaque datum by the library.
     pub fn channel_count(self) -> u8 {
         match self {
+            ExtendedColorType::A8 |
             ExtendedColorType::L1 |
             ExtendedColorType::L2 |
             ExtendedColorType::L4 |

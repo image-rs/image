@@ -54,6 +54,7 @@ pub struct TgaDecoder<R> {
 
     image_type: ImageType,
     color_type: ColorType,
+    original_color_type: Option<ExtendedColorType>,
 
     header: Header,
     color_map: Option<ColorMap>,
@@ -76,6 +77,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
 
             image_type: ImageType::Unknown,
             color_type: ColorType::L8,
+            original_color_type: None,
 
             header: Header::default(),
             color_map: None,
@@ -153,7 +155,11 @@ impl<R: Read + Seek> TgaDecoder<R> {
             (0, 24, true) => self.color_type = ColorType::Rgb8,
             (8, 8, false) => self.color_type = ColorType::La8,
             (0, 8, false) => self.color_type = ColorType::L8,
-            (8, 0, false) => self.color_type = ColorType::L8, // alpha-only image is treated as L8
+            (8, 0, false) => { 
+                // alpha-only image is treated as L8
+                self.color_type = ColorType::L8;
+                self.original_color_type = Some(ExtendedColorType::A8);
+            },
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -375,6 +381,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         self.color_type
+    }
+
+    fn original_color_type(&self) -> ExtendedColorType {
+        self.original_color_type.unwrap_or_else(|| self.color_type().into())
     }
 
     fn scanline_bytes(&self) -> u64 {

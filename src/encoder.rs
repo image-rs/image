@@ -439,7 +439,7 @@ impl<W: Write> Writer<W> {
                 let mut alldata = vec![0u8; 4 + MAX_fdAT_CHUNK_LEN as usize];
                 for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
                     alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
-                    alldata[4..].copy_from_slice(chunk);
+                    alldata[4..][..chunk.len()].copy_from_slice(chunk);
                     write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
                     fctl.sequence_number += 1;
                 }

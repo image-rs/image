@@ -365,8 +365,8 @@ impl<W: Write> Writer<W> {
 
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
-        const MAX_IDAT_CHUNK_LEN: u32 = (1u32 << 31) - 1;
-        const MAX_fdAT_CHUNK_LEN: u32 = u32::MAX - 4;
+        const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+        const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
 
         if self.info.color_type == ColorType::Indexed && self.info.palette.is_none() {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));

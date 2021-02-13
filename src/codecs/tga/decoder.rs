@@ -253,6 +253,13 @@ impl<R: Read + Seek> TgaDecoder<R> {
             }
         }
 
+        if pixel_data.len() > num_bytes {
+            // FIXME: the last packet contained more data than we asked for!
+            // This is at least a warning. We truncate the data since some methods rely on the
+            // length to be accurate in the success case.
+            pixel_data.truncate(num_bytes);
+        }
+
         Ok(pixel_data)
     }
 

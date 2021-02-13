@@ -186,6 +186,8 @@ impl<R: Read + Seek> TgaDecoder<R> {
 
     fn read_color_map(&mut self) -> ImageResult<()> {
         if self.header.map_type == 1 {
+            // FIXME: we could reverse the map entries, which avoids having to reverse all pixels
+            // in the final output individually.
             self.color_map = Some(ColorMap::from_reader(
                 &mut self.r,
                 self.header.map_origin,
@@ -291,11 +293,11 @@ impl<R: Read + Seek> TgaDecoder<R> {
     ///
     /// TGA files are stored in the BGRA encoding. This function swaps
     /// the blue and red bytes in the `pixels` array.
-    fn reverse_encoding(&mut self, pixels: &mut [u8]) {
+    fn reverse_encoding_in_output(&mut self, pixels: &mut [u8]) {
         // We only need to reverse the encoding of color images
         match self.color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
-                for chunk in pixels.chunks_mut(self.bytes_per_pixel) {
+                for chunk in pixels.chunks_mut(self.color_type.bytes_per_pixel().into()) {
                     chunk.swap(0, 2);
                 }
             }
@@ -361,7 +363,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
         if self.image_type.is_color_mapped() {
             pixel_data = self.expand_color_map(&pixel_data)
         }
-        self.reverse_encoding(&mut pixel_data);
+        self.reverse_encoding_in_output(&mut pixel_data);
 
         // copy to the output buffer
         buf[..pixel_data.len()].copy_from_slice(&pixel_data);
@@ -420,7 +422,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
             buf.copy_from_slice(&pixel_data);
         }
 
-        self.reverse_encoding(buf);
+        self.reverse_encoding_in_output(buf);
 
         self.flip_vertically(buf);
 

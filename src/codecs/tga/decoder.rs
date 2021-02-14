@@ -416,20 +416,29 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
+        // In indexed images, we might need more bytes than pixels to read them. That's nonsensical
+        // to encode but we'll not want to crash.
+        let mut fallback_buf = vec![];
         // read the pixels from the data region
-        let len = if self.image_type.is_encoded() {
+        let rawbuf = if self.image_type.is_encoded() {
             let pixel_data = self.read_all_encoded_data()?;
-            buf[0..pixel_data.len()].copy_from_slice(&pixel_data);
-            pixel_data.len()
+            buf[..pixel_data.len()].copy_from_slice(&pixel_data);
+            &buf[..pixel_data.len()]
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
-            self.r.by_ref().read_exact(&mut buf[0..num_raw_bytes])?;
-            num_raw_bytes
+            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {
+                self.r.by_ref().read_exact(&mut buf[..num_raw_bytes])?;
+                &buf[..num_raw_bytes]
+            } else {
+                fallback_buf.resize(num_raw_bytes, 0u8);
+                self.r.by_ref().read_exact(&mut fallback_buf[..num_raw_bytes])?;
+                &fallback_buf[..num_raw_bytes]
+            }
         };
 
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
-            let pixel_data = self.expand_color_map(&buf[0..len]);
+            let pixel_data = self.expand_color_map(rawbuf);
             buf.copy_from_slice(&pixel_data);
         }
 

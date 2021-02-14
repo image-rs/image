@@ -1436,7 +1436,7 @@ impl<R: Read> Vp8Decoder<R> {
                     i16::from(DCT_CAT_BASE[(category - DCT_CAT1) as usize]) + extra
                 }
 
-                c => panic!(format!("unknown token: {}", c)),
+                c => panic!("unknown token: {}", c),
             });
 
             skip = false;

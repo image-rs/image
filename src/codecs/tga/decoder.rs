@@ -432,8 +432,13 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         // read the pixels from the data region
         let rawbuf = if self.image_type.is_encoded() {
             let pixel_data = self.read_all_encoded_data()?;
-            buf[..pixel_data.len()].copy_from_slice(&pixel_data);
-            &buf[..pixel_data.len()]
+            if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {
+                buf[..pixel_data.len()].copy_from_slice(&pixel_data);
+                &buf[..pixel_data.len()]
+            } else {
+                fallback_buf = pixel_data;
+                &fallback_buf[..]
+            }
         } else {
             let num_raw_bytes = self.width * self.height * self.bytes_per_pixel;
             if self.bytes_per_pixel <= usize::from(self.color_type.bytes_per_pixel()) {

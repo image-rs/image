@@ -330,22 +330,3 @@ fn check_hdr_references() {
         assert_eq!(decoded, reference);
     }
 }
-
-/// Check that BMP files with large values could cause OOM issues are rejected.
-///
-/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
-#[test]
-fn bad_bmps() {
-    let path: PathBuf = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/images")
-        .join("*.bad_bmp");
-
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        let im = image::open(path);
-        assert!(im.is_err());
-    }
-}

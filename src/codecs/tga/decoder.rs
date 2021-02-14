@@ -320,6 +320,10 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// This function checks the bit, and if it's 0, flips the image vertically.
     fn flip_vertically(&mut self, pixels: &mut [u8]) {
         if self.is_flipped_vertically() {
+            if self.height == 0 {
+                return;
+            }
+
             let num_bytes = pixels.len();
 
             let width_bytes = num_bytes / self.height;

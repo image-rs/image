@@ -54,7 +54,7 @@ fn render_images() {
                 println!("UNSUPPORTED {}: {}", path.display(), e);
                 return;
             }
-            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
+            Err(err) => panic!("decoding of {:?} failed with: {}", path, err),
         };
         let mut crc = Crc32::new();
         crc.update(&*img);
@@ -161,7 +161,7 @@ fn check_references() {
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
             Err(image::ImageError::Unsupported(_)) => return,
-            Err(err) => panic!(format!("{}", err)),
+            Err(err) => panic!("{}", err),
         };
 
         let (filename, testsuite) = {
@@ -199,17 +199,17 @@ fn check_references() {
                         Ok(decoder) => decoder,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!(format!("decoding of {:?} failed with: {}", img_path, err))
+                            panic!("decoding of {:?} failed with: {}", img_path, err)
                         }
                     };
 
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
-                        Err(err) => panic!(format!(
+                        Err(err) => panic!(
                             "collecting frames of {:?} failed with: {}",
                             img_path, err
-                        )),
+                        ),
                     };
 
                     // Select a single frame
@@ -228,17 +228,17 @@ fn check_references() {
                         Ok(decoder) => decoder.apng(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!(format!("decoding of {:?} failed with: {}", img_path, err))
+                            panic!("decoding of {:?} failed with: {}", img_path, err)
                         }
                     };
 
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
-                        Err(err) => panic!(format!(
+                        Err(err) => panic!(
                             "collecting frames of {:?} failed with: {}",
                             img_path, err
-                        )),
+                        ),
                     };
 
                     // Select a single frame
@@ -262,7 +262,7 @@ fn check_references() {
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
                     Err(image::ImageError::Unsupported(_)) => return,
-                    Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
+                    Err(err) => panic!("decoding of {:?} failed with: {}", img_path, err),
                 };
             }
         }

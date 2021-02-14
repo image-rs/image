@@ -1467,7 +1467,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
+        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| Ok(()),
                          |s, buf| s.read_image_data(buf))?;
         self.reader.seek(SeekFrom::Start(start))?;
         Ok(())
@@ -1476,7 +1476,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
 
 #[cfg(test)]
 mod test {
-    use super::Bitfield;
+    use super::*;
 
     #[test]
     fn test_bitfield_len() {
@@ -1491,5 +1491,14 @@ mod test {
                 assert_eq!(read, calc);
             }
         }
+    }
+
+    #[test]
+    fn read_rect() {
+        let f = std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap();
+        let mut decoder = super::BmpDecoder::new(f).unwrap();
+
+        let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
+        decoder.read_rect(0, 0, 8, 8, &mut *buf).unwrap();
     }
 }

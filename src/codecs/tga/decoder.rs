@@ -37,9 +37,9 @@ impl ColorMap {
     }
 
     /// Get one entry from the color map
-    pub(crate) fn get(&self, index: usize) -> &[u8] {
+    pub(crate) fn get(&self, index: usize) -> Option<&[u8]> {
         let entry = self.start_offset + self.entry_size * index;
-        &self.bytes[entry..entry + self.entry_size]
+        self.bytes.get(entry..entry + self.entry_size)
     }
 }
 
@@ -199,7 +199,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     }
 
     /// Expands indices into its mapped color
-    fn expand_color_map(&self, pixel_data: &[u8]) -> Vec<u8> {
+    fn expand_color_map(&self, pixel_data: &[u8]) -> io::Result<Vec<u8>> {
         #[inline]
         fn bytes_to_index(bytes: &[u8]) -> usize {
             let mut result = 0usize;
@@ -212,14 +212,24 @@ impl<R: Read + Seek> TgaDecoder<R> {
         let bytes_per_entry = (self.header.map_entry_size as usize + 7) / 8;
         let mut result = Vec::with_capacity(self.width * self.height * bytes_per_entry);
 
-        let color_map = self.color_map.as_ref().unwrap();
+        if self.bytes_per_pixel == 0 {
+            return Err(io::ErrorKind::Other.into());
+        }
+
+        let color_map = self.color_map
+            .as_ref()
+            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
-            result.extend(color_map.get(index).iter().cloned());
+            if let Some(color) = color_map.get(index) {
+                result.extend(color.iter().cloned());
+            } else {
+                return Err(io::ErrorKind::Other.into());
+            }
         }
 
-        result
+        Ok(result)
     }
 
     /// Reads a run length encoded data for given number of bytes
@@ -372,7 +382,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
 
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
-            pixel_data = self.expand_color_map(&pixel_data)
+            pixel_data = self.expand_color_map(&pixel_data)?;
         }
         self.reverse_encoding_in_output(&mut pixel_data);
 
@@ -438,7 +448,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
 
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
-            let pixel_data = self.expand_color_map(rawbuf);
+            let pixel_data = self.expand_color_map(rawbuf)?;
             buf.copy_from_slice(&pixel_data);
         }
 

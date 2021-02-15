@@ -387,11 +387,34 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     let mut bytes_read = 0u64;
     let mut current_scanline = 0;
     let mut tmp = Vec::new();
+    let mut tmp_scanline = None;
 
     {
         // Read a range of the image starting from byte number `start` and continuing until byte
         // number `end`. Updates `current_scanline` and `bytes_read` appropiately.
-        let mut read_image_range = |start: u64, end: u64| -> ImageResult<()> {
+        let mut read_image_range = |mut start: u64, end: u64| -> ImageResult<()> {
+            // If the first scanline we need is already stored in the temporary buffer, then handle
+            // it first.
+            let target_scanline = start / scanline_bytes;
+            if tmp_scanline == Some(target_scanline) {
+                let position = target_scanline * scanline_bytes;
+                let offset = start.saturating_sub(position);
+                let len = (end - start)
+                    .min(scanline_bytes - offset)
+                    .min(end - position);
+
+                buf[(bytes_read as usize)..][..len as usize]
+                    .copy_from_slice(&tmp[offset as usize..][..len as usize]);
+                bytes_read += len;
+                start += len;
+
+                progress_callback(Progress {current: bytes_read, total: total_bytes});
+
+                if start == end {
+                    return Ok(());
+                }
+            }
+
             let target_scanline = start / scanline_bytes;
             if target_scanline != current_scanline {
                 seek_scanline(decoder, target_scanline)?;
@@ -407,6 +430,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
                 } else {
                     tmp.resize(scanline_bytes as usize, 0u8);
                     read_scanline(decoder, &mut tmp)?;
+                    tmp_scanline = Some(current_scanline);
 
                     let offset = start.saturating_sub(position);
                     let len = (end - start)
@@ -1184,6 +1208,45 @@ mod tests {
 
         }
     }
+
+    #[test]
+    fn test_load_rect_single_scanline() {
+        const DATA: [u8; 25] = [0,  1,  2,  3,  4,
+                                5,  6,  7,  8,  9,
+                                10, 11, 12, 13, 14,
+                                15, 16, 17, 18, 19,
+                                20, 21, 22, 23, 24];
+
+        struct MockDecoder;
+        impl<'a> ImageDecoder<'a> for MockDecoder {
+            type Reader = Box<dyn io::Read>;
+            fn dimensions(&self) -> (u32, u32) {(5, 5)}
+            fn color_type(&self) -> ColorType {  ColorType::L8 }
+            fn into_reader(self) -> ImageResult<Self::Reader> {unimplemented!()}
+            fn scanline_bytes(&self) -> u64 { 25 }
+        }
+
+        // Ensure that seek scanline is called only once.
+        let mut seeks = 0;
+        let seek_scanline = |_d: &mut MockDecoder, n: u64| -> io::Result<()> {
+            seeks += 1;
+            assert_eq!(n, 0);
+            assert_eq!(seeks, 1);
+            Ok(())
+        };
+
+        fn read_scanline(_m: &mut MockDecoder, buf: &mut [u8]) -> io::Result<()> {
+            buf.copy_from_slice(&DATA);
+            Ok(())
+        }
+
+        let mut output = [0; 26];
+        load_rect(1, 1, 2, 4, &mut output, |_|{},
+                    &mut MockDecoder,
+                    seek_scanline, read_scanline).unwrap();
+        assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
+    }
+
 
     #[test]
     fn test_image_format_from_path() {

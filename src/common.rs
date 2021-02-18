@@ -496,6 +496,8 @@ pub struct Info {
     ///
     /// Presence of this value also indicates that the image conforms to the SRGB color space.
     pub srgb: Option<SrgbRenderingIntent>,
+    /// The ICC profile for the image.
+    pub icc_profile: Option<Vec<u8>>,
 }
 
 impl Default for Info {
@@ -518,6 +520,7 @@ impl Default for Info {
             filter: InfoFilterType::Adaptive,
             source_chromaticities: None,
             srgb: None,
+            icc_profile: None,
         }
     }
 }

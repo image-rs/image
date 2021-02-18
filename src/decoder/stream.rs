@@ -636,6 +636,7 @@ impl StreamingDecoder {
             chunk::fcTL => self.parse_fctl(),
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
+            chunk::iCCP => self.parse_iccp(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
@@ -907,6 +908,49 @@ impl StreamingDecoder {
             info.srgb = Some(rendering_intent);
             info.source_gamma = Some(crate::srgb::substitute_gamma());
             info.source_chromaticities = Some(crate::srgb::substitute_chromaticities());
+            Ok(Decoded::Nothing)
+        }
+    }
+
+    fn parse_iccp(&mut self) -> Result<Decoded, DecodingError> {
+        if self.have_idat {
+            Err(DecodingError::Format(
+                FormatErrorInner::AfterIdat { kind: chunk::iCCP }.into(),
+            ))
+        } else {
+            let mut buf = &self.current_chunk.raw_bytes[..];
+
+            // read profile name
+            let _: u8 = buf.read_be()?;
+            for _ in 1..80 {
+                let raw: u8 = buf.read_be()?;
+                if raw == 0 {
+                    break;
+                }
+            }
+
+            match buf.read_be()? {
+                // compression method
+                0u8 => (),
+                n => {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::UnknownCompressionMethod(n).into(),
+                    ))
+                }
+            }
+
+            let mut profile = Vec::new();
+            let mut inflater = ZlibStream::new();
+            while !buf.is_empty() {
+                let consumed_bytes = inflater.decompress(buf, &mut profile)?;
+                if profile.len() > 8000000 {
+                    // TODO: this should use Limits.bytes
+                    return Err(DecodingError::LimitsExceeded);
+                }
+                buf = &buf[consumed_bytes..];
+            }
+
+            self.info.as_mut().unwrap().icc_profile = Some(profile);
             Ok(Decoded::Nothing)
         }
     }

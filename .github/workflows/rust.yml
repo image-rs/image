@@ -10,6 +10,7 @@ jobs:
       matrix:
         rust: ["1.34.2", stable, beta, nightly]
         os: [ubuntu-latest, windows-latest, macos-latest]
+        features: ["", "png-encoding"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
@@ -20,7 +21,22 @@ jobs:
     - name: build
       run: |
         cargo build --verbose
-        cargo doc --verbose
+  feature_check:
+    strategy:
+      matrix:
+        features: ["", "png-encoding", "png-encoding,benchmarks"]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: check
+      run: |
+        cargo check --tests --no-default-features --features="$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
   mips_cross:
     runs-on: ubuntu-latest
     steps:

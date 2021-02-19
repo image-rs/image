@@ -1,6 +1,3 @@
-extern crate crc32fast;
-extern crate deflate;
-
 use std::error;
 use std::fmt;
 use std::io::{self, Read, Write};

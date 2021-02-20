@@ -139,37 +139,27 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    pub fn new_animated(
-        w: W,
-        width: u32,
-        height: u32,
-        num_frames: u32,
-        num_plays: u32,
-        sep_def_img: bool,
-    ) -> Encoder<W> {
+    pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) {
         let actl = AnimationControl {
             num_frames,
             num_plays,
         };
         let fctl = FrameControl {
             sequence_number: 0,
-            width,
-            height,
+            width: self.info.width,
+            height: self.info.height,
             ..Default::default()
         };
-        let info = Info {
-            width,
-            height,
-            animation_control: Some(actl),
-            frame_control: Some(fctl),
-            ..Default::default()
-        };
-        Encoder {
-            w,
-            info,
-            filter: FilterType::default(),
-            adaptive_filter: AdaptiveFilterType::default(),
-            sep_def_img,
+        self.info.animation_control = Some(actl);
+        self.info.frame_control = Some(fctl);
+    }
+
+    pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
+        if self.info.animation_control.is_none() {
+            self.sep_def_img = sep_def_img;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 

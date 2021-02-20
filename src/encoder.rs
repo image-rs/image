@@ -426,7 +426,8 @@ impl<W: Write> Writer<W> {
                     self.write_chunk(chunk::IDAT, &chunk)?;
                 }
             } else {
-                let mut alldata = vec![0u8; 4 + MAX_fdAT_CHUNK_LEN as usize];
+                let buff_size = zlib_encoded.len().min(MAX_fdAT_CHUNK_LEN as usize);
+                let mut alldata = vec![0u8; 4 + buff_size];
                 for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
                     alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                     alldata[4..][..chunk.len()].copy_from_slice(chunk);

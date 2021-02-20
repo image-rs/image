@@ -289,7 +289,7 @@ pub struct Writer<W: Write> {
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
-    written: u32,
+    written: u64,
 }
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
@@ -363,8 +363,8 @@ impl<W: Write> Writer<W> {
         }
 
         let max = match self.info.animation_control {
-            Some(actl) if self.sep_def_img => actl.num_frames + 1,
-            Some(actl) => actl.num_frames,
+            Some(actl) if self.sep_def_img => actl.num_frames as u64 + 1,
+            Some(actl) => actl.num_frames as u64,
             None => 1,
         };
         if self.written > max {
@@ -419,7 +419,7 @@ impl<W: Write> Writer<W> {
             }
         } else if let Some(ref mut fctl) = self.info.frame_control {
             fctl.encode(&mut self.w)?;
-            fctl.sequence_number += 1;
+            fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
 
             if self.written == 0 {
                 for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
@@ -432,7 +432,7 @@ impl<W: Write> Writer<W> {
                     alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                     alldata[4..][..chunk.len()].copy_from_slice(chunk);
                     write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
-                    fctl.sequence_number += 1;
+                    fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
                 }
             }
         } else {
@@ -479,7 +479,8 @@ impl<W: Write> Writer<W> {
 
     pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
-            if width + fctl.x_offset > self.info.width || height + fctl.y_offset > self.info.height
+            if Some(width) > self.info.width.checked_sub(fctl.x_offset)
+                || Some(height) > self.info.height.checked_sub(fctl.y_offset)
             {
                 return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
             }
@@ -493,7 +494,9 @@ impl<W: Write> Writer<W> {
 
     pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
-            if fctl.width + x > self.info.width || fctl.height + y > self.info.height {
+            if Some(x) > self.info.width.checked_sub(fctl.width)
+                || Some(y) > self.info.height.checked_sub(fctl.height)
+            {
                 return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
             }
             fctl.x_offset = x;

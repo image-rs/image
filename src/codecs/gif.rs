@@ -318,7 +318,7 @@ impl FrameInfo {
 }
 
 /// Number of repetitions for a GIF animation
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Repeat {
     /// Finite number of repetitions
     Finite(u16),

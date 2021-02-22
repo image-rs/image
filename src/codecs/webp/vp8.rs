@@ -1259,11 +1259,9 @@ impl<R: Read> Vp8Decoder<R> {
     fn read_macroblock_header(&mut self, mbx: usize) -> ImageResult<(bool, MacroBlock)> {
         let mut mb = MacroBlock::default();
 
-        mb.segmentid = if self.segments_enabled && self.segments_update_map {
-            self.b
-                .read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0) as u8
-        } else {
-            0
+        if self.segments_enabled && self.segments_update_map {
+            mb.segmentid = self.b
+                .read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0) as u8;
         };
 
         let skip_coeff = if self.prob_skip_false.is_some() {

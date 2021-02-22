@@ -116,9 +116,20 @@ enum InnerDecoder<R: Read> {
 struct DirEntry {
     width: u8,
     height: u8,
+    // We ignore some header fields as they will be replicated in the PNG, BMP and they are not
+    // necessary for determining the best_entry.
+    #[allow(unused)]
     color_count: u8,
+    // Wikipedia has this to say:
+    // Although Microsoft's technical documentation states that this value must be zero, the icon
+    // encoder built into .NET (System.Drawing.Icon.Save) sets this value to 255. It appears that
+    // the operating system ignores this value altogether.
+    #[allow(unused)]
     reserved: u8,
 
+    // We ignore some header fields as they will be replicated in the PNG, BMP and they are not
+    // necessary for determining the best_entry.
+    #[allow(unused)]
     num_color_planes: u16,
     bits_per_pixel: u16,
 
@@ -148,32 +159,32 @@ fn read_entries<R: Read>(r: &mut R) -> ImageResult<Vec<DirEntry>> {
 }
 
 fn read_entry<R: Read>(r: &mut R) -> ImageResult<DirEntry> {
-    let mut entry = DirEntry::default();
-
-    entry.width = r.read_u8()?;
-    entry.height = r.read_u8()?;
-    entry.color_count = r.read_u8()?;
-    // Reserved value (not used)
-    entry.reserved = r.read_u8()?;
-
-    // This may be either the number of color planes (0 or 1), or the horizontal coordinate
-    // of the hotspot for CUR files.
-    entry.num_color_planes = r.read_u16::<LittleEndian>()?;
-    if entry.num_color_planes > 256 {
-        return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
-    }
-
-    // This may be either the bit depth (may be 0 meaning unspecified),
-    // or the vertical coordinate of the hotspot for CUR files.
-    entry.bits_per_pixel = r.read_u16::<LittleEndian>()?;
-    if entry.bits_per_pixel > 256 {
-        return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
-    }
-
-    entry.image_length = r.read_u32::<LittleEndian>()?;
-    entry.image_offset = r.read_u32::<LittleEndian>()?;
-
-    Ok(entry)
+    Ok(DirEntry {
+        width: r.read_u8()?,
+        height: r.read_u8()?,
+        color_count: r.read_u8()?,
+        reserved: r.read_u8()?,
+        num_color_planes: {
+            // This may be either the number of color planes (0 or 1), or the horizontal coordinate
+            // of the hotspot for CUR files.
+            let num = r.read_u16::<LittleEndian>()?;
+            if num > 256 {
+                return Err(DecoderError::IcoEntryTooManyPlanesOrHotspot.into());
+            }
+            num
+        },
+        bits_per_pixel: {
+            // This may be either the bit depth (may be 0 meaning unspecified),
+            // or the vertical coordinate of the hotspot for CUR files.
+            let num = r.read_u16::<LittleEndian>()?;
+            if num > 256 {
+                return Err(DecoderError::IcoEntryTooManyBitsPerPixelOrHotspot.into());
+            }
+            num
+        },
+        image_length: r.read_u32::<LittleEndian>()?,
+        image_offset: r.read_u32::<LittleEndian>()?,
+    })
 }
 
 /// Find the entry with the highest (color depth, size).

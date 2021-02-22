@@ -121,7 +121,7 @@ impl ImageFormat {
         fn inner(path: &Path) -> ImageResult<ImageFormat> {
             let exact_ext = path.extension();
             exact_ext
-                .and_then(|ext| ImageFormat::from_extension(ext))
+                .and_then(ImageFormat::from_extension)
                 .ok_or_else(|| {
                     let format_hint = match exact_ext {
                         None => ImageFormatHint::Unknown,

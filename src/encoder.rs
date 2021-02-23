@@ -1,6 +1,3 @@
-extern crate crc32fast;
-extern crate deflate;
-
 use std::error;
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -172,8 +169,8 @@ impl<W: Write> Encoder<W> {
     ///
     /// Accepts a `Compression` or any type that can transform into a `Compression`. Notably `deflate::Compression` and
     /// `deflate::CompressionOptions` which "just work".
-    pub fn set_compression<C: Into<Compression>>(&mut self, compression: C) {
-        self.info.compression = compression.into();
+    pub fn set_compression(&mut self, compression: Compression) {
+        self.info.compression = compression;
     }
 
     /// Set the used filter type.
@@ -286,7 +283,10 @@ impl<W: Write> Writer<W> {
                 .into(),
             ));
         }
-        let mut zlib = deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.clone());
+        let mut zlib = deflate::write::ZlibEncoder::new(
+            Vec::new(),
+            self.info.compression.clone().to_options(),
+        );
         let filter_method = self.filter;
         let adaptive_method = self.adaptive_filter;
         for line in data.chunks(in_len) {
@@ -436,7 +436,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
         let compression = writer.as_mut().info.compression.clone();
         let chunk_writer = ChunkWriter::new(writer, buf_len);
-        let zlib = deflate::write::ZlibEncoder::new(chunk_writer, compression);
+        let zlib = deflate::write::ZlibEncoder::new(chunk_writer, compression.to_options());
 
         StreamWriter {
             writer: zlib,
@@ -918,6 +918,22 @@ mod tests {
 
         fn flush(&mut self) -> io::Result<()> {
             self.w.flush()
+        }
+    }
+}
+
+/// Mod to encapsulate the converters depending on the `deflate` crate.
+///
+/// Since this only contains trait impls, there is no need to make this public, they are simply
+/// available when the mod is compiled as well.
+impl crate::common::Compression {
+    fn to_options(self) -> deflate::CompressionOptions {
+        match self {
+            Compression::Default => deflate::CompressionOptions::default(),
+            Compression::Fast => deflate::CompressionOptions::fast(),
+            Compression::Best => deflate::CompressionOptions::high(),
+            Compression::Huffman => deflate::CompressionOptions::huffman_only(),
+            Compression::Rle => deflate::CompressionOptions::rle(),
         }
     }
 }

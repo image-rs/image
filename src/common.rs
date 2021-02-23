@@ -748,35 +748,3 @@ impl fmt::Display for ParameterError {
         }
     }
 }
-
-/// Mod to encapsulate the converters depending on the `deflate` crate.
-///
-/// Since this only contains trait impls, there is no need to make this public, they are simply
-/// available when the mod is compiled as well.
-#[cfg(feature = "png-encoding")]
-mod deflate_convert {
-    extern crate deflate;
-    use super::Compression;
-
-    impl From<deflate::Compression> for Compression {
-        fn from(c: deflate::Compression) -> Self {
-            match c {
-                deflate::Compression::Default => Compression::Default,
-                deflate::Compression::Fast => Compression::Fast,
-                deflate::Compression::Best => Compression::Best,
-            }
-        }
-    }
-
-    impl From<Compression> for deflate::CompressionOptions {
-        fn from(c: Compression) -> Self {
-            match c {
-                Compression::Default => deflate::CompressionOptions::default(),
-                Compression::Fast => deflate::CompressionOptions::fast(),
-                Compression::Best => deflate::CompressionOptions::high(),
-                Compression::Huffman => deflate::CompressionOptions::huffman_only(),
-                Compression::Rle => deflate::CompressionOptions::rle(),
-            }
-        }
-    }
-}

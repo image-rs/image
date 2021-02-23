@@ -22,7 +22,6 @@
 //! ## Encoder
 //! ### Using the encoder
 //! ```no_run
-//! # #[cfg(feature = "png-encoding")] {
 //! // For reading and opening files
 //! use std::path::Path;
 //! use std::fs::File;
@@ -52,7 +51,6 @@
 //! # }
 //! ```
 //!
-//#![cfg_attr(test, feature(test))]
 
 #![forbid(unsafe_code)]
 
@@ -62,7 +60,6 @@ extern crate bitflags;
 pub mod chunk;
 mod common;
 mod decoder;
-#[cfg(feature = "png-encoding")]
 mod encoder;
 mod filter;
 mod srgb;
@@ -73,6 +70,5 @@ pub use crate::common::*;
 pub use crate::decoder::{
     Decoded, Decoder, DecodingError, Limits, OutputInfo, Reader, StreamingDecoder,
 };
-#[cfg(feature = "png-encoding")]
 pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
 pub use crate::filter::{AdaptiveFilterType, FilterType};

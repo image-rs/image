@@ -81,7 +81,7 @@ impl<R> TiffDecoder<R>
 
 fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
     match tiff::tags::SampleFormat::from_u16(sample_format) {
-        Some(tiff::tags::SampleFormat::Uint) => Ok({}),
+        Some(tiff::tags::SampleFormat::Uint) => Ok(()),
         Some(other) => {
             Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Tiff.into(),

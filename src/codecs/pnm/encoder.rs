@@ -661,12 +661,11 @@ impl<'a> TupleEncoding<'a> {
                 samples: FlatSamples::U16(samples),
             } => samples
                 .iter()
-                .map(|&sample| {
+                .try_for_each(|&sample| {
                     writer
                         .write_u16::<BigEndian>(sample)
                         .map_err(ImageError::IoError)
-                })
-                .collect(),
+                }),
 
             TupleEncoding::Ascii {
                 samples: FlatSamples::U8(samples),

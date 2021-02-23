@@ -67,18 +67,21 @@ jobs:
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
+    - name: install-dependencies
+      run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
         components: clippy
-    - name: Run clippy check
-      uses: actions-rs/cargo@v1
+    - uses: actions-rs/cargo@v1
       with:
-        command: clippy
+        args: clippy --all-features -- -D warnings
+      env:
+        SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest

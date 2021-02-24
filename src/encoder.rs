@@ -576,7 +576,7 @@ impl<W: Write> Writer<W> {
     ///
     // ??? TODO ???
     // - The next frame is the default image
-    pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
+    pub fn set_frame_dimension(&mut self, width: u32, height: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             if Some(width) > self.info.width.checked_sub(fctl.x_offset)
                 || Some(height) > self.info.height.checked_sub(fctl.y_offset)
@@ -629,7 +629,7 @@ impl<W: Write> Writer<W> {
     /// This method will return an error if the image is not animated.
     ///
     /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
-    pub fn reset_frame_dimesion(&mut self) -> Result<()> {
+    pub fn reset_frame_dimension(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.width = self.info.width - fctl.x_offset;
             fctl.height = self.info.height - fctl.y_offset;

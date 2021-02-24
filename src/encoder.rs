@@ -139,6 +139,15 @@ impl<W: Write> Encoder<W> {
         }
     }
 
+    /// Specify that the image is animated.
+    ///
+    /// `num_frames` controls how many frames the animation has, while
+    /// `num_plays` controls how many times the animation should be
+    /// repeaded until it stops, if it's zero then it will repeat
+    /// inifinitely
+    ///
+    /// !!! TODO !!!
+    /// This method returns an error if `num_frames` is 0.
     pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) {
         let actl = AnimationControl {
             num_frames,
@@ -250,18 +259,59 @@ impl<W: Write> Encoder<W> {
         self.adaptive_filter = adaptive_filter;
     }
 
-    /// Sets the dispose operation for each frame.
-    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+    /// Set the fraction of time every frame is going to be displayed, in seconds.
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`write_header`] is called. (see [`Writer::set_frame_delay`])*
+    ///
+    /// If the denominator is 0, it is to be treated as if it were 100
+    /// (that is, the numerator then specifies 1/100ths of a second).
+    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// as quickly as possible, though viewers may impose a reasonable lower bound.
+    ///
+    /// The default value is 0 for both the numerator and denominator.
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_frame_delay`]: struct.Writer#method.set_frame_delay
+    pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
-            fctl.delay_den = delay_den;
-            fctl.delay_num = delay_num;
+            fctl.delay_den = denominator;
+            fctl.delay_num = numerator;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 
-    /// Sets the blend operation for each frame.
+    /// Set the blend operation for every frame.
+    ///
+    /// The blend operation specifies whether the frame is to be alpha blended
+    /// into the current output buffer content, or whether it should completely
+    /// replace its region in the output buffer.
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`writer_header`] is called. (see [`Writer::set_blend_op`])*
+    ///
+    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that for the first frame the two blend modes are functionally
+    /// equivalent due to the clearing of the output buffer at the beginning
+    /// of each play.*
+    ///
+    /// The default value is [`BlendOp::Source`].
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`BlendOP`]: enum.BlendOp.html
+    /// [`BlendOP::Source`]: enum.BlendOp.html#variant.Source
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_blend_op`]: struct.Writer#method.set_blend_op
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.blend_op = op;
@@ -271,7 +321,31 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    /// Sets the dispose operation for each frame.
+    /// Set the dispose operation for every frame.
+    ///
+    /// The dispose operation specifies how the output buffer should be changed
+    /// at the end of the delay (before rendering the next frame)
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`writer_header`] is called (see [`Writer::set_dispose_op`])*
+    ///
+    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that if the first frame uses [`DisposeOp::Previous`]
+    /// it will be treated as [`DisposeOp::Background`].*
+    ///
+    /// The default value is [`DisposeOp::None`].
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`DisposeOp`]: ../common/enum.BlendOp.html
+    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
+    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
+    /// [`DisposeOp::None`]: ../common/enum.BlendOp.html#variant.None
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_dispose_op`]: struct.Writer#method.set_dispose_op
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.dispose_op = op;
@@ -442,7 +516,7 @@ impl<W: Write> Writer<W> {
         Ok(())
     }
 
-    /// Set the used filter type for the next frame.
+    /// Set the used filter type for the following frames.
     ///
     /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
     /// sample values based on the previous. For a potentially better compression ratio, at the
@@ -454,7 +528,7 @@ impl<W: Write> Writer<W> {
         self.filter = filter;
     }
 
-    /// Set the adaptive filter type for the next frame.
+    /// Set the adaptive filter type for the following frames.
     ///
     /// Adaptive filtering attempts to select the best filter for each line
     /// based on heuristics which minimize the file size for compression rather
@@ -466,17 +540,38 @@ impl<W: Write> Writer<W> {
         self.adaptive_filter = adaptive_filter;
     }
 
-    /// Sets the dispose operation for the next frame.
-    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+    /// Set the fraction of time the following frames are going to be displayed,
+    /// in seconds
+    ///
+    /// If the denominator is 0, it is to be treated as if it were 100
+    /// (that is, the numerator then specifies 1/100ths of a second).
+    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// as quickly as possible, though viewers may impose a reasonable lower bound.
+    ///
+    /// This method will return an error if the image is not animated.
+    pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
-            fctl.delay_den = delay_den;
-            fctl.delay_num = delay_num;
+            fctl.delay_den = denominator;
+            fctl.delay_num = numerator;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 
+    /// Set the dimension of the following frames.
+    ///
+    /// This function will return an error when:
+    /// - The image is not an animated;
+    ///
+    /// - The selected dimension, considering also the current frame position,
+    ///   goes outside the image boudries;
+    ///
+    /// !!! TODO !!!
+    /// - One or both the width and height are 0;
+    ///
+    // ??? TODO ???
+    // - The next frame is the default image
     pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             if Some(width) > self.info.width.checked_sub(fctl.x_offset)
@@ -492,6 +587,16 @@ impl<W: Write> Writer<W> {
         }
     }
 
+    /// Set the position of the following frames.
+    ///
+    /// An error will be returned if:
+    /// - The image is not animated;
+    ///
+    /// - The selected position, considering also the current frame dimension,
+    ///   goes outside the image boudries;
+    ///
+    // ??? TODO ???
+    // - The next frame is the default image
     pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             if Some(x) > self.info.width.checked_sub(fctl.width)
@@ -507,6 +612,15 @@ impl<W: Write> Writer<W> {
         }
     }
 
+    /// Set the frame dimension to occupy all the image, starting from
+    /// the current position.
+    ///
+    /// To reset the frame to the full image size [`reset_frame_position`]
+    /// should be called first.
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
     pub fn reset_frame_dimesion(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.width = self.info.width;
@@ -517,6 +631,13 @@ impl<W: Write> Writer<W> {
         }
     }
 
+    /// Set the frame position to (0, 0).
+    ///
+    /// Equivalent to calling [`set_frame_position(0, 0)`].
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`set_frame_position(0, 0)`]: struct.Writer.html#method.set_frame_position
     pub fn reset_frame_position(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.x_offset = 0;
@@ -527,7 +648,21 @@ impl<W: Write> Writer<W> {
         }
     }
 
-    /// Sets the blend operation for the next frame.
+    /// Set the blend operation for the following frames.
+    ///
+    /// The blend operation specifies whether the frame is to be alpha blended
+    /// into the current output buffer content, or whether it should completely
+    /// replace its region in the output buffer.
+    ///
+    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that for the first frame the two blend modes are functionally
+    /// equivalent due to the clearing of the output buffer at the beginning
+    /// of each play.*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`BlendOP`]: enum.BlendOp.html
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.blend_op = op;
@@ -537,7 +672,21 @@ impl<W: Write> Writer<W> {
         }
     }
 
-    /// Sets the dispose operation for the next frame.
+    /// Set the dispose operation for the following frames.
+    ///
+    /// The dispose operation specifies how the output buffer should be changed
+    /// at the end of the delay (before rendering the next frame)
+    ///
+    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that if the first frame uses [`DisposeOp::Previous`]
+    /// it will be treated as [`DisposeOp::Background`].*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`DisposeOp`]: ../common/enum.BlendOp.html
+    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
+    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
             fctl.dispose_op = op;

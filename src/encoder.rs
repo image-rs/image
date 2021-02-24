@@ -49,6 +49,7 @@ enum FormatErrorKind {
     NotAnimated,
     OutOfBounds,
     EndReached,
+    ZeroFrames,
 }
 
 impl error::Error for EncodingError {
@@ -78,6 +79,7 @@ impl fmt::Display for FormatError {
         match self.inner {
             ZeroWidth => write!(fmt, "Zero width not allowed"),
             ZeroHeight => write!(fmt, "Zero height not allowed"),
+            ZeroFrames => write!(fmt, "Zero frames not allowed"),
             InvalidColorCombination(depth, color) => write!(
                 fmt,
                 "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
@@ -146,9 +148,11 @@ impl<W: Write> Encoder<W> {
     /// repeaded until it stops, if it's zero then it will repeat
     /// inifinitely
     ///
-    /// !!! TODO !!!
     /// This method returns an error if `num_frames` is 0.
-    pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) {
+    pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) -> Result<()> {
+        if num_frames == 0 {
+            return Err(EncodingError::Format(FormatErrorKind::ZeroFrames.into()));
+        }
         let actl = AnimationControl {
             num_frames,
             num_plays,
@@ -161,6 +165,7 @@ impl<W: Write> Encoder<W> {
         };
         self.info.animation_control = Some(actl);
         self.info.frame_control = Some(fctl);
+        Ok(())
     }
 
     pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
@@ -567,7 +572,6 @@ impl<W: Write> Writer<W> {
     /// - The selected dimension, considering also the current frame position,
     ///   goes outside the image boudries;
     ///
-    /// !!! TODO !!!
     /// - One or both the width and height are 0;
     ///
     // ??? TODO ???
@@ -578,6 +582,10 @@ impl<W: Write> Writer<W> {
                 || Some(height) > self.info.height.checked_sub(fctl.y_offset)
             {
                 return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            } else if width == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroWidth.into()));
+            } else if height == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
             }
             fctl.width = width;
             fctl.height = height;
@@ -623,8 +631,8 @@ impl<W: Write> Writer<W> {
     /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
     pub fn reset_frame_dimesion(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.info.frame_control {
-            fctl.width = self.info.width;
-            fctl.height = self.info.height;
+            fctl.width = self.info.width - fctl.x_offset;
+            fctl.height = self.info.height - fctl.y_offset;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))

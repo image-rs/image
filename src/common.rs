@@ -472,7 +472,7 @@ pub enum InfoFilterType {
 
 /// PNG info struct
 #[derive(Clone, Debug)]
-pub struct Info {
+pub struct Info<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
     pub width: u32,
     pub height: u32,
     pub bit_depth: BitDepth,
@@ -480,12 +480,12 @@ pub struct Info {
     pub color_type: ColorType,
     pub interlaced: bool,
     /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
-    pub trns: Option<Vec<u8>>,
+    pub trns: Option<T>,
     pub pixel_dims: Option<PixelDimensions>,
     /// Gamma of the source system.
     pub source_gamma: Option<ScaledFloat>,
     /// The image's `PLTE` chunk, if present; contains the RGB channels (in that order) of the image's palettes, 3 bytes per entry (1 per channel).
-    pub palette: Option<Vec<u8>>,
+    pub palette: Option<P>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
@@ -497,11 +497,11 @@ pub struct Info {
     /// Presence of this value also indicates that the image conforms to the SRGB color space.
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
-    pub icc_profile: Option<Vec<u8>>,
+    pub icc_profile: Option<I>,
 }
 
-impl Default for Info {
-    fn default() -> Info {
+impl<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Default for Info<P, T, I> {
+    fn default() -> Info<P, T, I> {
         Info {
             width: 0,
             height: 0,
@@ -525,7 +525,7 @@ impl Default for Info {
     }
 }
 
-impl Info {
+impl<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Info<P, T, I> {
     /// Size of the image, width then height.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -609,11 +609,11 @@ impl Info {
         encoder::write_chunk(&mut w, chunk::IHDR, &data)?;
 
         if let Some(p) = &self.palette {
-            encoder::write_chunk(&mut w, chunk::PLTE, p)?;
+            encoder::write_chunk(&mut w, chunk::PLTE, p.as_ref())?;
         };
 
         if let Some(t) = &self.trns {
-            encoder::write_chunk(&mut w, chunk::tRNS, t)?;
+            encoder::write_chunk(&mut w, chunk::tRNS, t.as_ref())?;
         }
 
         // If specified, the sRGB information overrides the source gamma and chromaticities.

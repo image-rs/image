@@ -97,15 +97,15 @@ impl From<FormatErrorKind> for FormatError {
 }
 
 /// PNG Encoder
-pub struct Encoder<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
+pub struct Encoder<W: Write> {
     w: W,
-    info: Info<P, T, I>,
+    info: Info,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
 }
 
-impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Encoder<W, P, T, I> {
-    pub fn new(w: W, width: u32, height: u32) -> Encoder<W, P, T, I> {
+impl<W: Write> Encoder<W> {
+    pub fn new(w: W, width: u32, height: u32) -> Encoder<W> {
         let mut info = Info::default();
         info.width = width;
         info.height = height;
@@ -117,11 +117,11 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Encoder<W, P, T, 
         }
     }
 
-    pub fn set_palette(&mut self, palette: P) {
+    pub fn set_palette(&mut self, palette: Vec<u8>) {
         self.info.palette = Some(palette);
     }
 
-    pub fn set_trns(&mut self, trns: T) {
+    pub fn set_trns(&mut self, trns: Vec<u8>) {
         self.info.trns = Some(trns);
     }
 
@@ -147,7 +147,7 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Encoder<W, P, T, 
         self.info.srgb = Some(rendering_intent);
     }
 
-    pub fn write_header(self) -> Result<Writer<W, P, T, I>> {
+    pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(self.w, self.info, self.filter, self.adaptive_filter).init()
     }
 
@@ -199,9 +199,9 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Encoder<W, P, T, 
 }
 
 /// PNG writer
-pub struct Writer<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
+pub struct Writer<W: Write> {
     w: W,
-    info: Info<P, T, I>,
+    info: Info,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
 }
@@ -219,8 +219,8 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
     Ok(())
 }
 
-impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I> {
-    fn new(w: W, info: Info<P, T, I>, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W, P, T, I> {
+impl<W: Write> Writer<W> {
+    fn new(w: W, info: Info, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W> {
         Writer {
             w,
             info,
@@ -311,7 +311,7 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I
     ///
     /// This borrows the writer which allows for manually appending additional
     /// chunks after the image data has been written.
-    pub fn stream_writer(&mut self) -> StreamWriter<W, P, T, I> {
+    pub fn stream_writer(&mut self) -> StreamWriter<W> {
         self.stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
@@ -320,7 +320,7 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I
     /// See [`stream_writer`].
     ///
     /// [`stream_writer`]: #fn.stream_writer
-    pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<W, P, T, I> {
+    pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<W> {
         StreamWriter::new(ChunkOutput::Borrowed(self), size)
     }
 
@@ -329,7 +329,7 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I
     /// This allows you to create images that do not fit in memory. The default
     /// chunk size is 4K, use `stream_writer_with_size` to set another chunk
     /// size.
-    pub fn into_stream_writer(self) -> StreamWriter<'static, W, P, T, I> {
+    pub fn into_stream_writer(self) -> StreamWriter<'static, W> {
         self.into_stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
@@ -338,30 +338,30 @@ impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I
     /// See [`into_stream_writer`].
     ///
     /// [`into_stream_writer`]: #fn.into_stream_writer
-    pub fn into_stream_writer_with_size(self, size: usize) -> StreamWriter<'static, W, P, T, I> {
+    pub fn into_stream_writer_with_size(self, size: usize) -> StreamWriter<'static, W> {
         StreamWriter::new(ChunkOutput::Owned(self), size)
     }
 }
 
-impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for Writer<W, P, T, I> {
+impl<W: Write> Drop for Writer<W> {
     fn drop(&mut self) {
         let _ = self.write_chunk(chunk::IEND, &[]);
     }
 }
 
-struct ChunkWriter<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
-    writer: ChunkOutput<'a, W, P, T, I>,
+struct ChunkWriter<'a, W: Write> {
+    writer: ChunkOutput<'a, W>,
     buffer: Vec<u8>,
     index: usize,
 }
 
-enum ChunkOutput<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
-    Borrowed(&'a mut Writer<W, P, T, I>),
-    Owned(Writer<W, P, T, I>),
+enum ChunkOutput<'a, W: Write> {
+    Borrowed(&'a mut Writer<W>),
+    Owned(Writer<W>),
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> ChunkWriter<'a, W, P, T, I> {
-    fn new(writer: ChunkOutput<'a, W, P, T, I>, buf_len: usize) -> ChunkWriter<'a, W, P, T, I> {
+impl<'a, W: Write> ChunkWriter<'a, W> {
+    fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> ChunkWriter<'a, W> {
         ChunkWriter {
             writer,
             buffer: vec![0; buf_len],
@@ -370,8 +370,8 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> ChunkWriter<'
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> AsMut<Writer<W, P, T, I>> for ChunkOutput<'a, W, P, T, I> {
-    fn as_mut(&mut self) -> &mut Writer<W, P, T, I> {
+impl<'a, W: Write> AsMut<Writer<W>> for ChunkOutput<'a, W> {
+    fn as_mut(&mut self) -> &mut Writer<W> {
         match self {
             ChunkOutput::Borrowed(writer) => writer,
             ChunkOutput::Owned(writer) => writer,
@@ -379,7 +379,7 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> AsMut<Writer<
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for ChunkWriter<'a, W, P, T, I> {
+impl<'a, W: Write> Write for ChunkWriter<'a, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.buffer[self.index..])?;
         self.index += written;
@@ -405,7 +405,7 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for Chu
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for ChunkWriter<'a, W, P, T, I> {
+impl<'a, W: Write> Drop for ChunkWriter<'a, W> {
     fn drop(&mut self) {
         let _ = self.flush();
     }
@@ -415,8 +415,8 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for Chun
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
 /// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping.
-pub struct StreamWriter<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> {
-    writer: deflate::write::ZlibEncoder<ChunkWriter<'a, W, P, T, I>>,
+pub struct StreamWriter<'a, W: Write> {
+    writer: deflate::write::ZlibEncoder<ChunkWriter<'a, W>>,
     prev_buf: Vec<u8>,
     curr_buf: Vec<u8>,
     index: usize,
@@ -425,8 +425,8 @@ pub struct StreamWriter<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[
     adaptive_filter: AdaptiveFilterType,
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> StreamWriter<'a, W, P, T, I> {
-    fn new(mut writer: ChunkOutput<'a, W, P, T, I>, buf_len: usize) -> StreamWriter<'a, W, P, T, I> {
+impl<'a, W: Write> StreamWriter<'a, W> {
+    fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
         let bpp = writer.as_mut().info.bpp_in_prediction();
         let in_len = writer.as_mut().info.raw_row_length() - 1;
         let filter = writer.as_mut().filter;
@@ -456,7 +456,7 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> StreamWriter<
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for StreamWriter<'a, W, P, T, I> {
+impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.curr_buf[self.index..])?;
         self.index += written;
@@ -488,7 +488,7 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for Str
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for StreamWriter<'a, W, P, T, I> {
+impl<'a, W: Write> Drop for StreamWriter<'a, W> {
     fn drop(&mut self) {
         let _ = self.flush();
     }

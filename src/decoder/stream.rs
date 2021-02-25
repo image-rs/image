@@ -327,7 +327,7 @@ pub struct StreamingDecoder {
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
-    info: Option<Info<Vec<u8>, Vec<u8>, Vec<u8>>>,
+    info: Option<Info>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
     /// Stores where in decoding an `fdAT` chunk we are.
@@ -648,7 +648,7 @@ impl StreamingDecoder {
         }
     }
 
-    fn get_info_or_err(&self) -> Result<&Info<Vec<u8>, Vec<u8>, Vec<u8>>, DecodingError> {
+    fn get_info_or_err(&self) -> Result<&Info, DecodingError> {
         self.info
             .as_ref()
             .ok_or_else(|| DecodingError::Format(FormatErrorInner::MissingIhdr.into()))
@@ -1019,7 +1019,7 @@ impl StreamingDecoder {
     }
 }
 
-impl<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Info<P, T, I> {
+impl Info {
     fn validate(&self, fc: &FrameControl) -> Result<(), DecodingError> {
         // Validate mathematically: fc.width + fc.x_offset <= self.width
         let in_x_bounds = Some(fc.width) <= self.width.checked_sub(fc.x_offset);
@@ -1055,7 +1055,7 @@ impl Default for ChunkState {
 }
 
 #[inline(always)]
-pub fn get_info(d: &StreamingDecoder) -> Option<&Info<Vec<u8>, Vec<u8>, Vec<u8>>> {
+pub fn get_info(d: &StreamingDecoder) -> Option<&Info> {
     d.info.as_ref()
 }
 

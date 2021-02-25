@@ -259,7 +259,7 @@ impl<R: Read> ReadDecoder<R> {
         ))
     }
 
-    fn info(&self) -> Option<&Info<Vec<u8>, Vec<u8>, Vec<u8>>> {
+    fn info(&self) -> Option<&Info> {
         get_info(&self.decoder)
     }
 }
@@ -412,7 +412,7 @@ impl<R: Read> Reader<R> {
     /// Get information on the image.
     ///
     /// The structure will change as new frames of an animated image are decoded.
-    pub fn info(&self) -> &Info<Vec<u8>, Vec<u8>, Vec<u8>> {
+    pub fn info(&self) -> &Info {
         self.decoder.info().unwrap()
     }
 
@@ -809,7 +809,7 @@ impl SubframeInfo {
         }
     }
 
-    fn new<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(info: &Info<P, T, I>) -> Self {
+    fn new(info: &Info) -> Self {
         // The apng fctnl overrides width and height.
         // All other data is set by the main info struct.
         let (width, height) = if let Some(fc) = info.frame_control {
@@ -833,7 +833,7 @@ impl SubframeInfo {
     }
 }
 
-fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut [u8], info: &Info<P, T, I>) -> Result<(), DecodingError> {
+fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> {
     if let Some(palette) = info.palette.as_ref() {
         if let BitDepth::Sixteen = info.bit_depth {
             // This should have been caught earlier but let's check again. Can't hurt.
@@ -849,19 +849,19 @@ fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut 
             if let Some(ref trns) = info.trns {
                 utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
                     let (rgb, a) = (
-                        palette.as_ref()
+                        palette
                             .get(3 * i as usize..3 * i as usize + 3)
                             .unwrap_or(&black),
-                        trns.as_ref().get(i as usize).unwrap_or(&0xFF),
+                        *trns.get(i as usize).unwrap_or(&0xFF),
                     );
                     chunk[0] = rgb[0];
                     chunk[1] = rgb[1];
                     chunk[2] = rgb[2];
-                    chunk[3] = *a;
+                    chunk[3] = a;
                 });
             } else {
                 utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-                    let rgb = palette.as_ref()
+                    let rgb = palette
                         .get(3 * i as usize..3 * i as usize + 3)
                         .unwrap_or(&black);
                     chunk[0] = rgb[0];
@@ -878,7 +878,7 @@ fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut 
     }
 }
 
-fn expand_gray_u8<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut [u8], info: &Info<P, T, I>) {
+fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
     let rescale = true;
     let scaling_factor = if rescale {
         (255) / ((1u16 << info.bit_depth as u8) - 1) as u8
@@ -887,7 +887,7 @@ fn expand_gray_u8<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut [
     };
     if let Some(ref trns) = info.trns {
         utils::unpack_bits(buffer, 2, info.bit_depth as u8, |pixel, chunk| {
-            if pixel == trns.as_ref()[0] {
+            if pixel == trns[0] {
                 chunk[1] = 0
             } else {
                 chunk[1] = 0xFF

@@ -833,7 +833,10 @@ impl SubframeInfo {
     }
 }
 
-fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut [u8], info: &Info<P, T, I>) -> Result<(), DecodingError> {
+fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(
+    buffer: &mut [u8],
+    info: &Info<P, T, I>,
+) -> Result<(), DecodingError> {
     if let Some(palette) = info.palette.as_ref() {
         if let BitDepth::Sixteen = info.bit_depth {
             // This should have been caught earlier but let's check again. Can't hurt.
@@ -849,7 +852,8 @@ fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut 
             if let Some(ref trns) = info.trns {
                 utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
                     let (rgb, a) = (
-                        palette.as_ref()
+                        palette
+                            .as_ref()
                             .get(3 * i as usize..3 * i as usize + 3)
                             .unwrap_or(&black),
                         trns.as_ref().get(i as usize).unwrap_or(&0xFF),
@@ -861,7 +865,8 @@ fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut 
                 });
             } else {
                 utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
-                    let rgb = palette.as_ref()
+                    let rgb = palette
+                        .as_ref()
                         .get(3 * i as usize..3 * i as usize + 3)
                         .unwrap_or(&black);
                     chunk[0] = rgb[0];
@@ -878,7 +883,10 @@ fn expand_paletted<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut 
     }
 }
 
-fn expand_gray_u8<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(buffer: &mut [u8], info: &Info<P, T, I>) {
+fn expand_gray_u8<P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>>(
+    buffer: &mut [u8],
+    info: &Info<P, T, I>,
+) {
     let rescale = true;
     let scaling_factor = if rescale {
         (255) / ((1u16 << info.bit_depth as u8) - 1) as u8

@@ -220,7 +220,12 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
 }
 
 impl<W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Writer<W, P, T, I> {
-    fn new(w: W, info: Info<P, T, I>, filter: FilterType, adaptive_filter: AdaptiveFilterType) -> Writer<W, P, T, I> {
+    fn new(
+        w: W,
+        info: Info<P, T, I>,
+        filter: FilterType,
+        adaptive_filter: AdaptiveFilterType,
+    ) -> Writer<W, P, T, I> {
         Writer {
             w,
             info,
@@ -370,7 +375,9 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> ChunkWriter<'
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> AsMut<Writer<W, P, T, I>> for ChunkOutput<'a, W, P, T, I> {
+impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> AsMut<Writer<W, P, T, I>>
+    for ChunkOutput<'a, W, P, T, I>
+{
     fn as_mut(&mut self) -> &mut Writer<W, P, T, I> {
         match self {
             ChunkOutput::Borrowed(writer) => writer,
@@ -379,7 +386,9 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> AsMut<Writer<
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for ChunkWriter<'a, W, P, T, I> {
+impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write
+    for ChunkWriter<'a, W, P, T, I>
+{
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.buffer[self.index..])?;
         self.index += written;
@@ -405,7 +414,9 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for Chu
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for ChunkWriter<'a, W, P, T, I> {
+impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop
+    for ChunkWriter<'a, W, P, T, I>
+{
     fn drop(&mut self) {
         let _ = self.flush();
     }
@@ -426,7 +437,10 @@ pub struct StreamWriter<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[
 }
 
 impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> StreamWriter<'a, W, P, T, I> {
-    fn new(mut writer: ChunkOutput<'a, W, P, T, I>, buf_len: usize) -> StreamWriter<'a, W, P, T, I> {
+    fn new(
+        mut writer: ChunkOutput<'a, W, P, T, I>,
+        buf_len: usize,
+    ) -> StreamWriter<'a, W, P, T, I> {
         let bpp = writer.as_mut().info.bpp_in_prediction();
         let in_len = writer.as_mut().info.raw_row_length() - 1;
         let filter = writer.as_mut().filter;
@@ -456,7 +470,9 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> StreamWriter<
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for StreamWriter<'a, W, P, T, I> {
+impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write
+    for StreamWriter<'a, W, P, T, I>
+{
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.curr_buf[self.index..])?;
         self.index += written;
@@ -488,7 +504,9 @@ impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Write for Str
     }
 }
 
-impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop for StreamWriter<'a, W, P, T, I> {
+impl<'a, W: Write, P: AsRef<[u8]>, T: AsRef<[u8]>, I: AsRef<[u8]>> Drop
+    for StreamWriter<'a, W, P, T, I>
+{
     fn drop(&mut self) {
         let _ = self.flush();
     }

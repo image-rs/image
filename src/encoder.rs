@@ -1,8 +1,8 @@
-use std::{borrow::Cow, error};
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::result;
+use std::{borrow::Cow, error};
 
 use crc32fast::Hasher as Crc32;
 

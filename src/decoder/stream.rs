@@ -1,11 +1,11 @@
 extern crate crc32fast;
 
-use std::{borrow::Cow, cmp::min};
 use std::convert::From;
 use std::default::Default;
 use std::error;
 use std::fmt;
 use std::io;
+use std::{borrow::Cow, cmp::min};
 
 use crc32fast::Hasher as Crc32;
 

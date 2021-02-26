@@ -1,8 +1,8 @@
 mod stream;
 mod zlib;
 
-use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
+use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;

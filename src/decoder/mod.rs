@@ -1,7 +1,7 @@
 mod stream;
 mod zlib;
 
-use self::stream::{get_info, FormatErrorInner, CHUNCK_BUFFER_SIZE};
+use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -159,7 +159,7 @@ impl<R: Read> Decoder<R> {
     }
 
     /// Reads all meta data until the first IDAT chunk
-    pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
+    pub fn read_info(self) -> Result<(OutputInfo, Reader<'static, R>), DecodingError> {
         let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
         r.init()?;
 
@@ -203,13 +203,13 @@ impl<R: Read> Decoder<R> {
     }
 }
 
-struct ReadDecoder<R: Read> {
+struct ReadDecoder<'a, R: Read> {
     reader: BufReader<R>,
-    decoder: StreamingDecoder,
+    decoder: StreamingDecoder<'a>,
     at_eof: bool,
 }
 
-impl<R: Read> ReadDecoder<R> {
+impl<R: Read> ReadDecoder<'_, R> {
     /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
     /// into image_data.
     fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Option<Decoded>, DecodingError> {
@@ -260,15 +260,15 @@ impl<R: Read> ReadDecoder<R> {
     }
 
     fn info(&self) -> Option<&Info> {
-        get_info(&self.decoder)
+        self.decoder.info.as_ref()
     }
 }
 
 /// PNG reader (mostly high-level interface)
 ///
 /// Provides a high level that iterates over lines or whole images.
-pub struct Reader<R: Read> {
-    decoder: ReadDecoder<R>,
+pub struct Reader<'a, R: Read> {
+    decoder: ReadDecoder<'a, R>,
     bpp: BytesPerPixel,
     subframe: SubframeInfo,
     /// Number of frame control chunks read.
@@ -329,7 +329,7 @@ macro_rules! get_info(
     }
 );
 
-impl<R: Read> Reader<R> {
+impl<R: Read> Reader<'_, R> {
     /// Creates a new PNG reader
     fn new(r: R, d: StreamingDecoder, t: Transformations, limits: Limits) -> Reader<R> {
         Reader {

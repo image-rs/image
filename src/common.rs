@@ -1,7 +1,7 @@
 //! Common types shared between the encoder and decoder
 use crate::{chunk, encoder};
 use io::Write;
-use std::{convert::TryFrom, fmt, io};
+use std::{borrow::Cow, convert::TryFrom, fmt, io};
 
 /// Describes how a pixel is encoded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -472,7 +472,7 @@ pub enum InfoFilterType {
 
 /// PNG info struct
 #[derive(Clone, Debug)]
-pub struct Info {
+pub struct Info<'a> {
     pub width: u32,
     pub height: u32,
     pub bit_depth: BitDepth,
@@ -480,12 +480,12 @@ pub struct Info {
     pub color_type: ColorType,
     pub interlaced: bool,
     /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
-    pub trns: Option<Vec<u8>>,
+    pub trns: Option<Cow<'a, [u8]>>,
     pub pixel_dims: Option<PixelDimensions>,
     /// Gamma of the source system.
     pub source_gamma: Option<ScaledFloat>,
     /// The image's `PLTE` chunk, if present; contains the RGB channels (in that order) of the image's palettes, 3 bytes per entry (1 per channel).
-    pub palette: Option<Vec<u8>>,
+    pub palette: Option<Cow<'a, [u8]>>,
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
@@ -500,8 +500,8 @@ pub struct Info {
     pub icc_profile: Option<Vec<u8>>,
 }
 
-impl Default for Info {
-    fn default() -> Info {
+impl Default for Info<'_> {
+    fn default() -> Info<'static> {
         Info {
             width: 0,
             height: 0,
@@ -525,7 +525,7 @@ impl Default for Info {
     }
 }
 
-impl Info {
+impl Info<'_> {
     /// Size of the image, width then height.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)

@@ -1,5 +1,5 @@
 # PNG Decoder/Encoder
-[![Build Status](https://travis-ci.org/image-rs/image-png.svg?branch=master)](https://travis-ci.org/image-rs/image-png)
+[![Build Status](https://github.com/image-rs/image-png/workflows/Rust%20CI/badge.svg)](https://github.com/image-rs/image-png/actions)
 [![Documentation](https://docs.rs/png/badge.svg)](https://docs.rs/png)
 [![Crates.io](https://img.shields.io/crates/v/png.svg)](https://crates.io/crates/png)
 ![Lines of Code](https://tokei.rs/b1/github/image-rs/image-png)

@@ -302,7 +302,7 @@ impl AnimationControl {
 }
 
 /// The type and strength of applied compression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Compression {
     /// Default level
     Default,

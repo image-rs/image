@@ -159,7 +159,7 @@ impl<R: Read> Decoder<R> {
     }
 
     /// Reads all meta data until the first IDAT chunk
-    pub fn read_info(self) -> Result<(OutputInfo, Reader<'static, R>), DecodingError> {
+    pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
         let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
         r.init()?;
 
@@ -203,13 +203,13 @@ impl<R: Read> Decoder<R> {
     }
 }
 
-struct ReadDecoder<'a, R: Read> {
+struct ReadDecoder<R: Read> {
     reader: BufReader<R>,
-    decoder: StreamingDecoder<'a>,
+    decoder: StreamingDecoder,
     at_eof: bool,
 }
 
-impl<R: Read> ReadDecoder<'_, R> {
+impl<R: Read> ReadDecoder<R> {
     /// Returns the next decoded chunk. If the chunk is an ImageData chunk, its contents are written
     /// into image_data.
     fn decode_next(&mut self, image_data: &mut Vec<u8>) -> Result<Option<Decoded>, DecodingError> {
@@ -267,8 +267,8 @@ impl<R: Read> ReadDecoder<'_, R> {
 /// PNG reader (mostly high-level interface)
 ///
 /// Provides a high level that iterates over lines or whole images.
-pub struct Reader<'a, R: Read> {
-    decoder: ReadDecoder<'a, R>,
+pub struct Reader<R: Read> {
+    decoder: ReadDecoder<R>,
     bpp: BytesPerPixel,
     subframe: SubframeInfo,
     /// Number of frame control chunks read.
@@ -329,7 +329,7 @@ macro_rules! get_info(
     }
 );
 
-impl<R: Read> Reader<'_, R> {
+impl<R: Read> Reader<R> {
     /// Creates a new PNG reader
     fn new(r: R, d: StreamingDecoder, t: Transformations, limits: Limits) -> Reader<R> {
         Reader {

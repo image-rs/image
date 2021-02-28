@@ -321,13 +321,13 @@ impl From<DecodingError> for io::Error {
 }
 
 /// PNG StreamingDecoder (low-level interface)
-pub struct StreamingDecoder<'a> {
+pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
-    pub(crate) info: Option<Info<'a>>,
+    pub(crate) info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
     /// Stores where in decoding an `fdAT` chunk we are.
@@ -350,11 +350,11 @@ struct ChunkState {
     raw_bytes: Vec<u8>,
 }
 
-impl<'a> StreamingDecoder<'a> {
+impl StreamingDecoder {
     /// Creates a new StreamingDecoder
     ///
     /// Allocates the internal buffers.
-    pub fn new() -> StreamingDecoder<'static> {
+    pub fn new() -> StreamingDecoder {
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: ChunkState::default(),
@@ -1038,7 +1038,7 @@ impl Info<'_> {
     }
 }
 
-impl Default for StreamingDecoder<'_> {
+impl Default for StreamingDecoder {
     fn default() -> Self {
         Self::new()
     }

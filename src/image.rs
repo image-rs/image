@@ -10,6 +10,7 @@ use std::usize;
 use crate::ImageBuffer;
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError, ParameterErrorKind};
+use crate::io::Recorder;
 use crate::math::Rect;
 use crate::traits::Pixel;
 
@@ -558,6 +559,17 @@ pub trait ImageDecoder<'a>: Sized {
     /// be as few as 1 or as many as `total_bytes()`.
     fn scanline_bytes(&self) -> u64 {
         self.total_bytes()
+    }
+
+    /// Record auxiliary information.
+    /// For decoders that may encounter additional extra data, i.e. EXIF data that might be
+    /// discovered while reading the image, a `SharedRecorder` should be retrieved and data
+    /// recorded with it instead. All relevant information should be added before returning from
+    /// the `read_image` call.
+    fn metagram(&mut self, recorder: &mut Recorder) {
+        let (width, height) = self.dimensions();
+        recorder.dimensions(width, height);
+        recorder.color(self.original_color_type());
     }
 
     /// Returns all the bytes in the image.

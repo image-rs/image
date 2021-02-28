@@ -403,8 +403,8 @@ impl StreamingDecoder {
         Ok((len - buf.len(), Decoded::Nothing))
     }
 
-    fn next_state<'b>(
-        &'b mut self,
+    fn next_state<'a>(
+        &'a mut self,
         buf: &[u8],
         image_data: &mut Vec<u8>,
     ) -> Result<(usize, Decoded), DecodingError> {

@@ -6,13 +6,22 @@ use std::{borrow::Cow, error};
 
 use crc32fast::Hasher as Crc32;
 
-use crate::chunk::{self, ChunkType};
-use crate::common::{
-    BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
-    ScaledFloat,
-};
-use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::traits::WriteBytesExt;
+use crate::{
+    chunk::{self, ChunkType},
+    AnimationControl,
+};
+use crate::{
+    common::{
+        BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
+        ScaledFloat,
+    },
+    FrameControl,
+};
+use crate::{
+    filter::{filter, AdaptiveFilterType, FilterType},
+    BlendOp, DisposeOp,
+};
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -37,6 +46,10 @@ enum FormatErrorKind {
     NoPalette,
     // TODO: wait, what?
     WrittenTooMuch(usize),
+    NotAnimated,
+    OutOfBounds,
+    EndReached,
+    ZeroFrames,
 }
 
 impl error::Error for EncodingError {
@@ -66,6 +79,7 @@ impl fmt::Display for FormatError {
         match self.inner {
             ZeroWidth => write!(fmt, "Zero width not allowed"),
             ZeroHeight => write!(fmt, "Zero height not allowed"),
+            ZeroFrames => write!(fmt, "Zero frames not allowed"),
             InvalidColorCombination(depth, color) => write!(
                 fmt,
                 "Invalid combination of bit-depth '{:?}' and color-type '{:?}'",
@@ -73,6 +87,12 @@ impl fmt::Display for FormatError {
             ),
             NoPalette => write!(fmt, "can't write indexed image without palette"),
             WrittenTooMuch(index) => write!(fmt, "wrong data size, got {} bytes too many", index),
+            NotAnimated => write!(fmt, "not an animation"),
+            OutOfBounds => write!(
+                fmt,
+                "the dimension and position go over the frame boundaries"
+            ),
+            EndReached => write!(fmt, "all the frames have been already written"),
         }
     }
 }
@@ -102,18 +122,58 @@ pub struct Encoder<'a, W: Write> {
     info: Info<'a>,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
+    sep_def_img: bool,
 }
 
 impl<'a, W: Write> Encoder<'a, W> {
     pub fn new(w: W, width: u32, height: u32) -> Encoder<'static, W> {
-        let mut info = Info::default();
-        info.width = width;
-        info.height = height;
+        let info = Info {
+            width,
+            height,
+            ..Default::default()
+        };
         Encoder {
             w,
             info,
             filter: FilterType::default(),
             adaptive_filter: AdaptiveFilterType::default(),
+            sep_def_img: false,
+        }
+    }
+
+    /// Specify that the image is animated.
+    ///
+    /// `num_frames` controls how many frames the animation has, while
+    /// `num_plays` controls how many times the animation should be
+    /// repeaded until it stops, if it's zero then it will repeat
+    /// inifinitely
+    ///
+    /// This method returns an error if `num_frames` is 0.
+    pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) -> Result<()> {
+        if num_frames == 0 {
+            return Err(EncodingError::Format(FormatErrorKind::ZeroFrames.into()));
+        }
+        let actl = AnimationControl {
+            num_frames,
+            num_plays,
+        };
+        let fctl = FrameControl {
+            sequence_number: 0,
+            width: self.info.width,
+            height: self.info.height,
+            ..Default::default()
+        };
+        self.info.animation_control = Some(actl);
+        self.info.frame_control = Some(fctl);
+        Ok(())
+    }
+
+    pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
+        if self.info.animation_control.is_none() {
+            self.sep_def_img = sep_def_img;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 
@@ -153,6 +213,7 @@ impl<'a, W: Write> Encoder<'a, W> {
             PartialInfo::new(&self.info),
             self.filter,
             self.adaptive_filter,
+            self.sep_def_img,
         )
         .init(&self.info)
     }
@@ -202,6 +263,102 @@ impl<'a, W: Write> Encoder<'a, W> {
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
         self.adaptive_filter = adaptive_filter;
     }
+
+    /// Set the fraction of time every frame is going to be displayed, in seconds.
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`write_header`] is called. (see [`Writer::set_frame_delay`])*
+    ///
+    /// If the denominator is 0, it is to be treated as if it were 100
+    /// (that is, the numerator then specifies 1/100ths of a second).
+    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// as quickly as possible, though viewers may impose a reasonable lower bound.
+    ///
+    /// The default value is 0 for both the numerator and denominator.
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_frame_delay`]: struct.Writer#method.set_frame_delay
+    pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.delay_den = denominator;
+            fctl.delay_num = numerator;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the blend operation for every frame.
+    ///
+    /// The blend operation specifies whether the frame is to be alpha blended
+    /// into the current output buffer content, or whether it should completely
+    /// replace its region in the output buffer.
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`writer_header`] is called. (see [`Writer::set_blend_op`])*
+    ///
+    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that for the first frame the two blend modes are functionally
+    /// equivalent due to the clearing of the output buffer at the beginning
+    /// of each play.*
+    ///
+    /// The default value is [`BlendOp::Source`].
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`BlendOP`]: enum.BlendOp.html
+    /// [`BlendOP::Source`]: enum.BlendOp.html#variant.Source
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_blend_op`]: struct.Writer#method.set_blend_op
+    pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.blend_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the dispose operation for every frame.
+    ///
+    /// The dispose operation specifies how the output buffer should be changed
+    /// at the end of the delay (before rendering the next frame)
+    ///
+    /// *Note that this parameter can be set for each individual frame after
+    /// [`writer_header`] is called (see [`Writer::set_dispose_op`])*
+    ///
+    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that if the first frame uses [`DisposeOp::Previous`]
+    /// it will be treated as [`DisposeOp::Background`].*
+    ///
+    /// The default value is [`DisposeOp::None`].
+    ///
+    /// This method will return an error if the image is not animated.
+    /// (see [`set_animated`])
+    ///
+    /// [`DisposeOp`]: ../common/enum.BlendOp.html
+    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
+    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
+    /// [`DisposeOp::None`]: ../common/enum.BlendOp.html#variant.None
+    /// [`write_header`]: struct.Encoder.html#method.write_header
+    /// [`set_animated`]: struct.Encoder.html#method.set_animated
+    /// [`Writer::set_dispose_op`]: struct.Writer#method.set_dispose_op
+    pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.dispose_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
 }
 
 /// PNG writer
@@ -210,6 +367,8 @@ pub struct Writer<W: Write> {
     info: PartialInfo,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
+    sep_def_img: bool,
+    written: u64,
 }
 
 /// Contains the subset of attributes of [Info] needed for [Writer] to function
@@ -218,6 +377,8 @@ struct PartialInfo {
     height: u32,
     bit_depth: BitDepth,
     color_type: ColorType,
+    frame_control: Option<FrameControl>,
+    animation_control: Option<AnimationControl>,
     compression: Compression,
     has_palette: bool,
 }
@@ -229,39 +390,41 @@ impl PartialInfo {
             height: info.height,
             bit_depth: info.bit_depth,
             color_type: info.color_type,
+            frame_control: info.frame_control,
+            animation_control: info.animation_control,
             compression: info.compression,
             has_palette: info.palette.is_some(),
         }
     }
 
     fn bpp_in_prediction(&self) -> BytesPerPixel {
-        // Passthrough. Assume the partial data we
-        // have is enough to correctly compute the
-        // function
-        Info {
-            width: self.width,
-            height: self.height,
-            bit_depth: self.bit_depth,
-            color_type: self.color_type,
-            compression: self.compression,
-            ..Default::default()
-        }
-        .bpp_in_prediction()
+        // Passthrough
+        self.to_info().bpp_in_prediction()
     }
 
     fn raw_row_length(&self) -> usize {
-        // Passthrough. Assume the partial data we
-        // have is enough to correctly compute the
-        // function
+        // Passthrough
+        self.to_info().raw_row_length()
+    }
+
+    fn raw_row_length_from_width(&self, width: u32) -> usize {
+        // Passthrough
+        self.to_info().raw_row_length_from_width(width)
+    }
+
+    /// Converts this partial info to an owned Info struct,
+    /// setting missing values to their defaults
+    fn to_info(&self) -> Info<'static> {
         Info {
             width: self.width,
             height: self.height,
             bit_depth: self.bit_depth,
             color_type: self.color_type,
+            frame_control: self.frame_control,
+            animation_control: self.animation_control,
             compression: self.compression,
             ..Default::default()
         }
-        .raw_row_length()
     }
 }
 
@@ -284,12 +447,15 @@ impl<W: Write> Writer<W> {
         info: PartialInfo,
         filter: FilterType,
         adaptive_filter: AdaptiveFilterType,
+        sep_def_img: bool,
     ) -> Writer<W> {
         Writer {
             w,
             info,
             filter,
             adaptive_filter,
+            sep_def_img,
+            written: 0,
         }
     }
 
@@ -302,7 +468,6 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
         }
 
-        // TODO: this could yield the typified BytesPerPixel.
         if self
             .info
             .color_type
@@ -314,7 +479,7 @@ impl<W: Write> Writer<W> {
             ));
         }
 
-        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?;
+        self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
         info.encode(&mut self.w)?;
 
         Ok(self)
@@ -326,18 +491,34 @@ impl<W: Write> Writer<W> {
 
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
-        const MAX_CHUNK_LEN: u32 = (1u32 << 31) - 1;
+        const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+        const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
 
         if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
-        let bpp = self.info.bpp_in_prediction();
-        let in_len = self.info.raw_row_length() - 1;
-        let prev = vec![0; in_len];
-        let mut prev = prev.as_slice();
-        let mut current = vec![0; in_len];
-        let data_size = in_len * self.info.height as usize;
+        let max = match self.info.animation_control {
+            Some(actl) if self.sep_def_img => actl.num_frames as u64 + 1,
+            Some(actl) => actl.num_frames as u64,
+            None => 1,
+        };
+        if self.written > max {
+            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
+        }
+
+        let width: usize;
+        let height: usize;
+        if let Some(ref mut fctl) = self.info.frame_control {
+            width = fctl.width as usize;
+            height = fctl.height as usize;
+        } else {
+            width = self.info.width as usize;
+            height = self.info.height as usize;
+        }
+
+        let in_len = self.info.raw_row_length_from_width(width as u32) - 1;
+        let data_size = in_len * height;
         if data_size != data.len() {
             return Err(EncodingError::Parameter(
                 ParameterErrorKind::ImageBufferSize {
@@ -347,10 +528,16 @@ impl<W: Write> Writer<W> {
                 .into(),
             ));
         }
+
+        let prev = vec![0; in_len];
+        let mut prev = prev.as_slice();
+        let mut current = vec![0; in_len];
+
         let mut zlib = deflate::write::ZlibEncoder::new(
             Vec::new(),
             self.info.compression.clone().to_options(),
         );
+        let bpp = self.info.bpp_in_prediction();
         let filter_method = self.filter;
         let adaptive_method = self.adaptive_filter;
         for line in data.chunks(in_len) {
@@ -361,10 +548,217 @@ impl<W: Write> Writer<W> {
             prev = line;
         }
         let zlib_encoded = zlib.finish()?;
-        for chunk in zlib_encoded.chunks(MAX_CHUNK_LEN as usize) {
-            self.write_chunk(chunk::IDAT, &chunk)?;
+        if self.sep_def_img || self.info.frame_control.is_none() {
+            self.sep_def_img = false;
+            for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
+                self.write_chunk(chunk::IDAT, &chunk)?;
+            }
+        } else if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.encode(&mut self.w)?;
+            fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+
+            if self.written == 0 {
+                for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
+                    self.write_chunk(chunk::IDAT, &chunk)?;
+                }
+            } else {
+                let buff_size = zlib_encoded.len().min(MAX_fdAT_CHUNK_LEN as usize);
+                let mut alldata = vec![0u8; 4 + buff_size];
+                for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
+                    alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                    alldata[4..][..chunk.len()].copy_from_slice(chunk);
+                    write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
+                    fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+                }
+            }
+        } else {
+            unreachable!(); // this should be unreachable
         }
+        self.written += 1;
         Ok(())
+    }
+
+    /// Set the used filter type for the following frames.
+    ///
+    /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
+    /// sample values based on the previous. For a potentially better compression ratio, at the
+    /// cost of more complex processing, try out [`FilterType::Paeth`].
+    ///
+    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
+    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
+    pub fn set_filter(&mut self, filter: FilterType) {
+        self.filter = filter;
+    }
+
+    /// Set the adaptive filter type for the following frames.
+    ///
+    /// Adaptive filtering attempts to select the best filter for each line
+    /// based on heuristics which minimize the file size for compression rather
+    /// than use a single filter for the entire image. The default method is
+    /// [`AdaptiveFilterType::NonAdaptive`].
+    ///
+    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
+    pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
+        self.adaptive_filter = adaptive_filter;
+    }
+
+    /// Set the fraction of time the following frames are going to be displayed,
+    /// in seconds
+    ///
+    /// If the denominator is 0, it is to be treated as if it were 100
+    /// (that is, the numerator then specifies 1/100ths of a second).
+    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// as quickly as possible, though viewers may impose a reasonable lower bound.
+    ///
+    /// This method will return an error if the image is not animated.
+    pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.delay_den = denominator;
+            fctl.delay_num = numerator;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the dimension of the following frames.
+    ///
+    /// This function will return an error when:
+    /// - The image is not an animated;
+    ///
+    /// - The selected dimension, considering also the current frame position,
+    ///   goes outside the image boudries;
+    ///
+    /// - One or both the width and height are 0;
+    ///
+    // ??? TODO ???
+    // - The next frame is the default image
+    pub fn set_frame_dimension(&mut self, width: u32, height: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            if Some(width) > self.info.width.checked_sub(fctl.x_offset)
+                || Some(height) > self.info.height.checked_sub(fctl.y_offset)
+            {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            } else if width == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroWidth.into()));
+            } else if height == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
+            }
+            fctl.width = width;
+            fctl.height = height;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the position of the following frames.
+    ///
+    /// An error will be returned if:
+    /// - The image is not animated;
+    ///
+    /// - The selected position, considering also the current frame dimension,
+    ///   goes outside the image boudries;
+    ///
+    // ??? TODO ???
+    // - The next frame is the default image
+    pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            if Some(x) > self.info.width.checked_sub(fctl.width)
+                || Some(y) > self.info.height.checked_sub(fctl.height)
+            {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            }
+            fctl.x_offset = x;
+            fctl.y_offset = y;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the frame dimension to occupy all the image, starting from
+    /// the current position.
+    ///
+    /// To reset the frame to the full image size [`reset_frame_position`]
+    /// should be called first.
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
+    pub fn reset_frame_dimension(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.width = self.info.width - fctl.x_offset;
+            fctl.height = self.info.height - fctl.y_offset;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the frame position to (0, 0).
+    ///
+    /// Equivalent to calling [`set_frame_position(0, 0)`].
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`set_frame_position(0, 0)`]: struct.Writer.html#method.set_frame_position
+    pub fn reset_frame_position(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.x_offset = 0;
+            fctl.y_offset = 0;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the blend operation for the following frames.
+    ///
+    /// The blend operation specifies whether the frame is to be alpha blended
+    /// into the current output buffer content, or whether it should completely
+    /// replace its region in the output buffer.
+    ///
+    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that for the first frame the two blend modes are functionally
+    /// equivalent due to the clearing of the output buffer at the beginning
+    /// of each play.*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`BlendOP`]: enum.BlendOp.html
+    pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.blend_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Set the dispose operation for the following frames.
+    ///
+    /// The dispose operation specifies how the output buffer should be changed
+    /// at the end of the delay (before rendering the next frame)
+    ///
+    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that if the first frame uses [`DisposeOp::Previous`]
+    /// it will be treated as [`DisposeOp::Background`].*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`DisposeOp`]: ../common/enum.BlendOp.html
+    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
+    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
+    pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.info.frame_control {
+            fctl.dispose_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
     }
 
     /// Create a stream writer.
@@ -576,7 +970,7 @@ mod tests {
                 .unwrap()
                 .map(|r| r.unwrap())
             {
-                if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
+                if path.file_name().unwrap().to_str().unwrap().starts_with('x') {
                     // x* files are expected to fail to decode
                     continue;
                 }
@@ -623,7 +1017,7 @@ mod tests {
                 .unwrap()
                 .map(|r| r.unwrap())
             {
-                if path.file_name().unwrap().to_str().unwrap().starts_with("x") {
+                if path.file_name().unwrap().to_str().unwrap().starts_with('x') {
                     // x* files are expected to fail to decode
                     continue;
                 }
@@ -669,7 +1063,7 @@ mod tests {
 
     #[test]
     fn image_palette() -> Result<()> {
-        for bit_depth in vec![1u8, 2, 4, 8] {
+        for &bit_depth in &[1u8, 2, 4, 8] {
             // Do a reference decoding, choose a fitting palette image from pngsuite
             let path = format!("tests/pngsuite/basn3p0{}.png", bit_depth);
             let decoder = Decoder::new(File::open(&path).unwrap());

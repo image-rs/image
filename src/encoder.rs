@@ -1,27 +1,19 @@
-use std::fmt;
-use std::io::{self, Read, Write};
-use std::mem;
-use std::result;
-use std::{borrow::Cow, error};
+use borrow::Cow;
+use hash::Hasher;
+use io::{Read, Write};
+use ops::{Deref, DerefMut};
+use std::{borrow, error, fmt, hash, io, mem, ops, result};
 
 use crc32fast::Hasher as Crc32;
+use deflate::write::ZlibEncoder;
 
+use crate::chunk::{self, ChunkType};
+use crate::common::{
+    AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
+    FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
+};
+use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::traits::WriteBytesExt;
-use crate::{
-    chunk::{self, ChunkType},
-    AnimationControl,
-};
-use crate::{
-    common::{
-        BitDepth, BytesPerPixel, ColorType, Compression, Info, ParameterError, ParameterErrorKind,
-        ScaledFloat,
-    },
-    FrameControl,
-};
-use crate::{
-    filter::{filter, AdaptiveFilterType, FilterType},
-    BlendOp, DisposeOp,
-};
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -489,6 +481,14 @@ impl<W: Write> Writer<W> {
         write_chunk(&mut self.w, name, data)
     }
 
+    fn max_frames(&self) -> u64 {
+        match self.info.animation_control {
+            Some(a) if self.sep_def_img => a.num_frames as u64 + 1,
+            Some(a) => a.num_frames as u64,
+            None => 1,
+        }
+    }
+
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
         const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
@@ -498,12 +498,7 @@ impl<W: Write> Writer<W> {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
-        let max = match self.info.animation_control {
-            Some(actl) if self.sep_def_img => actl.num_frames as u64 + 1,
-            Some(actl) => actl.num_frames as u64,
-            None => 1,
-        };
-        if self.written > max {
+        if self.written > self.max_frames() {
             return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
         }
 
@@ -769,7 +764,7 @@ impl<W: Write> Writer<W> {
     ///
     /// This borrows the writer which allows for manually appending additional
     /// chunks after the image data has been written.
-    pub fn stream_writer(&mut self) -> StreamWriter<'_, W> {
+    pub fn stream_writer(&mut self) -> Result<StreamWriter<W>> {
         self.stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
@@ -778,7 +773,7 @@ impl<W: Write> Writer<W> {
     /// See [`stream_writer`].
     ///
     /// [`stream_writer`]: #fn.stream_writer
-    pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<'_, W> {
+    pub fn stream_writer_with_size(&mut self, size: usize) -> Result<StreamWriter<W>> {
         StreamWriter::new(ChunkOutput::Borrowed(self), size)
     }
 
@@ -787,7 +782,7 @@ impl<W: Write> Writer<W> {
     /// This allows you to create images that do not fit in memory. The default
     /// chunk size is 4K, use `stream_writer_with_size` to set another chunk
     /// size.
-    pub fn into_stream_writer(self) -> StreamWriter<'static, W> {
+    pub fn into_stream_writer(self) -> Result<StreamWriter<'static, W>> {
         self.into_stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
@@ -796,7 +791,7 @@ impl<W: Write> Writer<W> {
     /// See [`into_stream_writer`].
     ///
     /// [`into_stream_writer`]: #fn.into_stream_writer
-    pub fn into_stream_writer_with_size(self, size: usize) -> StreamWriter<'static, W> {
+    pub fn into_stream_writer_with_size(self, size: usize) -> Result<StreamWriter<'static, W>> {
         StreamWriter::new(ChunkOutput::Owned(self), size)
     }
 }
@@ -807,29 +802,16 @@ impl<W: Write> Drop for Writer<W> {
     }
 }
 
-struct ChunkWriter<'a, W: Write> {
-    writer: ChunkOutput<'a, W>,
-    buffer: Vec<u8>,
-    index: usize,
-}
-
 enum ChunkOutput<'a, W: Write> {
     Borrowed(&'a mut Writer<W>),
     Owned(Writer<W>),
 }
 
-impl<'a, W: Write> ChunkWriter<'a, W> {
-    fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> ChunkWriter<'a, W> {
-        ChunkWriter {
-            writer,
-            buffer: vec![0; buf_len],
-            index: 0,
-        }
-    }
-}
+// opted for deref for practical reasons
+impl<'a, W: Write> Deref for ChunkOutput<'a, W> {
+    type Target = Writer<W>;
 
-impl<'a, W: Write> AsMut<Writer<W>> for ChunkOutput<'a, W> {
-    fn as_mut(&mut self) -> &mut Writer<W> {
+    fn deref(&self) -> &Self::Target {
         match self {
             ChunkOutput::Borrowed(writer) => writer,
             ChunkOutput::Owned(writer) => writer,
@@ -837,29 +819,208 @@ impl<'a, W: Write> AsMut<Writer<W>> for ChunkOutput<'a, W> {
     }
 }
 
-impl<W: Write> Write for ChunkWriter<'_, W> {
-    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
-        let written = buf.read(&mut self.buffer[self.index..])?;
-        self.index += written;
+impl<'a, W: Write> DerefMut for ChunkOutput<'a, W> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            ChunkOutput::Borrowed(writer) => writer,
+            ChunkOutput::Owned(writer) => writer,
+        }
+    }
+}
 
-        if self.index >= self.buffer.len() {
-            self.writer
-                .as_mut()
-                .write_chunk(chunk::IDAT, &self.buffer)?;
-            self.index = 0;
+/// < INTERNAL DOCUMENTATION >
+///
+/// This writer is used between the actual writer and the
+/// ZlibEncoder and has the job of packaging the compressed
+/// data into a PNG chunk, based on the image metadata
+///
+/// Currently the way it works is that the specified buffer
+/// will hold one chunk at the time and bufferize the incoming
+/// data until `flush` is called or the maximum chunk size
+/// is reached.
+///
+/// The maximum chunk is the smallest between the selected buffer size
+/// and u32::MAX >> 1 + 12 (which is the size of each chunk header
+/// and the crc).
+///
+/// When a chunk has to be flushed the length (that is now known)
+/// and the CRC will be written at the correct locations in the chunk.
+struct ChunkWriter<'a, W: Write> {
+    writer: ChunkOutput<'a, W>,
+    buffer: Vec<u8>,
+    /// keeps track of where the last byte was written
+    index: usize,
+    /// keeps track of the last written byte retalive to the chunk data field
+    written: u32,
+    crc32: Crc32,
+}
+
+impl<'a, W: Write> ChunkWriter<'a, W> {
+    fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> ChunkWriter<'a, W> {
+        // currently buf_len will determine the size of each chunk
+        // the len is capped to the maximum size every chunk can hold
+        // (this wont ever overflow an u32)
+        //
+        // TODO (maybe): find a way to hold two chunks at a time if `usize`
+        //               is 65 bits.
+        let len_cap = (std::u32::MAX >> 1) as usize + 4 + 4 + 4;
+        ChunkWriter {
+            writer,
+            buffer: vec![0; len_cap.min(buf_len)],
+            index: 0,
+            written: 0,
+            crc32: Crc32::new(),
+        }
+    }
+
+    /// Returns the size of each scanline for the next frame
+    /// paired with the size of the whole frame
+    ///
+    /// This is used by the `StreamWriter` to know when the scanline ends
+    /// so it can filter compress it and also to know when to start
+    /// the next one
+    fn next_frame_info(&self) -> (usize, usize) {
+        let wrt = self.writer.deref();
+
+        let width: usize;
+        let height: usize;
+        if let Some(fctl) = wrt.info.frame_control {
+            width = fctl.width as usize;
+            height = fctl.height as usize;
+        } else {
+            width = wrt.info.width as usize;
+            height = wrt.info.height as usize;
         }
 
+        let in_len = wrt.info.raw_row_length_from_width(width as u32) - 1;
+        let data_size = in_len * height;
+
+        (in_len, data_size)
+    }
+
+    /// NOTE: this bypasses the internal buffer so the flush method should be called before this
+    ///       in the case there is some data left in the buffer when this is called, it will panic
+    fn write_header(&mut self) -> Result<()> {
+        if self.index != 0 {
+            // return Err(todo!())
+            panic!("Called when not flushed") // TODO: add error code
+        }
+        let wrt = self.writer.deref_mut();
+        if !wrt.sep_def_img {
+            if let Some(ref mut fctl) = wrt.info.frame_control {
+                fctl.encode(&mut wrt.w)?;
+                fctl.sequence_number += 1;
+            }
+        }
+        Ok(())
+    }
+
+    /// Set the `FrameControl` for the following frame
+    ///
+    /// It will ignore the `sequence_number` of the parameter
+    /// as it is updated internally.
+    ///
+    /// !!! TODO !!! It will also check that everything is correct
+    fn set_fctl(&mut self, f: FrameControl) -> Result<()> {
+        let PartialInfo { width, height, .. } = self.writer.info;
+        if let Some(ref mut fctl) = self.writer.info.frame_control {
+            if f.width + f.x_offset > width || f.height + f.y_offset > height {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            }
+            // ingnore the sequence number
+            *fctl = FrameControl {
+                sequence_number: fctl.sequence_number,
+                ..f
+            };
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// This method will:
+    /// - compute the CRC on all the compressed data
+    /// - append the CRC to the end
+    /// - write the length in the chunk header
+    /// - flush the internal buffer
+    /// - reset the counters
+    fn flush_inner(&mut self) -> io::Result<()> {
+        if self.index > 0 {
+            // get the value of the computed crc32
+            let mut crc32 = Crc32::new();
+            std::mem::swap(&mut crc32, &mut self.crc32);
+            let crc32 = crc32.finalize().to_be_bytes();
+
+            // write the length of the chunk and the crc32
+            self.buffer[..4].copy_from_slice(&self.written.to_be_bytes());
+            self.buffer[self.index..][..4].copy_from_slice(&crc32);
+
+            // flush the chunk and reset everything
+            self.writer.w.write_all(&self.buffer[..self.index + 4])?;
+            self.index = 0;
+            self.written = 0;
+        }
+        Ok(())
+    }
+
+    /// Returns the maximum size the data field of each chunk can be
+    fn max_chunk_size(&self) -> u32 {
+        // buffer length - size of length field - size of chunk name - size of crc
+        (std::u32::MAX >> 1).min((self.buffer.len() - 4 - 4 - 4) as u32)
+    }
+}
+
+impl<'a, W: Write> Write for ChunkWriter<'a, W> {
+    fn write(&mut self, mut data: &[u8]) -> io::Result<usize> {
+        if data.is_empty() {
+            return Ok(0);
+        }
+
+        // index == 0 means a chunk as been flushed out
+        if self.index == 0 {
+            // find the correct chunk to write and leave first 4 bytes for length
+            // (the length can't be know at this point)
+            let wrt = self.writer.deref_mut();
+            if wrt.sep_def_img || wrt.info.frame_control.is_none() || wrt.written == 0 {
+                self.buffer[4..8].copy_from_slice(&chunk::IDAT.0);
+                self.index = 8;
+            } else {
+                let fctl = wrt.info.frame_control.as_mut().unwrap();
+                self.buffer[4..8].copy_from_slice(&chunk::fdAT.0);
+                self.buffer[8..12].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                fctl.sequence_number += 1;
+                self.index = 12;
+                self.written = 4;
+            }
+            self.crc32.write(&self.buffer[4..self.index]);
+        }
+
+        // cap the buffer length to the maximum nuber of bytes that can't still
+        // be added to the current chunk
+        let cap = data
+            .len()
+            .min((self.written + self.max_chunk_size()) as usize);
+        data = &data[..cap];
+
+        let written = data.len().min(self.buffer.len() - self.index);
+        data = &data[..written];
+
+        self.buffer[self.index..][..written].copy_from_slice(data);
+        self.index += written;
+        self.written += written as u32;
+
+        // compute the crc only on the written data
+        self.crc32.write(data);
+
+        // if the maximum data for this chunk as been reached it needs to be flushed
+        if self.written == self.max_chunk_size() {
+            self.flush_inner()?;
+        }
         Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if self.index > 0 {
-            self.writer
-                .as_mut()
-                .write_chunk(chunk::IDAT, &self.buffer[..self.index])?;
-        }
-        self.index = 0;
-        Ok(())
+        self.flush_inner()
     }
 }
 
@@ -872,38 +1033,160 @@ impl<W: Write> Drop for ChunkWriter<'_, W> {
 /// Streaming PNG writer
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
-/// [`finish`](#method.finish) or [`flush`](https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush) before dropping.
+/// [`finish`](#method.finish) or [`flush`] before dropping.
+///
+/// [`flush`]: https://doc.rust-lang.org/stable/std/io/trait.Write.html#tymethod.flush
 pub struct StreamWriter<'a, W: Write> {
-    writer: deflate::write::ZlibEncoder<ChunkWriter<'a, W>>,
+    /// The option here is needed in order to access the inner `ChunkWriter` in-between
+    /// each frame, which is needed for writing the fcTL chunks between each frame
+    writer: Option<ZlibEncoder<ChunkWriter<'a, W>>>,
     prev_buf: Vec<u8>,
     curr_buf: Vec<u8>,
+    /// Amount of data already written
     index: usize,
+    /// length of the current scanline
+    line_len: usize,
+    /// size of the frame (width * height * sample_size)
+    to_write: usize,
+    /// Flag used to signal the end of the image
+    end: bool,
+
+    // --- cloned parameters ---
     bpp: BytesPerPixel,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
+    fctl: Option<FrameControl>,
+    compression: Compression,
+    // -------------------------
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
-    fn new(mut writer: ChunkOutput<'a, W>, buf_len: usize) -> StreamWriter<'a, W> {
-        let bpp = writer.as_mut().info.bpp_in_prediction();
-        let in_len = writer.as_mut().info.raw_row_length() - 1;
-        let filter = writer.as_mut().filter;
-        let adaptive_filter = writer.as_mut().adaptive_filter;
+    fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> Result<StreamWriter<'a, W>> {
+        if writer.max_frames() < writer.written {
+            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
+        }
+        let bpp = writer.info.bpp_in_prediction();
+        let in_len = writer.info.raw_row_length() - 1;
+        let filter = writer.filter;
+        let adaptive_filter = writer.adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
+        let fctl = writer.info.frame_control;
 
-        let compression = writer.as_mut().info.compression.clone();
-        let chunk_writer = ChunkWriter::new(writer, buf_len);
-        let zlib = deflate::write::ZlibEncoder::new(chunk_writer, compression.to_options());
+        let compression = writer.info.compression;
+        let mut chunk_writer = ChunkWriter::new(writer, buf_len);
+        let (line_len, to_write) = chunk_writer.next_frame_info();
+        chunk_writer.write_header()?;
+        let zlib = ZlibEncoder::new(chunk_writer, compression.clone().to_options());
 
-        StreamWriter {
-            writer: zlib,
+        Ok(StreamWriter {
+            writer: Some(zlib),
             index: 0,
             prev_buf,
             curr_buf,
+            end: false,
             bpp,
             filter,
             adaptive_filter,
+            line_len,
+            to_write,
+            fctl,
+            compression,
+        })
+    }
+
+    /// Set the used filter type for the next frame.
+    ///
+    /// The default filter is [`FilterType::Sub`] which provides a basic prediction algorithm for
+    /// sample values based on the previous. For a potentially better compression ratio, at the
+    /// cost of more complex processing, try out [`FilterType::Paeth`].
+    ///
+    /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
+    /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
+    pub fn set_filter(&mut self, filter: FilterType) {
+        self.filter = filter;
+    }
+
+    /// Set the adaptive filter type for the next frame.
+    ///
+    /// Adaptive filtering attempts to select the best filter for each line
+    /// based on heuristics which minimize the file size for compression rather
+    /// than use a single filter for the entire image. The default method is
+    /// [`AdaptiveFilterType::NonAdaptive`].
+    ///
+    /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
+    pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
+        self.adaptive_filter = adaptive_filter;
+    }
+
+    /// Sets the dispose operation for the next frame.
+    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.delay_den = delay_den;
+            fctl.delay_num = delay_num;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.width = width;
+            fctl.height = height;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.x_offset = x;
+            fctl.y_offset = y;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    // pub fn reset_frame_dimesion(&mut self) -> Result<()> {
+    //     if let Some(ref mut fctl) = self.fctl {
+    //         fctl.width = self.width;
+    //         fctl.height = self.height;
+    //         Ok(())
+    //     } else {
+    //         Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+    //     }
+    // }
+
+    pub fn reset_frame_position(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.x_offset = 0;
+            fctl.y_offset = 0;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the blend operation for the next frame.
+    pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.blend_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
+
+    /// Sets the dispose operation for the next frame.
+    pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.dispose_op = op;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 
@@ -912,14 +1195,62 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         self.flush()?;
         Ok(())
     }
+
+    /// Flushes the buffered chunk, checks if it was the last frame,
+    /// writes the next frame header and gets the next frame scanline size
+    /// and image size.
+    fn new_frame(
+        wrt: &mut ChunkWriter<'a, W>,
+        fctl: Option<FrameControl>,
+    ) -> Result<(bool, usize, usize)> {
+        wrt.flush()?;
+        wrt.writer.written += 1;
+        if let Some(fctl) = fctl {
+            wrt.set_fctl(fctl)?;
+        }
+        wrt.write_header()?;
+        let (scansize, size) = wrt.next_frame_info();
+        Ok((wrt.writer.written > wrt.writer.max_frames(), scansize, size))
+    }
 }
 
-impl<W: Write> Write for StreamWriter<'_, W> {
-    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
-        let written = buf.read(&mut self.curr_buf[self.index..])?;
-        self.index += written;
+impl<'a, W: Write> Write for StreamWriter<'a, W> {
+    fn write(&mut self, mut data: &[u8]) -> io::Result<usize> {
+        if data.is_empty() {
+            return Ok(0);
+        }
 
-        if self.index >= self.curr_buf.len() {
+        if self.end {
+            let err = FormatErrorKind::EndReached.into();
+            return Err(EncodingError::Format(err).into());
+        }
+
+        if self.to_write == 0 {
+            let mut wrt = self.writer.take().unwrap().finish()?;
+            // the function is used in order to avoid the invalidation of the `StreamWriter`
+            // in the case of an error occrring in this situation
+            //
+            // This might not work and that's because I don't know if the
+            // ZlibEncoder would actually write something if no data was
+            // written which would happen on the second try after the error
+            // becuase `to_write` would still be at zero and `ZlibEncoder::finish`
+            // would be called once again.
+            //
+            // A better solution might be using a custom enum for the writer that
+            // can hold either a `ZlibEncoder` or a `ChunkWriter` so that when an error
+            // would occur there wouldn't be the need to create another `ZlibEncoder`.
+            let res = Self::new_frame(&mut wrt, self.fctl);
+            self.writer = Some(ZlibEncoder::new(wrt, self.compression.clone().to_options()));
+            let (end, line_len, to_write) = res?;
+            self.end = end;
+            self.line_len = line_len;
+            self.to_write = to_write;
+        }
+        let written = data.read(&mut self.curr_buf[..self.line_len][self.index..])?;
+        self.index += written;
+        self.to_write -= written;
+
+        if self.index == self.line_len {
             let filter_type = filter(
                 self.filter,
                 self.adaptive_filter,
@@ -927,17 +1258,18 @@ impl<W: Write> Write for StreamWriter<'_, W> {
                 &self.prev_buf,
                 &mut self.curr_buf,
             );
-            self.writer.write_all(&[filter_type as u8])?;
-            self.writer.write_all(&self.curr_buf)?;
+            // This can't fail as the option is used only to allow the zlib encoder to finish
+            let wrt = self.writer.as_mut().unwrap();
+            wrt.write_all(&[filter_type as u8])?;
+            wrt.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;
         }
-
         Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()?;
+        self.writer.as_mut().unwrap().flush()?;
         if self.index > 0 {
             let err = EncodingError::Format(FormatErrorKind::WrittenTooMuch(self.index).into());
             return Err(err.into());
@@ -1041,7 +1373,7 @@ mod tests {
                     let mut encoder = Encoder::new(&mut wrapper, info.width, info.height)
                         .write_header()
                         .unwrap();
-                    let mut stream_writer = encoder.stream_writer();
+                    let mut stream_writer = encoder.stream_writer().unwrap();
 
                     let mut outer_wrapper = RandomChunkWriter {
                         rng: thread_rng(),

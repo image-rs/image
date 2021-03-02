@@ -850,9 +850,7 @@ struct ChunkWriter<'a, W: Write> {
     buffer: Vec<u8>,
     /// keeps track of where the last byte was written
     index: usize,
-    /// keeps track of the last written byte retalive to the chunk data field
-    written: u32,
-    crc32: Crc32,
+    curr_chunk: ChunkType,
 }
 
 impl<'a, W: Write> ChunkWriter<'a, W> {
@@ -862,14 +860,19 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         // (this wont ever overflow an u32)
         //
         // TODO (maybe): find a way to hold two chunks at a time if `usize`
-        //               is 65 bits.
-        let len_cap = (std::u32::MAX >> 1) as usize + 4 + 4 + 4;
+        //               is 64 bits.
+        const CAP: usize = std::u32::MAX as usize >> 1;
+        let curr_chunk;
+        if writer.sep_def_img || writer.info.frame_control.is_none() || writer.written == 0 {
+            curr_chunk = chunk::IDAT;
+        } else {
+            curr_chunk = chunk::fdAT;
+        }
         ChunkWriter {
             writer,
-            buffer: vec![0; len_cap.min(buf_len)],
+            buffer: vec![0; CAP.min(buf_len)],
             index: 0,
-            written: 0,
-            crc32: Crc32::new(),
+            curr_chunk,
         }
     }
 
@@ -906,10 +909,20 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
             panic!("Called when not flushed") // TODO: add error code
         }
         let wrt = self.writer.deref_mut();
-        if !wrt.sep_def_img {
+
+        if wrt.sep_def_img || wrt.info.frame_control.is_none() {
+            self.curr_chunk = chunk::IDAT;
+        } else {
+            if wrt.written == 0 {
+                self.curr_chunk = chunk::IDAT;
+            } else {
+                self.curr_chunk = chunk::fdAT;
+            }
             if let Some(ref mut fctl) = wrt.info.frame_control {
                 fctl.encode(&mut wrt.w)?;
                 fctl.sequence_number += 1;
+            } else {
+                unreachable!()
             }
         }
         Ok(())
@@ -919,12 +932,12 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
     ///
     /// It will ignore the `sequence_number` of the parameter
     /// as it is updated internally.
-    ///
-    /// !!! TODO !!! It will also check that everything is correct
     fn set_fctl(&mut self, f: FrameControl) -> Result<()> {
         let PartialInfo { width, height, .. } = self.writer.info;
         if let Some(ref mut fctl) = self.writer.info.frame_control {
-            if f.width + f.x_offset > width || f.height + f.y_offset > height {
+            if f.width.checked_add(f.x_offset) > Some(width)
+                || f.height.checked_add(f.y_offset) > Some(height)
+            {
                 return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
             }
             // ingnore the sequence number
@@ -939,34 +952,21 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
     }
 
     /// This method will:
-    /// - compute the CRC on all the compressed data
-    /// - append the CRC to the end
     /// - write the length in the chunk header
     /// - flush the internal buffer
-    /// - reset the counters
+    /// - compute the CRC on all the compressed data
+    /// - reset the counter
     fn flush_inner(&mut self) -> io::Result<()> {
         if self.index > 0 {
-            // get the value of the computed crc32
-            let mut crc32 = Crc32::new();
-            std::mem::swap(&mut crc32, &mut self.crc32);
-            let crc32 = crc32.finalize().to_be_bytes();
-
-            // write the length of the chunk and the crc32
-            self.buffer[..4].copy_from_slice(&self.written.to_be_bytes());
-            self.buffer[self.index..][..4].copy_from_slice(&crc32);
-
             // flush the chunk and reset everything
-            self.writer.w.write_all(&self.buffer[..self.index + 4])?;
+            write_chunk(
+                &mut self.writer.w,
+                self.curr_chunk,
+                &self.buffer[..self.index],
+            )?;
             self.index = 0;
-            self.written = 0;
         }
         Ok(())
-    }
-
-    /// Returns the maximum size the data field of each chunk can be
-    fn max_chunk_size(&self) -> u32 {
-        // buffer length - size of length field - size of chunk name - size of crc
-        (std::u32::MAX >> 1).min((self.buffer.len() - 4 - 4 - 4) as u32)
     }
 }
 
@@ -981,39 +981,25 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
             // find the correct chunk to write and leave first 4 bytes for length
             // (the length can't be know at this point)
             let wrt = self.writer.deref_mut();
-            if wrt.sep_def_img || wrt.info.frame_control.is_none() || wrt.written == 0 {
-                self.buffer[4..8].copy_from_slice(&chunk::IDAT.0);
-                self.index = 8;
-            } else {
+            // ??? maybe use self.curr_chunk == chunk::fdAT ???
+            if !wrt.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
                 let fctl = wrt.info.frame_control.as_mut().unwrap();
-                self.buffer[4..8].copy_from_slice(&chunk::fdAT.0);
-                self.buffer[8..12].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                self.buffer[0..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                 fctl.sequence_number += 1;
-                self.index = 12;
-                self.written = 4;
+                self.index = 4;
             }
-            self.crc32.write(&self.buffer[4..self.index]);
         }
 
         // cap the buffer length to the maximum nuber of bytes that can't still
         // be added to the current chunk
-        let cap = data
-            .len()
-            .min((self.written + self.max_chunk_size()) as usize);
-        data = &data[..cap];
-
         let written = data.len().min(self.buffer.len() - self.index);
         data = &data[..written];
 
         self.buffer[self.index..][..written].copy_from_slice(data);
         self.index += written;
-        self.written += written as u32;
-
-        // compute the crc only on the written data
-        self.crc32.write(data);
 
         // if the maximum data for this chunk as been reached it needs to be flushed
-        if self.written == self.max_chunk_size() {
+        if self.index == self.buffer.len() {
             self.flush_inner()?;
         }
         Ok(written)
@@ -1051,13 +1037,11 @@ pub struct StreamWriter<'a, W: Write> {
     /// Flag used to signal the end of the image
     end: bool,
 
-    // --- cloned parameters ---
     bpp: BytesPerPixel,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     fctl: Option<FrameControl>,
     compression: Compression,
-    // -------------------------
 }
 
 impl<'a, W: Write> StreamWriter<'a, W> {
@@ -1210,7 +1194,11 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
         wrt.write_header()?;
         let (scansize, size) = wrt.next_frame_info();
-        Ok((wrt.writer.written > wrt.writer.max_frames(), scansize, size))
+        Ok((
+            wrt.writer.written == wrt.writer.max_frames(),
+            scansize,
+            size,
+        ))
     }
 }
 

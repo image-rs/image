@@ -1,7 +1,7 @@
 # Image
 [![crates.io](https://img.shields.io/crates/v/image.svg)](https://crates.io/crates/image)
 [![Documentation](https://docs.rs/image/badge.svg)](https://docs.rs/image)
-[![Build Status](https://travis-ci.org/image-rs/image.svg?branch=master)](https://travis-ci.org/image-rs/image)
+[![Build Status](https://github.com/image-rs/image/workflows/Rust%20CI/badge.svg)](https://github.com/image-rs/image/actions)
 [![Gitter](https://badges.gitter.im/image-rs/image.svg)](https://gitter.im/image-rs/image?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 Maintainers: [@HeroicKatora](https://github.com/HeroicKatora), [@fintelia](https://github.com/fintelia)

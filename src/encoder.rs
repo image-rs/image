@@ -1,8 +1,8 @@
-use std::error;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::result;
+use std::{borrow::Cow, error};
 
 use crc32fast::Hasher as Crc32;
 
@@ -117,16 +117,16 @@ impl From<FormatErrorKind> for FormatError {
 }
 
 /// PNG Encoder
-pub struct Encoder<W: Write> {
+pub struct Encoder<'a, W: Write> {
     w: W,
-    info: Info,
+    info: Info<'a>,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
 }
 
-impl<W: Write> Encoder<W> {
-    pub fn new(w: W, width: u32, height: u32) -> Encoder<W> {
+impl<'a, W: Write> Encoder<'a, W> {
+    pub fn new(w: W, width: u32, height: u32) -> Encoder<'static, W> {
         let info = Info {
             width,
             height,
@@ -177,11 +177,11 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    pub fn set_palette(&mut self, palette: Vec<u8>) {
+    pub fn set_palette(&mut self, palette: Cow<'a, [u8]>) {
         self.info.palette = Some(palette);
     }
 
-    pub fn set_trns(&mut self, trns: Vec<u8>) {
+    pub fn set_trns(&mut self, trns: Cow<'a, [u8]>) {
         self.info.trns = Some(trns);
     }
 
@@ -210,12 +210,12 @@ impl<W: Write> Encoder<W> {
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(
             self.w,
-            self.info,
+            PartialInfo::new(&self.info),
             self.filter,
             self.adaptive_filter,
             self.sep_def_img,
         )
-        .init()
+        .init(&self.info)
     }
 
     /// Set the color of the encoded image.
@@ -364,11 +364,68 @@ impl<W: Write> Encoder<W> {
 /// PNG writer
 pub struct Writer<W: Write> {
     w: W,
-    info: Info,
+    info: PartialInfo,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
     written: u64,
+}
+
+/// Contains the subset of attributes of [Info] needed for [Writer] to function
+struct PartialInfo {
+    width: u32,
+    height: u32,
+    bit_depth: BitDepth,
+    color_type: ColorType,
+    frame_control: Option<FrameControl>,
+    animation_control: Option<AnimationControl>,
+    compression: Compression,
+    has_palette: bool,
+}
+
+impl PartialInfo {
+    fn new(info: &Info) -> Self {
+        PartialInfo {
+            width: info.width,
+            height: info.height,
+            bit_depth: info.bit_depth,
+            color_type: info.color_type,
+            frame_control: info.frame_control,
+            animation_control: info.animation_control,
+            compression: info.compression,
+            has_palette: info.palette.is_some(),
+        }
+    }
+
+    fn bpp_in_prediction(&self) -> BytesPerPixel {
+        // Passthrough
+        self.to_info().bpp_in_prediction()
+    }
+
+    fn raw_row_length(&self) -> usize {
+        // Passthrough
+        self.to_info().raw_row_length()
+    }
+
+    fn raw_row_length_from_width(&self, width: u32) -> usize {
+        // Passthrough
+        self.to_info().raw_row_length_from_width(width)
+    }
+
+    /// Converts this partial info to an owned Info struct,
+    /// setting missing values to their defaults
+    fn to_info(&self) -> Info<'static> {
+        Info {
+            width: self.width,
+            height: self.height,
+            bit_depth: self.bit_depth,
+            color_type: self.color_type,
+            frame_control: self.frame_control,
+            animation_control: self.animation_control,
+            compression: self.compression,
+            ..Default::default()
+        }
+    }
 }
 
 const DEFAULT_BUFFER_LENGTH: usize = 4 * 1024;
@@ -387,7 +444,7 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
 impl<W: Write> Writer<W> {
     fn new(
         w: W,
-        info: Info,
+        info: PartialInfo,
         filter: FilterType,
         adaptive_filter: AdaptiveFilterType,
         sep_def_img: bool,
@@ -402,7 +459,7 @@ impl<W: Write> Writer<W> {
         }
     }
 
-    fn init(mut self) -> Result<Self> {
+    fn init(mut self, info: &Info<'_>) -> Result<Self> {
         if self.info.width == 0 {
             return Err(EncodingError::Format(FormatErrorKind::ZeroWidth.into()));
         }
@@ -423,7 +480,7 @@ impl<W: Write> Writer<W> {
         }
 
         self.w.write_all(&[137, 80, 78, 71, 13, 10, 26, 10])?; // PNG signature
-        self.info.encode(&mut self.w)?;
+        info.encode(&mut self.w)?;
 
         Ok(self)
     }
@@ -437,7 +494,7 @@ impl<W: Write> Writer<W> {
         const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
         const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
 
-        if self.info.color_type == ColorType::Indexed && self.info.palette.is_none() {
+        if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
@@ -712,7 +769,7 @@ impl<W: Write> Writer<W> {
     ///
     /// This borrows the writer which allows for manually appending additional
     /// chunks after the image data has been written.
-    pub fn stream_writer(&mut self) -> StreamWriter<W> {
+    pub fn stream_writer(&mut self) -> StreamWriter<'_, W> {
         self.stream_writer_with_size(DEFAULT_BUFFER_LENGTH)
     }
 
@@ -721,7 +778,7 @@ impl<W: Write> Writer<W> {
     /// See [`stream_writer`].
     ///
     /// [`stream_writer`]: #fn.stream_writer
-    pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<W> {
+    pub fn stream_writer_with_size(&mut self, size: usize) -> StreamWriter<'_, W> {
         StreamWriter::new(ChunkOutput::Borrowed(self), size)
     }
 
@@ -780,7 +837,7 @@ impl<'a, W: Write> AsMut<Writer<W>> for ChunkOutput<'a, W> {
     }
 }
 
-impl<'a, W: Write> Write for ChunkWriter<'a, W> {
+impl<W: Write> Write for ChunkWriter<'_, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.buffer[self.index..])?;
         self.index += written;
@@ -806,7 +863,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
     }
 }
 
-impl<'a, W: Write> Drop for ChunkWriter<'a, W> {
+impl<W: Write> Drop for ChunkWriter<'_, W> {
     fn drop(&mut self) {
         let _ = self.flush();
     }
@@ -857,7 +914,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     }
 }
 
-impl<'a, W: Write> Write for StreamWriter<'a, W> {
+impl<W: Write> Write for StreamWriter<'_, W> {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let written = buf.read(&mut self.curr_buf[self.index..])?;
         self.index += written;
@@ -889,7 +946,7 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     }
 }
 
-impl<'a, W: Write> Drop for StreamWriter<'a, W> {
+impl<W: Write> Drop for StreamWriter<'_, W> {
     fn drop(&mut self) {
         let _ = self.flush();
     }
@@ -1012,7 +1069,6 @@ mod tests {
             let decoder = Decoder::new(File::open(&path).unwrap());
             let (info, mut reader) = decoder.read_info().unwrap();
 
-            let palette: Vec<u8> = reader.info().palette.clone().unwrap();
             let mut decoded_pixels = vec![0; info.buffer_size()];
             assert_eq!(
                 info.width as usize * info.height as usize * usize::from(bit_depth),
@@ -1021,12 +1077,13 @@ mod tests {
             reader.next_frame(&mut decoded_pixels).unwrap();
             let indexed_data = decoded_pixels;
 
+            let palette = reader.info().palette.as_ref().unwrap();
             let mut out = Vec::new();
             {
                 let mut encoder = Encoder::new(&mut out, info.width, info.height);
                 encoder.set_depth(BitDepth::from_u8(bit_depth).unwrap());
                 encoder.set_color(ColorType::Indexed);
-                encoder.set_palette(palette.clone());
+                encoder.set_palette(Cow::Borrowed(palette));
 
                 let mut writer = encoder.write_header().unwrap();
                 writer.write_image_data(&indexed_data).unwrap();
@@ -1304,12 +1361,12 @@ mod tests {
     }
 
     /// A Writer that only writes a few bytes at a time
-    struct RandomChunkWriter<'a, R: Rng, W: Write + 'a> {
+    struct RandomChunkWriter<R: Rng, W: Write> {
         rng: R,
-        w: &'a mut W,
+        w: W,
     }
 
-    impl<'a, R: Rng, W: Write + 'a> Write for RandomChunkWriter<'a, R, W> {
+    impl<R: Rng, W: Write> Write for RandomChunkWriter<R, W> {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             // choose a random length to write
             let len = cmp::min(self.rng.gen_range(1, 50), buf.len());

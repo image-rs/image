@@ -1,8 +1,8 @@
 mod stream;
 mod zlib;
 
-use self::stream::{get_info, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
+use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
@@ -260,7 +260,7 @@ impl<R: Read> ReadDecoder<R> {
     }
 
     fn info(&self) -> Option<&Info> {
-        get_info(&self.decoder)
+        self.decoder.info.as_ref()
     }
 }
 

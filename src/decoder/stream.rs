@@ -1,11 +1,11 @@
 extern crate crc32fast;
 
-use std::cmp::min;
 use std::convert::From;
 use std::default::Default;
 use std::error;
 use std::fmt;
 use std::io;
+use std::{borrow::Cow, cmp::min};
 
 use crc32fast::Hasher as Crc32;
 
@@ -327,7 +327,7 @@ pub struct StreamingDecoder {
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
-    info: Option<Info>,
+    pub(crate) info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
     /// Stores where in decoding an `fdAT` chunk we are.
@@ -737,7 +737,7 @@ impl StreamingDecoder {
 
     fn parse_plte(&mut self) -> Result<Decoded, DecodingError> {
         if let Some(info) = self.info.as_mut() {
-            info.palette = Some(self.current_chunk.raw_bytes.clone())
+            info.palette = Some(Cow::Owned(self.current_chunk.raw_bytes.clone()))
         }
         Ok(Decoded::Nothing)
     }
@@ -747,7 +747,7 @@ impl StreamingDecoder {
             let info = self.get_info_or_err()?;
             (info.color_type, info.bit_depth as u8)
         };
-        let vec = self.current_chunk.raw_bytes.clone();
+        let mut vec = self.current_chunk.raw_bytes.clone();
         let len = vec.len();
         let info = match self.info {
             Some(ref mut info) => info,
@@ -757,8 +757,6 @@ impl StreamingDecoder {
                 ))
             }
         };
-        info.trns = Some(vec);
-        let vec = info.trns.as_mut().unwrap();
         match color_type {
             ColorType::Grayscale => {
                 if len < 2 {
@@ -770,6 +768,7 @@ impl StreamingDecoder {
                     vec[0] = vec[1];
                     vec.truncate(1);
                 }
+                info.trns = Some(Cow::Owned(vec));
                 Ok(Decoded::Nothing)
             }
             ColorType::Rgb => {
@@ -784,6 +783,7 @@ impl StreamingDecoder {
                     vec[2] = vec[5];
                     vec.truncate(3);
                 }
+                info.trns = Some(Cow::Owned(vec));
                 Ok(Decoded::Nothing)
             }
             ColorType::Indexed => {
@@ -791,6 +791,7 @@ impl StreamingDecoder {
                 let _ = info.palette.as_ref().ok_or_else(|| {
                     DecodingError::Format(FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into())
                 });
+                info.trns = Some(Cow::Owned(vec));
                 Ok(Decoded::Nothing)
             }
             c => Err(DecodingError::Format(
@@ -1019,7 +1020,7 @@ impl StreamingDecoder {
     }
 }
 
-impl Info {
+impl Info<'_> {
     fn validate(&self, fc: &FrameControl) -> Result<(), DecodingError> {
         // Validate mathematically: fc.width + fc.x_offset <= self.width
         let in_x_bounds = Some(fc.width) <= self.width.checked_sub(fc.x_offset);
@@ -1052,11 +1053,6 @@ impl Default for ChunkState {
             raw_bytes: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
         }
     }
-}
-
-#[inline(always)]
-pub fn get_info(d: &StreamingDecoder) -> Option<&Info> {
-    d.info.as_ref()
 }
 
 #[cfg(test)]

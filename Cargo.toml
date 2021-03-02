@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.23.13"
+version = "0.23.14"
 edition = "2018"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -27,7 +27,7 @@ num-iter = "0.1.32"
 num-rational = { version = "0.3", default-features = false }
 num-traits = "0.2.0"
 gif = { version = "0.11.1", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.1.17", default-features = false, optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.1.22", default-features = false, optional = true }
 png = { version = "0.16.5", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }
 tiff = { version = "0.6.0", optional = true }

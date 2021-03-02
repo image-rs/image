@@ -10,6 +10,18 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.14
+
+- Unified gif blending in different decode methods, fixing out-of-bounds checks
+  in a number of weirdly positioned frames.
+- Hardened TGA decoder against a number of malicious inputs.
+- Fix forward incompatible usage of the panic macro.
+- Fix load_rect for gif reaching `unreachable!()` code.
+
+- Added `ExtendedColorType::A8`.
+- Allow TGA to load alpha-only images.
+- Optimized load_rect to avoid unnecessary seeks.
+
 ### Version 0.23.13
 
 - Fix an inconsistency in supported formats of different methods for encoding

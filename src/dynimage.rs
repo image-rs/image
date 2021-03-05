@@ -754,7 +754,7 @@ impl DynamicImage {
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
-    /// within the bounds specified by ```nwidth``` and ```nheight```.
+    /// within the bounds specified by `nwidth` and `nheight`.
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
@@ -764,7 +764,7 @@ impl DynamicImage {
 
     /// Resize this image using the specified filter algorithm.
     /// Returns a new image. Does not preserve aspect ratio.
-    /// ```nwidth``` and ```nheight``` are the new image's dimensions
+    /// `nwidth` and `nheight` are the new image's dimensions
     pub fn resize_exact(
         &self,
         nwidth: u32,
@@ -777,7 +777,7 @@ impl DynamicImage {
     /// Scale this image down to fit within a specific size.
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
-    /// within the bounds specified by ```nwidth``` and ```nheight```.
+    /// within the bounds specified by `nwidth` and `nheight`.
     ///
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
@@ -789,8 +789,8 @@ impl DynamicImage {
     }
 
     /// Scale this image down to a specific size.
-    /// Returns a new image. Does not preserve aspect ratio.
-    /// ```nwidth``` and ```nheight``` are the new image's dimensions.
+    /// Returns a new image. Does not peserve aspect ratio.
+    /// `nwidth` and `nheight` are the new image's dimensions.
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.
     /// May give aliasing artifacts if new size is close to old size.
@@ -802,7 +802,7 @@ impl DynamicImage {
     /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the larger (relative to aspect ratio) of the bounds
-    /// specified by ```nwidth``` and ```nheight```, then cropped to
+    /// specified by `nwidth` and `nheight`, then cropped to
     /// fit within the other bound.
     pub fn resize_to_fill(
         &self,
@@ -826,14 +826,14 @@ impl DynamicImage {
     }
 
     /// Performs a Gaussian blur on this image.
-    /// ```sigma``` is a measure of how much to blur by.
+    /// `sigma` is a measure of how much to blur by.
     pub fn blur(&self, sigma: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::blur(p, sigma))
     }
 
     /// Performs an unsharpen mask on this image.
-    /// ```sigma``` is the amount to blur the image by.
-    /// ```threshold``` is a control of how much to sharpen.
+    /// `sigma` is the amount to blur the image by.
+    /// `threshold` is a control of how much to sharpen.
     ///
     /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
     pub fn unsharpen(&self, sigma: f32, threshold: i32) -> DynamicImage {
@@ -850,14 +850,14 @@ impl DynamicImage {
     }
 
     /// Adjust the contrast of this image.
-    /// ```contrast``` is the amount to adjust the contrast by.
+    /// `contrast` is the amount to adjust the contrast by.
     /// Negative values decrease the contrast and positive values increase the contrast.
     pub fn adjust_contrast(&self, c: f32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::contrast(p, c))
     }
 
     /// Brighten the pixels of this image.
-    /// ```value``` is the amount to brighten each pixel by.
+    /// `value` is the amount to brighten each pixel by.
     /// Negative values decrease the brightness and positive values increase it.
     pub fn brighten(&self, value: i32) -> DynamicImage {
         dynamic_map!(*self, ref p => imageops::brighten(p, value))

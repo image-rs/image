@@ -643,6 +643,7 @@ pub trait ImageDecoder<'a>: Sized {
     ///     decoder.read_image(buf.as_bytes());
     ///     buf
     /// }
+    /// ```
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_with_progress(buf, |_| {})
     }

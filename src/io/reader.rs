@@ -63,6 +63,8 @@ pub struct Reader<R: Read> {
     inner: R,
     /// The format, if one has been set or deduced.
     format: Option<ImageFormat>,
+    /// Decoding limits
+    limits: super::Limits,
 }
 
 impl<R: Read> Reader<R> {
@@ -80,6 +82,7 @@ impl<R: Read> Reader<R> {
         Reader {
             inner: buffered_reader,
             format: None,
+            limits: super::Limits::default(),
         }
     }
 
@@ -91,6 +94,7 @@ impl<R: Read> Reader<R> {
         Reader {
             inner: buffered_reader,
             format: Some(format),
+            limits: super::Limits::default(),
         }
     }
 
@@ -110,6 +114,16 @@ impl<R: Read> Reader<R> {
     /// `ImageError::Unsupported` when the image format has not been set.
     pub fn clear_format(&mut self) {
         self.format = None;
+    }
+
+    /// Disable all decoding limits
+    pub fn no_limits(&mut self) {
+        self.limits = super::Limits::no_limits();
+    }
+
+    /// Set a custom set of decoding limits
+    pub fn limits(&mut self, limits: super::Limits) {
+        self.limits = limits;
     }
 
     /// Unwrap the reader.
@@ -136,6 +150,7 @@ impl Reader<BufReader<File>> {
         Ok(Reader {
             inner: BufReader::new(file),
             format: ImageFormat::from_path(path).ok(),
+            limits: super::Limits::default(),
         })
     }
 }
@@ -207,7 +222,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn decode(mut self) -> ImageResult<DynamicImage> {
         let format = self.require_format()?;
-        free_functions::load(self.inner, format)
+        free_functions::load_inner(self.inner, self.limits, format)
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {

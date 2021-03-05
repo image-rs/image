@@ -167,6 +167,13 @@ pub enum LimitErrorKind {
     DimensionError,
     /// The operation would have performed an allocation larger than allowed.
     InsufficientMemory,
+    /// The specified strict limits are not supported for this operation
+    Unsupported {
+        /// The given limits 
+        limits: crate::io::Limits,
+        /// The supported strict limits
+        supported: crate::io::LimitSupport,
+    },
     #[doc(hidden)]
     /// Do not use this, not part of stability guarantees.
     __NonExhaustive(NonExhaustiveMarker),
@@ -497,6 +504,17 @@ impl fmt::Display for LimitError {
         match self.kind {
             LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
             LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
+            LimitErrorKind::Unsupported {
+                limits,
+                supported,
+            } => {
+                write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
+                if limits.max_alloc.is_some() && limits.max_alloc_strict && !supported.max_alloc_strict {
+                    write!(fmt, "maximum number of bytes allocated must be less than {}",
+                        limits.max_alloc.unwrap())?;
+                }
+                Ok(())
+            },
             LimitErrorKind::__NonExhaustive(marker) => match marker._private {},
         }
     }

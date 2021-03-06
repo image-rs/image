@@ -42,6 +42,8 @@ enum FormatErrorKind {
     OutOfBounds,
     EndReached,
     ZeroFrames,
+    MissingFrames,
+    MissingData(usize),
 }
 
 impl error::Error for EncodingError {
@@ -85,6 +87,8 @@ impl fmt::Display for FormatError {
                 "the dimension and position go over the frame boundaries"
             ),
             EndReached => write!(fmt, "all the frames have been already written"),
+            MissingFrames => write!(fmt, "there are still frames to be written"),
+            MissingData(n) => write!(fmt, "there are still {} bytes to be written", n),
         }
     }
 }
@@ -1256,6 +1260,13 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     }
 
     pub fn finish(mut self) -> Result<()> {
+        if !self.end {
+            let err = FormatErrorKind::MissingFrames.into();
+            return Err(EncodingError::Format(err));
+        } else if self.to_write > 0 {
+            let err = FormatErrorKind::MissingData(self.to_write).into();
+            return Err(EncodingError::Format(err));
+        }
         // TODO: call `writer.finish` somehow?
         self.flush()?;
         Ok(())
@@ -1337,8 +1348,8 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn flush(&mut self) -> io::Result<()> {
         self.writer.as_mut().unwrap().flush()?;
         if self.index > 0 {
-            let err = EncodingError::Format(FormatErrorKind::WrittenTooMuch(self.index).into());
-            return Err(err.into());
+            let err = FormatErrorKind::WrittenTooMuch(self.index).into();
+            return Err(EncodingError::Format(err).into());
         }
         Ok(())
     }

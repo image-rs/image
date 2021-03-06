@@ -492,6 +492,7 @@ impl<W: Write> Writer<W> {
     /// Writes the image data.
     pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
         const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+        #[allow(non_upper_case_globals)]
         const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
 
         if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
@@ -828,8 +829,6 @@ impl<'a, W: Write> DerefMut for ChunkOutput<'a, W> {
     }
 }
 
-/// < INTERNAL DOCUMENTATION >
-///
 /// This writer is used between the actual writer and the
 /// ZlibEncoder and has the job of packaging the compressed
 /// data into a PNG chunk, based on the image metadata
@@ -840,8 +839,7 @@ impl<'a, W: Write> DerefMut for ChunkOutput<'a, W> {
 /// is reached.
 ///
 /// The maximum chunk is the smallest between the selected buffer size
-/// and u32::MAX >> 1 + 12 (which is the size of each chunk header
-/// and the crc).
+/// and `u32::MAX >> 1` (`0x7fffffff` or `2147483647` dec)
 ///
 /// When a chunk has to be flushed the length (that is now known)
 /// and the CRC will be written at the correct locations in the chunk.
@@ -932,30 +930,19 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
     ///
     /// It will ignore the `sequence_number` of the parameter
     /// as it is updated internally.
-    fn set_fctl(&mut self, f: FrameControl) -> Result<()> {
-        let PartialInfo { width, height, .. } = self.writer.info;
+    fn set_fctl(&mut self, f: FrameControl) {
         if let Some(ref mut fctl) = self.writer.info.frame_control {
-            if f.width.checked_add(f.x_offset) > Some(width)
-                || f.height.checked_add(f.y_offset) > Some(height)
-            {
-                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
-            }
             // ingnore the sequence number
             *fctl = FrameControl {
                 sequence_number: fctl.sequence_number,
                 ..f
             };
-            Ok(())
         } else {
-            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+            panic!("This function must be called on an animated PNG")
         }
     }
 
-    /// This method will:
-    /// - write the length in the chunk header
-    /// - flush the internal buffer
-    /// - compute the CRC on all the compressed data
-    /// - reset the counter
+    /// Flushes the current chunk
     fn flush_inner(&mut self) -> io::Result<()> {
         if self.index > 0 {
             // flush the chunk and reset everything
@@ -978,8 +965,6 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
 
         // index == 0 means a chunk as been flushed out
         if self.index == 0 {
-            // find the correct chunk to write and leave first 4 bytes for length
-            // (the length can't be know at this point)
             let wrt = self.writer.deref_mut();
             // ??? maybe use self.curr_chunk == chunk::fdAT ???
             if !wrt.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
@@ -1037,6 +1022,9 @@ pub struct StreamWriter<'a, W: Write> {
     /// Flag used to signal the end of the image
     end: bool,
 
+    width: u32,
+    height: u32,
+
     bpp: BytesPerPixel,
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
@@ -1049,19 +1037,26 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         if writer.max_frames() < writer.written {
             return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
         }
+
+        let PartialInfo {
+            width,
+            height,
+            frame_control: fctl,
+            compression,
+            ..
+        } = writer.info;
+
         let bpp = writer.info.bpp_in_prediction();
         let in_len = writer.info.raw_row_length() - 1;
         let filter = writer.filter;
         let adaptive_filter = writer.adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
-        let fctl = writer.info.frame_control;
 
-        let compression = writer.info.compression;
         let mut chunk_writer = ChunkWriter::new(writer, buf_len);
         let (line_len, to_write) = chunk_writer.next_frame_info();
         chunk_writer.write_header()?;
-        let zlib = ZlibEncoder::new(chunk_writer, compression.clone().to_options());
+        let zlib = ZlibEncoder::new(chunk_writer, compression.to_options());
 
         Ok(StreamWriter {
             writer: Some(zlib),
@@ -1071,6 +1066,8 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             end: false,
             bpp,
             filter,
+            width,
+            height,
             adaptive_filter,
             line_len,
             to_write,
@@ -1103,19 +1100,46 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         self.adaptive_filter = adaptive_filter;
     }
 
-    /// Sets the dispose operation for the next frame.
-    pub fn set_frame_delay(&mut self, delay_num: u16, delay_den: u16) -> Result<()> {
+    /// Set the fraction of time the following frames are going to be displayed,
+    /// in seconds
+    ///
+    /// If the denominator is 0, it is to be treated as if it were 100
+    /// (that is, the numerator then specifies 1/100ths of a second).
+    /// If the the value of the numerator is 0 the decoder should render the next frame
+    /// as quickly as possible, though viewers may impose a reasonable lower bound.
+    ///
+    /// This method will return an error if the image is not animated.
+    pub fn set_frame_delay(&mut self, numerator: u16, denominator: u16) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
-            fctl.delay_den = delay_den;
-            fctl.delay_num = delay_num;
+            fctl.delay_den = denominator;
+            fctl.delay_num = numerator;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
 
-    pub fn set_frame_dimesion(&mut self, width: u32, height: u32) -> Result<()> {
+    /// Set the dimension of the following frames.
+    ///
+    /// This function will return an error when:
+    /// - The image is not an animated;
+    ///
+    /// - The selected dimension, considering also the current frame position,
+    ///   goes outside the image boudries;
+    ///
+    /// - One or both the width and height are 0;
+    ///
+    pub fn set_frame_dimension(&mut self, width: u32, height: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
+            if Some(width) > self.width.checked_sub(fctl.x_offset)
+                || Some(height) > self.height.checked_sub(fctl.y_offset)
+            {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            } else if width == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroWidth.into()));
+            } else if height == 0 {
+                return Err(EncodingError::Format(FormatErrorKind::ZeroHeight.into()));
+            }
             fctl.width = width;
             fctl.height = height;
             Ok(())
@@ -1124,8 +1148,21 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
     }
 
+    /// Set the position of the following frames.
+    ///
+    /// An error will be returned if:
+    /// - The image is not animated;
+    ///
+    /// - The selected position, considering also the current frame dimension,
+    ///   goes outside the image boudries;
+    ///
     pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
+            if Some(x) > self.width.checked_sub(fctl.width)
+                || Some(y) > self.height.checked_sub(fctl.height)
+            {
+                return Err(EncodingError::Format(FormatErrorKind::OutOfBounds.into()));
+            }
             fctl.x_offset = x;
             fctl.y_offset = y;
             Ok(())
@@ -1134,16 +1171,32 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
     }
 
-    // pub fn reset_frame_dimesion(&mut self) -> Result<()> {
-    //     if let Some(ref mut fctl) = self.fctl {
-    //         fctl.width = self.width;
-    //         fctl.height = self.height;
-    //         Ok(())
-    //     } else {
-    //         Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
-    //     }
-    // }
+    /// Set the frame dimension to occupy all the image, starting from
+    /// the current position.
+    ///
+    /// To reset the frame to the full image size [`reset_frame_position`]
+    /// should be called first.
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`reset_frame_position`]: struct.Writer.html#method.reset_frame_position
+    pub fn reset_frame_dimension(&mut self) -> Result<()> {
+        if let Some(ref mut fctl) = self.fctl {
+            fctl.width = self.width - fctl.x_offset;
+            fctl.height = self.height - fctl.y_offset;
+            Ok(())
+        } else {
+            Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
+        }
+    }
 
+    /// Set the frame position to (0, 0).
+    ///
+    /// Equivalent to calling [`set_frame_position(0, 0)`].
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`set_frame_position(0, 0)`]: struct.Writer.html#method.set_frame_position
     pub fn reset_frame_position(&mut self) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.x_offset = 0;
@@ -1154,7 +1207,21 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
     }
 
-    /// Sets the blend operation for the next frame.
+    /// Set the blend operation for the following frames.
+    ///
+    /// The blend operation specifies whether the frame is to be alpha blended
+    /// into the current output buffer content, or whether it should completely
+    /// replace its region in the output buffer.
+    ///
+    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that for the first frame the two blend modes are functionally
+    /// equivalent due to the clearing of the output buffer at the beginning
+    /// of each play.*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`BlendOP`]: enum.BlendOp.html
     pub fn set_blend_op(&mut self, op: BlendOp) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.blend_op = op;
@@ -1164,7 +1231,21 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         }
     }
 
-    /// Sets the dispose operation for the next frame.
+    /// Set the dispose operation for the following frames.
+    ///
+    /// The dispose operation specifies how the output buffer should be changed
+    /// at the end of the delay (before rendering the next frame)
+    ///
+    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    ///
+    /// *Note that if the first frame uses [`DisposeOp::Previous`]
+    /// it will be treated as [`DisposeOp::Background`].*
+    ///
+    /// This method will return an error if the image is not animated.
+    ///
+    /// [`DisposeOp`]: ../common/enum.BlendOp.html
+    /// [`DisposeOp::Previous`]: ../common/enum.BlendOp.html#variant.Previous
+    /// [`DisposeOp::Background`]: ../common/enum.BlendOp.html#variant.Background
     pub fn set_dispose_op(&mut self, op: DisposeOp) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
             fctl.dispose_op = op;
@@ -1184,21 +1265,21 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// writes the next frame header and gets the next frame scanline size
     /// and image size.
     fn new_frame(
+        &mut self,
         wrt: &mut ChunkWriter<'a, W>,
         fctl: Option<FrameControl>,
-    ) -> Result<(bool, usize, usize)> {
+    ) -> Result<()> {
         wrt.flush()?;
         wrt.writer.written += 1;
         if let Some(fctl) = fctl {
-            wrt.set_fctl(fctl)?;
+            wrt.set_fctl(fctl);
         }
         wrt.write_header()?;
         let (scansize, size) = wrt.next_frame_info();
-        Ok((
-            wrt.writer.written == wrt.writer.max_frames(),
-            scansize,
-            size,
-        ))
+        self.end = wrt.writer.written == wrt.writer.max_frames();
+        self.line_len = scansize;
+        self.to_write = size;
+        Ok(())
     }
 }
 
@@ -1227,12 +1308,9 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             // A better solution might be using a custom enum for the writer that
             // can hold either a `ZlibEncoder` or a `ChunkWriter` so that when an error
             // would occur there wouldn't be the need to create another `ZlibEncoder`.
-            let res = Self::new_frame(&mut wrt, self.fctl);
+            let res = self.new_frame(&mut wrt, self.fctl);
             self.writer = Some(ZlibEncoder::new(wrt, self.compression.clone().to_options()));
-            let (end, line_len, to_write) = res?;
-            self.end = end;
-            self.line_len = line_len;
-            self.to_write = to_write;
+            res?;
         }
         let written = data.read(&mut self.curr_buf[..self.line_len][self.index..])?;
         self.index += written;

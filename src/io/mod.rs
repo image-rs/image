@@ -117,7 +117,7 @@ impl Limits {
     /// [`reserve`]: #method.reserve
     pub fn free(&mut self, amount: u64) {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
-            *max_alloc -= std::cmp::min(*max_alloc, amount);
+            *max_alloc = max_alloc.saturating_add(amount);
         }
     }
 }

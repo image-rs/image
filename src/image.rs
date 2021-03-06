@@ -686,14 +686,18 @@ pub trait ImageDecoder<'a>: Sized {
     /// limits that is possible to set.
     ///
     /// Note to implementors: make sure you call [`Limits::check_support`] so that 
-    /// decoding fails if any unsupported strict limits are set.
-    /// [`Limits::check_support`] will also check the `max_image_width` and
+    /// decoding fails if any unsupported strict limits are set. Also make sure
+    /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
     /// `max_image_height` limits.
     ///
     /// [`Limits`]: ./io/struct.Limits.html
     /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
+    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
     fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
-        limits.check_support(self, crate::io::LimitSupport::default())?;
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
 
         Ok(())
     }

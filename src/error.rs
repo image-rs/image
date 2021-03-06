@@ -505,14 +505,9 @@ impl fmt::Display for LimitError {
             LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
             LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
             LimitErrorKind::Unsupported {
-                limits,
-                supported,
+                ..
             } => {
                 write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
-                if limits.max_alloc.is_some() && limits.max_alloc_strict && !supported.max_alloc_strict {
-                    write!(fmt, "maximum number of bytes allocated must be less than {}",
-                        limits.max_alloc.unwrap())?;
-                }
                 Ok(())
             },
             LimitErrorKind::__NonExhaustive(marker) => match marker._private {},

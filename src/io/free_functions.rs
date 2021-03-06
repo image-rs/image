@@ -86,19 +86,10 @@ pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format:
 
         fn visit_decoder<'a, D: ImageDecoder<'a>>(self, mut decoder: D) -> ImageResult<Self::Result> {
             let mut limits = self.0;
-            let total_bytes = decoder.total_bytes();
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
-            if let Some(max_alloc) = limits.max_alloc.as_mut() {
-                if *max_alloc < total_bytes {
-                    return Err(ImageError::Limits(crate::error::LimitError::from_kind(
-                        crate::error::LimitErrorKind::InsufficientMemory)))
-                }
-                // We are allocating a buffer of size `total_bytes` outside of
-                // the decoder. Therefore the decoder gets a smaller limit.
-                *max_alloc -= total_bytes;
-            }
-            decoder.set_limits(self.0)?;
+            limits.reserve(decoder.total_bytes())?;
+            decoder.set_limits(limits)?;
             DynamicImage::from_decoder(decoder)
         }
     }

@@ -1,6 +1,7 @@
 use borrow::Cow;
 use hash::Hasher;
 use io::{Read, Write};
+use mem::swap;
 use ops::{Deref, DerefMut};
 use std::{borrow, error, fmt, hash, io, mem, ops, result};
 
@@ -1005,6 +1006,36 @@ impl<W: Write> Drop for ChunkWriter<'_, W> {
     }
 }
 
+// TODO: find a better name
+//
+/// This enum is used to be allow the `StreamWriter` to keep
+/// its inner `ChunkWriter` without wrapping it inside a
+/// `ZlibEncoder`. This is used in the case that between the
+/// change of state that happens when the last write of a frame
+/// is performed an error occurs, which obviously has to be returned.
+/// This creates the problem of where to store the writer before
+/// exiting the function, and this is where `Wrapper` comes in.
+///
+/// Unfortunately the `ZlibWriter` can't be used because on the
+/// write following the error, `finish` wuold be called and that
+/// would write some data even if 0 bytes where compressed.
+enum Wrapper<'a, W: Write> {
+    Chunk(ChunkWriter<'a, W>),
+    Zlib(ZlibEncoder<ChunkWriter<'a, W>>),
+    /// This is used in-between, should never be matched
+    None,
+}
+
+impl<'a, W: Write> Wrapper<'a, W> {
+    /// Like `Option::take` this returns the `Wrapper` contained
+    /// in `self` and replaces it with `Wrapper::None`
+    fn take(&mut self) -> Wrapper<'a, W> {
+        let mut swap = Wrapper::None;
+        mem::swap(self, &mut swap);
+        swap
+    }
+}
+
 /// Streaming PNG writer
 ///
 /// This may silently fail in the destructor, so it is a good idea to call
@@ -1014,7 +1045,7 @@ impl<W: Write> Drop for ChunkWriter<'_, W> {
 pub struct StreamWriter<'a, W: Write> {
     /// The option here is needed in order to access the inner `ChunkWriter` in-between
     /// each frame, which is needed for writing the fcTL chunks between each frame
-    writer: Option<ZlibEncoder<ChunkWriter<'a, W>>>,
+    writer: Wrapper<'a, W>,
     prev_buf: Vec<u8>,
     curr_buf: Vec<u8>,
     /// Amount of data already written
@@ -1063,7 +1094,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         let zlib = ZlibEncoder::new(chunk_writer, compression.to_options());
 
         Ok(StreamWriter {
-            writer: Some(zlib),
+            writer: Wrapper::Zlib(zlib),
             index: 0,
             prev_buf,
             curr_buf,
@@ -1275,14 +1306,14 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// Flushes the buffered chunk, checks if it was the last frame,
     /// writes the next frame header and gets the next frame scanline size
     /// and image size.
-    fn new_frame(
-        &mut self,
-        wrt: &mut ChunkWriter<'a, W>,
-        fctl: Option<FrameControl>,
-    ) -> Result<()> {
+    fn new_frame(&mut self) -> Result<()> {
+        let mut wrt = match self.writer.take() {
+            Wrapper::Chunk(wrt) => wrt,
+            _ => unreachable!(),
+        };
         wrt.flush()?;
         wrt.writer.written += 1;
-        if let Some(fctl) = fctl {
+        if let Some(fctl) = self.fctl {
             wrt.set_fctl(fctl);
         }
         wrt.write_header()?;
@@ -1290,6 +1321,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         self.end = wrt.writer.written == wrt.writer.max_frames();
         self.line_len = scansize;
         self.to_write = size;
+        self.writer = Wrapper::Zlib(ZlibEncoder::new(wrt, self.compression.to_options()));
         Ok(())
     }
 }
@@ -1300,28 +1332,23 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             return Ok(0);
         }
 
+        match self.writer {
+            Wrapper::Chunk(_) => self.new_frame()?,
+            Wrapper::Zlib(_) => {}
+            Wrapper::None => unreachable!(),
+        }
+
         if self.end {
             let err = FormatErrorKind::EndReached.into();
             return Err(EncodingError::Format(err).into());
         }
 
         if self.to_write == 0 {
-            let mut wrt = self.writer.take().unwrap().finish()?;
-            // the function is used in order to avoid the invalidation of the `StreamWriter`
-            // in the case of an error occrring in this situation
-            //
-            // This might not work and that's because I don't know if the
-            // ZlibEncoder would actually write something if no data was
-            // written which would happen on the second try after the error
-            // becuase `to_write` would still be at zero and `ZlibEncoder::finish`
-            // would be called once again.
-            //
-            // A better solution might be using a custom enum for the writer that
-            // can hold either a `ZlibEncoder` or a `ChunkWriter` so that when an error
-            // would occur there wouldn't be the need to create another `ZlibEncoder`.
-            let res = self.new_frame(&mut wrt, self.fctl);
-            self.writer = Some(ZlibEncoder::new(wrt, self.compression.clone().to_options()));
-            res?;
+            self.writer = match self.writer.take() {
+                Wrapper::Zlib(wrt) => Wrapper::Chunk(wrt.finish()?),
+                _ => unreachable!("invalid writer state"),
+            };
+            self.new_frame()?;
         }
         let written = data.read(&mut self.curr_buf[..self.line_len][self.index..])?;
         self.index += written;
@@ -1335,8 +1362,11 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                 &self.prev_buf,
                 &mut self.curr_buf,
             );
-            // This can't fail as the option is used only to allow the zlib encoder to finish
-            let wrt = self.writer.as_mut().unwrap();
+            // This can't fail as the other variant is used only to allow the zlib encoder to finish
+            let wrt = match &mut self.writer {
+                Wrapper::Zlib(wrt) => wrt,
+                _ => unreachable!(),
+            };
             wrt.write_all(&[filter_type as u8])?;
             wrt.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
@@ -1346,7 +1376,10 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.writer.as_mut().unwrap().flush()?;
+        match &mut self.writer {
+            Wrapper::Zlib(wrt) => wrt.flush()?,
+            _ => unreachable!(),
+        }
         if self.index > 0 {
             let err = FormatErrorKind::WrittenTooMuch(self.index).into();
             return Err(EncodingError::Format(err).into());

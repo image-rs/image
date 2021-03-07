@@ -1312,15 +1312,15 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             _ => unreachable!(),
         };
         wrt.flush()?;
-        wrt.writer.written += 1;
         if let Some(fctl) = self.fctl {
             wrt.set_fctl(fctl);
         }
-        wrt.write_header()?;
         let (scansize, size) = wrt.next_frame_info();
-        self.end = wrt.writer.written == wrt.writer.max_frames();
         self.line_len = scansize;
         self.to_write = size;
+        wrt.writer.written += 1;
+        wrt.write_header()?;
+        self.end = wrt.writer.written + 1 == wrt.writer.max_frames();
         self.writer = Wrapper::Zlib(ZlibEncoder::new(wrt, self.compression.to_options()));
         Ok(())
     }
@@ -1332,18 +1332,15 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             return Ok(0);
         }
 
-        match self.writer {
-            Wrapper::Chunk(_) => self.new_frame()?,
-            Wrapper::Zlib(_) => {}
-            Wrapper::None => unreachable!(),
-        }
-
-        if self.end {
-            let err = FormatErrorKind::EndReached.into();
-            return Err(EncodingError::Format(err).into());
+        if matches!(self.writer, Wrapper::Chunk(_)) {
+            self.new_frame()?
         }
 
         if self.to_write == 0 {
+            if self.end {
+                let err = FormatErrorKind::EndReached.into();
+                return Err(EncodingError::Format(err).into());
+            }
             self.writer = match self.writer.take() {
                 Wrapper::Zlib(wrt) => Wrapper::Chunk(wrt.finish()?),
                 _ => unreachable!("invalid writer state"),

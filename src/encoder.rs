@@ -1332,8 +1332,10 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             return Ok(0);
         }
 
-        if matches!(self.writer, Wrapper::Chunk(_)) {
-            self.new_frame()?
+        match self.writer {
+            Wrapper::Chunk(_) => self.new_frame()?,
+            Wrapper::Zlib(_) => {}
+            Wrapper::None => unreachable!(),
         }
 
         if self.to_write == 0 {

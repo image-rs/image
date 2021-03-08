@@ -30,7 +30,7 @@ use crate::codecs::farbfeld;
 #[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
 use crate::codecs::avif;
 
-use crate::color;
+use crate::{ImageOutputFormat, color};
 use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
@@ -205,6 +205,43 @@ pub(crate) fn save_buffer_with_format_impl(
         #[cfg(feature = "tga")]
         image::ImageFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         format => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+    }
+}
+
+#[allow(unused_variables)]
+// Most variables when no features are supported
+pub(crate) fn write_buffer_impl<W: std::io::Write>(
+    fout: &mut W,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: ImageOutputFormat,
+) -> ImageResult<()> {
+    match format {
+        #[cfg(feature = "png")]
+        ImageOutputFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "jpeg")]
+        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(fout, quality)
+            .write_image(buf, width, height, color),
+        #[cfg(feature = "pnm")]
+        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(fout)
+            .with_subtype(subtype)
+            .write_image(buf, width, height, color),
+        #[cfg(feature = "gif")]
+        ImageOutputFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "ico")]
+        ImageOutputFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "bmp")]
+        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "farbfeld")]
+        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "tga")]
+        ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "avif")]
+        ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Unsupported(format) => Err(ImageError::Unsupported(ImageFormatHint::Name(format).into())),
+        format => Err(ImageError::Unsupported(ImageFormatHint::Name(format!("{:?}", format)).into()))
     }
 }
 

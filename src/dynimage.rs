@@ -1292,6 +1292,29 @@ where
     free_functions::save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
 }
 
+/// Writes the supplied buffer to a writer in the specified format.
+///
+/// The buffer is assumed to have the correct format according
+/// to the specified color type.
+/// This will lead to corrupted writers if the buffer contains
+/// malformed data. Currently only jpeg, png, ico, bmp, 
+/// pnm, gif, tga, farbfeld and avif formats are supported.
+pub fn write_buffer_with_format<W, F>(
+    writer: &mut W,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: F,
+) -> ImageResult<()>
+where
+    W: std::io::Write,
+    F: Into<ImageOutputFormat>,
+{
+    // thin wrapper function to strip generics
+    free_functions::write_buffer_impl(writer, buf, width, height, color, format.into())
+}
+
 /// Create a new image from a byte slice
 ///
 /// Makes an educated guess about the image format.

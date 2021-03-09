@@ -163,49 +163,29 @@ pub(crate) fn save_buffer_with_format_impl(
 ) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
 
-    match format {
-        #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+    let format = match format {
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
             let ext = path.extension()
             .and_then(|s| s.to_str())
             .map_or("".to_string(), |s| s.to_ascii_lowercase());
-            match &*ext {
-                "pbm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-                    .write_image(buf, width, height, color),
-                "pgm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-                    .write_image(buf, width, height, color),
-                "ppm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-                    .write_image(buf, width, height, color),
-                "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
-                _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())), // Unsupported Pnm subtype.
-            }
+            ImageOutputFormat::Pnm(match &*ext {
+                "pbm" => pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary),
+                "pgm" => pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary),
+                "ppm" => pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary),
+                _ => { return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())) }, // Unsupported Pnm subtype.
+            })
         },
-        #[cfg(feature = "farbfeld")]
-        image::ImageFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "avif-encoder")]
-        image::ImageFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        format => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
-    }
+        image::ImageFormat::Tiff => {
+            return tiff::TiffEncoder::new(fout).write_image(buf, width, height, color);
+        },
+        format => format.into(),
+    };
+
+    write_buffer_impl(fout, buf, width, height, color, format)
 }
 
 #[allow(unused_variables)]
@@ -238,7 +218,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "avif")]
+        #[cfg(feature = "avif-encoder")]
         ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
         ImageOutputFormat::Unsupported(format) => Err(ImageError::Unsupported(ImageFormatHint::Name(format).into())),
         format => Err(ImageError::Unsupported(ImageFormatHint::Name(format!("{:?}", format)).into()))

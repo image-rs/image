@@ -19,7 +19,7 @@ use crate::codecs::pnm;
 use crate::codecs::farbfeld;
 #[cfg(feature = "tga")]
 use crate::codecs::tga;
-#[cfg(feature = "avif")]
+#[cfg(feature = "avif-encoder")]
 use crate::codecs::avif;
 
 use crate::buffer_::{
@@ -994,7 +994,7 @@ impl DynamicImage {
                 tga::TgaEncoder::new(w).write_image(bytes, width, height, color)
             }
 
-            #[cfg(feature = "avif")]
+            #[cfg(feature = "avif-encoder")]
             image::ImageOutputFormat::Avif => {
                 avif::AvifEncoder::new(w).write_image(bytes, width, height, color)
             }

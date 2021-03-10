@@ -243,7 +243,7 @@ pub enum ImageOutputFormat {
     /// An Image in TGA Format
     Tga,
 
-    #[cfg(feature = "avif")]
+    #[cfg(feature = "avif-encoder")]
     /// An image in AVIF Format
     Avif,
 
@@ -275,7 +275,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
-            #[cfg(feature = "avif")]
+            #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),

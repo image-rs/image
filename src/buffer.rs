@@ -6,9 +6,9 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::{ImageOutputFormat, color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra}};
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::dynimage::{save_buffer, save_buffer_with_format};
+use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::image::{GenericImage, GenericImageView, ImageFormat};
 use crate::math::Rect;
@@ -896,7 +896,8 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg and png files are supported.
+    /// Currently only jpeg, png, ico, pnm, bmp and 
+    /// tiff files are supported.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -930,6 +931,34 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
+            self.as_bytes(),
+            self.width(),
+            self.height(),
+            <P as Pixel>::COLOR_TYPE,
+            format,
+        )
+    }
+}
+
+impl<P, Container> ImageBuffer<P, Container>
+where
+    P: Pixel + 'static,
+    [P::Subpixel]: EncodableLayout,
+    Container: Deref<Target = [P::Subpixel]>,
+{
+    /// Writes the buffer to a writer in the specified format.
+    ///
+    /// The image format is derived from the file extension.
+    /// Currently only jpeg, png, ico, bmp, pnm,
+    /// gif, tga, farbfeld and avif formats are supported.
+    pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
+    where
+        W: std::io::Write,
+        F: Into<ImageOutputFormat>,
+    {
+        // This is valid as the subpixel is u8.
+        write_buffer_with_format(
+            writer,
             self.as_bytes(),
             self.width(),
             self.height(),

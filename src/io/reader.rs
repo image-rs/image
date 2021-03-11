@@ -116,12 +116,12 @@ impl<R: Read> Reader<R> {
         self.format = None;
     }
 
-    /// Disable all decoding limits
+    /// Disable all decoding limits.
     pub fn no_limits(&mut self) {
         self.limits = super::Limits::no_limits();
     }
 
-    /// Set a custom set of decoding limits
+    /// Set a custom set of decoding limits.
     pub fn limits(&mut self, limits: super::Limits) {
         self.limits = limits;
     }

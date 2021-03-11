@@ -7,7 +7,7 @@ pub(crate) mod free_functions;
 
 pub use self::reader::Reader;
 
-/// Set of supported strict limits for a decoder
+/// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
 pub struct LimitSupport {
@@ -25,16 +25,23 @@ impl Default for LimitSupport {
 /// Resource limits for decoding.
 ///
 /// Limits can be either *strict* or *non-strict*. Non-strict limits are best-effort
-/// limits where the library does not guarantee that limit wont be exceeded. Do note 
+/// limits where the library does not guarantee that limit will not be exceeded. Do note 
 /// that it is still considered a bug if a non-strict limit is exceeded, however as 
 /// some of the underlying decoders do not support not support such limits one cannot 
 /// rely on these limits being supported. For stric limits the library makes a stronger 
 /// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered 
-/// a critical bug. If a decoder cannot guaranree that it will uphold a strict limit it 
+/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it 
 /// *must* fail with `image::error::LimitErrorKind::Unsupported`.
+///
+/// Currently there are no strict limits supported, however they will be added in the
+/// future. [`LimitSupport`] will default to support being false and decoders should
+/// enable support for the limits they support in [`ImageDecoder::set_limits`].
 ///
 /// The limit check should only ever fail if a limit will be exceeded or an unsupported
 /// strict limit is used.
+///
+/// [`LimitSupport`]: ./struct.LimitSupport.html
+/// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
 pub struct Limits {
@@ -42,9 +49,9 @@ pub struct Limits {
     pub max_image_width: Option<u32>,
     /// The maximum allowed image height. This limit is strict. The default is no limit.
     pub max_image_height: Option<u32>,
-    /// The maximum allowed amount of memory to be allocated by the 
-    /// decoder at any one time. This limit is non-strict and some 
-    /// decoders may ignore it. The default is 512MiB.
+    /// The maximum allowed sum of allocations allocated by the decoder at any one 
+    /// time exluding allocator overhead. This limit is non-strict by default and
+    /// some decoders may ignore it. The default is 512MiB.
     pub max_alloc: Option<u64>,
     _non_exhaustive: (),
 }
@@ -61,7 +68,7 @@ impl Default for Limits {
 }
 
 impl Limits {
-    /// Disable all limits
+    /// Disable all limits.
     pub fn no_limits() -> Limits {
         Limits {
             max_image_width: None,

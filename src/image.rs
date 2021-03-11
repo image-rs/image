@@ -569,7 +569,6 @@ pub trait ImageDecoder<'a>: Sized {
     fn metagram(&mut self, recorder: &mut Recorder) {
         let (width, height) = self.dimensions();
         recorder.dimensions(width, height);
-        recorder.color(self.original_color_type());
     }
 
     /// Returns all the bytes in the image.

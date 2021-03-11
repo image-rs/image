@@ -1,22 +1,62 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-
-use crate::color;
 
 // oder (Engram), Metagram, 
 /// Collects some arbitrary meta data of an image.
+///
+/// Note that information collected here will, per default, appear opaque to the `image` library
+/// itself. For example, the width and height of an image might be recorded as one set of values
+/// that's completely different from the reported dimensions in the decoder. During decoding and
+/// writing of images the library may ignore the color profile and exif data. You should always
+/// recheck with the specific decoder if you require color accuracy beyond presuming sRGB. (This
+/// may be improved upon in the future, if you have a concrete draft please open an issue).
 #[derive(Clone, Default)]
 pub struct Metagram {
-    width: u32,
-    height: u32,
-    color: Option<color::ExtendedColorType>,
-    color_profile_iccp: Vec<u8>,
-    exif: Vec<u8>,
-    comments: Vec<String>,
+    /// The original width in pixels.
+    pub width: u32,
+    /// The original height in pixels.
+    pub height: u32,
+    /// An ICC profile characterizing color interpretation of the image input.
+    pub color_profile: Option<Vec<u8>>,
+    /// Encoded EXIF data associated with the image.
+    pub exif: Option<Vec<u8>>,
+    _non_exhaustive: (),
 }
 
 /// A buffer for the extra meta data produced by an image decoder.
+///
+/// There are two main ways of creation: Any consumer of the `ImageDecoder` interface can create
+/// their own recorder to retrieve meta data from the decoder. A decoder wrapping another format
+/// (i.e. jpeg-within-tiff) might create a recorder from a `SharedRecorder` to add additional data
+/// to the outer recorder instead.
+///
+/// # Use
+///
+/// ```rust
+/// # struct FakeDecoder;
+/// # use image::ImageDecoder;
+/// # impl ImageDecoder<'_> for FakeDecoder {
+/// #   type Reader = std::io::Empty;
+/// #   fn dimensions(&self) -> (u32, u32) { (0, 0) }
+/// #   fn color_type(&self) -> image::ColorType { todo!() }
+/// #   fn into_reader(self) -> image::ImageResult<std::io::Empty> { Ok(std::io::empty()) }
+/// # }
+/// use image::io::{Metagram, Recorder};
+///
+/// let mut some_decoder = // ..
+/// # FakeDecoder;
+/// let mut recorder = Recorder::new();
+/// some_decoder.metagram(&mut recorder);
+///
+/// if recorder.is_shared() {
+///     // The decoder kept a shared clone, The complete metagram may not yet be available.
+///     // It will likely add more to the metagram while decoding.
+///     let mut _buffer = vec![0; some_decoder.total_bytes() as usize];
+///     some_decoder.read_image(&mut _buffer);
+/// }
+///
+/// let meta: Metagram = recorder.to_result();
+/// ```
 pub struct Recorder {
     inner: RecorderInner,
 }
@@ -32,52 +72,25 @@ pub struct SharedRecorder {
     inner: Arc<Mutex<Metagram>>,
 }
 
-impl Metagram {
-    pub fn dimensions(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-    }
-
-    pub fn color(&mut self, color: color::ExtendedColorType) {
-        self.color = Some(color);
-    }
-
-    pub fn add_comment(&mut self, comment: String) {
-        self.comments.push(comment)
-    }
-
-    pub fn set_exif(&mut self, data: Vec<u8>) {
-        self.exif = data;
-    }
-}
-
 impl Recorder {
+    /// Create a recorder recording into a new, empty meta data.
     pub fn new() -> Self {
         Recorder::default()
     }
 
+    /// Create a record that already contains some data.
     pub fn with(meta: Metagram) -> Self {
         Recorder {
             inner: RecorderInner::Owned(Box::new(RefCell::new(meta))),
         }
     }
 
-    pub fn dimensions(&self, width: u32, height: u32) {
-        self.inner.with_mut(|meta| meta.dimensions(width, height))
-    }
-
-    pub fn color(&self, color: color::ExtendedColorType) {
-        self.inner.with_mut(|meta| meta.color(color))
-    }
-
-    /// Add an additional comment.
-    pub fn add_comment(&self, comment: String) {
-        self.inner.with_mut(|meta| meta.add_comment(comment))
-    }
-
-    /// Overwrite all EXIF data.
-    pub fn exif(&self, data: Vec<u8>) {
-        self.inner.with_mut(|meta| meta.set_exif(data))
+    /// Check if this recorder was shared.
+    pub fn is_shared(&self) -> bool {
+        match self.inner {
+            RecorderInner::Owned(_) => false,
+            RecorderInner::Shared(_) => true,
+        }
     }
 
     /// Split the recorder such that it can be sent to a different thread.
@@ -126,8 +139,39 @@ impl RecorderInner {
     }
 }
 
+/// Setters for recording meta data.
+/// Any change here should also be made for `SharedRecorder` unless it is specifically not possible
+/// to perform on a shared, and locked struct.
+impl Recorder {
+    /// Add original dimensions.
+    pub fn dimensions(&self, width: u32, height: u32) {
+        self.inner.with_mut(|meta| meta.set_dimensions((width, height)));
+    }
+
+    /// Add a color profile.
+    pub fn color(&self, color: Vec<u8>) {
+        self.inner.with_mut(|meta| meta.set_color(color))
+    }
+
+    /// Overwrite all EXIF data.
+    pub fn exif(&self, data: Vec<u8>) {
+        self.inner.with_mut(|meta| meta.set_exif(data))
+    }
+}
+
 impl SharedRecorder {
-    pub fn set_exif(&mut self, data: Vec<u8>) {
+    /// Add original dimensions.
+    pub fn dimensions(&self, width: u32, height: u32) {
+        self.with_mut(|meta| meta.set_dimensions((width, height)));
+    }
+
+    /// Add a color profile.
+    pub fn color(&self, color: Vec<u8>) {
+        self.with_mut(|meta| meta.set_color(color))
+    }
+
+    /// Overwrite all EXIF data.
+    pub fn exif(&self, data: Vec<u8>) {
         self.with_mut(|meta| meta.set_exif(data))
     }
 
@@ -135,6 +179,23 @@ impl SharedRecorder {
         // Regarding lock recovery: None of the inner methods should usually panic. The only
         // exception would be from allocation error while inserting a new exif tag or something.
         function(&mut self.inner.lock().unwrap_or_else(|err| err.into_inner()))
+    }
+}
+
+/// Private implementation of metagram, existing for the purpose of make assignment available as
+/// methods.
+impl Metagram {
+    fn set_dimensions(&mut self, (width, height): (u32, u32)) {
+        self.width = width;
+        self.height = height;
+    }
+
+    fn set_color(&mut self, color: Vec<u8>) {
+        self.color_profile = Some(color);
+    }
+
+    fn set_exif(&mut self, exif: Vec<u8>) {
+        self.exif = Some(exif);
     }
 }
 

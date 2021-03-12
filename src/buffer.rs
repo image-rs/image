@@ -948,9 +948,11 @@ where
 {
     /// Writes the buffer to a writer in the specified format.
     ///
-    /// The image format is derived from the file extension.
-    /// Currently only jpeg, png, ico, bmp, pnm,
-    /// gif, tga, farbfeld and avif formats are supported.
+    /// See [`ImageOutputFormat`](./enum.ImageOutputFormat.html) for
+    /// supported types.
+    ///
+    /// **Note**: TIFF encoding uses buffered writing,
+    /// which can lead to unexpected use of resources
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where
         W: std::io::Write,

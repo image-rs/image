@@ -16,7 +16,7 @@ use crate::traits::Pixel;
 use crate::animation::Frames;
 
 #[cfg(feature = "pnm")]
-use crate::pnm::PnmSubtype;
+use crate::codecs::pnm::PnmSubtype;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.

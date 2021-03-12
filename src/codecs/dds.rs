@@ -11,7 +11,7 @@ use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::color::ColorType;
-use crate::dxt::{DxtDecoder, DxtReader, DxtVariant};
+use crate::codecs::dxt::{DxtDecoder, DxtReader, DxtVariant};
 use crate::error::{
     DecodingError, ImageError, ImageFormatHint, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };

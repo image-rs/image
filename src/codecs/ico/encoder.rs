@@ -5,7 +5,7 @@ use crate::color::ColorType;
 use crate::error::ImageResult;
 use crate::image::ImageEncoder;
 
-use crate::png::PngEncoder;
+use crate::codecs::png::PngEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;

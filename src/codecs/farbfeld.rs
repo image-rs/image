@@ -289,7 +289,7 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::farbfeld::FarbfeldDecoder;
+    use crate::codecs::farbfeld::FarbfeldDecoder;
     use crate::ImageDecoderExt;
     use std::io::{Cursor, Seek, SeekFrom};
     use byteorder::{ByteOrder, NativeEndian};

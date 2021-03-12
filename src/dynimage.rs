@@ -3,24 +3,12 @@ use std::io::Write;
 use std::path::Path;
 use std::u32;
 
-#[cfg(feature = "bmp")]
-use crate::codecs::bmp;
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
-#[cfg(feature = "ico")]
-use crate::codecs::ico;
-#[cfg(feature = "jpeg")]
-use crate::codecs::jpeg;
 #[cfg(feature = "png")]
 use crate::codecs::png;
 #[cfg(feature = "pnm")]
 use crate::codecs::pnm;
-#[cfg(feature = "farbfeld")]
-use crate::codecs::farbfeld;
-#[cfg(feature = "tga")]
-use crate::codecs::tga;
-#[cfg(feature = "avif-encoder")]
-use crate::codecs::avif;
 
 use crate::buffer_::{
     BgrImage, BgraImage, ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
@@ -32,7 +20,6 @@ use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, Par
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
 use crate::math::resize_dimensions;
@@ -956,13 +943,6 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "jpeg")]
-            image::ImageOutputFormat::Jpeg(quality) => {
-                let j = jpeg::JpegEncoder::new_with_quality(w, quality);
-                j.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
             #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
                 let mut g = gif::GifEncoder::new(w);
@@ -970,42 +950,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "ico")]
-            image::ImageOutputFormat::Ico => {
-                let i = ico::IcoEncoder::new(w);
-                i.encode(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "bmp")]
-            image::ImageOutputFormat::Bmp => {
-                let mut b = bmp::BmpEncoder::new(w);
-                b.encode(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "farbfeld")]
-            image::ImageOutputFormat::Farbfeld => {
-                farbfeld::FarbfeldEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            #[cfg(feature = "tga")]
-            image::ImageOutputFormat::Tga => {
-                tga::TgaEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            #[cfg(feature = "avif-encoder")]
-            image::ImageOutputFormat::Avif => {
-                avif::AvifEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            image::ImageOutputFormat::Unsupported(msg) => {
-                Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
-            },
-
-            image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
+            format => free_functions::write_buffer_impl(w, bytes, width, height, color, format)
         }
     }
 

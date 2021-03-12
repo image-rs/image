@@ -883,6 +883,8 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
+    /// **Note**: TIFF encoding uses buffered writing,
+    /// which can lead to unexpected use of resources
     pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
@@ -950,7 +952,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            format => free_functions::write_buffer_impl(w, bytes, width, height, color, format)
+            format => write_buffer_with_format(w, bytes, width, height, color, format)
         }
     }
 
@@ -1242,8 +1244,13 @@ where
 /// The buffer is assumed to have the correct format according
 /// to the specified color type.
 /// This will lead to corrupted writers if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp, 
-/// pnm, gif, tga, farbfeld and avif formats are supported.
+/// malformed data.
+///
+/// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
+/// supported types.
+///
+/// **Note**: TIFF encoding uses buffered writing,
+/// which can lead to unexpected use of resources
 pub fn write_buffer_with_format<W, F>(
     writer: &mut W,
     buf: &[u8],

@@ -948,7 +948,7 @@ where
 {
     /// Writes the buffer to a writer in the specified format.
     ///
-    /// See [`ImageOutputFormat`](./enum.ImageOutputFormat.html) for
+    /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
     /// supported types.
     ///
     /// **Note**: TIFF encoding uses buffered writing,

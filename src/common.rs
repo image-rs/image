@@ -457,19 +457,6 @@ impl SrgbRenderingIntent {
     }
 }
 
-/// A single-byte integer that represents the filtering method applied before
-/// compression.
-///
-/// Currently, the only filter method is adaptive filtering with any of the
-/// five filters in [`filter::FilterType`].
-///
-/// [`filter::FilterType`]: enum.FilterType.html
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum InfoFilterType {
-    Adaptive = 0,
-}
-
 /// PNG info struct
 #[derive(Clone, Debug)]
 pub struct Info<'a> {
@@ -489,7 +476,6 @@ pub struct Info<'a> {
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
-    pub filter: InfoFilterType,
     /// Chromaticities of the source system.
     pub source_chromaticities: Option<SourceChromaticities>,
     /// The rendering intent of an SRGB image.

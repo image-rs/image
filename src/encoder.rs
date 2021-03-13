@@ -127,14 +127,9 @@ pub struct Encoder<'a, W: Write> {
 
 impl<'a, W: Write> Encoder<'a, W> {
     pub fn new(w: W, width: u32, height: u32) -> Encoder<'static, W> {
-        let info = Info {
-            width,
-            height,
-            ..Default::default()
-        };
         Encoder {
             w,
-            info,
+            info: Info::with_size(width, height),
             filter: FilterType::default(),
             adaptive_filter: AdaptiveFilterType::default(),
             sep_def_img: false,
@@ -415,16 +410,15 @@ impl PartialInfo {
     /// Converts this partial info to an owned Info struct,
     /// setting missing values to their defaults
     fn to_info(&self) -> Info<'static> {
-        Info {
-            width: self.width,
-            height: self.height,
-            bit_depth: self.bit_depth,
-            color_type: self.color_type,
-            frame_control: self.frame_control,
-            animation_control: self.animation_control,
-            compression: self.compression,
-            ..Default::default()
-        }
+        let mut info = Info::default();
+        info.width = self.width;
+        info.height = self.height;
+        info.bit_depth = self.bit_depth;
+        info.color_type = self.color_type;
+        info.frame_control = self.frame_control;
+        info.animation_control = self.animation_control;
+        info.compression = self.compression;
+        info
     }
 }
 

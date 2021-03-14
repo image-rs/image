@@ -172,12 +172,16 @@ impl<'a, W: Write> Encoder<'a, W> {
         }
     }
 
-    pub fn set_palette(&mut self, palette: Cow<'a, [u8]>) {
-        self.info.palette = Some(palette);
+    /// Sets the raw byte contents of the PLTE chunk. This method accepts
+    /// both borrowed and owned byte data.
+    pub fn set_palette<T: Into<Cow<'a, [u8]>>>(&mut self, palette: T) {
+        self.info.palette = Some(palette.into());
     }
 
-    pub fn set_trns(&mut self, trns: Cow<'a, [u8]>) {
-        self.info.trns = Some(trns);
+    /// Sets the raw byte contents of the tRNS chunk. This method accepts
+    /// both borrowed and owned byte data.
+    pub fn set_trns<T: Into<Cow<'a, [u8]>>>(&mut self, trns: T) {
+        self.info.trns = Some(trns.into());
     }
 
     /// Set the display gamma of the source system on which the image was generated or last edited.
@@ -1077,7 +1081,7 @@ mod tests {
                 let mut encoder = Encoder::new(&mut out, info.width, info.height);
                 encoder.set_depth(BitDepth::from_u8(bit_depth).unwrap());
                 encoder.set_color(ColorType::Indexed);
-                encoder.set_palette(Cow::Borrowed(palette));
+                encoder.set_palette(palette.as_ref());
 
                 let mut writer = encoder.write_header().unwrap();
                 writer.write_image_data(&indexed_data).unwrap();

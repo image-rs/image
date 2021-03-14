@@ -30,7 +30,7 @@ use crate::codecs::farbfeld;
 #[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
 use crate::codecs::avif;
 
-use crate::{ImageOutputFormat, color};
+use crate::{ImageOutputFormat, color, error::{UnsupportedError, UnsupportedErrorKind}};
 use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
@@ -218,10 +218,25 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "tiff")]
+        ImageOutputFormat::Tiff => {
+            let mut cursor = std::io::Cursor::new(Vec::new());
+            tiff::TiffEncoder::new(&mut cursor).write_image(buf, width, height, color)?;
+            fout.write(&cursor.into_inner()[..])
+                .map(|_| ())
+                .map_err(ImageError::IoError)
+        }
         #[cfg(feature = "avif-encoder")]
         ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
-        ImageOutputFormat::Unsupported(format) => Err(ImageError::Unsupported(ImageFormatHint::Name(format).into())),
-        format => Err(ImageError::Unsupported(ImageFormatHint::Name(format!("{:?}", format)).into()))
+
+        image::ImageOutputFormat::Unsupported(msg) => {
+            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
+        }
+
+        image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
+
     }
 }
 

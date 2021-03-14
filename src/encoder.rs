@@ -45,6 +45,7 @@ enum FormatErrorKind {
     ZeroFrames,
     MissingFrames,
     MissingData(usize),
+    Unrecoverable,
 }
 
 impl error::Error for EncodingError {
@@ -90,6 +91,7 @@ impl fmt::Display for FormatError {
             EndReached => write!(fmt, "all the frames have been already written"),
             MissingFrames => write!(fmt, "there are still frames to be written"),
             MissingData(n) => write!(fmt, "there are still {} bytes to be written", n),
+            Unrecoverable => write!(fmt, "the writer is in an unrecoverable state"),
         }
     }
 }
@@ -907,27 +909,21 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
     /// NOTE: this bypasses the internal buffer so the flush method should be called before this
     ///       in the case there is some data left in the buffer when this is called, it will panic
     fn write_header(&mut self) -> Result<()> {
-        if self.index != 0 {
-            // return Err(todo!())
-            panic!("Called when not flushed") // TODO: add error code
-        }
+        assert_eq!(self.index, 0, "Called when not flushed");
         let wrt = self.writer.deref_mut();
 
-        if wrt.sep_def_img || wrt.info.frame_control.is_none() {
-            self.curr_chunk = chunk::IDAT;
-        } else {
-            if wrt.written == 0 {
-                self.curr_chunk = chunk::IDAT;
-            } else {
-                self.curr_chunk = chunk::fdAT;
-            }
-            if let Some(ref mut fctl) = wrt.info.frame_control {
+        self.curr_chunk = match wrt.info.frame_control {
+            _ if wrt.sep_def_img => chunk::IDAT,
+            None => chunk::IDAT,
+            Some(ref mut fctl) => {
                 fctl.encode(&mut wrt.w)?;
                 fctl.sequence_number += 1;
-            } else {
-                unreachable!()
+                match wrt.written {
+                    0 => chunk::IDAT,
+                    _ => chunk::fdAT,
+                }
             }
-        }
+        };
         Ok(())
     }
 
@@ -1019,9 +1015,14 @@ impl<W: Write> Drop for ChunkWriter<'_, W> {
 /// Unfortunately the `ZlibWriter` can't be used because on the
 /// write following the error, `finish` wuold be called and that
 /// would write some data even if 0 bytes where compressed.
+///
+/// If the `finish` function fails then there is nothing much to
+/// do as the `ChunkWriter` would get lost so the `Unrecoverable`
+/// variant is used to signal that.
 enum Wrapper<'a, W: Write> {
     Chunk(ChunkWriter<'a, W>),
     Zlib(ZlibEncoder<ChunkWriter<'a, W>>),
+    Unrecoverable,
     /// This is used in-between, should never be matched
     None,
 }
@@ -1307,7 +1308,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// writes the next frame header and gets the next frame scanline size
     /// and image size.
     fn new_frame(&mut self) -> Result<()> {
-        let mut wrt = match self.writer.take() {
+        let wrt = match &mut self.writer {
             Wrapper::Chunk(wrt) => wrt,
             _ => unreachable!(),
         };
@@ -1321,6 +1322,12 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         wrt.writer.written += 1;
         wrt.write_header()?;
         self.end = wrt.writer.written + 1 == wrt.writer.max_frames();
+
+        // now it can be taken because the next statements cannot cause any errors
+        let wrt = match self.writer.take() {
+            Wrapper::Chunk(wrt) => wrt,
+            _ => unreachable!(),
+        };
         self.writer = Wrapper::Zlib(ZlibEncoder::new(wrt, self.compression.to_options()));
         Ok(())
     }
@@ -1328,14 +1335,13 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
 impl<'a, W: Write> Write for StreamWriter<'a, W> {
     fn write(&mut self, mut data: &[u8]) -> io::Result<usize> {
-        if data.is_empty() {
-            return Ok(0);
+        if let Wrapper::Unrecoverable = self.writer {
+            let err = FormatErrorKind::Unrecoverable.into();
+            return Err(EncodingError::Format(err).into());
         }
 
-        match self.writer {
-            Wrapper::Chunk(_) => self.new_frame()?,
-            Wrapper::Zlib(_) => {}
-            Wrapper::None => unreachable!(),
+        if data.is_empty() {
+            return Ok(0);
         }
 
         if self.to_write == 0 {
@@ -1343,9 +1349,16 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                 let err = FormatErrorKind::EndReached.into();
                 return Err(EncodingError::Format(err).into());
             }
-            self.writer = match self.writer.take() {
-                Wrapper::Zlib(wrt) => Wrapper::Chunk(wrt.finish()?),
-                _ => unreachable!("invalid writer state"),
+            match self.writer.take() {
+                Wrapper::Zlib(wrt) => match wrt.finish() {
+                    Ok(chunk) => self.writer = Wrapper::Chunk(chunk),
+                    Err(err) => {
+                        self.writer = Wrapper::Unrecoverable;
+                        return Err(err);
+                    }
+                },
+                chunk @ Wrapper::Chunk(_) => self.writer = chunk,
+                Wrapper::None | Wrapper::Unrecoverable => unreachable!(),
             };
             self.new_frame()?;
         }

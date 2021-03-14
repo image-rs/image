@@ -457,19 +457,6 @@ impl SrgbRenderingIntent {
     }
 }
 
-/// A single-byte integer that represents the filtering method applied before
-/// compression.
-///
-/// Currently, the only filter method is adaptive filtering with any of the
-/// five filters in [`filter::FilterType`].
-///
-/// [`filter::FilterType`]: enum.FilterType.html
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum InfoFilterType {
-    Adaptive = 0,
-}
-
 /// PNG info struct
 #[derive(Clone, Debug)]
 pub struct Info<'a> {
@@ -489,7 +476,6 @@ pub struct Info<'a> {
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
-    pub filter: InfoFilterType,
     /// Chromaticities of the source system.
     pub source_chromaticities: Option<SourceChromaticities>,
     /// The rendering intent of an SRGB image.
@@ -497,7 +483,9 @@ pub struct Info<'a> {
     /// Presence of this value also indicates that the image conforms to the SRGB color space.
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
-    pub icc_profile: Option<Vec<u8>>,
+    pub icc_profile: Option<Cow<'a, [u8]>>,
+    /// Private field to mark the struct as non-exhaustive.
+    _extensible: (),
 }
 
 impl Default for Info<'_> {
@@ -517,15 +505,24 @@ impl Default for Info<'_> {
             // Default to `deflate::Compression::Fast` and `filter::FilterType::Sub`
             // to maintain backward compatible output.
             compression: Compression::Fast,
-            filter: InfoFilterType::Adaptive,
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
+            _extensible: (),
         }
     }
 }
 
 impl Info<'_> {
+    /// A utility constructor for a default info with width and height.
+    pub fn with_size(width: u32, height: u32) -> Self {
+        Info {
+            width,
+            height,
+            ..Default::default()
+        }
+    }
+
     /// Size of the image, width then height.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -598,6 +595,10 @@ impl Info<'_> {
             .raw_row_length_from_width(self.bit_depth, width)
     }
 
+    /// Encode this header to the writer.
+    ///
+    /// Note that this does _not_ include the PNG signature, it starts with the IHDR chunk and then
+    /// includes other chunks that were added to the header.
     pub fn encode<W: Write>(&self, mut w: W) -> encoder::Result<()> {
         // Encode the IHDR chunk
         let mut data = [0; 13];

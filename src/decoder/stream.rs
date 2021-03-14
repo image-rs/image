@@ -951,7 +951,7 @@ impl StreamingDecoder {
                 buf = &buf[consumed_bytes..];
             }
 
-            self.info.as_mut().unwrap().icc_profile = Some(profile);
+            self.info.as_mut().unwrap().icc_profile = Some(Cow::Owned(profile));
             Ok(Decoded::Nothing)
         }
     }

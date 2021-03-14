@@ -91,7 +91,10 @@ impl fmt::Display for FormatError {
             EndReached => write!(fmt, "all the frames have been already written"),
             MissingFrames => write!(fmt, "there are still frames to be written"),
             MissingData(n) => write!(fmt, "there are still {} bytes to be written", n),
-            Unrecoverable => write!(fmt, "the writer is in an unrecoverable state"),
+            Unrecoverable => write!(
+                fmt,
+                "a previous error put the writer into an unrecoverable state"
+            ),
         }
     }
 }

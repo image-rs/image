@@ -72,6 +72,8 @@ impl<W: Write> AvifEncoder<W> {
                 speed,
                 premultiplied_alpha: false,
                 color_space: ravif::ColorSpace::RGB,
+                // match core count
+                threads: 0,
             } 
         }
     }

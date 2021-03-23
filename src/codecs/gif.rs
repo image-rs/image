@@ -106,7 +106,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         let (width, height) = self.dimensions();
 
-        if (frame.left, frame.width) == (0, width) && (frame.top as u64 + frame.height as u64 <= height as u64) {
+        if frame.left == 0 && frame.width == width && (frame.top as u64 + frame.height as u64 <= height as u64) {
             // If the frame matches the logical screen, or, as a more general case,
             // fits into it and touches its left and right borders, then
             // we can directly write it into the buffer without causing line wraparound.

@@ -101,9 +101,9 @@ extern crate quickcheck;
 
 use std::io::Write;
 
-pub use crate::color::{ColorType, ExtendedColorType};
+pub use crate::color_::{ColorType, ExtendedColorType};
 
-pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+pub use crate::color_::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
 pub use crate::error::{ImageError, ImageResult};
 
@@ -354,11 +354,16 @@ pub mod webp {
     pub use crate::codecs::webp::{vp8, WebPDecoder};
 }
 
+pub mod color {
+    pub(crate) use crate::color_::*;
+    pub use crate::color_::{Color, Luminance, Transfer, Primaries, Whitepoint};
+}
 
 mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
-mod color;
+#[path = "color.rs"]
+mod color_;
 mod dynimage;
 mod image;
 mod traits;

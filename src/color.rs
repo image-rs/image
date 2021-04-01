@@ -34,6 +34,100 @@ pub enum ColorType {
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
+/// Color information of an image's texels.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum Color {
+    /// The color space is given by an encoded ICC profile.
+    ///
+    /// This is a superset of other options but the consumer must itself decode and extract the
+    /// values. They should indicate an error similar to a completely unsupported color space in
+    /// case this fails.
+    Icc {
+        /// The binary ICC data.
+        profile: Vec<u8>,
+    },
+    /// There is, explicitly, no known color model associated with these values.
+    ///
+    /// The image might contain indices without any associated color map, or it might represent
+    /// quantities not related to color, or non-standard colorimetric values. Note that this is
+    /// different from no information being available.
+    Opaque,
+    /// A common model based on the CIE 1931 XYZ observer.
+    Xyz {
+        /// The standardized RGB primary colors.
+        primary: Primaries,
+        /// The transfer function (electro-optical, opto-electrical).
+        transfer: Transfer,
+        /// The whitepoint of the color space.
+        /// In general, we can not transform from one to another without loss of accuracy.
+        whitepoint: Whitepoint,
+        /// The absolute luminance of the values in the color space.
+        luminance: Luminance,
+    },
+}
+
+/// Transfer functions from encoded chromatic samples to physical quantity.
+///
+/// Ignoring viewing environmental effects, this describes a pair of functions that are each others
+/// inverse: An electro-optical transfer (EOTF) and opto-electronic transfer function (OETF) that
+/// describes how scene lighting is encoded as an electric signal. These are applied to each
+/// stimulus value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Transfer {
+    /// Specified in ITU Rec.709.
+    Bt709,
+    Bt470M,
+    /// Specified in ITU Rec.601.
+    Bt601,
+    Smpte240,
+    /// Also known as the identity function.
+    Linear,
+    /// The common sRGB standard which is close to standard 'gamma correction'.
+    Srgb,
+    /// ITU Rec.2020 with 10 bit quantization.
+    Bt2020_10bit,
+    /// ITU Rec.2020 with 12 bit quantization.
+    Bt2020_12bit,
+    Smpte2084,
+    /// Specified in ITU Rec.2100.
+    /// The same as Smpte2084.
+    Bt2100Pq,
+    /// ITU Rec.2100 Hybrid Log-Gamma.
+    Bt2100Hlg,
+}
+
+/// The reference brightness of the color specification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Luminance {
+    /// 100cd/m².
+    Sdr,
+    /// 10_000cd/m².
+    /// Known as high-dynamic range.
+    Hdr,
+}
+
+/// The relative stimuli of the three corners of a triangular gamut.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Primaries {
+    Bt601_525,
+    Bt601_625,
+    Bt709,
+    Smpte240,
+    Bt2020,
+    Bt2100,
+}
+
+/// The whitepoint/standard illuminant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Whitepoint {
+    D65,
+}
+
 impl ColorType {
     /// Returns the number of bytes contained in a pixel of `ColorType` ```c```
     pub fn bytes_per_pixel(self) -> u8 {
@@ -79,6 +173,15 @@ impl ColorType {
         let e: ExtendedColorType = self.into();
         e.channel_count()
     }
+}
+
+impl Color {
+    pub const SRGB: Color = Color::Xyz {
+        luminance: Luminance::Sdr,
+        primary: Primaries::Bt709,
+        transfer: Transfer::Srgb,
+        whitepoint: Whitepoint::D65,
+    };
 }
 
 /// An enumeration of color types encountered in image formats.

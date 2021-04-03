@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
+use crate::color::Color;
+
 // oder (Engram), Metagram, 
 /// Collects some arbitrary meta data of an image.
 ///
@@ -16,8 +18,9 @@ pub struct Metagram {
     pub width: u32,
     /// The original height in pixels.
     pub height: u32,
-    /// An ICC profile characterizing color interpretation of the image input.
-    pub color_profile: Option<Vec<u8>>,
+    /// The available color information.
+    /// For example, an ICC profile characterizing color interpretation of the image input.
+    pub color_profile: Option<Color>,
     /// Encoded EXIF data associated with the image.
     pub exif: Option<Vec<u8>>,
     _non_exhaustive: (),

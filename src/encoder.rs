@@ -1,9 +1,7 @@
 use borrow::Cow;
-use hash::Hasher;
 use io::{Read, Write};
-use mem::swap;
 use ops::{Deref, DerefMut};
-use std::{borrow, error, fmt, hash, io, mem, ops, result};
+use std::{borrow, error, fmt, io, mem, ops, result};
 
 use crc32fast::Hasher as Crc32;
 use deflate::write::ZlibEncoder;

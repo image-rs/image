@@ -25,14 +25,15 @@ fn bench_file(c: &mut Criterion, data: Vec<u8>, name: String) {
     group.sample_size(20);
 
     let decoder = Decoder::new(&*data);
-    let (info, _) = decoder.read_info().unwrap();
-    let mut image = vec![0; info.buffer_size()];
+    let mut reader = decoder.read_info().unwrap();
+    let mut image = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut image).unwrap();
 
     group.throughput(Throughput::Bytes(info.buffer_size() as u64));
     group.bench_with_input(name, &data, |b, data| {
         b.iter(|| {
             let decoder = Decoder::new(data.as_slice());
-            let (_, mut decoder) = decoder.read_info().unwrap();
+            let mut decoder = decoder.read_info().unwrap();
             decoder.next_frame(&mut image).unwrap();
         })
     });

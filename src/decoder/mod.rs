@@ -31,15 +31,22 @@ pub enum InterlaceHandling {
 /// This describes one particular frame of the image that was written into the output buffer.
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputInfo {
+    /// The pixel width of this frame.
     pub width: u32,
+    /// The pixel height of this frame.
     pub height: u32,
+    /// The chosen output color type.
     pub color_type: ColorType,
+    /// The chosen output bit depth.
     pub bit_depth: BitDepth,
+    /// The byte count of each scan line in the image.
     pub line_size: usize,
 }
 
 impl OutputInfo {
     /// Returns the size needed to hold a decoded frame
+    /// If the output buffer was larger then bytes after this count should be ignored. They may
+    /// still have been changed.
     pub fn buffer_size(&self) -> usize {
         self.line_size * self.height as usize
     }
@@ -952,15 +959,14 @@ mod tests {
             "/tests/bugfixes/x_issue#214.png"
         ));
 
-        let (info, mut normal) = Decoder::new(IMG).read_info().unwrap();
+        let mut normal = Decoder::new(IMG).read_info().unwrap();
 
-        let mut buffer = vec![0; info.buffer_size()];
+        let mut buffer = vec![0; normal.output_buffer_size()];
         let normal = normal.next_frame(&mut buffer).unwrap_err();
 
         let smal = Decoder::new(SmalBuf::new(IMG, 1))
             .read_info()
             .unwrap()
-            .1
             .next_frame(&mut buffer)
             .unwrap_err();
 

@@ -152,7 +152,7 @@ impl Recorder {
     }
 
     /// Add a color profile.
-    pub fn color(&self, color: Vec<u8>) {
+    pub fn color(&self, color: Color) {
         self.inner.with_mut(|meta| meta.set_color(color))
     }
 
@@ -169,7 +169,7 @@ impl SharedRecorder {
     }
 
     /// Add a color profile.
-    pub fn color(&self, color: Vec<u8>) {
+    pub fn color(&self, color: Color) {
         self.with_mut(|meta| meta.set_color(color))
     }
 
@@ -193,7 +193,7 @@ impl Metagram {
         self.height = height;
     }
 
-    fn set_color(&mut self, color: Vec<u8>) {
+    fn set_color(&mut self, color: Color) {
         self.color_profile = Some(color);
     }
 

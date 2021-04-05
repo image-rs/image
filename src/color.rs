@@ -3,6 +3,7 @@ use std::ops::{Index, IndexMut};
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Pixel, Primitive};
+use crate::utils::NonExhaustiveMarker;
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -31,12 +32,11 @@ pub enum ColorType {
     Bgra8,
 
     #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// Color information of an image's texels.
 #[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
 pub enum Color {
     /// The color space is given by an encoded ICC profile.
     ///
@@ -65,6 +65,9 @@ pub enum Color {
         /// The absolute luminance of the values in the color space.
         luminance: Luminance,
     },
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// Transfer functions from encoded chromatic samples to physical quantity.
@@ -74,7 +77,6 @@ pub enum Color {
 /// describes how scene lighting is encoded as an electric signal. These are applied to each
 /// stimulus value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum Transfer {
     /// Specified in ITU Rec.709.
     Bt709,
@@ -96,22 +98,26 @@ pub enum Transfer {
     Bt2100Pq,
     /// ITU Rec.2100 Hybrid Log-Gamma.
     Bt2100Hlg,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// The reference brightness of the color specification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum Luminance {
     /// 100cd/m².
     Sdr,
     /// 10_000cd/m².
     /// Known as high-dynamic range.
     Hdr,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// The relative stimuli of the three corners of a triangular gamut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum Primaries {
     Bt601_525,
     Bt601_625,
@@ -119,13 +125,18 @@ pub enum Primaries {
     Smpte240,
     Bt2020,
     Bt2100,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// The whitepoint/standard illuminant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum Whitepoint {
     D65,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 impl ColorType {
@@ -247,7 +258,7 @@ pub enum ExtendedColorType {
     Unknown(u8),
 
     #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 impl ExtendedColorType {

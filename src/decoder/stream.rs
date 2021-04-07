@@ -1065,7 +1065,7 @@ mod tests {
     fn image_gamma() -> Result<(), ()> {
         fn trial(path: &str, expected: Option<ScaledFloat>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
-            let (_, reader) = decoder.read_info().unwrap();
+            let reader = decoder.read_info().unwrap();
             let actual: Option<ScaledFloat> = reader.info().source_gamma;
             assert!(actual == expected);
         }
@@ -1106,7 +1106,7 @@ mod tests {
     fn image_source_chromaticities() -> Result<(), ()> {
         fn trial(path: &str, expected: Option<SourceChromaticities>) {
             let decoder = crate::Decoder::new(File::open(path).unwrap());
-            let (_, reader) = decoder.read_info().unwrap();
+            let reader = decoder.read_info().unwrap();
             let actual: Option<SourceChromaticities> = reader.info().source_chromaticities;
             assert!(actual == expected);
         }

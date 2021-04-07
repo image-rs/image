@@ -26,18 +26,27 @@ pub enum InterlaceHandling {
 }
 */
 
-/// Output info
+/// Output info.
+///
+/// This describes one particular frame of the image that was written into the output buffer.
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputInfo {
+    /// The pixel width of this frame.
     pub width: u32,
+    /// The pixel height of this frame.
     pub height: u32,
+    /// The chosen output color type.
     pub color_type: ColorType,
+    /// The chosen output bit depth.
     pub bit_depth: BitDepth,
+    /// The byte count of each scan line in the image.
     pub line_size: usize,
 }
 
 impl OutputInfo {
     /// Returns the size needed to hold a decoded frame
+    /// If the output buffer was larger then bytes after this count should be ignored. They may
+    /// still have been changed.
     pub fn buffer_size(&self) -> usize {
         self.line_size * self.height as usize
     }
@@ -159,12 +168,12 @@ impl<R: Read> Decoder<R> {
     }
 
     /// Reads all meta data until the first IDAT chunk
-    pub fn read_info(self) -> Result<(OutputInfo, Reader<R>), DecodingError> {
-        let mut r = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
-        r.init()?;
+    pub fn read_info(self) -> Result<Reader<R>, DecodingError> {
+        let mut reader = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
+        reader.init()?;
 
-        let color_type = r.info().color_type;
-        let bit_depth = r.info().bit_depth;
+        let color_type = reader.info().color_type;
+        let bit_depth = reader.info().bit_depth;
         if color_type.is_combination_invalid(bit_depth) {
             return Err(DecodingError::Format(
                 FormatErrorInner::InvalidColorBitDepth {
@@ -176,22 +185,11 @@ impl<R: Read> Decoder<R> {
         }
 
         // Check if the output buffer can be represented at all.
-        if r.checked_output_buffer_size().is_none() {
+        if reader.checked_output_buffer_size().is_none() {
             return Err(DecodingError::LimitsExceeded);
         }
 
-        let (ct, bits) = r.output_color_type();
-        let info = {
-            let info = r.info();
-            OutputInfo {
-                width: info.width,
-                height: info.height,
-                color_type: ct,
-                bit_depth: bits,
-                line_size: r.output_line_size(info.width),
-            }
-        };
-        Ok((info, r))
+        Ok(reader)
     }
 
     /// Set the allowed and performed transformations.
@@ -297,6 +295,7 @@ pub struct Reader<R: Read> {
 /// in a particular IDAT-frame or subframe we are.
 struct SubframeInfo {
     width: u32,
+    height: u32,
     rowlen: usize,
     interlace: InterlaceIter,
     consumed_and_flushed: bool,
@@ -353,9 +352,9 @@ impl<R: Read> Reader<R> {
 
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
-    fn init(&mut self) -> Result<(), DecodingError> {
+    fn init(&mut self) -> Result<OutputInfo, DecodingError> {
         if self.next_frame == self.subframe_idx() {
-            return Ok(());
+            return Ok(self.output_info());
         } else if self.next_frame == SubframeIdx::End {
             return Err(DecodingError::Parameter(
                 ParameterErrorKind::PolledAfterEndOfImage.into(),
@@ -401,7 +400,22 @@ impl<R: Read> Reader<R> {
         }
         self.allocate_out_buf()?;
         self.prev = vec![0; self.subframe.rowlen];
-        Ok(())
+        Ok(self.output_info())
+    }
+
+    fn output_info(&self) -> OutputInfo {
+        let width = self.subframe.width;
+        let height = self.subframe.height;
+
+        let (color_type, bit_depth) = self.output_color_type();
+
+        OutputInfo {
+            width,
+            height,
+            color_type,
+            bit_depth,
+            line_size: self.output_line_size(width),
+        }
     }
 
     fn reset_current(&mut self) {
@@ -468,9 +482,9 @@ impl<R: Read> Reader<R> {
     ///
     /// Output lines will be written in row-major, packed matrix with width and height of the read
     /// frame (or subframe), all samples are in big endian byte order where this matters.
-    pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<(), DecodingError> {
+    pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<OutputInfo, DecodingError> {
         // Advance until we've read the info / fcTL for this frame.
-        self.init()?;
+        let info = self.init()?;
         // TODO 16 bit
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {
@@ -511,7 +525,8 @@ impl<R: Read> Reader<R> {
         }
         // Advance our state to expect the next frame.
         self.finished_frame();
-        Ok(())
+
+        Ok(info)
     }
 
     /// Returns the next processed row of the image
@@ -601,11 +616,7 @@ impl<R: Read> Reader<R> {
 
     /// Returns the color type and the number of bits per sample
     /// of the data returned by `Reader::next_row` and Reader::frames`.
-    pub fn output_color_type(&mut self) -> (ColorType, BitDepth) {
-        self.imm_output_color_type()
-    }
-
-    pub(crate) fn imm_output_color_type(&self) -> (ColorType, BitDepth) {
+    pub fn output_color_type(&self) -> (ColorType, BitDepth) {
         use crate::common::ColorType::*;
         let t = self.transform;
         let info = self.info();
@@ -657,7 +668,7 @@ impl<R: Read> Reader<R> {
 
     fn checked_output_buffer_size(&self) -> Option<usize> {
         let (width, height) = self.info().size();
-        let (color, depth) = self.imm_output_color_type();
+        let (color, depth) = self.output_color_type();
         let rowlen = color.checked_raw_row_length(depth, width)? - 1;
         let height: usize = std::convert::TryFrom::try_from(height).ok()?;
         rowlen.checked_mul(height)
@@ -665,7 +676,7 @@ impl<R: Read> Reader<R> {
 
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
-        let (color, depth) = self.imm_output_color_type();
+        let (color, depth) = self.output_color_type();
         color.raw_row_length_from_width(depth, width) - 1
     }
 
@@ -803,6 +814,7 @@ impl SubframeInfo {
     fn not_yet_init() -> Self {
         SubframeInfo {
             width: 0,
+            height: 0,
             rowlen: 0,
             interlace: InterlaceIter::None(0..0),
             consumed_and_flushed: false,
@@ -826,6 +838,7 @@ impl SubframeInfo {
 
         SubframeInfo {
             width,
+            height,
             rowlen: info.raw_row_length_from_width(width),
             interlace,
             consumed_and_flushed: false,
@@ -946,15 +959,14 @@ mod tests {
             "/tests/bugfixes/x_issue#214.png"
         ));
 
-        let (info, mut normal) = Decoder::new(IMG).read_info().unwrap();
+        let mut normal = Decoder::new(IMG).read_info().unwrap();
 
-        let mut buffer = vec![0; info.buffer_size()];
+        let mut buffer = vec![0; normal.output_buffer_size()];
         let normal = normal.next_frame(&mut buffer).unwrap_err();
 
         let smal = Decoder::new(SmalBuf::new(IMG, 1))
             .read_info()
             .unwrap()
-            .1
             .next_frame(&mut buffer)
             .unwrap_err();
 

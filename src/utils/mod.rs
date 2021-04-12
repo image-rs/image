@@ -100,26 +100,6 @@ where
     bytemuck::cast_slice(vec).to_owned()
 }
 
-
-/// A marker struct for __NonExhaustive enums.
-///
-/// This is an empty type that can not be constructed. When an enum contains a tuple variant that
-/// includes this type the optimizer can statically determined tha the branch is never taken while
-/// at the same time the matching of the branch is required.
-///
-/// The effect is thus very similar to the actual `#[non_exhaustive]` attribute with no runtime
-/// costs. Also note that we use a dirty trick to not only hide this type from the doc but make it
-/// inaccessible. The visibility in this module is pub but the module itself is not and the
-/// top-level crate never exports the type.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NonExhaustiveMarker {
-    /// Allows this crate, and this crate only, to match on the impossibility of this variant.
-    pub(crate) _private: Empty,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Empty { }
-
 #[inline]
 pub(crate) fn clamp<N>(a: N, min: N, max: N) -> N
 where

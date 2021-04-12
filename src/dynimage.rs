@@ -16,7 +16,7 @@ use crate::buffer_::{
     Rgba16Image,
 };
 use crate::color::{self, IntoColor};
-use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
@@ -1103,10 +1103,6 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
-        _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-            ImageFormatHint::Unknown,
-            UnsupportedErrorKind::Color(color_type.into()),
-        ))),
     };
     match image {
         Some(image) => Ok(image),

@@ -21,6 +21,7 @@ use crate::pnm::PNMSubtype;
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[non_exhaustive]
 pub enum ImageFormat {
     /// An Image in PNG Format
     Png,
@@ -60,9 +61,6 @@ pub enum ImageFormat {
 
     /// An Image in AVIF format.
     Avif,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ImageFormat {
@@ -152,7 +150,6 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -174,7 +171,6 @@ impl ImageFormat {
             ImageFormat::WebP => false,
             ImageFormat::Hdr => false,
             ImageFormat::Dds => false,
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -203,13 +199,13 @@ impl ImageFormat {
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
 
 /// An enumeration of supported image formats for encoding.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum ImageOutputFormat {
     #[cfg(feature = "png")]
     /// An Image in PNG Format
@@ -255,9 +251,6 @@ pub enum ImageOutputFormat {
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
     Unsupported(String),
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl From<ImageFormat> for ImageOutputFormat {

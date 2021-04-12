@@ -234,9 +234,6 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
                 ImageFormatHint::Unknown,
                 UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
         }
-
-        image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
-
     }
 }
 

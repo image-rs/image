@@ -987,7 +987,7 @@ impl<I> SubImage<I> {
     pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
         I: Deref,
-        I::Target: GenericImage + 'static,
+        I::Target: GenericImageView + 'static,
     {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
         let borrowed = self.image.deref();

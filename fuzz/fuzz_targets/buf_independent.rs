@@ -50,33 +50,30 @@ fuzz_target!(|data: &[u8]| {
 
 #[inline(always)]
 fn png_compare<R: BufRead, S: BufRead>(reference: png::Decoder<R>, smal: png::Decoder<S>)
-    -> std::result::Result<png::OutputInfo, ()> 
+    -> std::result::Result<(), ()>
 {
     let mut smal = Some(smal);
-    let (info, mut reference) = reference.read_info().map_err(|_| {
+    let mut reference = reference.read_info().map_err(|_| {
         assert!(smal.take().unwrap().read_info().is_err());
     })?;
 
-    let (sinfo, mut smal) = smal.take().unwrap().read_info().expect("Deviation");
-    assert_eq!(info, sinfo);
+    let mut smal = smal.take().unwrap().read_info().expect("Deviation");
 
-    if info.buffer_size() > 5_000_000 {
+    assert_eq!(reference.info().raw_bytes(), smal.info().raw_bytes());
+    if reference.info().raw_bytes() > 5_000_000 {
         return Err(());
     }
 
-    let mut ref_data = vec![0; info.buffer_size()];
-    let mut smal_data = vec![0; info.buffer_size()];
-
-    use png::DecodingError::*;
+    let mut ref_data = vec![0; reference.info().raw_bytes()];
+    let mut smal_data = vec![0; reference.info().raw_bytes()];
 
     loop {
         let rref = reference.next_frame(&mut ref_data);
         let rsmal = smal.next_frame(&mut smal_data);
         match (rref, rsmal) {
-            (Ok(()), Ok(())) if ref_data == smal_data => {},
-            (Ok(()), Ok(())) => panic!("Deviating data decoded"),
-            (Err(Format(fr)), Err(Format(fs))) if fr != fs => panic!("Deviating format errors {} vs {}", fr, fs),
-            (Err(er), Err(es)) if discriminant(&er) == discriminant(&es) => break Ok(sinfo),
+            (Ok(info), Ok(sinfo)) if ref_data == smal_data => assert_eq!(info, sinfo),
+            (Ok(_), Ok(_)) => panic!("Deviating data decoded"),
+            (Err(er), Err(es)) if discriminant(&er) == discriminant(&es) => break Ok(()),
             (Err(ferr), Err(serr)) => panic!("Deviating errors {:?} vs {:?}", ferr, serr),
             (Ok(_), Err(err)) => panic!("Small buffer failed {:?}", err),
             (Err(err), Ok(_)) => panic!("Unexpected success: {:?}", err),

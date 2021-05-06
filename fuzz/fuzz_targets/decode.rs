@@ -3,20 +3,23 @@
 extern crate png;
 
 #[inline(always)]
-fn png_decode(data: &[u8]) -> Result<(png::OutputInfo, Vec<u8>), ()> {
+fn png_decode(data: &[u8]) -> Result<(Option<png::OutputInfo>, Vec<u8>), ()> {
     let limits = png::Limits { bytes: 1 << 16 };
     let decoder = png::Decoder::new_with_limits(data, limits);
-    let (info, mut reader) = decoder.read_info().map_err(|_| ())?;
+    let  mut reader = decoder.read_info().map_err(|_| ())?;
 
-    if info.buffer_size() > 5_000_000 {
+    if reader.info().raw_bytes() > 5_000_000 {
         return Err(());
     }
 
-    let mut img_data = vec![0u8; info.buffer_size()];
+    let mut img_data = vec![0u8; reader.info().raw_bytes()];
 
-    while let Ok(_) = reader.next_frame(&mut img_data) {}
+    let mut last_info = None;
+    while let Ok(info) = reader.next_frame(&mut img_data) {
+        last_info = Some(info);
+    }
 
-    Ok((info, img_data))
+    Ok((last_info, img_data))
 }
 
 fuzz_target!(|data: &[u8]| {

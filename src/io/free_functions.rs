@@ -9,6 +9,8 @@ use crate::codecs::bmp;
 use crate::codecs::gif;
 #[cfg(feature = "hdr")]
 use crate::codecs::hdr;
+#[cfg(feature = "openexr")]
+use crate::codecs::openexr;
 #[cfg(feature = "ico")]
 use crate::codecs::ico;
 #[cfg(feature = "jpeg")]
@@ -81,6 +83,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        #[cfg(feature = "openexr")]
+        image::ImageFormat::Exr => DynamicImage::from_decoder(openexr::ExrDecoder::from_buffered(r)?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         #[cfg(feature = "farbfeld")]
@@ -129,6 +133,8 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
+        #[cfg(feature = "openexr")]
+        image::ImageFormat::Exr => exr::HdrAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
             pnm::PnmDecoder::new(fin)?.dimensions()
@@ -218,6 +224,8 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "openexr")]
+        ImageOutputFormat::Exr => openexr::write_image(fout, buf, width, height, color),
         #[cfg(feature = "tiff")]
         ImageOutputFormat::Tiff => {
             let mut cursor = std::io::Cursor::new(Vec::new());
@@ -240,7 +248,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 20] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -261,6 +269,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 20] = [
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
+    (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::Exr), // = &exr::meta::magic_number::BYTES
 ];
 
 /// Guess image format from memory block

@@ -244,6 +244,8 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
+    #[cfg(feature = "openexr")]
+    pub mod openexr;
 }
 
 #[cfg(feature = "avif-encoder")]

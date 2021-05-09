@@ -55,6 +55,9 @@ pub enum ImageFormat {
     /// An Image in Radiance HDR Format
     Hdr,
 
+    /// An Image in OpenEXR Format
+    Exr,
+
     /// An Image in farbfeld Format
     Farbfeld,
 
@@ -94,6 +97,7 @@ impl ImageFormat {
                 "bmp" => ImageFormat::Bmp,
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
+                "exr" => ImageFormat::Exr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
                 _ => return None,
@@ -149,6 +153,7 @@ impl ImageFormat {
             ImageFormat::Bmp => true,
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
+            ImageFormat::Exr => true,
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
@@ -173,6 +178,7 @@ impl ImageFormat {
             ImageFormat::Avif => true,
             ImageFormat::WebP => false,
             ImageFormat::Hdr => false,
+            ImageFormat::Exr => true,
             ImageFormat::Dds => false,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
@@ -200,6 +206,7 @@ impl ImageFormat {
             ImageFormat::Bmp => &["bmp"],
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
+            ImageFormat::Exr => &["exr"],
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
@@ -243,6 +250,10 @@ pub enum ImageOutputFormat {
     /// An Image in TGA Format
     Tga,
 
+    #[cfg(feature = "openexr")]
+    /// An Image in OpenEXR Format
+    Exr,
+
     #[cfg(feature = "tiff")]
     /// An Image in TIFF Format
     Tiff,
@@ -279,6 +290,8 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
+            #[cfg(feature = "openexr")]
+            ImageFormat::Exr => ImageOutputFormat::Exr,
             #[cfg(feature = "tiff")]
             ImageFormat::Tiff => ImageOutputFormat::Tiff,
 
@@ -511,6 +524,11 @@ pub struct Progress {
 }
 
 impl Progress {
+    /// Create Progress.
+    pub fn new(current: u64, total: u64) -> Self {
+        Self { current, total }
+    }
+
     /// A measure of completed decoding.
     pub fn current(self) -> u64 {
         self.current

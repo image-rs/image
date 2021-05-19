@@ -146,7 +146,6 @@ pub(crate) fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> ImageResult<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
     let format =  ImageFormat::from_path(path)?;
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
@@ -161,7 +160,7 @@ pub(crate) fn save_buffer_with_format_impl(
     color: color::ColorType,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
+    let fout = &mut BufWriter::new(File::create(path)?); // always seekable
 
     match format {
         #[cfg(feature = "gif")]

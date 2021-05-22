@@ -30,6 +30,11 @@ pub enum ColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
+    /// Pixel is 32-bit float RGB
+    Rgb32F,
+    /// Pixel is 32-bit float RGBA
+    Rgba32F,
+
     #[doc(hidden)]
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
@@ -44,6 +49,8 @@ impl ColorType {
             ColorType::Rgba8 | ColorType::Bgra8 | ColorType::La16 => 4,
             ColorType::Rgb16 => 6,
             ColorType::Rgba16 => 8,
+            ColorType::Rgb32F => 3 * 4,
+            ColorType::Rgba32F => 4 * 4,
             ColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -52,8 +59,8 @@ impl ColorType {
     pub fn has_alpha(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | Rgb8 | Bgr8 | Rgb16 => false,
-            La8 | Rgba8 | Bgra8 | La16 | Rgba16 => true,
+            L8 | L16 | Rgb8 | Bgr8 | Rgb16 | Rgb32F => false,
+            La8 | Rgba8 | Bgra8 | La16 | Rgba16 | Rgba32F => true,
             __NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -63,7 +70,7 @@ impl ColorType {
         use ColorType::*;
         match self {
             L8 | L16 | La8 | La16 => false,
-            Rgb8 | Bgr8 | Rgb16 | Rgba8 | Bgra8 | Rgba16 => true,
+            Rgb8 | Bgr8 | Rgb16 | Rgba8 | Bgra8 | Rgba16 | Rgb32F | Rgba32F => true,
             __NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -138,6 +145,12 @@ pub enum ExtendedColorType {
     /// Pixel is 8-bit BGR with an alpha channel
     Bgra8,
 
+    // TODO f16 types?
+    /// Pixel is 32-bit float RGB
+    Rgb32F,
+    /// Pixel is 32-bit float RGBA
+    Rgba32F,
+
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
@@ -171,12 +184,14 @@ impl ExtendedColorType {
             ExtendedColorType::Rgb4 |
             ExtendedColorType::Rgb8 |
             ExtendedColorType::Rgb16 |
+            ExtendedColorType::Rgb32F |
             ExtendedColorType::Bgr8 => 3,
             ExtendedColorType::Rgba1 |
             ExtendedColorType::Rgba2 |
             ExtendedColorType::Rgba4 |
             ExtendedColorType::Rgba8 |
             ExtendedColorType::Rgba16 |
+            ExtendedColorType::Rgba32F |
             ExtendedColorType::Bgra8 => 4,
             ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
         }
@@ -195,6 +210,8 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
             ColorType::Bgr8 => ExtendedColorType::Bgr8,
             ColorType::Bgra8 => ExtendedColorType::Bgra8,
+            ColorType::Rgb32F => ExtendedColorType::Rgb32F,
+            ColorType::Rgba32F => ExtendedColorType::Rgba32F,
             ColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }

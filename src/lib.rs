@@ -105,7 +105,7 @@ use std::io::Write;
 
 pub use crate::color::{ColorType, ExtendedColorType};
 
-pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 

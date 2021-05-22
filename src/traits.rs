@@ -5,7 +5,7 @@
 use num_traits::{Bounded, Num, NumCast};
 use std::ops::{AddAssign};
 
-use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -185,12 +185,6 @@ pub trait Pixel: Copy + Clone {
 
     /// Convert this pixel to luma with an alpha channel
     fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
-
-    /// Convert this pixel to BGR
-    fn to_bgr(&self) -> Bgr<Self::Subpixel>;
-
-    /// Convert this pixel to BGR with an alpha channel
-    fn to_bgra(&self) -> Bgra<Self::Subpixel>;
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self

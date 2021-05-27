@@ -788,7 +788,7 @@ where
 
 /// Performs an unsharpen mask on the supplied image.
 /// ```sigma``` is the amount to blur the image by.
-/// ```threshold``` is the threshold for the difference between
+/// ```threshold``` is the threshold for minimal brightness change that will be sharpened.
 ///
 /// See <https://en.wikipedia.org/wiki/Unsharp_masking#Digital_unsharp_masking>
 pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<P, Vec<S>>

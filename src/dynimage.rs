@@ -1036,6 +1036,66 @@ impl DynamicImage {
     }
 }
 
+impl From<GrayImage> for DynamicImage {
+    fn from(image: GrayImage) -> Self {
+        DynamicImage::ImageLuma8(image)
+    }
+}
+
+impl From<GrayAlphaImage> for DynamicImage {
+    fn from(image: GrayAlphaImage) -> Self {
+        DynamicImage::ImageLumaA8(image)
+    }
+}
+
+impl From<RgbImage> for DynamicImage {
+    fn from(image: RgbImage) -> Self {
+        DynamicImage::ImageRgb8(image)
+    }
+}
+
+impl From<RgbaImage> for DynamicImage {
+    fn from(image: RgbaImage) -> Self {
+        DynamicImage::ImageRgba8(image)
+    }
+}
+
+impl From<BgrImage> for DynamicImage {
+    fn from(image: BgrImage) -> Self {
+        DynamicImage::ImageBgr8(image)
+    }
+}
+
+impl From<BgraImage> for DynamicImage {
+    fn from(image: BgraImage) -> Self {
+        DynamicImage::ImageBgra8(image)
+    }
+}
+
+impl From<Gray16Image> for DynamicImage {
+    fn from(image: Gray16Image) -> Self {
+        DynamicImage::ImageLuma16(image)
+    }
+}
+
+impl From<GrayAlpha16Image> for DynamicImage {
+    fn from(image: GrayAlpha16Image) -> Self {
+        DynamicImage::ImageLumaA16(image)
+    }
+}
+
+impl From<Rgb16Image> for DynamicImage {
+    fn from(image: Rgb16Image) -> Self {
+        DynamicImage::ImageRgb16(image)
+    }
+}
+
+impl From<Rgba16Image> for DynamicImage {
+    fn from(image: Rgba16Image) -> Self {
+        DynamicImage::ImageRgba16(image)
+    }
+}
+
 #[allow(deprecated)]
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>;

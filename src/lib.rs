@@ -244,6 +244,8 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
+    #[cfg(feature = "sgi")]
+    pub mod sgi;
 }
 
 #[cfg(feature = "avif-encoder")]
@@ -354,6 +356,11 @@ pub mod webp {
     //! Decoding of WebP Images
     #[allow(deprecated)]
     pub use crate::codecs::webp::{vp8, WebPDecoder};
+}
+#[cfg(feature = "sgi")]
+pub mod sgi {
+    //! Decoding of Silicon Graphics Images
+    pub use crate::codecs::sgi::{SgiDecoder};
 }
 
 

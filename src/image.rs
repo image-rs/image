@@ -61,6 +61,9 @@ pub enum ImageFormat {
     /// An Image in AVIF format.
     Avif,
 
+    /// An Image in SGI format.
+    Sgi,
+
     #[doc(hidden)]
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
@@ -96,6 +99,8 @@ impl ImageFormat {
                 "hdr" => ImageFormat::Hdr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
+                "sgi" => ImageFormat::Sgi,
+                "rgb" => ImageFormat::Sgi,
                 _ => return None,
             })
         }
@@ -152,6 +157,7 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
+            ImageFormat::Sgi => true,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -174,6 +180,7 @@ impl ImageFormat {
             ImageFormat::WebP => false,
             ImageFormat::Hdr => false,
             ImageFormat::Dds => false,
+            ImageFormat::Sgi => false,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -201,6 +208,7 @@ impl ImageFormat {
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
             ImageFormat::Farbfeld => &["ff"],
+            ImageFormat::Sgi => &["sgi", "rgb"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
@@ -251,6 +259,10 @@ pub enum ImageOutputFormat {
     /// An image in AVIF Format
     Avif,
 
+    #[cfg(feature = "sgi")]
+    /// An image in AVIF Format
+    Sgi,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -281,9 +293,10 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Tga => ImageOutputFormat::Tga,
             #[cfg(feature = "tiff")]
             ImageFormat::Tiff => ImageOutputFormat::Tiff,
-
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
+            #[cfg(feature = "avif-encoder")]
+            ImageFormat::Sgi => ImageOutputFormat::Sgi,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }
@@ -1278,6 +1291,8 @@ mod tests {
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
+        assert_eq!(from_path("./a.rgb").unwrap(), ImageFormat::Sgi);
+        assert_eq!(from_path("./a.sgi").unwrap(), ImageFormat::Sgi);
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
     }

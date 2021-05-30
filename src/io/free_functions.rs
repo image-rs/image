@@ -29,6 +29,8 @@ use crate::codecs::webp;
 use crate::codecs::farbfeld;
 #[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
 use crate::codecs::avif;
+#[cfg(any(feature = "sgi"))]
+use crate::codecs::sgi;
 
 use crate::{ImageOutputFormat, color, error::{UnsupportedError, UnsupportedErrorKind}};
 use crate::image;
@@ -85,6 +87,8 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
+        #[cfg(feature = "sgi")]
+        image::ImageFormat::Sgi => DynamicImage::from_decoder(sgi::SgiDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
@@ -228,6 +232,9 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         }
         #[cfg(feature = "avif-encoder")]
         ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "sgi")]
+        // TODO: Implement SGI writing
+        ImageOutputFormat::Sgi => unimplemented!("uhoh"),
 
         image::ImageOutputFormat::Unsupported(msg) => {
             Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(

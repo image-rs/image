@@ -260,7 +260,7 @@ pub enum ImageOutputFormat {
     Avif,
 
     #[cfg(feature = "sgi")]
-    /// An image in AVIF Format
+    /// An image in Silicon Graphics Image Format
     Sgi,
 
     /// A value for signalling an error: An unsupported format was requested

@@ -1,6 +1,6 @@
 use crate::{
-    color::{ColorType, ExtendedColorType},
-    error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind},
+    color::ColorType,
+    error::{DecodingError, ImageError, ImageResult},
     image::{ImageDecoder, ImageFormat, ImageReadBuffer},
 };
 use byteorder::{BigEndian, ReadBytesExt};
@@ -12,7 +12,6 @@ enum DecoderError {
     BpcInvalid(u8),
     BpcUnsupported,
     TooManyChannels(u16),
-    DimensionUnsupported(u16),
 }
 
 impl std::error::Error for DecoderError {}
@@ -32,9 +31,6 @@ impl std::fmt::Display for DecoderError {
             DecoderError::TooManyChannels(channels) => {
                 f.write_fmt(format_args!("While SGI supports more than 4 channels, there is no color format that may represent them so the max is 4, got {}", channels))
             }
-            DecoderError::DimensionUnsupported(channels) => {
-                f.write_fmt(format_args!("While SGI supports images of a single scanline, and/or a single channel, I'm not going to bother implementing it, this image has {} dimenions", channels))
-            }
         }
     }
 }
@@ -48,19 +44,22 @@ impl From<DecoderError> for ImageError {
 struct SgiHeader {
     storage_format: StorageFormat,
     bpc: u32,
-    dimensions: u32,
+    _dimensions: u32,
     xsize: u32,
     ysize: u32,
     zsize: u32,
-    pixmin: u32,
-    pixmax: u32,
-    imagename: String,
-    colormap: u32,
+    _pixmin: u32,
+    _pixmax: u32,
+    _imagename: String,
+    _colormap: u32,
 }
 
 pub struct SgiDecoder<R> {
     r: R,
     header: SgiHeader,
+    row: u32,
+    rle_offsets: Option<Vec<u32>>,
+    rle_lens: Option<Vec<u32>>,
 }
 
 #[derive(PartialEq)]
@@ -71,9 +70,23 @@ enum StorageFormat {
 
 impl<R: Read + Seek> SgiDecoder<R> {
     pub fn new(mut r: R) -> ImageResult<SgiDecoder<R>> {
+        let header = Self::read_header(&mut r)?;
+        let (offsettab, lentab) = if header.storage_format == StorageFormat::Rle {
+            let tablen = header.ysize * header.zsize;
+            let mut starttab = vec![0u32; tablen as usize];
+            let mut lentab = vec![0u32; tablen as usize];
+            r.read_u32_into::<BigEndian>(&mut starttab)?;
+            r.read_u32_into::<BigEndian>(&mut lentab)?;
+            (Some(starttab), Some(lentab))
+        } else {
+            (None, None)
+        };
         let decoder = SgiDecoder {
-            header: Self::read_header(&mut r)?,
+            header: header,
             r,
+            row: 0,
+            rle_offsets: offsettab,
+            rle_lens: lentab,
         };
         Ok(decoder)
     }
@@ -92,13 +105,16 @@ impl<R: Read + Seek> SgiDecoder<R> {
             return Err(DecoderError::BpcInvalid(bpc).into());
         }
         let dimensions = r.read_u16::<BigEndian>()?;
-        if dimensions != 3 {
-            return Err(DecoderError::DimensionUnsupported(dimensions).into());
-        }
-
         let xsize = r.read_u16::<BigEndian>()?;
-        let ysize = r.read_u16::<BigEndian>()?;
-        let zsize = r.read_u16::<BigEndian>()?;
+        let mut ysize = r.read_u16::<BigEndian>()?;
+        let mut zsize = r.read_u16::<BigEndian>()?;
+        if dimensions == 2 {
+            ysize = 1;
+        }
+        if dimensions == 1 {
+            ysize = 1;
+            zsize = 1;
+        }
         if zsize > 4 {
             return Err(DecoderError::TooManyChannels(zsize).into());
         }
@@ -127,73 +143,64 @@ impl<R: Read + Seek> SgiDecoder<R> {
                 StorageFormat::Verbatim
             },
             bpc: bpc.into(),
-            dimensions: dimensions.into(),
+            _dimensions: dimensions.into(),
             xsize: xsize.into(),
             ysize: ysize.into(),
             zsize: zsize.into(),
-            pixmin,
-            pixmax,
-            imagename,
-            colormap,
+            _pixmin: pixmin,
+            _pixmax: pixmax,
+            _imagename: imagename,
+            _colormap: colormap,
         })
     }
 
     fn read_scanline(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         if self.header.storage_format == StorageFormat::Verbatim {
-            let stride = self.header.zsize;
-            let size = self.header.xsize * self.header.ysize;
-            for i in 0..stride {
-                for t in 0..size {
-                    buf[(t * stride + i) as usize] = self.r.read_u8()?;
+            for i in 0..self.header.zsize {
+                self.r.seek(SeekFrom::Start(
+                    (512 + (self.header.ysize - 1 - self.row) * self.header.xsize
+                        + i * self.header.xsize * self.header.ysize)
+                        .into(),
+                ))?;
+                for t in 0..self.header.xsize {
+                    buf[(t * self.header.zsize + i) as usize] = self.r.read_u8()?;
                 }
             }
-            Ok((size * stride) as usize)
+            self.row = self.row + 1;
+            Ok((self.header.xsize * self.header.zsize) as usize)
         } else {
-            let tablen = self.header.ysize * self.header.zsize;
-            let mut starttab = vec![0u32; tablen as usize];
-            let mut lentab = vec![0u32; tablen as usize];
-            self.r.read_u32_into::<BigEndian>(&mut starttab)?;
-            self.r.read_u32_into::<BigEndian>(&mut lentab)?;
             for z in 0..self.header.zsize {
-                for y in 0..self.header.ysize {
-                    let offset = (z * self.header.ysize + y) as usize;
-                    let start = starttab[offset];
-                    let len = lentab[offset];
-                    self.r.seek(SeekFrom::Start(start as u64))?;
-                    let mut i = 0;
-                    let mut xoffset = 0u32;
-                    loop {
-                        let l = self.r.read_u8()? as u32;
-                        i = i + 1;
-                        if (l & 0x7f) == 0 {
-                            break;
-                        }
-                        if l & 0x80 == 0x80 {
-                            for x in 0..(l & 0x7f) {
-                                buf[((self.header.ysize - 1 - y)
-                                    * self.header.xsize
-                                    * self.header.zsize
-                                    + (xoffset + x) * self.header.zsize
-                                    + z) as usize] = self.r.read_u8()?;
-                                i = i + 1;
-                            }
-                            xoffset = xoffset + (l & 0x7f);
-                        } else {
-                            let c = self.r.read_u8()?;
+                let y = self.row;
+                let offset = (z * self.header.ysize + (self.header.ysize - 1 - y)) as usize;
+                let start = self.rle_offsets.as_ref().unwrap()[offset];
+                self.r.seek(SeekFrom::Start(start as u64))?;
+                let mut i = 0;
+                let mut xoffset = 0u32;
+                loop {
+                    let l = self.r.read_u8()? as u32;
+                    i = i + 1;
+                    if (l & 0x7f) == 0 {
+                        break;
+                    }
+                    if l & 0x80 == 0x80 {
+                        for x in 0..(l & 0x7f) {
+                            buf[((xoffset + x) * self.header.zsize + z) as usize] =
+                                self.r.read_u8()?;
                             i = i + 1;
-                            for x in 0..l as u32 {
-                                buf[((self.header.ysize - 1 - y)
-                                    * self.header.xsize
-                                    * self.header.zsize
-                                    + (xoffset + x) * self.header.zsize
-                                    + z) as usize] = c;
-                            }
-                            xoffset = xoffset + (l & 0x7f) as u32;
                         }
+                        xoffset = xoffset + (l & 0x7f);
+                    } else {
+                        let c = self.r.read_u8()?;
+                        i = i + 1;
+                        for x in 0..l as u32 {
+                            buf[((xoffset + x) * self.header.zsize + z) as usize] = c;
+                        }
+                        xoffset = xoffset + (l & 0x7f) as u32;
                     }
                 }
             }
-            Ok((self.header.xsize * self.header.ysize * self.header.zsize) as usize)
+            self.row = self.row + 1;
+            Ok((self.header.xsize * self.header.zsize) as usize)
         }
     }
 }
@@ -228,7 +235,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for SgiDecoder<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(SgiReader {
-            buffer: ImageReadBuffer::new(self.scanline_bytes(), self.total_bytes()),
+            buffer: ImageReadBuffer::new(
+                (self.header.xsize * self.header.zsize * self.header.bpc) as u64,
+                self.total_bytes(),
+            ),
             decoder: self,
         })
     }
@@ -249,10 +259,8 @@ impl<R: Read + Seek> Read for SgiReader<R> {
 #[cfg(test)]
 mod tests {
     use crate::color::ColorType;
-    use crate::image::{ImageDecoder, ImageFormat};
-    use crate::io::Reader;
+    use crate::image::ImageDecoder;
     use crate::sgi::SgiDecoder;
-    use std::io::Read;
     #[test]
     fn test_header() {
         let reader = std::fs::File::open(std::path::PathBuf::from("./tests/images/sgi/cat.sgi"))

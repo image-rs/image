@@ -21,7 +21,7 @@ where
     F: Fn(&PathBuf, PathBuf, &str),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
+    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp", "sgi"];
     for decoder in decoders {
         let mut path = base.clone();
         path.push(dir);

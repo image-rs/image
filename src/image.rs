@@ -295,7 +295,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Tiff => ImageOutputFormat::Tiff,
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
-            #[cfg(feature = "avif-encoder")]
+            #[cfg(feature = "sgi")]
             ImageFormat::Sgi => ImageOutputFormat::Sgi,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),

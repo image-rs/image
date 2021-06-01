@@ -30,7 +30,7 @@
 //! And save them using [`save`] or [`write_to`] methods:
 //!
 //! ```rust,no_run
-//! # use std::io::Write;
+//! # use std::io::{Write, Cursor};
 //! # use image::ImageOutputFormat;
 //! # use image::DynamicImage;
 //! # #[cfg(feature = "png")]
@@ -40,7 +40,7 @@
 //! img.save("empty.jpg")?;
 //!
 //! let mut bytes: Vec<u8> = Vec::new();
-//! img2.write_to(&mut bytes, image::ImageOutputFormat::Png)?;
+//! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}

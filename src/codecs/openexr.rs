@@ -7,15 +7,15 @@
 //! * <https://www.openexr.com/documentation.html> - The OpenEXR reference.
 
 // # ROADMAP
-// - [] ImageDecoder
-// - [] ImageEncoder
-// - [] GenericImageView?
-// - [] GenericImage?
-// - [] Progress
+// - [x] ImageDecoder
+// - [x] ImageEncoder
+// - [ ] GenericImageView?
+// - [ ] GenericImage?
+// - [x] Progress
 
 // # MAYBE SOON
-// - [] ImageDecoderExt::read_rect_with_progress
-// - [] Layers -> Animation?
+// - [ ] ImageDecoderExt::read_rect_with_progress
+// - [ ] Layers -> Animation?
 
 
 extern crate exr;
@@ -29,26 +29,23 @@ use self::exr::meta::header::Header;
 /// An OpenEXR decoder
 #[derive(Debug)]
 pub struct ExrDecoder<R> {
-    source: R,
-    header: exr::meta::header::Header,
+    exr_reader: exr::block::reader::Reader<R>,
+
+    // select a header that is rgb and not deep
+    header_index: usize,
 }
 
-impl<R: BufRead + Seek + Send> ExrDecoder<R> {
+impl<R: BufRead + Seek> ExrDecoder<R> {
 
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     pub fn read(mut source: R) -> ImageResult<Self> {
 
-        // read meta data, then go back to the start of the file
-        let mut meta_data = {
-            let start_position = source.stream_position()?;
-            let meta: MetaData = exr::meta::MetaData::read_from_buffered(&mut source, true)?;
-            source.seek(SeekFrom::Start(start_position))?;
-            meta
-        };
+        // read meta data, then wait for further instructions, keeping the file open and ready
+        let exr_reader = exr::block::read(source, false)?;
 
-        let header: Header = meta_data.headers.into_iter()
-            .filter(|header|{
-                let has_rgb = ["R","G","B"].iter().all(
+        let header_index = exr_reader.headers().into_iter()
+            .position(|header|{
+                let has_rgb = ["R","G","B"].iter().all( // alpha will be optional
                     // check if r/g/b exists in the channels
                     |required| header.channels.list.iter()
                         .find(|chan| chan.name.eq(required)).is_some() // TODO eq_lowercase only if exrs supports it
@@ -56,22 +53,21 @@ impl<R: BufRead + Seek + Send> ExrDecoder<R> {
 
                 !header.deep && has_rgb
             })
-            .next()
             .ok_or_else(|| ImageError::Decoding(DecodingError::new(
                 ImageFormatHint::Exact(ImageFormat::Exr),
                 "image does not contain non-deep rgb channels"
             )))?;
 
-        Ok(Self { source, header })
+        Ok(Self { exr_reader, header_index })
     }
 }
 
 
-impl<'a, R: 'a + BufRead + Seek + Send> ImageDecoder<'a> for ExrDecoder<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u32, u32) {
-        let size = self.header.layer_size;
+        let size = self.exr_reader.headers()[self.header_index].layer_size;
         (size.width() as u32, size.height() as u32)
     }
 
@@ -79,8 +75,8 @@ impl<'a, R: 'a + BufRead + Seek + Send> ImageDecoder<'a> for ExrDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         // TODO adapt to actual exr color type
-        // TODO f32 ColorType::Rgba32
-        ColorType::Rgba16
+        // let _channels = &self.exr_reader.headers()[self.header_index].channels;
+        ColorType::Rgba32F
     }
 
     /// Use `read_image` if possible,
@@ -90,78 +86,77 @@ impl<'a, R: 'a + BufRead + Seek + Send> ImageDecoder<'a> for ExrDecoder<R> {
     }
 
     fn scanline_bytes(&self) -> u64 {
-        // we cannot always read individual scan lines,
-        // as the tiles or lines in the file could be in random order.
+        // we cannot always read individual scan lines for every file,
+        // as the tiles or lines in the file could be in random or reversed order.
         // therefore we currently read all lines at once
-        // Todo: respect exr.line_order
+        // Todo: optimize for specific exr.line_order?
        self.total_bytes()
     }
 
     fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
-        // TODO reuse meta-data from earlier
+        let blocks_in_header = self.exr_reader.headers()[self.header_index].chunk_count as u64;
 
         let result = exr::prelude::read()
             .no_deep_data().largest_resolution_level()
             .rgba_channels(
-                // FIXME no alloc+copy, write into target slice directly!
-                |size, _channels| (
-                    size, vec![0_u16; size.area()*4]
-                ),
+                |size, _channels|
+                    (size, vec![0_f32; size.area()*4])
+                ,
 
                 |(size, buffer), position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
                     // TODO white point chromaticities + srgb/linear conversion?
                     let first_f32_index = position.flat_index_for_size(*size);
-                    let to_u16 = |v:f32| (v.clamp(0.0, 1.0) * u16::MAX as f32) as u16; // TODO remove, always use f32
-
-                    buffer[first_f32_index*4 .. (first_f32_index + 1)*4]
-                        .copy_from_slice(&[to_u16(r), to_u16(g), to_u16(b), to_u16(a_or_1)]);
+                    buffer[first_f32_index*4 .. (first_f32_index + 1)*4].copy_from_slice(&[r, g, b, a_or_1]);
                 }
             )
-            .first_valid_layer().all_attributes()
+            .first_valid_layer() // TODO select exact layer by self.header_index?
+            .all_attributes()
             .on_progress(move |progress| {
-                let precision = 1000;
                 let mut prog = progress_callback;
-                prog(Progress::new((progress*precision as f32) as u64, precision));
+                prog(Progress::new((progress*blocks_in_header as f64) as u64, blocks_in_header)); // TODO precision errors?
             })
-            .from_buffered(self.source)?;
+            .from_chunks(self.exr_reader)?;
 
+        // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
         target.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.1.as_slice()));
-        // TODO keep meta data?
 
+        // TODO keep meta data?
         Ok(())
     }
 }
 
 
 
-pub fn write_image(mut out: impl Write, bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
-    let pixels: &[u16] = bytemuck::try_cast_slice(bytes).expect("byte buffer must be aligned to u16");
+pub fn write_image(mut seekable_write: impl Write + Seek, bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
+    let width = width as usize;
+    let height = height as usize;
 
-    let mut seekable_write = Cursor::new(Vec::<u8>::with_capacity(bytes.len())); // TODO make parameter +seek
-    let as_f32 = |v:u16| (v as f32) / u16::MAX as f32; // TODO remove, always use f32
+    let pixels: &[f32] = bytemuck::try_cast_slice(bytes).expect("image byte buffer must be aligned to f32");
 
     match color_type {
         ColorType::Rgb16 => {
-            exr::prelude::Image::from_channels(
-                (width as usize, height as usize),
-                SpecificChannels::rgb(|pixel: Vec2<usize>| {
-                    let pixel_index = 3 * pixel.flat_index_for_size(Vec2(width as usize, height as usize));
-                    (as_f32(pixels[pixel_index]), as_f32(pixels[pixel_index+1]), as_f32(pixels[pixel_index+2]))
-                })
-            )
+            exr::prelude::Image
+                ::from_channels(
+                    (width, height),
+                    SpecificChannels::rgb(|pixel: Vec2<usize>| {
+                        let pixel_index = 3 * pixel.flat_index_for_size(Vec2(width, height));
+                        (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2])
+                    })
+                )
                 .write()
                 // .on_progress(|progress| todo!())
                 .to_buffered(&mut seekable_write)?;
         }
 
         ColorType::Rgba16 => {
-            exr::prelude::Image::from_channels(
-                (width as usize, height as usize),
-                SpecificChannels::rgba(|pixel: Vec2<usize>| {
-                    let pixel_index = 4 * pixel.flat_index_for_size(Vec2(width as usize, height as usize));
-                    (as_f32(pixels[pixel_index]), as_f32(pixels[pixel_index+1]), as_f32(pixels[pixel_index+2]), as_f32(pixels[pixel_index+3]))
-                })
-            )
+            exr::prelude::Image
+                ::from_channels(
+                    (width, height),
+                    SpecificChannels::rgba(|pixel: Vec2<usize>| {
+                        let pixel_index = 4 * pixel.flat_index_for_size(Vec2(width, height));
+                        (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2], pixels[pixel_index+3])
+                    })
+                )
                 .write()
                 // .on_progress(|progress| todo!())
                 .to_buffered(&mut seekable_write)?;
@@ -170,7 +165,6 @@ pub fn write_image(mut out: impl Write, bytes: &[u8], width: u32, height: u32, c
         _ => todo!()
     }
 
-    out.write_all(seekable_write.into_inner().as_slice())?;
     Ok(())
 }
 

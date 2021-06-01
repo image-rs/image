@@ -95,6 +95,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
 
     fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
         let blocks_in_header = self.exr_reader.headers()[self.header_index].chunk_count as u64;
+        let height = self.dimensions().1 as usize;
 
         let result = exr::prelude::read()
             .no_deep_data().largest_resolution_level()
@@ -103,8 +104,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
                     (size, vec![0_f32; size.area()*4])
                 ,
 
-                |(size, buffer), position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
+                |(size, buffer), mut position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
                     // TODO white point chromaticities + srgb/linear conversion?
+                    position.1 = height - (position.1 + 1); // openexr stores +y upwards, but we need +y downwards
                     let first_f32_index = position.flat_index_for_size(*size);
                     buffer[first_f32_index*4 .. (first_f32_index + 1)*4].copy_from_slice(&[r, g, b, a_or_1]);
                 }
@@ -134,32 +136,34 @@ pub fn write_image(mut seekable_write: impl Write + Seek, bytes: &[u8], width: u
     let pixels: &[f32] = bytemuck::try_cast_slice(bytes).expect("image byte buffer must be aligned to f32");
 
     match color_type {
-        ColorType::Rgb16 => {
+        ColorType::Rgb32F => {
             exr::prelude::Image
                 ::from_channels(
                     (width, height),
-                    SpecificChannels::rgb(|pixel: Vec2<usize>| {
+                    SpecificChannels::rgb(|mut pixel: Vec2<usize>| {
+                        pixel.1 = height - (pixel.1 + 1); // openexr stores +y upwards, but we need +y downwards
                         let pixel_index = 3 * pixel.flat_index_for_size(Vec2(width, height));
                         (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2])
                     })
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write)?;
+                .to_buffered(&mut seekable_write)?; // TODO BufWrite::new()?
         }
 
-        ColorType::Rgba16 => {
+        ColorType::Rgba32F => {
             exr::prelude::Image
                 ::from_channels(
                     (width, height),
-                    SpecificChannels::rgba(|pixel: Vec2<usize>| {
+                    SpecificChannels::rgba(|mut pixel: Vec2<usize>| {
+                        pixel.1 = height - (pixel.1 + 1); // openexr stores +y upwards, but we need +y downwards
                         let pixel_index = 4 * pixel.flat_index_for_size(Vec2(width, height));
                         (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2], pixels[pixel_index+3])
                     })
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write)?;
+                .to_buffered(&mut seekable_write)?; // TODO BufWrite::new()?
         }
 
         _ => todo!()

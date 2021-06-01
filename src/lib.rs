@@ -184,14 +184,15 @@ pub mod flat;
 /// | PNG    | All supported color types | Same as decoding |
 /// | JPEG   | Baseline and progressive | Baseline JPEG |
 /// | GIF    | Yes | Yes |
-/// | BMP    | Yes | RGB8, RGBA8, Gray8, GrayA8 |
+/// | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
 /// | ICO    | Yes | Yes |
-/// | TIFF   | Baseline(no fax support) + LZW + PackBits | RGB8, RGBA8, Gray8 |
+/// | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
 /// | WebP   | Lossy(Luma channel only) | No |
 /// | AVIF   | Only 8-bit | Lossy |
 /// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 /// | DDS    | DXT1, DXT3, DXT5 | No |
-/// | TGA    | Yes | RGB8, RGBA8, BGR8, BGRA8, Gray8, GrayA8 |
+/// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+/// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
 /// | farbfeld | Yes | Yes |
 ///
 /// ## A note on format specific features

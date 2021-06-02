@@ -16,13 +16,12 @@
 //! Load images using [`io::Reader`]:
 //!
 //! ```rust,no_run
-//! # use std::io::Cursor;
 //! use image::io::Reader as ImageReader;
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).decode()?;
+//! let img2 = ImageReader::new(std::io::Cursor::new(bytes)).decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -30,7 +29,7 @@
 //! And save them using [`save`] or [`write_to`] methods:
 //!
 //! ```rust,no_run
-//! # use std::io::Write;
+//! # use std::io::{Write, Cursor};
 //! # use image::ImageOutputFormat;
 //! # use image::DynamicImage;
 //! # #[cfg(feature = "png")]
@@ -40,7 +39,7 @@
 //! img.save("empty.jpg")?;
 //!
 //! let mut bytes: Vec<u8> = Vec::new();
-//! img2.write_to(&mut bytes, image::ImageOutputFormat::Png)?;
+//! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}

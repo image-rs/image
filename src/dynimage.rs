@@ -1,5 +1,5 @@
 use std::io;
-use std::io::Write;
+use std::io::{Write, Seek};
 use std::path::Path;
 use std::u32;
 
@@ -895,8 +895,11 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Encode this image and write it to ```w```
-    pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(
+    /// Encode this image and write it to ```w```.
+    /// If your ```w``` is not seekable,
+    /// you can write to a `Cursor::new(Vec::<u8>::new())` first,
+    /// which can then be written to a file.
+    pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
         format: F,

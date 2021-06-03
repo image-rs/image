@@ -22,9 +22,8 @@ extern crate exr;
 use exr::prelude::*;
 
 use crate::{ImageDecoder, ImageResult, ColorType, Progress, image, ImageError, ImageFormat};
-use std::io::{Write, Seek, BufRead, SeekFrom, Cursor};
+use std::io::{Write, Seek, BufRead, Cursor};
 use crate::error::{DecodingError, ImageFormatHint};
-use self::exr::meta::header::Header;
 
 /// An OpenEXR decoder
 #[derive(Debug)]
@@ -38,7 +37,7 @@ pub struct ExrDecoder<R> {
 impl<R: BufRead + Seek> ExrDecoder<R> {
 
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
-    pub fn read(mut source: R) -> ImageResult<Self> {
+    pub fn read(source: R) -> ImageResult<Self> {
 
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false)?;
@@ -97,14 +96,14 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
         let blocks_in_header = self.exr_reader.headers()[self.header_index].chunk_count as u64;
         let height = self.dimensions().1 as usize;
 
-        let result = exr::prelude::read()
+        let result = read()
             .no_deep_data().largest_resolution_level()
             .rgba_channels(
                 |size, _channels|
                     (size, vec![0_f32; size.area()*4])
                 ,
 
-                |(size, buffer), mut position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
+                move |(size, buffer), mut position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
                     // TODO white point chromaticities + srgb/linear conversion?
                     position.1 = height - (position.1 + 1); // openexr stores +y upwards, but we need +y downwards
                     let first_f32_index = position.flat_index_for_size(*size);
@@ -113,9 +112,10 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
             )
             .first_valid_layer() // TODO select exact layer by self.header_index?
             .all_attributes()
-            .on_progress(move |progress| {
-                let mut prog = progress_callback;
-                prog(Progress::new((progress*blocks_in_header as f64) as u64, blocks_in_header)); // TODO precision errors?
+            .on_progress(|progress| {
+                progress_callback(Progress::new(
+                    (progress*blocks_in_header as f64) as u64, blocks_in_header) // TODO precision errors?
+                );
             })
             .from_chunks(self.exr_reader)?;
 
@@ -129,11 +129,12 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
 
 
 
-pub fn write_image(mut seekable_write: impl Write + Seek, bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
+pub fn write_image(mut write: impl Write/* + Seek*/, bytes: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
     let width = width as usize;
     let height = height as usize;
 
     let pixels: &[f32] = bytemuck::try_cast_slice(bytes).expect("image byte buffer must be aligned to f32");
+    let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4));
 
     match color_type {
         ColorType::Rgb32F => {
@@ -169,11 +170,12 @@ pub fn write_image(mut seekable_write: impl Write + Seek, bytes: &[u8], width: u
         _ => todo!()
     }
 
+    write.write_all(seekable_write.into_inner().as_slice())?;
     Ok(())
 }
 
 
-impl From<exr::error::Error> for ImageError {
+impl From<Error> for ImageError {
     fn from(exr_error: Error) -> Self {
         ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Exact(ImageFormat::Exr),

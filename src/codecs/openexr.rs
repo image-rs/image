@@ -6,17 +6,7 @@
 //! # Related Links
 //! * <https://www.openexr.com/documentation.html> - The OpenEXR reference.
 
-// # ROADMAP
-// - [x] ImageDecoder
-// - [x] ImageEncoder
-// - [ ] GenericImageView?
-// - [ ] GenericImage?
-// - [x] Progress
-
-// # MAYBE SOON
-// - [ ] ImageDecoderExt::read_rect_with_progress
-// - [ ] Layers -> Animation?
-
+// ROADMAP: See https://github.com/image-rs/image/pull/1475
 
 extern crate exr;
 use exr::prelude::*;
@@ -133,16 +123,20 @@ pub fn write_image(mut write: impl Write/* + Seek*/, bytes: &[u8], width: u32, h
     let width = width as usize;
     let height = height as usize;
 
-    let pixels: &[f32] = bytemuck::try_cast_slice(bytes).expect("image byte buffer must be aligned to f32");
-    let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4));
+    let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4)); // TODO remove
 
     match color_type {
         ColorType::Rgb32F => {
+            let pixels: &[f32] = bytemuck::try_cast_slice(bytes)
+                .expect("image byte buffer must be aligned to f32");
+
             exr::prelude::Image
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgb(|mut pixel: Vec2<usize>| {
-                        pixel.1 = height - (pixel.1 + 1); // openexr stores +y upwards, but we need +y downwards
+                        debug_assert_ne!(height, 0);
+                        pixel.1 = height - 1 - pixel.1; // openexr stores +y upwards, but we need +y downwards
+
                         let pixel_index = 3 * pixel.flat_index_for_size(Vec2(width, height));
                         (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2])
                     })
@@ -153,11 +147,16 @@ pub fn write_image(mut write: impl Write/* + Seek*/, bytes: &[u8], width: u32, h
         }
 
         ColorType::Rgba32F => {
+            let pixels: &[f32] = bytemuck::try_cast_slice(bytes)
+                .expect("image byte buffer must be aligned to f32");
+
             exr::prelude::Image
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgba(|mut pixel: Vec2<usize>| {
-                        pixel.1 = height - (pixel.1 + 1); // openexr stores +y upwards, but we need +y downwards
+                        debug_assert_ne!(height, 0);
+                        pixel.1 = height - 1 - pixel.1; // openexr stores +y upwards, but we need +y downwards
+
                         let pixel_index = 4 * pixel.flat_index_for_size(Vec2(width, height));
                         (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2], pixels[pixel_index+3])
                     })

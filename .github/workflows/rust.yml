@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         rust: ["1.34.2", stable, beta, nightly]
-        features: [ gif, jpeg, png, pnm, tga, dds, tiff, webp, hdr, openexr, farbfeld, '' ]
+        features: [ gif, jpeg, png, pnm, tga, dds, tiff, webp, hdr, farbfeld, '' ]
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1

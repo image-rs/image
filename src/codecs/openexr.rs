@@ -331,9 +331,9 @@ pub fn write_buffer(
                 .to_buffered(&mut seekable_write)?; // TODO BufWrite::new()?
         }
 
-        _ => return Err(ImageError::Encoding(EncodingError::new(
+        unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(
             ImageFormatHint::Exact(ImageFormat::Exr),
-            format!("color type {:?} not yet supported", color_type)
+            format!("color type {:?} not yet supported", unsupported_color_type)
         )))
     }
 
@@ -361,7 +361,7 @@ mod test {
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
     #[test]
-    fn check_exr() {
+    fn compare_exr_hdr() {
         assert!(cfg!(feature = "hdr"), "to run all the openexr tests, activate the hdr feature flag");
 
         #[cfg(feature = "hdr")]
@@ -422,7 +422,7 @@ mod test {
     }
 
     #[test]
-    fn compare_rgba_rgb_exr() {
+    fn compare_rgba_rgb() {
         let exr_path = BASE_PATH.iter().collect::<PathBuf>()
             .join("overexposed gradient - data window equals display window.exr");
 

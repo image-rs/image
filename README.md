@@ -23,14 +23,15 @@ All image processing functions provided operate on types that implement the `Gen
 | PNG    | All supported color types | Same as decoding |
 | JPEG   | Baseline and progressive | Baseline JPEG |
 | GIF    | Yes | Yes |
-| BMP    | Yes | RGB(8), RGBA(8), Gray(8), GrayA(8) |
+| BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
 | ICO    | Yes | Yes |
-| TIFF   | Baseline(no fax support) + LZW + PackBits | RGB(8), RGBA(8), Gray(8) |
+| TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
 | WebP   | Lossy(Luma channel only) | No |
 | AVIF   | Only 8-bit | Lossy |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |
-| TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
+| TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+| OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
 | farbfeld | Yes | Yes |
 
 ### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/*/image/trait.ImageDecoderExt.html) Traits

@@ -2,9 +2,9 @@
 #[macro_use] extern crate libfuzzer_sys;
 extern crate image;
 
-use crate::ImageResult;
 use std::io::Cursor;
-use crate::codecs::openexr::*;
+use image::ImageResult;
+use image::codecs::openexr::*;
 
 // "just dont panic"
 fn roundtrip(bytes: &[u8]) -> ImageResult<()> {

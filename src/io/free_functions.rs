@@ -225,7 +225,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "openexr")]
-        ImageOutputFormat::Exr => openexr::write_image(fout, buf, width, height, color),
+        ImageOutputFormat::Exr => openexr::write_buffer(fout, buf, width, height, color),
         #[cfg(feature = "tiff")]
         ImageOutputFormat::Tiff => {
             let mut cursor = std::io::Cursor::new(Vec::new());

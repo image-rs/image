@@ -948,6 +948,9 @@ where
 {
     /// Writes the buffer to a writer in the specified format.
     ///
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    ///
     /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
     /// supported types.
     ///

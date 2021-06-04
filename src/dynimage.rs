@@ -882,7 +882,11 @@ impl DynamicImage {
         dynamic_map!(*self, ref p => imageops::rotate270(p))
     }
 
-    /// Encode this image and write it to ```w```
+    /// Encode this image and write it to ```w```.
+
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    ///
     /// **Note**: TIFF encoding uses buffered writing,
     /// which can lead to unexpected use of resources
     pub fn write_to<W: Write, F: Into<ImageOutputFormat>>(
@@ -1309,6 +1313,9 @@ where
 /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
 /// supported types.
 ///
+/// Assumes the writer is buffered. In most cases,
+/// you should wrap your writer in a `BufWriter` for best performance.
+    ///
 /// **Note**: TIFF encoding uses buffered writing,
 /// which can lead to unexpected use of resources
 pub fn write_buffer_with_format<W, F>(

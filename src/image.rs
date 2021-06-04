@@ -1391,7 +1391,7 @@ mod tests {
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;
-        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld];
+        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, Exr];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {

@@ -15,7 +15,7 @@
 extern crate exr;
 use exr::prelude::*;
 
-use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb};
+use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb, ImageEncoder, ExtendedColorType};
 use std::io::{Write, Seek, BufRead, Cursor, BufReader, BufWriter};
 use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
@@ -117,7 +117,10 @@ pub struct ExrDecoder<R> {
     // decode either rgb or rgba.
     // by default, only activated if image contains alpha.
     // can be changed to include or discard alpha channels.
-    insert_alpha: bool,
+    alpha_requested: bool,
+
+    // whether the original file contains alpha
+    alpha_present_in_file: bool,
 }
 
 
@@ -129,7 +132,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     pub fn read(source: R) -> ImageResult<Self> {
 
         // read meta data, then wait for further instructions, keeping the file open and ready
-        let exr_reader = exr::block::read(source, false)?;
+        let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
 
         let header_index = exr_reader.headers().into_iter()
             .position(|header|{
@@ -156,7 +159,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
             .find(|chan| chan.name.eq("A")) // TODO eq_lowercase only if exrs supports it
             .is_some();
 
-        Ok(Self { exr_reader, header_index, insert_alpha: has_alpha })
+        Ok(Self { exr_reader, header_index, alpha_requested: has_alpha, alpha_present_in_file: has_alpha })
     }
 
     // do not leak exrs-specific meta data into public api, just do it for this module
@@ -174,7 +177,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     pub fn read_as_rgba_image(mut self) -> ImageResult<RgbaF32Buffer> {
         let (width, height) = self.dimensions();
 
-        self.insert_alpha = true;
+        self.alpha_requested = true;
         let buffer: Vec<f32> = decoder_to_vec(self)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -192,7 +195,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     pub fn read_as_rgb_image(mut self) -> ImageResult<RgbF32Buffer> {
         let (width, height) = self.dimensions();
 
-        self.insert_alpha = false;
+        self.alpha_requested = false;
         let buffer: Vec<f32> = decoder_to_vec(self)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -212,12 +215,14 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
         (size.width() as u32, size.height() as u32)
     }
 
-    // TODO fn original_color_type(&self) -> ExtendedColorType {}
+    fn original_color_type(&self) -> ExtendedColorType {
+        if self.alpha_present_in_file { ExtendedColorType::Rgba32F } else { ExtendedColorType::Rgb32F }
+    }
 
     fn color_type(&self) -> ColorType {
         // TODO adapt to actual exr color type
         // let _channels = &self.exr_reader.headers()[self.header_index].channels;
-        if self.insert_alpha { ColorType::Rgba32F } else { ColorType::Rgb32F }
+        if self.alpha_requested { ColorType::Rgba32F } else { ColorType::Rgb32F }
     }
 
     /// Use `read_image` if possible,
@@ -237,9 +242,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     // reads with or without alpha, depending on `self.should_include_alpha`
     fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
-
-        let with_alpha = self.insert_alpha;
-        let channel_count = if with_alpha { 4 } else { 3 };
+        let channel_count = if self.alpha_requested { 4 } else { 3 };
 
         let result = read()
             .no_deep_data().largest_resolution_level()
@@ -265,7 +268,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
                     (progress*blocks_in_header as f64) as u64, blocks_in_header) // TODO precision errors?
                 );
             })
-            .from_chunks(self.exr_reader)?;
+            .from_chunks(self.exr_reader).map_err(to_image_err)?;
 
         // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
         target.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.1.as_slice()));
@@ -309,7 +312,7 @@ pub fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write)?; // TODO BufWrite::new()?
+                .to_buffered(&mut seekable_write).map_err(to_image_err)?; // TODO BufWrite::new()?
         }
 
         ColorType::Rgba32F => {
@@ -328,7 +331,7 @@ pub fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write)?; // TODO BufWrite::new()?
+                .to_buffered(&mut seekable_write).map_err(to_image_err)?; // TODO BufWrite::new()?
         }
 
         unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(
@@ -342,13 +345,21 @@ pub fn write_buffer(
 }
 
 
-impl From<Error> for ImageError {
-    fn from(exr_error: Error) -> Self {
-        ImageError::Decoding(DecodingError::new(
-            ImageFormatHint::Exact(ImageFormat::Exr),
-            exr_error.to_string()
-        ))
+// TODO is this struct and trait actually used anywhere?
+#[derive(Debug)]
+pub struct Encoder<W> (W);
+impl<W> Encoder<W> { pub fn new(write: W) -> Self {Self(write)} }
+impl<W> ImageEncoder for Encoder<W> where W: Write /*+ Seek*/ {
+    fn write_image(self, buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
+        write_buffer(self.0, buf, width, height, color_type)
     }
+}
+
+fn to_image_err(exr_error: Error) -> ImageError {
+    ImageError::Decoding(DecodingError::new(
+        ImageFormatHint::Exact(ImageFormat::Exr),
+        exr_error.to_string()
+    ))
 }
 
 

@@ -43,7 +43,17 @@ pub fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<RgbaF
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
 pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<RgbaF32Buffer> {
-    ExrDecoder::read(read)?.read_as_rgba_image()
+    let decoder = ExrDecoder::read(read, Some(true))?;
+    debug_assert_eq!(decoder.color_type(), ColorType::Rgba32F);
+
+    let (width, height) = decoder.dimensions();
+    let buffer: Vec<f32> = decoder_to_vec(decoder)?; // passing `true` to decoder results in 4 floats per pixel
+
+    ImageBuffer::from_raw(width, height, buffer)
+
+        // this should be the only reason for the "from raw" call to fail,
+        // even though such a large allocation would probably cause an error much earlier
+        .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
 }
 
 // TODO this could be a generic function that works for any format
@@ -59,7 +69,17 @@ pub fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<RgbF32
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
 pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<RgbF32Buffer> {
-    ExrDecoder::read(read)?.read_as_rgb_image()
+    let decoder = ExrDecoder::read(read, Some(false))?;
+    debug_assert_eq!(decoder.color_type(), ColorType::Rgb32F);
+
+    let (width, height) = decoder.dimensions();
+    let buffer: Vec<f32> = decoder_to_vec(decoder)?; // passing `false` to decoder results in 3 floats per pixel
+
+    ImageBuffer::from_raw(width, height, buffer)
+
+        // this should be the only reason for the "from raw" call to fail,
+        // even though such a large allocation would probably cause an error much earlier
+        .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
 }
 
 
@@ -117,7 +137,7 @@ pub struct ExrDecoder<R> {
     // decode either rgb or rgba.
     // by default, only activated if image contains alpha.
     // can be changed to include or discard alpha channels.
-    alpha_requested: bool,
+    alpha_preference: Option<bool>,
 
     // whether the original file contains alpha
     alpha_present_in_file: bool,
@@ -129,7 +149,10 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     /// Assumes the reader is buffered. In most cases,
     /// you should wrap your reader in a `BufReader` for best performance.
-    pub fn read(source: R) -> ImageResult<Self> {
+    /// If alpha preference is specified, an alpha channel will
+    /// always be present or always be not present in the returned image.
+    /// If alpha preference is none, the alpha channel will only be returned if it is found in the file.
+    pub fn read(source: R, alpha_preference: Option<bool>) -> ImageResult<Self> {
 
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
@@ -159,7 +182,11 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
             .find(|chan| chan.name.eq("A")) // TODO eq_lowercase only if exrs supports it
             .is_some();
 
-        Ok(Self { exr_reader, header_index, alpha_requested: has_alpha, alpha_present_in_file: has_alpha })
+        Ok(Self {
+            exr_reader, header_index,
+            alpha_preference: alpha_preference,
+            alpha_present_in_file: has_alpha
+        })
     }
 
     // do not leak exrs-specific meta data into public api, just do it for this module
@@ -167,7 +194,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
         &self.exr_reader.meta_data().headers[self.header_index]
     }
 
-    // TODO does using Rgba<f32> with Vec<f32> automagically un-flatten the vector??
+    /*// TODO does using Rgba<f32> with Vec<f32> automagically un-flatten the vector??
     /// Read this OpenEXR file as an `RgbaF32Buffer`,
     /// including the alpha channel. A default value of `1.0` is used
     /// if there is no alpha channel in the image.
@@ -176,8 +203,6 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     // TODO progress? load rect?
     pub fn read_as_rgba_image(mut self) -> ImageResult<RgbaF32Buffer> {
         let (width, height) = self.dimensions();
-
-        self.alpha_requested = true;
         let buffer: Vec<f32> = decoder_to_vec(self)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -194,8 +219,6 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     // TODO progress? load rect?
     pub fn read_as_rgb_image(mut self) -> ImageResult<RgbF32Buffer> {
         let (width, height) = self.dimensions();
-
-        self.alpha_requested = false;
         let buffer: Vec<f32> = decoder_to_vec(self)?;
 
         ImageBuffer::from_raw(width, height, buffer)
@@ -203,7 +226,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
             // this should be the only reason for the "from raw" call to fail,
             // even though such a large allocation would probably cause an error much earlier
             .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
-    }
+    }*/
 }
 
 
@@ -215,14 +238,13 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
         (size.width() as u32, size.height() as u32)
     }
 
-    fn original_color_type(&self) -> ExtendedColorType {
-        if self.alpha_present_in_file { ExtendedColorType::Rgba32F } else { ExtendedColorType::Rgb32F }
+    fn color_type(&self) -> ColorType {
+        let returns_alpha = self.alpha_preference.unwrap_or(self.alpha_present_in_file);
+        if returns_alpha { ColorType::Rgba32F } else { ColorType::Rgb32F }
     }
 
-    fn color_type(&self) -> ColorType {
-        // TODO adapt to actual exr color type
-        // let _channels = &self.exr_reader.headers()[self.header_index].channels;
-        if self.alpha_requested { ColorType::Rgba32F } else { ColorType::Rgb32F }
+    fn original_color_type(&self) -> ExtendedColorType {
+        if self.alpha_present_in_file { ExtendedColorType::Rgba32F } else { ExtendedColorType::Rgb32F }
     }
 
     /// Use `read_image` if possible,
@@ -242,7 +264,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     // reads with or without alpha, depending on `self.should_include_alpha`
     fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
-        let channel_count = if self.alpha_requested { 4 } else { 3 };
+        let channel_count = self.color_type().channel_count() as usize;
 
         let result = read()
             .no_deep_data().largest_resolution_level()

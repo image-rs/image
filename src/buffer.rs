@@ -896,7 +896,7 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg, png, ico, pnm, bmp and 
+    /// Currently only jpeg, png, ico, pnm, bmp, exr and
     /// tiff files are supported.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where

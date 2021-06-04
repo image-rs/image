@@ -1291,6 +1291,7 @@ mod tests {
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
+        assert_eq!(from_path("./a.exr").unwrap(), ImageFormat::Exr);
         assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);

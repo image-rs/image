@@ -1265,7 +1265,7 @@ where
 /// the correct format according to the specified color type.
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg, png, ico, pnm, bmp and tiff files are supported.
+/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
 pub fn save_buffer<P>(
     path: P,
     buf: &[u8],
@@ -1286,7 +1286,7 @@ where
 /// The buffer is assumed to have the correct format according
 /// to the specified color type.
 /// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp and
+/// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
 pub fn save_buffer_with_format<P>(
     path: P,

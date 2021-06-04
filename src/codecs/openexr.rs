@@ -346,7 +346,7 @@ impl From<Error> for ImageError {
     fn from(exr_error: Error) -> Self {
         ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Exact(ImageFormat::Exr),
-            exr_error
+            exr_error.to_string()
         ))
     }
 }

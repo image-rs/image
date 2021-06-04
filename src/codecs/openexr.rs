@@ -390,7 +390,7 @@ mod test {
     }
 
     #[test]
-    fn roundtrip_rgba_exr() {
+    fn roundtrip_rgba() {
         let mut next_random = vec![ 1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0 ].into_iter().cycle();
         let mut next_random = move || next_random.next().unwrap();
 
@@ -406,7 +406,7 @@ mod test {
     }
 
     #[test]
-    fn roundtrip_rgb_exr() {
+    fn roundtrip_rgb() {
         let mut next_random = vec![ 1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0 ].into_iter().cycle();
         let mut next_random = move || next_random.next().unwrap();
 

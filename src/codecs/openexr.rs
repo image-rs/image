@@ -135,11 +135,9 @@ pub struct ExrDecoder<R> {
     header_index: usize,
 
     // decode either rgb or rgba.
-    // by default, only activated if image contains alpha.
-    // can be changed to include or discard alpha channels.
+    // can be specified to include or discard alpha channels.
     alpha_preference: Option<bool>,
 
-    // whether the original file contains alpha
     alpha_present_in_file: bool,
 }
 
@@ -193,40 +191,6 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
     fn selected_exr_header(&self) -> &exr::meta::header::Header {
         &self.exr_reader.meta_data().headers[self.header_index]
     }
-
-    /*// TODO does using Rgba<f32> with Vec<f32> automagically un-flatten the vector??
-    /// Read this OpenEXR file as an `RgbaF32Buffer`,
-    /// including the alpha channel. A default value of `1.0` is used
-    /// if there is no alpha channel in the image.
-    /// Any calls to `color_type` or `total_bytes`
-    /// might not agree with the result of this function.
-    // TODO progress? load rect?
-    pub fn read_as_rgba_image(mut self) -> ImageResult<RgbaF32Buffer> {
-        let (width, height) = self.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(self)?;
-
-        ImageBuffer::from_raw(width, height, buffer)
-
-            // this should be the only reason for the "from raw" call to fail,
-            // even though such a large allocation would probably cause an error much earlier
-            .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
-    }
-
-    // TODO does using Rgba<f32> with Vec<f32> automagically un-flatten the vector??
-    /// Read this OpenEXR file as an `RgbF32Buffer`, discarding alpha.
-    /// Any calls to `color_type` or `total_bytes`
-    /// might not agree with the result of this function.
-    // TODO progress? load rect?
-    pub fn read_as_rgb_image(mut self) -> ImageResult<RgbF32Buffer> {
-        let (width, height) = self.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(self)?;
-
-        ImageBuffer::from_raw(width, height, buffer)
-
-            // this should be the only reason for the "from raw" call to fail,
-            // even though such a large allocation would probably cause an error much earlier
-            .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
-    }*/
 }
 
 

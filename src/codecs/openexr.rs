@@ -368,10 +368,16 @@ pub fn write_buffer(
 
 
 // TODO is this struct and trait actually used anywhere?
+/// A thin wrapper that implements `ImageEncoder` for OpenEXR images. Will behave like `image::codecs::openexr::write_buffer`.
 #[derive(Debug)]
 pub struct Encoder<W> (W);
-impl<W> Encoder<W> { pub fn new(write: W) -> Self {Self(write)} }
+impl<W> Encoder<W> {
+    /// Create an `ImageEncoder`. Does not write anything yet. Will behave like `image::codecs::openexr::write_buffer`.
+    // function for future backwards-compatibility
+    pub fn new(write: W) -> Self {Self(write)}
+}
 impl<W> ImageEncoder for Encoder<W> where W: Write /*+ Seek*/ {
+    /// Writes the complete image. Behaves just like `image::codecs::openexr::write_buffer`.
     fn write_image(self, buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
         write_buffer(self.0, buf, width, height, color_type)
     }

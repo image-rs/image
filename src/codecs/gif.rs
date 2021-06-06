@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //! ```rust,no_run
-//! use image::gif::{GifDecoder, GifEncoder};
+//! use image::codecs::gif::{GifDecoder, GifEncoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
 //! # fn main() -> std::io::Result<()> {

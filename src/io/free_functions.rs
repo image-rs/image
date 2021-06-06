@@ -60,7 +60,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(r)?),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::Exr => DynamicImage::from_decoder(openexr::ExrDecoder::read(r, None)?),
+        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::ExrDecoder::read(r, None)?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
@@ -110,7 +110,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::Exr => openexr::ExrDecoder::read(fin, None)?.dimensions(),
+        image::ImageFormat::OpenExr => openexr::ExrDecoder::read(fin, None)?.dimensions(),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
             pnm::PnmDecoder::new(fin)?.dimensions()
@@ -201,7 +201,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "openexr")]
-        ImageOutputFormat::Exr => openexr::write_buffer(fout, buf, width, height, color),
+        ImageOutputFormat::OpenExr => openexr::write_buffer(fout, buf, width, height, color),
         #[cfg(feature = "tiff")]
         ImageOutputFormat::Tiff => {
             let mut cursor = std::io::Cursor::new(Vec::new());
@@ -245,7 +245,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
-    (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::Exr), // = &exr::meta::magic_number::BYTES
+    (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
 ];
 
 /// Guess image format from memory block

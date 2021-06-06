@@ -20,30 +20,22 @@ use std::io::{Write, Seek, BufRead, Cursor, BufReader, BufWriter};
 use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
 use std::path::Path;
-
-
-/// An image buffer for 32-bit float RGB pixels,
-/// where the backing container is a flattened vector of floats.
-pub type RgbF32Buffer = ImageBuffer<Rgb<f32>, Vec<f32>>;
-
-/// An image buffer for 32-bit float RGBA pixels,
-/// where the backing container is a flattened vector of floats.
-pub type RgbaF32Buffer = ImageBuffer<Rgba<f32>, Vec<f32>>;
+use crate::buffer_::{Rgb32FImage, Rgba32FImage};
 
 
 // TODO this could be a generic function that works for any format
-/// Read the file from the specified path into an `RgbaF32Buffer`.
+/// Read the file from the specified path into an `Rgba32FImage`.
 // TODO progress? load rect?
-pub fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<RgbaF32Buffer> {
+pub fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
     read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
 }
 
 // TODO this could be a generic function that works for any format
-/// Read an `RgbaF32Buffer`.
+/// Read an `Rgba32FImage`.
 /// Assumes the reader is buffered. In most cases,
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
-pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<RgbaF32Buffer> {
+pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
     let decoder = ExrDecoder::read(read, Some(true))?;
     debug_assert_eq!(decoder.color_type(), ColorType::Rgba32F);
 
@@ -58,18 +50,18 @@ pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<RgbaF32Buffe
 }
 
 // TODO this could be a generic function that works for any format
-/// Read the file from the specified path into an `RgbF32Buffer`.
+/// Read the file from the specified path into an `Rgb32FImage`.
 // TODO progress? load rect?
-pub fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<RgbF32Buffer> {
+pub fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
     read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
 }
 
 // TODO this could be a generic function that works for any format
-/// Read an `RgbF32Buffer`.
+/// Read an `Rgb32FImage`.
 /// Assumes the reader is buffered. In most cases,
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
-pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<RgbF32Buffer> {
+pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
     let decoder = ExrDecoder::read(read, Some(false))?;
     debug_assert_eq!(decoder.color_type(), ColorType::Rgb32F);
 
@@ -85,18 +77,18 @@ pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<RgbF32Buffer>
 
 
 // TODO this could be a generic function that works for any format
-/// Write an `RgbF32Buffer` to the specified file path, replacing any existing file.
+/// Write an `Rgb32FImage` to the specified file path, replacing any existing file.
 // TODO progress? load rect?
-pub fn write_rgb_image_to_file(path: impl AsRef<Path>, image: &RgbF32Buffer) -> ImageResult<()> {
+pub fn write_rgb_image_to_file(path: impl AsRef<Path>, image: &Rgb32FImage) -> ImageResult<()> {
     write_rgb_image(BufWriter::new(std::fs::File::create(path)?), image)
 }
 
 // TODO this could be a generic function that works for any format
-/// Write an `RgbF32Buffer`.
+/// Write an `Rgb32FImage`.
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 // TODO progress? load rect?
-pub fn write_rgb_image(write: impl Write/* + Seek*/, image: &RgbF32Buffer) -> ImageResult<()> {
+pub fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
     write_buffer(
         write,
         bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -106,18 +98,18 @@ pub fn write_rgb_image(write: impl Write/* + Seek*/, image: &RgbF32Buffer) -> Im
 }
 
 // TODO this could be a generic function that works for any format
-/// Write an `RgbaF32Buffer` to the specified file path, replacing any existing file.
+/// Write an `Rgba32FImage` to the specified file path, replacing any existing file.
 // TODO progress? load rect?
-pub fn write_rgba_image_to_file(path: impl AsRef<Path>, image: &RgbaF32Buffer) -> ImageResult<()> {
+pub fn write_rgba_image_to_file(path: impl AsRef<Path>, image: &Rgba32FImage) -> ImageResult<()> {
     write_rgba_image(BufWriter::new(std::fs::File::create(path)?), image)
 }
 
 // TODO this could be a generic function that works for any format
-/// Write an `RgbaF32Buffer`.
+/// Write an `Rgba32FImage`.
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 // TODO progress? load rect?
-pub fn write_rgba_image(write: impl Write/* + Seek*/, image: &RgbaF32Buffer) -> ImageResult<()> {
+pub fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
     write_buffer(
         write,
         bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -169,7 +161,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
                 !header.deep && has_rgb
             })
             .ok_or_else(|| ImageError::Decoding(DecodingError::new(
-                ImageFormatHint::Exact(ImageFormat::Exr),
+                ImageFormatHint::Exact(ImageFormat::OpenExr),
                 "image does not contain non-deep rgb channels"
             )))?;
 
@@ -322,7 +314,7 @@ pub fn write_buffer(
         }
 
         unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(
-            ImageFormatHint::Exact(ImageFormat::Exr),
+            ImageFormatHint::Exact(ImageFormat::OpenExr),
             format!("color type {:?} not yet supported", unsupported_color_type)
         )))
     }
@@ -351,7 +343,7 @@ impl<W> ImageEncoder for Encoder<W> where W: Write /*+ Seek*/ {
 
 fn to_image_err(exr_error: Error) -> ImageError {
     ImageError::Decoding(DecodingError::new(
-        ImageFormatHint::Exact(ImageFormat::Exr),
+        ImageFormatHint::Exact(ImageFormat::OpenExr),
         exr_error.to_string()
     ))
 }
@@ -379,7 +371,7 @@ mod test {
                 std::io::BufReader::new(std::fs::File::open(&reference_path).unwrap())
             ).unwrap().read_image_hdr().unwrap();
 
-            let exr_pixels: RgbF32Buffer = read_as_rgb_image_from_file(exr_path).unwrap();
+            let exr_pixels: Rgb32FImage = read_as_rgb_image_from_file(exr_path).unwrap();
             assert_eq!(exr_pixels.dimensions().0 * exr_pixels.dimensions().1, hdr.len() as u32);
 
             for (expected, found) in hdr.iter().zip(exr_pixels.pixels()){
@@ -397,7 +389,7 @@ mod test {
         let mut next_random = vec![ 1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0 ].into_iter().cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: RgbaF32Buffer = ImageBuffer::from_fn(9, 31, |_x, _y|{
+        let generated_image: Rgba32FImage = ImageBuffer::from_fn(9, 31, |_x, _y|{
             Rgba([next_random(), next_random(), next_random(), next_random()])
         });
 
@@ -413,7 +405,7 @@ mod test {
         let mut next_random = vec![ 1.0, 0.0, -1.0, -3.14, 27.0, 11.0, 31.0 ].into_iter().cycle();
         let mut next_random = move || next_random.next().unwrap();
 
-        let generated_image: RgbF32Buffer = ImageBuffer::from_fn(9, 31, |_x, _y|{
+        let generated_image: Rgb32FImage = ImageBuffer::from_fn(9, 31, |_x, _y|{
             Rgb([next_random(), next_random(), next_random()])
         });
 
@@ -429,8 +421,8 @@ mod test {
         let exr_path = BASE_PATH.iter().collect::<PathBuf>()
             .join("overexposed gradient - data window equals display window.exr");
 
-        let rgb: RgbF32Buffer = read_as_rgb_image_from_file(&exr_path).unwrap();
-        let rgba: RgbaF32Buffer = read_as_rgba_image_from_file(&exr_path).unwrap();
+        let rgb: Rgb32FImage = read_as_rgb_image_from_file(&exr_path).unwrap();
+        let rgba: Rgba32FImage = read_as_rgba_image_from_file(&exr_path).unwrap();
 
         assert_eq!(rgba.dimensions(), rgb.dimensions());
 

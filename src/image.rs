@@ -56,7 +56,7 @@ pub enum ImageFormat {
     Hdr,
 
     /// An Image in OpenEXR Format
-    Exr,
+    OpenExr,
 
     /// An Image in farbfeld Format
     Farbfeld,
@@ -97,7 +97,7 @@ impl ImageFormat {
                 "bmp" => ImageFormat::Bmp,
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
-                "exr" => ImageFormat::Exr,
+                "exr" => ImageFormat::OpenExr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
                 _ => return None,
@@ -153,7 +153,7 @@ impl ImageFormat {
             ImageFormat::Bmp => true,
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
-            ImageFormat::Exr => true,
+            ImageFormat::OpenExr => true,
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
@@ -178,7 +178,7 @@ impl ImageFormat {
             ImageFormat::Avif => true,
             ImageFormat::WebP => false,
             ImageFormat::Hdr => false,
-            ImageFormat::Exr => true,
+            ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
@@ -206,7 +206,7 @@ impl ImageFormat {
             ImageFormat::Bmp => &["bmp"],
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
-            ImageFormat::Exr => &["exr"],
+            ImageFormat::OpenExr => &["exr"],
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
@@ -252,7 +252,7 @@ pub enum ImageOutputFormat {
 
     #[cfg(feature = "openexr")]
     /// An Image in OpenEXR Format
-    Exr,
+    OpenExr,
 
     #[cfg(feature = "tiff")]
     /// An Image in TIFF Format
@@ -291,7 +291,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
             #[cfg(feature = "openexr")]
-            ImageFormat::Exr => ImageOutputFormat::Exr,
+            ImageFormat::OpenExr => ImageOutputFormat::OpenExr,
             #[cfg(feature = "tiff")]
             ImageFormat::Tiff => ImageOutputFormat::Tiff,
 
@@ -1291,7 +1291,7 @@ mod tests {
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
-        assert_eq!(from_path("./a.exr").unwrap(), ImageFormat::Exr);
+        assert_eq!(from_path("./a.exr").unwrap(), ImageFormat::OpenExr);
         assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
@@ -1392,7 +1392,7 @@ mod tests {
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;
-        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, Exr];
+        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {

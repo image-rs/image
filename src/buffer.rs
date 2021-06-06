@@ -896,8 +896,9 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg, png, ico, pnm, bmp, exr and
+    /// Currently only jpeg, png, ico, pnm, bmp and
     /// tiff files are supported.
+    // TODO exr supported, but Rgba32F is not yet
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1342,6 +1343,14 @@ pub(crate) type Rgba16Image = ImageBuffer<Rgba<u16>, Vec<u16>>;
 pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
 pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
+
+/// An image buffer for 32-bit float RGB pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
+
+/// An image buffer for 32-bit float RGBA pixels,
+/// where the backing container is a flattened vector of floats.
+pub(crate) type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
 
 #[cfg(test)]
 mod test {

@@ -6,7 +6,7 @@ use image::error::{ImageError, ImageResult, LimitError, LimitErrorKind};
 
 #[inline(always)]
 fn pnm_decode(data: &[u8]) -> ImageResult<DynamicImage> {
-    let decoder = image::pnm::PnmDecoder::new(data)?;
+    let decoder = image::codecs::pnm::PnmDecoder::new(data)?;
     let (width, height) = decoder.dimensions();
 
     if width.saturating_mul(height) > 4_000_000 {

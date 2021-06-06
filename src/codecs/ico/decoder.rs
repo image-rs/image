@@ -9,8 +9,8 @@ use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, Uns
 use crate::image::{self, ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
-use crate::bmp::BmpDecoder;
-use crate::png::PngDecoder;
+use crate::codecs::bmp::BmpDecoder;
+use crate::codecs::png::PngDecoder;
 
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:

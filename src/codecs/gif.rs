@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //! ```rust,no_run
-//! use image::gif::{GifDecoder, GifEncoder};
+//! use image::codecs::gif::{GifDecoder, GifEncoder};
 //! use image::{ImageDecoder, AnimationDecoder};
 //! use std::fs::File;
 //! # fn main() -> std::io::Result<()> {
@@ -342,17 +342,6 @@ pub struct GifEncoder<W: Write> {
     speed: i32,
     repeat: Option<Repeat>,
 }
-
-/// GIF encoder
-///
-/// An alias of [`GifEncoder`].
-///
-/// TODO: remove
-///
-/// [`GifEncoder`]: struct.GifEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `GifEncoder` instead")]
-pub type Encoder<W> = GifEncoder<W>;
 
 impl<W: Write> GifEncoder<W> {
     /// Creates a new GIF encoder.

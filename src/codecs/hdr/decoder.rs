@@ -121,17 +121,6 @@ pub struct HdrAdapter<R: BufRead> {
     meta: HdrMetadata,
 }
 
-/// HDR Adapter
-///
-/// An alias of [`HdrAdapter`].
-///
-/// TODO: remove
-///
-/// [`HdrAdapter`]: struct.HdrAdapter.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrAdapter` instead")]
-pub type HDRAdapter<R> = HdrAdapter<R>;
-
 impl<R: BufRead> HdrAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HdrAdapter<R>> {
@@ -246,24 +235,13 @@ pub struct Rgbe8Pixel {
     pub e: u8,
 }
 
-/// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
-///
-/// An alias of [`Rgbe8Pixel`].
-///
-/// TODO: remove
-///
-/// [`Rgbe8Pixel`]: struct.Rgbe8Pixel.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `Rgbe8Pixel` instead")]
-pub type RGBE8Pixel = Rgbe8Pixel;
-
-/// Creates ```RGBE8Pixel``` from components
+/// Creates ```Rgbe8Pixel``` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
     Rgbe8Pixel { c: [r, g, b], e }
 }
 
 impl Rgbe8Pixel {
-    /// Converts ```RGBE8Pixel``` into ```Rgb<f32>``` linearly
+    /// Converts ```Rgbe8Pixel``` into ```Rgb<f32>``` linearly
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -279,7 +257,7 @@ impl Rgbe8Pixel {
         }
     }
 
-    /// Converts ```RGBE8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
+    /// Converts ```Rgbe8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
@@ -291,7 +269,7 @@ impl Rgbe8Pixel {
         self.to_ldr_scale_gamma(1.0, 2.2)
     }
 
-    /// Converts RGBE8Pixel into Rgb<T> using provided scale and gamma
+    /// Converts Rgbe8Pixel into Rgb<T> using provided scale and gamma
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
@@ -421,7 +399,7 @@ impl<R: BufRead> HdrDecoder<R> {
         })
     } // end with_strictness
 
-    /// Returns file metadata. Refer to ```HDRMetadata``` for details.
+    /// Returns file metadata. Refer to ```HdrMetadata``` for details.
     pub fn metadata(&self) -> HdrMetadata {
         self.meta.clone()
     }
@@ -520,17 +498,6 @@ pub struct HdrImageDecoderIterator<R: BufRead> {
     trouble: bool,        // optimization, true indicates that we need to check something
     error_encountered: bool,
 }
-
-/// Scanline buffered pixel by pixel iterator
-///
-/// An alias of [`HdrImageDecoderIterator`].
-///
-/// TODO: remove
-///
-/// [`HdrImageDecoderIterator`]: struct.HdrImageDecoderIterator.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrImageDecoderIterator` instead")]
-pub type HDRImageDecoderIterator<R> = HdrImageDecoderIterator<R>;
 
 impl<R: BufRead> HdrImageDecoderIterator<R> {
     // Advances counter to the next pixel
@@ -771,17 +738,6 @@ pub struct HdrMetadata {
     /// All other lines are ("", "line")
     pub custom_attributes: Vec<(String, String)>,
 }
-
-/// HDR MetaData
-///
-/// An alias of [`HdrMetadata`].
-///
-/// TODO: remove
-///
-/// [`HdrMetadata`]: struct.HdrMetadata.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrMetadata` instead")]
-pub type HDRMetadata = HdrMetadata;
 
 impl HdrMetadata {
     fn new() -> HdrMetadata {

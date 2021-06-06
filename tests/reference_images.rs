@@ -195,7 +195,7 @@ fn check_references() {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                    let decoder = match image::gif::GifDecoder::new(stream) {
+                    let decoder = match image::codecs::gif::GifDecoder::new(stream) {
                         Ok(decoder) => decoder,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
@@ -224,7 +224,7 @@ fn check_references() {
                     // Interpret the input file as an animation file
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
-                    let decoder = match image::png::PngDecoder::new(stream) {
+                    let decoder = match image::codecs::png::PngDecoder::new(stream) {
                         Ok(decoder) => decoder.apng(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
@@ -322,11 +322,11 @@ fn check_hdr_references() {
         ref_path.set_extension("raw");
         println!("{}", ref_path.display());
         println!("{}", path.display());
-        let decoder = image::hdr::HdrDecoder::new(io::BufReader::new(
+        let decoder = image::codecs::hdr::HdrDecoder::new(io::BufReader::new(
             fs::File::open(&path).unwrap(),
         )).unwrap();
         let decoded = decoder.read_image_hdr().unwrap();
-        let reference = image::hdr::read_raw_file(&ref_path).unwrap();
+        let reference = image::codecs::hdr::read_raw_file(&ref_path).unwrap();
         assert_eq!(decoded, reference);
     }
 }

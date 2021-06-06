@@ -286,7 +286,7 @@ pub enum PixelDensityUnit {
 /// For example, a 300 DPI image is represented by:
 ///
 /// ```rust
-/// use image::jpeg::*;
+/// use image::codecs::jpeg::*;
 /// let hdpi = PixelDensity::dpi(300);
 /// assert_eq!(hdpi, PixelDensity {density: (300,300), unit: PixelDensityUnit::Inches})
 /// ```
@@ -334,17 +334,6 @@ pub struct JpegEncoder<'a, W: 'a> {
 
     pixel_density: PixelDensity,
 }
-
-/// JPEG Encoder
-///
-/// An alias of [`JpegEncoder`].
-///
-/// TODO: remove
-///
-/// [`JpegEncoder`]: struct.JpegEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `JpegEncoder` instead")]
-pub type JPEGEncoder<'a, W> = JpegEncoder<'a, W>;
 
 impl<'a, W: Write> JpegEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```

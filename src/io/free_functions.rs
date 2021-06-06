@@ -178,13 +178,13 @@ pub(crate) fn save_buffer_with_format_impl(
             .map_or("".to_string(), |s| s.to_ascii_lowercase());
             match &*ext {
                 "pbm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
+                    .with_subtype(pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary))
                     .write_image(buf, width, height, color),
                 "pgm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
+                    .with_subtype(pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary))
                     .write_image(buf, width, height, color),
                 "ppm" => pnm::PnmEncoder::new(fout)
-                    .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
+                    .with_subtype(pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary))
                     .write_image(buf, width, height, color),
                 "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
                 _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())), // Unsupported Pnm subtype.

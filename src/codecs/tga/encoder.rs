@@ -97,7 +97,7 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
 #[cfg(test)]
 mod tests {
     use super::{EncoderError, TgaEncoder};
-    use crate::{tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
+    use crate::{codecs::tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
     use std::{error::Error, io::Cursor};
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {

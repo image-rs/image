@@ -291,7 +291,7 @@ pub fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write).map_err(to_image_err)?; // TODO BufWrite::new()?
+                .to_buffered(&mut seekable_write).map_err(to_image_err)?;
         }
 
         ColorType::Rgba32F => {
@@ -310,7 +310,7 @@ pub fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write).map_err(to_image_err)?; // TODO BufWrite::new()?
+                .to_buffered(&mut seekable_write).map_err(to_image_err)?;
         }
 
         unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(

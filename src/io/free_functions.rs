@@ -3,34 +3,7 @@ use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
 
-#[cfg(feature = "bmp")]
-use crate::codecs::bmp;
-#[cfg(feature = "gif")]
-use crate::codecs::gif;
-#[cfg(feature = "hdr")]
-use crate::codecs::hdr;
-#[cfg(feature = "openexr")]
-use crate::codecs::openexr;
-#[cfg(feature = "ico")]
-use crate::codecs::ico;
-#[cfg(feature = "jpeg")]
-use crate::codecs::jpeg;
-#[cfg(feature = "png")]
-use crate::codecs::png;
-#[cfg(feature = "pnm")]
-use crate::codecs::pnm;
-#[cfg(feature = "tga")]
-use crate::codecs::tga;
-#[cfg(feature = "dds")]
-use crate::codecs::dds;
-#[cfg(feature = "tiff")]
-use crate::codecs::tiff;
-#[cfg(feature = "webp")]
-use crate::codecs::webp;
-#[cfg(feature = "farbfeld")]
-use crate::codecs::farbfeld;
-#[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
-use crate::codecs::avif;
+use crate::codecs::*;
 
 use crate::{ImageOutputFormat, color, error::{UnsupportedError, UnsupportedErrorKind}};
 use crate::image;
@@ -50,7 +23,10 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     load(fin, ImageFormat::from_path(path)?)
 }
 
-/// Create a new image from a Reader
+/// Create a new image from a Reader.
+///
+/// Assumes the reader is already buffered. For optimal performance,
+/// consider wrapping the reader with a `BufRead::new()`.
 ///
 /// Try [`io::Reader`] for more advanced uses.
 ///
@@ -82,11 +58,11 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(r)?),
         #[cfg(feature = "openexr")]
         image::ImageFormat::Exr => DynamicImage::from_decoder(openexr::ExrDecoder::read(r, None)?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),

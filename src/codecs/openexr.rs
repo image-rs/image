@@ -5,7 +5,7 @@
 //!
 //! This decoder only supports RGB and RGBA images.
 //! If an image does not contain alpha information,
-//! it is defaulted to `1.0`, which means no transparency.
+//! it is defaulted to `1.0` (no transparency).
 //!
 //! # Related Links
 //! * <https://www.openexr.com/documentation.html> - The OpenEXR reference.
@@ -20,6 +20,7 @@ use std::io::{Write, Seek, BufRead, Cursor, BufReader, BufWriter};
 use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
 use std::path::Path;
+
 
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
@@ -181,8 +182,8 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
             .is_some();
 
         Ok(Self {
+            alpha_preference,
             exr_reader, header_index,
-            alpha_preference: alpha_preference,
             alpha_present_in_file: has_alpha
         })
     }
@@ -211,8 +212,8 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
         if self.alpha_present_in_file { ExtendedColorType::Rgba32F } else { ExtendedColorType::Rgb32F }
     }
 
-    /// Use `read_image` if possible,
-    /// as this method creates a whole new buffer to contain the entire image.
+    /// Use `read_image` instead if possible,
+    /// as this method creates a whole new buffer just to contain the entire image.
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(Cursor::new(decoder_to_vec(self)?)) // TODO no vec?
     }
@@ -225,7 +226,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
        self.total_bytes()
     }
 
-    // reads with or without alpha, depending on `self.should_include_alpha`
+    // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
     fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
@@ -336,10 +337,11 @@ pub fn write_buffer(
 #[derive(Debug)]
 pub struct Encoder<W> (W);
 impl<W> Encoder<W> {
-    /// Create an `ImageEncoder`. Does not write anything yet. Will behave like `image::codecs::openexr::write_buffer`.
-    // function for future backwards-compatibility
+    /// Create an `ImageEncoder`. Does not write anything yet. Writing later will behave like `image::codecs::openexr::write_buffer`.
+    // use constructor, not public field, for future backwards-compatibility
     pub fn new(write: W) -> Self {Self(write)}
 }
+
 impl<W> ImageEncoder for Encoder<W> where W: Write /*+ Seek*/ {
     /// Writes the complete image. Behaves just like `image::codecs::openexr::write_buffer`.
     fn write_image(self, buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
@@ -378,8 +380,6 @@ mod test {
             ).unwrap().read_image_hdr().unwrap();
 
             let exr_pixels: RgbF32Buffer = read_as_rgb_image_from_file(exr_path).unwrap();
-
-            // TODO let hdr = ImageBuffer::from_raw(___)
             assert_eq!(exr_pixels.dimensions().0 * exr_pixels.dimensions().1, hdr.len() as u32);
 
             for (expected, found) in hdr.iter().zip(exr_pixels.pixels()){

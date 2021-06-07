@@ -21,6 +21,7 @@ use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, E
 use crate::image::decoder_to_vec;
 use std::path::Path;
 use crate::buffer_::{Rgb32FImage, Rgba32FImage};
+use std::convert::TryInto;
 
 
 // TODO this could be a generic function that works for any format
@@ -219,7 +220,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image_with_progress<F: Fn(Progress)>(self, target: &mut [u8], progress_callback: F) -> ImageResult<()> {
+    fn read_image_with_progress<F: Fn(Progress)>(self, unaligned_bytes: &mut [u8], progress_callback: F) -> ImageResult<()> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
 
@@ -263,7 +264,9 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
             .from_chunks(self.exr_reader).map_err(to_image_err)?;
 
         // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
-        target.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.as_slice()));
+
+        // this cast is safe and works with any alignment, as bytes are copied, and not f32 values.
+        unaligned_bytes.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.as_slice()));
         Ok(())
     }
 }
@@ -278,28 +281,36 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 pub fn write_buffer(
-    mut buffered_write: impl Write/* + Seek*/, bytes: &[u8],
+    mut buffered_write: impl Write/* + Seek*/, unaligned_bytes: &[u8],
     width: u32, height: u32, color_type: ColorType
 ) -> ImageResult<()>
 {
     let width = width as usize;
     let height = height as usize;
 
+    if unaligned_bytes.len() < width * height * color_type.bytes_per_pixel() as usize {
+        return Err(ImageError::Encoding(EncodingError::new(
+            ImageFormatHint::Exact(ImageFormat::OpenExr),
+            "byte buffer must have enough bytes for all the f32 pixels"
+        )));
+    }
+
     let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4)); // TODO remove
+
+    // bytes might be unaligned so we cannot cast the whole thing, instead lookup each f32 individually
+    let lookup_f32 = move |f32_index: usize| {
+        let f32_bytes_slice = &unaligned_bytes[f32_index * 4 .. (f32_index + 1) * 4];
+        f32::from_ne_bytes(f32_bytes_slice.try_into().expect("indexing error"))
+    };
 
     match color_type {
         ColorType::Rgb32F => {
-            let pixels: &[f32] = bytemuck::try_cast_slice(bytes)
-                .expect("image byte buffer must be aligned to f32");
-
-            debug_assert_eq!(pixels.len(), width * height * 3, "invalid dimensions for byte buffer length");
-
             exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgb(|pixel: Vec2<usize>| {
                         let pixel_index = 3 * pixel.flat_index_for_size(Vec2(width, height));
-                        (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2])
+                        (lookup_f32(pixel_index), lookup_f32(pixel_index+1), lookup_f32(pixel_index+2))
                     })
                 )
                 .write()
@@ -308,17 +319,15 @@ pub fn write_buffer(
         }
 
         ColorType::Rgba32F => {
-            let pixels: &[f32] = bytemuck::try_cast_slice(bytes)
-                .expect("image byte buffer must be aligned to f32");
-
-            debug_assert_eq!(pixels.len(), width * height * 4, "invalid dimensions for byte buffer length");
-
             exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgba(|pixel: Vec2<usize>| {
                         let pixel_index = 4 * pixel.flat_index_for_size(Vec2(width, height));
-                        (pixels[pixel_index], pixels[pixel_index+1], pixels[pixel_index+2], pixels[pixel_index+3])
+                        (
+                            lookup_f32(pixel_index), lookup_f32(pixel_index+1),
+                            lookup_f32(pixel_index+2), lookup_f32(pixel_index+3)
+                        )
                     })
                 )
                 .write()
@@ -461,8 +470,8 @@ mod test {
 
         // smoke-check that the exr files are actually not the same
         {
-            let original_exr = exr::prelude::read_first_flat_layer_from_file(&original).unwrap();
-            let cropped_exr = exr::prelude::read_first_flat_layer_from_file(&cropped).unwrap();
+            let original_exr = read_first_flat_layer_from_file(&original).unwrap();
+            let cropped_exr = read_first_flat_layer_from_file(&cropped).unwrap();
             assert_eq!(original_exr.attributes.display_window, cropped_exr.attributes.display_window);
             assert_ne!(original_exr.layer_data.attributes.layer_position, cropped_exr.layer_data.attributes.layer_position);
             assert_ne!(original_exr.layer_data.size, cropped_exr.layer_data.size);

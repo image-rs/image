@@ -524,8 +524,8 @@ pub struct Progress {
 }
 
 impl Progress {
-    /// Create Progress.
-    pub fn new(current: u64, total: u64) -> Self {
+    /// Create Progress. Result in invalid progress if you provide a greater `current` than `total`.
+    pub(crate) fn new(current: u64, total: u64) -> Self {
         Self { current, total }
     }
 

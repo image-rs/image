@@ -109,26 +109,31 @@ pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 
 pub use crate::error::{ImageError, ImageResult};
 
-pub use crate::image::{AnimationDecoder,
-                GenericImage,
-                GenericImageView,
-                ImageDecoder,
-                ImageDecoderExt,
-                ImageEncoder,
-                ImageFormat,
-                ImageOutputFormat,
-                Progress,
-                // Iterators
-                Pixels,
-                SubImage};
+pub use crate::image::{
+    AnimationDecoder,
+    GenericImage,
+    GenericImageView,
+    ImageDecoder,
+    ImageDecoderExt,
+    ImageEncoder,
+    ImageFormat,
+    ImageOutputFormat,
+    Progress,
+    // Iterators
+    Pixels,
+    SubImage
+};
 
 pub use crate::buffer_::{
-                 GrayAlphaImage,
-                 GrayImage,
-                 // Image types
-                 ImageBuffer,
-                 RgbImage,
-                 RgbaImage};
+    GrayAlphaImage,
+    GrayImage,
+    // Image types
+    ImageBuffer,
+    RgbImage,
+    RgbaImage,
+    Rgba32FImage,
+    Rgb32FImage,
+};
 
 pub use crate::flat::FlatSamples;
 

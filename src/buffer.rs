@@ -1346,11 +1346,11 @@ pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
 /// An image buffer for 32-bit float RGB pixels,
 /// where the backing container is a flattened vector of floats.
-pub(crate) type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
+pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
 
 /// An image buffer for 32-bit float RGBA pixels,
 /// where the backing container is a flattened vector of floats.
-pub(crate) type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
+pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
 
 #[cfg(test)]
 mod test {

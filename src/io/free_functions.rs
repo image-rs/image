@@ -58,11 +58,11 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "ico")]
         image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(r)?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "openexr")]
         image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::ExrDecoder::read(r, None)?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(r)?),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),

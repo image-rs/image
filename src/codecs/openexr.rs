@@ -191,7 +191,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u32, u32) {
-        let size = self.selected_exr_header().layer_size;
+        let size = self.selected_exr_header().shared_attributes.display_window.size;
         (size.width() as u32, size.height() as u32)
     }
 
@@ -223,21 +223,34 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;
 
+        let display_window = self.selected_exr_header().shared_attributes.display_window;
+        let data_window_offset = self.selected_exr_header().own_attributes.layer_position - display_window.position;
+
         let result = read()
             .no_deep_data().largest_resolution_level()
             .rgba_channels(
-                |size, _channels| {
+                move |_size, _channels| {
                     // TODO debug_assert_eq!(self.header_index, header_index);
-                    (size, vec![0_f32; size.area() * channel_count])
+                    vec![0_f32; display_window.size.area() * channel_count]
                 },
 
-                move |(size, buffer), position, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
-                    let first_f32_index = position.flat_index_for_size(*size);
+                move |buffer, index_in_data_window, (r,g,b,a_or_1): (f32,f32,f32,f32)| {
+                    let index_in_display_window = index_in_data_window.to_i32() + data_window_offset;
 
-                    buffer[first_f32_index * channel_count .. (first_f32_index + 1) * channel_count]
-                        .copy_from_slice(&[r, g, b, a_or_1][0 .. channel_count]);
+                    // only keep pixels inside the data window
+                    // TODO filter chunks based on this
+                    if index_in_display_window.x() >= 0 && index_in_display_window.y() >= 0
+                        && index_in_display_window.x() < display_window.size.width() as i32
+                        && index_in_display_window.y() < display_window.size.height() as i32
+                    {
+                        let index_in_display_window = index_in_display_window.to_usize("index bug").unwrap();
+                        let first_f32_index = index_in_display_window.flat_index_for_size(display_window.size);
 
-                    // TODO white point chromaticities + srgb/linear conversion?
+                        buffer[first_f32_index * channel_count .. (first_f32_index + 1) * channel_count]
+                            .copy_from_slice(&[r, g, b, a_or_1][0 .. channel_count]);
+
+                        // TODO white point chromaticities + srgb/linear conversion?
+                    }
                 }
             )
             .first_valid_layer() // TODO select exact layer by self.header_index?
@@ -250,7 +263,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
             .from_chunks(self.exr_reader).map_err(to_image_err)?;
 
         // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
-        target.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.1.as_slice()));
+        target.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.as_slice()));
         Ok(())
     }
 }
@@ -281,7 +294,7 @@ pub fn write_buffer(
 
             debug_assert_eq!(pixels.len(), width * height * 3, "invalid dimensions for byte buffer length");
 
-            exr::prelude::Image
+            exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgb(|pixel: Vec2<usize>| {
@@ -300,7 +313,7 @@ pub fn write_buffer(
 
             debug_assert_eq!(pixels.len(), width * height * 4, "invalid dimensions for byte buffer length");
 
-            exr::prelude::Image
+            exr::prelude::Image // TODO compression method zip??
                 ::from_channels(
                     (width, height),
                     SpecificChannels::rgba(|pixel: Vec2<usize>| {
@@ -429,5 +442,39 @@ mod test {
         for (Rgb(rgb), Rgba(rgba)) in rgb.pixels().zip(rgba.pixels()) {
             assert_eq!(rgb, &rgba[..3]);
         }
+    }
+
+    #[test]
+    fn compare_cropped() {
+        // like in photoshop, exr images may have layers placed anywhere in a canvas.
+        // we don't want to load the pixels from the layer, but we want to load the pixels from the canvas.
+        // a layer might be smaller than the canvas, in that case the canvas should be transparent black
+        // where no layer was covering it. a layer might also be larger than the canvas,
+        // these pixels should be discarded.
+        //
+        // in this test we want to make sure that an
+        // auto-cropped image will be reproduced to the original.
+
+        let exr_path = BASE_PATH.iter().collect::<PathBuf>();
+        let original = exr_path.clone().join("cropping - uncropped original.exr");
+        let cropped = exr_path.clone().join("cropping - data window differs display window.exr");
+
+        // smoke-check that the exr files are actually not the same
+        {
+            let original_exr = exr::prelude::read_first_flat_layer_from_file(&original).unwrap();
+            let cropped_exr = exr::prelude::read_first_flat_layer_from_file(&cropped).unwrap();
+            assert_eq!(original_exr.attributes.display_window, cropped_exr.attributes.display_window);
+            assert_ne!(original_exr.layer_data.attributes.layer_position, cropped_exr.layer_data.attributes.layer_position);
+            assert_ne!(original_exr.layer_data.size, cropped_exr.layer_data.size);
+        }
+
+        // check that they result in the same image
+        let original: Rgba32FImage = read_as_rgba_image_from_file(&original).unwrap();
+        let cropped: Rgba32FImage = read_as_rgba_image_from_file(&cropped).unwrap();
+        assert_eq!(original.dimensions(), cropped.dimensions());
+
+        // the following is not a simple assert_eq, as in case of an error,
+        // the whole image would be printed to the console, which takes forever
+        assert!(original.pixels().zip(cropped.pixels()).all(|(a,b)| a == b));
     }
 }

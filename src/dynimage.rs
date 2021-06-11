@@ -728,6 +728,20 @@ impl DynamicImage {
         }
     }
 
+    /// Returns the width of the underlying image
+    pub fn width(&self) -> u32 {
+        dynamic_map!(*self, ref p -> {
+            p.width()
+        })
+    }
+
+    /// Returns the height of the underlying image
+    pub fn height(&self) -> u32 {
+        dynamic_map!(*self, ref p -> {
+            p.height()
+        })
+    }
+
     /// Return a grayscale version of this image.
     pub fn grayscale(&self) -> DynamicImage {
         match *self {

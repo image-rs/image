@@ -172,6 +172,7 @@ impl<R: Read> DdsDecoder<R> {
                 b"DXT1" => DXTVariant::DXT1,
                 b"DXT3" => DXTVariant::DXT3,
                 b"DXT5" => DXTVariant::DXT5,
+                b"ATI1" => DXTVariant::BC4, // Note: there might be more FourCC referring to BC4?
                 fourcc => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(

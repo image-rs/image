@@ -4,6 +4,7 @@
 //!
 //!  # Related Links
 //!  * <https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt> - Description of the DXT compression OpenGL extensions.
+//!  * <http://sv-journal.org/2014-1/06.php?lang=en> - Texture Compression Techniques (T. Paltashev and I. Perminov; 2014)
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
@@ -34,6 +35,12 @@ pub enum DXTVariant {
     /// The DXT5 format. 64 bytes of RGBA data in a 4x4 pixel square is
     /// compressed into a 16 byte block of DXT5 data
     DXT5,
+    /// The BC4 format. Similar to the DXT5 format, but only consists of
+    /// one alpha data block. I.e. this compression technique can only be
+    /// used to store single channel images (gray-scale).
+    /// 16 bytes of R data in a 4x4 pixel square is compressed into a 8 byte
+    /// block of DXT5 alpha data.
+    BC4,
 }
 
 /// DXT compression version.
@@ -53,6 +60,7 @@ impl DXTVariant {
         match self {
             DXTVariant::DXT1 => 48,
             DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
+            DXTVariant::BC4 => 16,
         }
     }
 
@@ -61,6 +69,7 @@ impl DXTVariant {
         match self {
             DXTVariant::DXT1 => 8,
             DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
+            DXTVariant::BC4 => 8,
         }
     }
 
@@ -69,6 +78,7 @@ impl DXTVariant {
         match self {
             DXTVariant::DXT1 => ColorType::Rgb8,
             DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
+            DXTVariant::BC4 => ColorType::L8,
         }
     }
 }
@@ -125,6 +135,7 @@ impl<R: Read> DxtDecoder<R> {
             DXTVariant::DXT1 => decode_dxt1_row(&src, buf),
             DXTVariant::DXT3 => decode_dxt3_row(&src, buf),
             DXTVariant::DXT5 => decode_dxt5_row(&src, buf),
+            DXTVariant::BC4 => decode_bc4_row(&src, buf),
         }
         self.row += 1;
         Ok(buf.len())
@@ -265,6 +276,7 @@ impl<W: Write> DxtEncoder<W> {
                 DXTVariant::DXT1 => encode_dxt1_row(chunk),
                 DXTVariant::DXT3 => encode_dxt3_row(chunk),
                 DXTVariant::DXT5 => encode_dxt5_row(chunk),
+                DXTVariant::BC4 => encode_bc4_row(chunk),
             };
             self.w.write_all(&data)?;
         }
@@ -378,6 +390,25 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     }
 }
 
+/// Decodes a 8-byte bock of BC4 data to a 16xLuma block
+fn decode_bc4_block(source: &[u8], dest: &mut [u8]) {
+    assert!(source.len() == 8 && dest.len() == 16);
+
+    // extract alpha index table (stored as little endian 64-bit value)
+    let alpha_table = source[2..8]
+        .iter()
+        .rev()
+        .fold(0, |t, &b| (t << 8) | u64::from(b));
+
+    // alpha level decode
+    let alphas = alpha_table_dxt5(source[0], source[1]);
+
+    // serialize alpha
+    for i in 0..16 {
+        dest[i] = alphas[(alpha_table >> (i * 3)) as usize & 7];
+    }
+}
+
 /// Decodes a 16-byte bock of dxt5 data to a 16xRGBA block
 fn decode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 16 && dest.len() == 64);
@@ -484,6 +515,27 @@ fn decode_dxt5_row(source: &[u8], dest: &mut [u8]) {
         for line in 0..4 {
             let offset = (block_count * line + x) * 16;
             dest[offset..offset + 16].copy_from_slice(&decoded_block[line * 16..(line + 1) * 16]);
+        }
+    }
+}
+
+/// Decode a row of BC4 data to four rows of Luma data.
+/// source.len() should be a multiple of 8, otherwise this panics.
+fn decode_bc4_row(source: &[u8], dest: &mut [u8]) {
+    assert!(source.len() % 8 == 0);
+    let block_count = source.len() / 8;
+    assert!(dest.len() >= block_count * 16);
+
+    // contains the 16 decoded pixels per block
+    let mut decoded_block = [0u8; 16];
+
+    for (x, encoded_block) in source.chunks(8).enumerate() {
+        decode_bc4_block(encoded_block, &mut decoded_block);
+
+        // copy the values from the decoded block to linewise Luma layout
+        for line in 0..4 {
+            let offset = (block_count * line + x) * 4;
+            dest[offset..offset + 4].copy_from_slice(&decoded_block[line * 4..(line + 1) * 4]);
         }
     }
 }
@@ -738,6 +790,54 @@ fn encode_dxt5_alpha(alpha0: u8, alpha1: u8, alphas: &[u8; 16]) -> (i32, u64) {
     (total_error, indices)
 }
 
+/// Encodes a Luma x16 sequence of bytes to a 8 bytes BC4 block
+fn encode_bc4_block(source: &[u8], dest: &mut [u8]) {
+    assert!(source.len() == 16 && dest.len() == 8);
+
+    // copy out the alpha bytes
+    let mut alphas = [0; 16];
+    for i in 0..16 {
+        alphas[i] = source[i];
+    }
+
+    // try both alpha compression methods, see which has the least error.
+    let alpha07 = alphas.iter().cloned().min().unwrap();
+    let alpha17 = alphas.iter().cloned().max().unwrap();
+    let (error7, indices7) = encode_dxt5_alpha(alpha07, alpha17, &alphas);
+
+    // if all alphas are 0 or 255 it doesn't particularly matter what we do here.
+    let alpha05 = alphas
+        .iter()
+        .cloned()
+        .filter(|&i| i != 255)
+        .max()
+        .unwrap_or(255);
+    let alpha15 = alphas
+        .iter()
+        .cloned()
+        .filter(|&i| i != 0)
+        .min()
+        .unwrap_or(0);
+    let (error5, indices5) = encode_dxt5_alpha(alpha05, alpha15, &alphas);
+
+    // pick the best one, encode the min/max values
+    let mut alpha_table = if error5 < error7 {
+        dest[0] = alpha05;
+        dest[1] = alpha15;
+        indices5
+    } else {
+        dest[0] = alpha07;
+        dest[1] = alpha17;
+        indices7
+    };
+
+    // encode the alphas
+    for byte in dest[2..8].iter_mut() {
+        *byte = alpha_table as u8;
+        alpha_table >>= 8;
+    }
+}
+
 /// Encodes a RGBAx16 sequence of bytes to a 16 bytes DXT5 block
 fn encode_dxt5_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 64 && dest.len() == 16);
@@ -883,6 +983,27 @@ fn encode_dxt5_row(source: &[u8]) -> Vec<u8> {
         }
 
         encode_dxt5_block(&decoded_block, encoded_block);
+    }
+    dest
+}
+
+/// Encode four rows of Luma8 data to one row of BC4 data.
+fn encode_bc4_row(source: &[u8]) -> Vec<u8> {
+    assert!(source.len() % 16 == 0);
+    let block_count = source.len() / 16;
+
+    let mut dest = vec![0u8; block_count * 8];
+    // contains the 16 encoded pixels per block
+    let mut decoded_block = [0u8; 16];
+
+    for (x, encoded_block) in dest.chunks_mut(8).enumerate() {
+        // copy the values from the source to linewise RGB layout
+        for line in 0..4 {
+            let offset = (block_count * line + x) * 4;
+            decoded_block[line * 4..(line + 1) * 4].copy_from_slice(&source[offset..offset + 4]);
+        }
+
+        encode_bc4_block(&decoded_block, encoded_block);
     }
     dest
 }

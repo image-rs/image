@@ -5,6 +5,7 @@
 //!  # Related Links
 //!  * <https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt> - Description of the DXT compression OpenGL extensions.
 //!  * <http://sv-journal.org/2014-1/06.php?lang=en> - Texture Compression Techniques (T. Paltashev and I. Perminov; 2014)
+//!  * <https://docs.microsoft.com/en-us/windows/win32/direct3d11/texture-block-compression-in-direct3d-11> - Texture Block Compression in Direct3D 11 (Microsoft)
 //!
 //!  Note: this module only implements bare DXT encoding/decoding, it does not parse formats that can contain DXT files like .dds
 
@@ -1006,4 +1007,39 @@ fn encode_bc4_row(source: &[u8]) -> Vec<u8> {
         encode_bc4_block(&decoded_block, encoded_block);
     }
     dest
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ImageDecoder, dxt::{DXTVariant, DxtDecoder, DxtEncoder}};
+
+    // The test-pattern is a gray-scale 8bpp checkerboard of size 4x4 with 0xFF in the top-left.
+    // On top of that, the four middle pixels are set to 0x80.
+    static DECODED_BLOCK_GRAY_4X4: &[u8] = &[
+        0xFF, 0x00, 0xFF, 0x00, // row 0
+        0x00, 0x80, 0x80, 0xFF, // row 1
+        0xFF, 0x80, 0x80, 0x00, // row 2
+        0x00, 0xFF, 0x00, 0xFF, // row 3
+    ];
+
+    #[test]
+    fn decode_bc4() {
+        // BC4 data created with AMD Compressonator v4.1.5083
+        static BC4_ENCODED_BLOCK: &[u8] = &[0x80, 0x81, 0xF7, 0x6D, 0xE0, 0x07, 0xEC, 0xFB];
+        let decoder = DxtDecoder::new(BC4_ENCODED_BLOCK, 4, 4, DXTVariant::BC4).unwrap();
+        let mut decoded_buffer = vec![0; DECODED_BLOCK_GRAY_4X4.len()];
+        decoder.read_image(&mut decoded_buffer).unwrap();
+        assert_eq!(&decoded_buffer, DECODED_BLOCK_GRAY_4X4);
+    }
+
+    #[test]
+    fn encode_bc4() {
+        // Note that this implementation of the encoder produces slightly different results than the
+        // AMD Compressonator (see above). This would still decode into the same values as the decode_bc4 test.
+        static BC4_ENCODED_BLOCK: &[u8] = &[0x80, 0x80, 0xF7, 0x6D, 0xE0, 0x07, 0xEC, 0xFB];
+        let mut encoded_buffer = Vec::new();
+        let encoder = DxtEncoder::new(&mut encoded_buffer);
+        encoder.encode(DECODED_BLOCK_GRAY_4X4, 4, 4, DXTVariant::BC4).unwrap();
+        assert_eq!(&encoded_buffer, BC4_ENCODED_BLOCK);
+    }
 }

@@ -16,7 +16,7 @@ extern crate exr;
 use exr::prelude::*;
 
 use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb, ImageEncoder, ExtendedColorType};
-use std::io::{Write, Seek, BufRead, Cursor, BufReader, BufWriter};
+use std::io::{Write, Seek, BufRead, Cursor, BufReader};
 use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
 use std::path::Path;
@@ -24,20 +24,14 @@ use crate::buffer_::{Rgb32FImage, Rgba32FImage};
 use std::convert::TryInto;
 
 
-// TODO this could be a generic function that works for any format
-/// Read the file from the specified path into an `Rgba32FImage`.
-// TODO progress? load rect?
-pub fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
-    read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
-}
 
 // TODO this could be a generic function that works for any format
 /// Read an `Rgba32FImage`.
 /// Assumes the reader is buffered. In most cases,
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
-pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
-    let decoder = ExrDecoder::read(read, Some(true))?;
+fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
+    let decoder = OpenExrDecoder::read(read, Some(true))?;
     debug_assert_eq!(decoder.color_type(), ColorType::Rgba32F);
 
     let (width, height) = decoder.dimensions();
@@ -50,20 +44,14 @@ pub fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage
         .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
 }
 
-// TODO this could be a generic function that works for any format
-/// Read the file from the specified path into an `Rgb32FImage`.
-// TODO progress? load rect?
-pub fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
-    read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
-}
 
 // TODO this could be a generic function that works for any format
 /// Read an `Rgb32FImage`.
 /// Assumes the reader is buffered. In most cases,
 /// you should wrap your reader in a `BufReader` for best performance.
 // TODO progress? load rect?
-pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
-    let decoder = ExrDecoder::read(read, Some(false))?;
+fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
+    let decoder = OpenExrDecoder::read(read, Some(false))?;
     debug_assert_eq!(decoder.color_type(), ColorType::Rgb32F);
 
     let (width, height) = decoder.dimensions();
@@ -77,19 +65,13 @@ pub fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> 
 }
 
 
-// TODO this could be a generic function that works for any format
-/// Write an `Rgb32FImage` to the specified file path, replacing any existing file.
-// TODO progress? load rect?
-pub fn write_rgb_image_to_file(path: impl AsRef<Path>, image: &Rgb32FImage) -> ImageResult<()> {
-    write_rgb_image(BufWriter::new(std::fs::File::create(path)?), image)
-}
 
 // TODO this could be a generic function that works for any format
 /// Write an `Rgb32FImage`.
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 // TODO progress? load rect?
-pub fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
+fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
     write_buffer(
         write,
         bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -99,18 +81,11 @@ pub fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> Ima
 }
 
 // TODO this could be a generic function that works for any format
-/// Write an `Rgba32FImage` to the specified file path, replacing any existing file.
-// TODO progress? load rect?
-pub fn write_rgba_image_to_file(path: impl AsRef<Path>, image: &Rgba32FImage) -> ImageResult<()> {
-    write_rgba_image(BufWriter::new(std::fs::File::create(path)?), image)
-}
-
-// TODO this could be a generic function that works for any format
 /// Write an `Rgba32FImage`.
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 // TODO progress? load rect?
-pub fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
+fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
     write_buffer(
         write,
         bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -122,7 +97,7 @@ pub fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> I
 
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
-pub struct ExrDecoder<R> {
+pub struct OpenExrDecoder<R> {
     exr_reader: exr::block::reader::Reader<R>,
 
     // select a header that is rgb and not deep
@@ -136,7 +111,7 @@ pub struct ExrDecoder<R> {
 }
 
 
-impl<R: BufRead + Seek> ExrDecoder<R> {
+impl<R: BufRead + Seek> OpenExrDecoder<R> {
 
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     /// Assumes the reader is buffered. In most cases,
@@ -153,9 +128,8 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
             .position(|header|{
                 let has_rgb = ["R","G","B"].iter().all( // alpha will be optional
                     // check if r/g/b exists in the channels
-                    // TODO binary search, channels are sorted
                     |required| header.channels.list.iter()
-                        .find(|chan| chan.name.eq(required)).is_some() // TODO eq_lowercase only if exrs supports it
+                        .any(|chan| chan.name.eq(required)) // TODO use search("A") and eq_lowercase later when exrs supports it
                 );
 
                 // we currently dont support deep images, or images with other color spaces than rgb
@@ -166,13 +140,10 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
                 "image does not contain non-deep rgb channels"
             )))?;
 
-        // TODO binary search, channels are sorted
         let has_alpha = exr_reader.headers()[header_index]
             .channels.list
-            //.binary_search_by_key(b"A", |chan| chan.name.bytes())
             .iter()
-            .find(|chan| chan.name.eq("A")) // TODO eq_lowercase only if exrs supports it
-            .is_some();
+            .any(|chan| chan.name.eq("A")); // TODO use search("A") and eq_lowercase later when exrs supports it
 
         Ok(Self {
             alpha_preference,
@@ -188,7 +159,7 @@ impl<R: BufRead + Seek> ExrDecoder<R> {
 }
 
 
-impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
     type Reader = Cursor<Vec<u8>>;
 
     fn dimensions(&self) -> (u32, u32) {
@@ -208,7 +179,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
     /// Use `read_image` instead if possible,
     /// as this method creates a whole new buffer just to contain the entire image.
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?)) // TODO no vec?
+        Ok(Cursor::new(decoder_to_vec(self)?))
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -231,7 +202,6 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
             .no_deep_data().largest_resolution_level()
             .rgba_channels(
                 move |_size, _channels| {
-                    // TODO debug_assert_eq!(self.header_index, header_index);
                     vec![0_f32; display_window.size.area() * channel_count]
                 },
 
@@ -275,12 +245,13 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for ExrDecoder<R> {
 
 
 /// Write a raw byte buffer of pixels,
-/// panicking if the buffer is not aligned to `f32`
+/// returning an Error if the buffer is not aligned to `f32`
 /// or if it has an invalid length.
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-pub fn write_buffer(
+// private, access via `OpenExrEncoder`
+fn write_buffer(
     mut buffered_write: impl Write/* + Seek*/, unaligned_bytes: &[u8],
     width: u32, height: u32, color_type: ColorType
 ) -> ImageResult<()>
@@ -291,7 +262,7 @@ pub fn write_buffer(
     if unaligned_bytes.len() < width * height * color_type.bytes_per_pixel() as usize {
         return Err(ImageError::Encoding(EncodingError::new(
             ImageFormatHint::Exact(ImageFormat::OpenExr),
-            "byte buffer must have enough bytes for all the f32 pixels"
+            "byte buffer not large enough for the specified dimensions and f32 pixels"
         )));
     }
 
@@ -335,6 +306,7 @@ pub fn write_buffer(
                 .to_buffered(&mut seekable_write).map_err(to_image_err)?;
         }
 
+        // TODO other color types and channel types
         unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(
             ImageFormatHint::Exact(ImageFormat::OpenExr),
             format!("color type {:?} not yet supported", unsupported_color_type)
@@ -349,15 +321,24 @@ pub fn write_buffer(
 // TODO is this struct and trait actually used anywhere?
 /// A thin wrapper that implements `ImageEncoder` for OpenEXR images. Will behave like `image::codecs::openexr::write_buffer`.
 #[derive(Debug)]
-pub struct Encoder<W> (W);
-impl<W> Encoder<W> {
+pub struct OpenExrEncoder<W> (W);
+
+impl<W> OpenExrEncoder<W> {
+
     /// Create an `ImageEncoder`. Does not write anything yet. Writing later will behave like `image::codecs::openexr::write_buffer`.
     // use constructor, not public field, for future backwards-compatibility
-    pub fn new(write: W) -> Self {Self(write)}
+    pub fn new(write: W) -> Self { Self(write) }
 }
 
-impl<W> ImageEncoder for Encoder<W> where W: Write /*+ Seek*/ {
-    /// Writes the complete image. Behaves just like `image::codecs::openexr::write_buffer`.
+impl<W> ImageEncoder for OpenExrEncoder<W> where W: Write /*+ Seek*/ {
+
+    /// Writes the complete image.
+    ///
+    /// Returns an Error if the buffer is not aligned to `f32`
+    /// or if it has an invalid length.
+    ///
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
     fn write_image(self, buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {
         write_buffer(self.0, buf, width, height, color_type)
     }
@@ -378,6 +359,17 @@ mod test {
     use std::path::PathBuf;
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
+
+
+    /// Read the file from the specified path into an `Rgba32FImage`.
+    fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
+        read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
+    }
+
+    /// Read the file from the specified path into an `Rgb32FImage`.
+    fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
+        read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
+    }
 
     #[test]
     fn compare_exr_hdr() {

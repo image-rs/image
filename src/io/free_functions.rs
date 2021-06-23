@@ -60,7 +60,7 @@ pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<Dynamic
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::ExrDecoder::read(r, None)?),
+        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::OpenExrDecoder::read(r, None)?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
         #[cfg(feature = "farbfeld")]
@@ -110,7 +110,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => openexr::ExrDecoder::read(fin, None)?.dimensions(),
+        image::ImageFormat::OpenExr => openexr::OpenExrDecoder::read(fin, None)?.dimensions(),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => {
             pnm::PnmDecoder::new(fin)?.dimensions()
@@ -201,7 +201,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         #[cfg(feature = "tga")]
         ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "openexr")]
-        ImageOutputFormat::OpenExr => openexr::write_buffer(fout, buf, width, height, color),
+        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
         ImageOutputFormat::Tiff => {
             let mut cursor = std::io::Cursor::new(Vec::new());

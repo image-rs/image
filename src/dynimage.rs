@@ -1315,7 +1315,7 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-    ///
+///
 /// **Note**: TIFF encoding uses buffered writing,
 /// which can lead to unexpected use of resources
 pub fn write_buffer_with_format<W, F>(

@@ -897,7 +897,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```.
-
+    ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     ///
@@ -1277,7 +1277,7 @@ where
 ///
 /// The image format is derived from the file extension. The buffer is assumed to have
 /// the correct format according to the specified color type.
-
+///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
 pub fn save_buffer<P>(

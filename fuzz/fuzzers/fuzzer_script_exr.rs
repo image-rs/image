@@ -1,7 +1,6 @@
 #![no_main]
 #[macro_use] extern crate libfuzzer_sys;
 extern crate image;
-extern crate bytemuck;
 
 use std::io::Cursor;
 use image::ImageResult;

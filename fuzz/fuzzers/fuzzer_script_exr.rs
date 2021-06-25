@@ -10,6 +10,7 @@ use std::io::Seek;
 use std::io::BufRead;
 use std::convert::TryFrom;
 use image::ImageDecoder;
+use image::ImageEncoder;
 
 
 // "just dont panic"
@@ -18,7 +19,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
 
     /// Read the file from the specified path into an `Rgba32FImage`.
     // TODO this method should probably already exist in the main image crate
-    fn read_as_rgba_byte_image(read: impl BufRead + Seek) -> ImageResult<(usize,usize,Vec<u8>)> {
+    fn read_as_rgba_byte_image(read: impl BufRead + Seek) -> ImageResult<(u32,u32,Vec<u8>)> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
 
@@ -32,14 +33,12 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     // TODO this method should probably already exist in the main image crate
-    fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
+    fn write_rgba_image(write: impl Write/* + Seek*/, (width, height, data): &(u32,u32,Vec<u8>)) -> ImageResult<()> {
         OpenExrEncoder::new(write).write_image(
-            bytemuck::cast_slice(image.as_raw().as_slice()),
-            image.width(), image.height(),
+            data.as_slice(), width, height,
             ColorType::Rgba32F
         )
     }
-
 
 
     let decoded_image = read_as_rgba_byte_image(Cursor::new(bytes))?;

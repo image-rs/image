@@ -6,12 +6,11 @@ use std::io::Cursor;
 use image::ImageResult;
 use image::codecs::openexr::*;
 use image::Rgba32FImage;
-use image::error::LimitError;
-use image::ImageError;
-use image::ImageBuffer;
-use image::Rgb32FImage;
 use std::io::Seek;
 use std::io::BufRead;
+use std::convert::TryFrom;
+use image::ImageDecoder;
+
 
 // "just dont panic"
 fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
@@ -24,7 +23,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
         let (width, height) = decoder.dimensions();
 
         let mut buffer = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
-        decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
+        decoder.read_image(buffer.as_mut_slice())?;
 
         Ok((width, height, buffer))
     }

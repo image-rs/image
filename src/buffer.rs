@@ -1368,7 +1368,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = color::Rgb([42, 0, 0]);
+            *val = Rgb([42, 0, 0]);
         }
         assert_eq!(a.data[0], 42)
     }

@@ -22,6 +22,19 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
             .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
     }
 
+    /// Write an `Rgba32FImage`.
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
+        OpenEXREncoder::new(write).write_image(
+            bytemuck::cast_slice(image.as_raw().as_slice()),
+            image.width(), image.height(),
+            ColorType::Rgba32F
+        )
+    }
+
+
+
     let decoded_image = read_as_rgba_image(Cursor::new(bytes))?;
 
     let mut bytes = Vec::with_capacity(bytes.len() + 20);

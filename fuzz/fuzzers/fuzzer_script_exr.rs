@@ -5,13 +5,12 @@ extern crate image;
 use std::io::Cursor;
 use image::ImageResult;
 use image::codecs::openexr::*;
-use image::Rgba32FImage;
 use std::io::Seek;
 use std::io::BufRead;
 use std::convert::TryFrom;
 use image::ImageDecoder;
 use image::ImageEncoder;
-
+use image::ColorType;
 
 // "just dont panic"
 fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
@@ -35,7 +34,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
     // TODO this method should probably already exist in the main image crate
     fn write_rgba_image(write: impl Write/* + Seek*/, (width, height, data): &(u32,u32,Vec<u8>)) -> ImageResult<()> {
         OpenExrEncoder::new(write).write_image(
-            data.as_slice(), width, height,
+            data.as_slice(), *width, *height,
             ColorType::Rgba32F
         )
     }

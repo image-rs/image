@@ -9,8 +9,16 @@
 //!
 //! # Related Links
 //! * <https://www.openexr.com/documentation.html> - The OpenEXR reference.
-
-// ROADMAP: See https://github.com/image-rs/image/pull/1475
+//!
+//!
+//! Current limitations (July 2021):
+//!     - only non-deep rgb/rgba files supported, no conversion from/to YCbCr or similar
+//!     - only the first non-deep rgb layer is used
+//!     - only the largest mip map level is used
+//!     - pixels outside display window are lost
+//!     - meta data is lost
+//!     - dwaa/dwab compressed images not supported yet by the exr library
+//!     - (chroma) subsampling not supported yet by the exr library
 
 extern crate exr;
 use exr::prelude::*;
@@ -25,76 +33,6 @@ use std::convert::TryInto;
 
 
 
-// TODO this could be a generic function that works for any format
-/// Read an `Rgba32FImage`.
-/// Assumes the reader is buffered. In most cases,
-/// you should wrap your reader in a `BufReader` for best performance.
-// TODO progress? load rect?
-fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
-    let decoder = OpenExrDecoder::read(read, Some(true))?;
-    debug_assert_eq!(decoder.color_type(), ColorType::Rgba32F);
-
-    let (width, height) = decoder.dimensions();
-    let buffer: Vec<f32> = decoder_to_vec(decoder)?; // passing `true` to decoder results in 4 floats per pixel
-
-    ImageBuffer::from_raw(width, height, buffer)
-
-        // this should be the only reason for the "from raw" call to fail,
-        // even though such a large allocation would probably cause an error much earlier
-        .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
-}
-
-
-// TODO this could be a generic function that works for any format
-/// Read an `Rgb32FImage`.
-/// Assumes the reader is buffered. In most cases,
-/// you should wrap your reader in a `BufReader` for best performance.
-// TODO progress? load rect?
-fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
-    let decoder = OpenExrDecoder::read(read, Some(false))?;
-    debug_assert_eq!(decoder.color_type(), ColorType::Rgb32F);
-
-    let (width, height) = decoder.dimensions();
-    let buffer: Vec<f32> = decoder_to_vec(decoder)?; // passing `false` to decoder results in 3 floats per pixel
-
-    ImageBuffer::from_raw(width, height, buffer)
-
-        // this should be the only reason for the "from raw" call to fail,
-        // even though such a large allocation would probably cause an error much earlier
-        .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
-}
-
-
-
-// TODO this could be a generic function that works for any format
-/// Write an `Rgb32FImage`.
-/// Assumes the writer is buffered. In most cases,
-/// you should wrap your writer in a `BufWriter` for best performance.
-// TODO progress? load rect?
-fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
-    write_buffer(
-        write,
-        bytemuck::cast_slice(image.as_raw().as_slice()),
-        image.width(), image.height(),
-        ColorType::Rgb32F
-    )
-}
-
-// TODO this could be a generic function that works for any format
-/// Write an `Rgba32FImage`.
-/// Assumes the writer is buffered. In most cases,
-/// you should wrap your writer in a `BufWriter` for best performance.
-// TODO progress? load rect?
-fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
-    write_buffer(
-        write,
-        bytemuck::cast_slice(image.as_raw().as_slice()),
-        image.width(), image.height(),
-        ColorType::Rgba32F
-    )
-}
-
-
 /// An OpenEXR decoder. Immediately reads the meta data from the file.
 #[derive(Debug)]
 pub struct OpenExrDecoder<R> {
@@ -105,6 +43,7 @@ pub struct OpenExrDecoder<R> {
 
     // decode either rgb or rgba.
     // can be specified to include or discard alpha channels.
+    // if none, the alpha channel will only be allocated where the file contains data for it.
     alpha_preference: Option<bool>,
 
     alpha_present_in_file: bool,
@@ -113,13 +52,23 @@ pub struct OpenExrDecoder<R> {
 
 impl<R: BufRead + Seek> OpenExrDecoder<R> {
 
+
+    /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
+    /// Assumes the reader is buffered. In most cases,
+    /// you should wrap your reader in a `BufReader` for best performance.
+    /// Loads an alpha channel if the file has alpha samples.
+    /// Use `with_alpha_preference` if you want to load or not load alpha unconditionally.
+    pub fn new(source: R) -> ImageResult<Self> {
+        Self::with_alpha_preference(source, None)
+    }
+
     /// Create a decoder. Consumes the first few bytes of the source to extract image dimensions.
     /// Assumes the reader is buffered. In most cases,
     /// you should wrap your reader in a `BufReader` for best performance.
     /// If alpha preference is specified, an alpha channel will
     /// always be present or always be not present in the returned image.
     /// If alpha preference is none, the alpha channel will only be returned if it is found in the file.
-    pub fn read(source: R, alpha_preference: Option<bool>) -> ImageResult<Self> {
+    pub fn with_alpha_preference(source: R, alpha_preference: Option<bool>) -> ImageResult<Self> {
 
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
@@ -152,7 +101,7 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
         })
     }
 
-    // do not leak exrs-specific meta data into public api, just do it for this module
+    // does not leak exrs-specific meta data into public api, just does it for this module
     fn selected_exr_header(&self) -> &exr::meta::header::Header {
         &self.exr_reader.meta_data().headers[self.header_index]
     }
@@ -361,6 +310,31 @@ mod test {
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 
 
+
+    /// Write an `Rgb32FImage`.
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
+        write_buffer(
+            write,
+            bytemuck::cast_slice(image.as_raw().as_slice()),
+            image.width(), image.height(),
+            ColorType::Rgb32F
+        )
+    }
+
+    /// Write an `Rgba32FImage`.
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
+        write_buffer(
+            write,
+            bytemuck::cast_slice(image.as_raw().as_slice()),
+            image.width(), image.height(),
+            ColorType::Rgba32F
+        )
+    }
+
     /// Read the file from the specified path into an `Rgba32FImage`.
     fn read_as_rgba_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgba32FImage> {
         read_as_rgba_image(BufReader::new(std::fs::File::open(path)?))
@@ -369,6 +343,32 @@ mod test {
     /// Read the file from the specified path into an `Rgb32FImage`.
     fn read_as_rgb_image_from_file(path: impl AsRef<Path>) -> ImageResult<Rgb32FImage> {
         read_as_rgb_image(BufReader::new(std::fs::File::open(path)?))
+    }
+
+    /// Read the file from the specified path into an `Rgb32FImage`.
+    fn read_as_rgb_image(read: impl BufRead + Seek) -> ImageResult<Rgb32FImage> {
+        let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
+        let (width, height) = decoder.dimensions();
+        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+
+        ImageBuffer::from_raw(width, height, buffer)
+
+            // this should be the only reason for the "from raw" call to fail,
+            // even though such a large allocation would probably cause an error much earlier
+            .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
+    }
+
+    /// Read the file from the specified path into an `Rgba32FImage`.
+    fn read_as_rgba_image(read: impl BufRead + Seek) -> ImageResult<Rgba32FImage> {
+        let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
+        let (width, height) = decoder.dimensions();
+        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+
+        ImageBuffer::from_raw(width, height, buffer)
+
+            // this should be the only reason for the "from raw" call to fail,
+            // even though such a large allocation would probably cause an error much earlier
+            .ok_or_else(|| ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory)))
     }
 
     #[test]

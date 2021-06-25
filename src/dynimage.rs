@@ -1334,7 +1334,7 @@ pub fn write_buffer_with_format<W, F>(
     format: F,
 ) -> ImageResult<()>
 where
-    W: std::io::Write,
+    W: Write,
     F: Into<ImageOutputFormat>,
 {
     // thin wrapper function to strip generics

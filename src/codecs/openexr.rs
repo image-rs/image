@@ -23,10 +23,12 @@
 extern crate exr;
 use exr::prelude::*;
 
-use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageEncoder, ExtendedColorType};
-use std::io::{Write, Seek, BufRead, Cursor};
-use crate::error::{DecodingError, ImageFormatHint, EncodingError};
+use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb, ImageEncoder, ExtendedColorType};
+use std::io::{Write, Seek, BufRead, Cursor, BufReader};
+use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
+use std::path::Path;
+use crate::buffer_::{Rgb32FImage, Rgba32FImage};
 use std::convert::TryInto;
 
 

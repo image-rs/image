@@ -726,6 +726,14 @@ where
         }
     }
 
+    /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
+    /// the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
+        self.pixel_indices(x, y)
+            .and_then(|pixel_indices| self.data.get(pixel_indices))
+            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+    }
+
     /// Test that the image fits inside the buffer.
     ///
     /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
@@ -875,6 +883,14 @@ where
             None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
             Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
         }
+    }
+
+    /// Gets a reference to the mutable pixel at location `(x, y)` or returns
+    /// `None` if the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
+        self.pixel_indices(x, y)
+            .and_then(move |pixel_indices| self.data.get_mut(pixel_indices))
+            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -1361,6 +1377,19 @@ mod test {
             *b = 255;
         }
         assert_eq!(a.get_pixel(0, 1)[0], 255)
+    }
+
+    #[test]
+    fn get_pixel_checked() {
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        {
+            if let Some(b) = a.get_pixel_mut_checked(0, 1) {
+                b[0] = 255;
+            }
+        }
+        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
+        assert_eq!(a.get_pixel_checked(100, 0), None);
+        assert_eq!(a.get_pixel_mut_checked(0, 100), None);
     }
 
     #[test]

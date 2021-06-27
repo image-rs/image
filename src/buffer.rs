@@ -729,8 +729,16 @@ where
     /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
     /// the index is out of the bounds `(width, height)`.
     pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
-        self.pixel_indices(x, y)
-            .and_then(|pixel_indices| self.data.get(pixel_indices))
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get(i..i + num_channels)
             .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
     }
 
@@ -888,8 +896,16 @@ where
     /// Gets a reference to the mutable pixel at location `(x, y)` or returns
     /// `None` if the index is out of the bounds `(width, height)`.
     pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        self.pixel_indices(x, y)
-            .and_then(move |pixel_indices| self.data.get_mut(pixel_indices))
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get_mut(i..i + num_channels)
             .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
     }
 

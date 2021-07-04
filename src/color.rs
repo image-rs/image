@@ -457,7 +457,8 @@ fn downcast_channel(c16: u16) -> u8 {
 
 #[inline]
 fn upcast_channel(c8: u8) -> u16 {
-    NumCast::from(c8.to_u64().unwrap() << 8).unwrap()
+    let x = c8.to_u64().unwrap();
+    NumCast::from((x << 8) | x).unwrap()
 }
 
 

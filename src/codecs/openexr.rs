@@ -163,10 +163,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
                 .unwrap_or(true);
 
             if has_invalid_size_or_overflowed {
-                return Err(ImageError::Decoding(DecodingError::new(
-                    ImageFormatHint::Exact(ImageFormat::OpenExr),
-                    "byte buffer not large enough for the specified dimensions and f32 pixels"
-                )));
+                panic!("byte buffer not large enough for the specified dimensions and f32 pixels");
             }
         }
 

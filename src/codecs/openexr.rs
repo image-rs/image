@@ -12,6 +12,7 @@
 //!
 //!
 //! Current limitations (July 2021):
+//!     - only pixel type `Rgba32F` and `Rgba16F` are supported
 //!     - only non-deep rgb/rgba files supported, no conversion from/to YCbCr or similar
 //!     - only the first non-deep rgb layer is used
 //!     - only the largest mip map level is used
@@ -199,7 +200,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-// private, access via `OpenExrEncoder`
+// private. access via `OpenExrEncoder`
 fn write_buffer(
     mut buffered_write: impl Write/* + Seek*/, unaligned_bytes: &[u8],
     width: u32, height: u32, color_type: ColorType
@@ -208,11 +209,24 @@ fn write_buffer(
     let width = width as usize;
     let height = height as usize;
 
-    if unaligned_bytes.len() < width * height * color_type.bytes_per_pixel() as usize {
-        return Err(ImageError::Encoding(EncodingError::new(
-            ImageFormatHint::Exact(ImageFormat::OpenExr),
-            "byte buffer not large enough for the specified dimensions and f32 pixels"
-        )));
+    {   // check whether dimensions match the buffer size
+        let expected_byte_count = width.checked_mul(height)
+            .and_then(|size| size.checked_mul(color_type.bytes_per_pixel() as usize));
+
+        // if the width and height does not match the length of the bytes, the arguments are invalid
+        let has_invalid_size_or_overflowed = expected_byte_count
+            .map(|expected_byte_count | unaligned_bytes.len() < expected_byte_count)
+
+            // otherwise, size calculation overflowed, is bigger than memory,
+            // therefore data is too small, so it is invalid.
+            .unwrap_or(true);
+
+        if has_invalid_size_or_overflowed {
+            return Err(ImageError::Encoding(EncodingError::new(
+                ImageFormatHint::Exact(ImageFormat::OpenExr),
+                "byte buffer not large enough for the specified dimensions and f32 pixels"
+            )));
+        }
     }
 
     let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4)); // TODO remove

@@ -148,6 +148,28 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
         let display_window = self.selected_exr_header().shared_attributes.display_window;
         let data_window_offset = self.selected_exr_header().own_attributes.layer_position - display_window.position;
 
+        {   // check whether the buffer is large enough for the dimensions of the file
+            let (width, height) = self.dimensions();
+            let bytes_per_pixel = self.color_type().bytes_per_pixel() as usize;
+            let expected_byte_count = (width as usize).checked_mul(height as usize)
+                .and_then(|size| size.checked_mul(bytes_per_pixel));
+
+            // if the width and height does not match the length of the bytes, the arguments are invalid
+            let has_invalid_size_or_overflowed = expected_byte_count
+                .map(|expected_byte_count | unaligned_bytes.len() < expected_byte_count)
+
+                // otherwise, size calculation overflowed, is bigger than memory,
+                // therefore data is too small, so it is invalid.
+                .unwrap_or(true);
+
+            if has_invalid_size_or_overflowed {
+                return Err(ImageError::Decoding(DecodingError::new(
+                    ImageFormatHint::Exact(ImageFormat::OpenExr),
+                    "byte buffer not large enough for the specified dimensions and f32 pixels"
+                )));
+            }
+        }
+
         let result = read()
             .no_deep_data().largest_resolution_level()
             .rgba_channels(
@@ -209,7 +231,7 @@ fn write_buffer(
     let width = width as usize;
     let height = height as usize;
 
-    {   // check whether dimensions match the buffer size
+    {   // check whether the buffer is large enough for the specified dimensions
         let expected_byte_count = width.checked_mul(height)
             .and_then(|size| size.checked_mul(color_type.bytes_per_pixel() as usize));
 

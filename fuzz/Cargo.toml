@@ -60,3 +60,7 @@ path = "fuzzers/fuzzer_script_ico.rs"
 [[bin]]
 name = "fuzzer_script_hdr"
 path = "fuzzers/fuzzer_script_hdr.rs"
+
+[[bin]]
+name = "fuzzer_script_exr"
+path = "fuzzers/fuzzer_script_exr.rs"

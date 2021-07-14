@@ -59,7 +59,7 @@ use super::free_functions;
 /// [`set_format`]: #method.set_format
 /// [`ImageDecoder`]: ../trait.ImageDecoder.html
 pub struct Reader<R: Read> {
-    /// The reader.
+    /// The reader. Should be buffered.
     inner: R,
     /// The format, if one has been set or deduced.
     format: Option<ImageFormat>,
@@ -68,22 +68,28 @@ pub struct Reader<R: Read> {
 impl<R: Read> Reader<R> {
     /// Create a new image reader without a preset format.
     ///
+    /// Assumes the reader is already buffered. For optimal performance,
+    /// consider wrapping the reader with a `BufRead::new()`.
+    ///
     /// It is possible to guess the format based on the content of the read object with
     /// [`with_guessed_format`], or to set the format directly with [`set_format`].
     ///
     /// [`with_guessed_format`]: #method.with_guessed_format
     /// [`set_format`]: method.set_format
-    pub fn new(reader: R) -> Self {
+    pub fn new(buffered_reader: R) -> Self {
         Reader {
-            inner: reader,
+            inner: buffered_reader,
             format: None,
         }
     }
 
     /// Construct a reader with specified format.
-    pub fn with_format(reader: R, format: ImageFormat) -> Self {
+    ///
+    /// Assumes the reader is already buffered. For optimal performance,
+    /// consider wrapping the reader with a `BufRead::new()`.
+    pub fn with_format(buffered_reader: R, format: ImageFormat) -> Self {
         Reader {
-            inner: reader,
+            inner: buffered_reader,
             format: Some(format),
         }
     }

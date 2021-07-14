@@ -35,6 +35,12 @@ pub const gAMA: ChunkType = ChunkType([b'g', b'A', b'M', b'A']);
 pub const sRGB: ChunkType = ChunkType([b's', b'R', b'G', b'B']);
 /// ICC profile chunk
 pub const iCCP: ChunkType = ChunkType([b'i', b'C', b'C', b'P']);
+/// Latin-1 uncompressed textual data
+pub const tEXt: ChunkType = ChunkType([b't', b'E', b'X', b't']);
+/// Latin-1 compressed textual data
+pub const zTXt: ChunkType = ChunkType([b'z', b'T', b'X', b't']);
+/// UTF-8 textual data
+pub const iTXt: ChunkType = ChunkType([b'i', b'T', b'X', b't']);
 
 // -- Extension chunks --
 

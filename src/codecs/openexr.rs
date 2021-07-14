@@ -156,7 +156,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
 
             // if the width and height does not match the length of the bytes, the arguments are invalid
             let has_invalid_size_or_overflowed = expected_byte_count
-                .map(|expected_byte_count | unaligned_bytes.len() < expected_byte_count)
+                .map(|expected_byte_count | unaligned_bytes.len() != expected_byte_count)
 
                 // otherwise, size calculation overflowed, is bigger than memory,
                 // therefore data is too small, so it is invalid.

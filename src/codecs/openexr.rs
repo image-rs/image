@@ -205,6 +205,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
         // TODO this copy is strictly not necessary, but the exr api is a little too simple for reading into a borrowed target slice
 
         // this cast is safe and works with any alignment, as bytes are copied, and not f32 values.
+        // note: buffer slice length is checked in the beginning of this function and will be correct at this point
         unaligned_bytes.copy_from_slice(bytemuck::cast_slice(result.layer_data.channel_data.pixels.as_slice()));
         Ok(())
     }

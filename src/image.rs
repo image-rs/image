@@ -400,7 +400,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
 
-    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
+    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::max_value()) {
         panic!("output buffer too short\n expected `{}`, provided `{}`", total_bytes, buf.len());
     }
 
@@ -507,7 +507,14 @@ pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResu
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let mut buf = vec![num_traits::Zero::zero(); usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()];
+    let total_bytes = usize::try_from(decoder.total_bytes());
+    if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
+    }
+
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
@@ -573,10 +580,12 @@ pub trait ImageDecoder<'a>: Sized {
     /// This is the size of the buffer that must be passed to `read_image` or
     /// `read_image_with_progress`. The returned value may exceed usize::MAX, in
     /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into.
+    /// into. If, however, the size does not fit in a u64 then u64::MAX is returned.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
-        u64::from(dimensions.0) * u64::from(dimensions.1) * u64::from(self.color_type().bytes_per_pixel())
+        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
+        let bytes_per_pixel = u64::from(self.color_type().bytes_per_pixel());
+        total_pixels.saturating_mul(bytes_per_pixel)
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
@@ -1403,5 +1412,20 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn total_bytes_overflow() {
+        struct D;
+        impl<'a> ImageDecoder<'a> for D {
+            type Reader = std::io::Cursor<Vec<u8>>;
+            fn color_type(&self) -> ColorType { ColorType::Rgb8 }
+            fn dimensions(&self) -> (u32, u32) { (0xffffffff, 0xffffffff) }
+            fn into_reader(self) -> ImageResult<Self::Reader> { unreachable!() }
+        }
+        assert_eq!(D.total_bytes(), u64::max_value());
+
+        let v: ImageResult<Vec<u8>> = super::decoder_to_vec(D);
+        assert!(v.is_err());
     }
 }

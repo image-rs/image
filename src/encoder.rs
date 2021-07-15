@@ -12,7 +12,7 @@ use crate::common::{
     FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
-use crate::text_metadata::TEXtChunk;
+use crate::text_metadata::{TEXtChunk, TextEncodingError};
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -30,14 +30,6 @@ pub struct FormatError {
     inner: FormatErrorKind,
 }
 
-impl FormatError {
-    pub(crate) fn text_encoding_error() -> Self {
-        Self {
-            inner: FormatErrorKind::BadTextEncoding,
-        }
-    }
-}
-
 #[derive(Debug)]
 enum FormatErrorKind {
     ZeroWidth,
@@ -53,7 +45,7 @@ enum FormatErrorKind {
     MissingFrames,
     MissingData(usize),
     Unrecoverable,
-    BadTextEncoding,
+    BadTextEncoding(TextEncodingError),
 }
 
 impl error::Error for EncodingError {
@@ -103,10 +95,13 @@ impl fmt::Display for FormatError {
                 fmt,
                 "a previous error put the writer into an unrecoverable state"
             ),
-            BadTextEncoding => write!(
-                fmt,
-                "The text metadata cannot be encoded into valid ISO 8859-1"
-            ),
+            BadTextEncoding(tee) => match tee {
+                TextEncodingError::Unrepresentable => write!(
+                    fmt,
+                    "The text metadata cannot be encoded into valid ISO 8859-1"
+                ),
+                TextEncodingError::InvalidKeywordSize => write!(fmt, "Invalid keyword size"),
+            },
         }
     }
 }
@@ -127,6 +122,14 @@ impl From<EncodingError> for io::Error {
 impl From<FormatErrorKind> for FormatError {
     fn from(kind: FormatErrorKind) -> Self {
         FormatError { inner: kind }
+    }
+}
+
+impl From<TextEncodingError> for EncodingError {
+    fn from(tee: TextEncodingError) -> Self {
+        EncodingError::Format(FormatError {
+            inner: FormatErrorKind::BadTextEncoding(tee),
+        })
     }
 }
 

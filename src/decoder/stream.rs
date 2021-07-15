@@ -15,6 +15,8 @@ use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
     PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
 };
+use crate::text_metadata::TEXtChunk;
+use crate::text_metadata::TextDecodingError;
 use crate::traits::ReadBytesExt;
 
 /// TODO check if these size are reasonable
@@ -205,6 +207,8 @@ pub(crate) enum FormatErrorInner {
     // TODO: strictly type this.
     /// Filtering of a row has failed.
     BadFilter(&'static str),
+    /// Bad text encoding
+    BadTextEncoding(TextDecodingError),
 }
 
 impl error::Error for DecodingError {
@@ -289,6 +293,18 @@ impl fmt::Display for FormatError {
             // TODO: figure out a good way to print the error.
             CorruptFlateStream { err: _ } => write!(fmt, "Corrupt deflate stream."),
             BadFilter(message) => write!(fmt, "{}.", message),
+            // TODO: Wrap more info in the enum variant
+            BadTextEncoding(tde) => match tde {
+                TextDecodingError::Unrepresentable => {
+                    write!(fmt, "Unrepresentable data in tEXt chunk.")
+                }
+                TextDecodingError::InvalidKeywordSize => {
+                    write!(fmt, "Keyword empty or longer than 79 bytes.")
+                }
+                TextDecodingError::MissingNullSeparator => {
+                    write!(fmt, "No null separator in tEXt chunk.")
+                }
+            }, // BadTextEncoding => write!(fmt, "Bad data in tEXt chunk."),
         }
     }
 }
@@ -317,6 +333,14 @@ impl From<DecodingError> for io::Error {
             DecodingError::IoError(err) => err,
             err => io::Error::new(io::ErrorKind::Other, err.to_string()),
         }
+    }
+}
+
+impl From<TextDecodingError> for DecodingError {
+    fn from(tbe: TextDecodingError) -> Self {
+        Self::Format(FormatError {
+            inner: FormatErrorInner::BadTextEncoding(tbe),
+        })
     }
 }
 
@@ -637,7 +661,8 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
-            _ => Ok(Decoded::PartialChunk(type_str)),
+            chunk::tEXt => self.parse_text(),
+            _ => dbg!(Ok(Decoded::PartialChunk(type_str))),
         } {
             Err(err) => {
                 // Borrow of self ends here, because Decoding error does not borrow self.
@@ -1017,6 +1042,29 @@ impl StreamingDecoder {
         Ok(Decoded::Header(
             width, height, bit_depth, color_type, interlaced,
         ))
+    }
+
+    fn parse_text(&mut self) -> Result<Decoded, DecodingError> {
+        let buf = &self.current_chunk.raw_bytes[..];
+
+        let (null_byte_index, _) = buf
+            .iter()
+            .enumerate()
+            .find(|(_, &b)| b == 0)
+            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+
+        if null_byte_index == 0 || null_byte_index > 79 {
+            return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
+        }
+
+        let keyword_slice = &buf[..null_byte_index];
+        let text_slice = &buf[null_byte_index + 1..];
+
+        self.info.as_mut().unwrap().uncompressed_latin1_text.push(
+            TEXtChunk::decode(keyword_slice, text_slice).map_err(|e| DecodingError::from(e))?,
+        );
+
+        Ok(Decoded::Nothing)
     }
 }
 

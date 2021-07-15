@@ -23,6 +23,7 @@ include = [
 bitflags = "1.0"
 crc32fast = "1.2.0"
 deflate = "0.9"
+encoding = "0.2"
 [dependencies.miniz_oxide]
 version = "0.4.1"
 features = ["no_extern_crate_alloc"]

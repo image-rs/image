@@ -26,11 +26,11 @@ pub enum EncodingError {
 
 #[derive(Debug)]
 pub struct FormatError {
-    inner: FormatErrorKind,
+    pub(crate) inner: FormatErrorKind,
 }
 
 #[derive(Debug)]
-enum FormatErrorKind {
+pub(crate) enum FormatErrorKind {
     ZeroWidth,
     ZeroHeight,
     InvalidColorCombination(BitDepth, ColorType),
@@ -44,6 +44,7 @@ enum FormatErrorKind {
     MissingFrames,
     MissingData(usize),
     Unrecoverable,
+    BadTextEncoding,
 }
 
 impl error::Error for EncodingError {
@@ -92,6 +93,10 @@ impl fmt::Display for FormatError {
             Unrecoverable => write!(
                 fmt,
                 "a previous error put the writer into an unrecoverable state"
+            ),
+            BadTextEncoding => write!(
+                fmt,
+                "The text metadata cannot be encoded into valid ISO 8859-1"
             ),
         }
     }

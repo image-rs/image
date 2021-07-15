@@ -1,4 +1,5 @@
 //! Common types shared between the encoder and decoder
+use crate::text_metadata::TEXtChunk;
 use crate::{chunk, encoder};
 use io::Write;
 use std::{borrow::Cow, convert::TryFrom, fmt, io};
@@ -484,6 +485,8 @@ pub struct Info<'a> {
     pub srgb: Option<SrgbRenderingIntent>,
     /// The ICC profile for the image.
     pub icc_profile: Option<Cow<'a, [u8]>>,
+    /// tEXt field
+    pub uncompressed_latin1_text: Vec<TEXtChunk>,
     /// Private field to mark the struct as non-exhaustive.
     _extensible: (),
 }
@@ -508,6 +511,7 @@ impl Default for Info<'_> {
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
+            uncompressed_latin1_text: Vec::new(),
             _extensible: (),
         }
     }
@@ -634,6 +638,10 @@ impl Info<'_> {
         }
         if let Some(actl) = self.animation_control {
             actl.encode(&mut w)?;
+        }
+
+        for text_chunk in &self.uncompressed_latin1_text {
+            text_chunk.encode(&mut w)?;
         }
         Ok(())
     }

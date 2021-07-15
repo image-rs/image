@@ -726,6 +726,22 @@ where
         }
     }
 
+    /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
+    /// the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+    }
+
     /// Test that the image fits inside the buffer.
     ///
     /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
@@ -875,6 +891,22 @@ where
             None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
             Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
         }
+    }
+
+    /// Gets a reference to the mutable pixel at location `(x, y)` or returns
+    /// `None` if the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get_mut(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
     }
 
     /// Puts a pixel at location `(x, y)`
@@ -1373,6 +1405,19 @@ mod test {
             *b = 255;
         }
         assert_eq!(a.get_pixel(0, 1)[0], 255)
+    }
+
+    #[test]
+    fn get_pixel_checked() {
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        {
+            if let Some(b) = a.get_pixel_mut_checked(0, 1) {
+                b[0] = 255;
+            }
+        }
+        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
+        assert_eq!(a.get_pixel_checked(100, 0), None);
+        assert_eq!(a.get_pixel_mut_checked(0, 100), None);
     }
 
     #[test]

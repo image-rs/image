@@ -662,7 +662,7 @@ impl StreamingDecoder {
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
             chunk::tEXt => self.parse_text(),
-            _ => dbg!(Ok(Decoded::PartialChunk(type_str))),
+            _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
                 // Borrow of self ends here, because Decoding error does not borrow self.

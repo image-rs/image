@@ -3,6 +3,7 @@ use encoding::all::ISO_8859_1;
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
 use std::io::Write;
 
+/// Text encoding errors that is wrapped by the standard EncodingError type
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TextEncodingError {
     /// Unrepresentable characters in string
@@ -11,6 +12,7 @@ pub(crate) enum TextEncodingError {
     InvalidKeywordSize,
 }
 
+/// Text decoding error that is wrapped by the standard DecodingError type
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TextDecodingError {
     /// Unrepresentable characters in string
@@ -29,6 +31,8 @@ pub struct TEXtChunk {
 }
 
 impl TEXtChunk {
+    /// Constructs a new TEXtChunk.
+    /// Not sure whether it should take &str or String.
     pub fn new(keyword: &str, text: &str) -> Self {
         Self {
             keyword: keyword.to_string(),
@@ -36,6 +40,8 @@ impl TEXtChunk {
         }
     }
 
+    /// Decodes a slice of bytes to a String using Latin-1 decoding.
+    /// The decoder runs in strict mode, and any decoding errors are passed along to the caller.
     pub(crate) fn decode(
         keyword_slice: &[u8],
         text_slice: &[u8],
@@ -54,6 +60,7 @@ impl TEXtChunk {
         })
     }
 
+    /// Encodes TEXtChunk to a Writer. The keyword and text are separated by a byte of zeroes.
     pub fn encode<W: Write>(&self, w: &mut W) -> Result<(), EncodingError> {
         let mut data = ISO_8859_1
             .encode(&self.keyword, EncoderTrap::Strict)

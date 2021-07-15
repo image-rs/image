@@ -12,6 +12,7 @@ use crate::common::{
     FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
+use crate::text_metadata::TEXtChunk;
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -26,11 +27,19 @@ pub enum EncodingError {
 
 #[derive(Debug)]
 pub struct FormatError {
-    pub(crate) inner: FormatErrorKind,
+    inner: FormatErrorKind,
+}
+
+impl FormatError {
+    pub(crate) fn text_encoding_error() -> Self {
+        Self {
+            inner: FormatErrorKind::BadTextEncoding,
+        }
+    }
 }
 
 #[derive(Debug)]
-pub(crate) enum FormatErrorKind {
+enum FormatErrorKind {
     ZeroWidth,
     ZeroHeight,
     InvalidColorCombination(BitDepth, ColorType),
@@ -362,6 +371,12 @@ impl<'a, W: Write> Encoder<'a, W> {
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
+    }
+
+    pub fn add_text_chunk(&mut self, keyword: &str, text: &str) -> Result<()> {
+        let text_chunk = TEXtChunk::new(keyword, text);
+        self.info.uncompressed_latin1_text.push(text_chunk);
+        Ok(())
     }
 }
 

@@ -15,8 +15,7 @@ use crate::common::{
     AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
     PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
 };
-use crate::text_metadata::TEXtChunk;
-use crate::text_metadata::TextDecodingError;
+use crate::text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk};
 use crate::traits::ReadBytesExt;
 
 /// TODO check if these size are reasonable
@@ -294,17 +293,31 @@ impl fmt::Display for FormatError {
             CorruptFlateStream { err: _ } => write!(fmt, "Corrupt deflate stream."),
             BadFilter(message) => write!(fmt, "{}.", message),
             // TODO: Wrap more info in the enum variant
-            BadTextEncoding(tde) => match tde {
-                TextDecodingError::Unrepresentable => {
-                    write!(fmt, "Unrepresentable data in tEXt chunk.")
+            BadTextEncoding(tde) => {
+                match tde {
+                    TextDecodingError::Unrepresentable => {
+                        write!(fmt, "Unrepresentable data in tEXt chunk.")
+                    }
+                    TextDecodingError::InvalidKeywordSize => {
+                        write!(fmt, "Keyword empty or longer than 79 bytes.")
+                    }
+                    TextDecodingError::MissingNullSeparator => {
+                        write!(fmt, "No null separator in tEXt chunk.")
+                    }
+                    TextDecodingError::InflationError => {
+                        write!(fmt, "Invalid compressed text data.")
+                    }
+                    TextDecodingError::InvalidCompressionMethod => {
+                        write!(fmt, "Using an unrecognized byte as compression method.")
+                    }
+                    TextDecodingError::InvalidCompressionFlag => {
+                        write!(fmt, "Using a flag that is not 0 or 255 as a compression flag for iTXt chunk.")
+                    }
+                    TextDecodingError::MissingCompressionFlag => {
+                        write!(fmt, "No compression flag in the iTXt chunk.")
+                    }
                 }
-                TextDecodingError::InvalidKeywordSize => {
-                    write!(fmt, "Keyword empty or longer than 79 bytes.")
-                }
-                TextDecodingError::MissingNullSeparator => {
-                    write!(fmt, "No null separator in tEXt chunk.")
-                }
-            }, // BadTextEncoding => write!(fmt, "Bad data in tEXt chunk."),
+            }
         }
     }
 }
@@ -351,7 +364,7 @@ pub struct StreamingDecoder {
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
-    pub(crate) info: Option<Info<'static>>,
+    pub info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
     /// Stores where in decoding an `fdAT` chunk we are.
@@ -662,6 +675,8 @@ impl StreamingDecoder {
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
             chunk::tEXt => self.parse_text(),
+            chunk::zTXt => self.parse_ztxt(),
+            chunk::iTXt => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
@@ -1062,6 +1077,98 @@ impl StreamingDecoder {
 
         self.info.as_mut().unwrap().uncompressed_latin1_text.push(
             TEXtChunk::decode(keyword_slice, text_slice).map_err(|e| DecodingError::from(e))?,
+        );
+
+        Ok(Decoded::Nothing)
+    }
+
+    fn parse_ztxt(&mut self) -> Result<Decoded, DecodingError> {
+        let buf = &self.current_chunk.raw_bytes[..];
+
+        let (null_byte_index, _) = buf
+            .iter()
+            .enumerate()
+            .find(|(_, &b)| b == 0)
+            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+
+        if null_byte_index == 0 || null_byte_index > 79 {
+            return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
+        }
+
+        let compression_method = *buf.get(null_byte_index + 1).ok_or(DecodingError::from(
+            TextDecodingError::InvalidCompressionMethod,
+        ))?;
+
+        let keyword_slice = &buf[..null_byte_index];
+        let text_slice = &buf[null_byte_index + 2..];
+
+        self.info.as_mut().unwrap().compressed_latin1_text.push(
+            ZTXtChunk::decode(keyword_slice, compression_method, text_slice)
+                .map_err(|e| DecodingError::from(e))?,
+        );
+
+        Ok(Decoded::Nothing)
+    }
+
+    fn parse_itxt(&mut self) -> Result<Decoded, DecodingError> {
+        let buf = &self.current_chunk.raw_bytes[..];
+
+        let (first_null_byte_index, _) = buf
+            .iter()
+            .enumerate()
+            .find(|(_, &b)| b == 0)
+            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+
+        if first_null_byte_index == 0 || first_null_byte_index > 79 {
+            return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
+        }
+
+        let keyword_slice = &buf[..first_null_byte_index];
+
+        let compression_flag = *buf
+            .get(first_null_byte_index + 1)
+            .ok_or(DecodingError::from(
+                TextDecodingError::MissingCompressionFlag,
+            ))?;
+
+        let compression_method = *buf
+            .get(first_null_byte_index + 2)
+            .ok_or(DecodingError::from(
+                TextDecodingError::InvalidCompressionMethod,
+            ))?;
+
+        let second_null_byte_index = buf[first_null_byte_index + 3..]
+            .iter()
+            .enumerate()
+            .find(|(_, &b)| b == 0)
+            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+            .0
+            + (first_null_byte_index + 3);
+
+        let language_tag_slice = &buf[first_null_byte_index + 3..second_null_byte_index];
+
+        let third_null_byte_index = buf[second_null_byte_index + 1..]
+            .iter()
+            .enumerate()
+            .find(|(_, &b)| b == 0)
+            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+            .0
+            + (second_null_byte_index + 1);
+
+        let translated_keyword_slice = &buf[second_null_byte_index + 1..third_null_byte_index];
+
+        let text_slice = &buf[third_null_byte_index + 1..];
+
+        self.info.as_mut().unwrap().utf8_text.push(
+            ITXtChunk::decode(
+                keyword_slice,
+                compression_flag,
+                compression_method,
+                language_tag_slice,
+                translated_keyword_slice,
+                text_slice,
+            )
+            .map_err(|e| DecodingError::from(e))?,
         );
 
         Ok(Decoded::Nothing)

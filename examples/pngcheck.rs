@@ -18,7 +18,11 @@ fn parse_args() -> Matches {
     let mut opts = Options::new();
     opts.optflag("c", "", "colorize output (for ANSI terminals)")
         .optflag("q", "", "test quietly (output only errors)")
-        //.optflag("t", "", "print contents of tEXt chunks (can be used with -q)");
+        .optflag(
+            "t",
+            "",
+            "print contents of tEXt/zTXt/iTXt chunks (can be used with -q)",
+        )
         .optflag("v", "", "test verbosely (print most chunk data)")
         .parsing_style(ParsingStyle::StopAtFirstFree);
     if args.len() > 1 {
@@ -39,6 +43,7 @@ struct Config {
     quiet: bool,
     verbose: bool,
     color: bool,
+    text: bool,
 }
 
 fn display_interlaced(i: bool) -> &'static str {
@@ -329,6 +334,27 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
             }
         }
     }
+    if c.text {
+        println!("Parsed tEXt chunks:");
+        for text_chunk in &decoder.info.as_ref().unwrap().uncompressed_latin1_text {
+            println!("{:#?}", text_chunk);
+        }
+
+        println!("Parsed zTXt chunks:");
+        for text_chunk in &decoder.info.as_ref().unwrap().compressed_latin1_text {
+            let mut cloned_text_chunk = text_chunk.clone();
+            cloned_text_chunk.decompress_text()?;
+            println!("{:#?}", cloned_text_chunk);
+        }
+
+        println!("Parsed iTXt chunks:");
+        for text_chunk in &decoder.info.as_ref().unwrap().utf8_text {
+            let mut cloned_text_chunk = text_chunk.clone();
+            cloned_text_chunk.decompress_text()?;
+            println!("{:#?}", cloned_text_chunk);
+        }
+    }
+
     Ok(())
 }
 
@@ -339,6 +365,7 @@ fn main() {
         quiet: m.opt_present("q"),
         verbose: m.opt_present("v"),
         color: m.opt_present("c"),
+        text: m.opt_present("t"),
     };
 
     for file in m.free {

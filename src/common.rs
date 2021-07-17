@@ -489,7 +489,7 @@ pub struct Info<'a> {
     pub uncompressed_latin1_text: Vec<TEXtChunk>,
     /// zTXt field
     pub compressed_latin1_text: Vec<ZTXtChunk>,
-    ///
+    /// iTXt field
     pub utf8_text: Vec<ITXtChunk>,
     /// Private field to mark the struct as non-exhaustive.
     _extensible: (),

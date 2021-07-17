@@ -1,3 +1,91 @@
+//! # Text chunks (tEXt/zTXt/iTXt) structs and functions
+//!
+//! The [PNG spec](https://www.w3.org/TR/2003/REC-PNG-20031110/#11textinfo) optionally allows for
+//! embedded text chunks in the file. They may appear either before or after the image data
+//! chunks. There are three kinds of text chunks.
+//!  -   `tEXt`: This has a `keyword` and `text` field, and is ISO-8859-1 encoded.
+//!  -   `zTXt`: This is semantically the same as `tEXt`, i.e. it has the same fields and
+//!       encoding, but the `text` field is compressed before being written into the PNG file.
+//!  -   `iTXt`: This chunk allows for its `text` field to be any valid UTF-8, and supports
+//!        compression of the text field as well.
+//!
+//!  ## Reading text chunks
+//!
+//!  As a PNG is decoded, any text chunk encountered is appended the
+//!  [`Info`](`crate::common::Info`) struct, in the `uncompressed_latin1_text`,
+//!  `compressed_latin1_text`, and the `utf8_text` fields depending on whether the encountered
+//!  chunk is `tEXt`, `zTXt`, or `iTXt`.
+//!
+//!  ```
+//!  use std::fs::File;
+//!
+//!  // Opening a png file that has a zTXt chunk
+//!  let decoder = png::Decoder::new(File::open("tests/text_chunk_examples/ztxt_example.png").unwrap());
+//!  let mut reader = decoder.read_info().unwrap();
+//!  // If the text chunk is before the image data frames, `reader.info()` already contains the text.
+//!  for text_chunk in &reader.info().compressed_latin1_text {
+//!      println!("{:?}", text_chunk.keyword); // Prints the keyword
+//!      println!("{:#?}", text_chunk.optionally_compressed_text); // Prints a Vec containg the compressed text
+//!      // To get the uncompressed text, use the `get_text` method.
+//!      println!("{}", text_chunk.get_text().unwrap());
+//!  }
+//!  ```
+//!
+//!  ## Writing text chunks
+//!
+//!  There are two ways to write text chunks: the first is to add the appropriate text structs directly to the encoder header before the header is written to file.
+//!  To add a text chunk at any point in the stream, use the `write_text_chunk` method.
+//!
+//!  ```
+//!  # use png;
+//!  # use png::text_metadata::{ITXtChunk, ZTXtChunk};
+//!  # use std::env;
+//!  # use std::fs::File;
+//!  # use std::io::BufWriter;
+//!  # let file = File::create("/tmp/test.png").unwrap();
+//!  # let ref mut w = BufWriter::new(file);
+//!  let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
+//!  encoder.set_color(png::ColorType::Rgba);
+//!  encoder.set_depth(png::BitDepth::Eight);
+//!  // Adding text chunks to the header
+//!  encoder
+//!     .add_text_chunk(
+//!         "Testing tEXt",
+//!         "This is a tEXt chunk that will appear before the IDAT chunks.",
+//!     )
+//!     .unwrap();
+//!  encoder
+//!      .add_ztxt_chunk(
+//!          "Testing zTXt",
+//!          "This is a zTXt chunk that is compressed in the png file.",
+//!      )
+//!      .unwrap();
+//!  encoder
+//!      .add_itxt_chunk(
+//!          "Testing iTXt",
+//!          "iTXt chunks support all of UTF8. Example: हिंदी.",
+//!      )
+//!      .unwrap();
+//!
+//!  let mut writer = encoder.write_header().unwrap();
+//!
+//!  let data = [255, 0, 0, 255, 0, 0, 0, 255]; // An array containing a RGBA sequence. First pixel is red and second pixel is black.
+//!  writer.write_image_data(&data).unwrap(); // Save
+//!
+//!  // We can add a tEXt/zTXt/iTXt at any point before the encoder is dropped from scope. These chunks will be at the end of the png file.
+//!  let tail_ztxt_chunk = ZTXtChunk::new("Comment", "A zTXt chunk after the image data.");
+//!  writer.write_text_chunk(&tail_ztxt_chunk).unwrap();
+//!
+//!  // The fields of the text chunk are public, so they can be mutated before being written to the file.
+//!  let mut tail_itxt_chunk = ITXtChunk::new("Author", "सायंतन खान");
+//!  tail_itxt_chunk.compressed = true;
+//!  tail_itxt_chunk.language_tag = "hi".to_string();
+//!  tail_itxt_chunk.translated_keyword = "लेखक".to_string();
+//!  writer.write_text_chunk(&tail_itxt_chunk).unwrap();
+//!  ```
+
+#![warn(missing_docs)]
+
 use crate::{chunk, encoder, DecodingError, EncodingError};
 use deflate::write::ZlibEncoder;
 use deflate::Compression;
@@ -38,13 +126,16 @@ pub(crate) enum TextDecodingError {
 
 /// A generalized text chunk trait
 pub trait EncodableTextChunk {
+    /// Encode text chunk as Vec<u8> to a `Write`
     fn encode<W: Write>(&self, w: &mut W) -> Result<(), EncodingError>;
 }
 
 /// Struct representing a tEXt chunk
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TEXtChunk {
+    /// Keyword field of the tEXt chunk. Needs to be between 1-79 bytes when encoded as Latin-1.
     pub keyword: String,
+    /// Text field of tEXt chunk. Can be at most 2GB.
     pub text: String,
 }
 
@@ -100,19 +191,26 @@ impl EncodableTextChunk for TEXtChunk {
     }
 }
 
+/// Struct representing a zTXt chunk
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ZTXtChunk {
+    /// Keyword field of the tEXt chunk. Needs to be between 1-79 bytes when encoded as Latin-1.
     pub keyword: String,
+    /// Text field of zTXt chunk. It is compressed by default, but can be uncompressed if necessary.
     pub optionally_compressed_text: OptCompressed,
 }
 
+/// Enum encoding the compressed and uncompressed states of zTXt/iTXt text field.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptCompressed {
+    /// Compressed version of text field. Can be at most 2GB.
     Compressed(Vec<u8>),
+    /// Uncompressed text field.
     Uncompressed(String),
 }
 
 impl ZTXtChunk {
+    /// Creates a new ZTXt chunk.
     pub fn new(keyword: &str, text: &str) -> Self {
         Self {
             keyword: keyword.to_string(),
@@ -143,6 +241,7 @@ impl ZTXtChunk {
         })
     }
 
+    /// Decompresses the inner text, mutating its own state.
     pub fn decompress_text(&mut self) -> Result<(), DecodingError> {
         match &self.optionally_compressed_text {
             OptCompressed::Compressed(v) => {
@@ -159,6 +258,21 @@ impl ZTXtChunk {
         Ok(())
     }
 
+    /// Decompresses the inner text, and returns it as a `String`.
+    pub fn get_text(&self) -> Result<String, DecodingError> {
+        match &self.optionally_compressed_text {
+            OptCompressed::Compressed(v) => {
+                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
+                    .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
+                ISO_8859_1
+                    .decode(&uncompressed_raw, DecoderTrap::Strict)
+                    .map_err(|_| DecodingError::from(TextDecodingError::Unrepresentable))
+            }
+            OptCompressed::Uncompressed(s) => Ok(s.clone()),
+        }
+    }
+
+    /// Compresses the inner text, mutating its own state.
     pub fn compress_text(&mut self) -> Result<(), EncodingError> {
         match &self.optionally_compressed_text {
             OptCompressed::Uncompressed(s) => {
@@ -221,12 +335,18 @@ impl EncodableTextChunk for ZTXtChunk {
     }
 }
 
+/// Struct encoding an iTXt chunk
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ITXtChunk {
+    /// The keyword field. This needs to be between 1-79 bytes when encoded as Latin-1.
     pub keyword: String,
+    /// Indicates whether the text will be (or was) compressed in the PNG.
     pub compressed: bool,
+    /// A hyphen separated list of languages that the keyword is translated to. This is ASCII-7 encoded.
     pub language_tag: String,
+    /// Translated keyword. This is UTF-8 encoded.
     pub translated_keyword: String,
+    /// Text field of iTXt chunk. It is compressed by default, but can be uncompressed if necessary.
     pub optionally_compressed_text: OptCompressed,
 }
 
@@ -243,6 +363,7 @@ impl Default for ITXtChunk {
 }
 
 impl ITXtChunk {
+    /// Constructs a new iTXt chunk. Leaves all but keyword and text to default values.
     pub fn new(keyword: &str, text: &str) -> Self {
         Self {
             keyword: keyword.to_string(),
@@ -301,6 +422,7 @@ impl ITXtChunk {
         })
     }
 
+    /// Decompresses the inner text, mutating its own state.
     pub fn decompress_text(&mut self) -> Result<(), DecodingError> {
         match &self.optionally_compressed_text {
             OptCompressed::Compressed(v) => {
@@ -316,6 +438,20 @@ impl ITXtChunk {
         Ok(())
     }
 
+    /// Decompresses the inner text, and returns it as a `String`.
+    pub fn get_text(&self) -> Result<String, DecodingError> {
+        match &self.optionally_compressed_text {
+            OptCompressed::Compressed(v) => {
+                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
+                    .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
+                String::from_utf8(uncompressed_raw)
+                    .map_err(|_| TextDecodingError::Unrepresentable.into())
+            }
+            OptCompressed::Uncompressed(s) => Ok(s.clone()),
+        }
+    }
+
+    /// Compresses the inner text, mutating its own state.
     pub fn compress_text(&mut self) -> Result<(), EncodingError> {
         match &self.optionally_compressed_text {
             OptCompressed::Uncompressed(s) => {

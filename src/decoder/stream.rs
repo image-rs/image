@@ -351,7 +351,7 @@ impl From<DecodingError> for io::Error {
 
 impl From<TextDecodingError> for DecodingError {
     fn from(tbe: TextDecodingError) -> Self {
-        Self::Format(FormatError {
+        DecodingError::Format(FormatError {
             inner: FormatErrorInner::BadTextEncoding(tbe),
         })
     }

@@ -128,8 +128,8 @@ pub(crate) fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> ImageResult<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
     let format =  ImageFormat::from_path(path)?;
+    let fout = &mut BufWriter::new(File::create(path)?);
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 

@@ -814,6 +814,11 @@ pub trait GenericImage: GenericImageView {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
+    ///
+    /// Panics for dynamic images (this method is deprecated and will be removed).
+    #[deprecated(note="Use `get_pixel` and `put_pixel` instead.")]
+    // TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly while still doing only one array lookup
+    //  `let px = image.pixel_entry_at(x,y); px.set_from_rgba(rgba)`
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y). Indexed from top left.
@@ -836,8 +841,7 @@ pub trait GenericImage: GenericImageView {
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
-    ///
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
+    #[deprecated(note="Use iterator `pixels_mut` to blend the pixels directly")]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Copies all of the pixels from another image into this image.

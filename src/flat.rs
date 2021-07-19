@@ -1415,10 +1415,12 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
         P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
     }
 
+    #[allow(deprecated)]
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         *self.get_pixel_mut(x, y) = pixel;
     }
 
+    #[allow(deprecated)]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.get_pixel_mut(x, y).blend(&pixel);
     }

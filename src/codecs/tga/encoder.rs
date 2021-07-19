@@ -189,22 +189,6 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_single_pixel_bgr() {
-        let image = [0, 1, 2];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgr8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0]);
-    }
-
-    #[test]
-    fn round_trip_single_pixel_bgra() {
-        let image = [0, 1, 2, 3];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgra8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0, 3]);
-    }
-
-    #[test]
     fn round_trip_gray() {
         let image = [0, 1, 2];
         let decoded = round_trip_image(&image, 3, 1, ColorType::L8);

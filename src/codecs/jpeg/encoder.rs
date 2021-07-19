@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 use num_iter::range_step;
 
-use crate::{Bgr, Bgra, ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
+use crate::{ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
@@ -449,14 +449,6 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
                 let image: ImageBuffer<Rgba<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             },
-            ColorType::Bgr8 => {
-                let image: ImageBuffer<Bgr<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            },
-            ColorType::Bgra8 => {
-                let image: ImageBuffer<Bgra<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            },
             _ => {
                 Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -857,7 +849,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::{Bencher};
 
-    use crate::{Bgra, ImageBuffer, ImageEncoder, ImageError};
+    use crate::{ImageBuffer, ImageEncoder, ImageError};
     use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
@@ -974,22 +966,6 @@ mod tests {
                                 it returned {:?} instead", other)
             }
         }
-    }
-
-    #[test]
-    fn test_bgra16() {
-        // Test encoding an RGBA 16-bit image.
-        // Jpeg is RGB 8-bit, so the conversion should be done on the fly
-        let mut encoded = Vec::new();
-        let max = std::u16::MAX;
-        let image: ImageBuffer<Bgra<u16>, _> = ImageBuffer::from_raw(
-            1, 1, vec![0, max / 2, max, max]).unwrap();
-        let mut encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
-        encoder.encode_image(&image).unwrap();
-        let decoded = decode(&encoded);
-        assert!(decoded[0] > 200, "bad red channel in {:?}", &decoded);
-        assert!(100 < decoded[1] && decoded[1] < 150, "bad green channel in {:?}", &decoded);
-        assert!(decoded[2] < 50, "bad blue channel in {:?}", &decoded);
     }
 
     #[test]

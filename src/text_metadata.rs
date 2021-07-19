@@ -389,7 +389,7 @@ impl ITXtChunk {
 
         let compressed = match compression_flag {
             0 => false,
-            255 => true,
+            1 => true,
             _ => return Err(TextDecodingError::InvalidCompressionFlag),
         };
 

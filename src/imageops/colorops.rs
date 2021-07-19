@@ -33,6 +33,7 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
+    // TODO why is this not just `for pixel in image.pixels_mut() { pixel.invert(); }`
     let (width, height) = image.dimensions();
 
     for y in 0..height {
@@ -64,6 +65,7 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let f = image.get_pixel(x, y).map(|b| {
@@ -98,6 +100,7 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let f = image.get_pixel(x, y).map(|b| {
@@ -131,6 +134,7 @@ where
     let max = S::max_value();
     let max: i32 = NumCast::from(max).unwrap();
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let e = image.get_pixel(x, y).map_with_alpha(
@@ -164,6 +168,7 @@ where
     let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
     let max: i32 = NumCast::from(max).unwrap();
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let e = image.get_pixel(x, y).map_with_alpha(
@@ -273,6 +278,7 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let pixel = image.get_pixel(x, y);

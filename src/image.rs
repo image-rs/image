@@ -55,6 +55,9 @@ pub enum ImageFormat {
     /// An Image in Radiance HDR Format
     Hdr,
 
+    /// An Image in OpenEXR Format
+    OpenExr,
+
     /// An Image in farbfeld Format
     Farbfeld,
 
@@ -94,6 +97,7 @@ impl ImageFormat {
                 "bmp" => ImageFormat::Bmp,
                 "ico" => ImageFormat::Ico,
                 "hdr" => ImageFormat::Hdr,
+                "exr" => ImageFormat::OpenExr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
                 _ => return None,
@@ -149,6 +153,7 @@ impl ImageFormat {
             ImageFormat::Bmp => true,
             ImageFormat::Ico => true,
             ImageFormat::Hdr => true,
+            ImageFormat::OpenExr => true,
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
@@ -173,6 +178,7 @@ impl ImageFormat {
             ImageFormat::Avif => true,
             ImageFormat::WebP => false,
             ImageFormat::Hdr => false,
+            ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
@@ -200,6 +206,7 @@ impl ImageFormat {
             ImageFormat::Bmp => &["bmp"],
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
+            ImageFormat::OpenExr => &["exr"],
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
@@ -243,7 +250,15 @@ pub enum ImageOutputFormat {
     /// An Image in TGA Format
     Tga,
 
-    #[cfg(feature = "avif")]
+    #[cfg(feature = "openexr")]
+    /// An Image in OpenEXR Format
+    OpenExr,
+
+    #[cfg(feature = "tiff")]
+    /// An Image in TIFF Format
+    Tiff,
+
+    #[cfg(feature = "avif-encoder")]
     /// An image in AVIF Format
     Avif,
 
@@ -275,7 +290,12 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
-            #[cfg(feature = "avif")]
+            #[cfg(feature = "openexr")]
+            ImageFormat::OpenExr => ImageOutputFormat::OpenExr,
+            #[cfg(feature = "tiff")]
+            ImageFormat::Tiff => ImageOutputFormat::Tiff,
+
+            #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
@@ -380,7 +400,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(x: u32, y: u32, width: u32, height:
     let scanline_bytes = decoder.scanline_bytes();
     let total_bytes = width * height * bytes_per_pixel;
 
-    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::MAX) {
+    if buf.len() < usize::try_from(total_bytes).unwrap_or(usize::max_value()) {
         panic!("output buffer too short\n expected `{}`, provided `{}`", total_bytes, buf.len());
     }
 
@@ -487,7 +507,14 @@ pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResu
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let mut buf = vec![num_traits::Zero::zero(); usize::try_from(decoder.total_bytes()).unwrap() / std::mem::size_of::<T>()];
+    let total_bytes = usize::try_from(decoder.total_bytes());
+    if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
+    }
+
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
@@ -504,6 +531,11 @@ pub struct Progress {
 }
 
 impl Progress {
+    /// Create Progress. Result in invalid progress if you provide a greater `current` than `total`.
+    pub(crate) fn new(current: u64, total: u64) -> Self {
+        Self { current, total }
+    }
+
     /// A measure of completed decoding.
     pub fn current(self) -> u64 {
         self.current
@@ -548,10 +580,12 @@ pub trait ImageDecoder<'a>: Sized {
     /// This is the size of the buffer that must be passed to `read_image` or
     /// `read_image_with_progress`. The returned value may exceed usize::MAX, in
     /// which case it isn't actually possible to construct a buffer to decode all the image data
-    /// into.
+    /// into. If, however, the size does not fit in a u64 then u64::MAX is returned.
     fn total_bytes(&self) -> u64 {
         let dimensions = self.dimensions();
-        u64::from(dimensions.0) * u64::from(dimensions.1) * u64::from(self.color_type().bytes_per_pixel())
+        let total_pixels = u64::from(dimensions.0) * u64::from(dimensions.1);
+        let bytes_per_pixel = u64::from(self.color_type().bytes_per_pixel());
+        total_pixels.saturating_mul(bytes_per_pixel)
     }
 
     /// Returns the minimum number of bytes that can be efficiently read from this decoder. This may
@@ -980,7 +1014,7 @@ impl<I> SubImage<I> {
     pub fn to_image(&self) -> ImageBuffer<DerefPixel<I>, Vec<DerefSubpixel<I>>>
     where
         I: Deref,
-        I::Target: GenericImage + 'static,
+        I::Target: GenericImageView + 'static,
     {
         let mut out = ImageBuffer::new(self.xstride, self.ystride);
         let borrowed = self.image.deref();
@@ -1266,6 +1300,7 @@ mod tests {
         assert_eq!(from_path("./a.bmp").unwrap(), ImageFormat::Bmp);
         assert_eq!(from_path("./a.Ico").unwrap(), ImageFormat::Ico);
         assert_eq!(from_path("./a.hdr").unwrap(), ImageFormat::Hdr);
+        assert_eq!(from_path("./a.exr").unwrap(), ImageFormat::OpenExr);
         assert_eq!(from_path("./a.pbm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pAM").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
@@ -1366,7 +1401,7 @@ mod tests {
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;
-        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld];
+        const ALL_FORMATS: &'static [ImageFormat] = &[Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();
             for ext in format.extensions_str() {
@@ -1377,5 +1412,20 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn total_bytes_overflow() {
+        struct D;
+        impl<'a> ImageDecoder<'a> for D {
+            type Reader = std::io::Cursor<Vec<u8>>;
+            fn color_type(&self) -> ColorType { ColorType::Rgb8 }
+            fn dimensions(&self) -> (u32, u32) { (0xffffffff, 0xffffffff) }
+            fn into_reader(self) -> ImageResult<Self::Reader> { unreachable!() }
+        }
+        assert_eq!(D.total_bytes(), u64::max_value());
+
+        let v: ImageResult<Vec<u8>> = super::decoder_to_vec(D);
+        assert!(v.is_err());
     }
 }

@@ -106,9 +106,29 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
         let (width, height) = self.dimensions();
 
-        if (frame.left, frame.top) == (0, 0) && (frame.width, frame.height) != self.dimensions() {
-            // If the frame matches the logical screen, directly read into it
+        if frame.left == 0 && frame.width == width && (frame.top as u64 + frame.height as u64 <= height as u64) {
+            // If the frame matches the logical screen, or, as a more general case,
+            // fits into it and touches its left and right borders, then
+            // we can directly write it into the buffer without causing line wraparound.
+            let line_length = usize::try_from(width).unwrap().checked_mul(self.color_type().bytes_per_pixel() as usize).unwrap();
+
+            // isolate the portion of the buffer to read the frame data into.
+            // the chunks above and below it are going to be zeroed.
+            let (blank_top, rest) = buf.split_at_mut(line_length.checked_mul(frame.top as usize).unwrap());
+            let (buf, blank_bottom) = rest.split_at_mut(line_length.checked_mul(frame.height as usize).unwrap());
+
+            debug_assert_eq!(buf.len(), self.reader.buffer_size());
+
+            // this is only necessary in case the buffer is not zeroed
+            for b in blank_top {
+                *b = 0;
+            }
+            // fill the middle section with the frame data
             self.reader.read_into_buffer(buf).map_err(ImageError::from_decoding)?;
+            // this is only necessary in case the buffer is not zeroed
+            for b in blank_bottom {
+                *b = 0;
+            }
         } else {
             // If the frame does not match the logical screen, read into an extra buffer
             // and 'insert' the frame from left/top to logical screen width/height.

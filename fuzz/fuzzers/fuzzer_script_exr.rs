@@ -32,7 +32,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     // TODO this method should probably already exist in the main image crate
-    fn write_rgba_image(write: impl Write/* + Seek*/, (width, height, data): &(u32,u32,Vec<u8>)) -> ImageResult<()> {
+    fn write_rgba_image(write: impl Write + Seek, (width, height, data): &(u32,u32,Vec<u8>)) -> ImageResult<()> {
         OpenExrEncoder::new(write).write_image(
             data.as_slice(), *width, *height,
             ColorType::Rgba32F

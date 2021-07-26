@@ -26,6 +26,12 @@ impl EncodableLayout for [u16] {
     }
 }
 
+impl EncodableLayout for [f32] {
+    fn as_bytes(&self) -> &[u8] {
+        bytemuck::cast_slice(self)
+    }
+}
+
 /// Primitive trait from old stdlib
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {}
 
@@ -66,6 +72,9 @@ impl Enlargeable for u16 {
 impl Enlargeable for u32 {
     type Larger = u64;
 }
+impl Enlargeable for f32 {
+    type Larger = f64;
+}
 
 /// Linear interpolation without involving floating numbers.
 pub trait Lerp: Bounded + NumCast {
@@ -99,20 +108,24 @@ impl Lerp for u32 {
     type Ratio = f64;
 }
 
+impl Lerp for f32 {
+    type Ratio = f32;
+
+    fn lerp(a: Self, b: Self, ratio: Self::Ratio) -> Self {
+        a + (b - a) * ratio
+    }
+}
+
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
 pub trait Pixel: Copy + Clone {
+
     /// The underlying subpixel type.
     type Subpixel: Primitive;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
-    /// Returns the number of channels of this pixel type.
-    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
-    fn channel_count() -> u8 {
-        Self::CHANNEL_COUNT
-    }
 
     /// Returns the components as a slice.
     fn channels(&self) -> &[Self::Subpixel];
@@ -123,25 +136,15 @@ pub trait Pixel: Copy + Clone {
     /// A string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
     const COLOR_MODEL: &'static str;
-    /// Returns a string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
-    #[deprecated(note="please use COLOR_MODEL associated constant")]
-    fn color_model() -> &'static str {
-        Self::COLOR_MODEL
-    }
+
 
     /// ColorType for this pixel format
     const COLOR_TYPE: ColorType;
-    /// Returns the ColorType for this pixel format
-    #[deprecated(note="please use COLOR_TYPE associated constant")]
-    fn color_type() -> ColorType {
-        Self::COLOR_TYPE
-    }
+
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
-    ///
-    /// TODO deprecate
+    #[deprecated(since="0.24.0", note="Use `channels()` or `channels_mut()`")]
     fn channels4(
         &self,
     ) -> (
@@ -153,8 +156,7 @@ pub trait Pixel: Copy + Clone {
 
     /// Construct a pixel from the 4 channels a, b, c and d.
     /// If the pixel does not contain 4 channels the extra are ignored.
-    ///
-    /// TODO deprecate
+    #[deprecated(since="0.24.0", note="Use the constructor of the pixel, for example `Rgba::new(r,g,b,a)` or `Pixel::from_slice`")]
     fn from_channels(
         a: Self::Subpixel,
         b: Self::Subpixel,
@@ -254,4 +256,5 @@ mod seals {
 
     impl EncodableLayout for [u8] {}
     impl EncodableLayout for [u16] {}
+    impl EncodableLayout for [f32] {}
 }

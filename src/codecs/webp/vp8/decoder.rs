@@ -17,7 +17,7 @@ use std::default::Default;
 use std::{cmp, error, fmt};
 use std::io::Read;
 
-use super::transform;
+use crate::codecs::webp::transform;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };

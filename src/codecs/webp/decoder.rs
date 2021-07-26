@@ -10,8 +10,8 @@ use crate::image::{ImageDecoder, ImageFormat};
 
 use crate::color;
 
-use super::vp8::Frame;
-use super::vp8::Vp8Decoder;
+use super::vp8::decoder::Frame;
+use super::vp8::decoder::Vp8Decoder;
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]

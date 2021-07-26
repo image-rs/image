@@ -10,10 +10,11 @@ use std::convert::TryFrom;
 use image::ImageDecoder;
 use image::ImageEncoder;
 use image::ColorType;
+use std::io::Write;
+use std::io::Read;
 
 // "just dont panic"
 fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
-    use std::io::Write;
 
     /// Read the file from the specified path into an `Rgba32FImage`.
     // TODO this method should probably already exist in the main image crate

@@ -18,7 +18,7 @@
 
 use std::convert::TryFrom;
 use std::i64;
-use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
+use std::io::{self, Seek, SeekFrom, Read, Write, BufWriter, BufRead};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
@@ -27,17 +27,17 @@ use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, Uns
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader
-pub struct FarbfeldReader<R: Read> {
+pub struct FarbfeldReader<R: BufRead> {
     width: u32,
     height: u32,
-    inner: BufReader<R>,
+    inner: R,
     /// Relative to the start of the pixel data
     current_offset: u64,
     cached_byte: Option<u8>,
 }
 
-impl<R: Read> FarbfeldReader<R> {
-    fn new(reader: R) -> ImageResult<FarbfeldReader<R>> {
+impl<R: BufRead> FarbfeldReader<R> {
+    fn new(mut buffered_read: R) -> ImageResult<FarbfeldReader<R>> {
         fn read_dimm<R: Read>(from: &mut R) -> ImageResult<u32> {
             let mut buf = [0u8; 4];
             from.read_exact(&mut buf).map_err(|err|
@@ -48,10 +48,8 @@ impl<R: Read> FarbfeldReader<R> {
             Ok(BigEndian::read_u32(&buf))
         }
 
-        let mut inner = BufReader::new(reader);
-
         let mut magic = [0u8; 8];
-        inner.read_exact(&mut magic).map_err(|err|
+        buffered_read.read_exact(&mut magic).map_err(|err|
             ImageError::Decoding(DecodingError::new(
                 ImageFormat::Farbfeld.into(),
                 err,
@@ -64,9 +62,9 @@ impl<R: Read> FarbfeldReader<R> {
         }
 
         let reader = FarbfeldReader {
-            width: read_dimm(&mut inner)?,
-            height: read_dimm(&mut inner)?,
-            inner,
+            width: read_dimm(&mut buffered_read)?,
+            height: read_dimm(&mut buffered_read)?,
+            inner: buffered_read,
             current_offset: 0,
             cached_byte: None,
         };
@@ -92,7 +90,7 @@ impl<R: Read> FarbfeldReader<R> {
     }
 }
 
-impl<R: Read> Read for FarbfeldReader<R> {
+impl<R: BufRead> Read for FarbfeldReader<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let mut bytes_written = 0;
         if let Some(byte) = self.cached_byte.take() {
@@ -118,7 +116,7 @@ impl<R: Read> Read for FarbfeldReader<R> {
     }
 }
 
-impl<R: Read + Seek> Seek for FarbfeldReader<R> {
+impl<R: BufRead + Seek> Seek for FarbfeldReader<R> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         fn parse_offset(original_offset: u64, end_offset: u64, pos: SeekFrom) -> Option<i64> {
             match pos {
@@ -179,18 +177,18 @@ fn cache_byte<R: Read>(from: &mut R, cached_byte: &mut Option<u8>) -> io::Result
 }
 
 /// farbfeld decoder
-pub struct FarbfeldDecoder<R: Read> {
+pub struct FarbfeldDecoder<R: BufRead> {
     reader: FarbfeldReader<R>,
 }
 
-impl<R: Read> FarbfeldDecoder<R> {
+impl<R: BufRead> FarbfeldDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<FarbfeldDecoder<R>> {
         Ok(FarbfeldDecoder { reader: FarbfeldReader::new(r)? })
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
+impl<'a, R: 'a + BufRead> ImageDecoder<'a> for FarbfeldDecoder<R> {
     type Reader = FarbfeldReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
@@ -210,7 +208,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
+impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,

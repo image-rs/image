@@ -18,7 +18,7 @@
 
 use std::convert::TryFrom;
 use std::i64;
-use std::io::{self, Seek, SeekFrom, Read, Write, BufWriter, BufRead};
+use std::io::{self, Seek, SeekFrom, Read, Write, BufRead};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
@@ -183,8 +183,8 @@ pub struct FarbfeldDecoder<R: BufRead> {
 
 impl<R: BufRead> FarbfeldDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<FarbfeldDecoder<R>> {
-        Ok(FarbfeldDecoder { reader: FarbfeldReader::new(r)? })
+    pub fn new(buffered_read: R) -> ImageResult<FarbfeldDecoder<R>> {
+        Ok(FarbfeldDecoder { reader: FarbfeldReader::new(buffered_read)? })
     }
 }
 
@@ -231,13 +231,13 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
 
 /// farbfeld encoder
 pub struct FarbfeldEncoder<W: Write> {
-    w: BufWriter<W>,
+    w: W,
 }
 
 impl<W: Write> FarbfeldEncoder<W> {
-    /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> FarbfeldEncoder<W> {
-        FarbfeldEncoder { w: BufWriter::new(w) }
+    /// Create a new encoder that writes its output to ```w```. The writer should be buffered.
+    pub fn new(buffered_writer: W) -> FarbfeldEncoder<W> {
+        FarbfeldEncoder { w: buffered_writer }
     }
 
     /// Encodes the image ```data``` (native endian)

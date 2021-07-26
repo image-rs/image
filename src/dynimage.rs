@@ -15,7 +15,6 @@ use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, Par
 use crate::flat::FlatSamples;
 use crate::image;
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-use crate::image::ImageEncoder;
 use crate::io::free_functions;
 use crate::imageops;
 use crate::math::resize_dimensions;
@@ -551,6 +550,20 @@ impl DynamicImage {
         }
     }
 
+    /// Returns the width of the underlying image
+    pub fn width(&self) -> u32 {
+        dynamic_map!(*self, ref p -> {
+            p.width()
+        })
+    }
+
+    /// Returns the height of the underlying image
+    pub fn height(&self) -> u32 {
+        dynamic_map!(*self, ref p -> {
+            p.height()
+        })
+    }
+
     /// Return a grayscale version of this image.
     /// Note: does not support f32 images.
     pub fn grayscale(&self) -> DynamicImage {
@@ -720,9 +733,12 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```.
-    /// If your ```w``` is not seekable,
-    /// you can write to a `Cursor::new(Vec::<u8>::new())` first,
-    /// which can then be written to a file.
+    ///
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    ///
+    /// **Note**: TIFF encoding uses buffered writing,
+    /// which can lead to unexpected use of resources
     pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
@@ -757,13 +773,6 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "jpeg")]
-            image::ImageOutputFormat::Jpeg(quality) => {
-                let j = jpeg::JpegEncoder::new_with_quality(w, quality);
-                j.write_image(bytes, width, height, color)?;
-                Ok(())
-            }
-
             #[cfg(feature = "gif")]
             image::ImageOutputFormat::Gif => {
                 let mut g = gif::GifEncoder::new(w);
@@ -771,42 +780,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            #[cfg(feature = "ico")]
-            image::ImageOutputFormat::Ico => {
-                let i = ico::IcoEncoder::new(w);
-                i.encode(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "bmp")]
-            image::ImageOutputFormat::Bmp => {
-                let mut b = bmp::BmpEncoder::new(w);
-                b.encode(bytes, width, height, color)?;
-                Ok(())
-            }
-
-            #[cfg(feature = "farbfeld")]
-            image::ImageOutputFormat::Farbfeld => {
-                farbfeld::FarbfeldEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            #[cfg(feature = "tga")]
-            image::ImageOutputFormat::Tga => {
-                tga::TgaEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            #[cfg(feature = "avif")]
-            image::ImageOutputFormat::Avif => {
-                avif::AvifEncoder::new(w).write_image(bytes, width, height, color)
-            }
-
-            image::ImageOutputFormat::Unsupported(msg) => {
-                Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
-            },
-
-            image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
+            format => write_buffer_with_format(w, bytes, width, height, color, format)
         }
     }
 
@@ -833,7 +807,66 @@ impl DynamicImage {
     }
 }
 
-#[allow(deprecated)]
+impl From<GrayImage> for DynamicImage {
+    fn from(image: GrayImage) -> Self {
+        DynamicImage::ImageLuma8(image)
+    }
+}
+
+impl From<GrayAlphaImage> for DynamicImage {
+    fn from(image: GrayAlphaImage) -> Self {
+        DynamicImage::ImageLumaA8(image)
+    }
+}
+
+impl From<RgbImage> for DynamicImage {
+    fn from(image: RgbImage) -> Self {
+        DynamicImage::ImageRgb8(image)
+    }
+}
+
+impl From<RgbaImage> for DynamicImage {
+    fn from(image: RgbaImage) -> Self {
+        DynamicImage::ImageRgba8(image)
+    }
+}
+
+impl From<Gray16Image> for DynamicImage {
+    fn from(image: Gray16Image) -> Self {
+        DynamicImage::ImageLuma16(image)
+    }
+}
+
+impl From<GrayAlpha16Image> for DynamicImage {
+    fn from(image: GrayAlpha16Image) -> Self {
+        DynamicImage::ImageLumaA16(image)
+    }
+}
+
+impl From<Rgb16Image> for DynamicImage {
+    fn from(image: Rgb16Image) -> Self {
+        DynamicImage::ImageRgb16(image)
+    }
+}
+
+impl From<Rgba16Image> for DynamicImage {
+    fn from(image: Rgba16Image) -> Self {
+        DynamicImage::ImageRgba16(image)
+    }
+}
+
+impl From<Rgb32FImage> for DynamicImage {
+    fn from(image: Rgb32FImage) -> Self {
+        DynamicImage::ImageRgb32F(image)
+    }
+}
+
+impl From<Rgba32FImage> for DynamicImage {
+    fn from(image: Rgba32FImage) -> Self {
+        DynamicImage::ImageRgba32F(image)
+    }
+}
+
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
     type InnerImageView = Self;
@@ -1004,9 +1037,9 @@ where
 ///
 /// The image format is derived from the file extension. The buffer is assumed to have
 /// the correct format according to the specified color type.
-
+///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
-/// jpeg, png, ico, pnm, bmp and tiff files are supported.
+/// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
 pub fn save_buffer<P>(
     path: P,
     buf: &[u8],
@@ -1027,7 +1060,7 @@ where
 /// The buffer is assumed to have the correct format according
 /// to the specified color type.
 /// This will lead to corrupted files if the buffer contains
-/// malformed data. Currently only jpeg, png, ico, bmp and
+/// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
 pub fn save_buffer_with_format<P>(
     path: P,
@@ -1042,6 +1075,37 @@ where
 {
     // thin wrapper function to strip generics
     free_functions::save_buffer_with_format_impl(path.as_ref(), buf, width, height, color, format)
+}
+
+/// Writes the supplied buffer to a writer in the specified format.
+///
+/// The buffer is assumed to have the correct format according
+/// to the specified color type.
+/// This will lead to corrupted writers if the buffer contains
+/// malformed data.
+///
+/// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
+/// supported types.
+///
+/// Assumes the writer is buffered. In most cases,
+/// you should wrap your writer in a `BufWriter` for best performance.
+///
+/// **Note**: TIFF encoding uses buffered writing,
+/// which can lead to unexpected use of resources
+pub fn write_buffer_with_format<W, F>(
+    writer: &mut W,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: F,
+) -> ImageResult<()>
+where
+    W: Write,
+    F: Into<ImageOutputFormat>,
+{
+    // thin wrapper function to strip generics
+    free_functions::write_buffer_impl(writer, buf, width, height, color, format.into())
 }
 
 /// Create a new image from a byte slice

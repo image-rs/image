@@ -1,29 +1,3 @@
-//! Shared mathematical utility functions.
-
-/// Cut value to be inside given range
-///
-/// ```
-/// use image::math::utils;
-///
-/// assert_eq!(utils::clamp(-5, 0, 10),  0);
-/// assert_eq!(utils::clamp( 6, 0, 10),  6);
-/// assert_eq!(utils::clamp(15, 0, 10), 10);
-/// ```
-#[inline]
-#[deprecated]
-pub fn clamp<N>(a: N, min: N, max: N) -> N
-where
-    N: PartialOrd,
-{
-    if a < min {
-        return min;
-    }
-    if a > max {
-        return max;
-    }
-    a
-}
-
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint
@@ -31,7 +5,13 @@ where
 /// aspect ratio), or will shrink so that both dimensions are
 /// completely contained with in the given `width` and `height`,
 /// with empty space on one axis.
-pub(crate) fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
+pub(crate) fn resize_dimensions(
+    width: u32,
+    height: u32,
+    nwidth: u32,
+    nheight: u32,
+    fill: bool,
+) -> (u32, u32) {
     let ratio = u64::from(width) * u64::from(nheight);
     let nratio = u64::from(nwidth) * u64::from(height);
 

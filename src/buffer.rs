@@ -8,9 +8,9 @@ use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::dynimage::{save_buffer, save_buffer_with_format};
+use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
-use crate::image::{GenericImage, GenericImageView, ImageFormat};
+use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel};
 use crate::utils::expand_packed;
@@ -726,6 +726,22 @@ where
         }
     }
 
+    /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
+    /// the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
+    }
+
     /// Test that the image fits inside the buffer.
     ///
     /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
@@ -877,6 +893,22 @@ where
         }
     }
 
+    /// Gets a reference to the mutable pixel at location `(x, y)` or returns
+    /// `None` if the index is out of the bounds `(width, height)`.
+    pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize);
+
+        self.data
+            .get_mut(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
+    }
+
     /// Puts a pixel at location `(x, y)`
     ///
     /// # Panics
@@ -896,7 +928,9 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg and png files are supported.
+    /// Currently only jpeg, png, ico, pnm, bmp and
+    /// tiff files are supported.
+    // TODO exr supported, but Rgba32F is not yet
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -930,6 +964,39 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
+            self.as_bytes(),
+            self.width(),
+            self.height(),
+            <P as Pixel>::COLOR_TYPE,
+            format,
+        )
+    }
+}
+
+impl<P, Container> ImageBuffer<P, Container>
+where
+    P: Pixel + 'static,
+    [P::Subpixel]: EncodableLayout,
+    Container: Deref<Target = [P::Subpixel]>,
+{
+    /// Writes the buffer to a writer in the specified format.
+    ///
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
+    ///
+    /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
+    /// supported types.
+    ///
+    /// **Note**: TIFF encoding uses buffered writing,
+    /// which can lead to unexpected use of resources
+    pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
+    where
+        W: std::io::Write,
+        F: Into<ImageOutputFormat>,
+    {
+        // This is valid as the subpixel is u8.
+        write_buffer_with_format(
+            writer,
             self.as_bytes(),
             self.width(),
             self.height(),
@@ -1305,6 +1372,14 @@ pub(crate) type Gray16Image = ImageBuffer<Luma<u16>, Vec<u16>>;
 /// Sendable 16-bit grayscale + alpha channel image buffer
 pub(crate) type GrayAlpha16Image = ImageBuffer<LumaA<u16>, Vec<u16>>;
 
+/// An image buffer for 32-bit float RGB pixels,
+/// where the backing container is a flattened vector of floats.
+pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
+
+/// An image buffer for 32-bit float RGBA pixels,
+/// where the backing container is a flattened vector of floats.
+pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
+
 #[cfg(test)]
 mod test {
     use super::{ImageBuffer, RgbImage};
@@ -1329,11 +1404,24 @@ mod test {
     }
 
     #[test]
+    fn get_pixel_checked() {
+        let mut a: RgbImage = ImageBuffer::new(10, 10);
+        {
+            if let Some(b) = a.get_pixel_mut_checked(0, 1) {
+                b[0] = 255;
+            }
+        }
+        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
+        assert_eq!(a.get_pixel_checked(100, 0), None);
+        assert_eq!(a.get_pixel_mut_checked(0, 100), None);
+    }
+
+    #[test]
     fn mut_iter() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = color::Rgb([42, 0, 0]);
+            *val = Rgb([42, 0, 0]);
         }
         assert_eq!(a.data[0], 42)
     }

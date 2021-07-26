@@ -15,7 +15,7 @@ use crate::error::{EncodingError, ParameterError, ParameterErrorKind, Unsupporte
 
 use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
 use num_traits::Zero;
-use ravif::{Img, Config, RGBA8, encode_rgba};
+use ravif::{encode_rgba, encode_rgb, Config, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
 /// AVIF Encoder.
@@ -49,6 +49,11 @@ impl ColorSpace {
     }
 }
 
+enum RgbColor<'buf> {
+    Rgb8(Img<&'buf [RGB8]>),
+    Rgba8(Img<&'buf [RGBA8]>),
+}
+
 impl<W: Write> AvifEncoder<W> {
     /// Create a new encoder that writes its output to `w`.
     pub fn new(w: W) -> Self {
@@ -72,6 +77,8 @@ impl<W: Write> AvifEncoder<W> {
                 speed,
                 premultiplied_alpha: false,
                 color_space: ravif::ColorSpace::RGB,
+                // match core count
+                threads: 0,
             } 
         }
     }
@@ -87,17 +94,27 @@ impl<W: Write> AvifEncoder<W> {
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
-    pub fn write_image(mut self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+    pub fn write_image(
+        mut self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<()> {
         self.set_color(color);
         let config = self.config;
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
-        let buffer = self.encode_as_img(data, width, height, color)?;
-        let (data, _color_size, _alpha_size) = encode_rgba(buffer, &config)
-            .map_err(|err| ImageError::Encoding(
-                EncodingError::new(ImageFormat::Avif.into(), err)
-            ))?;
+        let result = match self.encode_as_img(data, width, height, color)? {
+            RgbColor::Rgb8(buffer) => encode_rgb(buffer, &config).map(|(data, _color_size)| data),
+            RgbColor::Rgba8(buffer) => {
+                encode_rgba(buffer, &config).map(|(data, _color_size, _alpha_size)| data)
+            }
+        };
+        let data = result.map_err(|err| {
+            ImageError::Encoding(EncodingError::new(ImageFormat::Avif.into(), err))
+        })?;
         self.inner.write_all(&data)?;
         Ok(())
     }
@@ -107,9 +124,13 @@ impl<W: Write> AvifEncoder<W> {
         // self.config.color_space = ColorSpace::RGB;
     }
 
-    fn encode_as_img<'buf>(&'buf mut self, data: &'buf [u8], width: u32, height: u32, color: ColorType)
-        -> ImageResult<Img<&'buf [RGBA8]>>
-    {
+    fn encode_as_img<'buf>(
+        &'buf mut self,
+        data: &'buf [u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
         fn try_from_raw<P: Pixel + 'static>(data: &[P::Subpixel], width: u32, height: u32)
             -> ImageResult<ImageBuffer<P, &[P::Subpixel]>>
@@ -120,8 +141,10 @@ impl<W: Write> AvifEncoder<W> {
         };
 
         // Convert to target color type using few buffer allocations.
-        fn convert_into<'buf, P>(buf: &'buf mut Vec<u8>, image: ImageBuffer<P, &[P::Subpixel]>)
-            -> Img<&'buf [RGBA8]>
+        fn convert_into<'buf, P>(
+            buf: &'buf mut Vec<u8>,
+            image: ImageBuffer<P, &[P::Subpixel]>,
+        ) -> Img<&'buf [RGBA8]>
         where
             P: Pixel + 'static,
             Rgba<u8>: FromColor<P>,
@@ -166,50 +189,69 @@ impl<W: Write> AvifEncoder<W> {
         }
 
         match color {
+            ColorType::Rgb8 => {
+                // ravif doesn't do any checks but has some asserts, so we do the checks.
+                let img = try_from_raw::<Rgb<u8>>(data, width, height)?;
+                // Now, internally ravif uses u32 but it takes usize. We could do some checked
+                // conversion but instead we use that a non-empty image must be addressable.
+                if img.pixels().len() == 0 {
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::DimensionMismatch,
+                    )));
+                }
+
+                Ok(RgbColor::Rgb8(Img::new(
+                    rgb::AsPixels::as_pixels(data),
+                    width as usize,
+                    height as usize,
+                )))
+            }
             ColorType::Rgba8 => {
                 // ravif doesn't do any checks but has some asserts, so we do the checks.
                 let img = try_from_raw::<Rgba<u8>>(data, width, height)?;
                 // Now, internally ravif uses u32 but it takes usize. We could do some checked
                 // conversion but instead we use that a non-empty image must be addressable.
                 if img.pixels().len() == 0 {
-                    return Err(ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)));
+                    return Err(ImageError::Parameter(ParameterError::from_kind(
+                        ParameterErrorKind::DimensionMismatch,
+                    )));
                 }
 
-                Ok(Img::new(rgb::AsPixels::as_pixels(data), width as usize, height as usize))
-            },
+                Ok(RgbColor::Rgba8(Img::new(
+                    rgb::AsPixels::as_pixels(data),
+                    width as usize,
+                    height as usize,
+                )))
+            }
             // we need a separate buffer..
             ColorType::L8 => {
                 let image = try_from_raw::<Luma<u8>>(data, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             ColorType::La8 => {
                 let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
-            }
-            ColorType::Rgb8 => {
-                let image = try_from_raw::<Rgb<u8>>(data, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             // we need to really convert data..
             ColorType::L16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Luma<u16>>(&buffer, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             ColorType::La16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<LumaA<u16>>(&buffer, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             ColorType::Rgb16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgb<u16>>(&buffer, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             ColorType::Rgba16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgba<u16>>(&buffer, width, height)?;
-                Ok(convert_into(&mut self.fallback, image))
+                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             // for cases we do not support at all?
             _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(

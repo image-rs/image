@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 use std::error;
-use std::io::{self, BufRead, BufReader, Cursor, Read};
+use std::io::{self, Read, Cursor, BufRead};
 use std::str::{self, FromStr};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
@@ -218,16 +218,15 @@ trait DecodableImageHeader {
 
 /// PNM decoder
 pub struct PnmDecoder<R> {
-    reader: BufReader<R>,
+    reader: R,
     header: PnmHeader,
     tuple: TupleType,
 }
 
-impl<R: Read> PnmDecoder<R> {
+impl<R: BufRead> PnmDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
-    pub fn new(read: R) -> ImageResult<PnmDecoder<R>> {
-        let mut buf = BufReader::new(read);
-        let magic = buf.read_magic_constant()?;
+    pub fn new(mut buffered_read: R) -> ImageResult<PnmDecoder<R>> {
+        let magic = buffered_read.read_magic_constant()?;
 
         let subtype = match magic {
             [b'P', b'1'] => PnmSubtype::Bitmap(SampleEncoding::Ascii),
@@ -241,10 +240,10 @@ impl<R: Read> PnmDecoder<R> {
         };
 
         let decoder = match subtype {
-            PnmSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
-            PnmSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
-            PnmSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
-            PnmSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
+            PnmSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buffered_read, enc),
+            PnmSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buffered_read, enc),
+            PnmSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buffered_read, enc),
+            PnmSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buffered_read),
         }?;
 
         if utils::check_dimension_overflow(
@@ -269,11 +268,11 @@ impl<R: Read> PnmDecoder<R> {
 
     /// Extract the reader and header after an image has been read.
     pub fn into_inner(self) -> (R, PnmHeader) {
-        (self.reader.into_inner(), self.header)
+        (self.reader, self.header)
     }
 
     fn read_bitmap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_bitmap_header(encoding)?;
@@ -288,7 +287,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     fn read_graymap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_graymap_header(encoding)?;
@@ -304,7 +303,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     fn read_pixmap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_pixmap_header(encoding)?;
@@ -319,7 +318,7 @@ impl<R: Read> PnmDecoder<R> {
         })
     }
 
-    fn read_arbitrary_header(mut reader: BufReader<R>) -> ImageResult<PnmDecoder<R>> {
+    fn read_arbitrary_header(mut reader: R) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_arbitrary_header()?;
         let tuple_type = header.tuple_type()?;
         Ok(PnmDecoder {
@@ -527,7 +526,7 @@ trait HeaderReader: BufRead {
     }
 }
 
-impl<R: Read> HeaderReader for BufReader<R> {}
+impl<R> HeaderReader for R where R: BufRead {}
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct PnmReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
@@ -1079,7 +1078,7 @@ ENDHDR
     /// A previous inifite loop.
     #[test]
     fn pbm_binary_ascii_termination() {
-        use std::io::{Cursor, Error, ErrorKind, Read, Result};
+        use std::io::{Cursor, Error, ErrorKind, Read, Result, BufReader};
         struct FailRead(Cursor<&'static [u8]>);
 
         impl Read for FailRead {
@@ -1094,7 +1093,7 @@ ENDHDR
             }
         }
 
-        let pbmbinary = FailRead(Cursor::new(b"P1 1 1\n"));
+        let pbmbinary = BufReader::new(FailRead(Cursor::new(b"P1 1 1\n")));
 
         let decoder = PnmDecoder::new(pbmbinary).unwrap();
         let mut image = vec![0; decoder.total_bytes() as usize];

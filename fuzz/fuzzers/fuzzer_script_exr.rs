@@ -6,7 +6,6 @@ use std::io::Cursor;
 use image::ImageResult;
 use image::codecs::openexr::*;
 use std::io::Seek;
-use std::io::BufRead;
 use std::convert::TryFrom;
 use image::ImageDecoder;
 use image::ImageEncoder;
@@ -18,7 +17,7 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
 
     /// Read the file from the specified path into an `Rgba32FImage`.
     // TODO this method should probably already exist in the main image crate
-    fn read_as_rgba_byte_image(read: impl BufRead + Seek) -> ImageResult<(u32,u32,Vec<u8>)> {
+    fn read_as_rgba_byte_image(read: impl Read + Seek) -> ImageResult<(u32,u32,Vec<u8>)> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
 

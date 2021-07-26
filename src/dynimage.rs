@@ -758,9 +758,6 @@ impl DynamicImage {
     ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    ///
-    /// **Note**: TIFF encoding uses buffered writing,
-    /// which can lead to unexpected use of resources
     pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
@@ -1127,9 +1124,6 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
-///
-/// **Note**: TIFF encoding uses buffered writing,
-/// which can lead to unexpected use of resources
 pub fn write_buffer_with_format<W, F>(
     writer: &mut W,
     buf: &[u8],

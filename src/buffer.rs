@@ -986,9 +986,6 @@ where
     ///
     /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
     /// supported types.
-    ///
-    /// **Note**: TIFF encoding uses buffered writing,
-    /// which can lead to unexpected use of resources
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where
         W: std::io::Write + std::io::Seek,

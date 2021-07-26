@@ -226,6 +226,7 @@ impl<T: Primitive + 'static> Pixel for $ident<T> {
     fn channels(&self) -> &[T] {
         &self.0
     }
+
     #[inline(always)]
     fn channels_mut(&mut self) -> &mut [T] {
         &mut self.0

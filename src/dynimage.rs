@@ -3,24 +3,7 @@ use std::io::{Write, Seek};
 use std::path::Path;
 use std::u32;
 
-#[cfg(feature = "bmp")]
-use crate::codecs::bmp;
-#[cfg(feature = "gif")]
-use crate::codecs::gif;
-#[cfg(feature = "ico")]
-use crate::codecs::ico;
-#[cfg(feature = "jpeg")]
-use crate::codecs::jpeg;
-#[cfg(feature = "png")]
-use crate::codecs::png;
-#[cfg(feature = "pnm")]
-use crate::codecs::pnm;
-#[cfg(feature = "farbfeld")]
-use crate::codecs::farbfeld;
-#[cfg(feature = "tga")]
-use crate::codecs::tga;
-#[cfg(feature = "avif")]
-use crate::codecs::avif;
+use crate::codecs::*;
 
 use crate::buffer_::{
     ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,

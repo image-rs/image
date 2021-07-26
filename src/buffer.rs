@@ -991,7 +991,7 @@ where
     /// which can lead to unexpected use of resources
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where
-        W: std::io::Write,
+        W: std::io::Write + std::io::Seek,
         F: Into<ImageOutputFormat>,
     {
         // This is valid as the subpixel is u8.

@@ -173,7 +173,7 @@ pub(crate) fn save_buffer_with_format_impl(
 
 #[allow(unused_variables)]
 // Most variables when no features are supported
-pub(crate) fn write_buffer_impl<W: std::io::Write>(
+pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     fout: &mut W,
     buf: &[u8],
     width: u32,

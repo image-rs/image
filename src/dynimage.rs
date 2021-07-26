@@ -1139,7 +1139,7 @@ pub fn write_buffer_with_format<W, F>(
     format: F,
 ) -> ImageResult<()>
 where
-    W: Write,
+    W: Write + Seek,
     F: Into<ImageOutputFormat>,
 {
     // thin wrapper function to strip generics

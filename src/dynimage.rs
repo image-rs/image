@@ -1125,7 +1125,7 @@ where
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 pub fn write_buffer_with_format<W, F>(
-    writer: &mut W,
+    buffered_writer: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
@@ -1137,7 +1137,7 @@ where
     F: Into<ImageOutputFormat>,
 {
     // thin wrapper function to strip generics
-    free_functions::write_buffer_impl(writer, buf, width, height, color, format.into())
+    free_functions::write_buffer_impl(buffered_writer, buf, width, height, color, format.into())
 }
 
 /// Create a new image from a byte slice

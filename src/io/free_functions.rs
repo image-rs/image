@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Seek};
+use std::io::{BufReader, BufWriter, Seek, Read, BufRead};
 use std::path::Path;
 use std::u32;
 
@@ -14,107 +14,100 @@ use crate::image::ImageFormat;
 use crate::image::{ImageDecoder, ImageEncoder};
 
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match File::open(path) {
-        Ok(f) => f,
-        Err(err) => return Err(ImageError::IoError(err)),
-    };
-    let fin = BufReader::new(fin);
+    let buffered_read = BufReader::new(
+        File::open(path).map_err(ImageError::IoError)?
+    );
 
-    load(fin, ImageFormat::from_path(path)?)
+    load(buffered_read, ImageFormat::from_path(path)?)
 }
 
 /// Create a new image from a Reader.
 ///
 /// Assumes the reader is already buffered. For optimal performance,
-/// consider wrapping the reader with a `BufRead::new()`.
+/// consider wrapping the reader with a `BufReader::new()`.
 ///
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
 #[allow(unused_variables)]
 // r is unused if no features are supported.
-pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: BufRead + Seek>(buffered_reader: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "avif-decoder")]
-        image::ImageFormat::Avif => DynamicImage::from_decoder(avif::AvifDecoder::new(r)?),
+        image::ImageFormat::Avif => DynamicImage::from_decoder(avif::AvifDecoder::new(buffered_reader)?),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(buffered_reader)?),
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
+        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(buffered_reader)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
+        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(buffered_reader)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
+        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(buffered_reader)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
+        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(buffered_reader)?),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(buffered_reader)?),
         #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?),
+        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(buffered_reader)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
+        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(buffered_reader)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
+        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(buffered_reader)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(buffered_reader)?),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::OpenExrDecoder::new(r)?),
+        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::OpenExrDecoder::new(buffered_reader)?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(buffered_reader)?),
         #[cfg(feature = "farbfeld")]
-        image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
+        image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(buffered_reader)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     let format = image::ImageFormat::from_path(path)?;
-
-    let fin = File::open(path)?;
-    let fin = BufReader::new(fin);
-
-    image_dimensions_with_format_impl(fin, format)
+    let reader = BufReader::new(File::open(path)?);
+    image_dimensions_with_format_impl(reader, format)
 }
 
 #[allow(unused_variables)]
 // fin is unused if no features are supported.
-pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
-    -> ImageResult<(u32, u32)>
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(buffered_read: R, format: ImageFormat)
+                                                                   -> ImageResult<(u32, u32)>
 {
     #[allow(unreachable_patterns,unreachable_code)]
     // Default is unreachable if all features are supported.
     // Code after the match is unreachable if none are.
     Ok(match format {
         #[cfg(feature = "avif-decoder")]
-        image::ImageFormat::Avif => avif::AvifDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Avif => avif::AvifDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Png => png::PngDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Gif => gif::GifDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::WebP => webp::WebPDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tiff => tiff::TiffDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Tga => tga::TgaDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => dds::DdsDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Dds => dds::DdsDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Bmp => bmp::BmpDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::Ico => ico::IcoDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
+        image::ImageFormat::Hdr => hdr::HdrAdapter::new(buffered_read)?.dimensions(),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => openexr::OpenExrDecoder::new(fin)?.dimensions(),
+        image::ImageFormat::OpenExr => openexr::OpenExrDecoder::new(buffered_read)?.dimensions(),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => {
-            pnm::PnmDecoder::new(fin)?.dimensions()
-        }
+        image::ImageFormat::Pnm => pnm::PnmDecoder::new(buffered_read)?.dimensions(),
         format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     })
 }
@@ -129,7 +122,6 @@ pub(crate) fn save_buffer_impl(
     color: color::ColorType,
 ) -> ImageResult<()> {
     let format =  ImageFormat::from_path(path)?;
-    let fout = &mut BufWriter::new(File::create(path)?);
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
@@ -143,7 +135,7 @@ pub(crate) fn save_buffer_with_format_impl(
     color: color::ColorType,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    let fout = &mut BufWriter::new(File::create(path)?); // always seekable
+    let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
 
     let format = match format {
         #[cfg(feature = "pnm")]
@@ -161,16 +153,20 @@ pub(crate) fn save_buffer_with_format_impl(
         },
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
+        #[cfg(feature = "tiff")]
+        image::ImageFormat::Tiff => {
+            return tiff::TiffEncoder::new(buffered_file_write).write_image(buf, width, height, color);
+        },
         format => format.into(),
     };
 
-    write_buffer_impl(fout, buf, width, height, color, format)
+    write_buffer_impl(buffered_file_write, buf, width, height, color, format)
 }
 
 #[allow(unused_variables)]
 // Most variables when no features are supported
 pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
-    fout: &mut W,
+    buffered_write: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
@@ -179,30 +175,30 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
 ) -> ImageResult<()> {
     match format {
         #[cfg(feature = "png")]
-        ImageOutputFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Png => png::PngEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(fout, quality)
+        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(buffered_write, quality)
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(fout)
+        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(buffered_write)
             .with_subtype(subtype)
             .write_image(buf, width, height, color),
         #[cfg(feature = "gif")]
-        ImageOutputFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
+        ImageOutputFormat::Gif => gif::GifEncoder::new(buffered_write).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        ImageOutputFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Ico => ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "farbfeld")]
-        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
-        ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Tga => tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "openexr")]
-        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        ImageOutputFormat::Tiff => tiff::TiffEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Tiff => tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "avif-encoder")]
-        ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Avif => avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color),
 
         image::ImageOutputFormat::Unsupported(msg) => {
             Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(

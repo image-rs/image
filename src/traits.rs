@@ -116,6 +116,8 @@ impl Lerp for f32 {
     }
 }
 
+use crate::color::{LSample, LaSample, RgbSample, RgbaSample};
+
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
@@ -177,16 +179,16 @@ pub trait Pixel: Copy + Clone {
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
     /// Convert this pixel to RGB
-    fn to_rgb(&self) -> Rgb<Self::Subpixel>;
+    fn to_rgb(&self) -> Rgb<Self::Subpixel> where Self::Subpixel: RgbSample;
 
     /// Convert this pixel to RGB with an alpha channel
-    fn to_rgba(&self) -> Rgba<Self::Subpixel>;
+    fn to_rgba(&self) -> Rgba<Self::Subpixel> where Self::Subpixel: RgbaSample;
 
     /// Convert this pixel to luma
-    fn to_luma(&self) -> Luma<Self::Subpixel>;
+    fn to_luma(&self) -> Luma<Self::Subpixel> where Self::Subpixel: LSample;
 
     /// Convert this pixel to luma with an alpha channel
-    fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
+    fn to_luma_alpha(&self) -> LumaA<Self::Subpixel> where Self::Subpixel: LaSample;
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self

@@ -221,6 +221,8 @@ where
     ];
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
+
+        #[allow(deprecated)]
         let (k1, k2, k3, k4) = p.channels4();
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -237,6 +239,8 @@ where
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
+
+        #[allow(deprecated)]
         let outpixel = Pixel::from_channels(
             NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -282,7 +286,10 @@ where
     for y in 0..height {
         for x in 0..width {
             let pixel = image.get_pixel(x, y);
+
+            #[allow(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
+
             let vec: (f64, f64, f64, f64) = (
                 NumCast::from(k1).unwrap(),
                 NumCast::from(k2).unwrap(),
@@ -298,6 +305,8 @@ where
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
+
+            #[allow(deprecated)]
             let outpixel = Pixel::from_channels(
                 NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
                 NumCast::from(clamp(new_g, 0.0, max)).unwrap(),

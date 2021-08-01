@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Seek, Read, BufRead};
+use std::io::{BufReader, BufWriter, Seek, BufRead};
 use std::path::Path;
 use std::u32;
 
@@ -153,10 +153,6 @@ pub(crate) fn save_buffer_with_format_impl(
         },
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => {
-            return tiff::TiffEncoder::new(buffered_file_write).write_image(buf, width, height, color);
-        },
         format => format.into(),
     };
 

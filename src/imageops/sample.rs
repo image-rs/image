@@ -261,6 +261,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(left + i as u32, y);
 
+                #[allow(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
@@ -276,6 +277,8 @@ where
             }
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
+
+            #[allow(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
                 NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
@@ -344,6 +347,7 @@ where
             for (i, w) in ws.iter().enumerate() {
                 let p = image.get_pixel(x, left + i as u32);
 
+                #[allow(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
@@ -359,6 +363,8 @@ where
             }
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
+
+            #[allow(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
                 NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
@@ -386,6 +392,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 
     fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+        #[allow(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
         self.1 += Self::sample_val(pixel.1);
@@ -473,6 +480,7 @@ where
                 thumbnail_sample_fraction_both(image, right - 1, fraction_horizontal, top - 1, fraction_vertical)
             };
 
+            #[allow(deprecated)]
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
             out.put_pixel(outx, outy, pixel);
         }
@@ -614,9 +622,13 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
+    #[allow(deprecated)]
     let k_bl = image.get_pixel(left,     bottom    ).channels4();
+    #[allow(deprecated)]
     let k_tl = image.get_pixel(left,     bottom + 1).channels4();
+    #[allow(deprecated)]
     let k_br = image.get_pixel(left + 1, bottom    ).channels4();
+    #[allow(deprecated)]
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
@@ -691,6 +703,7 @@ where
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
+                #[allow(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec: (f32, f32, f32, f32) = (
@@ -708,6 +721,7 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
 
+            #[allow(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),

@@ -19,9 +19,10 @@ use crate::io::free_functions;
 use crate::imageops;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
+use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DynamicImage {
 
     /// Each pixel in this image is 8-bit Luma
@@ -552,14 +553,14 @@ impl DynamicImage {
 
     /// Returns the width of the underlying image
     pub fn width(&self) -> u32 {
-        dynamic_map!(*self, ref p -> {
+        dynamic_map!(*self, |ref p| {
             p.width()
         })
     }
 
     /// Returns the height of the underlying image
     pub fn height(&self) -> u32 {
-        dynamic_map!(*self, ref p -> {
+        dynamic_map!(*self, |ref p| {
             p.height()
         })
     }

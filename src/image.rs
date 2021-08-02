@@ -1168,6 +1168,7 @@ mod tests {
     use crate::math::Rect;
 
     #[test]
+    #[allow(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);

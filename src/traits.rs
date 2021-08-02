@@ -118,6 +118,7 @@ impl Lerp for f32 {
 
 pub trait Sample: Primitive + 'static {
     const MAX_SAMPLE_VALUE: Self;
+    const MIN_SAMPLE_VALUE: Self;
     const RGB_COLOR_TYPE: ColorType;
     const RGBA_COLOR_TYPE: ColorType;
     const L_COLOR_TYPE: ColorType;
@@ -126,6 +127,7 @@ pub trait Sample: Primitive + 'static {
 
 impl Sample for u8 {
     const MAX_SAMPLE_VALUE: Self = Self::MAX;
+    const MIN_SAMPLE_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorType = ColorType::Rgb8;
     const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba8;
     const L_COLOR_TYPE: ColorType = ColorType::L8;
@@ -134,6 +136,7 @@ impl Sample for u8 {
 
 impl Sample for u16 {
     const MAX_SAMPLE_VALUE: Self = Self::MAX;
+    const MIN_SAMPLE_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorType = ColorType::Rgb16;
     const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba16;
     const L_COLOR_TYPE: ColorType = ColorType::L16;
@@ -142,6 +145,7 @@ impl Sample for u16 {
 
 impl Sample for f32 {
     const MAX_SAMPLE_VALUE: Self = 1.0;
+    const MIN_SAMPLE_VALUE: Self = 0.0;
     const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F;
     const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F;
     const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
@@ -152,6 +156,7 @@ impl Sample for f32 {
 #[cfg(test)] // apparently i32 is used for testing somewhere
 impl Sample for i32 {
     const MAX_SAMPLE_VALUE: Self = i32::MAX;
+    const MIN_SAMPLE_VALUE: Self = i32::MIN;
     const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
     const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
     const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
@@ -161,6 +166,7 @@ impl Sample for i32 {
 #[cfg(test)] // apparently usize is used for testing somewhere
 impl Sample for usize {
     const MAX_SAMPLE_VALUE: Self = usize::MAX;
+    const MIN_SAMPLE_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
     const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
     const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect

@@ -5,7 +5,7 @@ use std::f64::consts::PI;
 
 use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, Primitive};
+use crate::traits::{Pixel, Primitive, Sample};
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
@@ -55,12 +55,12 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    S: Sample + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
+    let max = S::MAX_SAMPLE_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -95,7 +95,7 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
+    let max = <I::Pixel as Pixel>::Subpixel::MAX_SAMPLE_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
@@ -126,12 +126,12 @@ pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    S: Sample + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
+    let max = S::MAX_SAMPLE_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
 
     // TODO use pixels_mut?
@@ -165,8 +165,8 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
-    let max: i32 = NumCast::from(max).unwrap();
+    let max = <I::Pixel as Pixel>::Subpixel::MAX_SAMPLE_VALUE;
+    let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
     // TODO use pixels_mut?
     for y in 0..height {

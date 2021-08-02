@@ -242,7 +242,7 @@ impl<T: Sample + 'static> Pixel for $ident<T> {
 
     fn channels4(&self) -> (T, T, T, T) {
         const CHANNELS: usize = $channels;
-        let mut channels = [T::max_value(); 4];
+        let mut channels = [T::MAX_SAMPLE_VALUE; 4];
         channels[0..CHANNELS].copy_from_slice(&self.0);
         (channels[0], channels[1], channels[2], channels[3])
     }
@@ -642,9 +642,9 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
-impl<T: Primitive> Blend for LumaA<T> {
+impl<T: Sample> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
-        let max_t = T::max_value();
+        let max_t = T::MAX_SAMPLE_VALUE;
         let max_t = max_t.to_f32().unwrap();
         let (bg_luma, bg_a) = (self.0[0], self.0[1]);
         let (fg_luma, fg_a) = (other.0[0], other.0[1]);
@@ -681,12 +681,12 @@ impl<T: Primitive> Blend for Luma<T> {
     }
 }
 
-impl<T: Primitive> Blend for Rgba<T> {
+impl<T: Sample> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
-        let max_t = T::max_value();
+        let max_t = T::MAX_SAMPLE_VALUE;
         let max_t = max_t.to_f32().unwrap();
         let (bg_r, bg_g, bg_b, bg_a) = (self.0[0], self.0[1], self.0[2], self.0[3]);
         let (fg_r, fg_g, fg_b, fg_a) = (other.0[0], other.0[1], other.0[2], other.0[3]);
@@ -750,42 +750,42 @@ pub(crate) trait Invert {
     fn invert(&mut self);
 }
 
-impl<T: Primitive> Invert for LumaA<T> {
+impl<T: Sample> Invert for LumaA<T> {
     fn invert(&mut self) {
         let l = self.0;
-        let max = T::max_value();
+        let max = T::MAX_SAMPLE_VALUE;
 
         *self = LumaA([max - l[0], l[1]])
     }
 }
 
-impl<T: Primitive> Invert for Luma<T> {
+impl<T: Sample> Invert for Luma<T> {
     fn invert(&mut self) {
         let l = self.0;
 
-        let max = T::max_value();
+        let max = T::MAX_SAMPLE_VALUE;
         let l1 = max - l[0];
 
         *self = Luma([l1])
     }
 }
 
-impl<T: Primitive> Invert for Rgba<T> {
+impl<T: Sample> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.0;
 
-        let max = T::max_value();
+        let max = T::MAX_SAMPLE_VALUE;
 
         *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
 }
 
 
-impl<T: Primitive> Invert for Rgb<T> {
+impl<T: Sample> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.0;
 
-        let max = T::max_value();
+        let max = T::MAX_SAMPLE_VALUE;
 
         let r1 = max - rgb[0];
         let g1 = max - rgb[1];
@@ -903,7 +903,7 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Subpixel::max_value() >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
+            let a: $a = [<$a as Pixel>::Subpixel::MAX_SAMPLE_VALUE >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
             let b: $b = a.into_color();
             let c: $c = b.into_color();
             assert_eq!(a.channels(), c.channels());
@@ -913,6 +913,7 @@ mod tests {
     #[test]
     fn test_lossless_conversions() {
         use super::IntoColor;
+        use crate::traits::Sample;
 
         test_lossless_conversion!(Luma<u8>, Luma<u16>, Luma<u8>);
         test_lossless_conversion!(LumaA<u8>, LumaA<u16>, LumaA<u8>);

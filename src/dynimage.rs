@@ -259,7 +259,7 @@ impl DynamicImage {
     ///
     /// If the image was already the correct format, it is returned as is.
     /// Otherwise, a copy is created.
-    pub fn into_rgba32F(self) -> Rgba32FImage {
+    pub fn into_rgba32f(self) -> Rgba32FImage {
         match self {
             DynamicImage::ImageRgba32F(x) => x,
             x => x.to_rgba32f(),
@@ -525,7 +525,7 @@ impl DynamicImage {
     /// is returned.
     pub fn into_bytes(self) -> Vec<u8> {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(self, |ref image_buffer| bytemuck::allocation::cast_vec(image_buffer.into_raw()))
+        dynamic_map!(self, |image_buffer| bytemuck::allocation::cast_vec(image_buffer.into_raw()))
     }
 
     /// Return a copy of this image's pixels as a byte vector.

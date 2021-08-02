@@ -585,7 +585,7 @@ where
 /// ```no_run
 /// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
-/// let on_top = open("path/to/some.png").unwrap().into_rgb();
+/// let on_top = open("path/to/some.png").unwrap().into_rgb8();
 /// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
 ///         image::Rgb([0, 0, 0])
@@ -602,8 +602,8 @@ where
 /// ```no_run
 /// use image::{open, DynamicImage};
 ///
-/// let rgba = open("path/to/some.png").unwrap().into_rgba();
-/// let gray = DynamicImage::ImageRgba8(rgba).into_luma();
+/// let rgba = open("path/to/some.png").unwrap().into_rgba8();
+/// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
@@ -1341,7 +1341,7 @@ where
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
-    ///     .to_rgba();
+    ///     .to_rgba8();
     /// 
     /// let gray_image: GrayImage = image.convert();
     /// ```

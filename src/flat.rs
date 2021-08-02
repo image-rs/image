@@ -51,7 +51,7 @@ use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, Primitive};
+use crate::traits::{Pixel, Sample};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -894,7 +894,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Subpixel=Subpixel>,
-        Subpixel: Primitive,
+        Subpixel: Sample,
     {
         FlatSamples {
             samples: pixel.channels(),
@@ -1560,6 +1560,7 @@ mod tests {
             let mut view = buffer.as_view_mut::<LumaA<usize>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
+            #[allow(deprecated)]
             for i in 0..9 {
                 *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as usize, 2 * i as usize + 1]);
             }

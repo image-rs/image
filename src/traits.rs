@@ -116,6 +116,56 @@ impl Lerp for f32 {
     }
 }
 
+pub trait Sample: Primitive + 'static {
+    const MAX_SAMPLE_VALUE: Self;
+    const RGB_COLOR_TYPE: ColorType;
+    const RGBA_COLOR_TYPE: ColorType;
+    const L_COLOR_TYPE: ColorType;
+    const LA_COLOR_TYPE: ColorType;
+}
+
+impl Sample for u8 {
+    const MAX_SAMPLE_VALUE: Self = Self::MAX;
+    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb8;
+    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba8;
+    const L_COLOR_TYPE: ColorType = ColorType::L8;
+    const LA_COLOR_TYPE: ColorType = ColorType::La8;
+}
+
+impl Sample for u16 {
+    const MAX_SAMPLE_VALUE: Self = Self::MAX;
+    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb16;
+    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba16;
+    const L_COLOR_TYPE: ColorType = ColorType::L16;
+    const LA_COLOR_TYPE: ColorType = ColorType::La16;
+}
+
+impl Sample for f32 {
+    const MAX_SAMPLE_VALUE: Self = 1.0;
+    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F;
+    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F;
+    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
+    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect, but at least matches byte size of La32F
+}
+
+
+#[cfg(test)] // apparently i32 is used for testing somewhere
+impl Sample for i32 {
+    const MAX_SAMPLE_VALUE: Self = i32::MAX;
+    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
+    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
+    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
+    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect, but at least matches byte size of La32F
+}
+
+#[cfg(test)] // apparently usize is used for testing somewhere
+impl Sample for usize {
+    const MAX_SAMPLE_VALUE: Self = usize::MAX;
+    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
+    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
+    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect
+    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect
+}
 
 /// A generalized pixel.
 ///
@@ -123,7 +173,7 @@ impl Lerp for f32 {
 pub trait Pixel: Copy + Clone {
 
     /// The underlying subpixel type.
-    type Subpixel: Primitive;
+    type Subpixel: Sample;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;

@@ -395,13 +395,13 @@ impl FromSample<u16> for u8 { fn from_sample(c16: u16) -> Self {
 } }
 
 impl FromSample<u16> for f32 { fn from_sample(int: u16) -> Self {
-    int as f32 / u16::MAX as f32
+    (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
 } }
 
 // from u8:
 
 impl FromSample<u8> for f32 { fn from_sample(int: u8) -> Self {
-    int as f32 / u8::MAX as f32
+    (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
 } }
 
 impl FromSample<u8> for u16 { fn from_sample(c8: u8) -> Self {

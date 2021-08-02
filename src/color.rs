@@ -380,34 +380,46 @@ impl<T> FromSample<T> for T { fn from_sample(sample: T) -> Self { sample } }
 
 // from f32:
 
-impl FromSample<f32> for u8 { fn from_sample(float: f32) -> Self {
-    NumCast::from(float.clamp(0.0, 1.0) * u8::MAX as f32).unwrap()
-} }
+impl FromSample<f32> for u8 {
+    fn from_sample(float: f32) -> Self {
+        NumCast::from(float.clamp(0.0, 1.0) * u8::MAX as f32).unwrap()
+    }
+}
 
-impl FromSample<f32> for u16 { fn from_sample(float: f32) -> Self {
-    NumCast::from(float.clamp(0.0, 1.0) * u16::MAX as f32).unwrap()
-} }
+impl FromSample<f32> for u16 {
+    fn from_sample(float: f32) -> Self {
+        NumCast::from(float.clamp(0.0, 1.0) * u16::MAX as f32).unwrap()
+    }
+}
 
 // from u16:
 
-impl FromSample<u16> for u8 { fn from_sample(c16: u16) -> Self {
-    NumCast::from(c16.to_u64().unwrap() >> 8).unwrap()
-} }
+impl FromSample<u16> for u8 {
+    fn from_sample(c16: u16) -> Self {
+        NumCast::from(c16.to_u64().unwrap() >> 8).unwrap()
+    }
+}
 
-impl FromSample<u16> for f32 { fn from_sample(int: u16) -> Self {
-    (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
-} }
+impl FromSample<u16> for f32 {
+    fn from_sample(int: u16) -> Self {
+        (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
+    }
+}
 
 // from u8:
 
-impl FromSample<u8> for f32 { fn from_sample(int: u8) -> Self {
-    (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
-} }
+impl FromSample<u8> for f32 {
+    fn from_sample(int: u8) -> Self {
+        (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
+    }
+}
 
-impl FromSample<u8> for u16 { fn from_sample(c8: u8) -> Self {
+impl FromSample<u8> for u16 {
+    fn from_sample(c8: u8) -> Self {
         let x = c8.to_u64().unwrap();
         NumCast::from((x << 8) | x).unwrap()
-} }
+    }
+}
 
 
 /// Provides color conversions for the different pixel types.

@@ -116,7 +116,6 @@ impl Lerp for f32 {
     }
 }
 
-use crate::color::{LSample, LaSample, RgbSample, RgbaSample};
 
 /// A generalized pixel.
 ///
@@ -179,16 +178,16 @@ pub trait Pixel: Copy + Clone {
     fn from_slice_mut(slice: &mut [Self::Subpixel]) -> &mut Self;
 
     /// Convert this pixel to RGB
-    fn to_rgb(&self) -> Rgb<Self::Subpixel> where Self::Subpixel: RgbSample;
+    fn to_rgb(&self) -> Rgb<Self::Subpixel>;
 
     /// Convert this pixel to RGB with an alpha channel
-    fn to_rgba(&self) -> Rgba<Self::Subpixel> where Self::Subpixel: RgbaSample;
+    fn to_rgba(&self) -> Rgba<Self::Subpixel>;
 
     /// Convert this pixel to luma
-    fn to_luma(&self) -> Luma<Self::Subpixel> where Self::Subpixel: LSample;
+    fn to_luma(&self) -> Luma<Self::Subpixel>;
 
     /// Convert this pixel to luma with an alpha channel
-    fn to_luma_alpha(&self) -> LumaA<Self::Subpixel> where Self::Subpixel: LaSample;
+    fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self

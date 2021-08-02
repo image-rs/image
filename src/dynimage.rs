@@ -537,7 +537,7 @@ impl DynamicImage {
 
     /// Return a copy of this image's pixels as a byte vector.
     // TODO can't users call `as_bytes().to_vec()` themselves?
-    #[deprecated(note = "use `image.as_bytes().to_vec()` instead")]
+    #[deprecated(since = "0.24.0", note = "use `image.as_bytes().to_vec()` instead")]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }

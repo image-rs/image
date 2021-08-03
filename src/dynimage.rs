@@ -529,8 +529,8 @@ impl DynamicImage {
     }
 
     /// Return a copy of this image's pixels as a byte vector.
-    // TODO can't users call `as_bytes().to_vec()` themselves?
-    #[deprecated(since = "0.24.0", note = "use `image.as_bytes().to_vec()` instead")]
+    /// Deprecated, because it does nothing but hide an expensive clone operation.
+    #[deprecated(since = "0.24.0", note = "use `image.into_bytes()` or `image.as_bytes().to_vec()` instead")]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }
@@ -566,7 +566,8 @@ impl DynamicImage {
     }
 
     /// Return a grayscale version of this image.
-    /// Note: does not support f32 images.
+    /// Returns `Luma` images in most cases. However, for `f32` images,
+    /// this will return a greyscale `Rgb/Rgba` image instead.
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
@@ -577,8 +578,8 @@ impl DynamicImage {
             DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
             DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
             DynamicImage::ImageRgba16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
-            DynamicImage::ImageRgb32F(_) => unimplemented!("F32 images do not support luma-only pixels"),
-            DynamicImage::ImageRgba32F(_) => unimplemented!("F32 images do not support luma-only pixels"),
+            DynamicImage::ImageRgb32F(ref p) => DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p)),
+            DynamicImage::ImageRgba32F(ref p) => DynamicImage::ImageRgba32F(imageops::grayscale_with_type(p)),
         }
     }
 

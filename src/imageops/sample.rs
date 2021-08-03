@@ -218,6 +218,7 @@ where
     let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::max_value()).unwrap();
+    let min: f32 = NumCast::from(S::min_value()).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -256,31 +257,35 @@ where
         }
 
         for y in 0..height {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let t = ws
+                .iter()
+                .enumerate()
+                .fold((0.0, 0.0, 0.0, 0.0), |t, (i, w)| {
+                    let p = image.get_pixel(left + i as u32, y);
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(left + i as u32, y);
+                    let (k1, k2, k3, k4) = p.channels4();
+                    let vec: (f32, f32, f32, f32) = (
+                        NumCast::from(k1).unwrap(),
+                        NumCast::from(k2).unwrap(),
+                        NumCast::from(k3).unwrap(),
+                        NumCast::from(k4).unwrap(),
+                    );
 
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
-            }
+                    (
+                        t.0 + vec.0 * w,
+                        t.1 + vec.1 * w,
+                        t.2 + vec.2 * w,
+                        t.3 + vec.3 * w,
+                    )
+                });
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-            let t = Pixel::from_channels(
-                NumCast::from((clamp(t1, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t2, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t3, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t4, 0.0, max)).round()).unwrap(),
+            // Keeping the clamp improves performance.
+            let t: P = Pixel::from_channels(
+                NumCast::from(clamp(t1.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t2.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t3.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t4.round(), min, max)).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -309,6 +314,7 @@ where
     let mut ws = Vec::new();
 
     let max: f32 = NumCast::from(S::max_value()).unwrap();
+    let min: f32 = NumCast::from(S::min_value()).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -339,31 +345,34 @@ where
         }
 
         for x in 0..width {
-            let mut t = (0.0, 0.0, 0.0, 0.0);
+            let t = ws
+                .iter()
+                .enumerate()
+                .fold((0.0, 0.0, 0.0, 0.0), |t, (i, w)| {
+                    let p = image.get_pixel(x, left + i as u32);
 
-            for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(x, left + i as u32);
+                    let (k1, k2, k3, k4) = p.channels4();
+                    let vec: (f32, f32, f32, f32) = (
+                        NumCast::from(k1).unwrap(),
+                        NumCast::from(k2).unwrap(),
+                        NumCast::from(k3).unwrap(),
+                        NumCast::from(k4).unwrap(),
+                    );
 
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
-
-                t.0 += vec.0 * w;
-                t.1 += vec.1 * w;
-                t.2 += vec.2 * w;
-                t.3 += vec.3 * w;
-            }
+                    (
+                        t.0 + vec.0 * w,
+                        t.1 + vec.1 * w,
+                        t.2 + vec.2 * w,
+                        t.3 + vec.3 * w,
+                    )
+                });
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-            let t = Pixel::from_channels(
-                NumCast::from((clamp(t1, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t2, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t3, 0.0, max)).round()).unwrap(),
-                NumCast::from((clamp(t4, 0.0, max)).round()).unwrap(),
+            let t: P = Pixel::from_channels(
+                NumCast::from(clamp(t1.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t2.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t3.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t4.round(), min, max)).unwrap(),
             );
 
             out.put_pixel(x, outy, t);
@@ -914,7 +923,7 @@ mod tests {
         let rgba8 = img.as_rgba8().unwrap();
         let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
         for filter in filters {
-            assert_resize(rgba8, filter.clone());
+            assert_resize(rgba8, *filter);
         }
     }
 }

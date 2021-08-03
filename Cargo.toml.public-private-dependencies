@@ -24,7 +24,7 @@ path = "./src/lib.rs"
 
 [dependencies]
 # Not yet public.
-bytemuck = "1"
+bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder = "1.3.2"
 num-iter = "0.1.32"
 num-rational = "0.3"

@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Seek, Read, BufRead};
+use std::io::{BufReader, BufWriter, Seek, BufRead};
 use std::path::Path;
 use std::u32;
 

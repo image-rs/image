@@ -12,6 +12,7 @@ use crate::utils::clamp;
 
 use super::entropy::build_huff_lut;
 use super::transform;
+use crate::traits::color_type_unsupported;
 
 // Markers
 // Baseline DCT
@@ -474,6 +475,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         image: &I,
     ) -> ImageResult<()> {
         let n = I::Pixel::CHANNEL_COUNT;
+        let color_type = I::Pixel::COLOR_TYPE.map_err(color_type_unsupported)?; // fail-fast
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_marker(SOI)?;
@@ -551,8 +553,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, &buf)?;
 
-
-        if I::Pixel::COLOR_TYPE.has_color() {
+        if color_type.has_color() {
             self.encode_rgb(image)
         } else {
             self.encode_gray(image)
@@ -851,7 +852,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::{Bencher};
 
-    use crate::{ImageBuffer, ImageEncoder, ImageError};
+    use crate::{ImageEncoder, ImageError};
     use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;

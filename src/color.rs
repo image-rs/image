@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Pixel, Primitive, Sample};
+use crate::traits::{Pixel, Primitive, Sample, ColorTypeOrErr};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -210,8 +210,6 @@ impl From<ColorType> for ExtendedColorType {
     }
 }
 
-
-
 macro_rules! define_colors {
     {$(
         $ident:ident,
@@ -237,7 +235,7 @@ impl<T: Sample + 'static> Pixel for $ident<T> {
 
     const COLOR_MODEL: &'static str = $interpretation;
 
-    const COLOR_TYPE: ColorType = T::$sample_color_type;
+    const COLOR_TYPE: ColorTypeOrErr = T::$sample_color_type;
 
     #[inline(always)]
     fn channels(&self) -> &[T] {
@@ -385,7 +383,7 @@ pub trait FromSample<Sample> {
     fn from_sample(sample: Sample) -> Self;
 }
 
-impl<T> FromSample<T> for T { fn from_sample(sample: T) -> Self { sample } }
+impl<T: Sample> FromSample<T> for T { fn from_sample(sample: T) -> Self { sample } }
 
 // from f32:
 

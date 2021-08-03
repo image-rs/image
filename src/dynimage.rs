@@ -13,7 +13,7 @@ use crate::buffer_::{
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
-use crate::image;
+use crate::{image, LumaA, Luma};
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
 use crate::io::free_functions;
 use crate::imageops;
@@ -190,6 +190,11 @@ impl DynamicImage {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
+    /// Returns a copy of this image as a Luma image.
+    pub fn to_luma32f(&self) -> ImageBuffer<Luma<f32>, Vec<f32>> {
+        dynamic_map!(*self, |ref p| p.convert())
+    }
+
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha8(&self) -> GrayAlphaImage {
         dynamic_map!(*self, |ref p| p.convert())
@@ -197,6 +202,11 @@ impl DynamicImage {
 
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha16(&self) -> GrayAlpha16Image {
+        dynamic_map!(*self, |ref p| p.convert())
+    }
+
+    /// Returns a copy of this image as a LumaA image.
+    pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
@@ -866,6 +876,18 @@ impl From<Rgb32FImage> for DynamicImage {
 impl From<Rgba32FImage> for DynamicImage {
     fn from(image: Rgba32FImage) -> Self {
         DynamicImage::ImageRgba32F(image)
+    }
+}
+
+impl From<ImageBuffer<Luma<f32>, Vec<f32>>> for DynamicImage {
+    fn from(image: ImageBuffer<Luma<f32>, Vec<f32>>) -> Self {
+        DynamicImage::ImageRgb32F(image.convert())
+    }
+}
+
+impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
+    fn from(image: ImageBuffer<LumaA<f32>, Vec<f32>>) -> Self {
+        DynamicImage::ImageRgba32F(image.convert())
     }
 }
 

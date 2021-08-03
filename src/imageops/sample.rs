@@ -110,14 +110,28 @@ struct FloatNearest(f32);
 // to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
 // Note that to_f64 by default calls to_i64 and thus needs to be overridden.
 impl ToPrimitive for FloatNearest {
+    // to_{i,u}64 is required, to_{i,u}{8,16} are usefull.
+    // If a usecase for full 32 bits is found its trivial to add
+    fn to_i8(&self) -> Option<i8> {
+        self.0.round().to_i8()
+    }
+    fn to_i16(&self) -> Option<i16> {
+        self.0.round().to_i16()
+    }
     fn to_i64(&self) -> Option<i64> {
-        NumCast::from(self.0.round())
+        self.0.round().to_i64()
+    }
+    fn to_u8(&self) -> Option<u8> {
+        self.0.round().to_u8()
+    }
+    fn to_u16(&self) -> Option<u16> {
+        self.0.round().to_u16()
     }
     fn to_u64(&self) -> Option<u64> {
-        NumCast::from(self.0.round())
+        self.0.round().to_u64()
     }
     fn to_f64(&self) -> Option<f64> {
-        NumCast::from(self.0)
+        self.0.to_f64()
     }
 }
 
@@ -282,10 +296,10 @@ where
 
             // Keeping the clamp improves performance.
             let t: P = Pixel::from_channels(
-                NumCast::from(clamp(t.0.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.1.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.2.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.3.round(), min, max)).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -369,10 +383,10 @@ where
                 });
 
             let t: P = Pixel::from_channels(
-                NumCast::from(clamp(t.0.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.1.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.2.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t.3.round(), min, max)).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
             );
 
             out.put_pixel(x, outy, t);

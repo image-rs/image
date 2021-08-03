@@ -781,7 +781,7 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
-    use num_traits::{cast::ToPrimitive, bounds::Bounded};
+    use num_traits::{cast::ToPrimitive};
     use crate::traits::Sample;
 
     let [r, g, b] = pixel.to_rgb().0;

@@ -277,10 +277,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
+                NumCast::from((clamp(t1, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t2, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t3, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t4, 0.0, max)).round()).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -360,10 +360,10 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, 0.0, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, 0.0, max))).unwrap(),
+                NumCast::from((clamp(t1, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t2, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t3, 0.0, max)).round()).unwrap(),
+                NumCast::from((clamp(t4, 0.0, max)).round()).unwrap(),
             );
 
             out.put_pixel(x, outy, t);

@@ -255,6 +255,7 @@ where
             ws.push(w);
             sum += w;
         }
+        ws.iter_mut().for_each(|w| *w /= sum);
 
         for y in 0..height {
             let t = ws
@@ -279,13 +280,12 @@ where
                     )
                 });
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             // Keeping the clamp improves performance.
             let t: P = Pixel::from_channels(
-                NumCast::from(clamp(t1.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t2.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t3.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t4.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.0.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.1.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.2.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.3.round(), min, max)).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -343,6 +343,7 @@ where
             ws.push(w);
             sum += w;
         }
+        ws.iter_mut().for_each(|w| *w /= sum);
 
         for x in 0..width {
             let t = ws
@@ -367,12 +368,11 @@ where
                     )
                 });
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
             let t: P = Pixel::from_channels(
-                NumCast::from(clamp(t1.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t2.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t3.round(), min, max)).unwrap(),
-                NumCast::from(clamp(t4.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.0.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.1.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.2.round(), min, max)).unwrap(),
+                NumCast::from(clamp(t.3.round(), min, max)).unwrap(),
             );
 
             out.put_pixel(x, outy, t);

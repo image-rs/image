@@ -6,6 +6,8 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::{AddAssign};
 
 use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
+use crate::{ImageError};
+use crate::error::{UnsupportedError, ImageFormatHint, UnsupportedErrorKind};
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -116,40 +118,49 @@ impl Lerp for f32 {
     }
 }
 
+
 pub trait Sample: Primitive + 'static {
     const MAX_SAMPLE_VALUE: Self;
     const MIN_SAMPLE_VALUE: Self;
-    const RGB_COLOR_TYPE: ColorType;
-    const RGBA_COLOR_TYPE: ColorType;
-    const L_COLOR_TYPE: ColorType;
-    const LA_COLOR_TYPE: ColorType;
+    const RGB_COLOR_TYPE: ColorTypeOrErr;
+    const RGBA_COLOR_TYPE: ColorTypeOrErr;
+    const L_COLOR_TYPE: ColorTypeOrErr;
+    const LA_COLOR_TYPE: ColorTypeOrErr;
+}
+
+pub(crate) type ColorTypeOrErr = Result<ColorType, &'static str>;
+pub(crate) fn color_type_unsupported(error: &'static str) -> ImageError {
+    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        ImageFormatHint::Unknown,
+        UnsupportedErrorKind::GenericFeature(error.to_string())
+    ))
 }
 
 impl Sample for u8 {
     const MAX_SAMPLE_VALUE: Self = Self::MAX;
     const MIN_SAMPLE_VALUE: Self = 0;
-    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb8;
-    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba8;
-    const L_COLOR_TYPE: ColorType = ColorType::L8;
-    const LA_COLOR_TYPE: ColorType = ColorType::La8;
+    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb8);
+    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba8);
+    const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L8);
+    const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La8);
 }
 
 impl Sample for u16 {
     const MAX_SAMPLE_VALUE: Self = Self::MAX;
     const MIN_SAMPLE_VALUE: Self = 0;
-    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb16;
-    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba16;
-    const L_COLOR_TYPE: ColorType = ColorType::L16;
-    const LA_COLOR_TYPE: ColorType = ColorType::La16;
+    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb16);
+    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba16);
+    const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L16);
+    const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La16);
 }
 
 impl Sample for f32 {
     const MAX_SAMPLE_VALUE: Self = 1.0;
     const MIN_SAMPLE_VALUE: Self = 0.0;
-    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F;
-    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F;
-    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
-    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect, but at least matches byte size of La32F
+    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb32F);
+    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba32F);
+    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<f32>` does not have an appropriate `ColorType`");
+    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<f32>` does not have an appropriate `ColorType`");
 }
 
 
@@ -157,20 +168,20 @@ impl Sample for f32 {
 impl Sample for i32 {
     const MAX_SAMPLE_VALUE: Self = i32::MAX;
     const MIN_SAMPLE_VALUE: Self = i32::MIN;
-    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
-    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
-    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect, but at least matches byte size of L32F
-    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect, but at least matches byte size of La32F
+    const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<i32>` does not have an appropriate `ColorType`");
+    const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<i32>` does not have an appropriate `ColorType`");
+    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<i32>` does not have an appropriate `ColorType`");
+    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<i32>` does not have an appropriate `ColorType`");
 }
 
 #[cfg(test)] // apparently usize is used for testing somewhere
 impl Sample for usize {
     const MAX_SAMPLE_VALUE: Self = usize::MAX;
     const MIN_SAMPLE_VALUE: Self = 0;
-    const RGB_COLOR_TYPE: ColorType = ColorType::Rgb32F; // FIXME horribly incorrect
-    const RGBA_COLOR_TYPE: ColorType = ColorType::Rgba32F; // FIXME horribly incorrect
-    const L_COLOR_TYPE: ColorType = ColorType::Rgb8; // FIXME horribly incorrect
-    const LA_COLOR_TYPE: ColorType = ColorType::Rgb16; // FIXME horribly incorrect
+    const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<usize>` does not have an appropriate `ColorType`");
+    const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<usize>` does not have an appropriate `ColorType`");
+    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<usize>` does not have an appropriate `ColorType`");
+    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<usize>` does not have an appropriate `ColorType`");
 }
 
 /// A generalized pixel.
@@ -195,8 +206,9 @@ pub trait Pixel: Copy + Clone {
     const COLOR_MODEL: &'static str;
 
 
-    /// ColorType for this pixel format
-    const COLOR_TYPE: ColorType;
+    /// The `Ok(ColorType)` for this pixel format,
+    /// or `Err(message)` if this special type of pixel is not supported.
+    const COLOR_TYPE: ColorTypeOrErr;
 
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel

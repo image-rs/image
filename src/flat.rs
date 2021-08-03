@@ -576,7 +576,7 @@ impl<Buffer> FlatSamples<Buffer> {
         where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
         }
 
         let as_ref = self.samples.as_ref();
@@ -613,7 +613,7 @@ impl<Buffer> FlatSamples<Buffer> {
         where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
         }
 
         let as_mut = self.samples.as_mut();
@@ -650,7 +650,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
         }
 
         let as_mut = self.samples.as_mut();
@@ -734,7 +734,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((Error::WrongColor(P::COLOR_TYPE), self))
+            return Err((Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")), self))
         }
 
         if !self.fits(self.samples.deref().len()) {
@@ -906,7 +906,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
                 height,
                 height_stride: 0,
             },
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: Some(P::COLOR_TYPE.expect("color type not supported")),
         }
     }
 }

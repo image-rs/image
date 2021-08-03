@@ -12,7 +12,7 @@ use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_fo
 use crate::error::ImageResult;
 use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
-use crate::traits::{EncodableLayout, Pixel};
+use crate::traits::{EncodableLayout, Pixel, color_type_unsupported};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
@@ -795,7 +795,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: P::COLOR_TYPE.ok(),
         }
     }
 
@@ -809,7 +809,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: P::COLOR_TYPE.ok(),
         }
     }
 
@@ -823,7 +823,7 @@ where
         FlatSamples {
             samples: self.data.as_mut(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: P::COLOR_TYPE.ok(),
         }
     }
 }
@@ -941,7 +941,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
         )
     }
 }
@@ -967,7 +967,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
             format,
         )
     }
@@ -997,7 +997,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
             format,
         )
     }

@@ -849,7 +849,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::{Bencher};
 
-    use crate::{ImageBuffer, ImageEncoder, ImageError};
+    use crate::{ImageEncoder, ImageError};
     use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;

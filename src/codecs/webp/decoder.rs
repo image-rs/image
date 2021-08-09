@@ -1,5 +1,4 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::convert::TryFrom;
 use std::default::Default;
 use std::{error, fmt, mem};
 use std::io::{self, Cursor, Read};
@@ -169,7 +168,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn color_type(&self) -> color::ColorType {
-        color::ColorType::L8
+        color::ColorType::Rgb8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -177,8 +176,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        /* assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         buf.copy_from_slice(&self.frame.ybuf);
+        Ok(()) */
+
+        buf.copy_from_slice(self.frame.to_rgb_vec().as_slice());
         Ok(())
     }
 }

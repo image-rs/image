@@ -14,6 +14,10 @@
 
 use std::{convert::TryInto, io::Write};
 
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use crate::ImageResult;
+
 type Prob = u8;
 
 pub(crate) struct BoolEncoder {
@@ -110,15 +114,106 @@ fn add_one_to_output(val: &mut Vec<u8>) {
     val[index] += 1;
 }
 
-/* pub(crate) fn encode(bools: &[bool], prob_zero: u8) {
 
-    let mut write_file = std::fs::File::create("bools_test").unwrap();
+pub struct Vp8Encoder<W> {
+    w: W,
+    bool_encoder: BoolEncoder,
+}
 
-    let mut encoder = BoolEncoder::new();
+impl <W: Write> Vp8Encoder<W> {
 
-    for value in bools.iter() {
-        encoder.add_bool(*value, prob_zero);
+    fn write_frame(&mut self, width: u16, height: u16) -> ImageResult<()> {
+
+        Ok(())
     }
 
-    encoder.write_to_file(&mut write_file);
-} */
+    fn write_frame_header(&mut self, width: u16, height: u16) -> ImageResult<()> {
+
+        //9.1
+        let keyframe = true;
+        let version = 0;
+        let show_frame = true;
+        let first_partition_size = 100;
+        
+        let value = first_partition_size << 5 | (u32::from(show_frame) << 4) | version << 1 | u32::from(keyframe);
+        self.w.write_u24::<LittleEndian>(value)?;
+
+        if keyframe {
+
+            self.w.write(&[0x9d, 0x01, 0x2a])?;
+
+            self.w.write_u16::<LittleEndian>(width)?;
+            self.w.write_u16::<LittleEndian>(height)?;
+
+            //9.2
+            let color_space = false;
+            let pixel_clamping = true;
+
+            self.bool_encoder.add_bool(color_space, 128u8);
+            self.bool_encoder.add_bool(pixel_clamping, 128u8);
+
+        }
+
+        //9.3
+        let segments_enabled = false;
+        self.bool_encoder.add_bool(segments_enabled, 128u8);
+
+        if segments_enabled {
+            self.write_segment_updates();
+        }
+
+        //9.4
+        let filter_type = false;
+        self.bool_encoder.add_bool(filter_type, 128u8);
+
+        let filter_level = 16u8;
+        self.bool_encoder.add_literal(6, filter_level);
+
+        let sharpness_level = 0u8;
+        self.bool_encoder.add_literal(3, sharpness_level);
+
+        //9.5
+
+        let partition_num = 1u8; //1 partition
+        self.bool_encoder.add_literal(2, partition_num >> 1);
+
+        //write partitions
+        if partition_num > 1 {
+            //write size of partitions except last
+        }
+
+        //9.6
+        
+
+        //9.7
+        if !keyframe {
+            //unsupported currently
+        }
+
+
+
+
+
+
+        Ok(())
+    }
+
+
+    //unfinished
+    fn write_segment_updates(&mut self) {
+        let segments_update_map = false;
+
+        self.bool_encoder.add_bool(segments_update_map, 128u8);
+
+        let update_segment_feature_data = false;
+        self.bool_encoder.add_bool(update_segment_feature_data, 128u8);
+
+        if update_segment_feature_data {
+
+        }
+
+        if segments_update_map {
+
+        }
+    }
+}

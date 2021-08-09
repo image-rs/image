@@ -5,6 +5,5 @@ pub use self::encoder::WebPEncoder;
 
 mod decoder;
 mod encoder;
-mod transform;
 
 pub mod vp8;

@@ -252,9 +252,9 @@ impl<W: Write + Seek> TiffEncoder<W> {
             ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
             ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
             ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, &u8_slice_as_u16(data)?),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, &u8_slice_as_u16(data)?),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, &u8_slice_as_u16(data)?),
+            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, u8_slice_as_u16(data)?),
+            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, u8_slice_as_u16(data)?),
+            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, u8_slice_as_u16(data)?),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

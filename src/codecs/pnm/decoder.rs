@@ -352,7 +352,7 @@ trait HeaderReader: BufRead {
             Some((cur_enabled, Ok(byte)))
         });
 
-        for (_, byte) in mark_comments.filter(|ref e| e.0) {
+        for (_, byte) in mark_comments.filter(|e| e.0) {
             match byte {
                 Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => {
                     if !bytes.is_empty() {
@@ -714,7 +714,7 @@ impl Sample for PbmBit {
         let mut bytes = reader.bytes();
         for b in output_buf {
             loop {
-                let byte = bytes.next().ok_or::<ImageError>(DecoderError::InputTooShort.into())??;
+                let byte = bytes.next().ok_or_else::<ImageError, _>(|| DecoderError::InputTooShort.into())??;
                 match byte {
                     b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => continue,
                     b'0' => *b = 255,

@@ -74,7 +74,7 @@ impl<R: BufRead + Seek> OpenExrDecoder<R> {
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
 
-        let header_index = exr_reader.headers().into_iter()
+        let header_index = exr_reader.headers().iter()
             .position(|header|{
                 let has_rgb = ["R","G","B"].iter().all( // alpha will be optional
                     // check if r/g/b exists in the channels

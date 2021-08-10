@@ -460,9 +460,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
             let pixel_data = self.expand_color_map(rawbuf)?;
-            let difference = pixel_data.len() as i32 - buf.len() as i32;
             // not enough data to fill the buffer, or would overflow the buffer
-            if difference != 0 {
+            if pixel_data.len() != buf.len() {
                 return Err(ImageError::Limits(LimitError::from_kind(
                     LimitErrorKind::DimensionError,
                 )));

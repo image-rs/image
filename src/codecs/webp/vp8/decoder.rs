@@ -872,14 +872,16 @@ pub struct Frame {
 
 impl Frame {
     /// Converts the 4:2:0 YUV vectors to an rgb vector
+    /// values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
     pub fn to_rgb_vec(&self) -> Vec<u8> {
         let length = self.ybuf.len() * 3;
         let mut rgb = vec![0u8; length];
 
         for index in 0..self.ybuf.len() {
-            let y = index / 16;
-            let x = index % 16;
-            let chroma_index = 8 * (y / 2) + x / 2;
+            let y = index / self.width as usize;
+            let x = index % self.width as usize;
+            let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
+
 
             let rgb_index = index * 3;
             let c = self.ybuf[index] as i32 - 16;
@@ -898,12 +900,13 @@ impl Frame {
         rgb
     }
 
+    //add 1 to make odd dimensions work
     fn chroma_width(&self) -> u16 {
-        self.width / 2
+        (self.width + 1) / 2
     }
 
     fn chroma_height(&self) -> u16 {
-        self.height / 2
+        (self.height + 1) / 2
     }
 }
 

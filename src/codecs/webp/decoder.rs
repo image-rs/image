@@ -48,8 +48,7 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-/// WebP Image format decoder. Currently only supportes the luma channel (meaning that decoded
-/// images will be grayscale).
+/// WebP Image format decoder. Currently only supports lossy RGB images.
 pub struct WebPDecoder<R> {
     r: R,
     frame: Frame,
@@ -169,16 +168,16 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn color_type(&self) -> color::ColorType {
-        color::ColorType::L8
+        color::ColorType::Rgb8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(WebpReader(Cursor::new(self.frame.ybuf), PhantomData))
+        Ok(WebpReader(Cursor::new(self.frame.to_rgb_vec()), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        buf.copy_from_slice(&self.frame.ybuf);
+        buf.copy_from_slice(&self.frame.to_rgb_vec());
         Ok(())
     }
 }

@@ -938,7 +938,7 @@ impl DynamicImage {
                     }
                     _ => {}
                 }
-                p.encode(&bytes, width, height, color)?;
+                p.encode(bytes, width, height, color)?;
                 Ok(())
             }
 

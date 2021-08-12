@@ -1443,28 +1443,27 @@ impl<R: Read> Vp8Decoder<R> {
         let mut uws = [0u8; (8 + 1) * (8 + 1)];
         let mut vws = [0u8; (8 + 1) * (8 + 1)];
 
+        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
+        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
+
         //left border
-        for y in 0usize..stride-1 {
-            let (uy, vy) = if mbx == 0 {
+        for y in 0usize..8 {
+            let (uy, vy) = if mbx == 0 || y >= ylength {
                 (127, 127)
             } else {
                 let index = (mby * 8 + y) * w + ((mbx - 1) * 8 + 7);
-                if mby * 8 + y >= self.frame.chroma_height() as usize {
-                    (127, 127)
-                } else {
-                    (
-                        self.frame.ubuf[index],
-                        self.frame.vbuf[index]
-                    )
-                }
+                (
+                    self.frame.ubuf[index],
+                    self.frame.vbuf[index]
+                )
             };
 
             uws[(y + 1) * stride] = uy;
             vws[(y + 1) * stride] = vy;
         }
         //top border
-        for x in 0usize..stride-1 {
-            let (ux, vx) = if mby == 0 {
+        for x in 0usize..8 {
+            let (ux, vx) = if mby == 0 || x >= xlength {
                 (129, 129)
             } else {
                 let index = ((mby - 1) * 8 + 7) * w + (mbx * 8 + x);
@@ -1533,9 +1532,6 @@ impl<R: Read> Vp8Decoder<R> {
                 add_residue(&mut vws, &vrb, y0, x0, stride);
             }
         }
-
-        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
-        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
 
         for y in 0usize..ylength {
             for x in 0usize..xlength {

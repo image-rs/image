@@ -882,16 +882,22 @@ impl Frame {
     }
 
     /// Converts the 4:2:0 YUV vectors to an rgb vector
-    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
     pub fn to_rgb_vec(&self) -> Vec<u8> {
         let length = self.ybuf.len() * 3;
         let mut rgb = vec![0u8; length];
 
+        self.fill_rgb(rgb.as_mut_slice());
+
+        rgb
+    }
+
+    /// Fills an rgb buffer with the converted values from the YUV planes
+    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+    pub fn fill_rgb(&self, buf: &mut [u8]) {
         for index in 0..self.ybuf.len() {
             let y = index / self.width as usize;
             let x = index % self.width as usize;
             let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
-
 
             let rgb_index = index * 3;
             let c = self.ybuf[index] as i32 - 16;
@@ -902,12 +908,10 @@ impl Frame {
             let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
             let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
 
-            rgb[rgb_index] = r;
-            rgb[rgb_index+1] = g;
-            rgb[rgb_index+2] = b;
+            buf[rgb_index] = r;
+            buf[rgb_index+1] = g;
+            buf[rgb_index+2] = b;
         }
-
-        rgb
     }
 }
 

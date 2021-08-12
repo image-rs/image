@@ -882,16 +882,22 @@ impl Frame {
     }
 
     /// Converts the 4:2:0 YUV vectors to an rgb vector
-    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
     pub fn to_rgb_vec(&self) -> Vec<u8> {
         let length = self.ybuf.len() * 3;
         let mut rgb = vec![0u8; length];
 
+        self.fill_rgb(rgb.as_mut_slice());
+
+        rgb
+    }
+
+    /// Fills an rgb buffer with the converted values from the YUV planes
+    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+    pub fn fill_rgb(&self, buf: &mut [u8]) {
         for index in 0..self.ybuf.len() {
             let y = index / self.width as usize;
             let x = index % self.width as usize;
             let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
-
 
             let rgb_index = index * 3;
             let c = self.ybuf[index] as i32 - 16;
@@ -902,12 +908,10 @@ impl Frame {
             let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
             let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
 
-            rgb[rgb_index] = r;
-            rgb[rgb_index+1] = g;
-            rgb[rgb_index+2] = b;
+            buf[rgb_index] = r;
+            buf[rgb_index+1] = g;
+            buf[rgb_index+2] = b;
         }
-
-        rgb
     }
 }
 
@@ -1439,28 +1443,27 @@ impl<R: Read> Vp8Decoder<R> {
         let mut uws = [0u8; (8 + 1) * (8 + 1)];
         let mut vws = [0u8; (8 + 1) * (8 + 1)];
 
+        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
+        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
+
         //left border
-        for y in 0usize..stride-1 {
-            let (uy, vy) = if mbx == 0 {
+        for y in 0usize..8 {
+            let (uy, vy) = if mbx == 0 || y >= ylength {
                 (127, 127)
             } else {
                 let index = (mby * 8 + y) * w + ((mbx - 1) * 8 + 7);
-                if mby * 8 + y >= self.frame.chroma_height() as usize {
-                    (127, 127)
-                } else {
-                    (
-                        self.frame.ubuf[index],
-                        self.frame.vbuf[index]
-                    )
-                }
+                (
+                    self.frame.ubuf[index],
+                    self.frame.vbuf[index]
+                )
             };
 
             uws[(y + 1) * stride] = uy;
             vws[(y + 1) * stride] = vy;
         }
         //top border
-        for x in 0usize..stride-1 {
-            let (ux, vx) = if mby == 0 {
+        for x in 0usize..8 {
+            let (ux, vx) = if mby == 0 || x >= xlength {
                 (129, 129)
             } else {
                 let index = ((mby - 1) * 8 + 7) * w + (mbx * 8 + x);
@@ -1529,9 +1532,6 @@ impl<R: Read> Vp8Decoder<R> {
                 add_residue(&mut vws, &vrb, y0, x0, stride);
             }
         }
-
-        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
-        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
 
         for y in 0usize..ylength {
             for x in 0usize..xlength {

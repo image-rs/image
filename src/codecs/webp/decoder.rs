@@ -177,7 +177,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        buf.copy_from_slice(&self.frame.to_rgb_vec());
+        self.frame.fill_rgb(buf);
         Ok(())
     }
 }

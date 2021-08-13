@@ -881,17 +881,7 @@ impl Frame {
         (self.height + 1) / 2
     }
 
-    /// Converts the 4:2:0 YUV vectors to an rgb vector
-    pub fn to_rgb_vec(&self) -> Vec<u8> {
-        let length = self.ybuf.len() * 3;
-        let mut rgb = vec![0u8; length];
-
-        self.fill_rgb(rgb.as_mut_slice());
-
-        rgb
-    }
-
-    /// Fills an rgb buffer with the converted values from the YUV planes
+    /// Fills an rgb buffer with the converted values from the 4:2:0 YUV planes
     /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
     pub fn fill_rgb(&self, buf: &mut [u8]) {
         for index in 0..self.ybuf.len() {

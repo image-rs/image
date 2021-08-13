@@ -172,7 +172,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(WebpReader(Cursor::new(self.frame.to_rgb_vec()), PhantomData))
+        let mut data = vec![0; self.frame.ybuf.len() * 3];
+        self.frame.fill_rgb(data.as_mut_slice());
+        Ok(WebpReader(Cursor::new(data), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

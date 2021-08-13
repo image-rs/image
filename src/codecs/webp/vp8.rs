@@ -13,6 +13,7 @@
 //!
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryInto;
 use std::default::Default;
 use std::{cmp, error, fmt};
 use std::io::Read;
@@ -1394,14 +1395,12 @@ impl<R: Read> Vp8Decoder<R> {
             for y in 0usize..4 {
                 for x in 0usize..4 {
                     let i = x + y * 4;
-                    // Create a [i32; 16] array for add_residue by copying the
-                    // slice from resdata into rb (slices of size 16 do not work).
-                    let mut rb = [0i32; 16];
-                    rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
+                    // Create a reference to a [i32; 16] array for add_residue (slices of size 16 do not work).
+                    let rb: &[i32; 16] = resdata[i*16..][..16].try_into().unwrap();
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
 
-                    add_residue(&mut ws, &rb, y0, x0, stride);
+                    add_residue(&mut ws, rb, y0, x0, stride);
                 }
             }
         }
@@ -1509,17 +1508,15 @@ impl<R: Read> Vp8Decoder<R> {
         for y in 0usize..2 {
             for x in 0usize..2 {
                 let i = x + y * 2;
-                let mut urb = [0i32; 16];
-                urb.copy_from_slice(&resdata[16 * 16 + i * 16..16 * 16 + i * 16 + 16]);
+                let urb: &[i32; 16] = resdata[16 * 16 + i * 16..][..16].try_into().unwrap();
 
                 let y0 = 1 + y * 4;
                 let x0 = 1 + x * 4;
-                add_residue(&mut uws, &urb, y0, x0, stride);
+                add_residue(&mut uws, urb, y0, x0, stride);
 
-                let mut vrb = [0i32; 16];
-                vrb.copy_from_slice(&resdata[20 * 16 + i * 16..20 * 16 + i * 16 + 16]);
+                let vrb: &[i32; 16] = resdata[20 * 16 + i * 16..][..16].try_into().unwrap();
 
-                add_residue(&mut vws, &vrb, y0, x0, stride);
+                add_residue(&mut vws, vrb, y0, x0, stride);
             }
         }
 

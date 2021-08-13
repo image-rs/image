@@ -286,8 +286,7 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
     let old_size = buffer.len();
     let extend = full_size - buffer.len();
 
-    buffer.extend(repeat(0xFF).take(extend));
-    assert_eq!(buffer.len(), full_size);
+    buffer.resize(full_size, 0xFF);
 
     let ret = if extend >= old_size {
         // If the full buffer length is more or equal to twice the initial one, we can simply
@@ -354,8 +353,7 @@ where
         if buffer.len() < full_image_size {
             // If the image is stored in top-down order, we can simply use the extend function
             // from vec to extend the buffer..
-            let extend = full_image_size - buffer.len();
-            buffer.extend(repeat(0xFF).take(extend));
+            buffer.resize(full_image_size, 0xFF);
             let len = buffer.len();
             for row in buffer[len - row_width..].chunks_mut(row_width) {
                 func(row)?;

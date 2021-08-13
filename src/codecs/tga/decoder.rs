@@ -223,7 +223,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
             if let Some(color) = color_map.get(index) {
-                result.extend(color.iter().cloned());
+                result.extend_from_slice(color);
             } else {
                 return Err(io::ErrorKind::Other.into());
             }
@@ -251,7 +251,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
                     .take(self.bytes_per_pixel as u64)
                     .read_to_end(&mut data)?;
                 for _ in 0usize..repeat_count {
-                    pixel_data.extend(data.iter().cloned());
+                    pixel_data.extend_from_slice(&data);
                 }
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels

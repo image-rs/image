@@ -422,7 +422,7 @@ fn decode_dxt3_block(source: &[u8], dest: &mut [u8]) {
 /// Decodes a 8-byte bock of dxt5 data to a 16xRGB block
 fn decode_dxt1_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 8 && dest.len() == 48);
-    decode_dxt_colors(&source, dest, true);
+    decode_dxt_colors(source, dest, true);
 }
 
 /// Decode a row of DXT1 data to four rows of RGB data.

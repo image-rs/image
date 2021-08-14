@@ -138,6 +138,35 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
+    /// Return the image format specified a MIME type.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_mime_type("image/png").unwrap();
+    /// assert_eq!(format, ImageFormat::Png);
+    /// ```
+    pub fn from_mime_type<M>(mime_type: M) -> Option<Self> where M : AsRef<str> {
+        match mime_type.as_ref() {
+            "image/avif" => Some(ImageFormat::Avif),
+            "image/jpeg" => Some(ImageFormat::Jpeg),
+            "image/png" => Some(ImageFormat::Png),
+            "image/gif" => Some(ImageFormat::Gif),
+            "image/webp" => Some(ImageFormat::WebP),
+            "image/tiff"  => Some(ImageFormat::Tiff),
+            "image/x-targa" | "image/x-tga" => Some(ImageFormat::Tga),
+            "image/vnd-ms.dds" => Some(ImageFormat::Dds),
+            "image/bmp" => Some(ImageFormat::Bmp),
+            "image/x-icon" => Some(ImageFormat::Ico),
+            "image/vnd.radiance" => Some(ImageFormat::Hdr),
+            "image/x-exr" => Some(ImageFormat::OpenExr),
+            "image/x-portable-bitmap" | "image/x-portable-graymap" | "image/x-portable-pixmap" | "image/x-portable-anymap" => Some(ImageFormat::Pnm),
+            _ => None
+        }
+    }
+
     /// Return if the ImageFormat can be decoded by the lib.
     #[inline]
     pub fn can_read(&self) -> bool {

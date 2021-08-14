@@ -138,7 +138,7 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
-    /// Return the image format specified a MIME type.
+    /// Return the image format specified by a MIME type.
     ///
     /// # Example
     ///

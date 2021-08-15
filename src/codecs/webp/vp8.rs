@@ -13,6 +13,7 @@
 //!
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryInto;
 use std::default::Default;
 use std::{cmp, error, fmt};
 use std::io::Read;
@@ -846,6 +847,12 @@ pub struct Frame {
     /// The luma plane of the frame
     pub ybuf: Vec<u8>,
 
+    /// The blue plane of the frame
+    pub ubuf: Vec<u8>,
+
+    /// The red plane of the frame
+    pub vbuf: Vec<u8>,
+
     /// Indicates whether this frame is a keyframe
     pub keyframe: bool,
 
@@ -863,6 +870,40 @@ pub struct Frame {
     filter: u8,
     filter_level: u8,
     sharpness_level: u8,
+}
+
+impl Frame {
+    /// Chroma plane is half the size of the Luma plane
+    fn chroma_width(&self) -> u16 {
+        (self.width + 1) / 2
+    }
+
+    fn chroma_height(&self) -> u16 {
+        (self.height + 1) / 2
+    }
+
+    /// Fills an rgb buffer with the converted values from the 4:2:0 YUV planes
+    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+    pub fn fill_rgb(&self, buf: &mut [u8]) {
+        for index in 0..self.ybuf.len() {
+            let y = index / self.width as usize;
+            let x = index % self.width as usize;
+            let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
+
+            let rgb_index = index * 3;
+            let c = self.ybuf[index] as i32 - 16;
+            let d = self.ubuf[chroma_index] as i32 - 128;
+            let e = self.vbuf[chroma_index] as i32 - 128;
+
+            let r = clamp((298 * c + 409 * e + 128) >> 8, 0, 255) as u8;
+            let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
+            let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
+
+            buf[rgb_index] = r;
+            buf[rgb_index+1] = g;
+            buf[rgb_index+2] = b;
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -1175,6 +1216,8 @@ impl<R: Read> Vp8Decoder<R> {
             self.mbheight = (self.frame.height + 15) / 16;
 
             self.frame.ybuf = vec![0u8; self.frame.width as usize * self.frame.height as usize];
+            self.frame.ubuf = vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
+            self.frame.vbuf = vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
 
             self.top_border = vec![127u8; self.frame.width as usize + 4 + 16];
             self.left_border = vec![129u8; 1 + 16];
@@ -1334,11 +1377,11 @@ impl<R: Read> Vp8Decoder<R> {
         Ok((skip_coeff, mb))
     }
 
-    fn intra_predict(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
+    fn intra_predict_luma(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
         let stride = 1usize + 16 + 4;
         let w = self.frame.width as usize;
         let mw = self.mbwidth as usize;
-        let mut ws = create_border(mbx, mby, mw, &self.top_border, &self.left_border);
+        let mut ws = create_border_luma(mbx, mby, mw, &self.top_border, &self.left_border);
 
         match mb.luma_mode {
             LumaMode::V => predict_vpred(&mut ws, 16, 1, 1, stride),
@@ -1352,14 +1395,12 @@ impl<R: Read> Vp8Decoder<R> {
             for y in 0usize..4 {
                 for x in 0usize..4 {
                     let i = x + y * 4;
-                    // Create a [i32; 16] array for add_residue by copying the
-                    // slice from resdata into rb (slices of size 16 do not work).
-                    let mut rb = [0i32; 16];
-                    rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
+                    // Create a reference to a [i32; 16] array for add_residue (slices of size 16 do not work).
+                    let rb: &[i32; 16] = resdata[i*16..][..16].try_into().unwrap();
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
 
-                    add_residue(&mut ws, &rb, y0, x0, stride);
+                    add_residue(&mut ws, rb, y0, x0, stride);
                 }
             }
         }
@@ -1378,6 +1419,111 @@ impl<R: Read> Vp8Decoder<R> {
         for y in 0usize..ylength {
             for x in 0usize..xlength {
                 self.frame.ybuf[(mby * 16 + y) * w + mbx * 16 + x] = ws[(1 + y) * stride + 1 + x];
+            }
+        }
+    }
+
+    fn intra_predict_chroma(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
+        let stride = 1usize + 8;
+
+        let w = self.frame.chroma_width() as usize;
+
+        //8x8 with left top border of 1
+        let mut uws = [0u8; (8 + 1) * (8 + 1)];
+        let mut vws = [0u8; (8 + 1) * (8 + 1)];
+
+        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
+        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
+
+        //left border
+        for y in 0usize..8 {
+            let (uy, vy) = if mbx == 0 || y >= ylength {
+                (127, 127)
+            } else {
+                let index = (mby * 8 + y) * w + ((mbx - 1) * 8 + 7);
+                (
+                    self.frame.ubuf[index],
+                    self.frame.vbuf[index]
+                )
+            };
+
+            uws[(y + 1) * stride] = uy;
+            vws[(y + 1) * stride] = vy;
+        }
+        //top border
+        for x in 0usize..8 {
+            let (ux, vx) = if mby == 0 || x >= xlength {
+                (129, 129)
+            } else {
+                let index = ((mby - 1) * 8 + 7) * w + (mbx * 8 + x);
+                (
+                    self.frame.ubuf[index],
+                    self.frame.vbuf[index]
+                )
+            };
+
+            uws[x + 1] = ux;
+            vws[x + 1] = vx;
+        }
+
+        //top left point
+        let (u1, v1) = if mby == 0 {
+            (127, 127)
+        } else if mbx == 0 {
+            (129, 129)
+        } else {
+            let index = ((mby - 1) * 8 + 7) * w + (mbx - 1) * 8 + 7;
+            if index >= self.frame.ubuf.len() {
+                (127, 127)
+            } else {
+                (
+                    self.frame.ubuf[index],
+                    self.frame.vbuf[index]
+                )
+            }
+        };
+
+        uws[0] = u1;
+        vws[0] = v1;
+
+        match mb.chroma_mode {
+            ChromaMode::DC => {
+                predict_dcpred(&mut uws, 8, stride, mby != 0, mbx != 0);
+                predict_dcpred(&mut vws, 8, stride, mby != 0, mbx != 0);
+            },
+            ChromaMode::V => {
+                predict_vpred(&mut uws, 8, 1, 1, stride);
+                predict_vpred(&mut vws, 8, 1, 1, stride);
+            },
+            ChromaMode::H => {
+                predict_hpred(&mut uws, 8, 1, 1, stride);
+                predict_hpred(&mut vws, 8, 1, 1, stride);
+            },
+            ChromaMode::TM => {
+                predict_tmpred(&mut uws, 8, 1, 1, stride);
+                predict_tmpred(&mut vws, 8, 1, 1, stride);
+            },
+        }
+
+        for y in 0usize..2 {
+            for x in 0usize..2 {
+                let i = x + y * 2;
+                let urb: &[i32; 16] = resdata[16 * 16 + i * 16..][..16].try_into().unwrap();
+
+                let y0 = 1 + y * 4;
+                let x0 = 1 + x * 4;
+                add_residue(&mut uws, urb, y0, x0, stride);
+
+                let vrb: &[i32; 16] = resdata[20 * 16 + i * 16..][..16].try_into().unwrap();
+
+                add_residue(&mut vws, vrb, y0, x0, stride);
+            }
+        }
+
+        for y in 0usize..ylength {
+            for x in 0usize..xlength {
+                self.frame.ubuf[(mby * 8 + y) * w + mbx * 8 + x] = uws[(1 + y) * stride + 1 + x];
+                self.frame.vbuf[(mby * 8 + y) * w + mbx * 8 + x] = vws[(1 + y) * stride + 1 + x];
             }
         }
     }
@@ -1563,7 +1709,8 @@ impl<R: Read> Vp8Decoder<R> {
                     [0i32; 384]
                 };
 
-                self.intra_predict(mbx, mby, &mb, &blocks);
+                self.intra_predict_luma(mbx, mby, &mb, &blocks);
+                self.intra_predict_chroma(mbx, mby, &mb, &blocks);
             }
 
             self.left_border = vec![129u8; 1 + 16];
@@ -1657,7 +1804,7 @@ fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
     vec![mb; mb_width]
 }
 
-fn create_border(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) -> [u8; 357] {
+fn create_border_luma(mbx: usize, mby: usize, mbw: usize, top: &[u8], left: &[u8]) -> [u8; 357] {
     let stride = 1usize + 16 + 4;
     let mut ws = [0u8; (1 + 16) * (1 + 16 + 4)];
 

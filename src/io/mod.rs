@@ -33,12 +33,13 @@ impl Default for LimitSupport {
 /// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it 
 /// *must* fail with `image::error::LimitErrorKind::Unsupported`.
 ///
-/// Currently there are no strict limits supported, however they will be added in the
-/// future. [`LimitSupport`] will default to support being false and decoders should
-/// enable support for the limits they support in [`ImageDecoder::set_limits`].
+/// Currently the only strict limits supported are the `max_image_width` and `max_image_height`
+/// limits, however more will be added in the future. [`LimitSupport`] will default to support
+/// being false and decoders should enable support for the limits they support in
+/// [`ImageDecoder::set_limits`].
 ///
-/// The limit check should only ever fail if a limit will be exceeded or an unsupported
-/// strict limit is used.
+/// The limit check should only ever fail if a limit will be exceeded or an unsupported strict
+/// limit is used.
 ///
 /// [`LimitSupport`]: ./struct.LimitSupport.html
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
@@ -49,9 +50,9 @@ pub struct Limits {
     pub max_image_width: Option<u32>,
     /// The maximum allowed image height. This limit is strict. The default is no limit.
     pub max_image_height: Option<u32>,
-    /// The maximum allowed sum of allocations allocated by the decoder at any one 
-    /// time exluding allocator overhead. This limit is non-strict by default and
-    /// some decoders may ignore it. The default is 512MiB.
+    /// The maximum allowed sum of allocations allocated by the decoder at any one time exluding
+    /// allocator overhead. This limit is non-strict by default and some decoders may ignore it.
+    /// The default is 512MiB.
     pub max_alloc: Option<u64>,
     _non_exhaustive: (),
 }

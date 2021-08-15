@@ -789,7 +789,7 @@ impl DynamicImage {
     }
 
     /// Scale this image down to a specific size.
-    /// Returns a new image. Does not peserve aspect ratio.
+    /// Returns a new image. Does not preserve aspect ratio.
     /// `nwidth` and `nheight` are the new image's dimensions.
     /// This method uses a fast integer algorithm where each source
     /// pixel contributes to exactly one target pixel.

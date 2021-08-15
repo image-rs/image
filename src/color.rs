@@ -3,6 +3,7 @@ use std::ops::{Index, IndexMut};
 use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Pixel, Primitive};
+use crate::utils::NonExhaustiveMarker;
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -36,7 +37,111 @@ pub enum ColorType {
     Rgba32F,
 
     #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+    __NonExhaustive(NonExhaustiveMarker),
+}
+
+/// Color information of an image's texels.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Color {
+    /// The color space is given by an encoded ICC profile.
+    ///
+    /// This is a superset of other options but the consumer must itself decode and extract the
+    /// values. They should indicate an error similar to a completely unsupported color space in
+    /// case this fails.
+    Icc {
+        /// The binary ICC data.
+        profile: Vec<u8>,
+    },
+    /// There is, explicitly, no known color model associated with these values.
+    ///
+    /// The image might contain indices without any associated color map, or it might represent
+    /// quantities not related to color, or non-standard colorimetric values. Note that this is
+    /// different from no information being available.
+    Opaque,
+    /// A common model based on the CIE 1931 XYZ observer.
+    Xyz {
+        /// The standardized RGB primary colors.
+        primary: Primaries,
+        /// The transfer function (electro-optical, opto-electrical).
+        transfer: Transfer,
+        /// The whitepoint of the color space.
+        /// In general, we can not transform from one to another without loss of accuracy.
+        whitepoint: Whitepoint,
+        /// The absolute luminance of the values in the color space.
+        luminance: Luminance,
+    },
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
+}
+
+/// Transfer functions from encoded chromatic samples to physical quantity.
+///
+/// Ignoring viewing environmental effects, this describes a pair of functions that are each others
+/// inverse: An electro-optical transfer (EOTF) and opto-electronic transfer function (OETF) that
+/// describes how scene lighting is encoded as an electric signal. These are applied to each
+/// stimulus value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Transfer {
+    /// Specified in ITU Rec.709.
+    Bt709,
+    Bt470M,
+    /// Specified in ITU Rec.601.
+    Bt601,
+    Smpte240,
+    /// Also known as the identity function.
+    Linear,
+    /// The common sRGB standard which is close to standard 'gamma correction'.
+    Srgb,
+    /// ITU Rec.2020 with 10 bit quantization.
+    Bt2020_10bit,
+    /// ITU Rec.2020 with 12 bit quantization.
+    Bt2020_12bit,
+    Smpte2084,
+    /// Specified in ITU Rec.2100.
+    /// The same as Smpte2084.
+    Bt2100Pq,
+    /// ITU Rec.2100 Hybrid Log-Gamma.
+    Bt2100Hlg,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
+}
+
+/// The reference brightness of the color specification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Luminance {
+    /// 100cd/m².
+    Sdr,
+    /// 10_000cd/m².
+    /// Known as high-dynamic range.
+    Hdr,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
+}
+
+/// The relative stimuli of the three corners of a triangular gamut.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Primaries {
+    Bt601_525,
+    Bt601_625,
+    Bt709,
+    Smpte240,
+    Bt2020,
+    Bt2100,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
+}
+
+/// The whitepoint/standard illuminant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Whitepoint {
+    D65,
+
+    #[doc(hidden)]
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 impl ColorType {
@@ -86,6 +191,15 @@ impl ColorType {
         let e: ExtendedColorType = self.into();
         e.channel_count()
     }
+}
+
+impl Color {
+    pub const SRGB: Color = Color::Xyz {
+        luminance: Luminance::Sdr,
+        primary: Primaries::Bt709,
+        transfer: Transfer::Srgb,
+        whitepoint: Whitepoint::D65,
+    };
 }
 
 /// An enumeration of color types encountered in image formats.
@@ -157,7 +271,7 @@ pub enum ExtendedColorType {
     Unknown(u8),
 
     #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+    __NonExhaustive(NonExhaustiveMarker),
 }
 
 impl ExtendedColorType {

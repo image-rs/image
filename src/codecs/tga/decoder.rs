@@ -1,7 +1,9 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
-    error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind},
+    error::{
+        ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
+    },
     image::{ImageDecoder, ImageFormat, ImageReadBuffer},
 };
 use byteorder::ReadBytesExt;
@@ -155,11 +157,11 @@ impl<R: Read + Seek> TgaDecoder<R> {
             (0, 24, true) => self.color_type = ColorType::Rgb8,
             (8, 8, false) => self.color_type = ColorType::La8,
             (0, 8, false) => self.color_type = ColorType::L8,
-            (8, 0, false) => { 
+            (8, 0, false) => {
                 // alpha-only image is treated as L8
                 self.color_type = ColorType::L8;
                 self.original_color_type = Some(ExtendedColorType::A8);
-            },
+            }
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -216,7 +218,8 @@ impl<R: Read + Seek> TgaDecoder<R> {
             return Err(io::ErrorKind::Other.into());
         }
 
-        let color_map = self.color_map
+        let color_map = self
+            .color_map
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
 
@@ -407,7 +410,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     }
 
     fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type.unwrap_or_else(|| self.color_type().into())
+        self.original_color_type
+            .unwrap_or_else(|| self.color_type().into())
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -446,7 +450,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
                 &buf[..num_raw_bytes]
             } else {
                 fallback_buf.resize(num_raw_bytes, 0u8);
-                self.r.by_ref().read_exact(&mut fallback_buf[..num_raw_bytes])?;
+                self.r
+                    .by_ref()
+                    .read_exact(&mut fallback_buf[..num_raw_bytes])?;
                 &fallback_buf[..num_raw_bytes]
             }
         };
@@ -454,6 +460,12 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
             let pixel_data = self.expand_color_map(rawbuf)?;
+            // not enough data to fill the buffer, or would overflow the buffer
+            if pixel_data.len() != buf.len() {
+                return Err(ImageError::Limits(LimitError::from_kind(
+                    LimitErrorKind::DimensionError,
+                )));
+            }
             buf.copy_from_slice(&pixel_data);
         }
 

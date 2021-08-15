@@ -22,7 +22,7 @@
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format().decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
 //! ```

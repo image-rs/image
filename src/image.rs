@@ -643,6 +643,7 @@ pub trait ImageDecoder<'a>: Sized {
     ///     decoder.read_image(buf.as_bytes());
     ///     buf
     /// }
+    /// ```
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_with_progress(buf, |_| {})
     }
@@ -677,6 +678,26 @@ pub trait ImageDecoder<'a>: Sized {
                 total: total_bytes as u64,
             });
         }
+
+        Ok(())
+    }
+
+    /// Set decoding limits for this decoder. See [`Limits`] for the different kinds of 
+    /// limits that is possible to set.
+    ///
+    /// Note to implementors: make sure you call [`Limits::check_support`] so that 
+    /// decoding fails if any unsupported strict limits are set. Also make sure
+    /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
+    /// `max_image_height` limits.
+    ///
+    /// [`Limits`]: ./io/struct.Limits.html
+    /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
+    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
+    fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
 
         Ok(())
     }

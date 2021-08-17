@@ -307,7 +307,9 @@ impl<R: Read + Seek> TgaDecoder<R> {
         pixel_data.append(&mut self.line_remain_buff);
         pixel_data.extend_from_slice(&line_data[..num_bytes]);
 
-        // put the remain data to line_remain_buff
+        // put the remain data to line_remain_buff.
+        // expects `self.line_remain_buff` to be empty from
+        // the above `pixel_data.append` call
         debug_assert!(self.line_remain_buff.is_empty());
         self.line_remain_buff.extend_from_slice(&line_data[num_bytes..]);
 

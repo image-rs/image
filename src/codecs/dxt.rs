@@ -534,7 +534,7 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     let mut colorspace_ = [[0u8; 3]; 16];
     let mut colorspace_len = 0;
     for color in &targets {
-        if !colorspace_.contains(color) {
+        if !colorspace_[..colorspace_len].contains(color) {
             colorspace_[colorspace_len] = *color;
             colorspace_len += 1;
         }

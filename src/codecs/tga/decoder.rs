@@ -10,6 +10,7 @@ use byteorder::ReadBytesExt;
 use std::{
     convert::TryFrom,
     io::{self, Read, Seek},
+    mem
 };
 
 struct ColorMap {
@@ -289,10 +290,13 @@ impl<R: Read + Seek> TgaDecoder<R> {
         let remain_len = self.line_remain_buff.len();
 
         if remain_len >= line_num_bytes {
-            let remain_buf = self.line_remain_buff.clone();
+            // `Vec::split_to` if std had it
+            let bytes = {
+                let bytes_after = self.line_remain_buff.split_off(line_num_bytes);
+                mem::replace(&mut self.line_remain_buff, bytes_after)
+            };
 
-            self.line_remain_buff = remain_buf[line_num_bytes..].to_vec();
-            return Ok(remain_buf[0..line_num_bytes].to_vec());
+            return Ok(bytes);
         }
 
         let num_bytes = line_num_bytes - remain_len;
@@ -304,7 +308,8 @@ impl<R: Read + Seek> TgaDecoder<R> {
         pixel_data.extend_from_slice(&line_data[..num_bytes]);
 
         // put the remain data to line_remain_buff
-        self.line_remain_buff = line_data[num_bytes..].to_vec();
+        debug_assert!(self.line_remain_buff.is_empty());
+        self.line_remain_buff.extend_from_slice(&line_data[num_bytes..]);
 
         Ok(pixel_data)
     }

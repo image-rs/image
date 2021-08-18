@@ -19,6 +19,7 @@ use std::{cmp, error, fmt};
 use std::io::Read;
 
 use super::transform;
+use super::loop_filter;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
@@ -833,6 +834,7 @@ struct MacroBlock {
     luma_mode: LumaMode,
     chroma_mode: ChromaMode,
     segmentid: u8,
+    coeffs_skipped: bool,
 }
 
 /// A Representation of the last decoded video frame
@@ -932,12 +934,16 @@ pub struct Vp8Decoder<R> {
 
     mbwidth: u16,
     mbheight: u16,
+    macroblocks: Vec<MacroBlock>,
 
     frame: Frame,
 
     segments_enabled: bool,
     segments_update_map: bool,
     segment: [Segment; MAX_SEGMENTS],
+
+    ref_delta: [i32; 4],
+    mode_delta: [i32; 4],
 
     partitions: [BoolReader; 8],
     num_partitions: u8,
@@ -972,11 +978,15 @@ impl<R: Read> Vp8Decoder<R> {
 
             mbwidth: 0,
             mbheight: 0,
+            macroblocks: Vec::new(),
 
             frame: f,
             segments_enabled: false,
             segments_update_map: false,
             segment: [s; MAX_SEGMENTS],
+
+            ref_delta: [0; 4],
+            mode_delta: [0; 4],
 
             partitions: [
                 BoolReader::new(),
@@ -1120,20 +1130,20 @@ impl<R: Read> Vp8Decoder<R> {
 
     fn read_loop_filter_adjustments(&mut self) {
         if self.b.read_flag() {
-            for _i in 0usize..4 {
+            for i in 0usize..4 {
                 let ref_frame_delta_update_flag = self.b.read_flag();
 
-                let _delta = if ref_frame_delta_update_flag {
+                self.ref_delta[i] = if ref_frame_delta_update_flag {
                     self.b.read_magnitude_and_sign(6)
                 } else {
                     0i32
                 };
             }
 
-            for _i in 0usize..4 {
+            for i in 0usize..4 {
                 let mb_mode_delta_update_flag = self.b.read_flag();
 
-                let _delta = if mb_mode_delta_update_flag {
+                self.mode_delta[i] = if mb_mode_delta_update_flag {
                     self.b.read_magnitude_and_sign(6)
                 } else {
                     0i32
@@ -1299,7 +1309,7 @@ impl<R: Read> Vp8Decoder<R> {
         Ok(())
     }
 
-    fn read_macroblock_header(&mut self, mbx: usize) -> ImageResult<(bool, MacroBlock)> {
+    fn read_macroblock_header(&mut self, mbx: usize) -> ImageResult<MacroBlock> {
         let mut mb = MacroBlock::default();
 
         if self.segments_enabled && self.segments_update_map {
@@ -1307,7 +1317,7 @@ impl<R: Read> Vp8Decoder<R> {
                 .read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0) as u8;
         };
 
-        let skip_coeff = if self.prob_skip_false.is_some() {
+        mb.coeffs_skipped = if self.prob_skip_false.is_some() {
             self.b.read_bool(*self.prob_skip_false.as_ref().unwrap())
         } else {
             false
@@ -1374,7 +1384,7 @@ impl<R: Read> Vp8Decoder<R> {
         self.top[mbx].luma_mode = mb.luma_mode;
         self.top[mbx].bpred = mb.bpred;
 
-        Ok((skip_coeff, mb))
+        Ok(mb)
     }
 
     fn intra_predict_luma(&mut self, mbx: usize, mby: usize, mb: &MacroBlock, resdata: &[i32]) {
@@ -1438,7 +1448,7 @@ impl<R: Read> Vp8Decoder<R> {
         //left border
         for y in 0usize..8 {
             let (uy, vy) = if mbx == 0 || y >= ylength {
-                (127, 127)
+                (129, 129)
             } else {
                 let index = (mby * 8 + y) * w + ((mbx - 1) * 8 + 7);
                 (
@@ -1453,7 +1463,7 @@ impl<R: Read> Vp8Decoder<R> {
         //top border
         for x in 0usize..8 {
             let (ux, vx) = if mby == 0 || x >= xlength {
-                (129, 129)
+                (127, 127)
             } else {
                 let index = ((mby - 1) * 8 + 7) * w + (mbx * 8 + x);
                 (
@@ -1683,6 +1693,267 @@ impl<R: Read> Vp8Decoder<R> {
         blocks
     }
 
+    /// Does the loop filtering on the macroblock
+    fn loop_filter(&mut self, mbx: usize, mby: usize, mb: &MacroBlock) {
+        if self.frame.filter != 0 {
+            let segment = &self.segment[mb.segmentid as usize];
+
+            if segment.loopfilter_level != 0 {
+
+                let luma_w = self.frame.width as usize;
+                let luma_h = self.frame.height as usize;
+                let chroma_w = self.frame.chroma_width() as usize;
+                let chroma_h = self.frame.chroma_height() as usize;
+
+                let (filter_level, interior_limit, hev_threshold) = self.calculate_filter_parameters(mb, segment);
+
+                let mbedge_limit = (filter_level + 2) * 2 + interior_limit;
+                let sub_bedge_limit = (filter_level * 2) + interior_limit;
+
+                let luma_ylength = cmp::min(luma_h - 16 * mby, 16);
+                let luma_xlength = cmp::min(luma_w - 16 * mbx, 16);
+
+                let chroma_ylength = cmp::min(chroma_h - 8 * mby, 8);
+                let chroma_xlength = cmp::min(chroma_w - 8 * mbx, 8);
+
+                //filter across left of macroblock
+                if mbx > 0 {
+                    if luma_xlength >= 4 {
+                        for y in 0usize..luma_ylength {
+                            let y0 = mby * 16 + y;
+                            let x0 = mbx * 16;
+
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.ybuf[..], 
+                                y0 * luma_w + x0, 
+                                1
+                            );
+                        }
+                    }
+
+                    if chroma_xlength >= 4 {
+                        for y in 0usize..chroma_ylength {
+                            let y0 = mby * 8 + y;
+                            let x0 = mbx * 8;
+
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.ubuf[..], 
+                                y0 * chroma_w + x0, 
+                                1
+                            );
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.vbuf[..], 
+                                y0 * chroma_w + x0, 
+                                1
+                            );
+                        }
+                    }
+                }
+
+                //filter across vertical subblocks in macroblock
+                if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                    for x in (4usize..luma_xlength-3).step_by(4) {
+                        for y in 0..luma_ylength {
+                            let y0 = mby * 16 + y;
+                            let x0 = mbx * 16 + x;
+
+                            loop_filter::subblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                sub_bedge_limit, 
+                                &mut self.frame.ybuf[..], 
+                                y0 * luma_w + x0, 
+                                1
+                            );
+                        }
+                    }
+
+                    if chroma_xlength == 8 {
+                        for y in 0usize..chroma_ylength {
+                            let y0 = mby * 8 + y;
+                            let x0 = mbx * 8 + 4;
+
+                            loop_filter::subblock_filter(
+                                hev_threshold,
+                                interior_limit,
+                                sub_bedge_limit,
+                                &mut self.frame.ubuf[..],
+                                y0 * chroma_w + x0,
+                                1
+                            );
+
+                            loop_filter::subblock_filter(
+                                hev_threshold,
+                                interior_limit,
+                                sub_bedge_limit,
+                                &mut self.frame.vbuf[..],
+                                y0 * chroma_w + x0,
+                                1
+                            );
+                        }
+
+                    }
+                }
+
+                //filter across top of macroblock
+                if mby > 0 {
+                    //if bottom macroblock, can only filter if there is 3 pixels below
+                    if luma_ylength >= 4 {
+                        for x in 0usize..luma_xlength {
+                            let y0 = mby * 16;
+                            let x0 = mbx * 16 + x;
+
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.ybuf[..], 
+                                y0 * luma_w + x0, 
+                                luma_w
+                            );
+                        }
+                    }
+
+                    if chroma_ylength >= 4 {
+                        for x in 0usize..chroma_xlength {
+                            let y0 = mby * 8;
+                            let x0 = mbx * 8 + x;
+
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.ubuf[..], 
+                                y0 * chroma_w + x0, 
+                                chroma_w
+                            );
+                            loop_filter::macroblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                mbedge_limit, 
+                                &mut self.frame.vbuf[..], 
+                                y0 * chroma_w + x0, 
+                                chroma_w
+                            );
+                        }
+                    }
+                }
+
+                //filter across horizontal subblock edges within the macroblock
+                if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                    for y in (4usize..luma_ylength-3).step_by(4) {
+                        for x in 0..luma_xlength {
+                            let y0 = mby * 16 + y;
+                            let x0 = mbx * 16 + x;
+
+                            loop_filter::subblock_filter(
+                                hev_threshold, 
+                                interior_limit, 
+                                sub_bedge_limit, 
+                                &mut self.frame.ybuf[..], 
+                                y0 * luma_w + x0, 
+                                luma_w
+                            );
+                        }
+                    }
+
+                    if chroma_ylength == 8 {
+                        for x in 0..chroma_xlength {
+                            let y0 = mby * 8 + 4;
+                            let x0 = mbx * 8 + x;
+
+                            loop_filter::subblock_filter(
+                                hev_threshold,
+                                interior_limit,
+                                sub_bedge_limit,
+                                &mut self.frame.ubuf[..],
+                                y0 * chroma_w + x0,
+                                chroma_w
+                            );
+
+                            loop_filter::subblock_filter(
+                                hev_threshold,
+                                interior_limit,
+                                sub_bedge_limit,
+                                &mut self.frame.vbuf[..],
+                                y0 * chroma_w + x0,
+                                chroma_w
+                            );
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+
+    fn calculate_filter_parameters(&self, macroblock: &MacroBlock, segment: &Segment)
+        -> (u8, u8, u8) {
+
+        let mut filter_level = self.frame.filter_level as i32;
+
+        if self.segments_enabled {
+            if segment.delta_values {
+                filter_level += i32::from(segment.loopfilter_level);
+            } else {
+                filter_level = i32::from(segment.loopfilter_level);
+            }
+        }
+
+        filter_level = clamp(filter_level, 0, 63);
+
+        if macroblock.luma_mode == LumaMode::B {
+            filter_level += self.mode_delta[0];
+        }
+        
+        let filter_level = clamp(filter_level, 0, 63) as u8;
+
+        //interior limit
+        let mut interior_limit = filter_level;
+
+        if self.frame.sharpness_level > 0 {
+            interior_limit >>= if self.frame.sharpness_level > 4 {2} else {1};
+
+            if u8::from(interior_limit > 9) - self.frame.sharpness_level > 0 {
+                interior_limit = 9 - self.frame.sharpness_level;
+            }
+        }
+
+        if interior_limit == 0 {
+            interior_limit = 1;
+        }
+
+        //high edge variance threshold
+        let mut hev_threshold = 0;
+
+        if self.frame.keyframe {
+            if self.frame.filter_level >= 40 {
+                hev_threshold = 2;
+            } else {
+                hev_threshold = 1;
+            }
+        } else {
+            if self.frame.filter_level >= 40 {
+                hev_threshold = 3;
+            } else if self.frame.filter_level >= 20 {
+                hev_threshold = 2;
+            } else if self.frame.filter_level >= 15 {
+                hev_threshold = 1;
+            }
+        }
+
+        (filter_level, interior_limit, hev_threshold)
+    }
+
     /// Decodes the current frame and returns a reference to it
     pub fn decode_frame(&mut self) -> ImageResult<&Frame> {
         self.read_frame_header()?;
@@ -1692,8 +1963,8 @@ impl<R: Read> Vp8Decoder<R> {
             self.left = MacroBlock::default();
 
             for mbx in 0..self.mbwidth as usize {
-                let (skip, mb) = self.read_macroblock_header(mbx)?;
-                let blocks = if !skip {
+                let mb = self.read_macroblock_header(mbx)?;
+                let blocks = if !mb.coeffs_skipped {
                     self.read_residual_data(&mb, mbx, p)
                 } else {
                     if mb.luma_mode != LumaMode::B {
@@ -1711,9 +1982,19 @@ impl<R: Read> Vp8Decoder<R> {
 
                 self.intra_predict_luma(mbx, mby, &mb, &blocks);
                 self.intra_predict_chroma(mbx, mby, &mb, &blocks);
+
+                self.macroblocks.push(mb);
             }
 
             self.left_border = vec![129u8; 1 + 16];
+        }
+
+        //loop filtering
+        for mby in 0..self.mbheight as usize {
+            for mbx in 0..self.mbwidth as usize {
+                let mb = self.macroblocks[mby * self.mbwidth as usize + mbx];
+                self.loop_filter(mbx, mby, &mb);
+            }
         }
 
         Ok(&self.frame)

@@ -17,8 +17,13 @@ fn s2u(val: i32) -> u8 {
     (c(val) + 128) as u8
 }
 
+#[inline]
 fn diff(val1: u8, val2: u8) -> u8 {
-    (i32::from(val1) - i32::from(val2)).abs() as u8
+    if val1 > val2 {
+        val1 - val2
+    } else {
+        val2 - val1
+    }
 }
 
 //15.2
@@ -28,13 +33,13 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
     let q0 = u2s(pixels[point]);
     let q1 = u2s(pixels[point + stride]);
 
-    let val = if use_outer_taps {
+    let outer = if use_outer_taps {
         c(p1 - q1)
     } else {
         0
     };
 
-    let mut a = c(val + 3*(q0 - p0));
+    let mut a = c(outer + 3 * (q0 - p0));
 
     let b = (c(a + 3)) >> 3;
 
@@ -46,54 +51,13 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
     a
 }
 
-/* fn common_adjust(use_outer_taps: bool, pixels: &mut [u8]) -> u8 {
-    let mut a = 3 * (u2s(pixels[2]) - u2s(pixels[1]));
-
-    if use_outer_taps {
-        a += u2s(diff(pixels[0], pixels[3]));
-    }
-
-    a = c(a);
-
-    let f1 = if (a + 4 > 127) {
-        127
-    } else {
-        a + 4
-    } >> 3;
-
-    let f2 = if (a + 3 > 127) {
-        127
-    } else {
-        a + 3
-    } >> 3;
-
-    pixels[1] = s2u(u2s(pixels[1]) - f2);
-    pixels[2] = s2u(u2s(pixels[2]) - f1);
-
-    if !use_outer_taps {
-        a = (f1 + 1) >> 1;
-        pixels[0] = s2u(u2s(pixels[0]) + a);
-        pixels[3] = s2u(u2s(pixels[3]) - a);
-    }
-
-    s2u(a)
-} */
-
-fn simple_segment(edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
-    if diff(pixels[point - stride], pixels[point]) * 2 + 
-        diff(pixels[point - 2 * stride], pixels[point + stride]) / 2 <= edge_limit {
-        common_adjust(true, pixels, point, stride);
-    }
-}
-
 fn simple_threshold(filter_limit: i32, pixels: &[u8], point: usize, stride: usize) -> bool {
-   (i32::from(pixels[point - stride]) - i32::from(pixels[point])) * 2 + 
-   (i32::from(pixels[point - 2 * stride]) - i32::from(pixels[point + stride])) / 2 <= filter_limit
+   (i32::from(pixels[point - stride]) - i32::from(pixels[point])).abs() * 2 + 
+   (i32::from(pixels[point - 2 * stride]) - i32::from(pixels[point + stride])).abs() / 2 <= filter_limit
 }
 
 fn should_filter(interior_limit: u8, edge_limit: u8, pixels: &[u8], point: usize, stride: usize) -> bool {
     simple_threshold(i32::from(edge_limit) * 2 + i32::from(interior_limit), pixels, point, stride) &&
-    //simple_threshold(i32::from(edge_limit), pixels, point, stride) &&
     diff(pixels[point - 4 * stride], pixels[point - 3 * stride]) <= interior_limit && 
     diff(pixels[point - 3 * stride], pixels[point - 2 * stride]) <= interior_limit &&
     diff(pixels[point - 2 * stride], pixels[point - stride]) <= interior_limit &&

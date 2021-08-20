@@ -1896,6 +1896,7 @@ impl<R: Read> Vp8Decoder<R> {
         }
     }
 
+    //return values are the filter level, interior limit and hev threshold
     fn calculate_filter_parameters(&self, macroblock: &MacroBlock, segment: &Segment)
         -> (u8, u8, u8) {
 
@@ -1923,7 +1924,7 @@ impl<R: Read> Vp8Decoder<R> {
         if self.frame.sharpness_level > 0 {
             interior_limit >>= if self.frame.sharpness_level > 4 {2} else {1};
 
-            if u8::from(interior_limit > 9) - self.frame.sharpness_level > 0 {
+            if interior_limit > 9 - self.frame.sharpness_level {
                 interior_limit = 9 - self.frame.sharpness_level;
             }
         }
@@ -1936,17 +1937,17 @@ impl<R: Read> Vp8Decoder<R> {
         let mut hev_threshold = 0;
 
         if self.frame.keyframe {
-            if self.frame.filter_level >= 40 {
+            if filter_level >= 40 {
                 hev_threshold = 2;
             } else {
                 hev_threshold = 1;
             }
         } else {
-            if self.frame.filter_level >= 40 {
+            if filter_level >= 40 {
                 hev_threshold = 3;
-            } else if self.frame.filter_level >= 20 {
+            } else if filter_level >= 20 {
                 hev_threshold = 2;
-            } else if self.frame.filter_level >= 15 {
+            } else if filter_level >= 15 {
                 hev_threshold = 1;
             }
         }

@@ -67,10 +67,10 @@ impl<R: Read> Read for PngReader<R> {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
-                    let readed  = buf.write(row).unwrap();
+                    let readed  = buf.write(row.data()).unwrap();
                     bytes += readed;
 
-                    self.buffer = (&row[readed..]).to_owned();
+                    self.buffer = (&row.data()[readed..]).to_owned();
                     self.index = 0;
                 }
                 None => return Ok(bytes)
@@ -92,8 +92,8 @@ impl<R: Read> Read for PngReader<R> {
         self.index = 0;
 
         while let Some(row) = self.reader.next_row()? {
-            buf.extend_from_slice(row);
-            bytes += row.len();
+            buf.extend_from_slice(row.data());
+            bytes += row.data().len();
         }
 
         Ok(bytes)
@@ -117,43 +117,43 @@ impl<R: Read> PngDecoder<R> {
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
-        let (_, mut reader) = decoder.read_info().map_err(ImageError::from_png)?;
+        let mut reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
             (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ColorType::La8,
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ColorType::La16,
-            (png::ColorType::RGB, png::BitDepth::Eight) => ColorType::Rgb8,
-            (png::ColorType::RGB, png::BitDepth::Sixteen) => ColorType::Rgb16,
-            (png::ColorType::RGBA, png::BitDepth::Eight) => ColorType::Rgba8,
-            (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
+            (png::ColorType::Rgb, png::BitDepth::Eight) => ColorType::Rgb8,
+            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ColorType::Rgb16,
+            (png::ColorType::Rgba, png::BitDepth::Eight) => ColorType::Rgba8,
+            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
             (png::ColorType::Grayscale, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::L1)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::La1)),
-            (png::ColorType::RGB, png::BitDepth::One) =>
+            (png::ColorType::Rgb, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb1)),
-            (png::ColorType::RGBA, png::BitDepth::One) =>
+            (png::ColorType::Rgba, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba1)),
 
             (png::ColorType::Grayscale, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::L2)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::La2)),
-            (png::ColorType::RGB, png::BitDepth::Two) =>
+            (png::ColorType::Rgb, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb2)),
-            (png::ColorType::RGBA, png::BitDepth::Two) =>
+            (png::ColorType::Rgba, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba2)),
 
             (png::ColorType::Grayscale, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::L4)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::La4)),
-            (png::ColorType::RGB, png::BitDepth::Four) =>
+            (png::ColorType::Rgb, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb4)),
-            (png::ColorType::RGBA, png::BitDepth::Four) =>
+            (png::ColorType::Rgba, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba4)),
 
             (png::ColorType::Indexed, bits) =>
@@ -516,10 +516,10 @@ impl<W: Write> PngEncoder<W> {
             ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
             ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
-            ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
-            ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
-            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::Rgb8 => (png::ColorType::Rgb, png::BitDepth::Eight),
+            ColorType::Rgb16 => (png::ColorType::Rgb,png::BitDepth::Sixteen),
+            ColorType::Rgba8 => (png::ColorType::Rgba, png::BitDepth::Eight),
+            ColorType::Rgba16 => (png::ColorType::Rgba,png::BitDepth::Sixteen),
             _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Png.into(),
                 UnsupportedErrorKind::Color(color.into()),
@@ -589,25 +589,21 @@ impl ImageError {
         use png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),
+            // The input image was not a valid PNG.
             err @ Format(_) => ImageError::Decoding(DecodingError::new(
                 ImageFormat::Png.into(),
                 err,
             )),
+            // Other is used when:
+            // - The decoder is polled for more animation frames despite being done (or not being animated
+            //   in the first place).
+            // - The output buffer does not have the required size.
+            err @ Parameter(_) => ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(err.to_string())
+            )),
             LimitsExceeded => ImageError::Limits(LimitError::from_kind(
                 LimitErrorKind::InsufficientMemory,
             )),
-            // Other is used when the buffer to `Reader::next_frame` is too small.
-            Other(message) => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic(message.into_owned())
-            )),
-            err @ InvalidSignature
-            | err @ CrcMismatch { .. }
-            | err @ CorruptFlateStream => {
-                ImageError::Decoding(DecodingError::new(
-                    ImageFormat::Png.into(),
-                    err,
-                ))
-            }
         }
     }
 }

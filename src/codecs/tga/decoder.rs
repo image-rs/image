@@ -238,6 +238,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
         let mut pixel_data = Vec::with_capacity(num_bytes);
+        let mut pixel = Vec::with_capacity(self.bytes_per_pixel);
 
         while pixel_data.len() < num_bytes {
             let run_packet = self.r.read_u8()?;
@@ -247,15 +248,14 @@ impl<R: Read + Seek> TgaDecoder<R> {
             // of 0 would be pointless.
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
-                let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                let mut data = Vec::with_capacity(self.bytes_per_pixel);
+                let repeat_count = ((run_packet & !0x80) + 1) as usize * self.bytes_per_pixel;
                 self.r
                     .by_ref()
                     .take(self.bytes_per_pixel as u64)
-                    .read_to_end(&mut data)?;
-                for _ in 0usize..repeat_count {
-                    pixel_data.extend_from_slice(&data);
-                }
+                    .read_to_end(&mut pixel)?;
+                let data = pixel.iter().cycle().take(repeat_count);
+                pixel_data.extend(data);
+                pixel.clear();
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;

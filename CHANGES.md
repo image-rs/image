@@ -1,3 +1,7 @@
+## 0.17.1
+
+* Fix panic in adaptive filter method `sum_buffer`
+
 ## 0.17.0
 
 * Increased MSRV to 1.46.0

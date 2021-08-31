@@ -1,3 +1,7 @@
+## Unreleased
+
+* Added support for encoding and decoding tEXt/zTXt/iTXt chunks.
+
 ## 0.16.7
 
 * Added `Encoder::set_trns` to register a transparency table to be written.

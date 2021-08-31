@@ -382,14 +382,14 @@ impl<'a, W: Write> Encoder<'a, W> {
     }
 
     /// Convenience function to add tEXt chunks to [`Info`] struct
-    pub fn add_text_chunk(&mut self, keyword: &str, text: &str) -> Result<()> {
+    pub fn add_text_chunk(&mut self, keyword: String, text: String) -> Result<()> {
         let text_chunk = TEXtChunk::new(keyword, text);
         self.info.uncompressed_latin1_text.push(text_chunk);
         Ok(())
     }
 
     /// Convenience function to add zTXt chunks to [`Info`] struct
-    pub fn add_ztxt_chunk(&mut self, keyword: &str, text: &str) -> Result<()> {
+    pub fn add_ztxt_chunk(&mut self, keyword: String, text: String) -> Result<()> {
         let text_chunk = ZTXtChunk::new(keyword, text);
         self.info.compressed_latin1_text.push(text_chunk);
         Ok(())
@@ -399,7 +399,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// This function only sets the `keyword` and `text` field of the iTXt chunk.
     /// To set the other fields, create a [`ITXtChunk`] directly, and then encode it to the output stream.
-    pub fn add_itxt_chunk(&mut self, keyword: &str, text: &str) -> Result<()> {
+    pub fn add_itxt_chunk(&mut self, keyword: String, text: String) -> Result<()> {
         let text_chunk = ITXtChunk::new(keyword, text);
         self.info.utf8_text.push(text_chunk);
         Ok(())

@@ -301,8 +301,9 @@ pub(crate) fn filter(
 
 // Helper function for Adaptive filter buffer summation
 fn sum_buffer(buf: &[u8]) -> usize {
-    buf.iter()
-        .fold(0, |acc, &x| acc.saturating_add((x as i8).abs() as usize))
+    buf.iter().fold(0, |acc, &x| {
+        acc.saturating_add(i16::from(x as i8).abs() as usize)
+    })
 }
 
 #[cfg(test)]
@@ -394,5 +395,17 @@ mod test {
                 roundtrip(filter, bpp);
             }
         }
+    }
+
+    #[test]
+    // This tests that converting u8 to i8 doesn't overflow when taking the
+    // absolute value for adaptive filtering: -128_i8.abs() will panic in debug
+    // or produce garbage in release mode. The sum of 0..=255u8 should equal the
+    // sum of the absolute values of -128_i8..=127, or abs(-128..=0) + 1..=127.
+    fn sum_buffer_test() {
+        let sum = (0..=128).sum::<usize>() + (1..=127).sum::<usize>();
+        let buf: Vec<u8> = (0_u8..=255).collect();
+
+        assert_eq!(sum, crate::filter::sum_buffer(&buf));
     }
 }

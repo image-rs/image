@@ -2,6 +2,23 @@
 
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.
 
+## 0.17.1
+
+* Fix panic in adaptive filter method `sum_buffer`
+
+## 0.17.0
+
+* Increased MSRV to 1.46.0
+* Rework output info usage
+* Implement APNG encoding
+* Improve ergonomics of encoder set_palette and set_trns methods
+* Make Info struct non-exhaustive
+* Make encoder a core feature
+* Default Transformations to Identity
+* Add Adaptive filtering method for encoding
+* Fix SCREAM_CASE on ColorType variants
+* Forbid unsafe code
+
 ## 0.16.7
 
 * Added `Encoder::set_trns` to register a transparency table to be written.

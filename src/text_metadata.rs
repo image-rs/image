@@ -350,18 +350,6 @@ pub struct ITXtChunk {
     pub optionally_compressed_text: OptCompressed,
 }
 
-impl Default for ITXtChunk {
-    fn default() -> Self {
-        Self {
-            keyword: "Default keyword".to_string(),
-            compressed: false,
-            language_tag: String::default(),
-            translated_keyword: String::default(),
-            optionally_compressed_text: OptCompressed::Uncompressed(String::default()),
-        }
-    }
-}
-
 impl ITXtChunk {
     /// Constructs a new iTXt chunk. Leaves all but keyword and text to default values.
     pub fn new(keyword: impl Into<String>, text: impl Into<String>) -> Self {

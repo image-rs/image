@@ -142,8 +142,11 @@ pub struct TEXtChunk {
 impl TEXtChunk {
     /// Constructs a new TEXtChunk.
     /// Not sure whether it should take &str or String.
-    pub fn new(keyword: String, text: String) -> Self {
-        Self { keyword, text }
+    pub fn new(keyword: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            keyword: keyword.into(),
+            text: text.into(),
+        }
     }
 
     /// Decodes a slice of bytes to a String using Latin-1 decoding.
@@ -208,10 +211,10 @@ pub enum OptCompressed {
 
 impl ZTXtChunk {
     /// Creates a new ZTXt chunk.
-    pub fn new(keyword: String, text: String) -> Self {
+    pub fn new(keyword: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
-            keyword,
-            optionally_compressed_text: OptCompressed::Uncompressed(text),
+            keyword: keyword.into(),
+            optionally_compressed_text: OptCompressed::Uncompressed(text.into()),
         }
     }
 
@@ -361,11 +364,13 @@ impl Default for ITXtChunk {
 
 impl ITXtChunk {
     /// Constructs a new iTXt chunk. Leaves all but keyword and text to default values.
-    pub fn new(keyword: String, text: String) -> Self {
+    pub fn new(keyword: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
-            keyword,
-            optionally_compressed_text: OptCompressed::Uncompressed(text),
-            ..Default::default()
+            keyword: keyword.into(),
+            compressed: false,
+            language_tag: "".to_string(),
+            translated_keyword: "".to_string(),
+            optionally_compressed_text: OptCompressed::Uncompressed(text.into()),
         }
     }
 

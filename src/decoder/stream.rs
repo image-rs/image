@@ -1059,24 +1059,26 @@ impl StreamingDecoder {
         ))
     }
 
-    fn parse_text(&mut self) -> Result<Decoded, DecodingError> {
-        let buf = &self.current_chunk.raw_bytes[..];
-
-        let (null_byte_index, _) = buf
+    fn split_keyword(buf: &[u8]) -> Result<(&[u8], &[u8]), DecodingError> {
+        let null_byte_index = buf
             .iter()
-            .enumerate()
-            .find(|(_, &b)| b == 0)
+            .position(|&b| b == 0)
             .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
 
         if null_byte_index == 0 || null_byte_index > 79 {
             return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
         }
 
-        let keyword_slice = &buf[..null_byte_index];
-        let text_slice = &buf[null_byte_index + 1..];
+        Ok((&buf[..null_byte_index], &buf[null_byte_index + 1..]))
+    }
+
+    fn parse_text(&mut self) -> Result<Decoded, DecodingError> {
+        let buf = &self.current_chunk.raw_bytes[..];
+
+        let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
         self.info.as_mut().unwrap().uncompressed_latin1_text.push(
-            TEXtChunk::decode(keyword_slice, text_slice).map_err(|e| DecodingError::from(e))?,
+            TEXtChunk::decode(keyword_slice, value_slice).map_err(|e| DecodingError::from(e))?,
         );
 
         Ok(Decoded::Nothing)
@@ -1085,22 +1087,13 @@ impl StreamingDecoder {
     fn parse_ztxt(&mut self) -> Result<Decoded, DecodingError> {
         let buf = &self.current_chunk.raw_bytes[..];
 
-        let (null_byte_index, _) = buf
-            .iter()
-            .enumerate()
-            .find(|(_, &b)| b == 0)
-            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+        let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
-        if null_byte_index == 0 || null_byte_index > 79 {
-            return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
-        }
-
-        let compression_method = *buf.get(null_byte_index + 1).ok_or(DecodingError::from(
+        let compression_method = *value_slice.get(0).ok_or(DecodingError::from(
             TextDecodingError::InvalidCompressionMethod,
         ))?;
 
-        let keyword_slice = &buf[..null_byte_index];
-        let text_slice = &buf[null_byte_index + 2..];
+        let text_slice = &value_slice[1..];
 
         self.info.as_mut().unwrap().compressed_latin1_text.push(
             ZTXtChunk::decode(keyword_slice, compression_method, text_slice)
@@ -1113,49 +1106,32 @@ impl StreamingDecoder {
     fn parse_itxt(&mut self) -> Result<Decoded, DecodingError> {
         let buf = &self.current_chunk.raw_bytes[..];
 
-        let (first_null_byte_index, _) = buf
+        let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
+
+        let compression_flag = *value_slice.get(0).ok_or(DecodingError::from(
+            TextDecodingError::MissingCompressionFlag,
+        ))?;
+
+        let compression_method = *value_slice.get(1).ok_or(DecodingError::from(
+            TextDecodingError::InvalidCompressionMethod,
+        ))?;
+
+        let second_null_byte_index = value_slice[2..]
             .iter()
-            .enumerate()
-            .find(|(_, &b)| b == 0)
-            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
-
-        if first_null_byte_index == 0 || first_null_byte_index > 79 {
-            return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
-        }
-
-        let keyword_slice = &buf[..first_null_byte_index];
-
-        let compression_flag = *buf
-            .get(first_null_byte_index + 1)
-            .ok_or(DecodingError::from(
-                TextDecodingError::MissingCompressionFlag,
-            ))?;
-
-        let compression_method = *buf
-            .get(first_null_byte_index + 2)
-            .ok_or(DecodingError::from(
-                TextDecodingError::InvalidCompressionMethod,
-            ))?;
-
-        let second_null_byte_index = buf[first_null_byte_index + 3..]
-            .iter()
-            .enumerate()
-            .find(|(_, &b)| b == 0)
+            .position(|&b| b == 0)
             .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
-            .0
-            + (first_null_byte_index + 3);
+            + 2;
 
-        let language_tag_slice = &buf[first_null_byte_index + 3..second_null_byte_index];
+        let language_tag_slice = &value_slice[2..second_null_byte_index];
 
-        let third_null_byte_index = buf[second_null_byte_index + 1..]
+        let third_null_byte_index = value_slice[second_null_byte_index + 1..]
             .iter()
-            .enumerate()
-            .find(|(_, &b)| b == 0)
+            .position(|&b| b == 0)
             .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
-            .0
             + (second_null_byte_index + 1);
 
-        let translated_keyword_slice = &buf[second_null_byte_index + 1..third_null_byte_index];
+        let translated_keyword_slice =
+            &value_slice[second_null_byte_index + 1..third_null_byte_index];
 
         let text_slice = &buf[third_null_byte_index + 1..];
 

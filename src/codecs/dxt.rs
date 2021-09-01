@@ -525,16 +525,21 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
         *d = [s[0], s[1], s[2]];
     }
 
-    // and a set of colors to pick from.
-    let mut colorspace = targets.to_vec();
-
     // roundtrip all colors through the r5g6b5 encoding
-    for rgb in &mut colorspace {
+    for rgb in &mut targets {
         *rgb = enc565_decode(enc565_encode(*rgb));
     }
 
     // and deduplicate the set of colors to choose from as the algorithm is O(N^2) in this
-    colorspace.dedup();
+    let mut colorspace_ = [[0u8; 3]; 16];
+    let mut colorspace_len = 0;
+    for color in &targets {
+        if !colorspace_[..colorspace_len].contains(color) {
+            colorspace_[colorspace_len] = *color;
+            colorspace_len += 1;
+        }
+    }
+    let mut colorspace = &colorspace_[..colorspace_len];
 
     // in case of slight gradients it can happen that there's only one entry left in the color table.
     // as the resulting banding can be quite bad if we would just left the block at the closest
@@ -574,7 +579,8 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
 
         // we did find a separate value: add it to the options so after one round of quantization
         // we're done
-        colorspace.push(rgb);
+        colorspace_[1] = rgb;
+        colorspace = &colorspace_[..2];
     }
 
     // block quantization loop: we basically just try every possible combination, returning

@@ -66,18 +66,21 @@ impl<W: Write> TgaEncoder<W> {
         header.write_to(&mut self.writer)?;
 
         // Write out Bgr(a)8 or L(a)8 image data.
-        let mut image = Vec::from(buf);
-
         match color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
+                let mut image = Vec::from(buf);
+
                 for chunk in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
                     chunk.swap(0, 2);
                 }
+
+                self.writer.write_all(&image)?;
             }
-            _ => {}
+            _ => {
+                self.writer.write_all(buf)?;
+            }
         }
 
-        self.writer.write_all(&image)?;
         Ok(())
     }
 }

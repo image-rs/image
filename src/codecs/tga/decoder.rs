@@ -1,13 +1,16 @@
 use super::header::{Header, ImageType, ALPHA_BIT_MASK, SCREEN_ORIGIN_BIT_MASK};
 use crate::{
     color::{ColorType, ExtendedColorType},
-    error::{ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind},
+    error::{
+        ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
+    },
     image::{ImageDecoder, ImageFormat, ImageReadBuffer},
 };
 use byteorder::ReadBytesExt;
 use std::{
     convert::TryFrom,
     io::{self, Read, Seek},
+    mem
 };
 
 struct ColorMap {
@@ -155,11 +158,11 @@ impl<R: Read + Seek> TgaDecoder<R> {
             (0, 24, true) => self.color_type = ColorType::Rgb8,
             (8, 8, false) => self.color_type = ColorType::La8,
             (0, 8, false) => self.color_type = ColorType::L8,
-            (8, 0, false) => { 
+            (8, 0, false) => {
                 // alpha-only image is treated as L8
                 self.color_type = ColorType::L8;
                 self.original_color_type = Some(ExtendedColorType::A8);
-            },
+            }
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -216,14 +219,15 @@ impl<R: Read + Seek> TgaDecoder<R> {
             return Err(io::ErrorKind::Other.into());
         }
 
-        let color_map = self.color_map
+        let color_map = self
+            .color_map
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::Other))?;
 
         for chunk in pixel_data.chunks(self.bytes_per_pixel) {
             let index = bytes_to_index(chunk);
             if let Some(color) = color_map.get(index) {
-                result.extend(color.iter().cloned());
+                result.extend_from_slice(color);
             } else {
                 return Err(io::ErrorKind::Other.into());
             }
@@ -235,6 +239,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     /// Reads a run length encoded data for given number of bytes
     fn read_encoded_data(&mut self, num_bytes: usize) -> io::Result<Vec<u8>> {
         let mut pixel_data = Vec::with_capacity(num_bytes);
+        let mut repeat_buf = Vec::with_capacity(self.bytes_per_pixel);
 
         while pixel_data.len() < num_bytes {
             let run_packet = self.r.read_u8()?;
@@ -245,14 +250,15 @@ impl<R: Read + Seek> TgaDecoder<R> {
             if (run_packet & 0x80) != 0 {
                 // high bit set, so we will repeat the data
                 let repeat_count = ((run_packet & !0x80) + 1) as usize;
-                let mut data = Vec::with_capacity(self.bytes_per_pixel);
                 self.r
                     .by_ref()
                     .take(self.bytes_per_pixel as u64)
-                    .read_to_end(&mut data)?;
-                for _ in 0usize..repeat_count {
-                    pixel_data.extend(data.iter().cloned());
-                }
+                    .read_to_end(&mut repeat_buf)?;
+                
+                // get the repeating pixels from the bytes of the pixel stored in `repeat_buf`
+                let data = repeat_buf.iter().cycle().take(repeat_count * self.bytes_per_pixel);
+                pixel_data.extend(data);
+                repeat_buf.clear();
             } else {
                 // not set, so `run_packet+1` is the number of non-encoded pixels
                 let num_raw_bytes = (run_packet + 1) as usize * self.bytes_per_pixel;
@@ -286,10 +292,13 @@ impl<R: Read + Seek> TgaDecoder<R> {
         let remain_len = self.line_remain_buff.len();
 
         if remain_len >= line_num_bytes {
-            let remain_buf = self.line_remain_buff.clone();
+            // `Vec::split_to` if std had it
+            let bytes = {
+                let bytes_after = self.line_remain_buff.split_off(line_num_bytes);
+                mem::replace(&mut self.line_remain_buff, bytes_after)
+            };
 
-            self.line_remain_buff = remain_buf[line_num_bytes..].to_vec();
-            return Ok(remain_buf[0..line_num_bytes].to_vec());
+            return Ok(bytes);
         }
 
         let num_bytes = line_num_bytes - remain_len;
@@ -300,8 +309,11 @@ impl<R: Read + Seek> TgaDecoder<R> {
         pixel_data.append(&mut self.line_remain_buff);
         pixel_data.extend_from_slice(&line_data[..num_bytes]);
 
-        // put the remain data to line_remain_buff
-        self.line_remain_buff = line_data[num_bytes..].to_vec();
+        // put the remain data to line_remain_buff.
+        // expects `self.line_remain_buff` to be empty from
+        // the above `pixel_data.append` call
+        debug_assert!(self.line_remain_buff.is_empty());
+        self.line_remain_buff.extend_from_slice(&line_data[num_bytes..]);
 
         Ok(pixel_data)
     }
@@ -407,7 +419,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     }
 
     fn original_color_type(&self) -> ExtendedColorType {
-        self.original_color_type.unwrap_or_else(|| self.color_type().into())
+        self.original_color_type
+            .unwrap_or_else(|| self.color_type().into())
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -446,7 +459,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
                 &buf[..num_raw_bytes]
             } else {
                 fallback_buf.resize(num_raw_bytes, 0u8);
-                self.r.by_ref().read_exact(&mut fallback_buf[..num_raw_bytes])?;
+                self.r
+                    .by_ref()
+                    .read_exact(&mut fallback_buf[..num_raw_bytes])?;
                 &fallback_buf[..num_raw_bytes]
             }
         };
@@ -454,6 +469,12 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
         // expand the indices using the color map if necessary
         if self.image_type.is_color_mapped() {
             let pixel_data = self.expand_color_map(rawbuf)?;
+            // not enough data to fill the buffer, or would overflow the buffer
+            if pixel_data.len() != buf.len() {
+                return Err(ImageError::Limits(LimitError::from_kind(
+                    LimitErrorKind::DimensionError,
+                )));
+            }
             buf.copy_from_slice(&pixel_data);
         }
 

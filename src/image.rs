@@ -138,6 +138,35 @@ impl ImageFormat {
         inner(path.as_ref())
     }
 
+    /// Return the image format specified by a MIME type.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let format = ImageFormat::from_mime_type("image/png").unwrap();
+    /// assert_eq!(format, ImageFormat::Png);
+    /// ```
+    pub fn from_mime_type<M>(mime_type: M) -> Option<Self> where M : AsRef<str> {
+        match mime_type.as_ref() {
+            "image/avif" => Some(ImageFormat::Avif),
+            "image/jpeg" => Some(ImageFormat::Jpeg),
+            "image/png" => Some(ImageFormat::Png),
+            "image/gif" => Some(ImageFormat::Gif),
+            "image/webp" => Some(ImageFormat::WebP),
+            "image/tiff"  => Some(ImageFormat::Tiff),
+            "image/x-targa" | "image/x-tga" => Some(ImageFormat::Tga),
+            "image/vnd-ms.dds" => Some(ImageFormat::Dds),
+            "image/bmp" => Some(ImageFormat::Bmp),
+            "image/x-icon" => Some(ImageFormat::Ico),
+            "image/vnd.radiance" => Some(ImageFormat::Hdr),
+            "image/x-exr" => Some(ImageFormat::OpenExr),
+            "image/x-portable-bitmap" | "image/x-portable-graymap" | "image/x-portable-pixmap" | "image/x-portable-anymap" => Some(ImageFormat::Pnm),
+            _ => None
+        }
+    }
+
     /// Return if the ImageFormat can be decoded by the lib.
     #[inline]
     pub fn can_read(&self) -> bool {
@@ -367,11 +396,11 @@ impl ImageReadBuffer {
         // Finally, copy bytes into output buffer.
         let bytes_buffered = self.buffer.len() - self.consumed;
         if bytes_buffered > buf.len() {
-            crate::copy_memory(&self.buffer[self.consumed..][..buf.len()], &mut buf[..]);
+            buf.copy_from_slice(&self.buffer[self.consumed..][..buf.len()]);
             self.consumed += buf.len();
             Ok(buf.len())
         } else {
-            crate::copy_memory(&self.buffer[self.consumed..], &mut buf[..bytes_buffered]);
+            buf[..bytes_buffered].copy_from_slice(&self.buffer[self.consumed..][..bytes_buffered]);
             self.consumed = self.buffer.len();
             Ok(bytes_buffered)
         }
@@ -614,6 +643,7 @@ pub trait ImageDecoder<'a>: Sized {
     ///     decoder.read_image(buf.as_bytes());
     ///     buf
     /// }
+    /// ```
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_with_progress(buf, |_| {})
     }
@@ -648,6 +678,26 @@ pub trait ImageDecoder<'a>: Sized {
                 total: total_bytes as u64,
             });
         }
+
+        Ok(())
+    }
+
+    /// Set decoding limits for this decoder. See [`Limits`] for the different kinds of 
+    /// limits that is possible to set.
+    ///
+    /// Note to implementors: make sure you call [`Limits::check_support`] so that 
+    /// decoding fails if any unsupported strict limits are set. Also make sure
+    /// you call [`Limits::check_dimensions`] to check the `max_image_width` and
+    /// `max_image_height` limits.
+    ///
+    /// [`Limits`]: ./io/struct.Limits.html
+    /// [`Limits::check_support`]: ./io/struct.Limits.html#method.check_support
+    /// [`Limits::check_dimensions`]: ./io/struct.Limits.html#method.check_dimensions
+    fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
 
         Ok(())
     }

@@ -34,39 +34,67 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 #[allow(unused_variables)]
 // r is unused if no features are supported.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    load_inner(r, super::Limits::default(), format)
+}
+
+pub(crate) trait DecoderVisitor {
+    type Result;
+    fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result>;
+}
+
+pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(r: R, format: ImageFormat, visitor: V) -> ImageResult<V::Result> {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
         #[cfg(feature = "avif-decoder")]
-        image::ImageFormat::Avif => DynamicImage::from_decoder(avif::AvifDecoder::new(r)?),
+        image::ImageFormat::Avif => visitor.visit_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::new(r)?),
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
+        image::ImageFormat::Gif => visitor.visit_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
+        image::ImageFormat::Jpeg => visitor.visit_decoder(jpeg::JpegDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
+        image::ImageFormat::WebP => visitor.visit_decoder(webp::WebPDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
+        image::ImageFormat::Tiff => visitor.visit_decoder(tiff::TiffDecoder::new(r)?),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        image::ImageFormat::Tga => visitor.visit_decoder(tga::TgaDecoder::new(r)?),
         #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?),
+        image::ImageFormat::Dds => visitor.visit_decoder(dds::DdsDecoder::new(r)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
+        image::ImageFormat::Bmp => visitor.visit_decoder(bmp::BmpDecoder::new(r)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
+        image::ImageFormat::Ico => visitor.visit_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => visitor.visit_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
         #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => DynamicImage::from_decoder(openexr::OpenExrDecoder::new(r)?),
+        image::ImageFormat::OpenExr => visitor.visit_decoder(openexr::OpenExrDecoder::new(r)?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => visitor.visit_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
-        image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
+        image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
+}
+
+pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format: ImageFormat) -> ImageResult<DynamicImage> {
+    struct LoadVisitor(super::Limits);
+
+    impl DecoderVisitor for LoadVisitor {
+        type Result = DynamicImage;
+
+        fn visit_decoder<'a, D: ImageDecoder<'a>>(self, mut decoder: D) -> ImageResult<Self::Result> {
+            let mut limits = self.0;
+            // Check that we do not allocate a bigger buffer than we are allowed to
+            // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+            limits.reserve(decoder.total_bytes())?;
+            decoder.set_limits(limits)?;
+            DynamicImage::from_decoder(decoder)
+        }
+    }
+
+    load_decoder(r, format, LoadVisitor(limits))
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
@@ -83,40 +111,16 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
 pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
     -> ImageResult<(u32, u32)>
 {
-    #[allow(unreachable_patterns,unreachable_code)]
-    // Default is unreachable if all features are supported.
-    // Code after the match is unreachable if none are.
-    Ok(match format {
-        #[cfg(feature = "avif-decoder")]
-        image::ImageFormat::Avif => avif::AvifDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => dds::DdsDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
-        #[cfg(feature = "openexr")]
-        image::ImageFormat::OpenExr => openexr::OpenExrDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => {
-            pnm::PnmDecoder::new(fin)?.dimensions()
+        struct DimVisitor;
+
+        impl DecoderVisitor for DimVisitor {
+            type Result = (u32, u32);
+            fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result> {
+                Ok(decoder.dimensions())
+            }
         }
-        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
-    })
+
+        load_decoder(fin, format, DimVisitor)
 }
 
 #[allow(unused_variables)]

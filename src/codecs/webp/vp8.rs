@@ -2269,11 +2269,8 @@ fn predict_4x4(ws: &mut [u8], stride: usize, modes: &[IntraMode], resdata: &[i32
                 IntraMode::HU => predict_bhupred(ws, x0, y0, stride),
             }
 
-            // Create a [i32; 16] array for add_residue by copying the
-            // slice from resdata into rb (slices do not work).
-            let mut rb = [0i32; 16];
-            rb.copy_from_slice(&resdata[i * 16..i * 16 + 16]);
-            add_residue(ws, &rb, y0, x0, stride);
+            let rb: &[i32; 16] = resdata[i * 16..][..16].try_into().unwrap();
+            add_residue(ws, rb, y0, x0, stride);
         }
     }
 }

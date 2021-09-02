@@ -22,7 +22,7 @@
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -100,8 +100,6 @@ extern crate test;
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
-
-use std::io::Write;
 
 pub use crate::color::{ColorType, ExtendedColorType};
 
@@ -392,12 +390,3 @@ macro_rules! insert_as_doc {
 // Provides the README.md as doc, to ensure the example works!
 insert_as_doc!(include_str!("../README.md"));
 
-// Copies data from `src` to `dst`
-//
-// Panics if the length of `dst` is less than the length of `src`.
-#[inline]
-fn copy_memory(src: &[u8], mut dst: &mut [u8]) {
-    let len_src = src.len();
-    assert!(dst.len() >= len_src);
-    dst.write_all(src).unwrap();
-}

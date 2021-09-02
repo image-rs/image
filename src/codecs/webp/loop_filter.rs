@@ -1,3 +1,5 @@
+//! Does loop filtering on webp lossy images
+
 use crate::utils::clamp;
 
 #[inline]
@@ -33,6 +35,7 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
     let q0 = u2s(pixels[point]);
     let q1 = u2s(pixels[point + stride]);
 
+    //value for the outer 2 pixels
     let outer = if use_outer_taps {
         c(p1 - q1)
     } else {
@@ -52,12 +55,12 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
 }
 
 fn simple_threshold(filter_limit: i32, pixels: &[u8], point: usize, stride: usize) -> bool {
-   (i32::from(pixels[point - stride]) - i32::from(pixels[point])).abs() * 2 + 
-   (i32::from(pixels[point - 2 * stride]) - i32::from(pixels[point + stride])).abs() / 2 <= filter_limit
+   i32::from(diff(pixels[point - stride], pixels[point])) * 2 + 
+   i32::from(diff(pixels[point - 2 * stride], pixels[point + stride])) / 2 <= filter_limit
 }
 
 fn should_filter(interior_limit: u8, edge_limit: u8, pixels: &[u8], point: usize, stride: usize) -> bool {
-    simple_threshold(i32::from(edge_limit) * 2 + i32::from(interior_limit), pixels, point, stride) &&
+    simple_threshold(i32::from(edge_limit), pixels, point, stride) &&
     diff(pixels[point - 4 * stride], pixels[point - 3 * stride]) <= interior_limit && 
     diff(pixels[point - 3 * stride], pixels[point - 2 * stride]) <= interior_limit &&
     diff(pixels[point - 2 * stride], pixels[point - stride]) <= interior_limit &&
@@ -71,6 +74,15 @@ fn high_edge_variance(threshold: u8, pixels: &[u8], point: usize, stride: usize)
     diff(pixels[point + stride], pixels[point]) > threshold
 }
 
+//simple filter
+pub(crate) fn simple_segment(edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
+    if simple_threshold(i32::from(edge_limit), pixels, point, stride) {
+        common_adjust(true, pixels, point, stride);
+    }
+}
+
+//normal filter
+//works on the edges between subblocks inside a macroblock
 pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
     let mut spixels = [0i32; 8];
     for i in 0..8 {
@@ -89,6 +101,8 @@ pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit:
     }
 }
 
+//normal filter
+//works on the edges between macroblocks
 pub(crate) fn macroblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
 
     let mut spixels = [0i32; 8];
@@ -98,22 +112,23 @@ pub(crate) fn macroblock_filter(hev_threshold: u8, interior_limit: u8, edge_limi
 
     if should_filter(interior_limit, edge_limit, pixels, point, stride) {
         if !high_edge_variance(hev_threshold, pixels, point, stride) {
-            let w = c(c(spixels[2] - spixels[5]) + 3 * (spixels[3] - spixels[4]));
+            let w = c(c(spixels[2] - spixels[5]) + 3 * (spixels[4] - spixels[3]));
 
             let mut a = c((27 * w + 63) >> 7);
 
-            pixels[point - stride] = s2u(spixels[3] - a);
-            pixels[point] = s2u(spixels[4] + a);
+            pixels[point] = s2u(spixels[4] - a);
+            pixels[point - stride] = s2u(spixels[3] + a);
 
             a = c((18 * w + 63) >> 7);
 
-            pixels[point - 2 * stride] = s2u(spixels[2] - a);
-            pixels[point + stride] = s2u(spixels[5] + a);
+            pixels[point + stride] = s2u(spixels[5] - a);
+            pixels[point - 2 * stride] = s2u(spixels[2] + a);
 
             a = c((9 * w + 63) >> 7);
 
-            pixels[point - 3 * stride] = s2u(spixels[1] - a);
-            pixels[point + 2 * stride] = s2u(spixels[6] + a);
+            pixels[point + 2 * stride] = s2u(spixels[6] - a);
+            pixels[point - 3 * stride] = s2u(spixels[1] + a);
+            
         } else {
             common_adjust(true, pixels, point, stride);
         }

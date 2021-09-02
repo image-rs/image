@@ -869,7 +869,7 @@ pub struct Frame {
     pub pixel_type: u8,
 
     // Section 9.4 and 15
-    filter: u8,
+    filter_type: bool, //if true uses simple filter // if false uses normal filter
     filter_level: u8,
     sharpness_level: u8,
 }
@@ -1253,7 +1253,7 @@ impl<R: Read> Vp8Decoder<R> {
             self.read_segment_updates();
         }
 
-        self.frame.filter = self.b.read_literal(1);
+        self.frame.filter_type = self.b.read_flag();
         self.frame.filter_level = self.b.read_literal(6);
         self.frame.sharpness_level = self.b.read_literal(3);
 
@@ -1693,213 +1693,293 @@ impl<R: Read> Vp8Decoder<R> {
         blocks
     }
 
-    /// Does the loop filtering on the macroblock
-    fn loop_filter(&mut self, mbx: usize, mby: usize, mb: &MacroBlock) {
-        if self.frame.filter != 0 {
-            let segment = &self.segment[mb.segmentid as usize];
+    //Does simple loop filtering on the luma plane
+    fn loop_filter_simple(&mut self, mbx: usize, mby: usize, mb: &MacroBlock) {
+        let luma_w = self.frame.width as usize;
+        let luma_h = self.frame.height as usize;
 
-            if segment.loopfilter_level != 0 {
+        let (filter_level, interior_limit, _hev_threshold) = self.calculate_filter_parameters(mb);
 
-                let luma_w = self.frame.width as usize;
-                let luma_h = self.frame.height as usize;
-                let chroma_w = self.frame.chroma_width() as usize;
-                let chroma_h = self.frame.chroma_height() as usize;
+        if filter_level > 0 {
 
-                let (filter_level, interior_limit, hev_threshold) = self.calculate_filter_parameters(mb, segment);
+            let mbedge_limit = (filter_level + 2) * 2 + interior_limit;
+            let sub_bedge_limit = (filter_level * 2) + interior_limit;
 
-                let mbedge_limit = (filter_level + 2) * 2 + interior_limit;
-                let sub_bedge_limit = (filter_level * 2) + interior_limit;
+            let luma_ylength = cmp::min(luma_h - 16 * mby, 16);
+            let luma_xlength = cmp::min(luma_w - 16 * mbx, 16);
 
-                let luma_ylength = cmp::min(luma_h - 16 * mby, 16);
-                let luma_xlength = cmp::min(luma_w - 16 * mbx, 16);
+            if mbx > 0 {
+                if luma_xlength >= 2 {
+                    for y in 0usize..luma_ylength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16;
 
-                let chroma_ylength = cmp::min(chroma_h - 8 * mby, 8);
-                let chroma_xlength = cmp::min(chroma_w - 8 * mbx, 8);
-
-                //filter across left of macroblock
-                if mbx > 0 {
-                    if luma_xlength >= 4 {
-                        for y in 0usize..luma_ylength {
-                            let y0 = mby * 16 + y;
-                            let x0 = mbx * 16;
-
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
-                            );
-                        }
+                        loop_filter::simple_segment(
+                            mbedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            1
+                        );
                     }
+                }
+            }
 
-                    if chroma_xlength >= 4 {
-                        for y in 0usize..chroma_ylength {
-                            let y0 = mby * 8 + y;
-                            let x0 = mbx * 8;
+            //filter across vertical subblocks in macroblock
+            if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                for x in (4usize..luma_xlength-1).step_by(4) {
+                    for y in 0..luma_ylength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16 + x;
 
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ubuf[..], 
-                                y0 * chroma_w + x0, 
-                                1
-                            );
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.vbuf[..], 
-                                y0 * chroma_w + x0, 
-                                1
-                            );
-                        }
+                        loop_filter::simple_segment(
+                            sub_bedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            1
+                        );
+                    }
+                }
+            }
+
+            //filter across top of macroblock
+            if mby > 0 {
+                if luma_ylength >= 2 {
+                    for x in 0usize..luma_xlength {
+                        let y0 = mby * 16;
+                        let x0 = mbx * 16 + x;
+
+                        loop_filter::simple_segment(
+                            mbedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            luma_w
+                        );
+                    }
+                }
+            }
+
+            //filter across horizontal subblock edges within the macroblock
+            if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                for y in (4usize..luma_ylength-1).step_by(4) {
+                    for x in 0..luma_xlength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16 + x;
+
+                        loop_filter::simple_segment(
+                            sub_bedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            luma_w
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Does the normal loop filtering on the macroblock
+    fn loop_filter_normal(&mut self, mbx: usize, mby: usize, mb: &MacroBlock) {
+        let luma_w = self.frame.width as usize;
+        let luma_h = self.frame.height as usize;
+        let chroma_w = self.frame.chroma_width() as usize;
+        let chroma_h = self.frame.chroma_height() as usize;
+
+        let (filter_level, interior_limit, hev_threshold) = self.calculate_filter_parameters(mb);
+
+        if filter_level > 0 {
+
+            let mbedge_limit = (filter_level + 2) * 2 + interior_limit;
+            let sub_bedge_limit = (filter_level * 2) + interior_limit;
+
+            let luma_ylength = cmp::min(luma_h - 16 * mby, 16);
+            let luma_xlength = cmp::min(luma_w - 16 * mbx, 16);
+
+            let chroma_ylength = cmp::min(chroma_h - 8 * mby, 8);
+            let chroma_xlength = cmp::min(chroma_w - 8 * mbx, 8);
+
+            //filter across left of macroblock
+            if mbx > 0 {
+                if luma_xlength >= 4 {
+                    for y in 0usize..luma_ylength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16;
+
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            1
+                        );
                     }
                 }
 
-                //filter across vertical subblocks in macroblock
-                if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
-                    for x in (4usize..luma_xlength-3).step_by(4) {
-                        for y in 0..luma_ylength {
-                            let y0 = mby * 16 + y;
-                            let x0 = mbx * 16 + x;
+                if chroma_xlength >= 4 {
+                    for y in 0usize..chroma_ylength {
+                        let y0 = mby * 8 + y;
+                        let x0 = mbx * 8;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
-                            );
-                        }
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.ubuf[..], 
+                            y0 * chroma_w + x0, 
+                            1
+                        );
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.vbuf[..], 
+                            y0 * chroma_w + x0, 
+                            1
+                        );
                     }
+                }
+            }
 
-                    if chroma_xlength == 8 {
-                        for y in 0usize..chroma_ylength {
-                            let y0 = mby * 8 + y;
-                            let x0 = mbx * 8 + 4;
+            //filter across vertical subblocks in macroblock
+            if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                for x in (4usize..luma_xlength-3).step_by(4) {
+                    for y in 0..luma_ylength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16 + x;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold,
-                                interior_limit,
-                                sub_bedge_limit,
-                                &mut self.frame.ubuf[..],
-                                y0 * chroma_w + x0,
-                                1
-                            );
-
-                            loop_filter::subblock_filter(
-                                hev_threshold,
-                                interior_limit,
-                                sub_bedge_limit,
-                                &mut self.frame.vbuf[..],
-                                y0 * chroma_w + x0,
-                                1
-                            );
-                        }
-
+                        loop_filter::subblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            sub_bedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            1
+                        );
                     }
                 }
 
-                //filter across top of macroblock
-                if mby > 0 {
-                    //if bottom macroblock, can only filter if there is 3 pixels below
-                    if luma_ylength >= 4 {
-                        for x in 0usize..luma_xlength {
-                            let y0 = mby * 16;
-                            let x0 = mbx * 16 + x;
+                if chroma_xlength == 8 {
+                    for y in 0usize..chroma_ylength {
+                        let y0 = mby * 8 + y;
+                        let x0 = mbx * 8 + 4;
 
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
-                            );
-                        }
+                        loop_filter::subblock_filter(
+                            hev_threshold,
+                            interior_limit,
+                            sub_bedge_limit,
+                            &mut self.frame.ubuf[..],
+                            y0 * chroma_w + x0,
+                            1
+                        );
+
+                        loop_filter::subblock_filter(
+                            hev_threshold,
+                            interior_limit,
+                            sub_bedge_limit,
+                            &mut self.frame.vbuf[..],
+                            y0 * chroma_w + x0,
+                            1
+                        );
                     }
 
-                    if chroma_ylength >= 4 {
-                        for x in 0usize..chroma_xlength {
-                            let y0 = mby * 8;
-                            let x0 = mbx * 8 + x;
+                }
+            }
 
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ubuf[..], 
-                                y0 * chroma_w + x0, 
-                                chroma_w
-                            );
-                            loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.vbuf[..], 
-                                y0 * chroma_w + x0, 
-                                chroma_w
-                            );
-                        }
+            //filter across top of macroblock
+            if mby > 0 {
+                //if bottom macroblock, can only filter if there is 3 pixels below
+                if luma_ylength >= 4 {
+                    for x in 0usize..luma_xlength {
+                        let y0 = mby * 16;
+                        let x0 = mbx * 16 + x;
+
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            luma_w
+                        );
                     }
                 }
 
-                //filter across horizontal subblock edges within the macroblock
-                if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
-                    for y in (4usize..luma_ylength-3).step_by(4) {
-                        for x in 0..luma_xlength {
-                            let y0 = mby * 16 + y;
-                            let x0 = mbx * 16 + x;
+                if chroma_ylength >= 4 {
+                    for x in 0usize..chroma_xlength {
+                        let y0 = mby * 8;
+                        let x0 = mbx * 8 + x;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
-                            );
-                        }
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.ubuf[..], 
+                            y0 * chroma_w + x0, 
+                            chroma_w
+                        );
+                        loop_filter::macroblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            mbedge_limit, 
+                            &mut self.frame.vbuf[..], 
+                            y0 * chroma_w + x0, 
+                            chroma_w
+                        );
                     }
+                }
+            }
 
-                    if chroma_ylength == 8 {
-                        for x in 0..chroma_xlength {
-                            let y0 = mby * 8 + 4;
-                            let x0 = mbx * 8 + x;
+            //filter across horizontal subblock edges within the macroblock
+            if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
+                for y in (4usize..luma_ylength-3).step_by(4) {
+                    for x in 0..luma_xlength {
+                        let y0 = mby * 16 + y;
+                        let x0 = mbx * 16 + x;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold,
-                                interior_limit,
-                                sub_bedge_limit,
-                                &mut self.frame.ubuf[..],
-                                y0 * chroma_w + x0,
-                                chroma_w
-                            );
-
-                            loop_filter::subblock_filter(
-                                hev_threshold,
-                                interior_limit,
-                                sub_bedge_limit,
-                                &mut self.frame.vbuf[..],
-                                y0 * chroma_w + x0,
-                                chroma_w
-                            );
-                        }
+                        loop_filter::subblock_filter(
+                            hev_threshold, 
+                            interior_limit, 
+                            sub_bedge_limit, 
+                            &mut self.frame.ybuf[..], 
+                            y0 * luma_w + x0, 
+                            luma_w
+                        );
                     }
                 }
 
+                if chroma_ylength == 8 {
+                    for x in 0..chroma_xlength {
+                        let y0 = mby * 8 + 4;
+                        let x0 = mbx * 8 + x;
+
+                        loop_filter::subblock_filter(
+                            hev_threshold,
+                            interior_limit,
+                            sub_bedge_limit,
+                            &mut self.frame.ubuf[..],
+                            y0 * chroma_w + x0,
+                            chroma_w
+                        );
+
+                        loop_filter::subblock_filter(
+                            hev_threshold,
+                            interior_limit,
+                            sub_bedge_limit,
+                            &mut self.frame.vbuf[..],
+                            y0 * chroma_w + x0,
+                            chroma_w
+                        );
+                    }
+                }
             }
         }
     }
 
     //return values are the filter level, interior limit and hev threshold
-    fn calculate_filter_parameters(&self, macroblock: &MacroBlock, segment: &Segment)
+    fn calculate_filter_parameters(&self, macroblock: &MacroBlock)
         -> (u8, u8, u8) {
 
+        let segment = self.segment[macroblock.segmentid as usize];
         let mut filter_level = self.frame.filter_level as i32;
 
         if self.segments_enabled {
@@ -1994,7 +2074,11 @@ impl<R: Read> Vp8Decoder<R> {
         for mby in 0..self.mbheight as usize {
             for mbx in 0..self.mbwidth as usize {
                 let mb = self.macroblocks[mby * self.mbwidth as usize + mbx];
-                self.loop_filter(mbx, mby, &mb);
+                if self.frame.filter_type {
+                    self.loop_filter_simple(mbx, mby, &mb);
+                } else {
+                    self.loop_filter_normal(mbx, mby, &mb);
+                }
             }
         }
 

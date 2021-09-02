@@ -3,7 +3,7 @@
 //! This module contains a partial implementation of the
 //! VP8 video format as defined in RFC-6386.
 //!
-//! It decodes Keyframes only sans Loop Filtering.
+//! It decodes Keyframes only.
 //! VP8 is the underpinning of the WebP image format
 //!
 //! # Related Links

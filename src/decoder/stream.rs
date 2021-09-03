@@ -1104,6 +1104,68 @@ impl StreamingDecoder {
     }
 
     fn parse_itxt(&mut self) -> Result<Decoded, DecodingError> {
+        // let buf = &self.current_chunk.raw_bytes[..];
+
+        // let (first_null_byte_index, _) = buf
+        //     .iter()
+        //     .enumerate()
+        //     .find(|(_, &b)| b == 0)
+        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+
+        // if first_null_byte_index == 0 || first_null_byte_index > 79 {
+        //     return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
+        // }
+
+        // let keyword_slice = &buf[..first_null_byte_index];
+
+        // let compression_flag = *buf
+        //     .get(first_null_byte_index + 1)
+        //     .ok_or(DecodingError::from(
+        //         TextDecodingError::MissingCompressionFlag,
+        //     ))?;
+
+        // let compression_method = *buf
+        //     .get(first_null_byte_index + 2)
+        //     .ok_or(DecodingError::from(
+        //         TextDecodingError::InvalidCompressionMethod,
+        //     ))?;
+
+        // let second_null_byte_index = buf[first_null_byte_index + 3..]
+        //     .iter()
+        //     .enumerate()
+        //     .find(|(_, &b)| b == 0)
+        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+        //     .0
+        //     + (first_null_byte_index + 3);
+
+        // let language_tag_slice = &buf[first_null_byte_index + 3..second_null_byte_index];
+
+        // let third_null_byte_index = buf[second_null_byte_index + 1..]
+        //     .iter()
+        //     .enumerate()
+        //     .find(|(_, &b)| b == 0)
+        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+        //     .0
+        //     + (second_null_byte_index + 1);
+
+        // let translated_keyword_slice = &buf[second_null_byte_index + 1..third_null_byte_index];
+
+        // let text_slice = &buf[third_null_byte_index + 1..];
+
+        // self.info.as_mut().unwrap().utf8_text.push(
+        //     ITXtChunk::decode(
+        //         keyword_slice,
+        //         compression_flag,
+        //         compression_method,
+        //         language_tag_slice,
+        //         translated_keyword_slice,
+        //         text_slice,
+        //     )
+        //     .map_err(|e| DecodingError::from(e))?,
+        // );
+
+        // Ok(Decoded::Nothing)
+
         let buf = &self.current_chunk.raw_bytes[..];
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
@@ -1133,7 +1195,7 @@ impl StreamingDecoder {
         let translated_keyword_slice =
             &value_slice[second_null_byte_index + 1..third_null_byte_index];
 
-        let text_slice = &buf[third_null_byte_index + 1..];
+        let text_slice = &value_slice[third_null_byte_index + 1..];
 
         self.info.as_mut().unwrap().utf8_text.push(
             ITXtChunk::decode(

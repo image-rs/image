@@ -50,20 +50,20 @@
 //!  // Adding text chunks to the header
 //!  encoder
 //!     .add_text_chunk(
-//!         "Testing tEXt",
-//!         "This is a tEXt chunk that will appear before the IDAT chunks.",
+//!         "Testing tEXt".to_string(),
+//!         "This is a tEXt chunk that will appear before the IDAT chunks.".to_string(),
 //!     )
 //!     .unwrap();
 //!  encoder
 //!      .add_ztxt_chunk(
-//!          "Testing zTXt",
-//!          "This is a zTXt chunk that is compressed in the png file.",
+//!          "Testing zTXt".to_string(),
+//!          "This is a zTXt chunk that is compressed in the png file.".to_string(),
 //!      )
 //!      .unwrap();
 //!  encoder
 //!      .add_itxt_chunk(
-//!          "Testing iTXt",
-//!          "iTXt chunks support all of UTF8. Example: हिंदी.",
+//!          "Testing iTXt".to_string(),
+//!          "iTXt chunks support all of UTF8. Example: हिंदी.".to_string(),
 //!      )
 //!      .unwrap();
 //!
@@ -73,11 +73,11 @@
 //!  writer.write_image_data(&data).unwrap(); // Save
 //!
 //!  // We can add a tEXt/zTXt/iTXt at any point before the encoder is dropped from scope. These chunks will be at the end of the png file.
-//!  let tail_ztxt_chunk = ZTXtChunk::new("Comment", "A zTXt chunk after the image data.");
+//!  let tail_ztxt_chunk = ZTXtChunk::new("Comment".to_string(), "A zTXt chunk after the image data.".to_string());
 //!  writer.write_text_chunk(&tail_ztxt_chunk).unwrap();
 //!
 //!  // The fields of the text chunk are public, so they can be mutated before being written to the file.
-//!  let mut tail_itxt_chunk = ITXtChunk::new("Author", "सायंतन खान");
+//!  let mut tail_itxt_chunk = ITXtChunk::new("Author".to_string(), "सायंतन खान".to_string());
 //!  tail_itxt_chunk.compressed = true;
 //!  tail_itxt_chunk.language_tag = "hi".to_string();
 //!  tail_itxt_chunk.translated_keyword = "लेखक".to_string();
@@ -479,7 +479,7 @@ impl EncodableTextChunk for ITXtChunk {
 
         // Compression flag
         if self.compressed {
-            data.push(255);
+            data.push(1);
         } else {
             data.push(0);
         }

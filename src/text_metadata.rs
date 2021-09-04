@@ -25,7 +25,7 @@
 //!  // If the text chunk is before the image data frames, `reader.info()` already contains the text.
 //!  for text_chunk in &reader.info().compressed_latin1_text {
 //!      println!("{:?}", text_chunk.keyword); // Prints the keyword
-//!      println!("{:#?}", text_chunk.text); // Prints a Vec containg the compressed text
+//!      println!("{:#?}", text_chunk); // Prints out the text chunk.
 //!      // To get the uncompressed text, use the `get_text` method.
 //!      println!("{}", text_chunk.get_text().unwrap());
 //!  }
@@ -91,8 +91,11 @@ use deflate::write::ZlibEncoder;
 use deflate::Compression;
 use encoding::all::{ASCII, ISO_8859_1};
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
-use miniz_oxide::inflate::decompress_to_vec_zlib;
+use miniz_oxide::inflate::{decompress_to_vec_zlib, decompress_to_vec_zlib_with_limit};
 use std::io::Write;
+
+/// Default decompression limit for compressed text chunks.
+pub const DECOMPRESSION_LIMIT: usize = 2097152; // 2 MiB
 
 /// Text encoding errors that is wrapped by the standard EncodingError type
 #[derive(Debug, Clone, Copy)]
@@ -116,6 +119,8 @@ pub(crate) enum TextDecodingError {
     MissingNullSeparator,
     /// Compressed text cannot be uncompressed
     InflationError,
+    /// Needs more space to decompress
+    OutOfDecompressionSpace,
     /// Using an unspecified value for the compression method
     InvalidCompressionMethod,
     /// Using a byte that is not 0 or 255 as compression flag in iTXt chunk
@@ -197,13 +202,7 @@ pub struct ZTXtChunk {
     /// Keyword field of the tEXt chunk. Needs to be between 1-79 bytes when encoded as Latin-1.
     pub keyword: String,
     /// Text field of zTXt chunk. It is compressed by default, but can be uncompressed if necessary.
-    pub text: TextField,
-}
-
-/// Wrapper around a text field
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TextField {
-    inner: OptCompressed,
+    text: OptCompressed,
 }
 
 /// Private enum encoding the compressed and uncompressed states of zTXt/iTXt text field.
@@ -220,9 +219,7 @@ impl ZTXtChunk {
     pub fn new(keyword: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
             keyword: keyword.into(),
-            text: TextField {
-                inner: OptCompressed::Uncompressed(text.into()),
-            },
+            text: OptCompressed::Uncompressed(text.into()),
         }
     }
 
@@ -243,25 +240,35 @@ impl ZTXtChunk {
             keyword: ISO_8859_1
                 .decode(keyword_slice, DecoderTrap::Strict)
                 .map_err(|_| TextDecodingError::Unrepresentable)?,
-            text: TextField {
-                inner: OptCompressed::Compressed(text_slice.iter().cloned().collect()),
-            },
+            text: OptCompressed::Compressed(text_slice.iter().cloned().collect()),
         })
     }
 
-    /// Decompresses the inner text, mutating its own state.
+    /// Decompresses the inner text, mutating its own state. Can only handle decompressed text up to `DECOMPRESSION_LIMIT` bytes.
     pub fn decompress_text(&mut self) -> Result<(), DecodingError> {
-        match &self.text.inner {
+        self.decompress_text_with_limit(DECOMPRESSION_LIMIT)
+    }
+
+    /// Decompresses the inner text, mutating its own state. Can only handle decompressed text up to `limit` bytes.
+    pub fn decompress_text_with_limit(&mut self, limit: usize) -> Result<(), DecodingError> {
+        match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
-                    .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
-                self.text = TextField {
-                    inner: OptCompressed::Uncompressed(
-                        ISO_8859_1
-                            .decode(&uncompressed_raw, DecoderTrap::Strict)
-                            .map_err(|_| DecodingError::from(TextDecodingError::Unrepresentable))?,
-                    ),
-                }
+                let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
+                    Ok(s) => s,
+                    Err(miniz_oxide::inflate::TINFLStatus::HasMoreOutput) => {
+                        return Err(DecodingError::from(
+                            TextDecodingError::OutOfDecompressionSpace,
+                        ));
+                    }
+                    Err(_) => {
+                        return Err(DecodingError::from(TextDecodingError::InflationError));
+                    }
+                };
+                self.text = OptCompressed::Uncompressed(
+                    ISO_8859_1
+                        .decode(&uncompressed_raw, DecoderTrap::Strict)
+                        .map_err(|_| DecodingError::from(TextDecodingError::Unrepresentable))?,
+                );
             }
             OptCompressed::Uncompressed(_) => {}
         };
@@ -269,8 +276,9 @@ impl ZTXtChunk {
     }
 
     /// Decompresses the inner text, and returns it as a `String`.
+    /// If decompression uses more the 2MiB, first call decompress with limit, and then this method.
     pub fn get_text(&self) -> Result<String, DecodingError> {
-        match &self.text.inner {
+        match &self.text {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = decompress_to_vec_zlib(&v[..])
                     .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
@@ -284,7 +292,7 @@ impl ZTXtChunk {
 
     /// Compresses the inner text, mutating its own state.
     pub fn compress_text(&mut self) -> Result<(), EncodingError> {
-        match &self.text.inner {
+        match &self.text {
             OptCompressed::Uncompressed(s) => {
                 let uncompressed_raw = ISO_8859_1
                     .encode(s, EncoderTrap::Strict)
@@ -293,12 +301,11 @@ impl ZTXtChunk {
                 encoder
                     .write_all(&uncompressed_raw)
                     .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
-                self.text =
-                    TextField {
-                        inner: OptCompressed::Compressed(encoder.finish().map_err(|_| {
-                            EncodingError::from(TextEncodingError::CompressionError)
-                        })?),
-                    }
+                self.text = OptCompressed::Compressed(
+                    encoder
+                        .finish()
+                        .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?,
+                );
             }
             OptCompressed::Compressed(_) => {}
         }
@@ -323,7 +330,7 @@ impl EncodableTextChunk for ZTXtChunk {
         // Compression method: the only valid value is 0, as of 2021.
         data.push(0);
 
-        match &self.text.inner {
+        match &self.text {
             OptCompressed::Compressed(v) => {
                 data.extend_from_slice(&v[..]);
             }
@@ -358,7 +365,7 @@ pub struct ITXtChunk {
     /// Translated keyword. This is UTF-8 encoded.
     pub translated_keyword: String,
     /// Text field of iTXt chunk. It is compressed by default, but can be uncompressed if necessary.
-    pub text: TextField,
+    text: OptCompressed,
 }
 
 impl ITXtChunk {
@@ -369,9 +376,7 @@ impl ITXtChunk {
             compressed: false,
             language_tag: "".to_string(),
             translated_keyword: "".to_string(),
-            text: TextField {
-                inner: OptCompressed::Uncompressed(text.into()),
-            },
+            text: OptCompressed::Uncompressed(text.into()),
         }
     }
 
@@ -408,16 +413,12 @@ impl ITXtChunk {
             .map_err(|_| TextDecodingError::Unrepresentable)?
             .to_string();
         let text = if compressed {
-            TextField {
-                inner: OptCompressed::Compressed(text_slice.iter().cloned().collect()),
-            }
+            OptCompressed::Compressed(text_slice.iter().cloned().collect())
         } else {
-            TextField {
-                inner: OptCompressed::Uncompressed(
-                    String::from_utf8(text_slice.iter().cloned().collect())
-                        .map_err(|_| TextDecodingError::Unrepresentable)?,
-                ),
-            }
+            OptCompressed::Uncompressed(
+                String::from_utf8(text_slice.iter().cloned().collect())
+                    .map_err(|_| TextDecodingError::Unrepresentable)?,
+            )
         };
 
         Ok(Self {
@@ -429,18 +430,30 @@ impl ITXtChunk {
         })
     }
 
-    /// Decompresses the inner text, mutating its own state.
+    /// Decompresses the inner text, mutating its own state. Can only handle decompressed text up to `DECOMPRESSION_LIMIT` bytes.
     pub fn decompress_text(&mut self) -> Result<(), DecodingError> {
-        match &self.text.inner {
+        self.decompress_text_with_limit(DECOMPRESSION_LIMIT)
+    }
+
+    /// Decompresses the inner text, mutating its own state. Can only handle decompressed text up to `limit` bytes.
+    pub fn decompress_text_with_limit(&mut self, limit: usize) -> Result<(), DecodingError> {
+        match &self.text {
             OptCompressed::Compressed(v) => {
-                let uncompressed_raw = decompress_to_vec_zlib(&v[..])
-                    .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
-                self.text = TextField {
-                    inner: OptCompressed::Uncompressed(
-                        String::from_utf8(uncompressed_raw)
-                            .map_err(|_| TextDecodingError::Unrepresentable)?,
-                    ),
-                }
+                let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
+                    Ok(s) => s,
+                    Err(miniz_oxide::inflate::TINFLStatus::HasMoreOutput) => {
+                        return Err(DecodingError::from(
+                            TextDecodingError::OutOfDecompressionSpace,
+                        ));
+                    }
+                    Err(_) => {
+                        return Err(DecodingError::from(TextDecodingError::InflationError));
+                    }
+                };
+                self.text = OptCompressed::Uncompressed(
+                    String::from_utf8(uncompressed_raw)
+                        .map_err(|_| TextDecodingError::Unrepresentable)?,
+                );
             }
             OptCompressed::Uncompressed(_) => {}
         };
@@ -448,8 +461,9 @@ impl ITXtChunk {
     }
 
     /// Decompresses the inner text, and returns it as a `String`.
+    /// If decompression takes more than 2 MiB, try `decompress_text_with_limit` followed by this method.
     pub fn get_text(&self) -> Result<String, DecodingError> {
-        match &self.text.inner {
+        match &self.text {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = decompress_to_vec_zlib(&v[..])
                     .map_err(|_| DecodingError::from(TextDecodingError::InflationError))?;
@@ -462,19 +476,18 @@ impl ITXtChunk {
 
     /// Compresses the inner text, mutating its own state.
     pub fn compress_text(&mut self) -> Result<(), EncodingError> {
-        match &self.text.inner {
+        match &self.text {
             OptCompressed::Uncompressed(s) => {
                 let uncompressed_raw = s.as_bytes();
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::Fast);
                 encoder
                     .write_all(&uncompressed_raw)
                     .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
-                self.text =
-                    TextField {
-                        inner: OptCompressed::Compressed(encoder.finish().map_err(|_| {
-                            EncodingError::from(TextEncodingError::CompressionError)
-                        })?),
-                    }
+                self.text = OptCompressed::Compressed(
+                    encoder
+                        .finish()
+                        .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?,
+                );
             }
             OptCompressed::Compressed(_) => {}
         }
@@ -523,7 +536,7 @@ impl EncodableTextChunk for ITXtChunk {
 
         // Text
         if self.compressed {
-            match &self.text.inner {
+            match &self.text {
                 OptCompressed::Compressed(v) => {
                     data.extend_from_slice(&v[..]);
                 }
@@ -539,7 +552,7 @@ impl EncodableTextChunk for ITXtChunk {
                 }
             }
         } else {
-            match &self.text.inner {
+            match &self.text {
                 OptCompressed::Compressed(v) => {
                     let uncompressed_raw = decompress_to_vec_zlib(&v[..])
                         .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;

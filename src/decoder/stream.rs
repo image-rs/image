@@ -307,6 +307,9 @@ impl fmt::Display for FormatError {
                     TextDecodingError::InflationError => {
                         write!(fmt, "Invalid compressed text data.")
                     }
+                    TextDecodingError::OutOfDecompressionSpace => {
+                        write!(fmt, "Out of decompression space. Try with a larger limit.")
+                    }
                     TextDecodingError::InvalidCompressionMethod => {
                         write!(fmt, "Using an unrecognized byte as compression method.")
                     }

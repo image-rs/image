@@ -75,6 +75,7 @@ fn high_edge_variance(threshold: u8, pixels: &[u8], point: usize, stride: usize)
 }
 
 //simple filter
+//effects 4 pixels on an edge(2 each side)
 pub(crate) fn simple_segment(edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
     if simple_threshold(i32::from(edge_limit), pixels, point, stride) {
         common_adjust(true, pixels, point, stride);
@@ -82,27 +83,22 @@ pub(crate) fn simple_segment(edge_limit: u8, pixels: &mut [u8], point: usize, st
 }
 
 //normal filter
-//works on the edges between subblocks inside a macroblock
+//works on the 8 pixels on the edges between subblocks inside a macroblock
 pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
-    let mut spixels = [0i32; 8];
-    for i in 0..8 {
-        spixels[i] = u2s(pixels[point + i * stride - 4 * stride]);
-    }
-
     if should_filter(interior_limit, edge_limit, pixels, point, stride) {
         let hv = high_edge_variance(hev_threshold, pixels, point, stride);
 
         let a = (common_adjust(hv, pixels, point, stride) + 1) >> 1;
 
         if !hv {
-            pixels[point + stride] = s2u(spixels[5] - a);
-            pixels[point - 2 * stride] = s2u(spixels[2] - a);
+            pixels[point + stride] = s2u(u2s(pixels[5]) - a);
+            pixels[point - 2 * stride] = s2u(u2s(pixels[2]) - a);
         }
     }
 }
 
 //normal filter
-//works on the edges between macroblocks
+//works on the 8 pixels on the edges between macroblocks
 pub(crate) fn macroblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
 
     let mut spixels = [0i32; 8];

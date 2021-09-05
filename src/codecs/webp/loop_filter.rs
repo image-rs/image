@@ -91,8 +91,8 @@ pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit:
         let a = (common_adjust(hv, pixels, point, stride) + 1) >> 1;
 
         if !hv {
-            pixels[point + stride] = s2u(u2s(pixels[5]) - a);
-            pixels[point - 2 * stride] = s2u(u2s(pixels[2]) - a);
+            pixels[point + stride] = s2u(u2s(pixels[point + stride]) - a);
+            pixels[point - 2 * stride] = s2u(u2s(pixels[point - 2 * stride]) - a);
         }
     }
 }

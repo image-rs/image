@@ -837,34 +837,34 @@ struct MacroBlock {
 
 /// A Representation of the last decoded video frame
 #[derive(Default, Debug, Clone)]
-pub struct Frame {
+struct Frame {
     /// The width of the luma plane
-    pub width: u16,
+    width: u16,
 
     /// The height of the luma plane
-    pub height: u16,
+    height: u16,
 
     /// The luma plane of the frame
-    pub ybuf: Vec<u8>,
+    ybuf: Vec<u8>,
 
     /// The blue plane of the frame
-    pub ubuf: Vec<u8>,
+    ubuf: Vec<u8>,
 
     /// The red plane of the frame
-    pub vbuf: Vec<u8>,
+    vbuf: Vec<u8>,
 
     /// Indicates whether this frame is a keyframe
-    pub keyframe: bool,
+    keyframe: bool,
 
     version: u8,
 
     /// Indicates whether this frame is intended for display
-    pub for_display: bool,
+    for_display: bool,
 
     // Section 9.2
     /// The pixel type of the frame as defined by Section 9.2
     /// of the VP8 Specification
-    pub pixel_type: u8,
+    pixel_type: u8,
 
     // Section 9.4 and 15
     filter: u8,
@@ -882,9 +882,8 @@ impl Frame {
         (self.height + 1) / 2
     }
 
-    /// Fills an rgb buffer with the converted values from the 4:2:0 YUV planes
     /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
-    pub fn fill_rgb(&self, buf: &mut [u8]) {
+    fn fill_rgb(&self, buf: &mut [u8]) {
         for index in 0..self.ybuf.len() {
             let y = index / self.width as usize;
             let x = index % self.width as usize;
@@ -959,6 +958,22 @@ pub struct Vp8Decoder<R> {
 }
 
 impl<R: Read> Vp8Decoder<R> {
+    
+    /// Get dimensions of image
+    pub fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.frame.width), u32::from(self.frame.height))
+    }
+
+    /// Fills an rgb buffer with the converted values from the 4:2:0 YUV planes
+    pub fn fill_rgb(&self, buf: &mut [u8]) {
+        self.frame.fill_rgb(buf);
+    }
+
+    /// Gets the buffer size 
+    pub fn get_buf_size(&self) -> usize {
+        self.frame.ybuf.len() * 3
+    }
+
     /// Create a new decoder.
     /// The reader must present a raw vp8 bitstream to the decoder
     pub fn new(r: R) -> Vp8Decoder<R> {
@@ -1684,7 +1699,7 @@ impl<R: Read> Vp8Decoder<R> {
     }
 
     /// Decodes the current frame and returns a reference to it
-    pub fn decode_frame(&mut self) -> ImageResult<&Frame> {
+    pub fn decode_frame(&mut self) -> ImageResult<()> {
         self.read_frame_header()?;
 
         for mby in 0..self.mbheight as usize {
@@ -1716,7 +1731,7 @@ impl<R: Read> Vp8Decoder<R> {
             self.left_border = vec![129u8; 1 + 16];
         }
 
-        Ok(&self.frame)
+        Ok(())
     }
 }
 

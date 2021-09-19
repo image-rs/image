@@ -367,7 +367,7 @@ pub struct StreamingDecoder {
     /// The inflater state handling consecutive `IDAT` and `fdAT` chunks.
     inflater: ZlibStream,
     /// The complete image info read from all prior chunks.
-    pub info: Option<Info<'static>>,
+    pub(crate) info: Option<Info<'static>>,
     /// The animation chunk sequence number.
     current_seq_no: Option<u32>,
     /// Stores where in decoding an `fdAT` chunk we are.
@@ -417,6 +417,11 @@ impl StreamingDecoder {
         self.current_seq_no = None;
         self.apng_seq_handled = false;
         self.have_idat = false;
+    }
+
+    /// Provides access to the inner `info` field
+    pub fn info(&self) -> Option<&Info<'static>> {
+        self.info.as_ref()
     }
 
     /// Low level StreamingDecoder interface.

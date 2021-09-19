@@ -336,19 +336,19 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     }
     if c.text {
         println!("Parsed tEXt chunks:");
-        for text_chunk in &decoder.info.as_ref().unwrap().uncompressed_latin1_text {
+        for text_chunk in &decoder.info().unwrap().uncompressed_latin1_text {
             println!("{:#?}", text_chunk);
         }
 
         println!("Parsed zTXt chunks:");
-        for text_chunk in &decoder.info.as_ref().unwrap().compressed_latin1_text {
+        for text_chunk in &decoder.info().unwrap().compressed_latin1_text {
             let mut cloned_text_chunk = text_chunk.clone();
             cloned_text_chunk.decompress_text()?;
             println!("{:#?}", cloned_text_chunk);
         }
 
         println!("Parsed iTXt chunks:");
-        for text_chunk in &decoder.info.as_ref().unwrap().utf8_text {
+        for text_chunk in &decoder.info().unwrap().utf8_text {
             let mut cloned_text_chunk = text_chunk.clone();
             cloned_text_chunk.decompress_text()?;
             println!("{:#?}", cloned_text_chunk);

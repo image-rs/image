@@ -87,6 +87,10 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
+    pub(crate) fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.frame.width), u32::from(self.frame.height))
+    }
+
     /// Reads the frame
     pub(crate) fn decode_frame(&mut self) -> ImageResult<()> {
         let len = self.r.read_u32::<LittleEndian>()?;
@@ -103,7 +107,7 @@ impl<R: Read> LosslessDecoder<R> {
         self.frame.width = self.bit_reader.read_bits::<u16>(14)+1;
         self.frame.height = self.bit_reader.read_bits::<u16>(14)+1;
 
-        let _alpha_used = self.bit_reader.read_bits::<u8>(1);
+        let alpha_used = self.bit_reader.read_bits::<u8>(1);
 
         let version_num = self.bit_reader.read_bits::<u8>(3);
 
@@ -111,14 +115,15 @@ impl<R: Read> LosslessDecoder<R> {
             return Err(DecoderError::VersionNumberInvalid(version_num).into());
         }
 
-        self.read_transforms()?;
-        self.read_image_data()?;
+        
+        //self.read_transforms()?;
+        //self.read_image_data()?;
 
         Ok(())
     }
 
     fn read_transforms(&mut self) -> ImageResult<()> {
-        while self.bit_reader.read_bits::<u8>(1) != 0 {
+        while self.bit_reader.read_bits::<u8>(1) == 1 {
             let transform_type_val = self.bit_reader.read_bits::<u8>(2);
             
             let transform_type = match transform_type_val {
@@ -161,10 +166,52 @@ impl<R: Read> LosslessDecoder<R> {
 
         Ok(())
     }
+
+    fn read_blocks(&mut self) -> ImageResult<()> {
+
+        Ok(())
+    }
+
+    fn read_color_cache_info(&mut self) -> ImageResult<()> {
+        let value = self.bit_reader.read_bits::<u8>(1) == 1;
+        if value {
+
+        }
+        Ok(())
+    }
+
+    fn decode_meta_huffman(&mut self) -> u16 {
+        let multiple_meta_codes = self.bit_reader.read_bits::<u8>(1) == 1;
+
+        self.bit_reader.read_bits::<u16>(3) + 2
+    }
+
+    fn read_huffman_codes(&mut self) -> ImageResult<()> {
+        
+        //let num_huff_groups = 
+
+
+        Ok(())
+    }
+
+    fn decode_huffman(&mut self) -> ImageResult<()> {
+
+        let huffman_bits = self.decode_meta_huffman();
+        let huffman_xsize = DIV_ROUND_UP(self.frame.width, 1 << huffman_bits);
+
+        for y in 0..self.frame.height {
+            for x in 0..self.frame.width {
+
+                let position = (y >> huffman_bits) * huffman_xsize + (x >> huffman_bits);
+                //let meta_huff_code = ()
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
-struct BitReader {
+pub(crate) struct BitReader {
     buf: Vec<u8>,
     index: usize,
     bit_count: u8,
@@ -175,7 +222,7 @@ impl BitReader {
         BitReader {
             buf: Vec::new(),
             index: 0,
-            bit_count: 7,
+            bit_count: 0,
         }
     }
 
@@ -183,7 +230,7 @@ impl BitReader {
         self.buf = buf;
     }
 
-    fn read_bits<T>(&mut self, num: u8) -> T 
+    pub(crate) fn read_bits<T>(&mut self, num: u8) -> T 
         where T: num_traits::Unsigned + Shl<u8, Output = T> +
             AddAssign<T> + From<bool> {
         let mut value: T = T::zero();
@@ -191,17 +238,22 @@ impl BitReader {
         for i in 0..num {
             let bit_true = self.buf[self.index] & (1 << self.bit_count) != 0;
             value += T::from(bit_true) << i;
-            self.bit_count = if self.bit_count == 0 {
+            self.bit_count = if self.bit_count == 7 {
                 self.index += 1;
-                7
+                0
             } else {
-                self.bit_count - 1
+                self.bit_count + 1
             };
         }
 
         value
 
     }
+}
+
+#[inline]
+fn DIV_ROUND_UP(num: u16, den: u16) -> u16 {
+    (num + den - 1) / den 
 }
 
 #[derive(Debug, Clone, Default)]
@@ -226,10 +278,10 @@ mod test {
 
         bit_reader.init(buf);
 
-        assert_eq!(bit_reader.read_bits::<u8>(3), 1); //100
+        assert_eq!(bit_reader.read_bits::<u8>(3), 4); //100
         assert_eq!(bit_reader.read_bits::<u8>(2), 3); //11
-        assert_eq!(bit_reader.read_bits::<u8>(6), 17); //100010
-        assert_eq!(bit_reader.read_bits::<u16>(10), 240); //0000111100
-        assert_eq!(bit_reader.read_bits::<u8>(3), 4); //001
+        assert_eq!(bit_reader.read_bits::<u8>(6), 12); //001100
+        assert_eq!(bit_reader.read_bits::<u16>(10), 40); //0000101000
+        assert_eq!(bit_reader.read_bits::<u8>(3), 7); //111
     }
 }

@@ -165,7 +165,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
             InnerDecoder::Lossy(ref vp8_decoder) => vp8_decoder.dimensions(),
-            InnerDecoder::Lossless(ref lossless_decoder) => todo!(),
+            InnerDecoder::Lossless(ref lossless_decoder) => lossless_decoder.dimensions(),
         }
     }
 

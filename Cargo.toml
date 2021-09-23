@@ -16,7 +16,8 @@ exclude = [
     "tests/*",
 ]
 include = [
-    "tests/reference_images.rs"
+    "tests/reference_images.rs",
+    "benches"
 ]
 
 

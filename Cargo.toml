@@ -13,11 +13,9 @@ categories = ["multimedia::images", "multimedia::encoding"]
 exclude = [
     "src/png/testdata/*",
     "examples/*",
-    "tests/*",
-]
-include = [
-    "tests/reference_images.rs",
-    "benches"
+    "tests/output",
+    "tests/images",
+    "tests/reference",
 ]
 
 

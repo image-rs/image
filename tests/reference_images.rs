@@ -11,7 +11,7 @@ use std::u32;
 
 use crc32fast::Hasher as Crc32;
 
-const BASE_PATH: [&str; 2] = [".", "tests"];
+const BASE_PATH: [&str; 1] = ["tests"];
 const IMAGE_DIR: &str = "images";
 const OUTPUT_DIR: &str = "output";
 const REFERENCE_DIR: &str = "reference";
@@ -20,7 +20,9 @@ fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where
     F: Fn(&Path, PathBuf, &str),
 {
-    let base: PathBuf = BASE_PATH.iter().collect();
+    let mut base: PathBuf = BASE_PATH.iter().collect();
+    base.push(dir);
+
     let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
 
     let mut xsetup = xtest_data::setup!();
@@ -29,7 +31,6 @@ where
         .iter()
         .map(|decoder| {
             let mut base = base.to_owned();
-            base.push(dir);
             base.push(decoder);
             xsetup.tree(&base)
         })
@@ -47,7 +48,10 @@ where
             },
         );
         let pattern = &*format!("{}", path.display());
-        let base = xdata.tree(&xbase);
+        let base = xdata
+            .tree(&xbase)
+            .parent()
+            .unwrap();
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
             func(&base, path, decoder)
         }

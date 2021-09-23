@@ -15,6 +15,10 @@ exclude = [
     "examples/*",
     "tests/*",
 ]
+include = [
+    "tests/reference_images.rs"
+]
+
 
 [lib]
 name = "image"

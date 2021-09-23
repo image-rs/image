@@ -21,16 +21,19 @@ where
     F: Fn(&Path, PathBuf, &str),
 {
     let mut base: PathBuf = BASE_PATH.iter().collect();
-    base.push(dir);
-
     let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
 
     let mut xsetup = xtest_data::setup!();
-    let xbase = xsetup.tree(&base);
+    // Ensure those are always available.
+    let _ = xsetup.tree(&base.join(IMAGE_DIR));
+    let _ = xsetup.tree(&base.join(REFERENCE_DIR));
+
+    let xbase = xsetup.tree(&base.join(dir));
     let trees = decoders
         .iter()
         .map(|decoder| {
             let mut base = base.to_owned();
+            base.push(dir);
             base.push(decoder);
             xsetup.tree(&base)
         })

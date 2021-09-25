@@ -339,10 +339,7 @@ fn to_image_err(exr_error: Error) -> ImageError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::path::PathBuf;
-
-    const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
-
+    use crate::codecs::test_images;
 
 
     /// Write an `Rgb32FImage`.
@@ -411,9 +408,9 @@ mod test {
 
         #[cfg(feature = "hdr")]
         {
-            let folder = BASE_PATH.iter().collect::<PathBuf>();
-            let reference_path = folder.clone().join("overexposed gradient.hdr");
-            let exr_path = folder.clone().join("overexposed gradient - data window equals display window.exr");
+            let folder = test_images("exr");
+            let reference_path = folder.join("overexposed gradient.hdr");
+            let exr_path = folder.join("overexposed gradient - data window equals display window.exr");
 
             let hdr: Vec<Rgb<f32>> = crate::codecs::hdr::HdrDecoder::new(
                 std::io::BufReader::new(std::fs::File::open(&reference_path).unwrap())
@@ -466,7 +463,7 @@ mod test {
 
     #[test]
     fn compare_rgba_rgb() {
-        let exr_path = BASE_PATH.iter().collect::<PathBuf>()
+        let exr_path = test_images("exr")
             .join("overexposed gradient - data window equals display window.exr");
 
         let rgb: Rgb32FImage = read_as_rgb_image_from_file(&exr_path).unwrap();
@@ -490,9 +487,9 @@ mod test {
         // in this test we want to make sure that an
         // auto-cropped image will be reproduced to the original.
 
-        let exr_path = BASE_PATH.iter().collect::<PathBuf>();
-        let original = exr_path.clone().join("cropping - uncropped original.exr");
-        let cropped = exr_path.clone().join("cropping - data window differs display window.exr");
+        let exr_path = test_images("exr");
+        let original = exr_path.join("cropping - uncropped original.exr");
+        let cropped = exr_path.join("cropping - data window differs display window.exr");
 
         // smoke-check that the exr files are actually not the same
         {

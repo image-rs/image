@@ -20,7 +20,7 @@ fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where
     F: Fn(&Path, PathBuf, &str),
 {
-    let mut base: PathBuf = BASE_PATH.iter().collect();
+    let base: PathBuf = BASE_PATH.iter().collect();
     let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
 
     let mut xsetup = xtest_data::setup!();

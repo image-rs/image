@@ -649,12 +649,14 @@ impl Default for FilterType {
 #[cfg(test)]
 mod tests {
     use crate::image::ImageDecoder;
+    use crate::codecs::test_images;
     use std::io::Read;
     use super::*;
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
-        let dec = PngDecoder::new(std::fs::File::open("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap())
+        let bugfixes = test_images("png/bugfixes");
+        let dec = PngDecoder::new(std::fs::File::open(bugfixes.join("debug_triangle_corners_widescreen.png")).unwrap())
             .expect("Unable to read PNG file (does it exist?)");
 
         assert_eq![(2000, 1000), dec.dimensions()];
@@ -678,8 +680,8 @@ mod tests {
     #[test]
     fn underlying_error() {
         use std::error::Error;
-
-        let mut not_png = std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png").unwrap();
+        let bugfixes = test_images("png/bugfixes");
+        let mut not_png = std::fs::read(bugfixes.join("debug_triangle_corners_widescreen.png")).unwrap();
         not_png[0] = 0;
 
         let error = PngDecoder::new(&not_png[..]).err().unwrap();

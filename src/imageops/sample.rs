@@ -856,15 +856,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, FilterType};
-    use crate::{ImageBuffer, RgbImage};
+    use crate::{ImageBuffer, RgbImage, codecs::test_images};
     #[cfg(feature = "benchmarks")]
     use test;
 
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
-        use std::path::Path;
-        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        use std::path::PathBuf;
+        use xtest_data::{setup, FsItem};
+        let mut img = PathBuf::from("examples/fractal.png");
+        setup!().fiter([FsItem::File(&mut img)]).build();
+        let img = crate::open(img).unwrap();
         b.iter(|| {
             test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });
@@ -880,7 +883,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let testsuite = test_images("tiff/testsuite");
+        let path = testsuite.join("mandrill.tiff");
         let image = crate::open(path).unwrap();
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
@@ -891,7 +895,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let testsuite = test_images("tiff/testsuite");
+        let path = testsuite.join("mandrill.tiff");
         let image = crate::open(path).unwrap().thumbnail(256, 256);
         b.iter(|| {
             test::black_box(image.thumbnail(512, 512));
@@ -902,7 +907,8 @@ mod tests {
     #[bench]
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_thumbnail_upsize_irregular(b: &mut test::Bencher) {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/tiff/testsuite/mandrill.tiff");
+        let testsuite = test_images("tiff/testsuite");
+        let path = testsuite.join("mandrill.tiff");
         let image = crate::open(path).unwrap().thumbnail(193, 193);
         b.iter(|| {
             test::black_box(image.thumbnail(256, 256));
@@ -929,11 +935,8 @@ mod tests {
             }
         }
 
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/images/png/transparency/tp1n3p08.png"
-        );
-        let img = crate::open(path).unwrap();
+        let images = test_images("png/transparency");
+        let img = crate::open(images.join("tp1n3p08.png")).unwrap();
         let rgba8 = img.as_rgba8().unwrap();
         let filters = &[Nearest, Triangle, CatmullRom, Gaussian, Lanczos3];
         for filter in filters {

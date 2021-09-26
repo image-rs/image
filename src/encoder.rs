@@ -529,7 +529,18 @@ impl<W: Write> Writer<W> {
         Ok(self)
     }
 
+    /// Write a raw chunk of PNG data.
+    ///
+    /// The chunk will have its CRC calculated and correctly. The data is not filtered in any way,
+    /// but the chunk needs to be short enough to have its length encoded correctly.
     pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {
+        use std::convert::TryFrom;
+
+        if u32::try_from(data.len()).map_or(false, |length| length > i32::MAX as u32) {
+            let kind = FormatErrorKind::WrittenTooMuch(data.len() - i32::MAX as usize);
+            return Err(EncodingError::Format(kind.into()));
+        }
+
         write_chunk(&mut self.w, name, data)
     }
 

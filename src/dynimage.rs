@@ -1392,6 +1392,8 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use crate::codecs::test_images;
+
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
@@ -1400,16 +1402,16 @@ mod test {
     #[cfg(feature = "jpeg")]
     #[test]
     fn image_dimensions() {
-        let im_path = "./tests/images/jpg/progressive/cat.jpg";
-        let dims = super::image_dimensions(im_path).unwrap();
+        let im_path = test_images("jpg/progressive");
+        let dims = super::image_dimensions(im_path.join("cat.jpg")).unwrap();
         assert_eq!(dims, (320, 240));
     }
 
     #[cfg(feature = "png")]
     #[test]
     fn open_16bpc_png() {
-        let im_path = "./tests/images/png/16bpc/basn6a16.png";
-        let image = super::open(im_path).unwrap();
+        let im_path = test_images("png/16bpc");
+        let image = super::open(im_path.join("basn6a16.png")).unwrap();
         assert_eq!(image.color(), super::color::ColorType::Rgba16);
     }
 }

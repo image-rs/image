@@ -250,6 +250,18 @@ pub mod codecs {
     pub mod webp;
     #[cfg(feature = "openexr")]
     pub mod openexr;
+
+    #[cfg(test)]
+    pub(crate) fn test_images(kind: &str)
+        -> impl std::ops::Deref<Target=std::path::Path>
+    {
+        const BASE_PATH: &[&str] = &["tests", "images"];
+        let mut path = BASE_PATH.iter().collect::<std::path::PathBuf>();
+        path = path.join(kind);
+        xtest_data::setup!().rewrite([&mut path]).build();
+        path
+    }
+
 }
 
 #[cfg(feature = "avif-encoder")]

@@ -1,12 +1,13 @@
 //! Test saving "default" and specific quality jpeg.
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
-extern crate image;
-
+use std::path::PathBuf;
 use image::{ImageOutputFormat, ImageFormat};
 
 #[test]
 fn jqeg_qualitys() {
-    let img = image::open("tests/images/tiff/testsuite/mandrill.tiff").unwrap();
+    let mut path = PathBuf::from("tests/images/tiff/testsuite/mandrill.tiff");
+    xtest_data::setup!().rewrite([&mut path]).build();
+    let img = image::open(path).unwrap();
 
     let mut default = vec![];
     img.write_to(&mut default, ImageFormat::Jpeg).unwrap();

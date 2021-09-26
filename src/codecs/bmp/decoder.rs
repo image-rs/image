@@ -1478,6 +1478,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for BmpDecoder<R> {
 
 #[cfg(test)]
 mod test {
+    use crate::codecs::test_images;
     use super::*;
 
     #[test]
@@ -1497,7 +1498,8 @@ mod test {
 
     #[test]
     fn read_rect() {
-        let f = std::fs::File::open("tests/images/bmp/images/Core_8_Bit.bmp").unwrap();
+        let images = test_images("bmp/images");
+        let f = std::fs::File::open(images.join("Core_8_Bit.bmp")).unwrap();
         let mut decoder = super::BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];

@@ -6,26 +6,43 @@ extern crate image;
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::u32;
 
 use crc32fast::Hasher as Crc32;
 
-const BASE_PATH: [&str; 2] = [".", "tests"];
+const BASE_PATH: [&str; 1] = ["tests"];
 const IMAGE_DIR: &str = "images";
 const OUTPUT_DIR: &str = "output";
 const REFERENCE_DIR: &str = "reference";
 
 fn process_images<F>(dir: &str, input_decoder: Option<&str>, func: F)
 where
-    F: Fn(&PathBuf, PathBuf, &str),
+    F: Fn(&Path, PathBuf, &str),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
     let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp"];
-    for decoder in decoders {
-        let mut path = base.clone();
-        path.push(dir);
-        path.push(decoder);
+
+    let mut xsetup = xtest_data::setup!();
+    // Ensure those are always available.
+    let _ = xsetup.add(&base.join(IMAGE_DIR));
+    let _ = xsetup.add(&base.join(REFERENCE_DIR));
+
+    let xbase = xsetup.add(&base.join(dir));
+    let trees = decoders
+        .iter()
+        .map(|decoder| {
+            let mut base = base.to_owned();
+            base.push(dir);
+            base.push(decoder);
+            xsetup.add(&base)
+        })
+        .collect::<Vec<_>>();
+    let xdata = xsetup.build();
+
+    for (decoder, base) in decoders.iter().zip(trees) {
+        let decoder_base = xdata.path(&base);
+        let mut path = decoder_base.to_owned();
         path.push("**");
         path.push(
             "*.".to_string() + match input_decoder {
@@ -34,6 +51,10 @@ where
             },
         );
         let pattern = &*format!("{}", path.display());
+        let base = xdata
+            .path(&xbase)
+            .parent()
+            .unwrap();
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
             func(&base, path, decoder)
         }
@@ -63,7 +84,7 @@ fn render_images() {
             let mut path: Vec<_> = path.components().collect();
             (path.pop().unwrap(), path.pop().unwrap())
         };
-        let mut out_path = base.clone();
+        let mut out_path = base.to_owned();
 
         out_path.push(OUTPUT_DIR);
         out_path.push(decoder);
@@ -173,7 +194,7 @@ fn check_references() {
         let filename_str = filename.as_os_str().to_str().unwrap();
         let case: ReferenceTestCase = filename_str.parse().unwrap();
 
-        let mut img_path = base.clone();
+        let mut img_path = base.to_owned();
         img_path.push(IMAGE_DIR);
         img_path.push(decoder);
         img_path.push(testsuite.as_os_str());

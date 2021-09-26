@@ -138,7 +138,13 @@ impl From<TextEncodingError> for EncodingError {
     }
 }
 
-/// PNG Encoder
+/// PNG Encoder.
+///
+/// This configures the PNG format options such as animation chunks, palette use, color types,
+/// auxiliary chunks etc.
+///
+/// FIXME: Configuring APNG might be easier (less individual errors) if we had an _adapter_ which
+/// borrows this mutably but guarantees that `info.frame_control` is not `None`.
 pub struct Encoder<'a, W: Write> {
     w: W,
     info: Info<'a>,
@@ -162,24 +168,31 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// `num_frames` controls how many frames the animation has, while
     /// `num_plays` controls how many times the animation should be
-    /// repeaded until it stops, if it's zero then it will repeat
-    /// inifinitely
+    /// repeated until it stops, if it's zero then it will repeat
+    /// infinitely.
+    ///
+    /// When this method is returns successfully then the images written will be encoded as fdAT
+    /// chunks, except for the first image that is still encoded as `IDAT`. You can control if the
+    /// first frame should be treated as an animation frame with [`set_sep_def_img()`].
     ///
     /// This method returns an error if `num_frames` is 0.
     pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) -> Result<()> {
         if num_frames == 0 {
             return Err(EncodingError::Format(FormatErrorKind::ZeroFrames.into()));
         }
+
         let actl = AnimationControl {
             num_frames,
             num_plays,
         };
+
         let fctl = FrameControl {
             sequence_number: 0,
             width: self.info.width,
             height: self.info.height,
             ..Default::default()
         };
+
         self.info.animation_control = Some(actl);
         self.info.frame_control = Some(fctl);
         Ok(())
@@ -228,6 +241,9 @@ impl<'a, W: Write> Encoder<'a, W> {
         self.info.srgb = Some(rendering_intent);
     }
 
+    /// Start encoding by writing the header data.
+    ///
+    /// The remaining data can be supplied by methods on the returned [`Writer`].
     pub fn write_header(self) -> Result<Writer<W>> {
         Writer::new(
             self.w,
@@ -407,6 +423,13 @@ impl<'a, W: Write> Encoder<'a, W> {
 }
 
 /// PNG writer
+///
+/// Progresses through the image by writing images, frames, or raw individual chunks. This is
+/// constructed through [`Encoder::write_header()`].
+///
+/// FIXME: Writing of animated chunks might be clearer if we had an _adapter_ that you would call
+/// to guarantee the next image to be prefaced with a fcTL-chunk, and all other chunks would be
+/// guaranteed to be `IDAT`/not affected by APNG's frame control.
 pub struct Writer<W: Write> {
     w: W,
     info: PartialInfo,
@@ -414,6 +437,7 @@ pub struct Writer<W: Write> {
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
     written: u64,
+    animation_written: u32,
 }
 
 /// Contains the subset of attributes of [Info] needed for [Writer] to function
@@ -500,6 +524,7 @@ impl<W: Write> Writer<W> {
             adaptive_filter,
             sep_def_img,
             written: 0,
+            animation_written: 0,
         }
     }
 
@@ -556,18 +581,14 @@ impl<W: Write> Writer<W> {
         }
     }
 
-    /// Writes the image data.
-    pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
-        const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
-        #[allow(non_upper_case_globals)]
-        const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
+    const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+    #[allow(non_upper_case_globals)]
+    const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
 
+    /// Writes the next image data.
+    pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
         if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
-        }
-
-        if self.written > self.max_frames() {
-            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
         }
 
         let width: usize;
@@ -603,6 +624,7 @@ impl<W: Write> Writer<W> {
         let bpp = self.info.bpp_in_prediction();
         let filter_method = self.filter;
         let adaptive_method = self.adaptive_filter;
+
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
             let filter_type = filter(filter_method, adaptive_method, bpp, &prev, &mut current);
@@ -611,33 +633,51 @@ impl<W: Write> Writer<W> {
             prev = line;
         }
         let zlib_encoded = zlib.finish()?;
-        if self.sep_def_img || self.info.frame_control.is_none() {
-            self.sep_def_img = false;
-            for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
-                self.write_chunk(chunk::IDAT, &chunk)?;
-            }
-        } else if let Some(ref mut fctl) = self.info.frame_control {
-            fctl.encode(&mut self.w)?;
-            fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
 
-            if self.written == 0 {
-                for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
-                    self.write_chunk(chunk::IDAT, &chunk)?;
-                }
-            } else {
-                let buff_size = zlib_encoded.len().min(MAX_fdAT_CHUNK_LEN as usize);
-                let mut alldata = vec![0u8; 4 + buff_size];
-                for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
-                    alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
-                    alldata[4..][..chunk.len()].copy_from_slice(chunk);
-                    write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
-                    fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+        match self.info.frame_control {
+            None => {
+                self.write_zlib_encoded_idat(&zlib_encoded)?;
+            }
+            Some(_) if self.sep_def_img => {
+                self.sep_def_img = false;
+                self.write_zlib_encoded_idat(&zlib_encoded)?;
+            }
+            Some(ref mut fctl) => {
+                fctl.encode(&mut self.w)?;
+                fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+                self.animation_written += 1;
+
+                // If the default image is the first frame of an animation, it's still an IDAT.
+                if self.written == 0 {
+                    self.write_zlib_encoded_idat(&zlib_encoded)?;
+                } else {
+                    let buff_size = zlib_encoded.len().min(Self::MAX_fdAT_CHUNK_LEN as usize);
+                    let mut alldata = vec![0u8; 4 + buff_size];
+                    for chunk in zlib_encoded.chunks(Self::MAX_fdAT_CHUNK_LEN as usize) {
+                        alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                        alldata[4..][..chunk.len()].copy_from_slice(chunk);
+                        write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
+                        fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+                    }
                 }
             }
-        } else {
-            unreachable!(); // this should be unreachable
         }
+
         self.written += 1;
+        if let Some(actl) = self.info.animation_control {
+            if actl.num_frames <= self.animation_written {
+                // If we've written all animation frames, all following will be normal image chunks.
+                self.info.frame_control = None;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
+        for chunk in zlib_encoded.chunks(Self::MAX_IDAT_CHUNK_LEN as usize) {
+            self.write_chunk(chunk::IDAT, &chunk)?;
+        }
         Ok(())
     }
 
@@ -1115,8 +1155,6 @@ pub struct StreamWriter<'a, W: Write> {
     line_len: usize,
     /// size of the frame (width * height * sample_size)
     to_write: usize,
-    /// Flag used to signal the end of the image
-    end: bool,
 
     width: u32,
     height: u32,
@@ -1130,10 +1168,6 @@ pub struct StreamWriter<'a, W: Write> {
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> Result<StreamWriter<'a, W>> {
-        if writer.max_frames() < writer.written {
-            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
-        }
-
         let PartialInfo {
             width,
             height,
@@ -1159,7 +1193,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             index: 0,
             prev_buf,
             curr_buf,
-            end: false,
             bpp,
             filter,
             width,
@@ -1352,13 +1385,11 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     }
 
     pub fn finish(mut self) -> Result<()> {
-        if !self.end {
-            let err = FormatErrorKind::MissingFrames.into();
-            return Err(EncodingError::Format(err));
-        } else if self.to_write > 0 {
+        if self.to_write > 0 {
             let err = FormatErrorKind::MissingData(self.to_write).into();
             return Err(EncodingError::Format(err));
         }
+
         // TODO: call `writer.finish` somehow?
         self.flush()?;
         Ok(())
@@ -1381,7 +1412,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         self.to_write = size;
         wrt.writer.written += 1;
         wrt.write_header()?;
-        self.end = wrt.writer.written + 1 == wrt.writer.max_frames();
 
         // now it can be taken because the next statements cannot cause any errors
         let wrt = match self.writer.take() {
@@ -1405,10 +1435,6 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
         }
 
         if self.to_write == 0 {
-            if self.end {
-                let err = FormatErrorKind::EndReached.into();
-                return Err(EncodingError::Format(err).into());
-            }
             match self.writer.take() {
                 Wrapper::Zlib(wrt) => match wrt.finish() {
                     Ok(chunk) => self.writer = Wrapper::Chunk(chunk),
@@ -1422,6 +1448,7 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             };
             self.new_frame()?;
         }
+
         let written = data.read(&mut self.curr_buf[..self.line_len][self.index..])?;
         self.index += written;
         self.to_write -= written;
@@ -1875,6 +1902,32 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn write_image_chunks_beyond_first() -> Result<()> {
+        use std::io::Cursor;
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        // Not an animation but we should still be able to write multiple images
+        // See issue: <https://github.com/image-rs/image-png/issues/301>
+        // This is technically all valid png so there is no issue with correctness.
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        for _ in 0..3 {
+            let correct_image_size = (width * height) as usize;
+            let image = vec![0u8; correct_image_size];
+            png_writer.write_image_data(image.as_ref())?;
+        }
+
+        Ok(())
+    }
+
     /// A Writer that only writes a few bytes at a time
     struct RandomChunkWriter<R: Rng, W: Write> {
         rng: R,
@@ -1899,7 +1952,7 @@ mod tests {
 ///
 /// Since this only contains trait impls, there is no need to make this public, they are simply
 /// available when the mod is compiled as well.
-impl crate::common::Compression {
+impl Compression {
     fn to_options(self) -> deflate::CompressionOptions {
         match self {
             Compression::Default => deflate::CompressionOptions::default(),

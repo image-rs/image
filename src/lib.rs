@@ -258,9 +258,7 @@ pub mod codecs {
         const BASE_PATH: &[&str] = &["tests", "images"];
         let mut path = BASE_PATH.iter().collect::<std::path::PathBuf>();
         path = path.join(kind);
-        xtest_data::setup!()
-            .filter([xtest_data::FsItem::Tree(&mut path)])
-            .build();
+        xtest_data::setup!().rewrite([&mut path]).build();
         path
     }
 

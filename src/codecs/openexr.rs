@@ -341,7 +341,6 @@ mod test {
     use super::*;
     use crate::codecs::test_images;
 
-
     /// Write an `Rgb32FImage`.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.

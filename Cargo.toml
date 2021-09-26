@@ -48,7 +48,7 @@ num-complex = "0.3"
 glob = "0.3"
 quickcheck = "0.9"
 criterion = "0.3"
-xtest-data = "0.0.2"
+xtest-data = "0.0.3"
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0

@@ -25,23 +25,23 @@ where
 
     let mut xsetup = xtest_data::setup!();
     // Ensure those are always available.
-    let _ = xsetup.tree(&base.join(IMAGE_DIR));
-    let _ = xsetup.tree(&base.join(REFERENCE_DIR));
+    let _ = xsetup.add(&base.join(IMAGE_DIR));
+    let _ = xsetup.add(&base.join(REFERENCE_DIR));
 
-    let xbase = xsetup.tree(&base.join(dir));
+    let xbase = xsetup.add(&base.join(dir));
     let trees = decoders
         .iter()
         .map(|decoder| {
             let mut base = base.to_owned();
             base.push(dir);
             base.push(decoder);
-            xsetup.tree(&base)
+            xsetup.add(&base)
         })
         .collect::<Vec<_>>();
     let xdata = xsetup.build();
 
     for (decoder, base) in decoders.iter().zip(trees) {
-        let decoder_base = xdata.tree(&base);
+        let decoder_base = xdata.path(&base);
         let mut path = decoder_base.to_owned();
         path.push("**");
         path.push(
@@ -52,7 +52,7 @@ where
         );
         let pattern = &*format!("{}", path.display());
         let base = xdata
-            .tree(&xbase)
+            .path(&xbase)
             .parent()
             .unwrap();
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {

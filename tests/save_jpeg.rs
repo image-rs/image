@@ -2,12 +2,11 @@
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
 use std::path::PathBuf;
 use image::{ImageOutputFormat, ImageFormat};
-use xtest_data::{setup, FsItem};
 
 #[test]
 fn jqeg_qualitys() {
     let mut path = PathBuf::from("tests/images/tiff/testsuite/mandrill.tiff");
-    setup!().filter([FsItem::File(&mut path)]).build();
+    xtest_data::setup!().rewrite([&mut path]).build();
     let img = image::open(path).unwrap();
 
     let mut default = vec![];

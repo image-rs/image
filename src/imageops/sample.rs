@@ -864,9 +864,8 @@ mod tests {
     #[cfg(all(feature = "benchmarks", feature = "png"))]
     fn bench_resize(b: &mut test::Bencher) {
         use std::path::PathBuf;
-        use xtest_data::{setup, FsItem};
         let mut img = PathBuf::from("examples/fractal.png");
-        setup!().fiter([FsItem::File(&mut img)]).build();
+        xtest_data::setup!().rewrite([&mut img]).build();
         let img = crate::open(img).unwrap();
         b.iter(|| {
             test::black_box(resize(&img, 200, 200, FilterType::Nearest));

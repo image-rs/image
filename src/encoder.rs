@@ -12,6 +12,9 @@ use crate::common::{
     FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
+use crate::text_metadata::{
+    EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk,
+};
 use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
@@ -44,6 +47,7 @@ enum FormatErrorKind {
     MissingFrames,
     MissingData(usize),
     Unrecoverable,
+    BadTextEncoding(TextEncodingError),
 }
 
 impl error::Error for EncodingError {
@@ -93,6 +97,16 @@ impl fmt::Display for FormatError {
                 fmt,
                 "a previous error put the writer into an unrecoverable state"
             ),
+            BadTextEncoding(tee) => match tee {
+                TextEncodingError::Unrepresentable => write!(
+                    fmt,
+                    "The text metadata cannot be encoded into valid ISO 8859-1"
+                ),
+                TextEncodingError::InvalidKeywordSize => write!(fmt, "Invalid keyword size"),
+                TextEncodingError::CompressionError => {
+                    write!(fmt, "Unable to compress text metadata")
+                }
+            },
         }
     }
 }
@@ -113,6 +127,14 @@ impl From<EncodingError> for io::Error {
 impl From<FormatErrorKind> for FormatError {
     fn from(kind: FormatErrorKind) -> Self {
         FormatError { inner: kind }
+    }
+}
+
+impl From<TextEncodingError> for EncodingError {
+    fn from(tee: TextEncodingError) -> Self {
+        EncodingError::Format(FormatError {
+            inner: FormatErrorKind::BadTextEncoding(tee),
+        })
     }
 }
 
@@ -358,6 +380,30 @@ impl<'a, W: Write> Encoder<'a, W> {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
+
+    /// Convenience function to add tEXt chunks to [`Info`] struct
+    pub fn add_text_chunk(&mut self, keyword: String, text: String) -> Result<()> {
+        let text_chunk = TEXtChunk::new(keyword, text);
+        self.info.uncompressed_latin1_text.push(text_chunk);
+        Ok(())
+    }
+
+    /// Convenience function to add zTXt chunks to [`Info`] struct
+    pub fn add_ztxt_chunk(&mut self, keyword: String, text: String) -> Result<()> {
+        let text_chunk = ZTXtChunk::new(keyword, text);
+        self.info.compressed_latin1_text.push(text_chunk);
+        Ok(())
+    }
+
+    /// Convenience function to add iTXt chunks to [`Info`] struct
+    ///
+    /// This function only sets the `keyword` and `text` field of the iTXt chunk.
+    /// To set the other fields, create a [`ITXtChunk`] directly, and then encode it to the output stream.
+    pub fn add_itxt_chunk(&mut self, keyword: String, text: String) -> Result<()> {
+        let text_chunk = ITXtChunk::new(keyword, text);
+        self.info.utf8_text.push(text_chunk);
+        Ok(())
+    }
 }
 
 /// PNG writer
@@ -485,6 +531,10 @@ impl<W: Write> Writer<W> {
 
     pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {
         write_chunk(&mut self.w, name, data)
+    }
+
+    pub fn write_text_chunk<T: EncodableTextChunk>(&mut self, text_chunk: &T) -> Result<()> {
+        text_chunk.encode(&mut self.w)
     }
 
     fn max_frames(&self) -> u64 {

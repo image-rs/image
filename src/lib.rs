@@ -71,6 +71,7 @@ mod decoder;
 mod encoder;
 mod filter;
 mod srgb;
+pub mod text_metadata;
 mod traits;
 mod utils;
 

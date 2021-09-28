@@ -148,9 +148,26 @@ impl From<TextEncodingError> for EncodingError {
 pub struct Encoder<'a, W: Write> {
     w: W,
     info: Info<'a>,
+    options: Options,
+}
+
+/// Decoding options, internal type, forwarded to the Writer.
+struct Options {
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
+    validate_sequence: bool,
+}
+
+impl Default for Options {
+    fn default() -> Options {
+        Options {
+            filter: FilterType::default(),
+            adaptive_filter: AdaptiveFilterType::default(),
+            sep_def_img: false,
+            validate_sequence: false,
+        }
+    }
 }
 
 impl<'a, W: Write> Encoder<'a, W> {
@@ -158,9 +175,7 @@ impl<'a, W: Write> Encoder<'a, W> {
         Encoder {
             w,
             info: Info::with_size(width, height),
-            filter: FilterType::default(),
-            adaptive_filter: AdaptiveFilterType::default(),
-            sep_def_img: false,
+            options: Options::default(),
         }
     }
 
@@ -198,9 +213,18 @@ impl<'a, W: Write> Encoder<'a, W> {
         Ok(())
     }
 
+    /// Mark the first animated frame as a 'separate default image'.
+    ///
+    /// In APNG each animated frame is preceded by a special control chunk, `fcTL`. It's up to the
+    /// encoder to decide if the first image, the standard `IDAT` data, should be part of the
+    /// animation by emitting this chunk or by not doing so. A default image that is _not_ part of
+    /// the animation is often interpreted as a thumbnail.
+    ///
+    /// This method will return an error when animation control was not configured
+    /// (which is doing by calling [`set_animated`]).
     pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
         if self.info.animation_control.is_none() {
-            self.sep_def_img = sep_def_img;
+            self.options.sep_def_img = sep_def_img;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
@@ -245,14 +269,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// The remaining data can be supplied by methods on the returned [`Writer`].
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(
-            self.w,
-            PartialInfo::new(&self.info),
-            self.filter,
-            self.adaptive_filter,
-            self.sep_def_img,
-        )
-        .init(&self.info)
+        Writer::new(self.w, PartialInfo::new(&self.info), self.options).init(&self.info)
     }
 
     /// Set the color of the encoded image.
@@ -286,7 +303,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
-        self.filter = filter;
+        self.options.filter = filter;
     }
 
     /// Set the adaptive filter type.
@@ -298,7 +315,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
-        self.adaptive_filter = adaptive_filter;
+        self.options.adaptive_filter = adaptive_filter;
     }
 
     /// Set the fraction of time every frame is going to be displayed, in seconds.
@@ -420,6 +437,20 @@ impl<'a, W: Write> Encoder<'a, W> {
         self.info.utf8_text.push(text_chunk);
         Ok(())
     }
+
+    /// Validate the written image sequence.
+    ///
+    /// When validation is turned on (it's turned off by default) then attempts to write more than
+    /// one `IDAT` image or images beyond the number of frames indicated in the animation control
+    /// chunk will fail and return an error result instead. Attempts to [finish][finish] the image
+    /// with missing frames will also return an error.
+    ///
+    /// [finish]: StreamWriter::finish
+    ///
+    /// (It's possible to circumvent these checks by writing raw chunks instead.)
+    pub fn validate_sequence(&mut self, validate: bool) {
+        self.options.validate_sequence = validate;
+    }
 }
 
 /// PNG writer
@@ -433,9 +464,7 @@ impl<'a, W: Write> Encoder<'a, W> {
 pub struct Writer<W: Write> {
     w: W,
     info: PartialInfo,
-    filter: FilterType,
-    adaptive_filter: AdaptiveFilterType,
-    sep_def_img: bool,
+    options: Options,
     written: u64,
     animation_written: u32,
 }
@@ -510,19 +539,11 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
 }
 
 impl<W: Write> Writer<W> {
-    fn new(
-        w: W,
-        info: PartialInfo,
-        filter: FilterType,
-        adaptive_filter: AdaptiveFilterType,
-        sep_def_img: bool,
-    ) -> Writer<W> {
+    fn new(w: W, info: PartialInfo, options: Options) -> Writer<W> {
         Writer {
             w,
             info,
-            filter,
-            adaptive_filter,
-            sep_def_img,
+            options,
             written: 0,
             animation_written: 0,
         }
@@ -575,7 +596,7 @@ impl<W: Write> Writer<W> {
 
     fn max_frames(&self) -> u64 {
         match self.info.animation_control {
-            Some(a) if self.sep_def_img => a.num_frames as u64 + 1,
+            Some(a) if self.options.sep_def_img => a.num_frames as u64 + 1,
             Some(a) => a.num_frames as u64,
             None => 1,
         }
@@ -622,8 +643,8 @@ impl<W: Write> Writer<W> {
             self.info.compression.clone().to_options(),
         );
         let bpp = self.info.bpp_in_prediction();
-        let filter_method = self.filter;
-        let adaptive_method = self.adaptive_filter;
+        let filter_method = self.options.filter;
+        let adaptive_method = self.options.adaptive_filter;
 
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
@@ -639,7 +660,7 @@ impl<W: Write> Writer<W> {
                 self.write_zlib_encoded_idat(&zlib_encoded)?;
             }
             Some(_) if self.sep_def_img => {
-                self.sep_def_img = false;
+                self.options.sep_def_img = false;
                 self.write_zlib_encoded_idat(&zlib_encoded)?;
             }
             Some(ref mut fctl) => {
@@ -690,7 +711,7 @@ impl<W: Write> Writer<W> {
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
-        self.filter = filter;
+        self.options.filter = filter;
     }
 
     /// Set the adaptive filter type for the following frames.
@@ -702,7 +723,7 @@ impl<W: Write> Writer<W> {
     ///
     /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
-        self.adaptive_filter = adaptive_filter;
+        self.options.adaptive_filter = adaptive_filter;
     }
 
     /// Set the fraction of time the following frames are going to be displayed,
@@ -968,7 +989,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
         let curr_chunk;
-        if writer.sep_def_img || writer.info.frame_control.is_none() || writer.written == 0 {
+        if writer.options.sep_def_img || writer.info.frame_control.is_none() || writer.written == 0 {
             curr_chunk = chunk::IDAT;
         } else {
             curr_chunk = chunk::fdAT;
@@ -1013,7 +1034,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         let wrt = self.writer.deref_mut();
 
         self.curr_chunk = match wrt.info.frame_control {
-            _ if wrt.sep_def_img => chunk::IDAT,
+            _ if wrt.options.sep_def_img => chunk::IDAT,
             None => chunk::IDAT,
             Some(ref mut fctl) => {
                 fctl.encode(&mut wrt.w)?;
@@ -1068,7 +1089,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         if self.index == 0 {
             let wrt = self.writer.deref_mut();
             // ??? maybe use self.curr_chunk == chunk::fdAT ???
-            if !wrt.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
+            if !wrt.options.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
                 let fctl = wrt.info.frame_control.as_mut().unwrap();
                 self.buffer[0..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                 fctl.sequence_number += 1;
@@ -1178,8 +1199,8 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
         let bpp = writer.info.bpp_in_prediction();
         let in_len = writer.info.raw_row_length() - 1;
-        let filter = writer.filter;
-        let adaptive_filter = writer.adaptive_filter;
+        let filter = writer.options.filter;
+        let adaptive_filter = writer.options.adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 

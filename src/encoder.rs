@@ -561,7 +561,7 @@ impl<W: Write> Writer<W> {
     pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {
         use std::convert::TryFrom;
 
-        if u32::try_from(data.len()).map_or(false, |length| length > i32::MAX as u32) {
+        if u32::try_from(data.len()).map_or(true, |length| length > i32::MAX as u32) {
             let kind = FormatErrorKind::WrittenTooMuch(data.len() - i32::MAX as usize);
             return Err(EncodingError::Format(kind.into()));
         }
@@ -1500,7 +1500,7 @@ mod tests {
 
     use rand::{thread_rng, Rng};
     use std::fs::File;
-    use std::io::Write;
+    use std::io::{Cursor, Write};
     use std::{cmp, io};
 
     #[test]
@@ -1643,8 +1643,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_wrong_image_len() -> Result<()> {
-        use std::io::Cursor;
-
         let width = 10;
         let height = 10;
 
@@ -1665,8 +1663,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_empty_image() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1684,8 +1680,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_invalid_bit_depth_color_type_combination() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1744,8 +1738,6 @@ mod tests {
 
     #[test]
     fn can_write_header_with_valid_bit_depth_color_type_combination() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1839,7 +1831,7 @@ mod tests {
             encoder.set_filter(filter);
             encoder.write_header()?.write_image_data(&pixel)?;
 
-            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let decoder = crate::Decoder::new(Cursor::new(buffer));
             let mut reader = decoder.read_info()?;
             let info = reader.info();
             assert_eq!(info.width, 4);
@@ -1875,7 +1867,7 @@ mod tests {
             }
             encoder.write_header()?.write_image_data(&pixel)?;
 
-            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let decoder = crate::Decoder::new(Cursor::new(buffer));
             let mut reader = decoder.read_info()?;
             assert_eq!(
                 reader.info().source_gamma,
@@ -1904,7 +1896,6 @@ mod tests {
 
     #[test]
     fn write_image_chunks_beyond_first() -> Result<()> {
-        use std::io::Cursor;
         let width = 10;
         let height = 10;
 
@@ -1925,6 +1916,40 @@ mod tests {
             png_writer.write_image_data(image.as_ref())?;
         }
 
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(unix, not(target_pointer_width = "32")))]
+    fn exper_error_on_huge_chunk() -> Result<()> {
+        // Okay, so we want a proper 4 GB chunk but not actually spend the memory for reserving it.
+        // Let's rely on overcommit? Otherwise we got the rather dumb option of mmap-ing /dev/zero.
+        let empty = vec![0; 1usize << 31];
+        let writer = Cursor::new(vec![0u8; 1024]);
+
+        let mut encoder = Encoder::new(writer, 10, 10);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        assert!(png_writer.write_chunk(chunk::fdAT, &empty).is_err());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(unix, not(target_pointer_width = "32")))]
+    fn exper_error_on_non_u32_chunk() -> Result<()> {
+        // Okay, so we want a proper 4 GB chunk but not actually spend the memory for reserving it.
+        // Let's rely on overcommit? Otherwise we got the rather dumb option of mmap-ing /dev/zero.
+        let empty = vec![0; 1usize << 32];
+        let writer = Cursor::new(vec![0u8; 1024]);
+
+        let mut encoder = Encoder::new(writer, 10, 10);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        assert!(png_writer.write_chunk(chunk::fdAT, &empty).is_err());
         Ok(())
     }
 

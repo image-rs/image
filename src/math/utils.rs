@@ -11,7 +11,7 @@
 /// ```
 #[inline]
 #[deprecated]
-pub fn clamp<N>(a: N, min: N, max: N) -> N
+pub(crate) fn clamp<N>(a: N, min: N, max: N) -> N
 where
     N: PartialOrd,
 {

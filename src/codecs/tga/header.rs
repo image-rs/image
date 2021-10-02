@@ -41,29 +41,22 @@ impl ImageType {
 
     /// Check if the image format uses colors as opposed to gray scale.
     pub(crate) fn is_color(&self) -> bool {
-        match *self {
+        matches! { *self,
             ImageType::RawColorMap
             | ImageType::RawTrueColor
             | ImageType::RunTrueColor
-            | ImageType::RunColorMap => true,
-            _ => false,
+            | ImageType::RunColorMap
         }
     }
 
     /// Does the image use a color map.
     pub(crate) fn is_color_mapped(&self) -> bool {
-        match *self {
-            ImageType::RawColorMap | ImageType::RunColorMap => true,
-            _ => false,
-        }
+        matches! { *self, ImageType::RawColorMap | ImageType::RunColorMap }
     }
 
     /// Is the image run length encoded.
     pub(crate) fn is_encoded(&self) -> bool {
-        match *self {
-            ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale => true,
-            _ => false,
-        }
+        matches! {*self, ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale }
     }
 }
 

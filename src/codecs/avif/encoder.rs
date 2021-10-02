@@ -72,8 +72,8 @@ impl<W: Write> AvifEncoder<W> {
             inner: w,
             fallback: vec![],
             config: Config {
-                quality,
-                alpha_quality: quality,
+                quality: f32::from(quality),
+                alpha_quality: f32::from(quality),
                 speed,
                 premultiplied_alpha: false,
                 color_space: ravif::ColorSpace::RGB,

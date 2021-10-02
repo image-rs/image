@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 use std::io::{self, Write};
+use std::borrow::Cow;
 
 use num_iter::range_step;
 
@@ -339,10 +340,10 @@ pub struct JpegEncoder<'a, W: 'a> {
     components: Vec<Component>,
     tables: Vec<[u8; 64]>,
 
-    luma_dctable: Box<[(u8, u16); 256]>,
-    luma_actable: Box<[(u8, u16); 256]>,
-    chroma_dctable: Box<[(u8, u16); 256]>,
-    chroma_actable: Box<[(u8, u16); 256]>,
+    luma_dctable: Cow<'static, [(u8, u16); 256]>,
+    luma_actable: Cow<'static, [(u8, u16); 256]>,
+    chroma_dctable: Cow<'static, [(u8, u16); 256]>,
+    chroma_actable: Cow<'static, [(u8, u16); 256]>,
 
     pixel_density: PixelDensity,
 }
@@ -421,10 +422,10 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             components,
             tables,
 
-            luma_dctable: Box::new(STD_LUMA_DC_HUFF_LUT),
-            luma_actable: Box::new(STD_LUMA_AC_HUFF_LUT),
-            chroma_dctable: Box::new(STD_CHROMA_DC_HUFF_LUT),
-            chroma_actable: Box::new(STD_CHROMA_AC_HUFF_LUT),
+            luma_dctable: Cow::Borrowed(&STD_LUMA_DC_HUFF_LUT),
+            luma_actable: Cow::Borrowed(&STD_LUMA_AC_HUFF_LUT),
+            chroma_dctable: Cow::Borrowed(&STD_CHROMA_DC_HUFF_LUT),
+            chroma_actable: Cow::Borrowed(&STD_CHROMA_AC_HUFF_LUT),
 
             pixel_density: PixelDensity::default(),
         }

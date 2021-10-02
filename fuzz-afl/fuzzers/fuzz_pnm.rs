@@ -17,7 +17,7 @@ fn pnm_decode(data: &[u8]) -> ImageResult<DynamicImage> {
 }
 
 fn main() {
-    afl::fuzz(|data| {
+    afl::fuzz(true, |data| {
         let _ = pnm_decode(data);
     });
 }

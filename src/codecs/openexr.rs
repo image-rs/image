@@ -24,12 +24,10 @@
 extern crate exr;
 use exr::prelude::*;
 
-use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb, ImageEncoder, ExtendedColorType};
-use std::io::{Write, Seek, BufRead, Cursor, BufReader};
-use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
+use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageEncoder, ExtendedColorType};
+use std::io::{Write, Seek, BufRead, Cursor};
+use crate::error::{DecodingError, ImageFormatHint, EncodingError};
 use crate::image::decoder_to_vec;
-use std::path::Path;
-use crate::buffer_::{Rgb32FImage, Rgba32FImage};
 use std::convert::TryInto;
 
 
@@ -339,7 +337,13 @@ fn to_image_err(exr_error: Error) -> ImageError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::path::PathBuf;
+
+    use std::path::{Path, PathBuf};
+    use std::io::BufReader;
+
+    use crate::{ImageBuffer, Rgb, Rgba};
+    use crate::buffer_::{Rgb32FImage, Rgba32FImage};
+    use crate::error::{LimitError, LimitErrorKind};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 

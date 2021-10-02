@@ -472,7 +472,6 @@ impl<'a> CheckedHeaderColor<'a> {
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgba16
                 => 0xffff,
-            ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
             _ => {
                 // Unsupported target color type.
                 return Err(ImageError::Unsupported(

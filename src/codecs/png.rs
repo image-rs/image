@@ -461,6 +461,7 @@ pub type PNGEncoder<W> = PngEncoder<W>;
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CompressionType {
     /// Default compression level
     Default,
@@ -472,9 +473,6 @@ pub enum CompressionType {
     Huffman,
     /// Run-length encoding compression
     Rle,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 /// Filter algorithms used to process image data to improve compression.
@@ -482,6 +480,7 @@ pub enum CompressionType {
 /// The default filter is `Sub` though this default may change in the future, most notable if an
 /// adaptive encoding option is implemented.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum FilterType {
     /// No processing done, best used for low bit depth greyscale or data with a
     /// low color count
@@ -494,9 +493,6 @@ pub enum FilterType {
     Avg,
     /// Algorithm that takes into account the left, upper left, and above pixels
     Paeth,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl<W: Write> PngEncoder<W> {
@@ -553,7 +549,6 @@ impl<W: Write> PngEncoder<W> {
             CompressionType::Best => png::Compression::Best,
             CompressionType::Huffman => png::Compression::Huffman,
             CompressionType::Rle => png::Compression::Rle,
-            CompressionType::__NonExhaustive(marker) => match marker._private {},
         };
         let filt = match self.filter {
             FilterType::NoFilter => png::FilterType::NoFilter,
@@ -561,7 +556,6 @@ impl<W: Write> PngEncoder<W> {
             FilterType::Up => png::FilterType::Up,
             FilterType::Avg => png::FilterType::Avg,
             FilterType::Paeth => png::FilterType::Paeth,
-            FilterType::__NonExhaustive(marker) => match marker._private {},
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);

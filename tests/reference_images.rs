@@ -46,7 +46,7 @@ fn render_images() {
     process_images(IMAGE_DIR, None, |base, path, decoder| {
         println!("render_images {}", path.display());
         let img = match image::open(&path) {
-            Ok(img) => img.to_rgba(),
+            Ok(img) => img.to_rgba8(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
@@ -54,7 +54,7 @@ fn render_images() {
                 println!("UNSUPPORTED {}: {}", path.display(), e);
                 return;
             }
-            Err(err) => panic!(format!("decoding of {:?} failed with: {}", path, err)),
+            Err(err) => panic!("decoding of {:?} failed with: {}", path, err),
         };
         let mut crc = Crc32::new();
         crc.update(&*img);
@@ -156,12 +156,12 @@ fn check_references() {
         println!("check_references {}", path.display());
 
         let ref_img = match image::open(&path) {
-            Ok(img) => img.to_rgba(),
+            Ok(img) => img.to_rgba8(),
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
             Err(image::ImageError::Unsupported(_)) => return,
-            Err(err) => panic!(format!("{}", err)),
+            Err(err) => panic!("{}", err),
         };
 
         let (filename, testsuite) = {
@@ -199,17 +199,17 @@ fn check_references() {
                         Ok(decoder) => decoder,
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!(format!("decoding of {:?} failed with: {}", img_path, err))
+                            panic!("decoding of {:?} failed with: {}", img_path, err)
                         }
                     };
 
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
-                        Err(err) => panic!(format!(
+                        Err(err) => panic!(
                             "collecting frames of {:?} failed with: {}",
                             img_path, err
-                        )),
+                        ),
                     };
 
                     // Select a single frame
@@ -228,17 +228,17 @@ fn check_references() {
                         Ok(decoder) => decoder.apng(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
-                            panic!(format!("decoding of {:?} failed with: {}", img_path, err))
+                            panic!("decoding of {:?} failed with: {}", img_path, err)
                         }
                     };
 
                     let mut frames = match decoder.into_frames().collect_frames() {
                         Ok(frames) => frames,
                         Err(image::ImageError::Unsupported(_)) => return,
-                        Err(err) => panic!(format!(
+                        Err(err) => panic!(
                             "collecting frames of {:?} failed with: {}",
                             img_path, err
-                        )),
+                        ),
                     };
 
                     // Select a single frame
@@ -257,12 +257,12 @@ fn check_references() {
             ReferenceTestKind::SingleImage => {
                 // Read the input file as a single image
                 match image::open(&img_path) {
-                    Ok(img) => test_img = Some(img.to_rgba()),
+                    Ok(img) => test_img = Some(img.to_rgba8()),
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
                     Err(image::ImageError::Unsupported(_)) => return,
-                    Err(err) => panic!(format!("decoding of {:?} failed with: {}", img_path, err)),
+                    Err(err) => panic!("decoding of {:?} failed with: {}", img_path, err),
                 };
             }
         }
@@ -328,24 +328,5 @@ fn check_hdr_references() {
         let decoded = decoder.read_image_hdr().unwrap();
         let reference = image::hdr::read_raw_file(&ref_path).unwrap();
         assert_eq!(decoded, reference);
-    }
-}
-
-/// Check that BMP files with large values could cause OOM issues are rejected.
-///
-/// The images are postfixed with `bad_bmp` to not be loaded by the other test.
-#[test]
-fn bad_bmps() {
-    let path: PathBuf = BASE_PATH
-        .iter()
-        .collect::<PathBuf>()
-        .join(IMAGE_DIR)
-        .join("bmp/images")
-        .join("*.bad_bmp");
-
-    let pattern = &*format!("{}", path.display());
-    for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        let im = image::open(path);
-        assert!(im.is_err());
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.23.10"
+version = "0.23.14"
 edition = "2018"
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -24,15 +24,20 @@ path = "./src/lib.rs"
 bytemuck = "1"
 byteorder = "1.3.2"
 num-iter = "0.1.32"
-num-rational = { version = "0.3", default-features = false }
+num-rational = { version = "0.4", default-features = false }
 num-traits = "0.2.0"
 gif = { version = "0.11.1", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.1.17", default-features = false, optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.1.22", default-features = false, optional = true }
 png = { version = "0.16.5", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }
-tiff = { version = "0.5.0", optional = true }
-ravif = { version = "0.6.0", optional = true }
+tiff = { version = "0.6.0", optional = true }
+ravif = { version = "0.8.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
+mp4parse = { version = "0.11.5", optional = true }
+dav1d = { version = "0.6.0", optional = true }
+dcv-color-primitives = { version = "0.1.16", optional = true }
+exr = { version = "1.3.0", optional = true }
+color_quant = "1.1"
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -42,7 +47,8 @@ quickcheck = "0.9"
 criterion = "0.3"
 
 [features]
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon"]
+# TODO: Add "avif" to this list while preparing for 0.24.0
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr"]
 
 ico = ["bmp", "png"]
 pnm = []
@@ -53,12 +59,18 @@ hdr = ["scoped_threadpool"]
 dxt = []
 dds = ["dxt"]
 farbfeld = []
+openexr = ["exr"]
+
 # Enables multi-threading.
 # Requires latest stable Rust.
 jpeg_rayon = ["jpeg/rayon"]
-# Non-default, enables avif encoding.
+# Non-default, enables avif support.
 # Requires latest stable Rust.
-avif = ["ravif", "rgb"]
+avif = ["avif-encoder"]
+# Requires latest stable Rust and recent nasm (>= 2.14).
+avif-encoder = ["ravif", "rgb"]
+# Non-default, even in `avif`. Requires stable Rust and native dependency libdav1d.
+avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
 
 # Build some inline benchmarks. Useful only during development.
 # Requires rustc nightly for feature test.
@@ -72,4 +84,8 @@ harness = false
 [[bench]]
 path = "benches/encode.rs"
 name = "encode"
+harness = false
+
+[[bench]]
+name = "copy_from"
 harness = false

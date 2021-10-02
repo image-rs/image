@@ -1,0 +1,148 @@
+name: Rust CI
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: ["1.46.0", stable, beta, nightly]
+        features: [ gif, jpeg, png, pnm, tga, dds, tiff, webp, hdr, farbfeld, '' ]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+    - name: build
+      run: cargo build -v --no-default-features --features "$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
+    - name: test
+      run: >
+        cargo test -v --no-default-features --features "$FEATURES" &&
+        cargo doc -v --no-default-features --features "$FEATURES"
+      if: ${{ matrix.rust != '1.46.0' }}
+      env:
+        FEATURES: ${{ matrix.features }}
+  test_defaults:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    - name: build
+      run: cargo build -v --release
+    - name: test
+      run: cargo test -v --release
+  test_avif:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: install-dependencies
+      run: sudo apt update && sudo apt install nasm
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    - name: build
+      run: cargo build -v --no-default-features --features="avif"
+  test_avif_decoding:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: install-dependencies
+      run: sudo apt update && sudo apt install ninja-build meson nasm
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    - name: build
+      run: cargo build -v --no-default-features --features="avif-decoder"
+      env:
+        SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+  clippy:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: install-dependencies
+      run: sudo apt update && sudo apt install ninja-build meson nasm
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: clippy
+    - uses: actions-rs/cargo@v1
+      with:
+        args: clippy --all-features -- -D warnings
+      env:
+        SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+  build_fuzz_afl:
+    name: "Fuzz targets (afl)"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: install-deps
+      run: sudo apt-get -y install clang llvm
+    - name: build
+      run: |
+        cargo install afl
+        cd fuzz-afl
+        cargo check --bin reproduce_webp
+        cargo check --bin reproduce_pnm
+        cargo afl check --bin fuzz_webp
+        cargo afl check --bin fuzz_pnm
+      env:
+        RUSTFLAGS: "-Znew-llvm-pass-manager=no"
+  build_fuzz_cargo-fuzz:
+    name: "Fuzz targets (cargo-fuzz)"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: build
+      run: |
+        cargo install cargo-fuzz
+        cargo fuzz build
+    - name: fuzz
+      run: |
+        for format in $(cargo fuzz list); do
+          cargo fuzz run "$format" -- -runs=0;
+        done
+  public_private_dependencies:
+    name: "Public private dependencies"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: build
+      run: |
+        mv ./Cargo.toml.public-private-dependencies ./Cargo.toml
+        echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
+        mv src/lib.rs.0 src/lib.rs
+        cargo check
+  build_benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: build
+      run: cargo build -v --benches --features=benchmarks

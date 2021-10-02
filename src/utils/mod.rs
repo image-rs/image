@@ -63,6 +63,13 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     p
 }
 
+/// Checks if the provided dimensions would cause an overflow.
+#[allow(dead_code)]
+// When no image formats that use it are enabled
+pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel: u8) -> bool {
+    width as u64 * height as u64 > std::u64::MAX / bytes_per_pixel as u64
+}
+
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
@@ -93,25 +100,19 @@ where
     bytemuck::cast_slice(vec).to_owned()
 }
 
-
-/// A marker struct for __NonExhaustive enums.
-///
-/// This is an empty type that can not be constructed. When an enum contains a tuple variant that
-/// includes this type the optimizer can statically determined tha the branch is never taken while
-/// at the same time the matching of the branch is required.
-///
-/// The effect is thus very similar to the actual `#[non_exhaustive]` attribute with no runtime
-/// costs. Also note that we use a dirty trick to not only hide this type from the doc but make it
-/// inaccessible. The visibility in this module is pub but the module itself is not and the
-/// top-level crate never exports the type.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NonExhaustiveMarker {
-    /// Allows this crate, and this crate only, to match on the impossibility of this variant.
-    pub(crate) _private: Empty,
+#[inline]
+pub(crate) fn clamp<N>(a: N, min: N, max: N) -> N
+where
+    N: PartialOrd,
+{
+    if a < min {
+        min
+    } else if a > max {
+        max
+    } else {
+        a
+    }
 }
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Empty { }
 
 #[cfg(test)]
 mod test {

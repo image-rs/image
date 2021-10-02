@@ -1,51 +1,17 @@
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
 
-#[cfg(feature = "bmp")]
-use crate::bmp;
-#[cfg(feature = "gif")]
-use crate::gif;
-#[cfg(feature = "hdr")]
-use crate::hdr;
-#[cfg(feature = "ico")]
-use crate::ico;
-#[cfg(feature = "jpeg")]
-use crate::jpeg;
-#[cfg(feature = "png")]
-use crate::png;
-#[cfg(feature = "pnm")]
-use crate::pnm;
-#[cfg(feature = "tga")]
-use crate::tga;
-#[cfg(feature = "dds")]
-use crate::dds;
-#[cfg(feature = "tiff")]
-use crate::tiff;
-#[cfg(feature = "webp")]
-use crate::webp;
-#[cfg(feature = "farbfeld")]
-use crate::farbfeld;
-#[cfg(feature = "avif")]
-use crate::avif;
+use crate::codecs::*;
 
-use crate::color;
+use crate::{ImageOutputFormat, color, error::{UnsupportedError, UnsupportedErrorKind}};
 use crate::image;
 use crate::dynimage::DynamicImage;
 use crate::error::{ImageError, ImageFormatHint, ImageResult};
 use crate::image::ImageFormat;
 #[allow(unused_imports)]  // When no features are supported
 use crate::image::{ImageDecoder, ImageEncoder};
-
-/// Internal error type for guessing format from path.
-pub(crate) enum PathError {
-    /// The extension did not fit a supported format.
-    UnknownExtension(OsString),
-    /// Extension could not be converted to `str`.
-    NoExtension,
-}
 
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     let fin = match File::open(path) {
@@ -57,7 +23,10 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     load(fin, ImageFormat::from_path(path)?)
 }
 
-/// Create a new image from a Reader
+/// Create a new image from a Reader.
+///
+/// Assumes the reader is already buffered. For optimal performance,
+/// consider wrapping the reader with a `BufRead::new()`.
 ///
 /// Try [`io::Reader`] for more advanced uses.
 ///
@@ -65,35 +34,67 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 #[allow(unused_variables)]
 // r is unused if no features are supported.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    load_inner(r, super::Limits::default(), format)
+}
+
+pub(crate) trait DecoderVisitor {
+    type Result;
+    fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result>;
+}
+
+pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(r: R, format: ImageFormat, visitor: V) -> ImageResult<V::Result> {
     #[allow(unreachable_patterns)]
     // Default is unreachable if all features are supported.
     match format {
+        #[cfg(feature = "avif-decoder")]
+        image::ImageFormat::Avif => visitor.visit_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => DynamicImage::from_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::new(r)?),
         #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => DynamicImage::from_decoder(gif::GifDecoder::new(r)?),
+        image::ImageFormat::Gif => visitor.visit_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => DynamicImage::from_decoder(jpeg::JpegDecoder::new(r)?),
+        image::ImageFormat::Jpeg => visitor.visit_decoder(jpeg::JpegDecoder::new(r)?),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => DynamicImage::from_decoder(webp::WebPDecoder::new(r)?),
+        image::ImageFormat::WebP => visitor.visit_decoder(webp::WebPDecoder::new(r)?),
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => DynamicImage::from_decoder(tiff::TiffDecoder::new(r)?),
+        image::ImageFormat::Tiff => visitor.visit_decoder(tiff::TiffDecoder::new(r)?),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => DynamicImage::from_decoder(tga::TgaDecoder::new(r)?),
+        image::ImageFormat::Tga => visitor.visit_decoder(tga::TgaDecoder::new(r)?),
         #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?),
+        image::ImageFormat::Dds => visitor.visit_decoder(dds::DdsDecoder::new(r)?),
         #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => DynamicImage::from_decoder(bmp::BmpDecoder::new(r)?),
+        image::ImageFormat::Bmp => visitor.visit_decoder(bmp::BmpDecoder::new(r)?),
         #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => DynamicImage::from_decoder(ico::IcoDecoder::new(r)?),
+        image::ImageFormat::Ico => visitor.visit_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => DynamicImage::from_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        image::ImageFormat::Hdr => visitor.visit_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
+        #[cfg(feature = "openexr")]
+        image::ImageFormat::OpenExr => visitor.visit_decoder(openexr::OpenExrDecoder::new(r)?),
         #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => DynamicImage::from_decoder(pnm::PnmDecoder::new(BufReader::new(r))?),
+        image::ImageFormat::Pnm => visitor.visit_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
-        image::ImageFormat::Farbfeld => DynamicImage::from_decoder(farbfeld::FarbfeldDecoder::new(r)?),
+        image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
     }
+}
+
+pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format: ImageFormat) -> ImageResult<DynamicImage> {
+    struct LoadVisitor(super::Limits);
+
+    impl DecoderVisitor for LoadVisitor {
+        type Result = DynamicImage;
+
+        fn visit_decoder<'a, D: ImageDecoder<'a>>(self, mut decoder: D) -> ImageResult<Self::Result> {
+            let mut limits = self.0;
+            // Check that we do not allocate a bigger buffer than we are allowed to
+            // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
+            limits.reserve(decoder.total_bytes())?;
+            decoder.set_limits(limits)?;
+            DynamicImage::from_decoder(decoder)
+        }
+    }
+
+    load_decoder(r, format, LoadVisitor(limits))
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
@@ -110,36 +111,16 @@ pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
 pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
     -> ImageResult<(u32, u32)>
 {
-    #[allow(unreachable_patterns,unreachable_code)]
-    // Default is unreachable if all features are supported.
-    // Code after the match is unreachable if none are.
-    Ok(match format {
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JpegDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PngDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::GifDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "webp")]
-        image::ImageFormat::WebP => webp::WebPDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TgaDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "dds")]
-        image::ImageFormat::Dds => dds::DdsDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BmpDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::IcoDecoder::new(fin)?.dimensions(),
-        #[cfg(feature = "hdr")]
-        image::ImageFormat::Hdr => hdr::HdrAdapter::new(fin)?.dimensions(),
-        #[cfg(feature = "pnm")]
-        image::ImageFormat::Pnm => {
-            pnm::PnmDecoder::new(fin)?.dimensions()
+        struct DimVisitor;
+
+        impl DecoderVisitor for DimVisitor {
+            type Result = (u32, u32);
+            fn visit_decoder<'a, D: ImageDecoder<'a>>(self, decoder: D) -> ImageResult<Self::Result> {
+                Ok(decoder.dimensions())
+            }
         }
-        format => return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
-    })
+
+        load_decoder(fin, format, DimVisitor)
 }
 
 #[allow(unused_variables)]
@@ -151,45 +132,9 @@ pub(crate) fn save_buffer_impl(
     height: u32,
     color: color::ColorType,
 ) -> ImageResult<()> {
+    let format =  ImageFormat::from_path(path)?;
     let fout = &mut BufWriter::new(File::create(path)?);
-    let ext = path.extension()
-        .and_then(|s| s.to_str())
-        .map_or("".to_string(), |s| s.to_ascii_lowercase());
-
-    match &*ext {
-        #[cfg(feature = "gif")]
-        "gif" => gif::GifEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        "ico" => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "png")]
-        "png" => png::PngEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pbm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pgm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "ppm" => pnm::PnmEncoder::new(fout)
-            .with_subtype(pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary))
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "pnm")]
-        "pam" => pnm::PnmEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        "bmp" => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "tiff")]
-        "tif" | "tiff" => tiff::TiffEncoder::new(fout)
-            .write_image(buf, width, height, color),
-        #[cfg(feature = "tga")]
-        "tga" => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "avif")]
-        "avif" => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
-        _ => Err(ImageError::Unsupported(ImageFormatHint::from(path).into())),
-    }
+    save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
 #[allow(unused_variables)]
@@ -204,62 +149,83 @@ pub(crate) fn save_buffer_with_format_impl(
 ) -> ImageResult<()> {
     let fout = &mut BufWriter::new(File::create(path)?);
 
-    match format {
-        #[cfg(feature = "gif")]
-        image::ImageFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
-        #[cfg(feature = "ico")]
-        image::ImageFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "jpeg")]
-        image::ImageFormat::Jpeg => jpeg::JpegEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "png")]
-        image::ImageFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
-        #[cfg(feature = "bmp")]
-        image::ImageFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
+    let format = match format {
+        #[cfg(feature = "pnm")]
+        image::ImageFormat::Pnm => {
+            let ext = path.extension()
+            .and_then(|s| s.to_str())
+            .map_or("".to_string(), |s| s.to_ascii_lowercase());
+            ImageOutputFormat::Pnm(match &*ext {
+                "pbm" => pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary),
+                "pgm" => pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary),
+                "ppm" => pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary),
+                _ => { return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())) }, // Unsupported Pnm subtype.
+            })
+        },
+        // #[cfg(feature = "hdr")]
+        // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
         #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => tiff::TiffEncoder::new(fout)
+        image::ImageFormat::Tiff => {
+            return tiff::TiffEncoder::new(fout).write_image(buf, width, height, color);
+        },
+        format => format.into(),
+    };
+
+    write_buffer_impl(fout, buf, width, height, color, format)
+}
+
+#[allow(unused_variables)]
+// Most variables when no features are supported
+pub(crate) fn write_buffer_impl<W: std::io::Write>(
+    fout: &mut W,
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    color: color::ColorType,
+    format: ImageOutputFormat,
+) -> ImageResult<()> {
+    match format {
+        #[cfg(feature = "png")]
+        ImageOutputFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "jpeg")]
+        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(fout, quality)
             .write_image(buf, width, height, color),
+        #[cfg(feature = "pnm")]
+        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(fout)
+            .with_subtype(subtype)
+            .write_image(buf, width, height, color),
+        #[cfg(feature = "gif")]
+        ImageOutputFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
+        #[cfg(feature = "ico")]
+        ImageOutputFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "bmp")]
+        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "farbfeld")]
+        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
-        image::ImageFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
-        format => Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())),
+        ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "openexr")]
+        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(fout).write_image(buf, width, height, color),
+        #[cfg(feature = "tiff")]
+        ImageOutputFormat::Tiff => {
+            let mut cursor = std::io::Cursor::new(Vec::new());
+            tiff::TiffEncoder::new(&mut cursor).write_image(buf, width, height, color)?;
+            fout.write(&cursor.into_inner()[..])
+                .map(|_| ())
+                .map_err(ImageError::IoError)
+        }
+        #[cfg(feature = "avif-encoder")]
+        ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+
+        image::ImageOutputFormat::Unsupported(msg) => {
+            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                ImageFormatHint::Unknown,
+                UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
+        }
     }
 }
 
-/// Guess format from a path.
-///
-/// Returns `PathError::NoExtension` if the path has no extension or returns a
-/// `PathError::UnknownExtension` containing the extension if  it can not be convert to a `str`.
-pub(crate) fn guess_format_from_path_impl(path: &Path) -> Result<ImageFormat, PathError> {
-    let exact_ext = path.extension();
-
-    let ext = exact_ext
-        .and_then(|s| s.to_str())
-        .map(str::to_ascii_lowercase);
-
-    let ext = ext.as_ref()
-        .map(String::as_str);
-
-    Ok(match ext {
-        Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
-        Some("png") => image::ImageFormat::Png,
-        Some("gif") => image::ImageFormat::Gif,
-        Some("webp") => image::ImageFormat::WebP,
-        Some("tif") | Some("tiff") => image::ImageFormat::Tiff,
-        Some("tga") => image::ImageFormat::Tga,
-        Some("dds") => image::ImageFormat::Dds,
-        Some("bmp") => image::ImageFormat::Bmp,
-        Some("ico") => image::ImageFormat::Ico,
-        Some("hdr") => image::ImageFormat::Hdr,
-        Some("pbm") | Some("pam") | Some("ppm") | Some("pgm") => image::ImageFormat::Pnm,
-        Some("ff") | Some("farbfeld") => image::ImageFormat::Farbfeld,
-        // The original extension is used, instead of _format
-        _ => return match exact_ext {
-            None => Err(PathError::NoExtension),
-            Some(os) => Err(PathError::UnknownExtension(os.to_owned())),
-        },
-    })
-}
-
-static MAGIC_BYTES: [(&[u8], ImageFormat); 19] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -279,6 +245,8 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 19] = [
     (b"P6", ImageFormat::Pnm),
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
+    (b"\0\0\0 ftypavif", ImageFormat::Avif),
+    (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
 ];
 
 /// Guess image format from memory block
@@ -301,14 +269,4 @@ pub(crate) fn guess_format_impl(buffer: &[u8]) -> Option<ImageFormat> {
     }
 
     None
-}
-
-impl From<PathError> for ImageError {
-    fn from(path: PathError) -> Self {
-        let format_hint = match path {
-            PathError::NoExtension => ImageFormatHint::Unknown,
-            PathError::UnknownExtension(ext) => ImageFormatHint::PathExtension(ext.into()),
-        };
-        ImageError::Unsupported(format_hint.into())
-    }
 }

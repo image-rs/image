@@ -10,6 +10,72 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.14
+
+- Unified gif blending in different decode methods, fixing out-of-bounds checks
+  in a number of weirdly positioned frames.
+- Hardened TGA decoder against a number of malicious inputs.
+- Fix forward incompatible usage of the panic macro.
+- Fix load_rect for gif reaching `unreachable!()` code.
+
+- Added `ExtendedColorType::A8`.
+- Allow TGA to load alpha-only images.
+- Optimized load_rect to avoid unnecessary seeks.
+
+### Version 0.23.13
+
+- Fix an inconsistency in supported formats of different methods for encoding
+  an image.
+- Fix `thumbnail` choosing an empty image. It now always prefer non-empty image
+  dimensions.
+- Fix integer overflow in calculating requires bytes for decoded image buffers
+  for farbfeld, hdr, and pnm decoders. These will now error early.
+- Fix a panic decoding certain `jpeg` image without frames or meta data.
+- Optimized the `jpeg` encoder.
+- Optimized `GenericImage::copy_from` default impl in various cases.
+
+- Add `avif` decoders. You must enable it explicitly and it is not covered by
+  our usual MSRV policy of Rust 1.34. Instead, only latest stable is supported.
+- Add `ImageFormat::{can_read, can_write}`
+- Add `Frame::buffer_mut`
+- Add speed and quality options on `avif` encoder.
+- Add speed parameter to `gif` encoder.
+- Expose control over sequence repeat to the `gif` encoder.
+- Add `{contrast,brighten,huerotate}_in_place` functions in imageproc.
+
+- Relax `Default` impl of `ImageBuffer`, removing the bound on the color type.
+- Derive Debug, Hash, PartialEq, Eq for DynamicImage
+
+### Version 0.23.12
+
+- Fix a soundness issue affecting the impls of `Pixel::from_slice_mut`. This
+  would previously reborrow the mutable input reference as a shared one but
+  then proceed to construct the mutable result reference from it. While UB
+  according to Rust's memory model, we're fairly certain that no miscompilation
+  can happen with the LLVM codegen in practice.
+  See 5cbe1e6767d11aff3f14c7ad69a06b04e8d583c7 for more details.
+- Fix `imageops::blur` panicking when `sigma = 0.0`. It now defaults to `1.0`
+  as all negative values.
+- Fix re-exporting `png::{CompressionType, FilterType}` to maintain SemVer
+  compatibility with the `0.23` releases.
+
+- Add `ImageFormat::from_extension`
+- Add copyless DynamicImage to byte slice/vec conversion.
+- Add bit-depth specific `into_` and `to_` DynamicImage conversion methods.
+
+
+### Version 0.23.11
+
+- The `NeuQuant` implementation is now supplied by `color_quant`. Use of the
+  type defined by this library is discouraged.
+- The `jpeg` decoder can now downscale images that are decoded by 1,2,4,8.
+- Optimized the jpeg encoding ~5-15%.
+- Deprecated the `clamp` function. Use `num-traits` instead.
+- The ICO decoder now accepts an empty mask.
+- Fixed an overflow in ICO mask decoding potentially leading to panic.
+- Added `ImageOutputFormat` for `AVIF`
+- Updated `tiff` to `0.6` with lzw performance improvements.
+
 ### Version 0.23.10
 
 - Added AVIF encoding capabilities using the `ravif` crate. Please note that

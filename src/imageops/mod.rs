@@ -30,6 +30,7 @@ pub mod colorops;
 mod sample;
 
 /// Return a mutable view into an image
+/// The coordinates set the position of the top left corner of the crop.
 pub fn crop<I: GenericImageView>(
     image: &mut I,
     x: u32,
@@ -42,6 +43,7 @@ pub fn crop<I: GenericImageView>(
 }
 
 /// Return an immutable view into an image
+/// The coordinates set the position of the top left corner of the crop.
 pub fn crop_imm<I: GenericImageView>(
     image: &I,
     x: u32,
@@ -172,13 +174,11 @@ where
 /// ```no_run
 /// use image::{RgbaImage};
 ///
-/// fn main() {
-///      let mut img = RgbaImage::new(1920, 1080);
-///      let tile = image::open("tile.png").unwrap();
+/// let mut img = RgbaImage::new(1920, 1080);
+/// let tile = image::open("tile.png").unwrap();
 ///
-///      image::imageops::tile(&mut img, &tile);
-///      img.save("tiled_wallpaper.png").unwrap();
-/// }
+/// image::imageops::tile(&mut img, &tile);
+/// img.save("tiled_wallpaper.png").unwrap();
 /// ```
 pub fn tile<I, J>(bottom: &mut I, top: &J)
 where
@@ -200,14 +200,12 @@ where
 /// ```no_run
 /// use image::{Rgba, RgbaImage, Pixel};
 /// 
-/// fn main() {
-///     let mut img = RgbaImage::new(100, 100);
-///     let start = Rgba::from_slice(&[0, 128, 0, 0]);
-///     let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// let mut img = RgbaImage::new(100, 100);
+/// let start = Rgba::from_slice(&[0, 128, 0, 0]);
+/// let end = Rgba::from_slice(&[255, 255, 255, 255]);
 /// 
-///     image::imageops::vertical_gradient(&mut img, start, end);
-///     img.save("vertical_gradient.png").unwrap();
-/// }
+/// image::imageops::vertical_gradient(&mut img, start, end);
+/// img.save("vertical_gradient.png").unwrap();
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
@@ -235,14 +233,12 @@ where
 /// ```no_run
 /// use image::{Rgba, RgbaImage, Pixel};
 /// 
-/// fn main() {
-///     let mut img = RgbaImage::new(100, 100);
-///     let start = Rgba::from_slice(&[0, 128, 0, 0]);
-///     let end = Rgba::from_slice(&[255, 255, 255, 255]);
+/// let mut img = RgbaImage::new(100, 100);
+/// let start = Rgba::from_slice(&[0, 128, 0, 0]);
+/// let end = Rgba::from_slice(&[255, 255, 255, 255]);
 /// 
-///     image::imageops::horizontal_gradient(&mut img, start, end);
-///     img.save("horizontal_gradient.png").unwrap();
-/// }
+/// image::imageops::horizontal_gradient(&mut img, start, end);
+/// img.save("horizontal_gradient.png").unwrap();
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
 where
     I: GenericImage<Pixel = P>,
@@ -286,6 +282,7 @@ where
 mod tests {
 
     use super::overlay;
+    use crate::RgbaImage;
     use crate::ImageBuffer;
     use crate::color::Rgb;
 
@@ -365,5 +362,12 @@ mod tests {
 
         assert_eq!(img.get_pixel(0, 0), &start);
         assert_eq!(img.get_pixel(0, img.height() - 1), &end);
+    }
+
+    #[test]
+    /// Test blur doens't panick when passed 0.0
+    fn test_blur_zero() {
+        let image = RgbaImage::new(50, 50);
+        let _ = super::blur(&image, 0.0);
     }
 }

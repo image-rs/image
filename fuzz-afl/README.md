@@ -21,3 +21,12 @@ Run afl:
 To reproduce a crash:
 
     $ cargo run --bin reproduce_<format>
+
+
+## Known issues
+
+Since about Oct. 2021 the nightly Rust builds use an llvm version that no
+longer accepts one of the sanitizer passes. As a temporary workaround you must
+adjust the flags passed to `afl`:
+
+    $ RUSTFLAGS="-Znew-llvm-pass-manager=no" cargo +nightly afl run …

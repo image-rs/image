@@ -896,11 +896,6 @@ mod tests {
     };
     use super::super::JpegDecoder;
 
-    #[cfg(feature = "benchmarks")]
-    extern crate test;
-    #[cfg(feature = "benchmarks")]
-    use test::{Bencher};
-
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let decoder = JpegDecoder::new(Cursor::new(encoded))
             .expect("Could not decode image");

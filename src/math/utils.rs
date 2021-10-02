@@ -1,29 +1,5 @@
 //! Shared mathematical utility functions.
 
-/// Cut value to be inside given range
-///
-/// ```
-/// use image::math::utils;
-///
-/// assert_eq!(utils::clamp(-5, 0, 10),  0);
-/// assert_eq!(utils::clamp( 6, 0, 10),  6);
-/// assert_eq!(utils::clamp(15, 0, 10), 10);
-/// ```
-#[inline]
-#[deprecated]
-pub(crate) fn clamp<N>(a: N, min: N, max: N) -> N
-where
-    N: PartialOrd,
-{
-    if a < min {
-        return min;
-    }
-    if a > max {
-        return max;
-    }
-    a
-}
-
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint

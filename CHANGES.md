@@ -10,6 +10,13 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.24.0
+
+Breaking changes
+
+- The `math::utils::{nq, utils}` module have been removed. These are better
+  served through the `color_quant` crate and the standard library respectively.
+
 ### Version 0.23.14
 
 - Unified gif blending in different decode methods, fixing out-of-bounds checks

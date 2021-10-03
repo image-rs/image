@@ -5,8 +5,6 @@ use std::f64::consts::PI;
 
 use crate::color::{Luma, Rgba};
 use crate::image::{GenericImage, GenericImageView};
-#[allow(deprecated)]
-use crate::math::nq;
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
 use crate::ImageBuffer;
@@ -391,31 +389,6 @@ impl ColorMap for BiLevel {
         let new_color = 0xFF * self.index_of(color) as u8;
         let luma = &mut color.0;
         luma[0] = new_color;
-    }
-}
-
-#[allow(deprecated)]
-impl ColorMap for nq::NeuQuant {
-    type Color = Rgba<u8>;
-
-    #[inline(always)]
-    fn index_of(&self, color: &Rgba<u8>) -> usize {
-        self.index_of(color.channels())
-    }
-
-    #[inline(always)]
-    fn lookup(&self, idx: usize) -> Option<Self::Color> {
-        self.lookup(idx).map(|p| p.into())
-    }
-
-    /// Indicate NeuQuant implements `lookup`.
-    fn has_lookup(&self) -> bool {
-        true
-    }
-
-    #[inline(always)]
-    fn map_color(&self, color: &mut Rgba<u8>) {
-        self.map_pixel(color.channels_mut())
     }
 }
 

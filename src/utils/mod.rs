@@ -72,27 +72,6 @@ pub(crate) fn check_dimension_overflow(width: u32, height: u32, bytes_per_pixel:
 
 #[allow(dead_code)]
 // When no image formats that use it are enabled
-pub(crate) fn vec_u16_into_u8(vec: Vec<u16>) -> Vec<u8> {
-    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
-    vec_copy_to_u8(&vec)
-}
-
-#[allow(dead_code)]
-// When no image formats that use it are enabled
-pub(crate) fn vec_u32_into_u8(vec: Vec<u32>) -> Vec<u8> {
-    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
-    vec_copy_to_u8(&vec)
-}
-
-#[allow(dead_code)]
-// When no image formats that use it are enabled
-pub(crate) fn vec_u64_into_u8(vec: Vec<u64>) -> Vec<u8> {
-    // Do this way until we find a way to not alloc/dealloc but get llvm to realloc instead.
-    vec_copy_to_u8(&vec)
-}
-
-#[allow(dead_code)]
-// When no image formats that use it are enabled
 pub(crate) fn vec_copy_to_u8<T>(vec: &[T]) -> Vec<u8>
 where
     T: bytemuck::Pod,

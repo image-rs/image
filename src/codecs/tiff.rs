@@ -109,7 +109,7 @@ impl ImageError {
     fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError => {
+            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -127,7 +127,7 @@ impl ImageError {
     fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError => {
+            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -177,11 +177,15 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
             .map_err(ImageError::from_tiff_decode)?
         {
             tiff::decoder::DecodingResult::U8(v) => v,
-            tiff::decoder::DecodingResult::U16(v) => utils::vec_u16_into_u8(v),
-            tiff::decoder::DecodingResult::U32(v) => utils::vec_u32_into_u8(v),
-            tiff::decoder::DecodingResult::U64(v) => utils::vec_u64_into_u8(v),
-            tiff::decoder::DecodingResult::F32(v) => bytemuck::cast_slice::<f32, u8>(v.as_slice()).to_owned(),
-            tiff::decoder::DecodingResult::F64(v) => bytemuck::cast_slice::<f64, u8>(v.as_slice()).to_owned(),
+            tiff::decoder::DecodingResult::U16(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::U32(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::U64(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::I8(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::I16(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::I32(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::I64(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::F32(v) => utils::vec_copy_to_u8(&v),
+            tiff::decoder::DecodingResult::F64(v) => utils::vec_copy_to_u8(&v),
         };
 
         Ok(TiffReader(Cursor::new(buf), PhantomData))
@@ -204,6 +208,18 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
             tiff::decoder::DecodingResult::U64(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::I8(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::I16(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::I32(v) => {
+                buf.copy_from_slice(bytemuck::cast_slice(&v));
+            }
+            tiff::decoder::DecodingResult::I64(v) => {
                 buf.copy_from_slice(bytemuck::cast_slice(&v));
             }
             tiff::decoder::DecodingResult::F32(v) => {

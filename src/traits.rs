@@ -118,14 +118,24 @@ impl Lerp for f32 {
     }
 }
 
-
-pub trait PixelComponent: Primitive + 'static {
+/// The type of each channel in a pixel.
+pub trait PixelComponent: Primitive + 'static + private::Sealed {
     const DEFAULT_MAX_COMPONENT_VALUE: Self;
     const DEFAULT_MIN_COMPONENT_VALUE: Self;
     const RGB_COLOR_TYPE: ColorTypeOrErr;
     const RGBA_COLOR_TYPE: ColorTypeOrErr;
     const L_COLOR_TYPE: ColorTypeOrErr;
     const LA_COLOR_TYPE: ColorTypeOrErr;
+}
+
+/// Prevents down-stream users from implementing the `PixelComponent` trait
+mod private {
+    pub trait Sealed {}
+    impl Sealed for u8 {}
+    impl Sealed for u16 {}
+    impl Sealed for i32 {}
+    impl Sealed for usize {}
+    impl Sealed for f32 {}
 }
 
 pub(crate) type ColorTypeOrErr = Result<ColorType, &'static str>;

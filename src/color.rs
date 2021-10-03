@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Pixel, Primitive, Sample, ColorTypeOrErr};
+use crate::traits::{Pixel, Primitive, PixelComponent, ColorTypeOrErr};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -228,7 +228,7 @@ $( // START Structure definitions
 #[allow(missing_docs)]
 pub struct $ident<T: Primitive> (pub [T; $channels]);
 
-impl<T: Sample + 'static> Pixel for $ident<T> {
+impl<T: PixelComponent + 'static> Pixel for $ident<T> {
     type Subpixel = T;
 
     const CHANNEL_COUNT: u8 = $channels;
@@ -376,53 +376,53 @@ define_colors! {
     LumaA, 2, 1, "YA", LA_COLOR_TYPE, #[doc = "Grayscale colors + alpha channel"];
 }
 
-/// Convert from one sample type to another. For example, convert from `u8` to `f32` pixel values.
-pub trait FromSample<Sample> {
+/// Convert from one pixel component type to another. For example, convert from `u8` to `f32` pixel values.
+pub trait FromPixelComponent<Component> {
 
-    /// Converts from any sample type to this type.
-    fn from_sample(sample: Sample) -> Self;
+    /// Converts from any pixel component type to this type.
+    fn from_pixel_component(component: Component) -> Self;
 }
 
-impl<T: Sample> FromSample<T> for T { fn from_sample(sample: T) -> Self { sample } }
+impl<T: PixelComponent> FromPixelComponent<T> for T { fn from_pixel_component(sample: T) -> Self { sample } }
 
 // from f32:
 
-impl FromSample<f32> for u8 {
-    fn from_sample(float: f32) -> Self {
+impl FromPixelComponent<f32> for u8 {
+    fn from_pixel_component(float: f32) -> Self {
         NumCast::from(float.clamp(0.0, 1.0) * u8::MAX as f32).unwrap()
     }
 }
 
-impl FromSample<f32> for u16 {
-    fn from_sample(float: f32) -> Self {
+impl FromPixelComponent<f32> for u16 {
+    fn from_pixel_component(float: f32) -> Self {
         NumCast::from(float.clamp(0.0, 1.0) * u16::MAX as f32).unwrap()
     }
 }
 
 // from u16:
 
-impl FromSample<u16> for u8 {
-    fn from_sample(c16: u16) -> Self {
+impl FromPixelComponent<u16> for u8 {
+    fn from_pixel_component(c16: u16) -> Self {
         NumCast::from(c16.to_u64().unwrap() >> 8).unwrap()
     }
 }
 
-impl FromSample<u16> for f32 {
-    fn from_sample(int: u16) -> Self {
+impl FromPixelComponent<u16> for f32 {
+    fn from_pixel_component(int: u16) -> Self {
         (int as f32 / u16::MAX as f32).clamp(0.0, 1.0)
     }
 }
 
 // from u8:
 
-impl FromSample<u8> for f32 {
-    fn from_sample(int: u8) -> Self {
+impl FromPixelComponent<u8> for f32 {
+    fn from_pixel_component(int: u8) -> Self {
         (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
     }
 }
 
-impl FromSample<u8> for u16 {
-    fn from_sample(c8: u8) -> Self {
+impl FromPixelComponent<u8> for u16 {
+    fn from_pixel_component(c8: u8) -> Self {
         let x = c8.to_u64().unwrap();
         NumCast::from((x << 8) | x).unwrap()
     }
@@ -471,159 +471,159 @@ fn rgb_to_luma<T: Primitive>(rgb: &[T]) -> T {
 
 // `FromColor` for Luma
 
-impl<S: Sample, T: Sample> FromColor<Luma<S>> for Luma<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let own = self.channels_mut();
         let other = other.channels();
-        own[0] = T::from_sample(other[0]);
+        own[0] = T::from_pixel_component(other[0]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<LumaA<S>> for Luma<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
-        self.channels_mut()[0] = T::from_sample(other.channels()[0])
+        self.channels_mut()[0] = T::from_pixel_component(other.channels()[0])
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Rgb<S>> for Luma<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
-        gray[0] = T::from_sample(rgb_to_luma(rgb));
+        gray[0] = T::from_pixel_component(rgb_to_luma(rgb));
     }
 }
 
-impl<S:Sample,T:Sample> FromColor<Rgba<S>> for Luma<T> where T: FromSample<S> {
+impl<S: PixelComponent,T: PixelComponent> FromColor<Rgba<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
         let l = rgb_to_luma(rgb);
-        gray[0] = T::from_sample(l);
+        gray[0] = T::from_pixel_component(l);
     }
 }
 
 // `FromColor` for LumaA
 
-impl<S: Sample, T: Sample> FromColor<LumaA<S>> for LumaA<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
         let own = self.channels_mut();
         let other = other.channels();
-        own[0] = T::from_sample(other[0]);
-        own[1] = T::from_sample(other[1]);
+        own[0] = T::from_pixel_component(other[0]);
+        own[1] = T::from_pixel_component(other[1]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Rgb<S>> for LumaA<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray_a = self.channels_mut();
         let rgb = other.channels();
-        gray_a[0] = T::from_sample(rgb_to_luma(rgb));
-        gray_a[1] = T::MAX_SAMPLE_VALUE;
+        gray_a[0] = T::from_pixel_component(rgb_to_luma(rgb));
+        gray_a[1] = T::DEFAULT_MAX_COMPONENT_VALUE;
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Rgba<S>> for LumaA<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray_a = self.channels_mut();
         let rgba = other.channels();
-        gray_a[0] = T::from_sample(rgb_to_luma(rgba));
-        gray_a[1] = T::from_sample(rgba[3]);
+        gray_a[0] = T::from_pixel_component(rgb_to_luma(rgba));
+        gray_a[1] = T::from_pixel_component(rgba[3]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Luma<S>> for LumaA<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let gray_a = self.channels_mut();
-        gray_a[0] = T::from_sample(other.channels()[0]);
-        gray_a[1] = T::MAX_SAMPLE_VALUE;
+        gray_a[0] = T::from_pixel_component(other.channels()[0]);
+        gray_a[1] = T::DEFAULT_MAX_COMPONENT_VALUE;
     }
 }
 
 // `FromColor` for RGBA
 
-impl<S: Sample, T: Sample> FromColor<Rgba<S>> for Rgba<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let own = self.channels_mut();
         let other = other.channels();
-        own[0] = T::from_sample(other[0]);
-        own[1] = T::from_sample(other[1]);
-        own[2] = T::from_sample(other[2]);
-        own[3] = T::from_sample(other[3]);
+        own[0] = T::from_pixel_component(other[0]);
+        own[1] = T::from_pixel_component(other[1]);
+        own[2] = T::from_pixel_component(other[2]);
+        own[3] = T::from_pixel_component(other[3]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Rgb<S>> for Rgba<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let rgba = self.channels_mut();
         let rgb = other.channels();
-        rgba[0] = T::from_sample(rgb[0]);
-        rgba[1] = T::from_sample(rgb[1]);
-        rgba[2] = T::from_sample(rgb[2]);
-        rgba[3] = T::MAX_SAMPLE_VALUE;
+        rgba[0] = T::from_pixel_component(rgb[0]);
+        rgba[1] = T::from_pixel_component(rgb[1]);
+        rgba[2] = T::from_pixel_component(rgb[2]);
+        rgba[3] = T::DEFAULT_MAX_COMPONENT_VALUE;
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<LumaA<S>> for Rgba<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, gray: &LumaA<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels();
-        rgba[0] = T::from_sample(gray[0]);
-        rgba[1] = T::from_sample(gray[0]);
-        rgba[2] = T::from_sample(gray[0]);
-        rgba[3] = T::from_sample(gray[1]);
+        rgba[0] = T::from_pixel_component(gray[0]);
+        rgba[1] = T::from_pixel_component(gray[0]);
+        rgba[2] = T::from_pixel_component(gray[0]);
+        rgba[3] = T::from_pixel_component(gray[1]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Luma<S>> for Rgba<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, gray: &Luma<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels()[0];
-        rgba[0] = T::from_sample(gray);
-        rgba[1] = T::from_sample(gray);
-        rgba[2] = T::from_sample(gray);
-        rgba[3] = T::MAX_SAMPLE_VALUE;
+        rgba[0] = T::from_pixel_component(gray);
+        rgba[1] = T::from_pixel_component(gray);
+        rgba[2] = T::from_pixel_component(gray);
+        rgba[3] = T::DEFAULT_MAX_COMPONENT_VALUE;
     }
 }
 
 // `FromColor` for RGB
 
-impl<S: Sample, T: Sample> FromColor<Rgb<S>> for Rgb<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let own = self.channels_mut();
         let other = other.channels();
-        own[0] = T::from_sample(other[0]);
-        own[1] = T::from_sample(other[1]);
-        own[2] = T::from_sample(other[2]);
+        own[0] = T::from_pixel_component(other[0]);
+        own[1] = T::from_pixel_component(other[1]);
+        own[2] = T::from_pixel_component(other[2]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Rgba<S>> for Rgb<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let rgb = self.channels_mut();
         let rgba = other.channels();
-        rgb[0] = T::from_sample(rgba[0]);
-        rgb[1] = T::from_sample(rgba[1]);
-        rgb[2] = T::from_sample(rgba[2]);
+        rgb[0] = T::from_pixel_component(rgba[0]);
+        rgb[1] = T::from_pixel_component(rgba[1]);
+        rgb[2] = T::from_pixel_component(rgba[2]);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<LumaA<S>> for Rgb<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
-        rgb[0] = T::from_sample(gray);
-        rgb[1] = T::from_sample(gray);
-        rgb[2] = T::from_sample(gray);
+        rgb[0] = T::from_pixel_component(gray);
+        rgb[1] = T::from_pixel_component(gray);
+        rgb[2] = T::from_pixel_component(gray);
     }
 }
 
-impl<S: Sample, T: Sample> FromColor<Luma<S>> for Rgb<T> where T: FromSample<S> {
+impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
-        rgb[0] = T::from_sample(gray);
-        rgb[1] = T::from_sample(gray);
-        rgb[2] = T::from_sample(gray);
+        rgb[0] = T::from_pixel_component(gray);
+        rgb[1] = T::from_pixel_component(gray);
+        rgb[2] = T::from_pixel_component(gray);
     }
 }
 
@@ -661,9 +661,9 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
-impl<T: Sample> Blend for LumaA<T> {
+impl<T: PixelComponent> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
-        let max_t = T::MAX_SAMPLE_VALUE;
+        let max_t = T::DEFAULT_MAX_COMPONENT_VALUE;
         let max_t = max_t.to_f32().unwrap();
         let (bg_luma, bg_a) = (self.0[0], self.0[1]);
         let (fg_luma, fg_a) = (other.0[0], other.0[1]);
@@ -700,12 +700,12 @@ impl<T: Primitive> Blend for Luma<T> {
     }
 }
 
-impl<T: Sample> Blend for Rgba<T> {
+impl<T: PixelComponent> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
-        let max_t = T::MAX_SAMPLE_VALUE;
+        let max_t = T::DEFAULT_MAX_COMPONENT_VALUE;
         let max_t = max_t.to_f32().unwrap();
         let (bg_r, bg_g, bg_b, bg_a) = (self.0[0], self.0[1], self.0[2], self.0[3]);
         let (fg_r, fg_g, fg_b, fg_a) = (other.0[0], other.0[1], other.0[2], other.0[3]);
@@ -769,42 +769,42 @@ pub(crate) trait Invert {
     fn invert(&mut self);
 }
 
-impl<T: Sample> Invert for LumaA<T> {
+impl<T: PixelComponent> Invert for LumaA<T> {
     fn invert(&mut self) {
         let l = self.0;
-        let max = T::MAX_SAMPLE_VALUE;
+        let max = T::DEFAULT_MAX_COMPONENT_VALUE;
 
         *self = LumaA([max - l[0], l[1]])
     }
 }
 
-impl<T: Sample> Invert for Luma<T> {
+impl<T: PixelComponent> Invert for Luma<T> {
     fn invert(&mut self) {
         let l = self.0;
 
-        let max = T::MAX_SAMPLE_VALUE;
+        let max = T::DEFAULT_MAX_COMPONENT_VALUE;
         let l1 = max - l[0];
 
         *self = Luma([l1])
     }
 }
 
-impl<T: Sample> Invert for Rgba<T> {
+impl<T: PixelComponent> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.0;
 
-        let max = T::MAX_SAMPLE_VALUE;
+        let max = T::DEFAULT_MAX_COMPONENT_VALUE;
 
         *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
 }
 
 
-impl<T: Sample> Invert for Rgb<T> {
+impl<T: PixelComponent> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.0;
 
-        let max = T::MAX_SAMPLE_VALUE;
+        let max = T::DEFAULT_MAX_COMPONENT_VALUE;
 
         let r1 = max - rgb[0];
         let g1 = max - rgb[1];
@@ -932,7 +932,7 @@ mod tests {
     #[test]
     fn test_lossless_conversions() {
         use super::IntoColor;
-        use crate::traits::Sample;
+        use crate::traits::PixelComponent;
 
         test_lossless_conversion!(Luma<u8>, Luma<u16>, Luma<u8>);
         test_lossless_conversion!(LumaA<u8>, LumaA<u16>, LumaA<u8>);

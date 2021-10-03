@@ -249,7 +249,7 @@ impl<T: PixelComponent + 'static> Pixel for $ident<T> {
 
     fn channels4(&self) -> (T, T, T, T) {
         const CHANNELS: usize = $channels;
-        let mut channels = [T::MAX_SAMPLE_VALUE; 4];
+        let mut channels = [T::DEFAULT_MAX_COMPONENT_VALUE; 4];
         channels[0..CHANNELS].copy_from_slice(&self.0);
         (channels[0], channels[1], channels[2], channels[3])
     }
@@ -922,7 +922,7 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Subpixel::MAX_SAMPLE_VALUE >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
+            let a: $a = [<$a as Pixel>::Subpixel::DEFAULT_MAX_COMPONENT_VALUE >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
             let b: $b = a.into_color();
             let c: $c = b.into_color();
             assert_eq!(a.channels(), c.channels());

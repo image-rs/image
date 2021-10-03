@@ -119,9 +119,9 @@ impl Lerp for f32 {
 }
 
 
-pub trait Sample: Primitive + 'static {
-    const MAX_SAMPLE_VALUE: Self;
-    const MIN_SAMPLE_VALUE: Self;
+pub trait PixelComponent: Primitive + 'static {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self;
     const RGB_COLOR_TYPE: ColorTypeOrErr;
     const RGBA_COLOR_TYPE: ColorTypeOrErr;
     const L_COLOR_TYPE: ColorTypeOrErr;
@@ -136,27 +136,27 @@ pub(crate) fn color_type_unsupported(error: &'static str) -> ImageError {
     ))
 }
 
-impl Sample for u8 {
-    const MAX_SAMPLE_VALUE: Self = Self::MAX;
-    const MIN_SAMPLE_VALUE: Self = 0;
+impl PixelComponent for u8 {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb8);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba8);
     const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L8);
     const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La8);
 }
 
-impl Sample for u16 {
-    const MAX_SAMPLE_VALUE: Self = Self::MAX;
-    const MIN_SAMPLE_VALUE: Self = 0;
+impl PixelComponent for u16 {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb16);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba16);
     const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L16);
     const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La16);
 }
 
-impl Sample for f32 {
-    const MAX_SAMPLE_VALUE: Self = 1.0;
-    const MIN_SAMPLE_VALUE: Self = 0.0;
+impl PixelComponent for f32 {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self = 1.0;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self = 0.0;
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb32F);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba32F);
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<f32>` does not have an appropriate `ColorType`");
@@ -165,9 +165,9 @@ impl Sample for f32 {
 
 
 #[cfg(test)] // apparently i32 is used for testing somewhere
-impl Sample for i32 {
-    const MAX_SAMPLE_VALUE: Self = i32::MAX;
-    const MIN_SAMPLE_VALUE: Self = i32::MIN;
+impl PixelComponent for i32 {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self = i32::MAX;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self = i32::MIN;
     const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<i32>` does not have an appropriate `ColorType`");
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<i32>` does not have an appropriate `ColorType`");
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<i32>` does not have an appropriate `ColorType`");
@@ -175,9 +175,9 @@ impl Sample for i32 {
 }
 
 #[cfg(test)] // apparently usize is used for testing somewhere
-impl Sample for usize {
-    const MAX_SAMPLE_VALUE: Self = usize::MAX;
-    const MIN_SAMPLE_VALUE: Self = 0;
+impl PixelComponent for usize {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self = usize::MAX;
+    const DEFAULT_MIN_COMPONENT_VALUE: Self = 0;
     const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<usize>` does not have an appropriate `ColorType`");
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<usize>` does not have an appropriate `ColorType`");
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<usize>` does not have an appropriate `ColorType`");
@@ -189,8 +189,8 @@ impl Sample for usize {
 /// A pixel object is usually not used standalone but as a view into an image buffer.
 pub trait Pixel: Copy + Clone {
 
-    /// The underlying subpixel type.
-    type Subpixel: Sample;
+    /// The scalar type that is used to store each channel in this pixel.
+    type Subpixel: PixelComponent;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;

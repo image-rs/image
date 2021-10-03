@@ -51,7 +51,7 @@ use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, Sample};
+use crate::traits::{Pixel, PixelComponent};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -894,7 +894,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
         P: Pixel<Subpixel=Subpixel>,
-        Subpixel: Sample,
+        Subpixel: PixelComponent,
     {
         FlatSamples {
             samples: pixel.channels(),

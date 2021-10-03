@@ -10,7 +10,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::ImageBuffer;
 use crate::image::GenericImageView;
 use crate::utils::clamp;
-use crate::traits::{Enlargeable, Pixel, Sample, Primitive};
+use crate::traits::{Enlargeable, Pixel, PixelComponent, Primitive};
 
 /// Available Sampling Filters.
 ///
@@ -225,14 +225,14 @@ fn horizontal_sample<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Sample + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::MAX_SAMPLE_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::MIN_SAMPLE_VALUE).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_COMPONENT_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_COMPONENT_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -321,14 +321,14 @@ fn vertical_sample<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Sample + 'static,
+    S: PixelComponent + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::MAX_SAMPLE_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::MIN_SAMPLE_VALUE).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_COMPONENT_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_COMPONENT_VALUE).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -679,7 +679,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Sample + 'static,
+    S: PixelComponent + 'static,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -698,7 +698,7 @@ where
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::MAX_SAMPLE_VALUE;
+    let max = S::DEFAULT_MAX_COMPONENT_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
@@ -827,11 +827,11 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: Sample + 'static,
+    S: PixelComponent + 'static,
 {
     let mut tmp = blur(image, sigma);
 
-    let max = S::MAX_SAMPLE_VALUE;
+    let max = S::DEFAULT_MAX_COMPONENT_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 

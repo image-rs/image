@@ -659,8 +659,7 @@ impl<W: Write> Writer<W> {
             None => {
                 self.write_zlib_encoded_idat(&zlib_encoded)?;
             }
-            Some(_) if self.sep_def_img => {
-                self.options.sep_def_img = false;
+            Some(_) if self.should_skip_frame_control_on_default_image() => {
                 self.write_zlib_encoded_idat(&zlib_encoded)?;
             }
             Some(ref mut fctl) => {
@@ -693,6 +692,10 @@ impl<W: Write> Writer<W> {
         }
 
         Ok(())
+    }
+
+    fn should_skip_frame_control_on_default_image(&self) -> bool {
+        self.options.sep_def_img && self.written == 0
     }
 
     fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
@@ -989,7 +992,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
         let curr_chunk;
-        if writer.options.sep_def_img || writer.info.frame_control.is_none() || writer.written == 0 {
+        if writer.written == 0 {
             curr_chunk = chunk::IDAT;
         } else {
             curr_chunk = chunk::fdAT;
@@ -1033,18 +1036,21 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         assert_eq!(self.index, 0, "Called when not flushed");
         let wrt = self.writer.deref_mut();
 
-        self.curr_chunk = match wrt.info.frame_control {
-            _ if wrt.options.sep_def_img => chunk::IDAT,
-            None => chunk::IDAT,
+        self.curr_chunk = if wrt.written == 0 {
+            chunk::IDAT
+        } else {
+            chunk::fdAT
+        };
+
+        match wrt.info.frame_control {
+            Some(_) if wrt.should_skip_frame_control_on_default_image() => {}
             Some(ref mut fctl) => {
                 fctl.encode(&mut wrt.w)?;
                 fctl.sequence_number += 1;
-                match wrt.written {
-                    0 => chunk::IDAT,
-                    _ => chunk::fdAT,
-                }
             }
-        };
+            _ => {}
+        }
+
         Ok(())
     }
 
@@ -1073,6 +1079,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
                 self.curr_chunk,
                 &self.buffer[..self.index],
             )?;
+
             self.index = 0;
         }
         Ok(())
@@ -1085,11 +1092,13 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
             return Ok(0);
         }
 
-        // index == 0 means a chunk as been flushed out
+        // index == 0 means a chunk has been flushed out
         if self.index == 0 {
             let wrt = self.writer.deref_mut();
-            // ??? maybe use self.curr_chunk == chunk::fdAT ???
-            if !wrt.options.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
+
+            // Prepare the next animated frame, if any.
+            let no_fctl = wrt.should_skip_frame_control_on_default_image();
+            if wrt.info.frame_control.is_some() && !no_fctl {
                 let fctl = wrt.info.frame_control.as_mut().unwrap();
                 self.buffer[0..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                 fctl.sequence_number += 1;
@@ -1109,6 +1118,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         if self.index == self.buffer.len() {
             self.flush_inner()?;
         }
+
         Ok(written)
     }
 

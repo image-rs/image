@@ -223,7 +223,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// This method will return an error when animation control was not configured
     /// (which is doing by calling [`set_animated`]).
     pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
-        if self.info.animation_control.is_none() {
+        if self.info.animation_control.is_some() {
             self.options.sep_def_img = sep_def_img;
             Ok(())
         } else {
@@ -594,11 +594,41 @@ impl<W: Write> Writer<W> {
         text_chunk.encode(&mut self.w)
     }
 
-    fn max_frames(&self) -> u64 {
+    /// Check if we should allow writing another image.
+    fn validate_new_image(&self) -> Result<()> {
+        if !self.options.validate_sequence {
+            return Ok(());
+        }
+
         match self.info.animation_control {
-            Some(a) if self.options.sep_def_img => a.num_frames as u64 + 1,
-            Some(a) => a.num_frames as u64,
-            None => 1,
+            None => {
+                if self.written == 0 {
+                    Ok(())
+                } else {
+                    Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
+                }
+            }
+            Some(_) => {
+                if self.info.frame_control.is_some() {
+                    Ok(())
+                } else {
+                    Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
+                }
+            }
+        }
+    }
+
+    fn validate_sequence_done(&self) -> Result<()> {
+        if !self.options.validate_sequence {
+            return Ok(());
+        }
+
+        if self.info.animation_control.is_some() && self.info.frame_control.is_some() {
+            Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
+        } else if self.written == 0 {
+            Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
+        } else {
+            Ok(())
         }
     }
 
@@ -611,6 +641,8 @@ impl<W: Write> Writer<W> {
         if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
+
+        self.validate_new_image()?;
 
         let width: usize;
         let height: usize;
@@ -925,6 +957,18 @@ impl<W: Write> Writer<W> {
     /// [`into_stream_writer`]: #fn.into_stream_writer
     pub fn into_stream_writer_with_size(self, size: usize) -> Result<StreamWriter<'static, W>> {
         StreamWriter::new(ChunkOutput::Owned(self), size)
+    }
+
+    /// Consume the stream writer with validation.
+    ///
+    /// Unlike a simple drop this ensures that the final chunk was written correctly. When other
+    /// validation options (chunk sequencing) had been turned on in the configuration then it will
+    /// also do a check on their correctness _before_ writing the final chunk.
+    pub fn finish(self) -> Result<()> {
+        self.validate_sequence_done()?;
+        // Prevent the writing on Drop, we do it fallibly.
+        let mut finalize = mem::ManuallyDrop::new(self);
+        finalize.write_chunk(chunk::IEND, &[])
     }
 }
 
@@ -1423,6 +1467,12 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
         // TODO: call `writer.finish` somehow?
         self.flush()?;
+
+        match self.writer.take() {
+            Wrapper::Chunk(wrt) => wrt.writer.validate_sequence_done()?,
+            _ => unreachable!(),
+        }
+
         Ok(())
     }
 
@@ -1435,6 +1485,8 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             _ => unreachable!(),
         };
         wrt.flush()?;
+        wrt.writer.validate_new_image()?;
+
         if let Some(fctl) = self.fctl {
             wrt.set_fctl(fctl);
         }
@@ -1946,6 +1998,140 @@ mod tests {
             let image = vec![0u8; correct_image_size];
             png_writer.write_image_data(image.as_ref())?;
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_sequence_without_animation() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+        png_writer.write_image_data(image.as_ref())?;
+
+        assert!(png_writer.write_image_data(image.as_ref()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(1, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation2() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(2, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.finish()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation_sep_def_image() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(1, 0)?;
+        encoder.set_sep_def_img(true)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.finish()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_missing_image() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.validate_sequence(true);
+        let png_writer = encoder.write_header()?;
+
+        assert!(png_writer.finish().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_missing_animated_frame() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(2, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        assert!(png_writer.finish().is_err());
 
         Ok(())
     }

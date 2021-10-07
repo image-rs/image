@@ -365,16 +365,16 @@ where
 
 fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     n_pixels: usize,
 ) -> bool {
     for idx in indices.take(n_pixels) {
         if let Some(pixel) = pixel_iter.next() {
-            let (r, g, b) = palette[*idx as usize];
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
+            let rgb = palette[*idx as usize];
+            pixel[0] = rgb[0];
+            pixel[1] = rgb[1];
+            pixel[2] = rgb[2];
         } else {
             return false;
         }
@@ -384,7 +384,7 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 
 fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     mut n_pixels: usize,
 ) -> bool {
@@ -395,10 +395,10 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     break;
                 }
                 if let Some(pixel) = pixel_iter.next() {
-                    let (r, g, b) = palette[$i as usize];
-                    pixel[0] = r;
-                    pixel[1] = g;
-                    pixel[2] = b;
+                    let rgb = palette[$i as usize];
+                    pixel[0] = rgb[0];
+                    pixel[1] = rgb[1];
+                    pixel[2] = rgb[2];
                 } else {
                     return false;
                 }
@@ -414,7 +414,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 #[rustfmt::skip]
 fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     mut n_pixels: usize,
 ) -> bool {
@@ -425,10 +425,10 @@ fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     break;
                 }
                 if let Some(pixel) = pixel_iter.next() {
-                    let (r, g, b) = palette[$i as usize];
-                    pixel[0] = r;
-                    pixel[1] = g;
-                    pixel[2] = b;
+                    let rgb = palette[$i as usize];
+                    pixel[0] = rgb[0];
+                    pixel[1] = rgb[1];
+                    pixel[2] = rgb[2];
                 } else {
                     return false;
                 }
@@ -445,17 +445,17 @@ fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 
 fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
 ) {
     for idx in indices {
         let mut bit = 0x80;
         loop {
             if let Some(pixel) = pixel_iter.next() {
-                let (r, g, b) = palette[((idx & bit) != 0) as usize];
-                pixel[0] = r;
-                pixel[1] = g;
-                pixel[2] = b;
+                let rgb = palette[((idx & bit) != 0) as usize];
+                pixel[0] = rgb[0];
+                pixel[1] = rgb[1];
+                pixel[2] = rgb[2];
             } else {
                 return;
             }
@@ -556,7 +556,7 @@ pub struct BmpDecoder<R> {
 
     bit_count: u16,
     colors_used: u32,
-    palette: Option<Vec<(u8, u8, u8)>>,
+    palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
 }
 
@@ -1000,12 +1000,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
             Ordering::Equal => (),
         }
 
-        let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE)
+        let p: Vec<[u8; 3]> = (0..MAX_PALETTE_SIZE)
             .map(|i| {
                 let b = buf[bytes_per_color * i];
                 let g = buf[bytes_per_color * i + 1];
                 let r = buf[bytes_per_color * i + 2];
-                (r, g, b)
+                [r, g, b]
             })
             .collect();
 
@@ -1015,12 +1015,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 
     /// Get the palette that is embedded in the BMP image, if any.
-    pub fn get_palette(&self) -> &Option<Vec<(u8, u8, u8)>> {
+    pub fn get_palette(&self) -> &Option<Vec<[u8; 3]>> {
         &self.palette
     }
 
     /// Set the palette that will be used to decode the BMP image.
-    pub fn set_palette(&mut self, palette: Option<Vec<(u8, u8, u8)>>) {
+    pub fn set_palette(&mut self, palette: Option<Vec<[u8; 3]>>) {
         self.palette = palette;
     }
 

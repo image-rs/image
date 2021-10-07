@@ -203,9 +203,9 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
     ) -> io::Result<()> {
         // write grayscale palette
         if let Some(palette) = palette {
-            for (r, g, b) in palette {
+            for &(r, g, b) in palette {
                 // each color is written as BGRA, where A is always 0
-                self.writer.write_all(&[*b, *g, *r, 0])?;
+                self.writer.write_all(&[b, g, r, 0])?;
             }
         } else {
             for val in 0u8..=255 {

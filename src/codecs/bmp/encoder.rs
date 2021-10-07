@@ -51,7 +51,7 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         width: u32,
         height: u32,
         c: color::ColorType,
-        palette: Option<&[(u8, u8, u8)]>,
+        palette: Option<&[[u8; 3]]>,
     ) -> ImageResult<()> {
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
@@ -199,13 +199,13 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         height: u32,
         row_pad_size: u32,
         bytes_per_pixel: u32,
-        palette: Option<&[(u8, u8, u8)]>,
+        palette: Option<&[[u8; 3]]>,
     ) -> io::Result<()> {
         // write grayscale palette
         if let Some(palette) = palette {
-            for (r, g, b) in palette {
+            for item in palette {
                 // each color is written as BGRA, where A is always 0
-                self.writer.write_all(&[*b, *g, *r, 0])?;
+                self.writer.write_all(&[item[2], item[1], item[0], 0])?;
             }
         } else {
             for val in 0u8..=255 {
@@ -262,7 +262,7 @@ fn get_unsupported_error_message(c: color::ColorType) -> String {
 }
 
 /// Returns a tuple representing: (dib header size, written pixel size, palette color count).
-fn get_pixel_info(c: color::ColorType, palette: Option<&[(u8, u8, u8)]>) -> io::Result<(u32, u32, u32)> {
+fn get_pixel_info(c: color::ColorType, palette: Option<&[[u8; 3]]>) -> io::Result<(u32, u32, u32)> {
     let sizes = match c {
         color::ColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
         color::ColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),

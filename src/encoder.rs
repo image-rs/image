@@ -1470,7 +1470,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
         match self.writer.take() {
             Wrapper::Chunk(wrt) => wrt.writer.validate_sequence_done()?,
-            _ => unreachable!(),
+            _ => {}
         }
 
         Ok(())
@@ -1479,10 +1479,16 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// Flushes the buffered chunk, checks if it was the last frame,
     /// writes the next frame header and gets the next frame scanline size
     /// and image size.
+    /// NOTE: This method must only be called when the writer is the variant Chunk(_)
     fn new_frame(&mut self) -> Result<()> {
         let wrt = match &mut self.writer {
             Wrapper::Chunk(wrt) => wrt,
-            _ => unreachable!(),
+            Wrapper::Unrecoverable => {
+                let err = FormatErrorKind::Unrecoverable.into();
+                return Err(EncodingError::Format(err).into());
+            }
+            Wrapper::Zlib(_) => unreachable!("never called on a half-finished frame"),
+            Wrapper::None => unreachable!(),
         };
         wrt.flush()?;
         wrt.writer.validate_new_image()?;
@@ -1497,11 +1503,14 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         wrt.write_header()?;
 
         // now it can be taken because the next statements cannot cause any errors
-        let wrt = match self.writer.take() {
-            Wrapper::Chunk(wrt) => wrt,
+        match self.writer.take() {
+            Wrapper::Chunk(wrt) => {
+                let encoder = ZlibEncoder::new(wrt, self.compression.to_options());
+                self.writer = Wrapper::Zlib(encoder);
+            }
             _ => unreachable!(),
         };
-        self.writer = Wrapper::Zlib(ZlibEncoder::new(wrt, self.compression.to_options()));
+
         Ok(())
     }
 }
@@ -1527,8 +1536,11 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                     }
                 },
                 chunk @ Wrapper::Chunk(_) => self.writer = chunk,
-                Wrapper::None | Wrapper::Unrecoverable => unreachable!(),
+                Wrapper::Unrecoverable => unreachable!(),
+                Wrapper::None => unreachable!(),
             };
+
+            // Transition Wrapper::Chunk to Wrapper::Zlib.
             self.new_frame()?;
         }
 
@@ -1549,23 +1561,33 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                 Wrapper::Zlib(wrt) => wrt,
                 _ => unreachable!(),
             };
+
             wrt.write_all(&[filter_type as u8])?;
             wrt.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;
         }
+
         Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match &mut self.writer {
             Wrapper::Zlib(wrt) => wrt.flush()?,
-            _ => unreachable!(),
+            Wrapper::Chunk(wrt) => wrt.flush()?,
+            // This handles both the case where we entered an unrecoverable state after zlib
+            // decoding failure and after a panic while we had taken the chunk/zlib reader.
+            Wrapper::Unrecoverable | Wrapper::None => {
+                let err = FormatErrorKind::Unrecoverable.into();
+                return Err(EncodingError::Format(err).into());
+            }
         }
+
         if self.index > 0 {
             let err = FormatErrorKind::WrittenTooMuch(self.index).into();
             return Err(EncodingError::Format(err).into());
         }
+
         Ok(())
     }
 }
@@ -2132,6 +2154,31 @@ mod tests {
 
         png_writer.write_image_data(image.as_ref())?;
         assert!(png_writer.finish().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn issue_307_stream_validation() -> Result<()> {
+        let output = vec![0u8; 1024];
+        let mut cursor = Cursor::new(output);
+
+        let encoder = Encoder::new(&mut cursor, 1, 1); // Create a 1-pixel image
+        let mut writer = encoder.write_header()?;
+        let mut stream = writer.stream_writer()?;
+
+        let written = stream.write(&[1, 2, 3, 4])?;
+        assert_eq!(written, 1);
+        stream.finish()?;
+        drop(writer);
+
+        {
+            cursor.set_position(0);
+            let mut decoder = Decoder::new(cursor).read_info().expect("A valid image");
+            let mut buffer = [0u8; 1];
+            decoder.next_frame(&mut buffer[..]).expect("Valid read");
+            assert_eq!(buffer, [1]);
+        }
 
         Ok(())
     }

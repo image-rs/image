@@ -1,9 +1,19 @@
 ## Unreleased
 
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.
-* Added ability to make frame sequence validation optional.
-* Fix an issue where, after `flush` or `write` of an underlying writer
-  panicked, the library would abort.
+* Added `Encoder::validate_sequence` to enable validation of the written frame
+  sequence, that is, if the number of written images is consistent with the
+  animation state.
+* Validation is now off by default. The basis of the new validation had been
+  introduced in 0.17 but this fixes some cases where this validation was too
+  aggressive compared to previous versions.
+* Added `Writer::finish` to fully check the write of the end of an image
+  instead of silently ignoring potential errors in `Drop`.
+* The `Writer::write_chunk` method now validates that the computed chunk length
+  does not overflow the limit set by PNG.
+* Fix an issue where the library would panic or even abort the process when
+  `flush` or `write` of an underlying writer panicked, or in some other uses of
+  `StreamWriter`.
 
 ## 0.17.1
 

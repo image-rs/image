@@ -1087,7 +1087,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             |row| {
                 reader.read_exact(&mut indices)?;
                 if skip_palette {
-                    row.clone_from_slice(&indices);
+                    row.clone_from_slice(&indices[0..width]);
                 } else {
                     let mut pixel_iter = row.chunks_mut(num_channels);
                     match bit_count {
@@ -1462,7 +1462,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        if self.add_alpha_channel {
+        if self.skip_palette {
+            ColorType::L8
+        } else if self.add_alpha_channel {
             ColorType::Rgba8
         } else {
             ColorType::Rgb8

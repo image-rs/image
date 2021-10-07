@@ -44,7 +44,8 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         self.encode_with_palette(image, width, height, c, None)
     }
 
-    /// Same as ```encode```, but allow a palette to be passed in
+    /// Same as ```encode```, but allow a palette to be passed in.
+    /// The ```palette``` is ignored for color types other than Luma/Luma-with-alpha.
     pub fn encode_with_palette(
         &mut self,
         image: &[u8],
@@ -53,6 +54,16 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
         c: color::ColorType,
         palette: Option<&[[u8; 3]]>,
     ) -> ImageResult<()> {
+        if palette.is_some() && c != color::ColorType::L8 && c != color::ColorType::La8 {
+            return Err(ImageError::IoError(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Unsupported color type {:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8).",
+                    c
+                ),
+            )))
+        }
+
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
         let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c, palette)?;

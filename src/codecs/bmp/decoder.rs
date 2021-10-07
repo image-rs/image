@@ -1015,13 +1015,8 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 
     /// Get the palette that is embedded in the BMP image, if any.
-    pub fn get_palette(&self) -> &Option<Vec<[u8; 3]>> {
-        &self.palette
-    }
-
-    /// Set the palette that will be used to decode the BMP image.
-    pub fn set_palette(&mut self, palette: Option<Vec<[u8; 3]>>) {
-        self.palette = palette;
+    pub fn get_palette(&self) -> Option<&[[u8; 3]]> {
+        self.palette.as_ref().map(|vec| &vec[..])
     }
 
     fn num_channels(&self) -> usize {

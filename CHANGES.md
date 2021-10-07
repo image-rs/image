@@ -1,6 +1,9 @@
 ## Unreleased
 
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.
+* Added ability to make frame sequence validation optional.
+* Fix an issue where, after `flush` or `write` of an underlying writer
+  panicked, the library would abort.
 
 ## 0.17.1
 

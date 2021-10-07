@@ -138,13 +138,36 @@ impl From<TextEncodingError> for EncodingError {
     }
 }
 
-/// PNG Encoder
+/// PNG Encoder.
+///
+/// This configures the PNG format options such as animation chunks, palette use, color types,
+/// auxiliary chunks etc.
+///
+/// FIXME: Configuring APNG might be easier (less individual errors) if we had an _adapter_ which
+/// borrows this mutably but guarantees that `info.frame_control` is not `None`.
 pub struct Encoder<'a, W: Write> {
     w: W,
     info: Info<'a>,
+    options: Options,
+}
+
+/// Decoding options, internal type, forwarded to the Writer.
+struct Options {
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
+    validate_sequence: bool,
+}
+
+impl Default for Options {
+    fn default() -> Options {
+        Options {
+            filter: FilterType::default(),
+            adaptive_filter: AdaptiveFilterType::default(),
+            sep_def_img: false,
+            validate_sequence: false,
+        }
+    }
 }
 
 impl<'a, W: Write> Encoder<'a, W> {
@@ -152,9 +175,7 @@ impl<'a, W: Write> Encoder<'a, W> {
         Encoder {
             w,
             info: Info::with_size(width, height),
-            filter: FilterType::default(),
-            adaptive_filter: AdaptiveFilterType::default(),
-            sep_def_img: false,
+            options: Options::default(),
         }
     }
 
@@ -162,32 +183,48 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// `num_frames` controls how many frames the animation has, while
     /// `num_plays` controls how many times the animation should be
-    /// repeaded until it stops, if it's zero then it will repeat
-    /// inifinitely
+    /// repeated until it stops, if it's zero then it will repeat
+    /// infinitely.
+    ///
+    /// When this method is returns successfully then the images written will be encoded as fdAT
+    /// chunks, except for the first image that is still encoded as `IDAT`. You can control if the
+    /// first frame should be treated as an animation frame with [`set_sep_def_img()`].
     ///
     /// This method returns an error if `num_frames` is 0.
     pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) -> Result<()> {
         if num_frames == 0 {
             return Err(EncodingError::Format(FormatErrorKind::ZeroFrames.into()));
         }
+
         let actl = AnimationControl {
             num_frames,
             num_plays,
         };
+
         let fctl = FrameControl {
             sequence_number: 0,
             width: self.info.width,
             height: self.info.height,
             ..Default::default()
         };
+
         self.info.animation_control = Some(actl);
         self.info.frame_control = Some(fctl);
         Ok(())
     }
 
+    /// Mark the first animated frame as a 'separate default image'.
+    ///
+    /// In APNG each animated frame is preceded by a special control chunk, `fcTL`. It's up to the
+    /// encoder to decide if the first image, the standard `IDAT` data, should be part of the
+    /// animation by emitting this chunk or by not doing so. A default image that is _not_ part of
+    /// the animation is often interpreted as a thumbnail.
+    ///
+    /// This method will return an error when animation control was not configured
+    /// (which is doing by calling [`set_animated`]).
     pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
-        if self.info.animation_control.is_none() {
-            self.sep_def_img = sep_def_img;
+        if self.info.animation_control.is_some() {
+            self.options.sep_def_img = sep_def_img;
             Ok(())
         } else {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
@@ -228,15 +265,11 @@ impl<'a, W: Write> Encoder<'a, W> {
         self.info.srgb = Some(rendering_intent);
     }
 
+    /// Start encoding by writing the header data.
+    ///
+    /// The remaining data can be supplied by methods on the returned [`Writer`].
     pub fn write_header(self) -> Result<Writer<W>> {
-        Writer::new(
-            self.w,
-            PartialInfo::new(&self.info),
-            self.filter,
-            self.adaptive_filter,
-            self.sep_def_img,
-        )
-        .init(&self.info)
+        Writer::new(self.w, PartialInfo::new(&self.info), self.options).init(&self.info)
     }
 
     /// Set the color of the encoded image.
@@ -270,7 +303,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
-        self.filter = filter;
+        self.options.filter = filter;
     }
 
     /// Set the adaptive filter type.
@@ -282,7 +315,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
-        self.adaptive_filter = adaptive_filter;
+        self.options.adaptive_filter = adaptive_filter;
     }
 
     /// Set the fraction of time every frame is going to be displayed, in seconds.
@@ -404,16 +437,36 @@ impl<'a, W: Write> Encoder<'a, W> {
         self.info.utf8_text.push(text_chunk);
         Ok(())
     }
+
+    /// Validate the written image sequence.
+    ///
+    /// When validation is turned on (it's turned off by default) then attempts to write more than
+    /// one `IDAT` image or images beyond the number of frames indicated in the animation control
+    /// chunk will fail and return an error result instead. Attempts to [finish][finish] the image
+    /// with missing frames will also return an error.
+    ///
+    /// [finish]: StreamWriter::finish
+    ///
+    /// (It's possible to circumvent these checks by writing raw chunks instead.)
+    pub fn validate_sequence(&mut self, validate: bool) {
+        self.options.validate_sequence = validate;
+    }
 }
 
 /// PNG writer
+///
+/// Progresses through the image by writing images, frames, or raw individual chunks. This is
+/// constructed through [`Encoder::write_header()`].
+///
+/// FIXME: Writing of animated chunks might be clearer if we had an _adapter_ that you would call
+/// to guarantee the next image to be prefaced with a fcTL-chunk, and all other chunks would be
+/// guaranteed to be `IDAT`/not affected by APNG's frame control.
 pub struct Writer<W: Write> {
     w: W,
     info: PartialInfo,
-    filter: FilterType,
-    adaptive_filter: AdaptiveFilterType,
-    sep_def_img: bool,
+    options: Options,
     written: u64,
+    animation_written: u32,
 }
 
 /// Contains the subset of attributes of [Info] needed for [Writer] to function
@@ -486,20 +539,13 @@ pub(crate) fn write_chunk<W: Write>(mut w: W, name: chunk::ChunkType, data: &[u8
 }
 
 impl<W: Write> Writer<W> {
-    fn new(
-        w: W,
-        info: PartialInfo,
-        filter: FilterType,
-        adaptive_filter: AdaptiveFilterType,
-        sep_def_img: bool,
-    ) -> Writer<W> {
+    fn new(w: W, info: PartialInfo, options: Options) -> Writer<W> {
         Writer {
             w,
             info,
-            filter,
-            adaptive_filter,
-            sep_def_img,
+            options,
             written: 0,
+            animation_written: 0,
         }
     }
 
@@ -529,7 +575,18 @@ impl<W: Write> Writer<W> {
         Ok(self)
     }
 
+    /// Write a raw chunk of PNG data.
+    ///
+    /// The chunk will have its CRC calculated and correctly. The data is not filtered in any way,
+    /// but the chunk needs to be short enough to have its length encoded correctly.
     pub fn write_chunk(&mut self, name: ChunkType, data: &[u8]) -> Result<()> {
+        use std::convert::TryFrom;
+
+        if u32::try_from(data.len()).map_or(true, |length| length > i32::MAX as u32) {
+            let kind = FormatErrorKind::WrittenTooMuch(data.len() - i32::MAX as usize);
+            return Err(EncodingError::Format(kind.into()));
+        }
+
         write_chunk(&mut self.w, name, data)
     }
 
@@ -537,27 +594,55 @@ impl<W: Write> Writer<W> {
         text_chunk.encode(&mut self.w)
     }
 
-    fn max_frames(&self) -> u64 {
+    /// Check if we should allow writing another image.
+    fn validate_new_image(&self) -> Result<()> {
+        if !self.options.validate_sequence {
+            return Ok(());
+        }
+
         match self.info.animation_control {
-            Some(a) if self.sep_def_img => a.num_frames as u64 + 1,
-            Some(a) => a.num_frames as u64,
-            None => 1,
+            None => {
+                if self.written == 0 {
+                    Ok(())
+                } else {
+                    Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
+                }
+            }
+            Some(_) => {
+                if self.info.frame_control.is_some() {
+                    Ok(())
+                } else {
+                    Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
+                }
+            }
         }
     }
 
-    /// Writes the image data.
-    pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
-        const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
-        #[allow(non_upper_case_globals)]
-        const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
+    fn validate_sequence_done(&self) -> Result<()> {
+        if !self.options.validate_sequence {
+            return Ok(());
+        }
 
+        if self.info.animation_control.is_some() && self.info.frame_control.is_some() {
+            Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
+        } else if self.written == 0 {
+            Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
+        } else {
+            Ok(())
+        }
+    }
+
+    const MAX_IDAT_CHUNK_LEN: u32 = std::u32::MAX >> 1;
+    #[allow(non_upper_case_globals)]
+    const MAX_fdAT_CHUNK_LEN: u32 = (std::u32::MAX >> 1) - 4;
+
+    /// Writes the next image data.
+    pub fn write_image_data(&mut self, data: &[u8]) -> Result<()> {
         if self.info.color_type == ColorType::Indexed && !self.info.has_palette {
             return Err(EncodingError::Format(FormatErrorKind::NoPalette.into()));
         }
 
-        if self.written > self.max_frames() {
-            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
-        }
+        self.validate_new_image()?;
 
         let width: usize;
         let height: usize;
@@ -590,8 +675,9 @@ impl<W: Write> Writer<W> {
             self.info.compression.clone().to_options(),
         );
         let bpp = self.info.bpp_in_prediction();
-        let filter_method = self.filter;
-        let adaptive_method = self.adaptive_filter;
+        let filter_method = self.options.filter;
+        let adaptive_method = self.options.adaptive_filter;
+
         for line in data.chunks(in_len) {
             current.copy_from_slice(&line);
             let filter_type = filter(filter_method, adaptive_method, bpp, &prev, &mut current);
@@ -600,33 +686,54 @@ impl<W: Write> Writer<W> {
             prev = line;
         }
         let zlib_encoded = zlib.finish()?;
-        if self.sep_def_img || self.info.frame_control.is_none() {
-            self.sep_def_img = false;
-            for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
-                self.write_chunk(chunk::IDAT, &chunk)?;
-            }
-        } else if let Some(ref mut fctl) = self.info.frame_control {
-            fctl.encode(&mut self.w)?;
-            fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
 
-            if self.written == 0 {
-                for chunk in zlib_encoded.chunks(MAX_IDAT_CHUNK_LEN as usize) {
-                    self.write_chunk(chunk::IDAT, &chunk)?;
-                }
-            } else {
-                let buff_size = zlib_encoded.len().min(MAX_fdAT_CHUNK_LEN as usize);
-                let mut alldata = vec![0u8; 4 + buff_size];
-                for chunk in zlib_encoded.chunks(MAX_fdAT_CHUNK_LEN as usize) {
-                    alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
-                    alldata[4..][..chunk.len()].copy_from_slice(chunk);
-                    write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
-                    fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+        match self.info.frame_control {
+            None => {
+                self.write_zlib_encoded_idat(&zlib_encoded)?;
+            }
+            Some(_) if self.should_skip_frame_control_on_default_image() => {
+                self.write_zlib_encoded_idat(&zlib_encoded)?;
+            }
+            Some(ref mut fctl) => {
+                fctl.encode(&mut self.w)?;
+                fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+                self.animation_written += 1;
+
+                // If the default image is the first frame of an animation, it's still an IDAT.
+                if self.written == 0 {
+                    self.write_zlib_encoded_idat(&zlib_encoded)?;
+                } else {
+                    let buff_size = zlib_encoded.len().min(Self::MAX_fdAT_CHUNK_LEN as usize);
+                    let mut alldata = vec![0u8; 4 + buff_size];
+                    for chunk in zlib_encoded.chunks(Self::MAX_fdAT_CHUNK_LEN as usize) {
+                        alldata[..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
+                        alldata[4..][..chunk.len()].copy_from_slice(chunk);
+                        write_chunk(&mut self.w, chunk::fdAT, &alldata[..4 + chunk.len()])?;
+                        fctl.sequence_number = fctl.sequence_number.wrapping_add(1);
+                    }
                 }
             }
-        } else {
-            unreachable!(); // this should be unreachable
         }
+
         self.written += 1;
+        if let Some(actl) = self.info.animation_control {
+            if actl.num_frames <= self.animation_written {
+                // If we've written all animation frames, all following will be normal image chunks.
+                self.info.frame_control = None;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn should_skip_frame_control_on_default_image(&self) -> bool {
+        self.options.sep_def_img && self.written == 0
+    }
+
+    fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
+        for chunk in zlib_encoded.chunks(Self::MAX_IDAT_CHUNK_LEN as usize) {
+            self.write_chunk(chunk::IDAT, &chunk)?;
+        }
         Ok(())
     }
 
@@ -639,7 +746,7 @@ impl<W: Write> Writer<W> {
     /// [`FilterType::Sub`]: enum.FilterType.html#variant.Sub
     /// [`FilterType::Paeth`]: enum.FilterType.html#variant.Paeth
     pub fn set_filter(&mut self, filter: FilterType) {
-        self.filter = filter;
+        self.options.filter = filter;
     }
 
     /// Set the adaptive filter type for the following frames.
@@ -651,7 +758,7 @@ impl<W: Write> Writer<W> {
     ///
     /// [`AdaptiveFilterType::NonAdaptive`]: enum.AdaptiveFilterType.html
     pub fn set_adaptive_filter(&mut self, adaptive_filter: AdaptiveFilterType) {
-        self.adaptive_filter = adaptive_filter;
+        self.options.adaptive_filter = adaptive_filter;
     }
 
     /// Set the fraction of time the following frames are going to be displayed,
@@ -851,6 +958,18 @@ impl<W: Write> Writer<W> {
     pub fn into_stream_writer_with_size(self, size: usize) -> Result<StreamWriter<'static, W>> {
         StreamWriter::new(ChunkOutput::Owned(self), size)
     }
+
+    /// Consume the stream writer with validation.
+    ///
+    /// Unlike a simple drop this ensures that the final chunk was written correctly. When other
+    /// validation options (chunk sequencing) had been turned on in the configuration then it will
+    /// also do a check on their correctness _before_ writing the final chunk.
+    pub fn finish(self) -> Result<()> {
+        self.validate_sequence_done()?;
+        // Prevent the writing on Drop, we do it fallibly.
+        let mut finalize = mem::ManuallyDrop::new(self);
+        finalize.write_chunk(chunk::IEND, &[])
+    }
 }
 
 impl<W: Write> Drop for Writer<W> {
@@ -917,7 +1036,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
         let curr_chunk;
-        if writer.sep_def_img || writer.info.frame_control.is_none() || writer.written == 0 {
+        if writer.written == 0 {
             curr_chunk = chunk::IDAT;
         } else {
             curr_chunk = chunk::fdAT;
@@ -961,18 +1080,21 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         assert_eq!(self.index, 0, "Called when not flushed");
         let wrt = self.writer.deref_mut();
 
-        self.curr_chunk = match wrt.info.frame_control {
-            _ if wrt.sep_def_img => chunk::IDAT,
-            None => chunk::IDAT,
+        self.curr_chunk = if wrt.written == 0 {
+            chunk::IDAT
+        } else {
+            chunk::fdAT
+        };
+
+        match wrt.info.frame_control {
+            Some(_) if wrt.should_skip_frame_control_on_default_image() => {}
             Some(ref mut fctl) => {
                 fctl.encode(&mut wrt.w)?;
                 fctl.sequence_number += 1;
-                match wrt.written {
-                    0 => chunk::IDAT,
-                    _ => chunk::fdAT,
-                }
             }
-        };
+            _ => {}
+        }
+
         Ok(())
     }
 
@@ -1001,6 +1123,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
                 self.curr_chunk,
                 &self.buffer[..self.index],
             )?;
+
             self.index = 0;
         }
         Ok(())
@@ -1013,11 +1136,13 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
             return Ok(0);
         }
 
-        // index == 0 means a chunk as been flushed out
+        // index == 0 means a chunk has been flushed out
         if self.index == 0 {
             let wrt = self.writer.deref_mut();
-            // ??? maybe use self.curr_chunk == chunk::fdAT ???
-            if !wrt.sep_def_img && wrt.info.frame_control.is_some() && wrt.written > 0 {
+
+            // Prepare the next animated frame, if any.
+            let no_fctl = wrt.should_skip_frame_control_on_default_image();
+            if wrt.info.frame_control.is_some() && !no_fctl {
                 let fctl = wrt.info.frame_control.as_mut().unwrap();
                 self.buffer[0..4].copy_from_slice(&fctl.sequence_number.to_be_bytes());
                 fctl.sequence_number += 1;
@@ -1037,6 +1162,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
         if self.index == self.buffer.len() {
             self.flush_inner()?;
         }
+
         Ok(written)
     }
 
@@ -1104,8 +1230,6 @@ pub struct StreamWriter<'a, W: Write> {
     line_len: usize,
     /// size of the frame (width * height * sample_size)
     to_write: usize,
-    /// Flag used to signal the end of the image
-    end: bool,
 
     width: u32,
     height: u32,
@@ -1119,10 +1243,6 @@ pub struct StreamWriter<'a, W: Write> {
 
 impl<'a, W: Write> StreamWriter<'a, W> {
     fn new(writer: ChunkOutput<'a, W>, buf_len: usize) -> Result<StreamWriter<'a, W>> {
-        if writer.max_frames() < writer.written {
-            return Err(EncodingError::Format(FormatErrorKind::EndReached.into()));
-        }
-
         let PartialInfo {
             width,
             height,
@@ -1133,8 +1253,8 @@ impl<'a, W: Write> StreamWriter<'a, W> {
 
         let bpp = writer.info.bpp_in_prediction();
         let in_len = writer.info.raw_row_length() - 1;
-        let filter = writer.filter;
-        let adaptive_filter = writer.adaptive_filter;
+        let filter = writer.options.filter;
+        let adaptive_filter = writer.options.adaptive_filter;
         let prev_buf = vec![0; in_len];
         let curr_buf = vec![0; in_len];
 
@@ -1148,7 +1268,6 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             index: 0,
             prev_buf,
             curr_buf,
-            end: false,
             bpp,
             filter,
             width,
@@ -1341,27 +1460,39 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     }
 
     pub fn finish(mut self) -> Result<()> {
-        if !self.end {
-            let err = FormatErrorKind::MissingFrames.into();
-            return Err(EncodingError::Format(err));
-        } else if self.to_write > 0 {
+        if self.to_write > 0 {
             let err = FormatErrorKind::MissingData(self.to_write).into();
             return Err(EncodingError::Format(err));
         }
+
         // TODO: call `writer.finish` somehow?
         self.flush()?;
+
+        match self.writer.take() {
+            Wrapper::Chunk(wrt) => wrt.writer.validate_sequence_done()?,
+            _ => {}
+        }
+
         Ok(())
     }
 
     /// Flushes the buffered chunk, checks if it was the last frame,
     /// writes the next frame header and gets the next frame scanline size
     /// and image size.
+    /// NOTE: This method must only be called when the writer is the variant Chunk(_)
     fn new_frame(&mut self) -> Result<()> {
         let wrt = match &mut self.writer {
             Wrapper::Chunk(wrt) => wrt,
-            _ => unreachable!(),
+            Wrapper::Unrecoverable => {
+                let err = FormatErrorKind::Unrecoverable.into();
+                return Err(EncodingError::Format(err).into());
+            }
+            Wrapper::Zlib(_) => unreachable!("never called on a half-finished frame"),
+            Wrapper::None => unreachable!(),
         };
         wrt.flush()?;
+        wrt.writer.validate_new_image()?;
+
         if let Some(fctl) = self.fctl {
             wrt.set_fctl(fctl);
         }
@@ -1370,14 +1501,16 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         self.to_write = size;
         wrt.writer.written += 1;
         wrt.write_header()?;
-        self.end = wrt.writer.written + 1 == wrt.writer.max_frames();
 
         // now it can be taken because the next statements cannot cause any errors
-        let wrt = match self.writer.take() {
-            Wrapper::Chunk(wrt) => wrt,
+        match self.writer.take() {
+            Wrapper::Chunk(wrt) => {
+                let encoder = ZlibEncoder::new(wrt, self.compression.to_options());
+                self.writer = Wrapper::Zlib(encoder);
+            }
             _ => unreachable!(),
         };
-        self.writer = Wrapper::Zlib(ZlibEncoder::new(wrt, self.compression.to_options()));
+
         Ok(())
     }
 }
@@ -1394,10 +1527,6 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
         }
 
         if self.to_write == 0 {
-            if self.end {
-                let err = FormatErrorKind::EndReached.into();
-                return Err(EncodingError::Format(err).into());
-            }
             match self.writer.take() {
                 Wrapper::Zlib(wrt) => match wrt.finish() {
                     Ok(chunk) => self.writer = Wrapper::Chunk(chunk),
@@ -1407,10 +1536,14 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                     }
                 },
                 chunk @ Wrapper::Chunk(_) => self.writer = chunk,
-                Wrapper::None | Wrapper::Unrecoverable => unreachable!(),
+                Wrapper::Unrecoverable => unreachable!(),
+                Wrapper::None => unreachable!(),
             };
+
+            // Transition Wrapper::Chunk to Wrapper::Zlib.
             self.new_frame()?;
         }
+
         let written = data.read(&mut self.curr_buf[..self.line_len][self.index..])?;
         self.index += written;
         self.to_write -= written;
@@ -1428,23 +1561,33 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
                 Wrapper::Zlib(wrt) => wrt,
                 _ => unreachable!(),
             };
+
             wrt.write_all(&[filter_type as u8])?;
             wrt.write_all(&self.curr_buf)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;
         }
+
         Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match &mut self.writer {
             Wrapper::Zlib(wrt) => wrt.flush()?,
-            _ => unreachable!(),
+            Wrapper::Chunk(wrt) => wrt.flush()?,
+            // This handles both the case where we entered an unrecoverable state after zlib
+            // decoding failure and after a panic while we had taken the chunk/zlib reader.
+            Wrapper::Unrecoverable | Wrapper::None => {
+                let err = FormatErrorKind::Unrecoverable.into();
+                return Err(EncodingError::Format(err).into());
+            }
         }
+
         if self.index > 0 {
             let err = FormatErrorKind::WrittenTooMuch(self.index).into();
             return Err(EncodingError::Format(err).into());
         }
+
         Ok(())
     }
 }
@@ -1462,7 +1605,7 @@ mod tests {
 
     use rand::{thread_rng, Rng};
     use std::fs::File;
-    use std::io::Write;
+    use std::io::{Cursor, Write};
     use std::{cmp, io};
 
     #[test]
@@ -1605,8 +1748,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_wrong_image_len() -> Result<()> {
-        use std::io::Cursor;
-
         let width = 10;
         let height = 10;
 
@@ -1627,8 +1768,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_empty_image() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1646,8 +1785,6 @@ mod tests {
 
     #[test]
     fn expect_error_on_invalid_bit_depth_color_type_combination() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1706,8 +1843,6 @@ mod tests {
 
     #[test]
     fn can_write_header_with_valid_bit_depth_color_type_combination() -> Result<()> {
-        use std::io::Cursor;
-
         let output = vec![0u8; 1024];
         let mut writer = Cursor::new(output);
 
@@ -1801,7 +1936,7 @@ mod tests {
             encoder.set_filter(filter);
             encoder.write_header()?.write_image_data(&pixel)?;
 
-            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let decoder = crate::Decoder::new(Cursor::new(buffer));
             let mut reader = decoder.read_info()?;
             let info = reader.info();
             assert_eq!(info.width, 4);
@@ -1837,7 +1972,7 @@ mod tests {
             }
             encoder.write_header()?.write_image_data(&pixel)?;
 
-            let decoder = crate::Decoder::new(io::Cursor::new(buffer));
+            let decoder = crate::Decoder::new(Cursor::new(buffer));
             let mut reader = decoder.read_info()?;
             assert_eq!(
                 reader.info().source_gamma,
@@ -1861,6 +1996,224 @@ mod tests {
         roundtrip(Some(ScaledFloat::new(1.0)))?;
         roundtrip(Some(ScaledFloat::new(2.5)))?;
 
+        Ok(())
+    }
+
+    #[test]
+    fn write_image_chunks_beyond_first() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        // Not an animation but we should still be able to write multiple images
+        // See issue: <https://github.com/image-rs/image-png/issues/301>
+        // This is technically all valid png so there is no issue with correctness.
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        for _ in 0..3 {
+            let correct_image_size = (width * height) as usize;
+            let image = vec![0u8; correct_image_size];
+            png_writer.write_image_data(image.as_ref())?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_sequence_without_animation() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+        png_writer.write_image_data(image.as_ref())?;
+
+        assert!(png_writer.write_image_data(image.as_ref()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(1, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation2() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(2, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.finish()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_animation_sep_def_image() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(1, 0)?;
+        encoder.set_sep_def_img(true)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.write_image_data(image.as_ref())?;
+        png_writer.finish()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_missing_image() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.validate_sequence(true);
+        let png_writer = encoder.write_header()?;
+
+        assert!(png_writer.finish().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn image_validate_missing_animated_frame() -> Result<()> {
+        let width = 10;
+        let height = 10;
+
+        let output = vec![0u8; 1024];
+        let writer = Cursor::new(output);
+        let correct_image_size = (width * height) as usize;
+        let image = vec![0u8; correct_image_size];
+
+        let mut encoder = Encoder::new(writer, width, height);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        encoder.set_animated(2, 0)?;
+        encoder.validate_sequence(true);
+        let mut png_writer = encoder.write_header()?;
+
+        png_writer.write_image_data(image.as_ref())?;
+        assert!(png_writer.finish().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn issue_307_stream_validation() -> Result<()> {
+        let output = vec![0u8; 1024];
+        let mut cursor = Cursor::new(output);
+
+        let encoder = Encoder::new(&mut cursor, 1, 1); // Create a 1-pixel image
+        let mut writer = encoder.write_header()?;
+        let mut stream = writer.stream_writer()?;
+
+        let written = stream.write(&[1, 2, 3, 4])?;
+        assert_eq!(written, 1);
+        stream.finish()?;
+        drop(writer);
+
+        {
+            cursor.set_position(0);
+            let mut decoder = Decoder::new(cursor).read_info().expect("A valid image");
+            let mut buffer = [0u8; 1];
+            decoder.next_frame(&mut buffer[..]).expect("Valid read");
+            assert_eq!(buffer, [1]);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(unix, not(target_pointer_width = "32")))]
+    fn exper_error_on_huge_chunk() -> Result<()> {
+        // Okay, so we want a proper 4 GB chunk but not actually spend the memory for reserving it.
+        // Let's rely on overcommit? Otherwise we got the rather dumb option of mmap-ing /dev/zero.
+        let empty = vec![0; 1usize << 31];
+        let writer = Cursor::new(vec![0u8; 1024]);
+
+        let mut encoder = Encoder::new(writer, 10, 10);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        assert!(png_writer.write_chunk(chunk::fdAT, &empty).is_err());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(unix, not(target_pointer_width = "32")))]
+    fn exper_error_on_non_u32_chunk() -> Result<()> {
+        // Okay, so we want a proper 4 GB chunk but not actually spend the memory for reserving it.
+        // Let's rely on overcommit? Otherwise we got the rather dumb option of mmap-ing /dev/zero.
+        let empty = vec![0; 1usize << 32];
+        let writer = Cursor::new(vec![0u8; 1024]);
+
+        let mut encoder = Encoder::new(writer, 10, 10);
+        encoder.set_depth(BitDepth::Eight);
+        encoder.set_color(ColorType::Grayscale);
+        let mut png_writer = encoder.write_header()?;
+
+        assert!(png_writer.write_chunk(chunk::fdAT, &empty).is_err());
         Ok(())
     }
 
@@ -1888,7 +2241,7 @@ mod tests {
 ///
 /// Since this only contains trait impls, there is no need to make this public, they are simply
 /// available when the mod is compiled as well.
-impl crate::common::Compression {
+impl Compression {
     fn to_options(self) -> deflate::CompressionOptions {
         match self {
             Compression::Default => deflate::CompressionOptions::default(),

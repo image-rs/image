@@ -1029,7 +1029,9 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 
     fn num_channels(&self) -> usize {
-        if self.add_alpha_channel {
+        if self.skip_palette {
+            1
+        } else if self.add_alpha_channel {
             4
         } else {
             3
@@ -1072,6 +1074,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let bit_count = self.bit_count;
         let reader = &mut self.reader;
         let width = self.width as usize;
+        let skip_palette = self.skip_palette;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
@@ -1083,22 +1086,26 @@ impl<R: Read + Seek> BmpDecoder<R> {
             self.top_down,
             |row| {
                 reader.read_exact(&mut indices)?;
-                let mut pixel_iter = row.chunks_mut(num_channels);
-                match bit_count {
-                    1 => {
-                        set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter());
-                    }
-                    2 => {
-                        set_2bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    4 => {
-                        set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    8 => {
-                        set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    _ => panic!(),
-                };
+                if skip_palette {
+                    row.clone_from_slice(&indices);
+                } else {
+                    let mut pixel_iter = row.chunks_mut(num_channels);
+                    match bit_count {
+                        1 => {
+                            set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter());
+                        }
+                        2 => {
+                            set_2bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        4 => {
+                            set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        8 => {
+                            set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        _ => panic!(),
+                    };
+                }
                 Ok(())
             },
         )?;

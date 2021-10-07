@@ -544,6 +544,7 @@ pub struct BmpDecoder<R> {
     reader: R,
 
     bmp_header_type: BMPHeaderType,
+    skip_palette: bool,
 
     width: i32,
     height: i32,
@@ -628,10 +629,17 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
 impl<R: Read + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
+        Self::new_skip_palette(reader, false)
+    }
+
+    /// Create a new decoder that decodes from the stream ```r```
+    /// If ```skip_palette``` is true, the palette in BMP is skipped even if found.
+    pub fn new_skip_palette(reader: R, skip_palette: bool) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
+            skip_palette,
 
             width: 0,
             height: 0,
@@ -658,6 +666,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
+            skip_palette: false,
 
             width: 0,
             height: 0,

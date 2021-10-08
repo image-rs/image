@@ -10,7 +10,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::ImageBuffer;
 use crate::image::GenericImageView;
 use crate::utils::clamp;
-use crate::traits::{Enlargeable, Pixel, PixelComponent, Primitive};
+use crate::traits::{Enlargeable, Pixel, PixelComponentWithColorType, Primitive};
 
 /// Available Sampling Filters.
 ///
@@ -211,7 +211,7 @@ fn horizontal_sample<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(new_width, height);
@@ -305,7 +305,7 @@ fn vertical_sample<I, P, S>(
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, new_height);
@@ -661,7 +661,7 @@ pub fn filter3x3<I, P, S>(image: &I, kernel: &[f32]) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     // The kernel's input positions relative to the current pixel.
     let taps: &[(isize, isize)] = &[
@@ -809,7 +809,7 @@ pub fn unsharpen<I, P, S>(image: &I, sigma: f32, threshold: i32) -> ImageBuffer<
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     let mut tmp = blur(image, sigma);
 

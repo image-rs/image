@@ -776,7 +776,7 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
     use num_traits::{cast::ToPrimitive};
-    use crate::traits::PixelComponent;
+    use crate::traits::Primitive;
 
     let [r, g, b] = pixel.to_rgb().0;
     let max: f32 = P::Subpixel::DEFAULT_MAX_COMPONENT_VALUE.to_f32().unwrap();

@@ -34,21 +34,24 @@ impl EncodableLayout for [f32] {
     }
 }
 
-/// Primitive trait from old stdlib
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {}
+/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
+// TODO rename to `PixelComponent`
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
+    const DEFAULT_MAX_COMPONENT_VALUE: Self;
+}
 
-impl Primitive for usize {}
-impl Primitive for u8 {}
-impl Primitive for u16 {}
-impl Primitive for u32 {}
-impl Primitive for u64 {}
-impl Primitive for isize {}
-impl Primitive for i8 {}
-impl Primitive for i16 {}
-impl Primitive for i32 {}
-impl Primitive for i64 {}
-impl Primitive for f32 {}
-impl Primitive for f64 {}
+impl Primitive for usize { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for u8 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for u16 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for u32 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for u64 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for isize { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for i8 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for i16 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for i32 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for i64 { const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX; }
+impl Primitive for f32 { const DEFAULT_MAX_COMPONENT_VALUE: Self = 1.0; }
+impl Primitive for f64 { const DEFAULT_MAX_COMPONENT_VALUE: Self = 1.0; }
 
 /// An Enlargable::Larger value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
@@ -118,9 +121,8 @@ impl Lerp for f32 {
     }
 }
 
-/// The type of each channel in a pixel.
-pub trait PixelComponent: Primitive + 'static + private::Sealed {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self;
+/// The type of each channel in a pixel, with an associated color type.
+pub trait PixelComponentWithColorType: Primitive + 'static + private::Sealed {
     const RGB_COLOR_TYPE: ColorTypeOrErr;
     const RGBA_COLOR_TYPE: ColorTypeOrErr;
     const L_COLOR_TYPE: ColorTypeOrErr;
@@ -145,24 +147,21 @@ pub(crate) fn color_type_unsupported(error: &'static str) -> ImageError {
     ))
 }
 
-impl PixelComponent for u8 {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX;
+impl PixelComponentWithColorType for u8 {
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb8);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba8);
     const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L8);
     const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La8);
 }
 
-impl PixelComponent for u16 {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self = Self::MAX;
+impl PixelComponentWithColorType for u16 {
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb16);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba16);
     const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L16);
     const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La16);
 }
 
-impl PixelComponent for f32 {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self = 1.0;
+impl PixelComponentWithColorType for f32 {
     const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb32F);
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba32F);
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<f32>` does not have an appropriate `ColorType`");
@@ -171,8 +170,7 @@ impl PixelComponent for f32 {
 
 
 #[cfg(test)] // apparently i32 is used for testing somewhere
-impl PixelComponent for i32 {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self = i32::MAX;
+impl PixelComponentWithColorType for i32 {
     const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<i32>` does not have an appropriate `ColorType`");
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<i32>` does not have an appropriate `ColorType`");
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<i32>` does not have an appropriate `ColorType`");
@@ -180,8 +178,7 @@ impl PixelComponent for i32 {
 }
 
 #[cfg(test)] // apparently usize is used for testing somewhere
-impl PixelComponent for usize {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self = usize::MAX;
+impl PixelComponentWithColorType for usize {
     const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<usize>` does not have an appropriate `ColorType`");
     const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<usize>` does not have an appropriate `ColorType`");
     const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<usize>` does not have an appropriate `ColorType`");
@@ -194,7 +191,7 @@ impl PixelComponent for usize {
 pub trait Pixel: Copy + Clone {
 
     /// The scalar type that is used to store each channel in this pixel.
-    type Subpixel: PixelComponent;
+    type Subpixel: PixelComponentWithColorType;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;

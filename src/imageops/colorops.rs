@@ -5,7 +5,7 @@ use std::f64::consts::PI;
 
 use crate::color::{Luma, Rgba, FromColor, IntoColor};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, Primitive, PixelComponent};
+use crate::traits::{Pixel, Primitive, PixelComponentWithColorType};
 use crate::utils::clamp;
 use crate::ImageBuffer;
 
@@ -67,7 +67,7 @@ pub fn contrast<I, P, S>(image: &I, contrast: f32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -138,7 +138,7 @@ pub fn brighten<I, P, S>(image: &I, value: i32) -> ImageBuffer<P, Vec<S>>
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
-    S: PixelComponent + 'static,
+    S: Primitive + 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

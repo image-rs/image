@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::traits::{Pixel, Primitive, PixelComponent, ColorTypeOrErr};
+use crate::traits::{Pixel, Primitive, PixelComponentWithColorType, ColorTypeOrErr};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
@@ -228,7 +228,7 @@ $( // START Structure definitions
 #[allow(missing_docs)]
 pub struct $ident<T: Primitive> (pub [T; $channels]);
 
-impl<T: PixelComponent + 'static> Pixel for $ident<T> {
+impl<T: PixelComponentWithColorType + 'static> Pixel for $ident<T> {
     type Subpixel = T;
 
     const CHANNEL_COUNT: u8 = $channels;
@@ -383,7 +383,7 @@ pub trait FromPixelComponent<Component> {
     fn from_pixel_component(component: Component) -> Self;
 }
 
-impl<T: PixelComponent> FromPixelComponent<T> for T { fn from_pixel_component(sample: T) -> Self { sample } }
+impl<T: Primitive> FromPixelComponent<T> for T { fn from_pixel_component(sample: T) -> Self { sample } }
 
 // from f32:
 
@@ -471,7 +471,7 @@ fn rgb_to_luma<T: Primitive>(rgb: &[T]) -> T {
 
 // `FromColor` for Luma
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Luma<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Luma<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -479,13 +479,13 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Luma<T> where 
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Luma<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<LumaA<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
         self.channels_mut()[0] = T::from_pixel_component(other.channels()[0])
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Luma<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgb<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
@@ -493,7 +493,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Luma<T> where T
     }
 }
 
-impl<S: PixelComponent,T: PixelComponent> FromColor<Rgba<S>> for Luma<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType,T: PixelComponentWithColorType> FromColor<Rgba<S>> for Luma<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
@@ -504,7 +504,7 @@ impl<S: PixelComponent,T: PixelComponent> FromColor<Rgba<S>> for Luma<T> where T
 
 // `FromColor` for LumaA
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for LumaA<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<LumaA<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -513,7 +513,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for LumaA<T> wher
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for LumaA<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgb<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray_a = self.channels_mut();
         let rgb = other.channels();
@@ -522,7 +522,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for LumaA<T> where 
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for LumaA<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgba<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray_a = self.channels_mut();
         let rgba = other.channels();
@@ -531,7 +531,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for LumaA<T> where
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for LumaA<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Luma<S>> for LumaA<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let gray_a = self.channels_mut();
         gray_a[0] = T::from_pixel_component(other.channels()[0]);
@@ -541,7 +541,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for LumaA<T> where
 
 // `FromColor` for RGBA
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgba<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgba<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -552,7 +552,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgba<T> where 
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgba<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgb<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let rgba = self.channels_mut();
         let rgb = other.channels();
@@ -563,7 +563,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgba<T> where T
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgba<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<LumaA<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, gray: &LumaA<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels();
@@ -574,7 +574,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgba<T> where
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Rgba<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Luma<S>> for Rgba<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, gray: &Luma<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels()[0];
@@ -587,7 +587,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Rgba<T> where 
 
 // `FromColor` for RGB
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgb<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgb<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgb<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -597,7 +597,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgb<S>> for Rgb<T> where T:
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgb<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Rgba<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Rgba<S>) {
         let rgb = self.channels_mut();
         let rgba = other.channels();
@@ -607,7 +607,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<Rgba<S>> for Rgb<T> where T
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgb<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<LumaA<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &LumaA<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
@@ -617,7 +617,7 @@ impl<S: PixelComponent, T: PixelComponent> FromColor<LumaA<S>> for Rgb<T> where 
     }
 }
 
-impl<S: PixelComponent, T: PixelComponent> FromColor<Luma<S>> for Rgb<T> where T: FromPixelComponent<S> {
+impl<S: PixelComponentWithColorType, T: PixelComponentWithColorType> FromColor<Luma<S>> for Rgb<T> where T: FromPixelComponent<S> {
     fn from_color(&mut self, other: &Luma<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
@@ -661,7 +661,7 @@ pub(crate) trait Blend {
     fn blend(&mut self, other: &Self);
 }
 
-impl<T: PixelComponent> Blend for LumaA<T> {
+impl<T: Primitive> Blend for LumaA<T> {
     fn blend(&mut self, other: &LumaA<T>) {
         let max_t = T::DEFAULT_MAX_COMPONENT_VALUE;
         let max_t = max_t.to_f32().unwrap();
@@ -700,7 +700,7 @@ impl<T: Primitive> Blend for Luma<T> {
     }
 }
 
-impl<T: PixelComponent> Blend for Rgba<T> {
+impl<T: Primitive> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
@@ -769,7 +769,7 @@ pub(crate) trait Invert {
     fn invert(&mut self);
 }
 
-impl<T: PixelComponent> Invert for LumaA<T> {
+impl<T: Primitive> Invert for LumaA<T> {
     fn invert(&mut self) {
         let l = self.0;
         let max = T::DEFAULT_MAX_COMPONENT_VALUE;
@@ -778,7 +778,7 @@ impl<T: PixelComponent> Invert for LumaA<T> {
     }
 }
 
-impl<T: PixelComponent> Invert for Luma<T> {
+impl<T: Primitive> Invert for Luma<T> {
     fn invert(&mut self) {
         let l = self.0;
 
@@ -789,7 +789,7 @@ impl<T: PixelComponent> Invert for Luma<T> {
     }
 }
 
-impl<T: PixelComponent> Invert for Rgba<T> {
+impl<T: Primitive> Invert for Rgba<T> {
     fn invert(&mut self) {
         let rgba = self.0;
 
@@ -800,7 +800,7 @@ impl<T: PixelComponent> Invert for Rgba<T> {
 }
 
 
-impl<T: PixelComponent> Invert for Rgb<T> {
+impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
         let rgb = self.0;
 
@@ -932,7 +932,7 @@ mod tests {
     #[test]
     fn test_lossless_conversions() {
         use super::IntoColor;
-        use crate::traits::PixelComponent;
+        use crate::traits::Primitive;
 
         test_lossless_conversion!(Luma<u8>, Luma<u16>, Luma<u8>);
         test_lossless_conversion!(LumaA<u8>, LumaA<u16>, LumaA<u8>);

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.17.2
+
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.
 * Added `Encoder::validate_sequence` to enable validation of the written frame
   sequence, that is, if the number of written images is consistent with the

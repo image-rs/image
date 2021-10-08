@@ -1,6 +1,6 @@
 [package]
 name = "png"
-version = "0.17.1"
+version = "0.17.2"
 license = "MIT OR Apache-2.0"
 
 description = "PNG decoding and encoding library in pure Rust"

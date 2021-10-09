@@ -1165,7 +1165,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                slice_copy_within(self, start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         } else {
             for y in 0..height {
@@ -1174,7 +1174,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                slice_copy_within(self, start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         }
         true
@@ -1182,24 +1182,6 @@ where
 
     fn inner_mut(&mut self) -> &mut Self::InnerImage {
         self
-    }
-}
-
-// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten 
-//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within` 
-//  has been stabilized in 1.37.
-#[inline(always)]
-fn slice_copy_within<T: Copy>(slice: &mut [T], Range { start: src_start, end: src_end }: Range<usize>, dest: usize) {
-    assert!(src_start <= src_end, "src end is before src start");
-    assert!(src_end <= slice.len(), "src is out of bounds");
-    let count = src_end - src_start;
-    assert!(dest <= slice.len() - count, "dest is out of bounds");
-    unsafe {
-        std::ptr::copy(
-            slice.as_ptr().add(src_start),
-            slice.as_mut_ptr().add(dest),
-            count,
-        );
     }
 }
 

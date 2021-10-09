@@ -6,8 +6,6 @@ use num_traits::{Bounded, Num, NumCast};
 use std::ops::{AddAssign};
 
 use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
-use crate::{ImageError};
-use crate::error::{UnsupportedError, ImageFormatHint, UnsupportedErrorKind};
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -36,16 +34,22 @@ impl EncodableLayout for [f32] {
 
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
-    const DEFAULT_MAX_COMPONENT_VALUE: Self;
-    const DEFAULT_MIN_COMPONENT_VALUE: Self;
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + 'static {
+
+    /// The maximum value for this type of primitive within the context of color.
+    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
+    const DEFAULT_MAX_VALUE: Self;
+
+    /// The minimum value for this type of primitive within the context of color.
+    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
+    const DEFAULT_MIN_VALUE: Self;
 }
 
 macro_rules! declare_primitive {
     ($base:ty: ($from:expr)..$to:expr) => {
         impl Primitive for $base {
-            const DEFAULT_MAX_COMPONENT_VALUE: Self = $to;
-            const DEFAULT_MIN_COMPONENT_VALUE: Self = $from;
+            const DEFAULT_MAX_VALUE: Self = $to;
+            const DEFAULT_MIN_VALUE: Self = $from;
         }
     }
 }
@@ -132,68 +136,46 @@ impl Lerp for f32 {
     }
 }
 
-/// The type of each channel in a pixel, with an associated color type.
-pub trait PixelComponentWithColorType: Primitive + 'static + private::Sealed {
-    const RGB_COLOR_TYPE: ColorTypeOrErr;
-    const RGBA_COLOR_TYPE: ColorTypeOrErr;
-    const L_COLOR_TYPE: ColorTypeOrErr;
-    const LA_COLOR_TYPE: ColorTypeOrErr;
+/// The pixel with an associated color type.
+pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
+
+    /// A string that can help to interpret the meaning each channel
+    /// See [gimp babl](http://gegl.org/babl/).
+    const COLOR_TYPE: ColorType;
 }
+
+impl PixelWithColorType for Rgb<u8> { const COLOR_TYPE: ColorType = ColorType::Rgb8; }
+impl PixelWithColorType for Rgb<u16> { const COLOR_TYPE: ColorType = ColorType::Rgb16; }
+impl PixelWithColorType for Rgb<f32> { const COLOR_TYPE: ColorType = ColorType::Rgb32F; }
+
+impl PixelWithColorType for Rgba<u8> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<f32> { const COLOR_TYPE: ColorType = ColorType::Rgba32F; }
+
+impl PixelWithColorType for Luma<u8> { const COLOR_TYPE: ColorType = ColorType::L8; }
+impl PixelWithColorType for Luma<u16> { const COLOR_TYPE: ColorType = ColorType::L16; }
+
+impl PixelWithColorType for LumaA<u8> { const COLOR_TYPE: ColorType = ColorType::La8; }
+impl PixelWithColorType for LumaA<u16> { const COLOR_TYPE: ColorType = ColorType::La16; }
 
 /// Prevents down-stream users from implementing the `PixelComponent` trait
 mod private {
-    pub trait Sealed {}
-    impl Sealed for u8 {}
-    impl Sealed for u16 {}
-    impl Sealed for i32 {}
-    impl Sealed for usize {}
-    impl Sealed for f32 {}
-}
+    use crate::color::*;
 
-pub(crate) type ColorTypeOrErr = Result<ColorType, &'static str>;
-pub(crate) fn color_type_unsupported(error: &'static str) -> ImageError {
-    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-        ImageFormatHint::Unknown,
-        UnsupportedErrorKind::GenericFeature(error.to_string())
-    ))
-}
+    pub trait SealedPixelWithColorType {}
+    impl SealedPixelWithColorType for Rgb<u8> {}
+    impl SealedPixelWithColorType for Rgb<u16> {}
+    impl SealedPixelWithColorType for Rgb<f32> {}
 
-impl PixelComponentWithColorType for u8 {
-    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb8);
-    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba8);
-    const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L8);
-    const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La8);
-}
+    impl SealedPixelWithColorType for Rgba<u8> {}
+    impl SealedPixelWithColorType for Rgba<u16> {}
+    impl SealedPixelWithColorType for Rgba<f32> {}
 
-impl PixelComponentWithColorType for u16 {
-    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb16);
-    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba16);
-    const L_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::L16);
-    const LA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::La16);
-}
+    impl SealedPixelWithColorType for Luma<u8> {}
+    impl SealedPixelWithColorType for LumaA<u8> {}
 
-impl PixelComponentWithColorType for f32 {
-    const RGB_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgb32F);
-    const RGBA_COLOR_TYPE: ColorTypeOrErr = Ok(ColorType::Rgba32F);
-    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<f32>` does not have an appropriate `ColorType`");
-    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<f32>` does not have an appropriate `ColorType`");
-}
-
-
-#[cfg(test)] // apparently i32 is used for testing somewhere
-impl PixelComponentWithColorType for i32 {
-    const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<i32>` does not have an appropriate `ColorType`");
-    const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<i32>` does not have an appropriate `ColorType`");
-    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<i32>` does not have an appropriate `ColorType`");
-    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<i32>` does not have an appropriate `ColorType`");
-}
-
-#[cfg(test)] // apparently usize is used for testing somewhere
-impl PixelComponentWithColorType for usize {
-    const RGB_COLOR_TYPE: ColorTypeOrErr = Err("`Rgb<usize>` does not have an appropriate `ColorType`");
-    const RGBA_COLOR_TYPE: ColorTypeOrErr = Err("`Rgba<usize>` does not have an appropriate `ColorType`");
-    const L_COLOR_TYPE: ColorTypeOrErr = Err("`Luma<usize>` does not have an appropriate `ColorType`");
-    const LA_COLOR_TYPE: ColorTypeOrErr = Err("`LumaA<usize>` does not have an appropriate `ColorType`");
+    impl SealedPixelWithColorType for Luma<u16> {}
+    impl SealedPixelWithColorType for LumaA<u16> {}
 }
 
 /// A generalized pixel.
@@ -202,7 +184,7 @@ impl PixelComponentWithColorType for usize {
 pub trait Pixel: Copy + Clone {
 
     /// The scalar type that is used to store each channel in this pixel.
-    type Subpixel: PixelComponentWithColorType;
+    type Subpixel: Primitive;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
@@ -212,16 +194,6 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns the components as a mutable slice
     fn channels_mut(&mut self) -> &mut [Self::Subpixel];
-
-    /// A string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
-    const COLOR_MODEL: &'static str;
-
-
-    /// The `Ok(ColorType)` for this pixel format,
-    /// or `Err(message)` if this special type of pixel is not supported.
-    const COLOR_TYPE: ColorTypeOrErr;
-
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value

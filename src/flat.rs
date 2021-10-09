@@ -51,7 +51,7 @@ use crate::ImageBuffer;
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
-use crate::traits::{Pixel, PixelComponentWithColorType};
+use crate::traits::{Pixel, PixelWithColorType};
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -573,10 +573,10 @@ impl<Buffer> FlatSamples<Buffer> {
     /// that are present in this buffer. Neither are larger nor a smaller number will be accepted.
     /// There is no automatic conversion.
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error>
-        where P: Pixel, Buffer: AsRef<[P::Subpixel]>,
+        where P: PixelWithColorType, Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
+            return Err(Error::WrongColor(P::COLOR_TYPE))
         }
 
         let as_ref = self.samples.as_ref();
@@ -610,10 +610,10 @@ impl<Buffer> FlatSamples<Buffer> {
     /// for one sample can in fact modify other samples as well. Sometimes exactly this is
     /// intended.
     pub fn as_view_with_mut_samples<P>(&mut self) -> Result<View<&mut [P::Subpixel], P>, Error>
-        where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
+        where P: PixelWithColorType, Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
+            return Err(Error::WrongColor(P::COLOR_TYPE))
         }
 
         let as_mut = self.samples.as_mut();
@@ -643,14 +643,14 @@ impl<Buffer> FlatSamples<Buffer> {
     /// generally polished. You can also try to convert this buffer inline, see
     /// `ImageBuffer::from_raw`.
     pub fn as_view_mut<P>(&mut self) -> Result<ViewMut<&mut [P::Subpixel], P>, Error>
-        where P: Pixel, Buffer: AsMut<[P::Subpixel]>,
+        where P: PixelWithColorType, Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.layout.is_normal(NormalForm::PixelPacked) {
             return Err(Error::NormalFormRequired(NormalForm::PixelPacked))
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")))
+            return Err(Error::WrongColor(P::COLOR_TYPE))
         }
 
         let as_mut = self.samples.as_mut();
@@ -725,7 +725,7 @@ impl<Buffer> FlatSamples<Buffer> {
     /// not release any allocation.
     pub fn try_into_buffer<P>(self) -> Result<ImageBuffer<P, Buffer>, (Error, Self)>
     where
-        P: Pixel + 'static,
+        P: PixelWithColorType + 'static,
         P::Subpixel: 'static,
         Buffer: Deref<Target=[P::Subpixel]>,
     {
@@ -734,7 +734,7 @@ impl<Buffer> FlatSamples<Buffer> {
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((Error::WrongColor(P::COLOR_TYPE.expect("color type not supported")), self))
+            return Err((Error::WrongColor(P::COLOR_TYPE), self))
         }
 
         if !self.fits(self.samples.deref().len()) {
@@ -893,8 +893,8 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// ```
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
-        P: Pixel<Subpixel=Subpixel>,
-        Subpixel: PixelComponentWithColorType,
+        P: PixelWithColorType<Subpixel=Subpixel>,
+        Subpixel: crate::Primitive,
     {
         FlatSamples {
             samples: pixel.channels(),
@@ -906,7 +906,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
                 height,
                 height_stride: 0,
             },
-            color_hint: Some(P::COLOR_TYPE.expect("color type not supported")),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 }
@@ -1533,7 +1533,7 @@ mod tests {
            color_hint: None,
        };
 
-       let view = buffer.as_view::<Rgb<usize>>()
+       let view = buffer.as_view::<Rgb<u8>>()
            .expect("This is a valid view");
        let pixel_count = view.pixels()
            .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
@@ -1557,18 +1557,18 @@ mod tests {
         };
 
         {
-            let mut view = buffer.as_view_mut::<LumaA<usize>>()
+            let mut view = buffer.as_view_mut::<LumaA<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
             #[allow(deprecated)]
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as usize, 2 * i as usize + 1]);
+                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
             }
         }
 
         buffer.samples.iter()
             .enumerate()
-            .for_each(|(idx, sample)| assert_eq!(idx, *sample));
+            .for_each(|(idx, sample)| assert_eq!(idx, *sample as usize));
     }
 
     #[test]

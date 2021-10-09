@@ -10,7 +10,7 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 use crate::ImageBuffer;
 use crate::image::GenericImageView;
 use crate::utils::clamp;
-use crate::traits::{Enlargeable, Pixel, PixelComponentWithColorType, Primitive};
+use crate::traits::{Enlargeable, Pixel, Primitive};
 
 /// Available Sampling Filters.
 ///
@@ -231,8 +231,8 @@ where
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_COMPONENT_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_COMPONENT_VALUE).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -327,8 +327,8 @@ where
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_COMPONENT_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_COMPONENT_VALUE).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -698,7 +698,7 @@ where
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::DEFAULT_MAX_COMPONENT_VALUE;
+    let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
@@ -831,7 +831,7 @@ where
 {
     let mut tmp = blur(image, sigma);
 
-    let max = S::DEFAULT_MAX_COMPONENT_VALUE;
+    let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 

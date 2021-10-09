@@ -12,7 +12,7 @@ use crate::utils::clamp;
 
 use super::entropy::build_huff_lut;
 use super::transform;
-use crate::traits::color_type_unsupported;
+use crate::traits::PixelWithColorType;
 
 // Markers
 // Baseline DCT
@@ -473,9 +473,9 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     pub fn encode_image<I: GenericImageView>(
         &mut self,
         image: &I,
-    ) -> ImageResult<()> {
+    ) -> ImageResult<()> where I::Pixel: PixelWithColorType {
         let n = I::Pixel::CHANNEL_COUNT;
-        let color_type = I::Pixel::COLOR_TYPE.map_err(color_type_unsupported)?; // fail-fast
+        let color_type = I::Pixel::COLOR_TYPE;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_marker(SOI)?;
@@ -779,7 +779,7 @@ fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
     use crate::traits::Primitive;
 
     let [r, g, b] = pixel.to_rgb().0;
-    let max: f32 = P::Subpixel::DEFAULT_MAX_COMPONENT_VALUE.to_f32().unwrap();
+    let max: f32 = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap();
     let r: f32 = r.to_f32().unwrap();
     let g: f32 = g.to_f32().unwrap();
     let b: f32 = b.to_f32().unwrap();

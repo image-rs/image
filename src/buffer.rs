@@ -12,7 +12,7 @@ use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_fo
 use crate::error::ImageResult;
 use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
-use crate::traits::{EncodableLayout, Pixel, color_type_unsupported};
+use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
@@ -788,14 +788,14 @@ where
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
     pub fn into_flat_samples(self) -> FlatSamples<Container>
-        where Container: AsRef<[P::Subpixel]>
+        where Container: AsRef<[P::Subpixel]>, P: PixelWithColorType
     {
         // None of these can overflow, as all our memory is addressable.
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: P::COLOR_TYPE.ok(),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 
@@ -803,13 +803,13 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-        where Container: AsRef<[P::Subpixel]>
+        where Container: AsRef<[P::Subpixel]>, P: PixelWithColorType
     {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: P::COLOR_TYPE.ok(),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 
@@ -817,13 +817,13 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
-        where Container: AsMut<[P::Subpixel]>
+        where Container: AsMut<[P::Subpixel]>, P: PixelWithColorType
     {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_mut(),
             layout,
-            color_hint: P::COLOR_TYPE.ok(),
+            color_hint: Some(P::COLOR_TYPE),
         }
     }
 }
@@ -934,6 +934,7 @@ where
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer(
@@ -941,7 +942,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
+            <P as PixelWithColorType>::COLOR_TYPE,
         )
     }
 }
@@ -960,6 +961,7 @@ where
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
@@ -967,7 +969,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }
@@ -993,6 +995,7 @@ where
     where
         W: std::io::Write,
         F: Into<ImageOutputFormat>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
@@ -1000,7 +1003,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE.map_err(color_type_unsupported)?,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }

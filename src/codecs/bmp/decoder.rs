@@ -544,7 +544,7 @@ pub struct BmpDecoder<R> {
     reader: R,
 
     bmp_header_type: BMPHeaderType,
-    skip_palette: bool,
+    indexed_color: bool,
 
     width: i32,
     height: i32,
@@ -629,17 +629,11 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
 impl<R: Read + Seek> BmpDecoder<R> {
     /// Create a new decoder that decodes from the stream ```r```
     pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
-        Self::new_skip_palette(reader, false)
-    }
-
-    /// Create a new decoder that decodes from the stream ```r```
-    /// If ```skip_palette``` is true, the palette in BMP is skipped even if found.
-    pub fn new_skip_palette(reader: R, skip_palette: bool) -> ImageResult<BmpDecoder<R>> {
         let mut decoder = BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
-            skip_palette,
+            indexed_color: false,
 
             width: 0,
             height: 0,
@@ -666,7 +660,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
-            skip_palette: false,
+            indexed_color: false,
 
             width: 0,
             height: 0,
@@ -685,6 +679,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
 
         decoder.read_metadata_in_ico_format()?;
         Ok(decoder)
+    }
+
+    /// If true, the palette in BMP does not apply to the image even if it is found.
+    /// In other words, the output image is the indexed color.
+    pub fn set_indexed_color(&mut self, indexed_color: bool) {
+        self.indexed_color = indexed_color;
     }
 
     #[cfg(feature = "ico")]
@@ -1029,7 +1029,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 
     fn num_channels(&self) -> usize {
-        if self.skip_palette {
+        if self.indexed_color {
             1
         } else if self.add_alpha_channel {
             4
@@ -1074,7 +1074,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let bit_count = self.bit_count;
         let reader = &mut self.reader;
         let width = self.width as usize;
-        let skip_palette = self.skip_palette;
+        let skip_palette = self.indexed_color;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
@@ -1462,7 +1462,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        if self.skip_palette {
+        if self.indexed_color {
             ColorType::L8
         } else if self.add_alpha_channel {
             ColorType::Rgba8

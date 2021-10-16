@@ -871,10 +871,12 @@ pub trait GenericImageView {
     /// Returns a reference to the underlying image.
     fn inner(&self) -> &Self::InnerImageView;
 
-    /// Returns an subimage that is an immutable view into this image.
+    /// Returns a subimage that is an immutable view into this image.
     /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     /// The coordinates set the position of the top left corner of the view.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         SubImage::new(self.inner(), x, y, width, height)
     }
 }
@@ -1008,6 +1010,8 @@ pub trait GenericImage: GenericImageView {
         width: u32,
         height: u32,
     ) -> SubImage<&mut Self::InnerImage> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         SubImage::new(self.inner_mut(), x, y, width, height)
     }
 }
@@ -1095,6 +1099,8 @@ where
     }
 
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         let x = self.xoffset + x;
         let y = self.yoffset + y;
         SubImage::new(self.inner(), x, y, width, height)
@@ -1135,6 +1141,8 @@ where
         width: u32,
         height: u32,
     ) -> SubImage<&mut Self::InnerImage> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         let x = self.xoffset + x;
         let y = self.yoffset + y;
         SubImage::new(self.inner_mut(), x, y, width, height)
@@ -1220,6 +1228,56 @@ mod tests {
 
         let view2 = view1.view(1, 1, 1, 1);
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_coordinates_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(3, 3, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_width_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 3, 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_height_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 2, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_x_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(3, 1, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_y_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 3, 3, 3);
+    }
+
+    #[test]
+    fn test_view_in_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(0, 0, 3, 3);
+        source.view(1, 1, 2, 2);
+        source.view(2, 2, 0, 0);
     }
 
     #[test]

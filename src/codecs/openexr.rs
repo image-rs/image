@@ -24,12 +24,10 @@
 extern crate exr;
 use exr::prelude::*;
 
-use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageBuffer, Rgba, Rgb, ImageEncoder, ExtendedColorType};
-use std::io::{Write, Seek, Cursor, BufReader, Read};
+use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageEncoder, ExtendedColorType};
+use std::io::{Write, Seek, Read, Cursor};
 use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
 use crate::image::decoder_to_vec;
-use std::path::Path;
-use crate::buffer_::{Rgb32FImage, Rgba32FImage};
 use std::convert::TryInto;
 
 
@@ -222,7 +220,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
 /// you should wrap your writer in a `BufWriter` for best performance.
 // private. access via `OpenExrEncoder`
 fn write_buffer(
-    mut buffered_write: impl Write/* + Seek*/, unaligned_bytes: &[u8],
+    mut buffered_write: impl Write + Seek, unaligned_bytes: &[u8],
     width: u32, height: u32, color_type: ColorType
 ) -> ImageResult<()>
 {
@@ -249,12 +247,12 @@ fn write_buffer(
         }
     }
 
-    let mut seekable_write = Cursor::new(Vec::with_capacity(width*height*3*4)); // TODO remove
 
     // bytes might be unaligned so we cannot cast the whole thing, instead lookup each f32 individually
     let lookup_f32 = move |f32_index: usize| {
-        let f32_bytes_slice = &unaligned_bytes[f32_index * 4 .. (f32_index + 1) * 4];
-        f32::from_ne_bytes(f32_bytes_slice.try_into().expect("indexing error"))
+        let unaligned_f32_bytes_slice = &unaligned_bytes[f32_index * 4 .. (f32_index + 1) * 4];
+        let f32_bytes_array = unaligned_f32_bytes_slice.try_into().expect("indexing error");
+        f32::from_ne_bytes(f32_bytes_array)
     };
 
     match color_type {
@@ -269,7 +267,7 @@ fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write).map_err(to_image_err)?;
+                .to_buffered(&mut buffered_write).map_err(to_image_err)?;
         }
 
         ColorType::Rgba32F => {
@@ -286,17 +284,16 @@ fn write_buffer(
                 )
                 .write()
                 // .on_progress(|progress| todo!())
-                .to_buffered(&mut seekable_write).map_err(to_image_err)?;
+                .to_buffered(&mut buffered_write).map_err(to_image_err)?;
         }
 
         // TODO other color types and channel types
         unsupported_color_type => return Err(ImageError::Encoding(EncodingError::new(
             ImageFormatHint::Exact(ImageFormat::OpenExr),
-            format!("color type {:?} not yet supported", unsupported_color_type)
+            format!("writing color type {:?} not yet supported", unsupported_color_type)
         )))
     }
 
-    buffered_write.write_all(seekable_write.into_inner().as_slice())?;
     Ok(())
 }
 
@@ -313,7 +310,7 @@ impl<W> OpenExrEncoder<W> {
     pub fn new(write: W) -> Self { Self(write) }
 }
 
-impl<W> ImageEncoder for OpenExrEncoder<W> where W: Write /*+ Seek*/ {
+impl<W> ImageEncoder for OpenExrEncoder<W> where W: Write + Seek {
 
     /// Writes the complete image.
     ///
@@ -340,15 +337,17 @@ fn to_image_err(exr_error: Error) -> ImageError {
 mod test {
     use super::*;
     use std::path::PathBuf;
+    use std::path::Path;
+    use crate::buffer_::{Rgb32FImage, Rgba32FImage};
+    use crate::{ImageBuffer, Rgba, Rgb, };
+    use std::io::{BufReader};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
-
-
 
     /// Write an `Rgb32FImage`.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    fn write_rgb_image(write: impl Write/* + Seek*/, image: &Rgb32FImage) -> ImageResult<()> {
+    fn write_rgb_image(write: impl Write + Seek, image: &Rgb32FImage) -> ImageResult<()> {
         write_buffer(
             write,
             bytemuck::cast_slice(image.as_raw().as_slice()),
@@ -360,7 +359,7 @@ mod test {
     /// Write an `Rgba32FImage`.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
-    fn write_rgba_image(write: impl Write/* + Seek*/, image: &Rgba32FImage) -> ImageResult<()> {
+    fn write_rgba_image(write: impl Write + Seek, image: &Rgba32FImage) -> ImageResult<()> {
         write_buffer(
             write,
             bytemuck::cast_slice(image.as_raw().as_slice()),

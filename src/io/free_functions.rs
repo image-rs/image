@@ -153,10 +153,6 @@ pub(crate) fn save_buffer_with_format_impl(
         },
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => {
-            return tiff::TiffEncoder::new(buffered_file_write).write_image(buf, width, height, color);
-        },
         format => format.into(),
     };
 
@@ -165,7 +161,7 @@ pub(crate) fn save_buffer_with_format_impl(
 
 #[allow(unused_variables)]
 // Most variables when no features are supported
-pub(crate) fn write_buffer_impl<W: std::io::Write>(
+pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     buffered_write: &mut W,
     buf: &[u8],
     width: u32,
@@ -196,13 +192,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
         #[cfg(feature = "openexr")]
         ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        ImageOutputFormat::Tiff => {
-            let mut cursor = std::io::Cursor::new(Vec::new());
-            tiff::TiffEncoder::new(&mut cursor).write_image(buf, width, height, color)?;
-            buffered_write.write(&cursor.into_inner()[..])
-                .map(|_| ())
-                .map_err(ImageError::IoError)
-        }
+        ImageOutputFormat::Tiff => tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "avif-encoder")]
         ImageOutputFormat::Avif => avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color),
 

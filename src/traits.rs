@@ -33,13 +33,12 @@ impl EncodableLayout for [f32] {
 }
 
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
-// TODO rename to `PixelComponent`
+// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + 'static {
 
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
     const DEFAULT_MAX_VALUE: Self;
-
 }
 
 impl Primitive for usize { const DEFAULT_MAX_VALUE: Self = Self::MAX; }
@@ -123,11 +122,14 @@ impl Lerp for f32 {
     }
 }
 
-/// The pixel with an associated color type.
+/// The pixel with an associated `ColorType`.
+/// Not all possible pixels represent one of the predefined `ColorType`s.
 pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
 
-    /// A string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
+    /// This pixel has the format of one of the predefined `ColorType`s,
+    /// such as `Rgb8`, `La16` or `Rgba32F`.
+    /// This is needed for automatically detecting
+    /// a color format when saving an image as a file.
     const COLOR_TYPE: ColorType;
 }
 
@@ -145,7 +147,7 @@ impl PixelWithColorType for Luma<u16> { const COLOR_TYPE: ColorType = ColorType:
 impl PixelWithColorType for LumaA<u8> { const COLOR_TYPE: ColorType = ColorType::La8; }
 impl PixelWithColorType for LumaA<u16> { const COLOR_TYPE: ColorType = ColorType::La16; }
 
-/// Prevents down-stream users from implementing the `PixelComponent` trait
+/// Prevents down-stream users from implementing the `Primitive` trait
 mod private {
     use crate::color::*;
 

@@ -206,7 +206,6 @@ macro_rules! define_colors {
         $ident:ident,
         $channels: expr,
         $alphas: expr,
-        $interpretation: expr,
         $sample_color_type: ident,
         #[$doc:meta];
     )*} => {
@@ -357,10 +356,10 @@ impl<T: Primitive + 'static> From<[T; $channels]> for $ident<T> {
 }
 
 define_colors! {
-    Rgb, 3, 0, "RGB", RGB_COLOR_TYPE, #[doc = "RGB colors"];
-    Luma, 1, 0, "Y", L_COLOR_TYPE, #[doc = "Grayscale colors"];
-    Rgba, 4, 1, "RGBA", RGBA_COLOR_TYPE, #[doc = "RGB colors + alpha channel"];
-    LumaA, 2, 1, "YA", LA_COLOR_TYPE, #[doc = "Grayscale colors + alpha channel"];
+    Rgb, 3, 0, RGB_COLOR_TYPE, #[doc = "RGB colors"];
+    Luma, 1, 0, L_COLOR_TYPE, #[doc = "Grayscale colors"];
+    Rgba, 4, 1, RGBA_COLOR_TYPE, #[doc = "RGB colors + alpha channel"];
+    LumaA, 2, 1, LA_COLOR_TYPE, #[doc = "Grayscale colors + alpha channel"];
 }
 
 /// Convert from one pixel component type to another. For example, convert from `u8` to `f32` pixel values.

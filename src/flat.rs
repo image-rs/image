@@ -893,7 +893,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// ```
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
-        P: PixelWithColorType<Subpixel=Subpixel>,
+        P: Pixel<Subpixel=Subpixel>,
         Subpixel: crate::Primitive,
     {
         FlatSamples {
@@ -906,7 +906,9 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
                 height,
                 height_stride: 0,
             },
-            color_hint: Some(P::COLOR_TYPE),
+
+            // TODO this value is never set. It should be set in all places where the Pixel type implements PixelWithColorType
+            color_hint: None,
         }
     }
 }

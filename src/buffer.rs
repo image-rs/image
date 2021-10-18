@@ -788,14 +788,14 @@ where
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
     pub fn into_flat_samples(self) -> FlatSamples<Container>
-        where Container: AsRef<[P::Subpixel]>, P: PixelWithColorType
+        where Container: AsRef<[P::Subpixel]>
     {
         // None of these can overflow, as all our memory is addressable.
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -803,13 +803,13 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-        where Container: AsRef<[P::Subpixel]>, P: PixelWithColorType
+        where Container: AsRef<[P::Subpixel]>
     {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -817,13 +817,13 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
-        where Container: AsMut<[P::Subpixel]>, P: PixelWithColorType
+        where Container: AsMut<[P::Subpixel]>
     {
         let layout = self.sample_layout();
         FlatSamples {
             samples: self.data.as_mut(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 }

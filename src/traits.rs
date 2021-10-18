@@ -145,61 +145,20 @@ pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
     /// This is needed for automatically detecting
     /// a color format when saving an image as a file.
     const COLOR_TYPE: ColorType;
-
-    /// A string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
-    const COLOR_MODEL: &'static str;
 }
 
-impl PixelWithColorType for Rgb<u8> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb8;
-    const COLOR_MODEL: &'static str = "RGB"; // TODO shouldn't this be "RGB u8"? https://gegl.org/babl/Reference.html
-}
+impl PixelWithColorType for Rgb<u8> { const COLOR_TYPE: ColorType = ColorType::Rgb8; }
+impl PixelWithColorType for Rgb<u16> { const COLOR_TYPE: ColorType = ColorType::Rgb16; }
+impl PixelWithColorType for Rgb<f32> { const COLOR_TYPE: ColorType = ColorType::Rgb32F; }
 
-impl PixelWithColorType for Rgb<u16> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb16;
-    const COLOR_MODEL: &'static str = "RGB"; // TODO shouldn't this be "RGB u16"? https://gegl.org/babl/Reference.html
-}
+impl PixelWithColorType for Rgba<u8> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<f32> { const COLOR_TYPE: ColorType = ColorType::Rgba32F; }
 
-impl PixelWithColorType for Rgb<f32> {
-    const COLOR_TYPE: ColorType = ColorType::Rgb32F;
-    const COLOR_MODEL: &'static str = "RGB float";
-}
-
-impl PixelWithColorType for Rgba<u8> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba8;
-    const COLOR_MODEL: &'static str = "RGBA"; // TODO shouldn't this be "RGBA u8"? https://gegl.org/babl/Reference.html
-}
-
-impl PixelWithColorType for Rgba<u16> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba8;
-    const COLOR_MODEL: &'static str = "RGBA"; // TODO shouldn't this be "RGBA u16"? https://gegl.org/babl/Reference.html
-}
-
-impl PixelWithColorType for Rgba<f32> {
-    const COLOR_TYPE: ColorType = ColorType::Rgba32F;
-    const COLOR_MODEL: &'static str = "RGBA float";
-}
-
-impl PixelWithColorType for Luma<u8> {
-    const COLOR_TYPE: ColorType = ColorType::L8;
-    const COLOR_MODEL: &'static str = "Y"; // TODO shouldn't this be "Y u8"? https://gegl.org/babl/Reference.html
-}
-
-impl PixelWithColorType for Luma<u16> {
-    const COLOR_TYPE: ColorType = ColorType::L16;
-    const COLOR_MODEL: &'static str = "Y"; // TODO shouldn't this be "Y u16"? https://gegl.org/babl/Reference.html
-}
-
-impl PixelWithColorType for LumaA<u8> {
-    const COLOR_TYPE: ColorType = ColorType::La8;
-    const COLOR_MODEL: &'static str = "YA"; // TODO shouldn't this be "YA u8"? https://gegl.org/babl/Reference.html
-}
-
-impl PixelWithColorType for LumaA<u16> {
-    const COLOR_TYPE: ColorType = ColorType::La16;
-    const COLOR_MODEL: &'static str = "YA"; // TODO shouldn't this be "YA u16"? https://gegl.org/babl/Reference.html
-}
+impl PixelWithColorType for Luma<u8> { const COLOR_TYPE: ColorType = ColorType::L8; }
+impl PixelWithColorType for Luma<u16> { const COLOR_TYPE: ColorType = ColorType::L16; }
+impl PixelWithColorType for LumaA<u8> { const COLOR_TYPE: ColorType = ColorType::La8; }
+impl PixelWithColorType for LumaA<u16> { const COLOR_TYPE: ColorType = ColorType::La16; }
 
 /// Prevents down-stream users from implementing the `Primitive` trait
 mod private {
@@ -237,6 +196,10 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns the components as a mutable slice
     fn channels_mut(&mut self) -> &mut [Self::Subpixel];
+
+    /// A string that can help to interpret the meaning each channel
+    /// See [gimp babl](http://gegl.org/babl/).
+    const COLOR_MODEL: &'static str;
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value

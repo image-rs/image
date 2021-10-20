@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 use std::io::{self, Write};
+use std::borrow::Cow;
 
 use num_iter::range_step;
 
@@ -10,7 +11,7 @@ use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, 
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
 
-use super::entropy::build_huff_lut;
+use super::entropy::build_huff_lut_const;
 use super::transform;
 
 // Markers
@@ -66,6 +67,9 @@ static STD_LUMA_DC_VALUES: [u8; 12] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
 ];
 
+static STD_LUMA_DC_HUFF_LUT: [(u8, u16); 256] = build_huff_lut_const(&STD_LUMA_DC_CODE_LENGTHS,
+                                                                      &STD_LUMA_DC_VALUES);
+
 // Code lengths and values for table K.4
 static STD_CHROMA_DC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -74,6 +78,9 @@ static STD_CHROMA_DC_CODE_LENGTHS: [u8; 16] = [
 static STD_CHROMA_DC_VALUES: [u8; 12] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
 ];
+
+static STD_CHROMA_DC_HUFF_LUT: [(u8, u16); 256] = build_huff_lut_const(&STD_CHROMA_DC_CODE_LENGTHS,
+                                                                      &STD_CHROMA_DC_VALUES);
 
 // Code lengths and values for table k.5
 static STD_LUMA_AC_CODE_LENGTHS: [u8; 16] = [
@@ -94,6 +101,9 @@ static STD_LUMA_AC_VALUES: [u8; 162] = [
     0xF9, 0xFA,
 ];
 
+static STD_LUMA_AC_HUFF_LUT: [(u8, u16); 256] = build_huff_lut_const(&STD_LUMA_AC_CODE_LENGTHS,
+                                                                      &STD_LUMA_AC_VALUES);
+
 // Code lengths and values for table k.6
 static STD_CHROMA_AC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04, 0x07, 0x05, 0x04, 0x04, 0x00, 0x01, 0x02, 0x77,
@@ -111,6 +121,9 @@ static STD_CHROMA_AC_VALUES: [u8; 162] = [
     0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
     0xF9, 0xFA,
 ];
+
+static STD_CHROMA_AC_HUFF_LUT: [(u8, u16); 256] = build_huff_lut_const(&STD_CHROMA_AC_CODE_LENGTHS,
+                                                                      &STD_CHROMA_AC_VALUES);
 
 static DCCLASS: u8 = 0;
 static ACCLASS: u8 = 1;
@@ -327,10 +340,10 @@ pub struct JpegEncoder<'a, W: 'a> {
     components: Vec<Component>,
     tables: Vec<[u8; 64]>,
 
-    luma_dctable: Box<[(u8, u16); 256]>,
-    luma_actable: Box<[(u8, u16); 256]>,
-    chroma_dctable: Box<[(u8, u16); 256]>,
-    chroma_actable: Box<[(u8, u16); 256]>,
+    luma_dctable: Cow<'static, [(u8, u16); 256]>,
+    luma_actable: Cow<'static, [(u8, u16); 256]>,
+    chroma_dctable: Cow<'static, [(u8, u16); 256]>,
+    chroma_actable: Cow<'static, [(u8, u16); 256]>,
 
     pixel_density: PixelDensity,
 }
@@ -345,12 +358,6 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
     pub fn new_with_quality(w: &mut W, quality: u8) -> JpegEncoder<W> {
-        let ld = Box::new(build_huff_lut(&STD_LUMA_DC_CODE_LENGTHS, &STD_LUMA_DC_VALUES));
-        let la = Box::new(build_huff_lut(&STD_LUMA_AC_CODE_LENGTHS, &STD_LUMA_AC_VALUES));
-
-        let cd = Box::new(build_huff_lut(&STD_CHROMA_DC_CODE_LENGTHS, &STD_CHROMA_DC_VALUES));
-        let ca = Box::new(build_huff_lut(&STD_CHROMA_AC_CODE_LENGTHS, &STD_CHROMA_AC_VALUES));
-
         let components = vec![
             Component {
                 id: LUMAID,
@@ -404,10 +411,10 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             components,
             tables,
 
-            luma_dctable: ld,
-            luma_actable: la,
-            chroma_dctable: cd,
-            chroma_actable: ca,
+            luma_dctable: Cow::Borrowed(&STD_LUMA_DC_HUFF_LUT),
+            luma_actable: Cow::Borrowed(&STD_LUMA_AC_HUFF_LUT),
+            chroma_dctable: Cow::Borrowed(&STD_CHROMA_DC_HUFF_LUT),
+            chroma_actable: Cow::Borrowed(&STD_CHROMA_AC_HUFF_LUT),
 
             pixel_density: PixelDensity::default(),
         }
@@ -870,7 +877,6 @@ mod tests {
     };
     use super::super::JpegDecoder;
 
-
     fn decode(encoded: &[u8]) -> Vec<u8> {
         let decoder = JpegDecoder::new(Cursor::new(encoded))
             .expect("Could not decode image");
@@ -1062,5 +1068,4 @@ mod tests {
             let x = JpegEncoder::new(&mut y);
         })
     }
-
 }

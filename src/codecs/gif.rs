@@ -478,7 +478,7 @@ impl<W: Write> GifEncoder<W> {
         )))
     }
 
-    pub(crate) fn encode_gif(&mut self, frame: Frame) -> ImageResult<()> {
+    pub(crate) fn encode_gif(&mut self, mut frame: Frame) -> ImageResult<()> {
         let gif_encoder;
         if let Some(ref mut encoder) = self.gif_encoder {
             gif_encoder = encoder;
@@ -492,6 +492,8 @@ impl<W: Write> GifEncoder<W> {
             self.gif_encoder = Some(encoder);
             gif_encoder = self.gif_encoder.as_mut().unwrap()
         }
+
+        frame.dispose = gif::DisposalMethod::Background;
 
         gif_encoder.write_frame(&frame).map_err(ImageError::from_encoding)
     }

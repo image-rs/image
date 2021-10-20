@@ -108,8 +108,8 @@ pub struct IcoDecoder<R: Read> {
 }
 
 enum InnerDecoder<R: Read> {
-    BMP(BmpDecoder<R>),
-    PNG(PngDecoder<R>),
+    Bmp(BmpDecoder<R>),
+    Png(PngDecoder<R>),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -248,9 +248,9 @@ impl DirEntry {
         self.seek_to_start(&mut r)?;
 
         if is_png {
-            Ok(PNG(PngDecoder::new(r)?))
+            Ok(Png(PngDecoder::new(r)?))
         } else {
-            Ok(BMP(BmpDecoder::new_with_ico_format(r)?))
+            Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
     }
 }
@@ -276,15 +276,15 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
     fn dimensions(&self) -> (u32, u32) {
         match self.inner_decoder {
-            BMP(ref decoder) => decoder.dimensions(),
-            PNG(ref decoder) => decoder.dimensions(),
+            Bmp(ref decoder) => decoder.dimensions(),
+            Png(ref decoder) => decoder.dimensions(),
         }
     }
 
     fn color_type(&self) -> ColorType {
         match self.inner_decoder {
-            BMP(ref decoder) => decoder.color_type(),
-            PNG(ref decoder) => decoder.color_type(),
+            Bmp(ref decoder) => decoder.color_type(),
+            Png(ref decoder) => decoder.color_type(),
         }
     }
 
@@ -295,7 +295,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner_decoder {
-            PNG(decoder) => {
+            Png(decoder) => {
                 if self.selected_entry.image_length < PNG_SIGNATURE.len() as u32 {
                     return Err(DecoderError::PngShorterThanHeader.into());
                 }
@@ -318,7 +318,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
                 decoder.read_image(buf)
             }
-            BMP(mut decoder) => {
+            Bmp(mut decoder) => {
                 let (width, height) = decoder.dimensions();
                 if !self.selected_entry.matches_dimensions(width, height) {
                     return Err(DecoderError::ImageEntryDimensionMismatch {

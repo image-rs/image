@@ -277,7 +277,7 @@ mod test {
             let diffs = pixel_diffs($actual, $expected);
 
             if !diffs.is_empty() {
-                let mut err = "pixels do not match. ".to_string();
+                let mut err = "".to_string();
 
                 let diff_messages = diffs
                     .iter()
@@ -287,7 +287,7 @@ mod test {
                     .join("");
 
                 err.push_str(&diff_messages);
-                panic!(err)
+                panic!("pixels do not match. {:?}", err)
             }
         }};
     }

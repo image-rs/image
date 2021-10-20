@@ -6,6 +6,7 @@ use crate::traits::{Pixel, Primitive};
 
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[non_exhaustive]
 pub enum ColorType {
     /// Pixel is 8-bit luminance
     L8,
@@ -29,9 +30,6 @@ pub enum ColorType {
     Rgb32F,
     /// Pixel is 32-bit float RGBA
     Rgba32F,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ColorType {
@@ -46,7 +44,6 @@ impl ColorType {
             ColorType::Rgba16 => 8,
             ColorType::Rgb32F => 3 * 4,
             ColorType::Rgba32F => 4 * 4,
-            ColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -56,7 +53,6 @@ impl ColorType {
         match self {
             L8 | L16 | Rgb8 | Rgb16 | Rgb32F => false,
             La8 | Rgba8 | La16 | Rgba16 | Rgba32F => true,
-            __NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -66,7 +62,6 @@ impl ColorType {
         match self {
             L8 | L16 | La8 | La16 => false,
             Rgb8 | Rgb16 | Rgba8 | Rgba16 | Rgb32F | Rgba32F => true,
-            __NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -92,6 +87,7 @@ impl ColorType {
 /// Another purpose is to advise users of a rough estimate of the accuracy and effort of the
 /// decoding from and encoding to such an image format.
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
+#[non_exhaustive]
 pub enum ExtendedColorType {
     /// Pixel is 8-bit alpha
     A8,
@@ -150,9 +146,6 @@ pub enum ExtendedColorType {
     /// which are associated with an external palette. In that case, the pixel value is an index
     /// into the palette.
     Unknown(u8),
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ExtendedColorType {
@@ -188,7 +181,6 @@ impl ExtendedColorType {
             ExtendedColorType::Rgba16 |
             ExtendedColorType::Rgba32F |
             ExtendedColorType::Bgra8 => 4,
-            ExtendedColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -205,7 +197,6 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
-            ColorType::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }

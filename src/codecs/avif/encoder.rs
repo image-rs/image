@@ -29,14 +29,12 @@ pub struct AvifEncoder<W> {
 
 /// An enumeration over supported AVIF color spaces
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ColorSpace {
     /// sRGB colorspace
     Srgb,
     /// BT.709 colorspace
     Bt709,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ColorSpace {
@@ -44,7 +42,6 @@ impl ColorSpace {
         match self {
             Self::Srgb => ravif::ColorSpace::RGB,
             Self::Bt709 => ravif::ColorSpace::YCbCr,
-            Self::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -72,8 +69,8 @@ impl<W: Write> AvifEncoder<W> {
             inner: w,
             fallback: vec![],
             config: Config {
-                quality,
-                alpha_quality: quality,
+                quality: f32::from(quality),
+                alpha_quality: f32::from(quality),
                 speed,
                 premultiplied_alpha: false,
                 color_space: ravif::ColorSpace::RGB,

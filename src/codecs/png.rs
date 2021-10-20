@@ -439,6 +439,7 @@ pub struct PngEncoder<W: Write> {
 
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CompressionType {
     /// Default compression level
     Default,
@@ -450,15 +451,13 @@ pub enum CompressionType {
     Huffman,
     /// Run-length encoding compression
     Rle,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 /// Filter algorithms used to process image data to improve compression.
 ///
 /// The default filter is `Adaptive`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum FilterType {
     /// No processing done, best used for low bit depth greyscale or data with a
     /// low color count
@@ -474,9 +473,6 @@ pub enum FilterType {
     /// Uses a heuristic to select one of the preceding filters for each
     /// scanline rather than one filter for the entire image
     Adaptive,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl<W: Write> PngEncoder<W> {
@@ -531,7 +527,6 @@ impl<W: Write> PngEncoder<W> {
             CompressionType::Best => png::Compression::Best,
             CompressionType::Huffman => png::Compression::Huffman,
             CompressionType::Rle => png::Compression::Rle,
-            CompressionType::__NonExhaustive(marker) => match marker._private {},
         };
         let (filter, adaptive_filter) = match self.filter {
             FilterType::NoFilter => (png::FilterType::NoFilter, png::AdaptiveFilterType::NonAdaptive),
@@ -540,7 +535,6 @@ impl<W: Write> PngEncoder<W> {
             FilterType::Avg => (png::FilterType::Avg, png::AdaptiveFilterType::NonAdaptive),
             FilterType::Paeth => (png::FilterType::Paeth, png::AdaptiveFilterType::NonAdaptive),
             FilterType::Adaptive => (png::FilterType::Sub, png::AdaptiveFilterType::Adaptive),
-            FilterType::__NonExhaustive(marker) => match marker._private {},
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);

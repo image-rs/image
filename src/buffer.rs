@@ -1162,7 +1162,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                self.deref_mut().copy_within(start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         } else {
             for y in 0..height {
@@ -1171,7 +1171,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                self.deref_mut().copy_within(start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         }
         true

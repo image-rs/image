@@ -72,7 +72,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
         // read meta data, then wait for further instructions, keeping the file open and ready
         let exr_reader = exr::block::read(source, false).map_err(to_image_err)?;
 
-        let header_index = exr_reader.headers().into_iter()
+        let header_index = exr_reader.headers().iter()
             .position(|header|{
                 let has_rgb = ["R","G","B"].iter().all( // alpha will be optional
                     // check if r/g/b exists in the channels
@@ -336,11 +336,13 @@ fn to_image_err(exr_error: Error) -> ImageError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::path::PathBuf;
-    use std::path::Path;
+
+    use std::path::{Path, PathBuf};
+    use std::io::BufReader;
+
+    use crate::{ImageBuffer, Rgb, Rgba};
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
-    use crate::{ImageBuffer, Rgba, Rgb, };
-    use std::io::{BufReader};
+    use crate::error::{LimitError, LimitErrorKind};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 

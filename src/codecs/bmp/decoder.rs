@@ -1139,7 +1139,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 {
+                    if num_channels == 4 && bitfields.a.len != 0 {
                         pixel[3] = bitfields.a.read(data);
                     }
                 }
@@ -1173,7 +1173,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 {
+                    if num_channels == 4 && bitfields.a.len != 0 {
                         pixel[3] = bitfields.a.read(data);
                     }
                 }

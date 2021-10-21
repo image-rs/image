@@ -1022,6 +1022,7 @@ pub trait GenericImage: GenericImageView {
 ///   - [`GenericImage::sub_image`] to create a mutable view,
 ///   - [`GenericImageView::view`] to create an immutable view,
 ///   - [`SubImage::new`] to instantiate the struct directly.
+#[derive(Copy, Clone)]
 pub struct SubImage<I> {
     image: I,
     xoffset: u32,
@@ -1278,6 +1279,15 @@ mod tests {
         source.view(0, 0, 3, 3);
         source.view(1, 1, 2, 2);
         source.view(2, 2, 0, 0);
+    }
+
+    #[test]
+    fn test_copy_sub_image() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let view = source.view(0, 0, 3, 3);
+        let mut views = Vec::new();
+        views.push(view);
+        view.to_image();
     }
 
     #[test]

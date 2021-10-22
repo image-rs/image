@@ -60,7 +60,7 @@
 //! ```
 //!
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 #[macro_use]
 extern crate bitflags;
@@ -75,9 +75,9 @@ pub mod text_metadata;
 mod traits;
 mod utils;
 
-pub use crate::common::*;
-pub use crate::decoder::{
-    Decoded, Decoder, DecodingError, Limits, OutputInfo, Reader, StreamingDecoder,
+pub use crate::{
+    common::*,
+    decoder::{Decoded, Decoder, DecodingError, Limits, OutputInfo, Reader, StreamingDecoder},
+    encoder::{Encoder, EncodingError, StreamWriter, Writer},
+    filter::{AdaptiveFilterType, FilterType},
 };
-pub use crate::encoder::{Encoder, EncodingError, StreamWriter, Writer};
-pub use crate::filter::{AdaptiveFilterType, FilterType};

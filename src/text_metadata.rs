@@ -3,11 +3,17 @@
 //! The [PNG spec](https://www.w3.org/TR/2003/REC-PNG-20031110/#11textinfo) optionally allows for
 //! embedded text chunks in the file. They may appear either before or after the image data
 //! chunks. There are three kinds of text chunks.
-//!  -   `tEXt`: This has a `keyword` and `text` field, and is ISO-8859-1 encoded.
+//!  -   `tEXt`: This has a `keyword` and `text` field, and is ISO 8859-1 encoded.
 //!  -   `zTXt`: This is semantically the same as `tEXt`, i.e. it has the same fields and
 //!       encoding, but the `text` field is compressed before being written into the PNG file.
 //!  -   `iTXt`: This chunk allows for its `text` field to be any valid UTF-8, and supports
 //!        compression of the text field as well.
+//!
+//!  The `ISO 8859-1` encoding technically doesn't allow any control characters
+//!  to be used, but in practice these values are encountered anyway. This can
+//!  either be the extended `ISO-8859-1` encoding with control characters or the
+//!  `Windows-1252` encoding. This crate assumes the `ISO-8859-1` encoding is
+//!  used.
 //!
 //!  ## Reading text chunks
 //!

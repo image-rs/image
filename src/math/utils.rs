@@ -7,7 +7,13 @@
 /// aspect ratio), or will shrink so that both dimensions are
 /// completely contained with in the given `width` and `height`,
 /// with empty space on one axis.
-pub(crate) fn resize_dimensions(width: u32, height: u32, nwidth: u32, nheight: u32, fill: bool) -> (u32, u32) {
+pub(crate) fn resize_dimensions(
+    width: u32,
+    height: u32,
+    nwidth: u32,
+    nheight: u32,
+    fill: bool,
+) -> (u32, u32) {
     let ratio = u64::from(width) * u64::from(nheight);
     let nratio = u64::from(nwidth) * u64::from(height);
 

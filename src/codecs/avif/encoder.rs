@@ -10,7 +10,7 @@ use std::cmp::min;
 use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 use crate::buffer::ConvertBuffer;
-use crate::color::{FromColor, Luma, LumaA, Bgr, Bgra, Rgb, Rgba};
+use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 
 use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
@@ -227,14 +227,6 @@ impl<W: Write> AvifEncoder<W> {
             }
             ColorType::La8 => {
                 let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
-            }
-            ColorType::Bgr8 => {
-                let image = try_from_raw::<Bgr<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
-            }
-            ColorType::Bgra8 => {
-                let image = try_from_raw::<Bgra<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             // we need to really convert data..

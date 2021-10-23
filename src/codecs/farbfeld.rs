@@ -18,7 +18,7 @@
 
 use std::convert::TryFrom;
 use std::i64;
-use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
+use std::io::{self, Seek, SeekFrom, Read, Write};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
@@ -30,14 +30,14 @@ use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageForma
 pub struct FarbfeldReader<R: Read> {
     width: u32,
     height: u32,
-    inner: BufReader<R>,
+    inner: R,
     /// Relative to the start of the pixel data
     current_offset: u64,
     cached_byte: Option<u8>,
 }
 
 impl<R: Read> FarbfeldReader<R> {
-    fn new(reader: R) -> ImageResult<FarbfeldReader<R>> {
+    fn new(mut buffered_read: R) -> ImageResult<FarbfeldReader<R>> {
         fn read_dimm<R: Read>(from: &mut R) -> ImageResult<u32> {
             let mut buf = [0u8; 4];
             from.read_exact(&mut buf).map_err(|err|
@@ -48,10 +48,8 @@ impl<R: Read> FarbfeldReader<R> {
             Ok(BigEndian::read_u32(&buf))
         }
 
-        let mut inner = BufReader::new(reader);
-
         let mut magic = [0u8; 8];
-        inner.read_exact(&mut magic).map_err(|err|
+        buffered_read.read_exact(&mut magic).map_err(|err|
             ImageError::Decoding(DecodingError::new(
                 ImageFormat::Farbfeld.into(),
                 err,
@@ -64,9 +62,9 @@ impl<R: Read> FarbfeldReader<R> {
         }
 
         let reader = FarbfeldReader {
-            width: read_dimm(&mut inner)?,
-            height: read_dimm(&mut inner)?,
-            inner,
+            width: read_dimm(&mut buffered_read)?,
+            height: read_dimm(&mut buffered_read)?,
+            inner: buffered_read,
             current_offset: 0,
             cached_byte: None,
         };
@@ -185,8 +183,8 @@ pub struct FarbfeldDecoder<R: Read> {
 
 impl<R: Read> FarbfeldDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
-    pub fn new(r: R) -> ImageResult<FarbfeldDecoder<R>> {
-        Ok(FarbfeldDecoder { reader: FarbfeldReader::new(r)? })
+    pub fn new(buffered_read: R) -> ImageResult<FarbfeldDecoder<R>> {
+        Ok(FarbfeldDecoder { reader: FarbfeldReader::new(buffered_read)? })
     }
 }
 
@@ -233,13 +231,13 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
 
 /// farbfeld encoder
 pub struct FarbfeldEncoder<W: Write> {
-    w: BufWriter<W>,
+    w: W,
 }
 
 impl<W: Write> FarbfeldEncoder<W> {
-    /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: W) -> FarbfeldEncoder<W> {
-        FarbfeldEncoder { w: BufWriter::new(w) }
+    /// Create a new encoder that writes its output to ```w```. The writer should be buffered.
+    pub fn new(buffered_writer: W) -> FarbfeldEncoder<W> {
+        FarbfeldEncoder { w: buffered_writer }
     }
 
     /// Encodes the image ```data``` (native endian)
@@ -289,7 +287,7 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::farbfeld::FarbfeldDecoder;
+    use crate::codecs::farbfeld::FarbfeldDecoder;
     use crate::ImageDecoderExt;
     use std::io::{Cursor, Seek, SeekFrom};
     use byteorder::{ByteOrder, NativeEndian};

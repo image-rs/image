@@ -1,15 +1,15 @@
 name: Rust CI
 on:
   push:
-    branches: [ master ]
+    branches: [ master, next ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, next ]
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: ["1.46.0", stable, beta, nightly]
+        rust: ["1.51.0", stable, beta, nightly]
         features: [ gif, jpeg, png, pnm, tga, dds, tiff, webp, hdr, farbfeld, '' ]
     steps:
     - uses: actions/checkout@v2
@@ -25,7 +25,6 @@ jobs:
       run: >
         cargo test -v --no-default-features --features "$FEATURES" &&
         cargo doc -v --no-default-features --features "$FEATURES"
-      if: ${{ matrix.rust != '1.46.0' }}
       env:
         FEATURES: ${{ matrix.features }}
   test_defaults:

@@ -100,7 +100,7 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
 #[cfg(test)]
 mod tests {
     use super::{EncoderError, TgaEncoder};
-    use crate::{tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
+    use crate::{codecs::tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
     use std::{error::Error, io::Cursor};
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
@@ -189,22 +189,6 @@ mod tests {
         let decoded = round_trip_image(&image, 1, 1, ColorType::Rgba8);
         assert_eq!(decoded.len(), image.len());
         assert_eq!(decoded.as_slice(), image);
-    }
-
-    #[test]
-    fn round_trip_single_pixel_bgr() {
-        let image = [0, 1, 2];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgr8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0]);
-    }
-
-    #[test]
-    fn round_trip_single_pixel_bgra() {
-        let image = [0, 1, 2, 3];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgra8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0, 3]);
     }
 
     #[test]

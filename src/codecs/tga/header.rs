@@ -88,8 +88,8 @@ impl Header {
 
         if width > 0 && height > 0 {
             let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
-                ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),
-                ColorType::Rgb8 | ColorType::Bgr8 => (0, 24, ImageType::RawTrueColor),
+                ColorType::Rgba8 => (8, 24, ImageType::RawTrueColor),
+                ColorType::Rgb8 => (0, 24, ImageType::RawTrueColor),
                 ColorType::La8 => (8, 8, ImageType::RawGrayScale),
                 ColorType::L8 => (0, 8, ImageType::RawGrayScale),
                 _ => {

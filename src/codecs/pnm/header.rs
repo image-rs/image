@@ -11,14 +11,8 @@ pub enum SampleEncoding {
 }
 
 /// Denotes the category of the magic number
-///
-/// DEPRECATED: The name of this enum will be changed to [`PnmSubtype`].
-///
-/// TODO: rename to [`PnmSubtype`].
-///
-/// [`PnmSubtype`]: type.PnmSubtype.html
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PNMSubtype {
+pub enum PnmSubtype {
     /// Magic numbers P1 and P4
     Bitmap(SampleEncoding),
 
@@ -32,16 +26,6 @@ pub enum PNMSubtype {
     ArbitraryMap,
 }
 
-/// PNM Subtype
-///
-/// An alias of [`PNMSubtype`].
-///
-/// TODO: remove when [`DXTVariant`] is renamed.
-///
-/// [`PNMSubtype`]: enum.PNMSubtype.html
-#[allow(dead_code)]
-pub type PnmSubtype = PNMSubtype;
-
 /// Stores the complete header data of a file.
 ///
 /// Internally, provides mechanisms for lossless reencoding. After reading a file with the decoder
@@ -52,17 +36,6 @@ pub struct PnmHeader {
     pub(crate) decoded: HeaderRecord,
     pub(crate) encoded: Option<Vec<u8>>,
 }
-
-/// PNM Header
-///
-/// An alias of [`PnmHeader`].
-///
-/// TODO: remove
-///
-/// [`PnmHeader`]: struct.PnmHeader.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PnmHeader` instead")]
-pub type PNMHeader = PnmHeader;
 
 pub(crate) enum HeaderRecord {
     Bitmap(BitmapHeader),
@@ -174,39 +147,39 @@ impl ArbitraryTuplType {
     }
 }
 
-impl PNMSubtype {
+impl PnmSubtype {
     /// Get the two magic constant bytes corresponding to this format subtype.
     pub fn magic_constant(self) -> &'static [u8; 2] {
         match self {
-            PNMSubtype::Bitmap(SampleEncoding::Ascii) => b"P1",
-            PNMSubtype::Graymap(SampleEncoding::Ascii) => b"P2",
-            PNMSubtype::Pixmap(SampleEncoding::Ascii) => b"P3",
-            PNMSubtype::Bitmap(SampleEncoding::Binary) => b"P4",
-            PNMSubtype::Graymap(SampleEncoding::Binary) => b"P5",
-            PNMSubtype::Pixmap(SampleEncoding::Binary) => b"P6",
-            PNMSubtype::ArbitraryMap => b"P7",
+            PnmSubtype::Bitmap(SampleEncoding::Ascii) => b"P1",
+            PnmSubtype::Graymap(SampleEncoding::Ascii) => b"P2",
+            PnmSubtype::Pixmap(SampleEncoding::Ascii) => b"P3",
+            PnmSubtype::Bitmap(SampleEncoding::Binary) => b"P4",
+            PnmSubtype::Graymap(SampleEncoding::Binary) => b"P5",
+            PnmSubtype::Pixmap(SampleEncoding::Binary) => b"P6",
+            PnmSubtype::ArbitraryMap => b"P7",
         }
     }
 
     /// Whether samples are stored as binary or as decimal ascii
     pub fn sample_encoding(self) -> SampleEncoding {
         match self {
-            PNMSubtype::ArbitraryMap => SampleEncoding::Binary,
-            PNMSubtype::Bitmap(enc) => enc,
-            PNMSubtype::Graymap(enc) => enc,
-            PNMSubtype::Pixmap(enc) => enc,
+            PnmSubtype::ArbitraryMap => SampleEncoding::Binary,
+            PnmSubtype::Bitmap(enc) => enc,
+            PnmSubtype::Graymap(enc) => enc,
+            PnmSubtype::Pixmap(enc) => enc,
         }
     }
 }
 
 impl PnmHeader {
     /// Retrieve the format subtype from which the header was created.
-    pub fn subtype(&self) -> PNMSubtype {
+    pub fn subtype(&self) -> PnmSubtype {
         match self.decoded {
-            HeaderRecord::Bitmap(BitmapHeader { encoding, .. }) => PNMSubtype::Bitmap(encoding),
-            HeaderRecord::Graymap(GraymapHeader { encoding, .. }) => PNMSubtype::Graymap(encoding),
-            HeaderRecord::Pixmap(PixmapHeader { encoding, .. }) => PNMSubtype::Pixmap(encoding),
-            HeaderRecord::Arbitrary(ArbitraryHeader { .. }) => PNMSubtype::ArbitraryMap,
+            HeaderRecord::Bitmap(BitmapHeader { encoding, .. }) => PnmSubtype::Bitmap(encoding),
+            HeaderRecord::Graymap(GraymapHeader { encoding, .. }) => PnmSubtype::Graymap(encoding),
+            HeaderRecord::Pixmap(PixmapHeader { encoding, .. }) => PnmSubtype::Pixmap(encoding),
+            HeaderRecord::Arbitrary(ArbitraryHeader { .. }) => PnmSubtype::ArbitraryMap,
         }
     }
 

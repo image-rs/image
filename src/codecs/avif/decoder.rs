@@ -82,7 +82,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        ColorType::Bgra8
+        ColorType::Rgba8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -158,6 +158,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                     buf[3 + i * 4] = slice[i];
                 }
             }
+        }
+
+        // Convert Bgra to Rgba
+        for chunk in buf.chunks_exact_mut(4) {
+            chunk.swap(0, 2);
         }
 
         Ok(())

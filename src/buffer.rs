@@ -6,11 +6,11 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::{ImageOutputFormat, color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra}};
+use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
-use crate::image::{GenericImage, GenericImageView, ImageFormat};
+use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel};
 use crate::utils::expand_packed;
@@ -986,12 +986,9 @@ where
     ///
     /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
     /// supported types.
-    ///
-    /// **Note**: TIFF encoding uses buffered writing,
-    /// which can lead to unexpected use of resources
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where
-        W: std::io::Write,
+        W: std::io::Write + std::io::Seek,
         F: Into<ImageOutputFormat>,
     {
         // This is valid as the subpixel is u8.
@@ -1345,10 +1342,6 @@ pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
-/// Sendable Bgr image buffer
-pub(crate) type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
-/// Sendable Bgr + alpha channel image buffer
-pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
 pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer

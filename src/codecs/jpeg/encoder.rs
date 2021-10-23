@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use num_iter::range_step;
 
-use crate::{Bgr, Bgra, ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
+use crate::{ColorType, GenericImageView, ImageBuffer, Luma, LumaA, Pixel, Rgb, Rgba};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{ImageEncoder, ImageFormat};
 use crate::utils::clamp;
@@ -299,7 +299,7 @@ pub enum PixelDensityUnit {
 /// For example, a 300 DPI image is represented by:
 ///
 /// ```rust
-/// use image::jpeg::*;
+/// use image::codecs::jpeg::*;
 /// let hdpi = PixelDensity::dpi(300);
 /// assert_eq!(hdpi, PixelDensity {density: (300,300), unit: PixelDensityUnit::Inches})
 /// ```
@@ -347,17 +347,6 @@ pub struct JpegEncoder<'a, W: 'a> {
 
     pixel_density: PixelDensity,
 }
-
-/// JPEG Encoder
-///
-/// An alias of [`JpegEncoder`].
-///
-/// TODO: remove
-///
-/// [`JpegEncoder`]: struct.JpegEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `JpegEncoder` instead")]
-pub type JPEGEncoder<'a, W> = JpegEncoder<'a, W>;
 
 impl<'a, W: Write> JpegEncoder<'a, W> {
     /// Create a new encoder that writes its output to ```w```
@@ -465,14 +454,6 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             },
             ColorType::Rgba8 => {
                 let image: ImageBuffer<Rgba<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            },
-            ColorType::Bgr8 => {
-                let image: ImageBuffer<Bgr<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
-                self.encode_image(&image)
-            },
-            ColorType::Bgra8 => {
-                let image: ImageBuffer<Bgra<_>, _> = ImageBuffer::from_raw(width, height, image).unwrap();
                 self.encode_image(&image)
             },
             _ => {
@@ -875,7 +856,7 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     use test::{Bencher};
 
-    use crate::{Bgra, ImageBuffer, ImageEncoder, ImageError};
+    use crate::{ImageEncoder, ImageError};
     use crate::color::ColorType;
     use crate::error::ParameterErrorKind::DimensionMismatch;
     use crate::image::ImageDecoder;
@@ -991,22 +972,6 @@ mod tests {
                                 it returned {:?} instead", other)
             }
         }
-    }
-
-    #[test]
-    fn test_bgra16() {
-        // Test encoding an RGBA 16-bit image.
-        // Jpeg is RGB 8-bit, so the conversion should be done on the fly
-        let mut encoded = Vec::new();
-        let max = std::u16::MAX;
-        let image: ImageBuffer<Bgra<u16>, _> = ImageBuffer::from_raw(
-            1, 1, vec![0, max / 2, max, max]).unwrap();
-        let mut encoder = JpegEncoder::new_with_quality(&mut encoded, 100);
-        encoder.encode_image(&image).unwrap();
-        let decoded = decode(&encoded);
-        assert!(decoded[0] > 200, "bad red channel in {:?}", &decoded);
-        assert!(100 < decoded[1] && decoded[1] < 150, "bad green channel in {:?}", &decoded);
-        assert!(decoded[2] < 50, "bad blue channel in {:?}", &decoded);
     }
 
     #[test]

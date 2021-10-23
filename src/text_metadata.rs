@@ -24,9 +24,18 @@
 //!
 //!  ```
 //!  use std::fs::File;
+//!  use std::iter::FromIterator;
+//!  use std::path::PathBuf;
 //!
 //!  // Opening a png file that has a zTXt chunk
-//!  let decoder = png::Decoder::new(File::open("tests/text_chunk_examples/ztxt_example.png").unwrap());
+//!  let decoder = png::Decoder::new(
+//!      File::open(PathBuf::from_iter([
+//!          "tests",
+//!          "text_chunk_examples",
+//!          "ztxt_example.png",
+//!      ]))
+//!      .unwrap(),
+//!  );
 //!  let mut reader = decoder.read_info().unwrap();
 //!  // If the text chunk is before the image data frames, `reader.info()` already contains the text.
 //!  for text_chunk in &reader.info().compressed_latin1_text {
@@ -43,12 +52,13 @@
 //!  To add a text chunk at any point in the stream, use the `write_text_chunk` method.
 //!
 //!  ```
-//!  # use png;
 //!  # use png::text_metadata::{ITXtChunk, ZTXtChunk};
 //!  # use std::env;
 //!  # use std::fs::File;
 //!  # use std::io::BufWriter;
-//!  # let file = File::create("/tmp/test.png").unwrap();
+//!  # use std::iter::FromIterator;
+//!  # use std::path::PathBuf;
+//!  # let file = File::create(PathBuf::from_iter(["target", "text_chunk.png"])).unwrap();
 //!  # let ref mut w = BufWriter::new(file);
 //!  let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
 //!  encoder.set_color(png::ColorType::Rgba);

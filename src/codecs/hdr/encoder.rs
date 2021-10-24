@@ -9,16 +9,6 @@ pub struct HdrEncoder<W: Write> {
     w: W,
 }
 
-/// HDR Encoder
-///
-/// An alias of [`HdrEncoder`].
-///
-/// TODO: remove
-///
-/// [`HdrEncoder`]: struct.HdrEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrEncoder` instead")]
-pub type HDREncoder<R> = HdrEncoder<R>;
 
 impl<W: Write> HdrEncoder<W> {
     /// Creates encoder

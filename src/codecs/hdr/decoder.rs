@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use std::{error, fmt, mem};
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
-use crate::Primitive;
+use crate::{Primitive, Pixel};
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
@@ -121,17 +121,6 @@ pub struct HdrAdapter<R: BufRead> {
     meta: HdrMetadata,
 }
 
-/// HDR Adapter
-///
-/// An alias of [`HdrAdapter`].
-///
-/// TODO: remove
-///
-/// [`HdrAdapter`]: struct.HdrAdapter.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrAdapter` instead")]
-pub type HDRAdapter<R> = HdrAdapter<R>;
-
 impl<R: BufRead> HdrAdapter<R> {
     /// Creates adapter
     pub fn new(r: R) -> ImageResult<HdrAdapter<R>> {
@@ -154,14 +143,18 @@ impl<R: BufRead> HdrAdapter<R> {
     }
 
     /// Read the actual data of the image, and store it in Self::data.
-    fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image_data_f32(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.take() {
             Some(decoder) => {
-                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                for (i, Rgb(data)) in img.into_iter().enumerate() {
-                    buf[(i*3)..][..3].copy_from_slice(&data);
-                }
+                let f32_buffer: &mut [[f32;3]] = bytemuck::cast_slice_mut(buf); // FIXME this is unaligned access
+
+                use std::convert::TryInto;
+                decoder.read_image_transform(
+                    |pix| pix.to_hdr().channels()
+                        .try_into().expect("indexing error"), // convert slice to fixed-size array
+                    f32_buffer
+                )?;
 
                 Ok(())
             }
@@ -178,6 +171,7 @@ impl<R> Read for HdrReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
+
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         if self.0.position() == 0 && buf.is_empty() {
             mem::swap(buf, self.0.get_mut());
@@ -196,7 +190,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        ColorType::Rgb8
+        ColorType::Rgb32F
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -204,7 +198,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
-        self.read_image_data(buf)
+        self.read_image_data_f32(buf)
     }
 }
 
@@ -219,7 +213,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HdrAdapter<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
-                         |s, buf| s.read_image_data(buf))
+                         |s, buf| s.read_image_data_f32(buf))
     }
 }
 
@@ -245,17 +239,6 @@ pub struct Rgbe8Pixel {
     /// Exponent
     pub e: u8,
 }
-
-/// Refer to [wikipedia](https://en.wikipedia.org/wiki/RGBE_image_format)
-///
-/// An alias of [`Rgbe8Pixel`].
-///
-/// TODO: remove
-///
-/// [`Rgbe8Pixel`]: struct.Rgbe8Pixel.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `Rgbe8Pixel` instead")]
-pub type RGBE8Pixel = Rgbe8Pixel;
 
 /// Creates ```RGBE8Pixel``` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
@@ -444,11 +427,11 @@ impl<R: BufRead> HdrDecoder<R> {
     /// Consumes decoder and returns a vector of transformed pixels
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
         mut self,
-        f: F,
-        output_slice: &mut [T],
+        rgbe_to_pixel: F,
+        output_pixels: &mut [T],
     ) -> ImageResult<()> {
         assert_eq!(
-            output_slice.len(),
+            output_pixels.len(),
             self.width as usize * self.height as usize
         );
 
@@ -457,22 +440,24 @@ impl<R: BufRead> HdrDecoder<R> {
             return Ok(());
         }
 
-        let chunks_iter = output_slice.chunks_mut(self.width as usize);
-        let mut pool = Pool::new(8); //
+        let pixel_lines = output_pixels.chunks_mut(self.width as usize);
+        let mut pool = Pool::new(8);
 
         (pool.scoped(|scope| {
-            for chunk in chunks_iter {
-                let mut buf = vec![Default::default(); self.width as usize];
-                read_scanline(&mut self.r, &mut buf[..])?;
-                let f = &f;
+            for output_pixel_line in pixel_lines {
+                let mut rgbe_pixel_line = vec![Default::default(); self.width as usize];
+                read_scanline(&mut self.r, rgbe_pixel_line.as_mut())?;
+
+                let rgbe_to_pixel = &rgbe_to_pixel;
                 scope.execute(move || {
-                    for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                        *dst = f(pix);
+                    for (output_pixel, &rgbe_pixel) in output_pixel_line.iter_mut().zip(rgbe_pixel_line.iter()) {
+                        *output_pixel = rgbe_to_pixel(rgbe_pixel);
                     }
                 });
             }
             Ok(())
         }) as Result<(), ImageError>)?;
+
         Ok(())
     }
 
@@ -485,7 +470,6 @@ impl<R: BufRead> HdrDecoder<R> {
     }
 
     /// Consumes decoder and returns a vector of Rgb<f32> pixels.
-    ///
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
         let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
         self.read_image_transform(|pix| pix.to_hdr(), &mut ret[..])?;
@@ -520,17 +504,6 @@ pub struct HdrImageDecoderIterator<R: BufRead> {
     trouble: bool,        // optimization, true indicates that we need to check something
     error_encountered: bool,
 }
-
-/// Scanline buffered pixel by pixel iterator
-///
-/// An alias of [`HdrImageDecoderIterator`].
-///
-/// TODO: remove
-///
-/// [`HdrImageDecoderIterator`]: struct.HdrImageDecoderIterator.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrImageDecoderIterator` instead")]
-pub type HDRImageDecoderIterator<R> = HdrImageDecoderIterator<R>;
 
 impl<R: BufRead> HdrImageDecoderIterator<R> {
     // Advances counter to the next pixel
@@ -771,17 +744,6 @@ pub struct HdrMetadata {
     /// All other lines are ("", "line")
     pub custom_attributes: Vec<(String, String)>,
 }
-
-/// HDR MetaData
-///
-/// An alias of [`HdrMetadata`].
-///
-/// TODO: remove
-///
-/// [`HdrMetadata`]: struct.HdrMetadata.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrMetadata` instead")]
-pub type HDRMetadata = HdrMetadata;
 
 impl HdrMetadata {
     fn new() -> HdrMetadata {

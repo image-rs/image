@@ -143,17 +143,21 @@ impl<R: BufRead> HdrAdapter<R> {
     }
 
     /// Read the actual data of the image, and store it in Self::data.
-    fn read_image_data_f32(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+    fn read_image_data_f32(&mut self, image_bytes: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(image_bytes.len()), Ok(self.total_bytes()));
+        let bytes_per_pixel = Rgb::<f32>::COLOR_TYPE.bytes_per_pixel() as usize;
+
         match self.inner.take() {
             Some(decoder) => {
-                let f32_buffer: &mut [[f32;3]] = bytemuck::cast_slice_mut(buf); // FIXME this is unaligned access
 
-                use std::convert::TryInto;
                 decoder.read_image_transform(
-                    |pix| pix.to_hdr().channels()
-                        .try_into().expect("indexing error"), // convert slice to fixed-size array
-                    f32_buffer
+                    |index, pix| {
+                        let rgb_f32 = pix.to_hdr();
+                        let pixel_bytes: &[u8] = bytemuck::cast_slice(rgb_f32.channels());
+
+                        image_bytes[index * bytes_per_pixel .. (index + 1) * bytes_per_pixel]
+                            .copy_from_slice(pixel_bytes);
+                    },
                 )?;
 
                 Ok(())
@@ -212,6 +216,7 @@ impl<'a, R: 'a + BufRead + Seek> ImageDecoderExt<'a> for HdrAdapter<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
+        // TODO if hdr is read scan line by scan line, why does this read everything at once?
         image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| unreachable!(),
                          |s, buf| s.read_image_data_f32(buf))
     }
@@ -224,7 +229,7 @@ const SIGNATURE_LENGTH: usize = 10;
 /// An Radiance HDR decoder
 #[derive(Debug)]
 pub struct HdrDecoder<R> {
-    r: R,
+    reader: R,
     width: u32,
     height: u32,
     meta: HdrMetadata,
@@ -392,7 +397,7 @@ impl<R: BufRead> HdrDecoder<R> {
         }
 
         Ok(HdrDecoder {
-            r: reader,
+            reader: reader,
 
             width,
             height,
@@ -419,44 +424,29 @@ impl<R: BufRead> HdrDecoder<R> {
         let pixel_count = self.width as usize * self.height as usize;
         let mut ret = vec![Default::default(); pixel_count];
         for chunk in ret.chunks_mut(self.width as usize) {
-            read_scanline(&mut self.r, chunk)?;
+            read_scanline(&mut self.reader, chunk)?;
         }
         Ok(ret)
     }
 
-    /// Consumes decoder and returns a vector of transformed pixels
-    pub fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
+    /// The callback gets a flattened index as the first argument.
+    pub fn read_image_transform<F: Send + Sync + FnMut(usize, Rgbe8Pixel)>(
         mut self,
-        rgbe_to_pixel: F,
-        output_pixels: &mut [T],
+        mut store_rgbe_pixel: F
     ) -> ImageResult<()> {
-        assert_eq!(
-            output_pixels.len(),
-            self.width as usize * self.height as usize
-        );
-
-        // Don't read anything if image is empty
         if self.width == 0 || self.height == 0 {
             return Ok(());
         }
 
-        let pixel_lines = output_pixels.chunks_mut(self.width as usize);
-        let mut pool = Pool::new(8);
+        let mut rgbe_pixel_line_tmp_buffer = vec![Default::default(); self.width as usize];
 
-        (pool.scoped(|scope| {
-            for output_pixel_line in pixel_lines {
-                let mut rgbe_pixel_line = vec![Default::default(); self.width as usize];
-                read_scanline(&mut self.r, rgbe_pixel_line.as_mut())?;
-
-                let rgbe_to_pixel = &rgbe_to_pixel;
-                scope.execute(move || {
-                    for (output_pixel, &rgbe_pixel) in output_pixel_line.iter_mut().zip(rgbe_pixel_line.iter()) {
-                        *output_pixel = rgbe_to_pixel(rgbe_pixel);
-                    }
-                });
+        for y_index in 0 .. self.height as usize {
+            read_scanline(&mut self.reader, rgbe_pixel_line_tmp_buffer.as_mut())?;
+            
+            for (x_index, &rgbe_pixel) in rgbe_pixel_line_tmp_buffer.iter().enumerate() {
+                store_rgbe_pixel(y_index * self.width as usize + x_index, rgbe_pixel);
             }
-            Ok(())
-        }) as Result<(), ImageError>)?;
+        }
 
         Ok(())
     }
@@ -465,14 +455,14 @@ impl<R: BufRead> HdrDecoder<R> {
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
         let mut ret = vec![Rgb([0, 0, 0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_ldr(), &mut ret[..])?;
+        self.read_image_transform(|index, pix| ret[index] = pix.to_ldr())?;
         Ok(ret)
     }
 
     /// Consumes decoder and returns a vector of Rgb<f32> pixels.
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
         let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_hdr(), &mut ret[..])?;
+        self.read_image_transform(|index, pix| ret[index] = pix.to_hdr())?;
         Ok(ret)
     }
 }
@@ -483,7 +473,7 @@ impl<R: BufRead> IntoIterator for HdrDecoder<R> {
 
     fn into_iter(self) -> Self::IntoIter {
         HdrImageDecoderIterator {
-            r: self.r,
+            r: self.reader,
             scanline_cnt: self.height as usize,
             buf: vec![Default::default(); self.width as usize],
             col: 0,

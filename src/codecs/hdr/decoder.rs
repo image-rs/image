@@ -147,8 +147,11 @@ impl<R: BufRead> HdrAdapter<R> {
         assert_eq!(u64::try_from(image_bytes.len()), Ok(self.total_bytes()));
         let bytes_per_pixel = Rgb::<f32>::COLOR_TYPE.bytes_per_pixel() as usize;
 
+        panic!("dsfowsidjw");
+
         match self.inner.take() {
             Some(decoder) => {
+
 
                 decoder.read_image_transform(
                     |index, pix| {

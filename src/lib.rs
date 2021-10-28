@@ -301,9 +301,9 @@ pub mod hdr {
     //! Decoding of Radiance HDR Images
     #[allow(deprecated)]
     pub use crate::codecs::hdr::{
-        read_raw_file, rgbe8, to_rgbe8, HDRAdapter, HDREncoder, HDRImageDecoderIterator,
-        HDRMetadata, HdrAdapter, HdrDecoder, HdrEncoder, HdrImageDecoderIterator, HdrMetadata,
-        HdrReader, RGBE8Pixel, Rgbe8Pixel, SIGNATURE,
+        read_raw_file, rgbe8, to_rgbe8,
+        HdrAdapter, HdrDecoder, HdrEncoder, HdrImageDecoderIterator, HdrMetadata,
+        HdrReader, Rgbe8Pixel, SIGNATURE,
     };
 }
 #[cfg(feature = "ico")]

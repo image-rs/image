@@ -231,8 +231,8 @@ where
     let mut out = ImageBuffer::new(new_width, height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::max_value()).unwrap();
-    let min: f32 = NumCast::from(S::min_value()).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = width as f32 / new_width as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -272,34 +272,34 @@ where
         ws.iter_mut().for_each(|w| *w /= sum);
 
         for y in 0..height {
-            let t = ws
-                .iter()
-                .enumerate()
-                .fold((0.0, 0.0, 0.0, 0.0), |t, (i, w)| {
-                    let p = image.get_pixel(left + i as u32, y);
+            let mut t = (0.0, 0.0, 0.0, 0.0);
 
-                    let (k1, k2, k3, k4) = p.channels4();
-                    let vec: (f32, f32, f32, f32) = (
-                        NumCast::from(k1).unwrap(),
-                        NumCast::from(k2).unwrap(),
-                        NumCast::from(k3).unwrap(),
-                        NumCast::from(k4).unwrap(),
-                    );
+            for (i, w) in ws.iter().enumerate() {
+                let p = image.get_pixel(left + i as u32, y);
 
-                    (
-                        t.0 + vec.0 * w,
-                        t.1 + vec.1 * w,
-                        t.2 + vec.2 * w,
-                        t.3 + vec.3 * w,
-                    )
-                });
+                #[allow(deprecated)]
+                let (k1, k2, k3, k4) = p.channels4();
+                let vec: (f32, f32, f32, f32) = (
+                    NumCast::from(k1).unwrap(),
+                    NumCast::from(k2).unwrap(),
+                    NumCast::from(k3).unwrap(),
+                    NumCast::from(k4).unwrap(),
+                );
 
-            // Keeping the clamp improves performance.
-            let t: P = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
+                t.0 += vec.0 * w;
+                t.1 += vec.1 * w;
+                t.2 += vec.2 * w;
+                t.3 += vec.3 * w;
+            }
+
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
+
+            #[allow(deprecated)]
+            let t = Pixel::from_channels(
+                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -327,8 +327,8 @@ where
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::max_value()).unwrap();
-    let min: f32 = NumCast::from(S::min_value()).unwrap();
+    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
+    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -360,33 +360,34 @@ where
         ws.iter_mut().for_each(|w| *w /= sum);
 
         for x in 0..width {
-            let t = ws
-                .iter()
-                .enumerate()
-                .fold((0.0, 0.0, 0.0, 0.0), |t, (i, w)| {
-                    let p = image.get_pixel(x, left + i as u32);
+            let mut t = (0.0, 0.0, 0.0, 0.0);
 
-                    let (k1, k2, k3, k4) = p.channels4();
-                    let vec: (f32, f32, f32, f32) = (
-                        NumCast::from(k1).unwrap(),
-                        NumCast::from(k2).unwrap(),
-                        NumCast::from(k3).unwrap(),
-                        NumCast::from(k4).unwrap(),
-                    );
+            for (i, w) in ws.iter().enumerate() {
+                let p = image.get_pixel(x, left + i as u32);
 
-                    (
-                        t.0 + vec.0 * w,
-                        t.1 + vec.1 * w,
-                        t.2 + vec.2 * w,
-                        t.3 + vec.3 * w,
-                    )
-                });
+                #[allow(deprecated)]
+                let (k1, k2, k3, k4) = p.channels4();
+                let vec: (f32, f32, f32, f32) = (
+                    NumCast::from(k1).unwrap(),
+                    NumCast::from(k2).unwrap(),
+                    NumCast::from(k3).unwrap(),
+                    NumCast::from(k4).unwrap(),
+                );
 
-            let t: P = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
+                t.0 += vec.0 * w;
+                t.1 += vec.1 * w;
+                t.2 += vec.2 * w;
+                t.3 += vec.3 * w;
+            }
+
+            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
+
+            #[allow(deprecated)]
+            let t = Pixel::from_channels(
+                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
             );
 
             out.put_pixel(x, outy, t);
@@ -409,6 +410,7 @@ impl<S: Primitive + Enlargeable> ThumbnailSum<S> {
     }
 
     fn add_pixel<P: Pixel<Subpixel=S>>(&mut self, pixel: P) {
+        #[allow(deprecated)]
         let pixel = pixel.channels4();
         self.0 += Self::sample_val(pixel.0);
         self.1 += Self::sample_val(pixel.1);
@@ -496,6 +498,7 @@ where
                 thumbnail_sample_fraction_both(image, right - 1, fraction_horizontal, top - 1, fraction_vertical)
             };
 
+            #[allow(deprecated)]
             let pixel = Pixel::from_channels(avg.0, avg.1, avg.2, avg.3);
             out.put_pixel(outx, outy, pixel);
         }
@@ -637,9 +640,13 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
+    #[allow(deprecated)]
     let k_bl = image.get_pixel(left,     bottom    ).channels4();
+    #[allow(deprecated)]
     let k_tl = image.get_pixel(left,     bottom + 1).channels4();
+    #[allow(deprecated)]
     let k_br = image.get_pixel(left + 1, bottom    ).channels4();
+    #[allow(deprecated)]
     let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
 
     let frac_v = fraction_vertical;
@@ -691,7 +698,7 @@ where
 
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
+    let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let sum = match kernel.iter().fold(0.0, |s, &item| s + item) {
@@ -714,6 +721,7 @@ where
 
                 let p = image.get_pixel(x0 as u32, y0 as u32);
 
+                #[allow(deprecated)]
                 let (k1, k2, k3, k4) = p.channels4();
 
                 let vec: (f32, f32, f32, f32) = (
@@ -731,6 +739,7 @@ where
 
             let (t1, t2, t3, t4) = (t.0 / sum.0, t.1 / sum.1, t.2 / sum.2, t.3 / sum.3);
 
+            #[allow(deprecated)]
             let t = Pixel::from_channels(
                 NumCast::from(clamp(t1, 0.0, max)).unwrap(),
                 NumCast::from(clamp(t2, 0.0, max)).unwrap(),
@@ -822,7 +831,7 @@ where
 {
     let mut tmp = blur(image, sigma);
 
-    let max = S::max_value();
+    let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
     let (width, height) = image.dimensions();
 
@@ -838,7 +847,7 @@ where
                 let diff = (ic - id).abs();
 
                 if diff > threshold {
-                    let e = clamp(ic + diff, 0, max);
+                    let e = clamp(ic + diff, 0, max); // FIXME what does this do for f32? clamp 0-1 integers??
 
                     NumCast::from(e).unwrap()
                 } else {

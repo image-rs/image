@@ -1,9 +1,9 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::{Bounded, Num, NumCast};
+use num_traits::{Num, NumCast};
 use std::f64::consts::PI;
 
-use crate::color::{Luma, Rgba};
+use crate::color::{Luma, Rgba, FromColor, IntoColor};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, Primitive};
 use crate::utils::clamp;
@@ -11,19 +11,31 @@ use crate::ImageBuffer;
 
 type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
-/// Convert the supplied image to grayscale
+/// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(image: &I) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
+    where
+        Subpixel<I>: 'static,
+        <Subpixel<I> as Num>::FromStrRadixErr: 'static,
+{
+    grayscale_with_type(image)
+}
+
+/// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
+pub fn grayscale_with_type<NewPixel, I: GenericImageView>(image: &I) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
     Subpixel<I>: 'static,
     <Subpixel<I> as Num>::FromStrRadixErr: 'static,
+    NewPixel: 'static + Pixel + FromColor<Luma<Subpixel<I>>>
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
     for y in 0..height {
         for x in 0..width {
-            let p = image.get_pixel(x, y).to_luma();
-            out.put_pixel(x, y, p);
+            let grayscale = image.get_pixel(x, y).to_luma();
+            let pixel = grayscale.into_color(); // no-op for luma->luma
+
+            out.put_pixel(x, y, pixel);
         }
     }
 
@@ -33,6 +45,7 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
+    // TODO why is this not just `for pixel in image.pixels_mut() { pixel.invert(); }`
     let (width, height) = image.dimensions();
 
     for y in 0..height {
@@ -59,11 +72,12 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
+    let max = S::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let f = image.get_pixel(x, y).map(|b| {
@@ -93,11 +107,12 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
+    let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let f = image.get_pixel(x, y).map(|b| {
@@ -128,9 +143,10 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    let max = S::max_value();
+    let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let e = image.get_pixel(x, y).map_with_alpha(
@@ -161,9 +177,10 @@ where
 {
     let (width, height) = image.dimensions();
 
-    let max = <<I::Pixel as Pixel>::Subpixel as Bounded>::max_value();
-    let max: i32 = NumCast::from(max).unwrap();
+    let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
+    let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let e = image.get_pixel(x, y).map_with_alpha(
@@ -216,6 +233,8 @@ where
     ];
     for (x, y, pixel) in out.enumerate_pixels_mut() {
         let p = image.get_pixel(x, y);
+
+        #[allow(deprecated)]
         let (k1, k2, k3, k4) = p.channels4();
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -232,6 +251,8 @@ where
         let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
         let max = 255f64;
+
+        #[allow(deprecated)]
         let outpixel = Pixel::from_channels(
             NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
             NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
@@ -273,10 +294,14 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
+    // TODO use pixels_mut?
     for y in 0..height {
         for x in 0..width {
             let pixel = image.get_pixel(x, y);
+
+            #[allow(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
+
             let vec: (f64, f64, f64, f64) = (
                 NumCast::from(k1).unwrap(),
                 NumCast::from(k2).unwrap(),
@@ -292,6 +317,8 @@ where
             let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
             let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
             let max = 255f64;
+
+            #[allow(deprecated)]
             let outpixel = Pixel::from_channels(
                 NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
                 NumCast::from(clamp(new_g, 0.0, max)).unwrap(),

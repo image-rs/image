@@ -12,7 +12,7 @@ use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_fo
 use crate::error::ImageResult;
 use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
-use crate::traits::{EncodableLayout, Pixel};
+use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
@@ -585,7 +585,7 @@ where
 /// ```no_run
 /// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
-/// let on_top = open("path/to/some.png").unwrap().into_rgb();
+/// let on_top = open("path/to/some.png").unwrap().into_rgb8();
 /// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
 ///         image::Rgb([0, 0, 0])
@@ -602,8 +602,8 @@ where
 /// ```no_run
 /// use image::{open, DynamicImage};
 ///
-/// let rgba = open("path/to/some.png").unwrap().into_rgba();
-/// let gray = DynamicImage::ImageRgba8(rgba).into_luma();
+/// let rgba = open("path/to/some.png").unwrap().into_rgba8();
+/// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
@@ -795,7 +795,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -809,7 +809,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -823,7 +823,7 @@ where
         FlatSamples {
             samples: self.data.as_mut(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 }
@@ -934,6 +934,7 @@ where
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer(
@@ -941,7 +942,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
         )
     }
 }
@@ -960,6 +961,7 @@ where
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
@@ -967,7 +969,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }
@@ -990,6 +992,7 @@ where
     where
         W: std::io::Write + std::io::Seek,
         F: Into<ImageOutputFormat>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
@@ -997,7 +1000,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }
@@ -1320,7 +1323,7 @@ where
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
-    ///     .to_rgba();
+    ///     .to_rgba8();
     /// 
     /// let gray_image: GrayImage = image.convert();
     /// ```

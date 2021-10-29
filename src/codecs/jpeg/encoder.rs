@@ -13,6 +13,7 @@ use crate::utils::clamp;
 
 use super::entropy::build_huff_lut_const;
 use super::transform;
+use crate::traits::PixelWithColorType;
 
 // Markers
 // Baseline DCT
@@ -479,8 +480,9 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     pub fn encode_image<I: GenericImageView>(
         &mut self,
         image: &I,
-    ) -> ImageResult<()> {
+    ) -> ImageResult<()> where I::Pixel: PixelWithColorType {
         let n = I::Pixel::CHANNEL_COUNT;
+        let color_type = I::Pixel::COLOR_TYPE;
         let num_components = if n == 1 || n == 2 { 1 } else { 3 };
 
         self.writer.write_marker(SOI)?;
@@ -558,8 +560,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         build_scan_header(&mut buf, &self.components[..num_components]);
         self.writer.write_segment(SOS, &buf)?;
 
-
-        if I::Pixel::COLOR_TYPE.has_color() {
+        if color_type.has_color() {
             self.encode_rgb(image)
         } else {
             self.encode_gray(image)
@@ -781,9 +782,11 @@ fn encode_coefficient(coefficient: i32) -> (u8, u16) {
 
 #[inline]
 fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
-    use num_traits::{cast::ToPrimitive, bounds::Bounded};
+    use num_traits::{cast::ToPrimitive};
+    use crate::traits::Primitive;
+
     let [r, g, b] = pixel.to_rgb().0;
-    let max: f32 = P::Subpixel::max_value().to_f32().unwrap();
+    let max: f32 = P::Subpixel::DEFAULT_MAX_VALUE.to_f32().unwrap();
     let r: f32 = r.to_f32().unwrap();
     let g: f32 = g.to_f32().unwrap();
     let b: f32 = b.to_f32().unwrap();

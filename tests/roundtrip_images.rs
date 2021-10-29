@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use tiff::encoder::ImageEncoder;
-use image::{DynamicImage, ImageFormat};
+use image::{DynamicImage, ImageFormat, ImageResult, ImageError};
 use std::io::Cursor;
+use image::io::Reader;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 
@@ -24,26 +25,41 @@ fn roundtrip() {
     process_images(|path| {
         println!("round trip test at path {:?}", path);
 
-        if let Ok(decoded) = image::open(&path) {
-            let format = ImageFormat::from_path(&path).unwrap(); // TODO get format from dynamic image?
+        let format_and_image: ImageResult<(ImageFormat, DynamicImage)> = Reader::open(&path)
+            .map_err(|err| err.into())
+            .and_then(|reader|{
+                let reader = reader.with_guessed_format()?;
+                let format = reader.format();
+                let content = reader.decode()?;
 
+                // the image has been decoded, so the format is guaranteed to be detected
+                Ok((format.unwrap(), content))
+            });
+
+        if let Ok((format, decoded)) = format_and_image {
             if format.can_write() {
                 let mut byte_buffer = Vec::new();
 
-                decoded.write_to(&mut byte_buffer, format)
-                    .expect("writing failed");
+                match decoded.write_to(&mut byte_buffer, format){
+                    Ok(_) => {
+                        let re_decoded = image::load(Cursor::new(byte_buffer.as_slice()), format)
+                            .expect("roundtrip re-decoding failed");
 
-                let re_decoded = image::load(Cursor::new(byte_buffer), format)
-                    .expect("roundtrip decoding failed");
+                        assert_eq!(decoded, re_decoded); // TODO tolerance for float images
+                    }
 
-                assert_eq!(decoded, re_decoded); // TODO tolerance for float images
+                    Err(ImageError::Unsupported(error)) =>
+                        println!("reading was successful, but the encoder does not support this image ({:?})", error),
+
+                    Err(_) => panic!("cannot write image even though format says so"),
+                }
             }
             else {
                 println!("Skipping read-only format {:?}", format);
             }
         }
         else {
-            println!("Skipping invalid image at path {:?}", path);
+            println!("Skipping invalid image at path {:?}", &path);
         }
     })
 }

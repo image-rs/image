@@ -614,13 +614,9 @@ pub struct ImageBuffer<P: Pixel, Container> {
 }
 
 // generic implementation, shared along all image buffers
-//
-// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?  Remember to remove
-// the bounds on `imageops` in case this changes!
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     /// Contructs a buffer from a generic container
@@ -830,8 +826,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     // TODO: choose name under which to expose.
@@ -921,7 +916,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -949,7 +944,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -977,7 +972,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -1023,8 +1018,7 @@ where
 
 impl<P, Container> Deref for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     type Target = [P::Subpixel];
@@ -1036,8 +1030,7 @@ where
 
 impl<P, Container> DerefMut for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
@@ -1047,8 +1040,7 @@ where
 
 impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     type Output = P;
@@ -1060,8 +1052,7 @@ where
 
 impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
@@ -1086,9 +1077,8 @@ where
 
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Deref,
-    P::Subpixel: 'static,
 {
     type Pixel = P;
     type InnerImageView = Self;
@@ -1119,9 +1109,8 @@ where
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
-    P::Subpixel: 'static,
 {
     type InnerImage = Self;
 
@@ -1191,10 +1180,7 @@ where
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
-where
-    P::Subpixel: 'static,
-{
+impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     ///
     /// # Panics
@@ -1306,13 +1292,11 @@ impl GrayImage {
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
-impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
+impl<'a, 'b, Container, FromType: Pixel, ToType: Pixel>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Subpixel]>,
     ToType: FromColor<FromType>,
-    FromType::Subpixel: 'static,
-    ToType::Subpixel: 'static,
 {
     /// # Examples
     /// Convert RGB image to gray image.

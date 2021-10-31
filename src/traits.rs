@@ -34,7 +34,7 @@ impl EncodableLayout for [f32] {
 
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded + 'static {
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
 
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
@@ -71,7 +71,7 @@ declare_primitive!(f64: (0.0)..1.0);
 /// An Enlargable::Larger value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
 pub trait Enlargeable: Sized + Bounded + NumCast {
-    type Larger: Primitive + AddAssign + 'static;
+    type Larger: Primitive + AddAssign;
 
     fn clamp_from(n: Self::Larger) -> Self {
         // Note: Only unsigned value types supported.

@@ -20,7 +20,7 @@ pub use self::affine::{
 pub use self::sample::{blur, filter3x3, resize, thumbnail, unsharpen};
 
 /// Color operations
-pub use self::colorops::{brighten, contrast, dither, grayscale, grayscale_with_type, huerotate, index_colors, invert,
+pub use self::colorops::{brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type, grayscale_with_type_alpha, huerotate, index_colors, invert,
                          BiLevel, ColorMap};
 
 mod affine;

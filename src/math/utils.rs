@@ -1,5 +1,7 @@
 //! Shared mathematical utility functions.
 
+use std::cmp::max;
+
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint
@@ -14,36 +16,26 @@ pub(crate) fn resize_dimensions(
     nheight: u32,
     fill: bool,
 ) -> (u32, u32) {
-    let ratio = u64::from(width) * u64::from(nheight);
-    let nratio = u64::from(nwidth) * u64::from(height);
+    let wratio = nwidth as f64 / width as f64;
+    let hratio = nheight as f64 / height as f64;
 
-    let use_width = if fill {
-        nratio > ratio
+    let ratio = if fill {
+        f64::max(wratio, hratio)
     } else {
-        nratio <= ratio
+        f64::min(wratio, hratio)
     };
-    let intermediate = if use_width {
-        u64::from(height) * u64::from(nwidth) / u64::from(width)
+
+    let nw = max((width as f64 * ratio).round() as u64, 1);
+    let nh = max((height as f64 * ratio).round() as u64, 1);
+
+    if nw > u64::from(u32::MAX) {
+        let ratio = u32::MAX as f64 / width as f64;
+        (u32::MAX, max((height as f64 * ratio).round() as u32, 1))
+    } else if nh > u64::from(u32::MAX) {
+        let ratio = u32::MAX as f64 / height as f64;
+        (max((width as f64 * ratio).round() as u32, 1), u32::MAX)
     } else {
-        u64::from(width) * u64::from(nheight) / u64::from(height)
-    };
-    let intermediate = std::cmp::max(1, intermediate);
-    if use_width {
-        if intermediate <= u64::from(::std::u32::MAX) {
-            (nwidth, intermediate as u32)
-        } else {
-            (
-                (u64::from(nwidth) * u64::from(::std::u32::MAX) / intermediate) as u32,
-                ::std::u32::MAX,
-            )
-        }
-    } else if intermediate <= u64::from(::std::u32::MAX) {
-        (intermediate as u32, nheight)
-    } else {
-        (
-            ::std::u32::MAX,
-            (u64::from(nheight) * u64::from(::std::u32::MAX) / intermediate) as u32,
-        )
+        (nw as u32, nh as u32)
     }
 }
 
@@ -53,7 +45,7 @@ mod test {
         fn resize_bounds_correctly_width(old_w: u32, new_w: u32) -> bool {
             if old_w == 0 || new_w == 0 { return true; }
             let result = super::resize_dimensions(old_w, 400, new_w, ::std::u32::MAX, false);
-            result.0 == new_w && result.1 == (400 as f64 * new_w as f64 / old_w as f64) as u32
+            result.0 == new_w && result.1 == (400 as f64 * new_w as f64 / old_w as f64).round() as u32
         }
     }
 
@@ -61,7 +53,7 @@ mod test {
         fn resize_bounds_correctly_height(old_h: u32, new_h: u32) -> bool {
             if old_h == 0 || new_h == 0 { return true; }
             let result = super::resize_dimensions(400, old_h, ::std::u32::MAX, new_h, false);
-            result.1 == new_h && result.0 == (400 as f64 * new_h as f64 / old_h as f64) as u32
+            result.1 == new_h && result.0 == (400 as f64 * new_h as f64 / old_h as f64).round() as u32
         }
     }
 
@@ -92,5 +84,30 @@ mod test {
         let result = super::resize_dimensions(::std::u32::MAX, 100, ::std::u32::MAX, 200, true);
         assert!(result.0 == ::std::u32::MAX);
         assert!(result.1 == 100);
+    }
+
+    #[test]
+    fn resize_rounds() {
+        // Only truncation will result in (3840, 2229) and (2160, 3719)
+        let result = super::resize_dimensions(4264, 2476, 3840, 2160, true);
+        assert_eq!(result, (3840, 2230));
+
+        let result = super::resize_dimensions(2476, 4264, 2160, 3840, false);
+        assert_eq!(result, (2160, 3720));
+    }
+
+    #[test]
+    fn resize_handles_zero() {
+        let result = super::resize_dimensions(0, 100, 100, 100, false);
+        assert_eq!(result, (1, 100));
+
+        let result = super::resize_dimensions(100, 0, 100, 100, false);
+        assert_eq!(result, (100, 1));
+
+        let result = super::resize_dimensions(100, 100, 0, 100, false);
+        assert_eq!(result, (1, 1));
+
+        let result = super::resize_dimensions(100, 100, 100, 0, false);
+        assert_eq!(result, (1, 1));
     }
 }

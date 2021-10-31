@@ -375,16 +375,20 @@ pub trait FromPrimitive<Component> {
 impl<T: Primitive> FromPrimitive<T> for T { fn from_primitive(sample: T) -> Self { sample } }
 
 // from f32:
+// Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
+// as truncate towards zero. We emulate rounding by adding a bias.
 
 impl FromPrimitive<f32> for u8 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(float.clamp(0.0, 1.0) * u8::MAX as f32).unwrap()
+        let inner = (float.clamp(0.0, 1.0) * u8::MAX as f32).round();
+        NumCast::from(inner).unwrap()
     }
 }
 
 impl FromPrimitive<f32> for u16 {
     fn from_primitive(float: f32) -> Self {
-        NumCast::from(float.clamp(0.0, 1.0) * u16::MAX as f32).unwrap()
+        let inner = (float.clamp(0.0, 1.0) * u16::MAX as f32).round();
+        NumCast::from(inner).unwrap()
     }
 }
 
@@ -392,7 +396,14 @@ impl FromPrimitive<f32> for u16 {
 
 impl FromPrimitive<u16> for u8 {
     fn from_primitive(c16: u16) -> Self {
-        NumCast::from(c16.to_u64().unwrap() >> 8).unwrap()
+        fn from(c: impl Into<u32>) -> u32 { c.into() }
+        // The input c is the numerator of `c / u16::MAX`.
+        // Derive numerator of `num / u8::MAX`, with rounding.
+        //
+        // This method is based on the inverse (see FromPrimitive<u8> for u16) and was tested
+        // exhaustively in Python. It's the same as the reference function:
+        //  round(c * (2**8 - 1) / (2**16 - 1))
+        NumCast::from((from(c16) + 128) / 257).unwrap()
     }
 }
 

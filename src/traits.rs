@@ -152,7 +152,7 @@ impl PixelWithColorType for Rgb<u16> { const COLOR_TYPE: ColorType = ColorType::
 impl PixelWithColorType for Rgb<f32> { const COLOR_TYPE: ColorType = ColorType::Rgb32F; }
 
 impl PixelWithColorType for Rgba<u8> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
-impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba16; }
 impl PixelWithColorType for Rgba<f32> { const COLOR_TYPE: ColorType = ColorType::Rgba32F; }
 
 impl PixelWithColorType for Luma<u8> { const COLOR_TYPE: ColorType = ColorType::L8; }

@@ -509,13 +509,13 @@ impl<W: Write> PngEncoder<W> {
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
-            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
-            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen),
             ColorType::Rgb8 => (png::ColorType::Rgb, png::BitDepth::Eight),
-            ColorType::Rgb16 => (png::ColorType::Rgb,png::BitDepth::Sixteen),
+            ColorType::Rgb16 => (png::ColorType::Rgb, png::BitDepth::Sixteen),
             ColorType::Rgba8 => (png::ColorType::Rgba, png::BitDepth::Eight),
-            ColorType::Rgba16 => (png::ColorType::Rgba,png::BitDepth::Sixteen),
+            ColorType::Rgba16 => (png::ColorType::Rgba, png::BitDepth::Sixteen),
             _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Png.into(),
                 UnsupportedErrorKind::Color(color.into()),

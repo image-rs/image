@@ -219,7 +219,7 @@ $( // START Structure definitions
 #[allow(missing_docs)]
 pub struct $ident<T: Primitive> (pub [T; $channels]);
 
-impl<T: Primitive + 'static> Pixel for $ident<T> {
+impl<T: Primitive> Pixel for $ident<T> {
     type Subpixel = T;
 
     const CHANNEL_COUNT: u8 = $channels;
@@ -347,7 +347,7 @@ impl<T: Primitive> IndexMut<usize> for $ident<T> {
     }
 }
 
-impl<T: Primitive + 'static> From<[T; $channels]> for $ident<T> {
+impl<T: Primitive> From<[T; $channels]> for $ident<T> {
     fn from(c: [T; $channels]) -> Self {
         Self(c)
     }

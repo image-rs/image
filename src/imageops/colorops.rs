@@ -13,18 +13,12 @@ type Subpixel<I> = <<I as GenericImageView>::Pixel as Pixel>::Subpixel;
 
 /// Convert the supplied image to grayscale. Alpha channel is discarded.
 pub fn grayscale<I: GenericImageView>(image: &I) -> ImageBuffer<Luma<Subpixel<I>>, Vec<Subpixel<I>>>
-    where
-        Subpixel<I>: 'static,
-        <Subpixel<I> as Num>::FromStrRadixErr: 'static,
 {
     grayscale_with_type(image)
 }
 
 /// Convert the supplied image to grayscale. Alpha channel is preserved.
 pub fn grayscale_alpha<I: GenericImageView>(image: &I) -> ImageBuffer<LumaA<Subpixel<I>>, Vec<Subpixel<I>>>
-    where
-        Subpixel<I>: 'static,
-        <Subpixel<I> as Num>::FromStrRadixErr: 'static,
 {
     grayscale_with_type_alpha(image)
 }
@@ -32,9 +26,7 @@ pub fn grayscale_alpha<I: GenericImageView>(image: &I) -> ImageBuffer<LumaA<Subp
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is discarded.
 pub fn grayscale_with_type<NewPixel, I: GenericImageView>(image: &I) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
-    Subpixel<I>: 'static,
-    <Subpixel<I> as Num>::FromStrRadixErr: 'static,
-    NewPixel: 'static + Pixel + FromColor<Luma<Subpixel<I>>>
+    NewPixel: Pixel + FromColor<Luma<Subpixel<I>>>
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -54,9 +46,7 @@ where
 /// Convert the supplied image to a grayscale image with the specified pixel type. Alpha channel is preserved.
 pub fn grayscale_with_type_alpha<NewPixel, I: GenericImageView>(image: &I) -> ImageBuffer<NewPixel, Vec<NewPixel::Subpixel>>
 where
-    Subpixel<I>: 'static,
-    <Subpixel<I> as Num>::FromStrRadixErr: 'static,
-    NewPixel: 'static + Pixel + FromColor<LumaA<Subpixel<I>>>
+    NewPixel: Pixel + FromColor<LumaA<Subpixel<I>>>
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);

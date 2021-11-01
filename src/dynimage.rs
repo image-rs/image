@@ -588,15 +588,15 @@ impl DynamicImage {
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
-            DynamicImage::ImageLumaA8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageLumaA8(ref p) => DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p)),
             DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
-            DynamicImage::ImageRgba8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
+            DynamicImage::ImageRgba8(ref p) => DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p)),
             DynamicImage::ImageLuma16(ref p) => DynamicImage::ImageLuma16(p.clone()),
-            DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
+            DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p)),
             DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
-            DynamicImage::ImageRgba16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
+            DynamicImage::ImageRgba16(ref p) => DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p)),
             DynamicImage::ImageRgb32F(ref p) => DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p)),
-            DynamicImage::ImageRgba32F(ref p) => DynamicImage::ImageRgba32F(imageops::grayscale_with_type(p)),
+            DynamicImage::ImageRgba32F(ref p) => DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p)),
         }
     }
 
@@ -1197,5 +1197,70 @@ mod test {
         let im_path = "./tests/images/png/16bpc/basn6a16.png";
         let image = super::open(im_path).unwrap();
         assert_eq!(image.color(), super::color::ColorType::Rgba16);
+    }
+
+    fn test_grayscale(mut img: super::DynamicImage, alpha_discarded: bool) {
+        use crate::image::{GenericImage, GenericImageView};
+        img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
+        let expected_alpha = if alpha_discarded { 255 } else { 100 };
+        assert_eq!(img.grayscale().get_pixel(0, 0), crate::color::Rgba([54, 54, 54, expected_alpha]));
+    }
+
+    fn test_grayscale_alpha_discarded(img: super::DynamicImage) {
+        test_grayscale(img, true);
+    }
+
+    fn test_grayscale_alpha_preserved(img: super::DynamicImage) {
+        test_grayscale(img, false);
+    }
+
+    #[test]
+    fn test_grayscale_luma8() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_luma8(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_luma_a8() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a8(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgb8() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb8(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgba8() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba8(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_luma16() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_luma16(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_luma_a16() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_luma_a16(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgb16() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb16(1, 1));
+    }
+    
+    #[test]
+    fn test_grayscale_rgba16() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba16(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgb32f() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb32f(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgba32f() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
     }
 }

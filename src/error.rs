@@ -18,7 +18,6 @@ use std::error::Error;
 
 use crate::color::ExtendedColorType;
 use crate::image::ImageFormat;
-use crate::utils::NonExhaustiveMarker;
 
 /// The generic error type for image operations.
 ///
@@ -78,6 +77,7 @@ pub struct UnsupportedError {
 
 /// Details what feature is not supported.
 #[derive(Clone, Debug, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum UnsupportedErrorKind {
     /// The required color type can not be handled.
     Color(ExtendedColorType),
@@ -86,8 +86,6 @@ pub enum UnsupportedErrorKind {
     /// Some feature specified by string.
     /// This is discouraged and is likely to get deprecated (but not removed).
     GenericFeature(String),
-    #[doc(hidden)]
-    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// An error was encountered while encoding an image.
@@ -117,6 +115,7 @@ pub struct ParameterError {
 
 /// Details how a parameter is malformed.
 #[derive(Clone, Debug, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum ParameterErrorKind {
     /// The dimensions passed are wrong.
     DimensionMismatch,
@@ -127,9 +126,6 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
-    #[doc(hidden)]
-    /// Do not use this, not part of stability guarantees.
-    __NonExhaustive(NonExhaustiveMarker),
 }
 
 /// An error was encountered while decoding an image.
@@ -161,19 +157,25 @@ pub struct LimitError {
 /// Note that this enumeration is not exhaustive and may in the future be extended to provide more
 /// detailed information or to incorporate other resources types.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 #[allow(missing_copy_implementations)] // Might be non-Copy in the future.
 pub enum LimitErrorKind {
     /// The resulting image exceed dimension limits in either direction.
     DimensionError,
     /// The operation would have performed an allocation larger than allowed.
     InsufficientMemory,
-    #[doc(hidden)]
-    /// Do not use this, not part of stability guarantees.
-    __NonExhaustive(NonExhaustiveMarker),
+    /// The specified strict limits are not supported for this operation
+    Unsupported {
+        /// The given limits 
+        limits: crate::io::Limits,
+        /// The supported strict limits
+        supported: crate::io::LimitSupport,
+    },
 }
 
 /// A best effort representation for image formats.
 #[derive(Clone, Debug, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum ImageFormatHint {
     /// The format is known exactly.
     Exact(ImageFormat),
@@ -186,9 +188,6 @@ pub enum ImageFormatHint {
 
     /// The format is not known or could not be determined.
     Unknown,
-
-    #[doc(hidden)]
-    __NonExhaustive(NonExhaustiveMarker),
 }
 
 impl UnsupportedError {
@@ -396,7 +395,6 @@ impl fmt::Display for UnsupportedError {
                     ),
                 }
             },
-            UnsupportedErrorKind::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -424,7 +422,6 @@ impl fmt::Display for ParameterError {
                 fmt,
                 "The end of the image has been reached",
             ),
-            ParameterErrorKind::__NonExhaustive(marker) => match marker._private {},
         }?;
 
         if let Some(underlying) = &self.underlying {
@@ -497,7 +494,12 @@ impl fmt::Display for LimitError {
         match self.kind {
             LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
             LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
-            LimitErrorKind::__NonExhaustive(marker) => match marker._private {},
+            LimitErrorKind::Unsupported {
+                ..
+            } => {
+                write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
+                Ok(())
+            },
         }
     }
 }
@@ -511,7 +513,6 @@ impl fmt::Display for ImageFormatHint {
             ImageFormatHint::Name(name) => write!(fmt, "`{}`", name),
             ImageFormatHint::PathExtension(ext) => write!(fmt, "`.{:?}`", ext),
             ImageFormatHint::Unknown => write!(fmt, "`Unknown`"),
-            ImageFormatHint::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }

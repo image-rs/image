@@ -286,8 +286,7 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
     let old_size = buffer.len();
     let extend = full_size - buffer.len();
 
-    buffer.extend(repeat(0xFF).take(extend));
-    assert_eq!(buffer.len(), full_size);
+    buffer.resize(full_size, 0xFF);
 
     let ret = if extend >= old_size {
         // If the full buffer length is more or equal to twice the initial one, we can simply
@@ -354,8 +353,7 @@ where
         if buffer.len() < full_image_size {
             // If the image is stored in top-down order, we can simply use the extend function
             // from vec to extend the buffer..
-            let extend = full_image_size - buffer.len();
-            buffer.extend(repeat(0xFF).take(extend));
+            buffer.resize(full_image_size, 0xFF);
             let len = buffer.len();
             for row in buffer[len - row_width..].chunks_mut(row_width) {
                 func(row)?;
@@ -367,16 +365,16 @@ where
 
 fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     n_pixels: usize,
 ) -> bool {
     for idx in indices.take(n_pixels) {
         if let Some(pixel) = pixel_iter.next() {
-            let (r, g, b) = palette[*idx as usize];
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
+            let rgb = palette[*idx as usize];
+            pixel[0] = rgb[0];
+            pixel[1] = rgb[1];
+            pixel[2] = rgb[2];
         } else {
             return false;
         }
@@ -386,7 +384,7 @@ fn set_8bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 
 fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     mut n_pixels: usize,
 ) -> bool {
@@ -397,10 +395,10 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     break;
                 }
                 if let Some(pixel) = pixel_iter.next() {
-                    let (r, g, b) = palette[$i as usize];
-                    pixel[0] = r;
-                    pixel[1] = g;
-                    pixel[2] = b;
+                    let rgb = palette[$i as usize];
+                    pixel[0] = rgb[0];
+                    pixel[1] = rgb[1];
+                    pixel[2] = rgb[2];
                 } else {
                     return false;
                 }
@@ -416,7 +414,7 @@ fn set_4bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 #[rustfmt::skip]
 fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
     mut n_pixels: usize,
 ) -> bool {
@@ -427,10 +425,10 @@ fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
                     break;
                 }
                 if let Some(pixel) = pixel_iter.next() {
-                    let (r, g, b) = palette[$i as usize];
-                    pixel[0] = r;
-                    pixel[1] = g;
-                    pixel[2] = b;
+                    let rgb = palette[$i as usize];
+                    pixel[0] = rgb[0];
+                    pixel[1] = rgb[1];
+                    pixel[2] = rgb[2];
                 } else {
                     return false;
                 }
@@ -447,17 +445,17 @@ fn set_2bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
 
 fn set_1bit_pixel_run<'a, T: Iterator<Item = &'a u8>>(
     pixel_iter: &mut ChunksMut<u8>,
-    palette: &[(u8, u8, u8)],
+    palette: &[[u8; 3]],
     indices: T,
 ) {
     for idx in indices {
         let mut bit = 0x80;
         loop {
             if let Some(pixel) = pixel_iter.next() {
-                let (r, g, b) = palette[((idx & bit) != 0) as usize];
-                pixel[0] = r;
-                pixel[1] = g;
-                pixel[2] = b;
+                let rgb = palette[((idx & bit) != 0) as usize];
+                pixel[0] = rgb[0];
+                pixel[1] = rgb[1];
+                pixel[2] = rgb[2];
             } else {
                 return;
             }
@@ -546,6 +544,7 @@ pub struct BmpDecoder<R> {
     reader: R,
 
     bmp_header_type: BMPHeaderType,
+    indexed_color: bool,
 
     width: i32,
     height: i32,
@@ -558,7 +557,7 @@ pub struct BmpDecoder<R> {
 
     bit_count: u16,
     colors_used: u32,
-    palette: Option<Vec<(u8, u8, u8)>>,
+    palette: Option<Vec<[u8; 3]>>,
     bitfields: Option<Bitfields>,
 }
 
@@ -634,6 +633,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
+            indexed_color: false,
 
             width: 0,
             height: 0,
@@ -660,6 +660,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
+            indexed_color: false,
 
             width: 0,
             height: 0,
@@ -678,6 +679,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
 
         decoder.read_metadata_in_ico_format()?;
         Ok(decoder)
+    }
+
+    /// If true, the palette in BMP does not apply to the image even if it is found.
+    /// In other words, the output image is the indexed color.
+    pub fn set_indexed_color(&mut self, indexed_color: bool) {
+        self.indexed_color = indexed_color;
     }
 
     #[cfg(feature = "ico")]
@@ -1002,12 +1009,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
             Ordering::Equal => (),
         }
 
-        let p: Vec<(u8, u8, u8)> = (0..MAX_PALETTE_SIZE)
+        let p: Vec<[u8; 3]> = (0..MAX_PALETTE_SIZE)
             .map(|i| {
                 let b = buf[bytes_per_color * i];
                 let g = buf[bytes_per_color * i + 1];
                 let r = buf[bytes_per_color * i + 2];
-                (r, g, b)
+                [r, g, b]
             })
             .collect();
 
@@ -1016,8 +1023,15 @@ impl<R: Read + Seek> BmpDecoder<R> {
         Ok(())
     }
 
+    /// Get the palette that is embedded in the BMP image, if any.
+    pub fn get_palette(&self) -> Option<&[[u8; 3]]> {
+        self.palette.as_ref().map(|vec| &vec[..])
+    }
+
     fn num_channels(&self) -> usize {
-        if self.add_alpha_channel {
+        if self.indexed_color {
+            1
+        } else if self.add_alpha_channel {
             4
         } else {
             3
@@ -1060,6 +1074,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let bit_count = self.bit_count;
         let reader = &mut self.reader;
         let width = self.width as usize;
+        let skip_palette = self.indexed_color;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
@@ -1071,22 +1086,26 @@ impl<R: Read + Seek> BmpDecoder<R> {
             self.top_down,
             |row| {
                 reader.read_exact(&mut indices)?;
-                let mut pixel_iter = row.chunks_mut(num_channels);
-                match bit_count {
-                    1 => {
-                        set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter());
-                    }
-                    2 => {
-                        set_2bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    4 => {
-                        set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    8 => {
-                        set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
-                    }
-                    _ => panic!(),
-                };
+                if skip_palette {
+                    row.clone_from_slice(&indices[0..width]);
+                } else {
+                    let mut pixel_iter = row.chunks_mut(num_channels);
+                    match bit_count {
+                        1 => {
+                            set_1bit_pixel_run(&mut pixel_iter, palette, indices.iter());
+                        }
+                        2 => {
+                            set_2bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        4 => {
+                            set_4bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        8 => {
+                            set_8bit_pixel_run(&mut pixel_iter, palette, indices.iter(), width);
+                        }
+                        _ => panic!(),
+                    };
+                }
                 Ok(())
             },
         )?;
@@ -1120,7 +1139,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 {
+                    if num_channels == 4 && bitfields.a.len != 0 {
                         pixel[3] = bitfields.a.read(data);
                     }
                 }
@@ -1154,7 +1173,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 {
+                    if num_channels == 4 && bitfields.a.len != 0 {
                         pixel[3] = bitfields.a.read(data);
                     }
                 }
@@ -1443,7 +1462,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        if self.add_alpha_channel {
+        if self.indexed_color {
+            ColorType::L8
+        } else if self.add_alpha_channel {
             ColorType::Rgba8
         } else {
             ColorType::Rgb8

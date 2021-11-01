@@ -66,18 +66,21 @@ impl<W: Write> TgaEncoder<W> {
         header.write_to(&mut self.writer)?;
 
         // Write out Bgr(a)8 or L(a)8 image data.
-        let mut image = Vec::from(buf);
-
         match color_type {
             ColorType::Rgb8 | ColorType::Rgba8 => {
+                let mut image = Vec::from(buf);
+
                 for chunk in image.chunks_mut(usize::from(color_type.bytes_per_pixel())) {
                     chunk.swap(0, 2);
                 }
+
+                self.writer.write_all(&image)?;
             }
-            _ => {}
+            _ => {
+                self.writer.write_all(buf)?;
+            }
         }
 
-        self.writer.write_all(&image)?;
         Ok(())
     }
 }
@@ -97,7 +100,7 @@ impl<W: Write> ImageEncoder for TgaEncoder<W> {
 #[cfg(test)]
 mod tests {
     use super::{EncoderError, TgaEncoder};
-    use crate::{tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
+    use crate::{codecs::tga::TgaDecoder, ColorType, ImageDecoder, ImageError};
     use std::{error::Error, io::Cursor};
 
     fn round_trip_image(image: &[u8], width: u32, height: u32, c: ColorType) -> Vec<u8> {
@@ -186,22 +189,6 @@ mod tests {
         let decoded = round_trip_image(&image, 1, 1, ColorType::Rgba8);
         assert_eq!(decoded.len(), image.len());
         assert_eq!(decoded.as_slice(), image);
-    }
-
-    #[test]
-    fn round_trip_single_pixel_bgr() {
-        let image = [0, 1, 2];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgr8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0]);
-    }
-
-    #[test]
-    fn round_trip_single_pixel_bgra() {
-        let image = [0, 1, 2, 3];
-        let decoded = round_trip_image(&image, 1, 1, ColorType::Bgra8);
-        assert_eq!(decoded.len(), image.len());
-        assert_eq!(decoded.as_slice(), [2, 1, 0, 3]);
     }
 
     #[test]

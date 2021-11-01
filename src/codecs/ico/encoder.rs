@@ -5,7 +5,7 @@ use crate::color::ColorType;
 use crate::error::ImageResult;
 use crate::image::ImageEncoder;
 
-use crate::png::PngEncoder;
+use crate::codecs::png::PngEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -18,17 +18,6 @@ const ICO_DIRENTRY_SIZE: u32 = 16;
 pub struct IcoEncoder<W: Write> {
     w: W,
 }
-
-/// ICO encoder
-///
-/// An alias of [`IcoEncoder`].
-///
-/// TODO: remove
-///
-/// [`IcoEncoder`]: struct.IcoEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `IcoEncoder` instead")]
-pub type ICOEncoder<W> = IcoEncoder<W>;
 
 impl<W: Write> IcoEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.

@@ -14,7 +14,7 @@ use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
 use dcv_color_primitives as dcp;
-use mp4parse::read_avif;
+use mp4parse::{ParseStrictness, read_avif};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))
@@ -32,13 +32,15 @@ pub struct AvifDecoder<R> {
 impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
-        let ctx = read_avif(&mut r).map_err(error_map)?;
+        let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
         let mut primary_decoder = dav1d::Decoder::new();
+        let coded = ctx.primary_item_coded_data();
         primary_decoder
-            .send_data(ctx.primary_item(), None, None, None)
+            .send_data(coded, None, None, None)
             .map_err(error_map)?;
         let picture = primary_decoder.get_picture().map_err(error_map)?;
-        let alpha_picture = if let Some(alpha_item) = ctx.alpha_item() {
+        let alpha_item = ctx.alpha_item_coded_data();
+        let alpha_picture = if !alpha_item.is_empty() {
             let mut alpha_decoder = dav1d::Decoder::new();
             alpha_decoder
                 .send_data(alpha_item, None, None, None)
@@ -80,7 +82,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        ColorType::Bgra8
+        ColorType::Rgba8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -156,6 +158,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                     buf[3 + i * 4] = slice[i];
                 }
             }
+        }
+
+        // Convert Bgra to Rgba
+        for chunk in buf.chunks_exact_mut(4) {
+            chunk.swap(0, 2);
         }
 
         Ok(())

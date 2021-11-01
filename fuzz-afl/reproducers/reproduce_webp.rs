@@ -7,7 +7,7 @@ mod utils;
 
 #[inline(always)]
 fn webp_decode(data: &[u8]) -> ImageResult<DynamicImage> {
-    let decoder = image::webp::WebPDecoder::new(data)?;
+    let decoder = image::codecs::webp::WebPDecoder::new(data)?;
     let (width, height) = decoder.dimensions();
 
     if width.saturating_mul(height) > 4_000_000 {

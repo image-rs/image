@@ -48,8 +48,7 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-/// WebP Image format decoder. Currently only supportes the luma channel (meaning that decoded
-/// images will be grayscale).
+/// WebP Image format decoder. Currently only supports lossy RGB images.
 pub struct WebPDecoder<R> {
     r: R,
     frame: Frame,
@@ -107,13 +106,17 @@ impl<R: Read> WebPDecoder<R> {
                     )));
                 }
                 _ => {
-                    let mut len = self.r.read_u32::<LittleEndian>()?;
+                    let mut len = u64::from(self.r.read_u32::<LittleEndian>()?);
+
                     if len % 2 != 0 {
                         // RIFF chunks containing an uneven number of bytes append
                         // an extra 0x00 at the end of the chunk
+                        //
+                        // The addition cannot overflow since we have a u64 that was created from a u32
                         len += 1;
                     }
-                    io::copy(&mut self.r.by_ref().take(len as u64), &mut io::sink())?;
+
+                    io::copy(&mut self.r.by_ref().take(len), &mut io::sink())?;
                 }
             }
         }
@@ -169,16 +172,38 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn color_type(&self) -> color::ColorType {
-        color::ColorType::L8
+        color::ColorType::Rgb8
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(WebpReader(Cursor::new(self.frame.ybuf), PhantomData))
+        let mut data = vec![0; self.frame.ybuf.len() * 3];
+        self.frame.fill_rgb(data.as_mut_slice());
+        Ok(WebpReader(Cursor::new(data), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        buf.copy_from_slice(&self.frame.ybuf);
+        self.frame.fill_rgb(buf);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_with_overflow_size() {
+        let bytes = vec![0x52, 0x49, 0x46, 0x46, 0xaf, 0x37, 0x80, 0x47, 0x57, 0x45, 0x42, 0x50,
+                        0x6c, 0x64, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xfb, 0x7e, 0x73, 0x00,
+                        0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00,
+                        0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x40, 0xfb, 0xff, 0xff, 0x65, 0x65,
+                        0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x00, 0x00, 0x00, 0x00,
+                        0x62, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x49, 0x54,
+                        0x55, 0x50, 0x4c, 0x54, 0x59, 0x50, 0x45, 0x33, 0x37, 0x44, 0x4d, 0x46];
+
+        let data = std::io::Cursor::new(bytes);
+
+        let _ = WebPDecoder::new(data);
     }
 }

@@ -41,29 +41,22 @@ impl ImageType {
 
     /// Check if the image format uses colors as opposed to gray scale.
     pub(crate) fn is_color(&self) -> bool {
-        match *self {
+        matches! { *self,
             ImageType::RawColorMap
             | ImageType::RawTrueColor
             | ImageType::RunTrueColor
-            | ImageType::RunColorMap => true,
-            _ => false,
+            | ImageType::RunColorMap
         }
     }
 
     /// Does the image use a color map.
     pub(crate) fn is_color_mapped(&self) -> bool {
-        match *self {
-            ImageType::RawColorMap | ImageType::RunColorMap => true,
-            _ => false,
-        }
+        matches! { *self, ImageType::RawColorMap | ImageType::RunColorMap }
     }
 
     /// Is the image run length encoded.
     pub(crate) fn is_encoded(&self) -> bool {
-        match *self {
-            ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale => true,
-            _ => false,
-        }
+        matches! {*self, ImageType::RunColorMap | ImageType::RunTrueColor | ImageType::RunGrayScale }
     }
 }
 
@@ -95,8 +88,8 @@ impl Header {
 
         if width > 0 && height > 0 {
             let (num_alpha_bits, other_channel_bits, image_type) = match color_type {
-                ColorType::Rgba8 | ColorType::Bgra8 => (8, 24, ImageType::RawTrueColor),
-                ColorType::Rgb8 | ColorType::Bgr8 => (0, 24, ImageType::RawTrueColor),
+                ColorType::Rgba8 => (8, 24, ImageType::RawTrueColor),
+                ColorType::Rgb8 => (0, 24, ImageType::RawTrueColor),
                 ColorType::La8 => (8, 8, ImageType::RawGrayScale),
                 ColorType::L8 => (0, 8, ImageType::RawGrayScale),
                 _ => {

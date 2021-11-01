@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 use std::error;
-use std::io::{self, BufRead, BufReader, Cursor, Read};
+use std::io::{self, Read, Cursor, BufRead};
 use std::str::{self, FromStr};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
@@ -8,7 +8,7 @@ use std::mem;
 use std::num::ParseIntError;
 
 use super::{ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PixmapHeader};
-use super::{HeaderRecord, PnmHeader, PNMSubtype, SampleEncoding};
+use super::{HeaderRecord, PnmHeader, PnmSubtype, SampleEncoding};
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
@@ -198,13 +198,8 @@ enum TupleType {
 
 trait Sample {
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
-
-    /// It is guaranteed that `bytes.len() == bytelen(width, height, samples)`
-    fn from_bytes(bytes: &[u8], width: u32, height: u32, samples: u32)
-        -> ImageResult<Vec<u8>>;
-
-    fn from_ascii(reader: &mut dyn Read, width: u32, height: u32, samples: u32)
-        -> ImageResult<Vec<u8>>;
+    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()>;
+    fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()>;
 }
 
 struct U8;
@@ -218,33 +213,32 @@ trait DecodableImageHeader {
 
 /// PNM decoder
 pub struct PnmDecoder<R> {
-    reader: BufReader<R>,
+    reader: R,
     header: PnmHeader,
     tuple: TupleType,
 }
 
-impl<R: Read> PnmDecoder<R> {
+impl<R: BufRead> PnmDecoder<R> {
     /// Create a new decoder that decodes from the stream ```read```
-    pub fn new(read: R) -> ImageResult<PnmDecoder<R>> {
-        let mut buf = BufReader::new(read);
-        let magic = buf.read_magic_constant()?;
+    pub fn new(mut buffered_read: R) -> ImageResult<PnmDecoder<R>> {
+        let magic = buffered_read.read_magic_constant()?;
 
         let subtype = match magic {
-            [b'P', b'1'] => PNMSubtype::Bitmap(SampleEncoding::Ascii),
-            [b'P', b'2'] => PNMSubtype::Graymap(SampleEncoding::Ascii),
-            [b'P', b'3'] => PNMSubtype::Pixmap(SampleEncoding::Ascii),
-            [b'P', b'4'] => PNMSubtype::Bitmap(SampleEncoding::Binary),
-            [b'P', b'5'] => PNMSubtype::Graymap(SampleEncoding::Binary),
-            [b'P', b'6'] => PNMSubtype::Pixmap(SampleEncoding::Binary),
-            [b'P', b'7'] => PNMSubtype::ArbitraryMap,
+            [b'P', b'1'] => PnmSubtype::Bitmap(SampleEncoding::Ascii),
+            [b'P', b'2'] => PnmSubtype::Graymap(SampleEncoding::Ascii),
+            [b'P', b'3'] => PnmSubtype::Pixmap(SampleEncoding::Ascii),
+            [b'P', b'4'] => PnmSubtype::Bitmap(SampleEncoding::Binary),
+            [b'P', b'5'] => PnmSubtype::Graymap(SampleEncoding::Binary),
+            [b'P', b'6'] => PnmSubtype::Pixmap(SampleEncoding::Binary),
+            [b'P', b'7'] => PnmSubtype::ArbitraryMap,
             _ => return Err(DecoderError::PnmMagicInvalid(magic).into()),
         };
 
         let decoder = match subtype {
-            PNMSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buf, enc),
-            PNMSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buf, enc),
-            PNMSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buf, enc),
-            PNMSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buf),
+            PnmSubtype::Bitmap(enc) => PnmDecoder::read_bitmap_header(buffered_read, enc),
+            PnmSubtype::Graymap(enc) => PnmDecoder::read_graymap_header(buffered_read, enc),
+            PnmSubtype::Pixmap(enc) => PnmDecoder::read_pixmap_header(buffered_read, enc),
+            PnmSubtype::ArbitraryMap => PnmDecoder::read_arbitrary_header(buffered_read),
         }?;
 
         if utils::check_dimension_overflow(
@@ -269,11 +263,11 @@ impl<R: Read> PnmDecoder<R> {
 
     /// Extract the reader and header after an image has been read.
     pub fn into_inner(self) -> (R, PnmHeader) {
-        (self.reader.into_inner(), self.header)
+        (self.reader, self.header)
     }
 
     fn read_bitmap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_bitmap_header(encoding)?;
@@ -288,7 +282,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     fn read_graymap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_graymap_header(encoding)?;
@@ -304,7 +298,7 @@ impl<R: Read> PnmDecoder<R> {
     }
 
     fn read_pixmap_header(
-        mut reader: BufReader<R>,
+        mut reader: R,
         encoding: SampleEncoding,
     ) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_pixmap_header(encoding)?;
@@ -319,7 +313,7 @@ impl<R: Read> PnmDecoder<R> {
         })
     }
 
-    fn read_arbitrary_header(mut reader: BufReader<R>) -> ImageResult<PnmDecoder<R>> {
+    fn read_arbitrary_header(mut reader: R) -> ImageResult<PnmDecoder<R>> {
         let header = reader.read_arbitrary_header()?;
         let tuple_type = header.tuple_type()?;
         Ok(PnmDecoder {
@@ -357,7 +351,7 @@ trait HeaderReader: BufRead {
             Some((cur_enabled, Ok(byte)))
         });
 
-        for (_, byte) in mark_comments.filter(|ref e| e.0) {
+        for (_, byte) in mark_comments.filter(|e| e.0) {
             match byte {
                 Ok(b'\t') | Ok(b'\n') | Ok(b'\x0b') | Ok(b'\x0c') | Ok(b'\r') | Ok(b' ') => {
                     if !bytes.is_empty() {
@@ -527,7 +521,7 @@ trait HeaderReader: BufRead {
     }
 }
 
-impl<R: Read> HeaderReader for BufReader<R> {}
+impl<R> HeaderReader for R where R: BufRead {}
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
 pub struct PnmReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
@@ -580,20 +574,19 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-        buf.copy_from_slice(&match self.tuple {
-            TupleType::PbmBit => self.read_samples::<PbmBit>(1),
-            TupleType::BWBit => self.read_samples::<BWBit>(1),
-            TupleType::RGBU8 => self.read_samples::<U8>(3),
-            TupleType::RGBU16 => self.read_samples::<U16>(3),
-            TupleType::GrayU8 => self.read_samples::<U8>(1),
-            TupleType::GrayU16 => self.read_samples::<U16>(1),
-        }?);
-        Ok(())
+        match self.tuple {
+            TupleType::PbmBit => self.read_samples::<PbmBit>(1, buf),
+            TupleType::BWBit => self.read_samples::<BWBit>(1, buf),
+            TupleType::RGBU8 => self.read_samples::<U8>(3, buf),
+            TupleType::RGBU16 => self.read_samples::<U16>(3, buf),
+            TupleType::GrayU8 => self.read_samples::<U8>(1, buf),
+            TupleType::GrayU16 => self.read_samples::<U16>(1, buf),
+        }
     }
 }
 
 impl<R: Read> PnmDecoder<R> {
-    fn read_samples<S: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
+    fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
                 let width = self.header.width();
@@ -612,22 +605,20 @@ impl<R: Read> PnmDecoder<R> {
                     return Err(DecoderError::InputTooShort.into());
                 }
 
-                let samples = S::from_bytes(&bytes, width, height, components)?;
-                Ok(samples)
+                S::from_bytes(&bytes, width * components, buf)
             }
             SampleEncoding::Ascii => {
-                let samples = self.read_ascii::<S>(components)?;
-                Ok(samples)
+                self.read_ascii::<S>(buf)
             }
         }
     }
 
-    fn read_ascii<Basic: Sample>(&mut self, components: u32) -> ImageResult<Vec<u8>> {
-        Basic::from_ascii(&mut self.reader, self.header.width(), self.header.height(), components)
+    fn read_ascii<Basic: Sample>(&mut self, output_buf: &mut [u8]) -> ImageResult<()> {
+        Basic::from_ascii(&mut self.reader, output_buf)
     }
 
     /// Get the pnm subtype, depending on the magic constant contained in the header
-    pub fn subtype(&self) -> PNMSubtype {
+    pub fn subtype(&self) -> PnmSubtype {
         self.header.subtype()
     }
 }
@@ -635,10 +626,7 @@ impl<R: Read> PnmDecoder<R> {
 fn read_separated_ascii<T: FromStr<Err = ParseIntError>>(reader: &mut dyn Read) -> ImageResult<T>
     where T::Err: Display
 {
-    let is_separator = |v: &u8| match *v {
-        b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => true,
-        _ => false,
-    };
+    let is_separator = |v: &u8| matches! { *v, b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' };
 
     let token = reader
         .bytes()
@@ -663,25 +651,16 @@ impl Sample for U8 {
         Ok((width * height * samples) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
-        Ok(bytes.to_vec())
+    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+        output_buf.copy_from_slice(bytes);
+        Ok(())
     }
 
-    fn from_ascii(
-        reader: &mut dyn Read,
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        (0..width*height*samples)
-            .map(|_| read_separated_ascii(reader))
-            .collect()
+    fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
+        for b in output_buf {
+            *b = read_separated_ascii(reader)?;
+        }
+        Ok(())
     }
 }
 
@@ -690,34 +669,21 @@ impl Sample for U16 {
         Ok((width * height * samples * 2) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
-
-        let mut buffer = bytes.to_vec();
-        for chunk in buffer.chunks_mut(2) {
+    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+        output_buf.copy_from_slice(bytes);
+        for chunk in output_buf.chunks_exact_mut(2) {
             let v = BigEndian::read_u16(chunk);
             NativeEndian::write_u16(chunk, v);
         }
-        Ok(buffer)
+        Ok(())
     }
 
-    fn from_ascii(
-        reader: &mut dyn Read,
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        let mut buffer = vec![0; (width * height * samples * 2) as usize];
-        for i in 0..(width*height*samples) as usize {
+    fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
+        for chunk in output_buf.chunks_exact_mut(2) {
             let v = read_separated_ascii::<u16>(reader)?;
-            NativeEndian::write_u16(&mut buffer[2*i..][..2], v);
+            NativeEndian::write_u16(chunk, v);
         }
-        Ok(buffer)
+        Ok(())
     }
 }
 
@@ -731,49 +697,31 @@ impl Sample for PbmBit {
         Ok((linelen * height) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
-
-        let mut expanded = utils::expand_bits(1, width * samples, bytes);
+    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+        let mut expanded = utils::expand_bits(1, row_size, bytes);
         for b in expanded.iter_mut() {
             *b = !*b;
         }
-        Ok(expanded)
+        output_buf.copy_from_slice(&expanded);
+        Ok(())
     }
 
-    fn from_ascii(
-        reader: &mut dyn Read,
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        let count = (width*height*samples) as usize;
-        let raw_samples = reader.bytes()
-            .filter_map(|ascii| match ascii {
-                Ok(b'0') => Some(Ok(255)),
-                Ok(b'1') => Some(Ok(0)),
-                Err(err) => Some(Err(ImageError::IoError(err))),
-                Ok(b'\t')
-                | Ok(b'\n')
-                | Ok(b'\x0b')
-                | Ok(b'\x0c')
-                | Ok(b'\r')
-                | Ok(b' ') => None,
-                Ok(c) => Some(Err(DecoderError::UnexpectedByteInRaster(c).into())),
-            })
-            .take(count)
-            .collect::<ImageResult<Vec<u8>>>()?;
-
-        if raw_samples.len() < count {
-            return Err(DecoderError::InputTooShort.into());
+    fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()> {
+        let mut bytes = reader.bytes();
+        for b in output_buf {
+            loop {
+                let byte = bytes.next().ok_or_else::<ImageError, _>(|| DecoderError::InputTooShort.into())??;
+                match byte {
+                    b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b' ' => continue,
+                    b'0' => *b = 255,
+                    b'1' => *b = 0,
+                    c => return Err(DecoderError::UnexpectedByteInRaster(c).into()),
+                }
+                break;
+            }
         }
 
-        Ok(raw_samples)
+        Ok(())
     }
 }
 
@@ -783,27 +731,15 @@ impl Sample for BWBit {
         U8::bytelen(width, height, samples)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        width: u32,
-        height: u32,
-        samples: u32,
-    ) -> ImageResult<Vec<u8>> {
-        assert_eq!(bytes.len(), Self::bytelen(width, height, samples).unwrap());
-
-        let values = U8::from_bytes(bytes, width, height, samples)?;
-        if let Some(val) = values.iter().find(|&val| *val > 1) {
+    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+        U8::from_bytes(bytes, row_size, output_buf)?;
+        if let Some(val) = output_buf.iter().find(|&val| *val > 1) {
             return Err(DecoderError::SampleOutOfBounds(*val).into());
         }
-        Ok(values)
+        Ok(())
     }
 
-    fn from_ascii(
-        _reader: &mut dyn Read,
-        _width: u32,
-        _height: u32,
-        _samples: u32,
-    ) -> ImageResult<Vec<u8>> {
+    fn from_ascii(_reader: &mut dyn Read, _output_buf: &mut [u8]) -> ImageResult<()> {
         unreachable!("BW bits from anymaps are never encoded as ASCII")
     }
 }
@@ -932,7 +868,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (4, 4));
-        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -975,7 +911,7 @@ ENDHDR
         let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.dimensions(), (4, 4));
-        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1018,7 +954,7 @@ ENDHDR
         let decoder = PnmDecoder::new(&pamdata[..]).unwrap();
         assert_eq!(decoder.color_type(), ColorType::Rgb8);
         assert_eq!(decoder.dimensions(), (2, 2));
-        assert_eq!(decoder.subtype(), PNMSubtype::ArbitraryMap);
+        assert_eq!(decoder.subtype(), PnmSubtype::ArbitraryMap);
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1054,7 +990,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (6, 2));
         assert_eq!(
             decoder.subtype(),
-            PNMSubtype::Bitmap(SampleEncoding::Binary)
+            PnmSubtype::Bitmap(SampleEncoding::Binary)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1079,7 +1015,7 @@ ENDHDR
     /// A previous inifite loop.
     #[test]
     fn pbm_binary_ascii_termination() {
-        use std::io::{Cursor, Error, ErrorKind, Read, Result};
+        use std::io::{Cursor, Error, ErrorKind, Read, Result, BufReader};
         struct FailRead(Cursor<&'static [u8]>);
 
         impl Read for FailRead {
@@ -1094,7 +1030,7 @@ ENDHDR
             }
         }
 
-        let pbmbinary = FailRead(Cursor::new(b"P1 1 1\n"));
+        let pbmbinary = BufReader::new(FailRead(Cursor::new(b"P1 1 1\n")));
 
         let decoder = PnmDecoder::new(pbmbinary).unwrap();
         let mut image = vec![0; decoder.total_bytes() as usize];
@@ -1111,7 +1047,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
-        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1143,7 +1079,7 @@ ENDHDR
         assert_eq!(decoder.color_type(), ColorType::L8);
         assert_eq!(decoder.original_color_type(), ExtendedColorType::L1);
         assert_eq!(decoder.dimensions(), (6, 2));
-        assert_eq!(decoder.subtype(), PNMSubtype::Bitmap(SampleEncoding::Ascii));
+        assert_eq!(decoder.subtype(), PnmSubtype::Bitmap(SampleEncoding::Ascii));
 
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1176,7 +1112,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
-            PNMSubtype::Graymap(SampleEncoding::Binary)
+            PnmSubtype::Graymap(SampleEncoding::Binary)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1209,7 +1145,7 @@ ENDHDR
         assert_eq!(decoder.dimensions(), (4, 4));
         assert_eq!(
             decoder.subtype(),
-            PNMSubtype::Graymap(SampleEncoding::Ascii)
+            PnmSubtype::Graymap(SampleEncoding::Ascii)
         );
         let mut image = vec![0; decoder.total_bytes() as usize];
         decoder.read_image(&mut image).unwrap();
@@ -1245,5 +1181,10 @@ ENDHDR
 \xde\xad\xbe\xef\xde\xad\xbe\xef\xde\xad\xbe\xef";
         
         assert!(PnmDecoder::new(&pamdata[..]).is_err());
+    }
+
+    #[test]
+    fn issue_1508() {
+        let _ = crate::load_from_memory(b"P391919 16999 1 1 9 919 16999 1 9999 999* 99999 N");
     }
 }

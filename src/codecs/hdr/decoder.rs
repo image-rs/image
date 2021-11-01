@@ -3,7 +3,7 @@ use scoped_threadpool::Pool;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::io::{self, BufRead, Cursor, Read, Seek};
+use std::io::{self, Cursor, Read, Seek, BufRead};
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::{error, fmt, mem};
@@ -115,7 +115,7 @@ impl fmt::Display for LineType {
 
 /// Adapter to conform to ```ImageDecoder``` trait
 #[derive(Debug)]
-pub struct HdrAdapter<R: BufRead> {
+pub struct HdrAdapter<R: Read> {
     inner: Option<HdrDecoder<R>>,
     // data: Option<Vec<u8>>,
     meta: HdrMetadata,
@@ -248,13 +248,13 @@ pub struct Rgbe8Pixel {
     pub e: u8,
 }
 
-/// Creates ```RGBE8Pixel``` from components
+/// Creates ```Rgbe8Pixel``` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
     Rgbe8Pixel { c: [r, g, b], e }
 }
 
 impl Rgbe8Pixel {
-    /// Converts ```RGBE8Pixel``` into ```Rgb<f32>``` linearly
+    /// Converts ```Rgbe8Pixel``` into ```Rgb<f32>``` linearly
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -270,7 +270,7 @@ impl Rgbe8Pixel {
         }
     }
 
-    /// Converts ```RGBE8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
+    /// Converts ```Rgbe8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
@@ -282,7 +282,7 @@ impl Rgbe8Pixel {
         self.to_ldr_scale_gamma(1.0, 2.2)
     }
 
-    /// Converts RGBE8Pixel into Rgb<T> using provided scale and gamma
+    /// Converts Rgbe8Pixel into Rgb<T> using provided scale and gamma
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
@@ -412,7 +412,7 @@ impl<R: BufRead> HdrDecoder<R> {
         })
     } // end with_strictness
 
-    /// Returns file metadata. Refer to ```HDRMetadata``` for details.
+    /// Returns file metadata. Refer to ```HdrMetadata``` for details.
     pub fn metadata(&self) -> HdrMetadata {
         self.meta.clone()
     }
@@ -445,7 +445,7 @@ impl<R: BufRead> HdrDecoder<R> {
 
         for y_index in 0 .. self.height as usize {
             read_scanline(&mut self.reader, rgbe_pixel_line_tmp_buffer.as_mut())?;
-            
+
             for (x_index, &rgbe_pixel) in rgbe_pixel_line_tmp_buffer.iter().enumerate() {
                 store_rgbe_pixel(y_index * self.width as usize + x_index, rgbe_pixel);
             }
@@ -470,7 +470,7 @@ impl<R: BufRead> HdrDecoder<R> {
     }
 }
 
-impl<R: BufRead> IntoIterator for HdrDecoder<R> {
+impl<R: Read> IntoIterator for HdrDecoder<R> {
     type Item = ImageResult<Rgbe8Pixel>;
     type IntoIter = HdrImageDecoderIterator<R>;
 
@@ -488,7 +488,7 @@ impl<R: BufRead> IntoIterator for HdrDecoder<R> {
 }
 
 /// Scanline buffered pixel by pixel iterator
-pub struct HdrImageDecoderIterator<R: BufRead> {
+pub struct HdrImageDecoderIterator<R: Read> {
     r: R,
     scanline_cnt: usize,
     buf: Vec<Rgbe8Pixel>, // scanline buffer
@@ -511,7 +511,7 @@ impl<R: BufRead> HdrImageDecoderIterator<R> {
     }
 }
 
-impl<R: BufRead> Iterator for HdrImageDecoderIterator<R> {
+impl<R: Read> Iterator for HdrImageDecoderIterator<R> {
     type Item = ImageResult<Rgbe8Pixel>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -562,10 +562,10 @@ impl<R: BufRead> Iterator for HdrImageDecoderIterator<R> {
     }
 }
 
-impl<R: BufRead> ExactSizeIterator for HdrImageDecoderIterator<R> {}
+impl<R: Read> ExactSizeIterator for HdrImageDecoderIterator<R> {}
 
 // Precondition: buf.len() > 0
-fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {
+fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {
     assert!(!buf.is_empty());
     let width = buf.len();
     // first 4 bytes in scanline allow to determine compression method
@@ -586,7 +586,7 @@ fn read_scanline<R: BufRead>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<(
 }
 
 #[inline(always)]
-fn read_byte<R: BufRead>(r: &mut R) -> io::Result<u8> {
+fn read_byte<R: Read>(r: &mut R) -> io::Result<u8> {
     let mut buf = [0u8];
     r.read_exact(&mut buf[..])?;
     Ok(buf[0])
@@ -594,7 +594,7 @@ fn read_byte<R: BufRead>(r: &mut R) -> io::Result<u8> {
 
 // Guarantees that first parameter of set_component will be within pos .. pos+width
 #[inline]
-fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
+fn decode_component<R: Read, S: FnMut(usize, u8)>(
     r: &mut R,
     width: usize,
     mut set_component: S,
@@ -641,7 +641,7 @@ fn decode_component<R: BufRead, S: FnMut(usize, u8)>(
 // Decodes scanline, places it into buf
 // Precondition: buf.len() > 0
 // fb - first 4 bytes of scanline
-fn decode_old_rle<R: BufRead>(
+fn decode_old_rle<R: Read>(
     r: &mut R,
     fb: Rgbe8Pixel,
     buf: &mut [Rgbe8Pixel],
@@ -699,7 +699,7 @@ fn decode_old_rle<R: BufRead>(
     Ok(())
 }
 
-fn read_rgbe<R: BufRead>(r: &mut R) -> io::Result<Rgbe8Pixel> {
+fn read_rgbe<R: Read>(r: &mut R) -> io::Result<Rgbe8Pixel> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf[..])?;
     Ok(Rgbe8Pixel {

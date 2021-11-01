@@ -31,17 +31,6 @@ pub struct PngReader<R: Read> {
     index: usize,
 }
 
-/// PNG Reader
-///
-/// An alias of [`PngReader`].
-///
-/// TODO: remove
-///
-/// [`PngReader`]: struct.PngReader.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PngReader` instead")]
-pub type PNGReader<R> = PngReader<R>;
-
 impl<R: Read> PngReader<R> {
     fn new(mut reader: png::Reader<R>) -> ImageResult<PngReader<R>> {
         let len = reader.output_buffer_size();
@@ -78,10 +67,10 @@ impl<R: Read> Read for PngReader<R> {
             match self.reader.next_row()? {
                 Some(row) => {
                     // Faster to copy directly to external buffer
-                    let readed  = buf.write(row).unwrap();
+                    let readed  = buf.write(row.data()).unwrap();
                     bytes += readed;
 
-                    self.buffer = (&row[readed..]).to_owned();
+                    self.buffer = (&row.data()[readed..]).to_owned();
                     self.index = 0;
                 }
                 None => return Ok(bytes)
@@ -103,8 +92,8 @@ impl<R: Read> Read for PngReader<R> {
         self.index = 0;
 
         while let Some(row) = self.reader.next_row()? {
-            buf.extend_from_slice(row);
-            bytes += row.len();
+            buf.extend_from_slice(row.data());
+            bytes += row.data().len();
         }
 
         Ok(bytes)
@@ -128,43 +117,43 @@ impl<R: Read> PngDecoder<R> {
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
-        let (_, mut reader) = decoder.read_info().map_err(ImageError::from_png)?;
+        let mut reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
             (png::ColorType::Grayscale, png::BitDepth::Sixteen) => ColorType::L16,
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => ColorType::La8,
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => ColorType::La16,
-            (png::ColorType::RGB, png::BitDepth::Eight) => ColorType::Rgb8,
-            (png::ColorType::RGB, png::BitDepth::Sixteen) => ColorType::Rgb16,
-            (png::ColorType::RGBA, png::BitDepth::Eight) => ColorType::Rgba8,
-            (png::ColorType::RGBA, png::BitDepth::Sixteen) => ColorType::Rgba16,
+            (png::ColorType::Rgb, png::BitDepth::Eight) => ColorType::Rgb8,
+            (png::ColorType::Rgb, png::BitDepth::Sixteen) => ColorType::Rgb16,
+            (png::ColorType::Rgba, png::BitDepth::Eight) => ColorType::Rgba8,
+            (png::ColorType::Rgba, png::BitDepth::Sixteen) => ColorType::Rgba16,
 
             (png::ColorType::Grayscale, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::L1)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::La1)),
-            (png::ColorType::RGB, png::BitDepth::One) =>
+            (png::ColorType::Rgb, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb1)),
-            (png::ColorType::RGBA, png::BitDepth::One) =>
+            (png::ColorType::Rgba, png::BitDepth::One) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba1)),
 
             (png::ColorType::Grayscale, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::L2)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::La2)),
-            (png::ColorType::RGB, png::BitDepth::Two) =>
+            (png::ColorType::Rgb, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb2)),
-            (png::ColorType::RGBA, png::BitDepth::Two) =>
+            (png::ColorType::Rgba, png::BitDepth::Two) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba2)),
 
             (png::ColorType::Grayscale, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::L4)),
             (png::ColorType::GrayscaleAlpha, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::La4)),
-            (png::ColorType::RGB, png::BitDepth::Four) =>
+            (png::ColorType::Rgb, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::Rgb4)),
-            (png::ColorType::RGBA, png::BitDepth::Four) =>
+            (png::ColorType::Rgba, png::BitDepth::Four) =>
                 return Err(unsupported_color(ExtendedColorType::Rgba4)),
 
             (png::ColorType::Indexed, bits) =>
@@ -448,19 +437,9 @@ pub struct PngEncoder<W: Write> {
     filter: FilterType,
 }
 
-/// PNG Encoder
-///
-/// An alias of [`PngEncoder`].
-///
-/// TODO: remove
-///
-/// [`PngEncoder`]: struct.PngEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `PngEncoder` instead")]
-pub type PNGEncoder<W> = PngEncoder<W>;
-
 /// Compression level of a PNG encoder. The default setting is `Fast`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CompressionType {
     /// Default compression level
     Default,
@@ -472,16 +451,13 @@ pub enum CompressionType {
     Huffman,
     /// Run-length encoding compression
     Rle,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 /// Filter algorithms used to process image data to improve compression.
 ///
-/// The default filter is `Sub` though this default may change in the future, most notable if an
-/// adaptive encoding option is implemented.
+/// The default filter is `Adaptive`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum FilterType {
     /// No processing done, best used for low bit depth greyscale or data with a
     /// low color count
@@ -494,9 +470,9 @@ pub enum FilterType {
     Avg,
     /// Algorithm that takes into account the left, upper left, and above pixels
     Paeth,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
+    /// Uses a heuristic to select one of the preceding filters for each
+    /// scanline rather than one filter for the entire image
+    Adaptive,
 }
 
 impl<W: Write> PngEncoder<W> {
@@ -504,8 +480,8 @@ impl<W: Write> PngEncoder<W> {
     pub fn new(w: W) -> PngEncoder<W> {
         PngEncoder {
             w,
-            compression: CompressionType::Fast,
-            filter: FilterType::Sub,
+            compression: CompressionType::default(),
+            filter: FilterType::default(),
         }
     }
 
@@ -518,11 +494,9 @@ impl<W: Write> PngEncoder<W> {
     /// mapping may be interpreted differently in minor versions. The exact output is expressly
     /// __not__ part the SemVer stability guarantee.
     ///
-    /// Note that it is not optimal to use a single filter type. It is likely that the library used
-    /// will at some point gain the ability to use adaptive filtering methods per pixel row (or
-    /// even interlaced row). We might make it the new default variant in which case choosing a
-    /// particular filter method likely produces larger images. Be sure to check the release notes
-    /// once in a while.
+    /// Note that it is not optimal to use a single filter type, so an adaptive
+    /// filter type is selected as the default. The filter which best minimizes
+    /// file size may change with the type of compression used.
     pub fn new_with_quality(w: W, compression: CompressionType, filter: FilterType) -> PngEncoder<W> {
         PngEncoder {
             w,
@@ -535,13 +509,13 @@ impl<W: Write> PngEncoder<W> {
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
-            ColorType::L16 => (png::ColorType::Grayscale,png::BitDepth::Sixteen),
+            ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
             ColorType::La8 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight),
-            ColorType::La16 => (png::ColorType::GrayscaleAlpha,png::BitDepth::Sixteen),
-            ColorType::Rgb8 => (png::ColorType::RGB, png::BitDepth::Eight),
-            ColorType::Rgb16 => (png::ColorType::RGB,png::BitDepth::Sixteen),
-            ColorType::Rgba8 => (png::ColorType::RGBA, png::BitDepth::Eight),
-            ColorType::Rgba16 => (png::ColorType::RGBA,png::BitDepth::Sixteen),
+            ColorType::La16 => (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen),
+            ColorType::Rgb8 => (png::ColorType::Rgb, png::BitDepth::Eight),
+            ColorType::Rgb16 => (png::ColorType::Rgb, png::BitDepth::Sixteen),
+            ColorType::Rgba8 => (png::ColorType::Rgba, png::BitDepth::Eight),
+            ColorType::Rgba16 => (png::ColorType::Rgba, png::BitDepth::Sixteen),
             _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Png.into(),
                 UnsupportedErrorKind::Color(color.into()),
@@ -553,22 +527,22 @@ impl<W: Write> PngEncoder<W> {
             CompressionType::Best => png::Compression::Best,
             CompressionType::Huffman => png::Compression::Huffman,
             CompressionType::Rle => png::Compression::Rle,
-            CompressionType::__NonExhaustive(marker) => match marker._private {},
         };
-        let filt = match self.filter {
-            FilterType::NoFilter => png::FilterType::NoFilter,
-            FilterType::Sub => png::FilterType::Sub,
-            FilterType::Up => png::FilterType::Up,
-            FilterType::Avg => png::FilterType::Avg,
-            FilterType::Paeth => png::FilterType::Paeth,
-            FilterType::__NonExhaustive(marker) => match marker._private {},
+        let (filter, adaptive_filter) = match self.filter {
+            FilterType::NoFilter => (png::FilterType::NoFilter, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::Sub => (png::FilterType::Sub, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::Up => (png::FilterType::Up, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::Avg => (png::FilterType::Avg, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::Paeth => (png::FilterType::Paeth, png::AdaptiveFilterType::NonAdaptive),
+            FilterType::Adaptive => (png::FilterType::Sub, png::AdaptiveFilterType::Adaptive),
         };
 
         let mut encoder = png::Encoder::new(self.w, width, height);
         encoder.set_color(ct);
         encoder.set_depth(bits);
         encoder.set_compression(comp);
-        encoder.set_filter(filt);
+        encoder.set_filter(filter);
+        encoder.set_adaptive_filter(adaptive_filter);
         let mut writer = encoder.write_header().map_err(|e| ImageError::IoError(e.into()))?;
         writer.write_image_data(data).map_err(|e| ImageError::IoError(e.into()))
     }
@@ -611,25 +585,21 @@ impl ImageError {
         use png::DecodingError::*;
         match err {
             IoError(err) => ImageError::IoError(err),
+            // The input image was not a valid PNG.
             err @ Format(_) => ImageError::Decoding(DecodingError::new(
                 ImageFormat::Png.into(),
                 err,
             )),
+            // Other is used when:
+            // - The decoder is polled for more animation frames despite being done (or not being animated
+            //   in the first place).
+            // - The output buffer does not have the required size.
+            err @ Parameter(_) => ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(err.to_string())
+            )),
             LimitsExceeded => ImageError::Limits(LimitError::from_kind(
                 LimitErrorKind::InsufficientMemory,
             )),
-            // Other is used when the buffer to `Reader::next_frame` is too small.
-            Other(message) => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic(message.into_owned())
-            )),
-            err @ InvalidSignature
-            | err @ CrcMismatch { .. }
-            | err @ CorruptFlateStream => {
-                ImageError::Decoding(DecodingError::new(
-                    ImageFormat::Png.into(),
-                    err,
-                ))
-            }
         }
     }
 }
@@ -642,7 +612,7 @@ impl Default for CompressionType {
 
 impl Default for FilterType {
     fn default() -> Self {
-        FilterType::Sub
+        FilterType::Adaptive
     }
 }
 

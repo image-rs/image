@@ -16,13 +16,13 @@
 //! Load images using [`io::Reader`]:
 //!
 //! ```rust,no_run
-//! # use std::io::Cursor;
+//! use std::io::Cursor;
 //! use image::io::Reader as ImageReader;
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -30,7 +30,7 @@
 //! And save them using [`save`] or [`write_to`] methods:
 //!
 //! ```rust,no_run
-//! # use std::io::Write;
+//! # use std::io::{Write, Cursor};
 //! # use image::ImageOutputFormat;
 //! # use image::DynamicImage;
 //! # #[cfg(feature = "png")]
@@ -40,7 +40,7 @@
 //! img.save("empty.jpg")?;
 //!
 //! let mut bytes: Vec<u8> = Vec::new();
-//! img2.write_to(&mut bytes, image::ImageOutputFormat::Png)?;
+//! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
 //! # #[cfg(not(feature = "png"))] fn main() {}
@@ -101,11 +101,9 @@ extern crate test;
 #[macro_use]
 extern crate quickcheck;
 
-use std::io::Write;
-
 pub use crate::color::{ColorType, ExtendedColorType};
 
-pub use crate::color::{Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+pub use crate::color::{Luma, LumaA, Rgb, Rgba};
 
 pub use crate::error::{ImageError, ImageResult};
 
@@ -254,117 +252,6 @@ pub mod codecs {
     pub mod openexr;
 }
 
-#[cfg(feature = "avif-encoder")]
-#[deprecated = "Use codecs::avif instead"]
-pub mod avif {
-    //! Encoding of AVIF images.
-    pub use crate::codecs::avif::AvifEncoder;
-}
-#[cfg(feature = "bmp")]
-#[deprecated = "Use codecs::bmp instead"]
-pub mod bmp {
-    //! Decoding and Encoding of BMP Images
-    #[allow(deprecated)]
-    pub use crate::codecs::bmp::{BMPEncoder, BmpDecoder, BmpEncoder};
-}
-#[cfg(feature = "dds")]
-#[deprecated = "Use codecs::dds instead"]
-pub mod dds {
-    //! Decoding of DDS images
-    pub use crate::codecs::dds::DdsDecoder;
-}
-#[cfg(feature = "dxt")]
-#[deprecated = "Use codecs:: instead"]
-pub mod dxt {
-    //! Decoding of DXT (S3TC) compression
-    #[allow(deprecated)]
-    pub use crate::codecs::dxt::{
-        DXTEncoder, DXTReader, DXTVariant, DxtDecoder, DxtEncoder, DxtReader, DxtVariant,
-    };
-}
-#[cfg(feature = "farbfeld")]
-#[deprecated = "Use codecs::farbfeld instead"]
-pub mod farbfeld {
-    //! Decoding of farbfeld images
-    pub use crate::codecs::farbfeld::{FarbfeldDecoder, FarbfeldEncoder, FarbfeldReader};
-}
-#[cfg(feature = "gif")]
-#[deprecated = "Use codecs::gif instead"]
-pub mod gif {
-    //! Decoding of GIF Images
-    #[allow(deprecated)]
-    pub use crate::codecs::gif::{Encoder, GifDecoder, GifEncoder, GifReader, Repeat};
-}
-#[cfg(feature = "hdr")]
-#[deprecated = "Use codecs::hdr instead"]
-pub mod hdr {
-    //! Decoding of Radiance HDR Images
-    #[allow(deprecated)]
-    pub use crate::codecs::hdr::{
-        read_raw_file, rgbe8, to_rgbe8,
-        HdrAdapter, HdrDecoder, HdrEncoder, HdrImageDecoderIterator, HdrMetadata,
-        HdrReader, Rgbe8Pixel, SIGNATURE,
-    };
-}
-#[cfg(feature = "ico")]
-#[deprecated = "Use codecs::ico instead"]
-pub mod ico {
-    //! Decoding and Encoding of ICO files
-    #[allow(deprecated)]
-    pub use crate::codecs::ico::{ICOEncoder, IcoDecoder, IcoEncoder};
-}
-#[cfg(feature = "jpeg")]
-#[deprecated = "Use codecs::jpeg instead"]
-pub mod jpeg {
-    //! Decoding and Encoding of JPEG Images
-    #[allow(deprecated)]
-    pub use crate::codecs::jpeg::{
-        JPEGEncoder, JpegDecoder, JpegEncoder, PixelDensity, PixelDensityUnit,
-    };
-}
-#[cfg(feature = "png")]
-#[deprecated = "Use codecs::png instead"]
-pub mod png {
-    //! Decoding and Encoding of PNG Images
-    #[allow(deprecated)]
-    pub use crate::codecs::png::{
-        ApngDecoder, CompressionType, FilterType, PNGEncoder, PNGReader, PngDecoder, PngEncoder,
-        PngReader,
-    };
-}
-#[cfg(feature = "pnm")]
-#[deprecated = "Use codecs::pnm instead"]
-pub mod pnm {
-    //! Decoding and Encoding of netpbm image formats (pbm, pgm, ppm and pam)
-    #[allow(deprecated)]
-    pub use crate::codecs::pnm::{
-        ArbitraryHeader, ArbitraryTuplType, BitmapHeader, GraymapHeader, PNMEncoder, PNMHeader,
-        PNMSubtype, PixmapHeader, PnmDecoder, PnmEncoder, PnmHeader, PnmSubtype, SampleEncoding,
-    };
-}
-#[cfg(feature = "tga")]
-#[deprecated = "Use codecs::tga instead"]
-pub mod tga {
-    //! Decoding and Encoding of TGA Images
-    #[allow(deprecated)]
-    pub use crate::codecs::tga::{TgaDecoder, TgaEncoder};
-}
-#[cfg(feature = "tiff")]
-#[deprecated = "Use codecs::tiff instead"]
-pub mod tiff {
-    //! Decoding and Encoding of TIFF Images
-    #[allow(deprecated)]
-    pub use crate::codecs::tiff::{TiffDecoder, TiffEncoder, TiffReader};
-}
-#[cfg(feature = "webp")]
-#[deprecated = "Use codecs::webp instead"]
-pub mod webp {
-    //! Decoding of WebP Images
-    #[allow(deprecated)]
-    pub use crate::codecs::webp::{vp8, WebPDecoder};
-}
-
-
 mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
@@ -392,12 +279,3 @@ macro_rules! insert_as_doc {
 // Provides the README.md as doc, to ensure the example works!
 insert_as_doc!(include_str!("../README.md"));
 
-// Copies data from `src` to `dst`
-//
-// Panics if the length of `dst` is less than the length of `src`.
-#[inline]
-fn copy_memory(src: &[u8], mut dst: &mut [u8]) {
-    let len_src = src.len();
-    assert!(dst.len() >= len_src);
-    dst.write_all(src).unwrap();
-}

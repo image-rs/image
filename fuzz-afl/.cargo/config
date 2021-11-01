@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-Znew-llvm-pass-manager=no"]

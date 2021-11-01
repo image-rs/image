@@ -17,14 +17,8 @@ use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progres
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
 /// just DXT3 and DXT5 with premultiplied alpha
-///
-/// DEPRECATED: The name of this enum will be changed to [`DxtVariant`].
-///
-/// TODO: rename to [`DxtVariant`]
-///
-/// [`DxtVariant`]: type.DxtVariant.html
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DXTVariant {
+pub enum DxtVariant {
     /// The DXT1 format. 48 bytes of RGB data in a 4x4 pixel square is
     /// compressed into an 8 byte block of DXT1 data
     DXT1,
@@ -36,39 +30,29 @@ pub enum DXTVariant {
     DXT5,
 }
 
-/// DXT compression version.
-///
-/// An alias of [`DXTVariant`].
-///
-/// TODO: remove when [`DXTVariant`] is renamed.
-///
-/// [`DXTVariant`]: enum.DXTVariant.html
-#[allow(dead_code)]
-pub type DxtVariant = DXTVariant;
-
-impl DXTVariant {
+impl DxtVariant {
     /// Returns the amount of bytes of raw image data
     /// that is encoded in a single DXTn block
     fn decoded_bytes_per_block(self) -> usize {
         match self {
-            DXTVariant::DXT1 => 48,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => 64,
+            DxtVariant::DXT1 => 48,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => 64,
         }
     }
 
     /// Returns the amount of bytes per block of encoded DXTn data
     fn encoded_bytes_per_block(self) -> usize {
         match self {
-            DXTVariant::DXT1 => 8,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => 16,
+            DxtVariant::DXT1 => 8,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => 16,
         }
     }
 
     /// Returns the color type that is stored in this DXT variant
     pub fn color_type(self) -> ColorType {
         match self {
-            DXTVariant::DXT1 => ColorType::Rgb8,
-            DXTVariant::DXT3 | DXTVariant::DXT5 => ColorType::Rgba8,
+            DxtVariant::DXT1 => ColorType::Rgb8,
+            DxtVariant::DXT3 | DxtVariant::DXT5 => ColorType::Rgba8,
         }
     }
 }
@@ -78,7 +62,7 @@ pub struct DxtDecoder<R: Read> {
     inner: R,
     width_blocks: u32,
     height_blocks: u32,
-    variant: DXTVariant,
+    variant: DxtVariant,
     row: u32,
 }
 
@@ -94,7 +78,7 @@ impl<R: Read> DxtDecoder<R> {
         r: R,
         width: u32,
         height: u32,
-        variant: DXTVariant,
+        variant: DxtVariant,
     ) -> Result<DxtDecoder<R>, ImageError> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is actually a bit of a weird case. We could return `DecodingError` but
@@ -122,9 +106,9 @@ impl<R: Read> DxtDecoder<R> {
             vec![0u8; self.variant.encoded_bytes_per_block() * self.width_blocks as usize];
         self.inner.read_exact(&mut src)?;
         match self.variant {
-            DXTVariant::DXT1 => decode_dxt1_row(&src, buf),
-            DXTVariant::DXT3 => decode_dxt3_row(&src, buf),
-            DXTVariant::DXT5 => decode_dxt5_row(&src, buf),
+            DxtVariant::DXT1 => decode_dxt1_row(&src, buf),
+            DxtVariant::DXT3 => decode_dxt3_row(&src, buf),
+            DxtVariant::DXT5 => decode_dxt5_row(&src, buf),
         }
         self.row += 1;
         Ok(buf.len())
@@ -196,17 +180,6 @@ pub struct DxtReader<R: Read> {
     decoder: DxtDecoder<R>,
 }
 
-/// DXT reader
-///
-/// An alias of [`DxtReader`].
-///
-/// TODO: remove
-///
-/// [`DxtReader`]: struct.DxtReader.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `DxtReader` instead")]
-pub type DXTReader<R> = DxtReader<R>;
-
 impl<R: Read> Read for DxtReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let decoder = &mut self.decoder;
@@ -219,17 +192,6 @@ pub struct DxtEncoder<W: Write> {
     w: W,
 }
 
-/// DXT encoder
-///
-/// An alias of [`DxtEncoder`].
-///
-/// TODO: remove
-///
-/// [`DxtEncoder`]: struct.DxtEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `DxtEncoder` instead")]
-pub type DXTEncoder<W> = DxtEncoder<W>;
-
 impl<W: Write> DxtEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> DxtEncoder<W> {
@@ -238,14 +200,14 @@ impl<W: Write> DxtEncoder<W> {
 
     /// Encodes the image data ```data```
     /// that has dimensions ```width``` and ```height```
-    /// in ```DXTVariant``` ```variant```
+    /// in ```DxtVariant``` ```variant```
     /// data is assumed to be in variant.color_type()
     pub fn encode(
         mut self,
         data: &[u8],
         width: u32,
         height: u32,
-        variant: DXTVariant,
+        variant: DxtVariant,
     ) -> ImageResult<()> {
         if width % 4 != 0 || height % 4 != 0 {
             // TODO: this is not very idiomatic yet. Should return an EncodingError.
@@ -262,9 +224,9 @@ impl<W: Write> DxtEncoder<W> {
 
         for chunk in data.chunks(width_blocks as usize * stride) {
             let data = match variant {
-                DXTVariant::DXT1 => encode_dxt1_row(chunk),
-                DXTVariant::DXT3 => encode_dxt3_row(chunk),
-                DXTVariant::DXT5 => encode_dxt5_row(chunk),
+                DxtVariant::DXT1 => encode_dxt1_row(chunk),
+                DxtVariant::DXT3 => encode_dxt3_row(chunk),
+                DxtVariant::DXT5 => encode_dxt5_row(chunk),
             };
             self.w.write_all(&data)?;
         }
@@ -422,7 +384,7 @@ fn decode_dxt3_block(source: &[u8], dest: &mut [u8]) {
 /// Decodes a 8-byte bock of dxt5 data to a 16xRGB block
 fn decode_dxt1_block(source: &[u8], dest: &mut [u8]) {
     assert!(source.len() == 8 && dest.len() == 48);
-    decode_dxt_colors(&source, dest, true);
+    decode_dxt_colors(source, dest, true);
 }
 
 /// Decode a row of DXT1 data to four rows of RGB data.
@@ -525,16 +487,21 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
         *d = [s[0], s[1], s[2]];
     }
 
-    // and a set of colors to pick from.
-    let mut colorspace = targets.to_vec();
-
     // roundtrip all colors through the r5g6b5 encoding
-    for rgb in &mut colorspace {
+    for rgb in &mut targets {
         *rgb = enc565_decode(enc565_encode(*rgb));
     }
 
     // and deduplicate the set of colors to choose from as the algorithm is O(N^2) in this
-    colorspace.dedup();
+    let mut colorspace_ = [[0u8; 3]; 16];
+    let mut colorspace_len = 0;
+    for color in &targets {
+        if !colorspace_[..colorspace_len].contains(color) {
+            colorspace_[colorspace_len] = *color;
+            colorspace_len += 1;
+        }
+    }
+    let mut colorspace = &colorspace_[..colorspace_len];
 
     // in case of slight gradients it can happen that there's only one entry left in the color table.
     // as the resulting banding can be quite bad if we would just left the block at the closest
@@ -574,7 +541,8 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
 
         // we did find a separate value: add it to the options so after one round of quantization
         // we're done
-        colorspace.push(rgb);
+        colorspace_[1] = rgb;
+        colorspace = &colorspace_[..2];
     }
 
     // block quantization loop: we basically just try every possible combination, returning

@@ -10,7 +10,7 @@ use std::cmp::min;
 use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 use crate::buffer::ConvertBuffer;
-use crate::color::{FromColor, Luma, LumaA, Bgr, Bgra, Rgb, Rgba};
+use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 
 use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
@@ -29,14 +29,12 @@ pub struct AvifEncoder<W> {
 
 /// An enumeration over supported AVIF color spaces
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ColorSpace {
     /// sRGB colorspace
     Srgb,
     /// BT.709 colorspace
     Bt709,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ColorSpace {
@@ -44,7 +42,6 @@ impl ColorSpace {
         match self {
             Self::Srgb => ravif::ColorSpace::RGB,
             Self::Bt709 => ravif::ColorSpace::YCbCr,
-            Self::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
@@ -72,8 +69,8 @@ impl<W: Write> AvifEncoder<W> {
             inner: w,
             fallback: vec![],
             config: Config {
-                quality,
-                alpha_quality: quality,
+                quality: f32::from(quality),
+                alpha_quality: f32::from(quality),
                 speed,
                 premultiplied_alpha: false,
                 color_space: ravif::ColorSpace::RGB,
@@ -230,14 +227,6 @@ impl<W: Write> AvifEncoder<W> {
             }
             ColorType::La8 => {
                 let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
-            }
-            ColorType::Bgr8 => {
-                let image = try_from_raw::<Bgr<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
-            }
-            ColorType::Bgra8 => {
-                let image = try_from_raw::<Bgra<u8>>(data, width, height)?;
                 Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             // we need to really convert data..

@@ -10,6 +10,7 @@ use std::{error, fmt, mem};
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 use crate::{Primitive, Pixel};
+use crate::traits::PixelWithColorType;
 
 use crate::color::{ColorType, Rgb};
 use crate::error::{DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
@@ -144,10 +145,10 @@ impl<R: BufRead> HdrAdapter<R> {
 
     /// Read the actual data of the image, and store it in Self::data.
     fn read_image_data_f32(&mut self, image_bytes: &mut [u8]) -> ImageResult<()> {
+        panic!("dsfowsidjw");
+
         assert_eq!(u64::try_from(image_bytes.len()), Ok(self.total_bytes()));
         let bytes_per_pixel = Rgb::<f32>::COLOR_TYPE.bytes_per_pixel() as usize;
-
-        panic!("dsfowsidjw");
 
         match self.inner.take() {
             Some(decoder) => {
@@ -470,7 +471,7 @@ impl<R: BufRead> HdrDecoder<R> {
     }
 }
 
-impl<R: Read> IntoIterator for HdrDecoder<R> {
+impl<R: BufRead> IntoIterator for HdrDecoder<R> {
     type Item = ImageResult<Rgbe8Pixel>;
     type IntoIter = HdrImageDecoderIterator<R>;
 
@@ -488,7 +489,7 @@ impl<R: Read> IntoIterator for HdrDecoder<R> {
 }
 
 /// Scanline buffered pixel by pixel iterator
-pub struct HdrImageDecoderIterator<R: Read> {
+pub struct HdrImageDecoderIterator<R: BufRead> {
     r: R,
     scanline_cnt: usize,
     buf: Vec<Rgbe8Pixel>, // scanline buffer
@@ -511,7 +512,7 @@ impl<R: BufRead> HdrImageDecoderIterator<R> {
     }
 }
 
-impl<R: Read> Iterator for HdrImageDecoderIterator<R> {
+impl<R: BufRead> Iterator for HdrImageDecoderIterator<R> {
     type Item = ImageResult<Rgbe8Pixel>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -562,7 +563,7 @@ impl<R: Read> Iterator for HdrImageDecoderIterator<R> {
     }
 }
 
-impl<R: Read> ExactSizeIterator for HdrImageDecoderIterator<R> {}
+impl<R: BufRead> ExactSizeIterator for HdrImageDecoderIterator<R> {}
 
 // Precondition: buf.len() > 0
 fn read_scanline<R: Read>(r: &mut R, buf: &mut [Rgbe8Pixel]) -> ImageResult<()> {

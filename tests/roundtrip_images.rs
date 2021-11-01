@@ -39,8 +39,7 @@ fn roundtrip() {
         if let Ok((format, decoded)) = format_and_image {
             if format.can_write() {
                 let mut byte_buffer = Vec::new();
-
-                match decoded.write_to(&mut byte_buffer, format){
+                match decoded.write_to(&mut Cursor::new(&mut byte_buffer), format) {
                     Ok(_) => {
                         let re_decoded = image::load(Cursor::new(byte_buffer.as_slice()), format)
                             .expect("roundtrip re-decoding failed");

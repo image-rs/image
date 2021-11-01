@@ -8,8 +8,10 @@
 use std::io::Read;
 use std::{error, fmt};
 
+use bytemuck::bytes_of;
 use byteorder::{LittleEndian, ReadBytesExt};
 
+#[allow(deprecated)]
 use crate::codecs::dxt::{DxtDecoder, DxtReader, DxtVariant};
 use crate::color::ColorType;
 use crate::error::{
@@ -154,6 +156,7 @@ impl Header {
 
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
+    #[allow(deprecated)]
     inner: DxtDecoder<R>,
 }
 
@@ -169,6 +172,7 @@ impl<R: Read> DdsDecoder<R> {
         let header = Header::from_reader(&mut r)?;
 
         if header.pixel_format.flags & 0x4 != 0 {
+            #[allow(deprecated)]
             let variant = match &header.pixel_format.fourcc {
                 b"DXT1" => DxtVariant::DXT1,
                 b"DXT3" => DxtVariant::DXT3,
@@ -186,10 +190,13 @@ impl<R: Read> DdsDecoder<R> {
                 }
             };
 
+            #[allow(deprecated)]
+            let bytes_per_pixel = variant.color_type().bytes_per_pixel();
+
             if crate::utils::check_dimension_overflow(
                 header.width,
                 header.height,
-                variant.color_type().bytes_per_pixel(),
+                bytes_per_pixel,
             ) {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -202,6 +209,7 @@ impl<R: Read> DdsDecoder<R> {
                 ));
             }
 
+            #[allow(deprecated)]
             let inner = DxtDecoder::new(r, header.width, header.height, variant)?;
             Ok(Self { inner })
         } else {
@@ -217,6 +225,7 @@ impl<R: Read> DdsDecoder<R> {
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for DdsDecoder<R> {
+    #[allow(deprecated)]
     type Reader = DxtReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {

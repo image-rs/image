@@ -1,7 +1,4 @@
 use num_traits::identities::Zero;
-use scoped_threadpool::Pool;
-#[cfg(test)]
-use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, BufRead};
 use std::iter::Iterator;
@@ -16,6 +13,8 @@ use crate::color::{ColorType, Rgb};
 use crate::error::{DecodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageFormat, Progress};
 
+#[cfg(test)]
+use std::borrow::Cow;
 /// Errors that can occur during decoding and parsing of a HDR image
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum DecoderError {
@@ -145,8 +144,6 @@ impl<R: BufRead> HdrAdapter<R> {
 
     /// Read the actual data of the image, and store it in Self::data.
     fn read_image_data_f32(&mut self, image_bytes: &mut [u8]) -> ImageResult<()> {
-        panic!("dsfowsidjw");
-
         assert_eq!(u64::try_from(image_bytes.len()), Ok(self.total_bytes()));
         let bytes_per_pixel = Rgb::<f32>::COLOR_TYPE.bytes_per_pixel() as usize;
 

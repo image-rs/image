@@ -292,14 +292,12 @@ where
                 t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-
             #[allow(deprecated)]
             let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
             );
 
             out.put_pixel(outx, y, t);
@@ -380,14 +378,12 @@ where
                 t.3 += vec.3 * w;
             }
 
-            let (t1, t2, t3, t4) = (t.0 / sum, t.1 / sum, t.2 / sum, t.3 / sum);
-
             #[allow(deprecated)]
             let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t3, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t4, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
+                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
             );
 
             out.put_pixel(x, outy, t);
@@ -949,5 +945,17 @@ mod tests {
         for filter in filters {
             assert_resize(rgba8, *filter);
         }
+    }
+
+    #[test]
+    fn bug_1600() {
+        let image = crate::RgbaImage::from_raw(629, 627, vec![255; 629*627*4]).unwrap();
+        let result = resize(
+            &image,
+            22,
+            22,
+            FilterType::Lanczos3,
+        );
+        assert!(result.into_raw().into_iter().any(|c| c != 0));
     }
 }

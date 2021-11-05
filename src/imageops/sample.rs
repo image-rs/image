@@ -7,7 +7,7 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::ImageBuffer;
+use crate::{ImageBuffer, Rgba32FImage};
 use crate::image::GenericImageView;
 use crate::utils::clamp;
 use crate::traits::{Enlargeable, Pixel, Primitive};
@@ -217,13 +217,13 @@ pub(crate) fn box_kernel(_x: f32) -> f32 {
 // The height of the image remains unchanged.
 // ```new_width``` is the desired width of the new image
 // ```filter``` is the filter to use for sampling.
-fn horizontal_sample<I, P, S>(
-    image: &I,
+// ```image``` is not necessarily Rgba and the order of channels is passed through.
+fn horizontal_sample<P,  S>(
+    image: &Rgba32FImage,
     new_width: u32,
     filter: &mut Filter,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
@@ -278,13 +278,7 @@ where
                 let p = image.get_pixel(left + i as u32, y);
 
                 #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
-                let vec: (f32, f32, f32, f32) = (
-                    NumCast::from(k1).unwrap(),
-                    NumCast::from(k2).unwrap(),
-                    NumCast::from(k3).unwrap(),
-                    NumCast::from(k4).unwrap(),
-                );
+                let vec = p.channels4();
 
                 t.0 += vec.0 * w;
                 t.1 += vec.1 * w;
@@ -311,11 +305,13 @@ where
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
 // ```filter``` is the filter to use for sampling.
+// The return value is not necessarily Rgba, the underlying order of channels in ```image``` is
+// preserved.
 fn vertical_sample<I, P, S>(
     image: &I,
     new_height: u32,
     filter: &mut Filter,
-) -> ImageBuffer<P, Vec<S>>
+) -> Rgba32FImage
 where
     I: GenericImageView<Pixel = P>,
     P: Pixel<Subpixel = S> + 'static,
@@ -325,8 +321,6 @@ where
     let mut out = ImageBuffer::new(width, new_height);
     let mut ws = Vec::new();
 
-    let max: f32 = NumCast::from(S::DEFAULT_MAX_VALUE).unwrap();
-    let min: f32 = NumCast::from(S::DEFAULT_MIN_VALUE).unwrap();
     let ratio = height as f32 / new_height as f32;
     let sratio = if ratio < 1.0 { 1.0 } else { ratio };
     let src_support = filter.support * sratio;
@@ -379,12 +373,8 @@ where
             }
 
             #[allow(deprecated)]
-            let t = Pixel::from_channels(
-                NumCast::from(FloatNearest(clamp(t.0, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.1, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.2, min, max))).unwrap(),
-                NumCast::from(FloatNearest(clamp(t.3, min, max))).unwrap(),
-            );
+            // This is not necessarily Rgba.
+            let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
 
             out.put_pixel(x, outy, t);
         }
@@ -786,7 +776,8 @@ where
         },
     };
 
-    let tmp = vertical_sample(image, nheight, &mut method);
+    // Note: tmp is not necessarily actually Rgba
+    let tmp: Rgba32FImage = vertical_sample(image, nheight, &mut method);
     horizontal_sample(&tmp, nwidth, &mut method)
 }
 
@@ -810,7 +801,8 @@ where
 
     // Keep width and height the same for horizontal and
     // vertical sampling.
-    let tmp = vertical_sample(image, height, &mut method);
+    // Note: tmp is not necessarily actually Rgba
+    let tmp: Rgba32FImage = vertical_sample(image, height, &mut method);
     horizontal_sample(&tmp, width, &mut method)
 }
 

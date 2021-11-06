@@ -117,7 +117,7 @@ impl<R: Read> PngDecoder<R> {
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
-        let mut reader = decoder.read_info().map_err(ImageError::from_png)?;
+        let reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,

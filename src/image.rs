@@ -697,7 +697,7 @@ pub trait ImageDecoder<'a>: Sized {
 }
 
 /// Specialized image decoding not be supported by all formats
-pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
+pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     /// Decode a rectangular section of the image; see [`read_rect_with_progress()`](#fn.read_rect_with_progress).
     fn read_rect(
         &mut self,

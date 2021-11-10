@@ -961,6 +961,12 @@ impl GenericImage for DynamicImage {
     }
 }
 
+impl Default for DynamicImage {
+    fn default() -> Self {
+        Self::ImageRgba8(Default::default())
+    }
+}
+
 /// Decodes an image and stores it into a dynamic image
 fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
@@ -1262,5 +1268,15 @@ mod test {
     #[test]
     fn test_grayscale_rgba32f() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
+    }
+
+    #[test]
+    fn test_dynamic_image_default_implementation() {
+        // Test that structs wrapping a DynamicImage are able to auto-derive the Default trait
+        // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
+        #[derive(Default)]
+        struct Foo {
+            image: super::DynamicImage
+        }
     }
 }

@@ -837,8 +837,6 @@ pub trait GenericImageView {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
     /// Returns the pixel located at (x, y). Indexed from top left.
@@ -895,9 +893,20 @@ pub trait GenericImage: GenericImageView {
     /// Panics if `(x, y)` is out of bounds.
     ///
     /// Panics for dynamic images (this method is deprecated and will be removed).
+    ///
+    /// ## Known issues
+    ///
+    /// This requires the buffer to contain a unique set of continuous channels in the exact order
+    /// and byte representation that the pixel type requires. This is somewhat restrictive.
+    ///
+    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
+    /// while still doing only one array lookup:
+    ///
+    /// ```ignore
+    /// let px = image.pixel_entry_at(x,y);
+    /// px.set_from_rgba(rgba)
+    /// ```
     #[deprecated(since = "0.24.0", note="Use `get_pixel` and `put_pixel` instead.")]
-    // TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly while still doing only one array lookup
-    //  `let px = image.pixel_entry_at(x,y); px.set_from_rgba(rgba)`
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y). Indexed from top left.

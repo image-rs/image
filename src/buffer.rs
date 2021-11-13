@@ -1081,7 +1081,6 @@ where
     Container: Deref<Target = [P::Subpixel]> + Deref,
 {
     type Pixel = P;
-    type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -1100,10 +1099,6 @@ where
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> P {
         let indices = self.pixel_indices_unchecked(x, y);
         *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
-    }
-
-    fn inner(&self) -> &Self::InnerImageView {
-        self
     }
 }
 

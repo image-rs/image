@@ -1316,9 +1316,6 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
 {
     type Pixel = P;
 
-    // We don't proxy an inner image.
-    type InnerImageView = Self;
-
     fn dimensions(&self) -> (u32, u32) {
         (self.inner.layout.width, self.inner.layout.height)
     }
@@ -1349,10 +1346,6 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
         });
 
         *P::from_slice(&buffer[..channels])
-    }
-
-    fn inner(&self) -> &Self {
-        self // There is no other inner image.
     }
 }
 
@@ -1361,9 +1354,6 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
 {
     type Pixel = P;
 
-    // We don't proxy an inner image.
-    type InnerImageView = Self;
-
     fn dimensions(&self) -> (u32, u32) {
         (self.inner.layout.width, self.inner.layout.height)
     }
@@ -1394,10 +1384,6 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
         });
 
         *P::from_slice(&buffer[..channels])
-    }
-
-    fn inner(&self) -> &Self {
-        self // There is no other inner image.
     }
 }
 

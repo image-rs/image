@@ -1023,6 +1023,8 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
 
+        // An internal #[non_exhaustive]
+        #[allow(unreachable_patterns)]
         _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
             ImageFormatHint::Unknown,
             UnsupportedErrorKind::Color(color_type.into()),

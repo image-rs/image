@@ -26,7 +26,7 @@ use exr::prelude::*;
 
 use crate::{ImageDecoder, ImageResult, ColorType, Progress, ImageError, ImageFormat, ImageEncoder, ExtendedColorType};
 use std::io::{Write, Seek, Read, Cursor};
-use crate::error::{DecodingError, ImageFormatHint, LimitError, LimitErrorKind, EncodingError};
+use crate::error::{DecodingError, ImageFormatHint, EncodingError};
 use crate::image::decoder_to_vec;
 use std::convert::TryInto;
 

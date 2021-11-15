@@ -34,11 +34,11 @@ All image processing functions provided operate on types that implement the `Gen
 | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
 | farbfeld | Yes | Yes |
 
-### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderExt`](https://docs.rs/image/*/image/trait.ImageDecoderExt.html) Traits
+### The [`ImageDecoder`](https://docs.rs/image/*/image/trait.ImageDecoder.html) and [`ImageDecoderRect`](https://docs.rs/image/*/image/trait.ImageDecoderRect.html) Traits
 
 All image format decoders implement the `ImageDecoder` trait which provide
 basic methods for getting image metadata and decoding images. Some formats
-additionally provide `ImageDecoderExt` implementations which allow for
+additionally provide `ImageDecoderRect` implementations which allow for
 decoding only part of an image at once.
 
 The most important methods for decoders are...

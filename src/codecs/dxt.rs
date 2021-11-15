@@ -12,7 +12,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 
 use crate::color::ColorType;
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageReadBuffer, Progress};
+use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageReadBuffer, Progress};
 
 /// What version of DXT compression are we using?
 /// Note that DXT2 and DXT4 are left away as they're
@@ -149,7 +149,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for DxtDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for DxtDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,

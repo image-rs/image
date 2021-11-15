@@ -24,7 +24,7 @@ use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
 use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
-use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
+use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader
 pub struct FarbfeldReader<R: Read> {
@@ -208,7 +208,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for FarbfeldDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderExt<'a> for FarbfeldDecoder<R> {
+impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for FarbfeldDecoder<R> {
     fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,
@@ -288,7 +288,7 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
 #[cfg(test)]
 mod tests {
     use crate::codecs::farbfeld::FarbfeldDecoder;
-    use crate::ImageDecoderExt;
+    use crate::ImageDecoderRect;
     use std::io::{Cursor, Seek, SeekFrom};
     use byteorder::{ByteOrder, NativeEndian};
 

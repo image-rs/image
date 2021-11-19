@@ -1790,19 +1790,21 @@ impl<R: Read> Vp8Decoder<R> {
                         }
                     }
                 } else {
-                    for x in (4usize..luma_xlength-3).step_by(4) {
-                        for y in 0..luma_ylength {
-                            let y0 = mby * 16 + y;
-                            let x0 = mbx * 16 + x;
+                    if luma_xlength > 3 {
+                        for x in (4usize..luma_xlength-3).step_by(4) {
+                            for y in 0..luma_ylength {
+                                let y0 = mby * 16 + y;
+                                let x0 = mbx * 16 + x;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
-                            );
+                                loop_filter::subblock_filter(
+                                    hev_threshold, 
+                                    interior_limit, 
+                                    sub_bedge_limit, 
+                                    &mut self.frame.ybuf[..], 
+                                    y0 * luma_w + x0, 
+                                    1
+                                );
+                            }
                         }
                     }
 
@@ -1910,19 +1912,21 @@ impl<R: Read> Vp8Decoder<R> {
                         }
                     }
                 } else {
-                    for y in (4usize..luma_ylength-3).step_by(4) {
-                        for x in 0..luma_xlength {
-                            let y0 = mby * 16 + y;
-                            let x0 = mbx * 16 + x;
+                    if luma_ylength > 3 {
+                        for y in (4usize..luma_ylength-3).step_by(4) {
+                            for x in 0..luma_xlength {
+                                let y0 = mby * 16 + y;
+                                let x0 = mbx * 16 + x;
 
-                            loop_filter::subblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
-                            );
+                                loop_filter::subblock_filter(
+                                    hev_threshold, 
+                                    interior_limit, 
+                                    sub_bedge_limit, 
+                                    &mut self.frame.ybuf[..], 
+                                    y0 * luma_w + x0, 
+                                    luma_w
+                                );
+                            }
                         }
                     }
 

@@ -629,7 +629,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
 }
 
 impl<R: Read> PnmDecoder<R> {
-    fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_samples<S: Sample>(&mut self, components: usize, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
                 let width = self.header.width();
@@ -648,7 +648,7 @@ impl<R: Read> PnmDecoder<R> {
                     return Err(DecoderError::InputTooShort.into());
                 }
 
-                S::from_bytes(&bytes, width * components, buf)
+                S::from_bytes(&bytes, usize::checked_mul(width, components), buf)
             }
             SampleEncoding::Ascii => self.read_ascii::<S>(buf),
         }

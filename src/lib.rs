@@ -111,6 +111,7 @@ pub use crate::image::{
     AnimationDecoder,
     GenericImage,
     GenericImageView,
+    GenericSubImage,
     GenericSubImageView,
     ImageDecoder,
     ImageDecoderRect,

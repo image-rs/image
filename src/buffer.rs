@@ -1107,8 +1107,6 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    type InnerImage = Self;
-
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.get_pixel_mut(x, y)
     }
@@ -1162,10 +1160,6 @@ where
             }
         }
         true
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        self
     }
 }
 

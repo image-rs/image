@@ -914,8 +914,6 @@ impl GenericImageView for DynamicImage {
 
 #[allow(deprecated)]
 impl GenericImage for DynamicImage {
-    type InnerImage = DynamicImage;
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
@@ -949,10 +947,6 @@ impl GenericImage for DynamicImage {
     /// Do not use is function: It is unimplemented!
     fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
         unimplemented!()
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        self
     }
 }
 

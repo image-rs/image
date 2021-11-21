@@ -1390,8 +1390,6 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
 impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
     where Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
-    type InnerImage = Self;
-
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         if !self.inner.in_bounds(0, x, y) {
             panic_pixel_out_of_bounds((x, y), self.dimensions())
@@ -1411,10 +1409,6 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
     #[allow(deprecated)]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.get_pixel_mut(x, y).blend(&pixel);
-    }
-
-    fn inner_mut(&mut self) -> &mut Self {
-        self
     }
 }
 

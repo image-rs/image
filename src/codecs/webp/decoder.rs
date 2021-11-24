@@ -170,7 +170,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     }
 
     fn color_type(&self) -> color::ColorType {
-        color::ColorType::Rgb8
+        match self.inner_decoder {
+            InnerDecoder::Lossy(_) => color::ColorType::Rgb8,
+            InnerDecoder::Lossless(_) => color::ColorType::Rgba8,
+        }
+        
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -181,7 +185,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
                 Ok(WebpReader(Cursor::new(data), PhantomData))
             }
             InnerDecoder::Lossless(ref lossless_decoder) => {
-                todo!()
+                let mut data = vec![0; lossless_decoder.get_buf_size()];
+                lossless_decoder.fill_rgba(data.as_mut_slice());
+                Ok(WebpReader(Cursor::new(data), PhantomData))
             }
         }
     }
@@ -194,7 +200,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
                 vp8_decoder.fill_rgb(buf);
             }
             InnerDecoder::Lossless(ref lossless_decoder) => {
-                todo!()
+                lossless_decoder.fill_rgba(buf);
             }
         }
         Ok(())

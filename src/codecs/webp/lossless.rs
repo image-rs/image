@@ -3,14 +3,16 @@
 //! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#522_decoding_entropy-coded_image_data)
 
 
-use std::{error, fmt, io::Read, ops::{AddAssign, Shl}};
+use std::{convert::TryInto, convert::TryFrom, error, fmt, io::Read, ops::{AddAssign, Shl}};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{ImageError, ImageFormat, ImageResult, error::DecodingError};
+use crate::{ImageError, ImageFormat, ImageResult, codecs::webp::lossless_transform::TransformType, error::DecodingError};
+
+use super::huffman::HuffmanTree;
 
 const CODE_LENGTH_CODES: usize = 19;
-const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
+const CODE_LENGTH_CODE_ORDER: [usize; CODE_LENGTH_CODES] = [
     17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 ];
 
@@ -38,31 +40,32 @@ const BLUE: usize = 2;
 const ALPHA: usize = 3;
 const DIST: usize = 4;
 
-#[derive(Debug, Clone, Copy, Default)]
-struct HuffmanCode {
-    bits: u8,
-    value: u16,
-}
+const HUFFMAN_CODES_PER_META_CODE: usize = 5;
 
-#[derive(Debug, Clone, Default)]
-struct HuffmanTreeGroup {
-    huffman_trees: Vec<[HuffmanCode; 5]>,
-}
+type HuffmanCodeGroup = [HuffmanTree; HUFFMAN_CODES_PER_META_CODE];
+
+const ALPHABET_SIZE: [u16; HUFFMAN_CODES_PER_META_CODE] = [
+    256 + 24,
+    256, 256, 256,
+    40
+];
 
 #[inline]
-pub(crate) fn DIV_ROUND_UP(num: u16, den: u16) -> u16 {
+pub(crate) fn div_round_up(num: u16, den: u16) -> u16 {
     (num + den - 1) / den 
 }
 
 #[derive(Debug, Clone, Copy)]
-enum DecoderError {
+pub(crate) enum DecoderError {
     /// Signature of 0x2f not found
     LosslessSignatureInvalid(u8),
     /// Version Number must be 0
     VersionNumberInvalid(u8),
 
     ///
-    InvalidColorCacheBits(u8)
+    InvalidColorCacheBits(u8),
+
+    HuffmanError,
 }
 
 impl fmt::Display for DecoderError {
@@ -73,7 +76,9 @@ impl fmt::Display for DecoderError {
             DecoderError::VersionNumberInvalid(num) => 
                 f.write_fmt(format_args!("Invalid version number: {}", num)),
             DecoderError::InvalidColorCacheBits(num) => 
-                f.write_fmt(format_args!("Invalid color cache(must be between 1-11): {}", num))
+                f.write_fmt(format_args!("Invalid color cache(must be between 1-11): {}", num)),
+            DecoderError::HuffmanError => 
+                f.write_fmt(format_args!("huffman error")),
         }
     }
 }
@@ -86,13 +91,7 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-#[derive(Debug, Clone, Copy)]
-enum TransformType {
-    PredictorTransform(u8),
-    ColorTransform(u8),
-    SubtractGreen,
-    ColorIndexingTransform(u8),
-}
+const NUM_TRANSFORM_TYPES: usize = 4;
 
 //Decodes lossless WebP images
 #[derive(Debug)]
@@ -100,7 +99,8 @@ pub(crate) struct LosslessDecoder<R> {
     r: R,
     bit_reader: BitReader,
     frame: LosslessFrame,
-    transforms: Vec<TransformType>,
+    transforms: [Option<TransformType>; NUM_TRANSFORM_TYPES],
+    transform_order: Vec<u8>,
 }
 
 impl<R: Read> LosslessDecoder<R> {
@@ -111,7 +111,8 @@ impl<R: Read> LosslessDecoder<R> {
             r,
             bit_reader: BitReader::new(),
             frame: Default::default(),
-            transforms: Vec::new(),
+            transforms: [None, None, None, None],
+            transform_order: Vec::new(),
         }
     }
 
@@ -143,38 +144,65 @@ impl<R: Read> LosslessDecoder<R> {
             return Err(DecoderError::VersionNumberInvalid(version_num).into());
         }
 
-        self.decode_image_stream(self.frame.width, self.frame.height, true)?;
+        println!("width: {}, height: {}", self.frame.width, self.frame.height);
+
+        let mut data = self.decode_image_stream(self.frame.width, self.frame.height, true)?;
+
+        for &trans_index in self.transform_order.iter().rev() {
+            let trans = self.transforms[usize::from(trans_index)].as_ref().unwrap();
+            println!("applying transform: {:?}", trans_index);
+            trans.apply_transform(&mut data, self.frame.width, self.frame.height);
+        }
+
+        self.frame.buf = data;
         Ok(())
     }
 
-    fn decode_image_stream(&mut self, xsize: u16, ysize: u16, base: bool) -> ImageResult<Vec<u32>> {
-        
-        let trans_xsize = xsize;
-        let trans_ysize = ysize;
+    pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
+        for (index, &argb_val) in self.frame.buf.iter().enumerate() {
+            buf[index * 4] = ((argb_val >> 16) & 0xff).try_into().unwrap();
+            buf[index * 4 + 1] = ((argb_val >> 8) & 0xff).try_into().unwrap();
+            buf[index * 4 + 2] = (argb_val & 0xff).try_into().unwrap();
+            buf[index * 4 + 3] = ((argb_val >> 24) & 0xff).try_into().unwrap();
+        }
+    }
 
-        if base {
+    pub(crate) fn get_buf_size(&self) -> usize {
+        usize::from(self.frame.width) * usize::from(self.frame.height) * 4
+    }
+
+    /// Reads Image data from the bitstream
+    /// Can be in any of the 5 roles described in the Specification
+    /// ARGB Image role has different behaviour to the other 4
+    /// xsize and ysize describe the size of the blocks where each block has its own entropy code
+    fn decode_image_stream(&mut self, xsize: u16, ysize: u16, is_argb_img: bool) -> ImageResult<Vec<u32>> {
+
+        if is_argb_img {
             self.read_transforms()?;
         }
 
-        let color_cache = self.read_color_cache()?;
+        let color_cache_bits = self.read_color_cache()?;
 
-        self.read_huffman_codes(true, xsize, ysize)?;
-
-        let color_cache_size = match color_cache {
-            Some(color_cache_bits) => {
-                1 << color_cache_bits
+        let color_cache = color_cache_bits.map(|bits| {
+            let size = 1 << bits;
+            let cache = vec![0u32; size];
+            ColorCache {
+                color_cache_bits: bits,
+                color_cache: cache,
             }
-            None => 0,
-        };
+        });
 
-        if base {
-            return Ok(vec![]);
-        }
+        println!("color_cache_bits: {:?}", color_cache_bits);
 
-        //decode LZ77 encoded data
-        let mut data = vec![0; (trans_xsize * trans_ysize).into()];
+        let huffman_info = self.read_huffman_codes(is_argb_img, xsize, ysize, color_cache)?;
 
-        self.decode_image_data(trans_xsize, trans_ysize, &mut data);
+        /* println!("huffman tree:\n");
+        for i in 0..huffman_info.huffman_code_groups[0][0].num_nodes {
+            print!("{:?}, ", huffman_info.huffman_code_groups[0][0].tree[i]);
+        } */
+
+        //decode data
+        let data = self.decode_image_data(xsize, ysize, huffman_info)?;
 
         Ok(data)
     }
@@ -182,21 +210,42 @@ impl<R: Read> LosslessDecoder<R> {
     fn read_transforms(&mut self) -> ImageResult<()> {
         while self.bit_reader.read_bits::<u8>(1) == 1 {
             let transform_type_val = self.bit_reader.read_bits::<u8>(2);
+
+            println!("Transform: {}", transform_type_val);
+
+            if self.transforms[usize::from(transform_type_val)].is_some() {
+                //can only have one of each transform, error
+                panic!(":<(");
+            }
+
+            self.transform_order.push(transform_type_val);
             
             let transform_type = match transform_type_val {
                 0 => {
                     //predictor
 
                     let size_bits = self.bit_reader.read_bits::<u8>(3) + 2;
+                    let block_size = 1u16 << size_bits;
 
-                    TransformType::PredictorTransform(size_bits)
+                    let block_xsize = div_round_up(self.frame.width, block_size);
+                    let block_ysize = div_round_up(self.frame.height, block_size);
+
+                    let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
+
+                    TransformType::PredictorTransform { size_bits, predictor_data: data }
                 }
                 1 => {
                     //color transform
 
                     let size_bits = self.bit_reader.read_bits::<u8>(3) + 2;
+                    let block_size = 1u16 << size_bits;
 
-                    TransformType::ColorTransform(size_bits)
+                    let block_xsize = div_round_up(self.frame.width, block_size);
+                    let block_ysize = div_round_up(self.frame.height, block_size);
+
+                    let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
+
+                    TransformType::ColorTransform { size_bits, transform_data: data }
                 }
                 2 => {
                     //subtract green
@@ -204,16 +253,20 @@ impl<R: Read> LosslessDecoder<R> {
                     TransformType::SubtractGreen
                 }
                 3 => {
-                    let color_table_size = self.bit_reader.read_bits::<u8>(8) + 1;
+                    let color_table_size = self.bit_reader.read_bits::<u16>(8) + 1;
 
-                    TransformType::ColorIndexingTransform(color_table_size)
+                    let data = self.decode_image_stream(color_table_size, 1, false)?;
+
+                    TransformType::ColorIndexingTransform { table_size: color_table_size, table_data: data }
                 }
                 _ => unreachable!(),
             };
             
 
-            //self.transform = Some(transform_type);
+            self.transforms[usize::from(transform_type_val)] = Some(transform_type);
         }
+
+        println!("finished transforms");
 
         Ok(())
     }
@@ -222,82 +275,295 @@ impl<R: Read> LosslessDecoder<R> {
         &mut self, 
         read_meta: bool,
         xsize: u16,
-        ysize: u16) -> ImageResult<HuffmanTreeGroup> {
+        ysize: u16,
+        color_cache: Option<ColorCache>) -> ImageResult<HuffmanInfo> {
         
         let mut num_huff_groups = 1;
+
+        let mut huffman_bits = 0;
+        let mut huffman_xsize = 1;
+        let mut huffman_ysize = 1;
+        let mut entropy_image = Vec::new();
     
         if read_meta && self.bit_reader.read_bits::<u8>(1) == 1 {
             //meta huffman codes
-            let huffman_bits = self.bit_reader.read_bits::<u8>(3) + 2;
-            let huffman_xsize = DIV_ROUND_UP(xsize, 1 << huffman_bits);
-            let huffman_ysize = DIV_ROUND_UP(ysize, 1 << huffman_bits);
+            huffman_bits = self.bit_reader.read_bits::<u8>(3) + 2;
+            huffman_xsize = div_round_up(xsize, 1 << huffman_bits);
+            huffman_ysize = div_round_up(ysize, 1 << huffman_bits);
             let huffman_pixels = usize::from(huffman_xsize * huffman_ysize);
-            let entropy_image = self.decode_image_stream(huffman_xsize, huffman_ysize, false)?;
+
+            entropy_image = self.decode_image_stream(huffman_xsize, huffman_ysize, false)?;
             
-            
+            //println!("{:#?}", entropy_image);
+            println!("huffman_bits: {}, huffman_xsize: {}, huffman_ysize: {}", huffman_bits, huffman_xsize, huffman_ysize);
+
             for i in 0..huffman_pixels {
                 let meta_huff_code = (entropy_image[i] >> 8) & 0xffff;
+
+                entropy_image[i] = meta_huff_code;
 
                 if meta_huff_code >= num_huff_groups {
                     num_huff_groups = meta_huff_code + 1;
                 }
             }
+
+            println!("num_huff_groups: {}", num_huff_groups);
+
+            //println!("huffman_bits: {}, entropy_image: {:?}, num_huff_groups: {:?}", huffman_bits, entropy_image, num_huff_groups);
         }
 
-        let tree_group = HuffmanTreeGroup {
-            huffman_trees: Vec::with_capacity(num_huff_groups as usize)
-        };
+        let mut hufftree_groups = Vec::new();
 
-        for i in 0..num_huff_groups {
-            
-            for j in 0..5 {
-                tree_group.huffman_trees[j]
+        for _i in 0..num_huff_groups {
+            let mut group: HuffmanCodeGroup = Default::default();
+            for j in 0..HUFFMAN_CODES_PER_META_CODE {
+                let mut alphabet_size = ALPHABET_SIZE[j];
+                if j == 0 {
+                    if let Some(color_cache) = color_cache.as_ref() {
+                        alphabet_size += 1 << color_cache.color_cache_bits;
+                    }
+                }
+
+                let tree = self.read_huffman_code(alphabet_size)?;
+                group[j] = tree;
             }
+            hufftree_groups.push(group);
         }
-    
+
+        let huffman_mask = if huffman_bits == 0 {
+            !0
+        } else {
+            (1 << huffman_bits) - 1
+        };
         
+        let info = HuffmanInfo {
+            xsize: huffman_xsize,
+            ysize: huffman_ysize,
+            color_cache: color_cache,
+            image: entropy_image,
+            bits: huffman_bits,
+            mask: huffman_mask,
+            huffman_code_groups: hufftree_groups,
+        };
     
-        Ok(tree_group)
+        Ok(info)
     }
 
     //decodes a single huffman code
-    fn read_huffman_code(&mut self) -> Vec<HuffmanCode> {
+    fn read_huffman_code(&mut self, alphabet_size: u16) -> ImageResult<HuffmanTree> {
         let simple = self.bit_reader.read_bits::<u8>(1) == 1;
     
-        let mut code_lengths = Vec::new();
-    
         if simple {
-            let num_code_lengths = self.bit_reader.read_bits::<u8>(1) + 1;
+            let num_symbols = self.bit_reader.read_bits::<u8>(1) + 1;
+
+            let mut code_lengths = vec![u16::from(num_symbols - 1)];
+            let mut codes = vec![0];
+            let mut symbols = Vec::new();
+            
             let is_first_8bits = self.bit_reader.read_bits::<u8>(1);
-            code_lengths.push(self.bit_reader.read_bits::<u8>(1 + 7 * is_first_8bits));
-            if num_code_lengths == 2 {
-                code_lengths.push(self.bit_reader.read_bits::<u8>(8));
+            symbols.push(self.bit_reader.read_bits::<u16>(1 + 7 * is_first_8bits));
+            
+            if num_symbols == 2 {
+                symbols.push(self.bit_reader.read_bits::<u16>(8));
+                code_lengths.push(1);
+                codes.push(1);
             }
+
+            Ok(HuffmanTree::build_explicit(code_lengths, codes, symbols))
         } else {
-            code_lengths = vec![0; CODE_LENGTH_CODES];
+            let mut code_length_code_lengths = vec![0; CODE_LENGTH_CODES];
+
             let num_code_lengths = 4 + self.bit_reader.read_bits::<usize>(4);
             for i in 0..num_code_lengths {
-                code_lengths[CODE_LENGTH_CODE_ORDER[i]] = self.bit_reader.read_bits(3);
+                code_length_code_lengths[CODE_LENGTH_CODE_ORDER[i]] = self.bit_reader.read_bits(3);
+            }
+
+            let new_code_lengths = self.read_huffman_code_lengths(code_length_code_lengths, alphabet_size);
+
+            Ok(HuffmanTree::build_implicit(new_code_lengths))
+        }
+    }
+
+    fn read_huffman_code_lengths(&mut self, code_length_code_lengths: Vec<u16>, num_symbols: u16) -> Vec<u16> {
+
+        let table = HuffmanTree::build_implicit(code_length_code_lengths);
+
+        let mut max_symbol = if self.bit_reader.read_bits::<u8>(1) == 1 {
+            let length_nbits = 2 + 2 * self.bit_reader.read_bits::<u8>(3);
+            2 + self.bit_reader.read_bits::<u16>(length_nbits)
+        } else {
+            num_symbols
+        };
+
+        let mut code_lengths = vec![0; usize::from(num_symbols)];
+        let mut prev_code_len = 8; //default code length
+
+        let mut symbol = 0;
+        while symbol < num_symbols {
+            if max_symbol == 0 {break;}
+            max_symbol -= 1;
+
+            let code_len = table.read_symbol(&mut self.bit_reader);
+
+            if code_len < 16 {
+                code_lengths[usize::from(symbol)] = code_len;
+                symbol += 1;
+                if code_len != 0 {
+                    prev_code_len = code_len;
+                }
+            } else {
+                let use_prev = code_len == 16;
+                let slot = code_len - 16;
+                let extra_bits = match slot {
+                    0 => 2,
+                    1 => 3,
+                    2 => 7,
+                    _ => panic!("djiowd"),
+                };
+                let repeat_offset = match slot {
+                    0 | 1 => 3,
+                    2 => 11,
+                    _ => panic!("diode"),
+                };
+
+                let mut repeat = self.bit_reader.read_bits::<u16>(extra_bits) + repeat_offset;
+
+                if symbol + repeat > num_symbols {
+                    panic!("aaaaa");
+                } else {
+                    let length = if use_prev {
+                        prev_code_len
+                    } else {
+                        0
+                    };
+                    while repeat > 0 {
+                        repeat -= 1;
+                        code_lengths[usize::from(symbol)] = length;
+                        symbol += 1;
+                    }
+                }
             }
         }
-    
+
         code_lengths
     }
 
-    fn decode_image_data(&mut self, width: u16, height: u16, data: &mut Vec<u32>) -> ImageResult<()> {
-        
-        for index in 0..data.len() {
+    fn decode_image_data(&mut self, width: u16, height: u16, mut huffman_info: HuffmanInfo) -> ImageResult<Vec<u32>> {
+        let num_values = usize::from(width) * usize::from(height);
+        let mut data = vec![0; num_values];
 
-            //let code = 
+        println!("Decoding image data: {}x{}", width, height);
+        println!("huffman mask: {}", huffman_info.mask);
+        println!("huffman bits: {}", huffman_info.bits);
 
+        /* if huffman_info.image.len() > 0 {
+            for y in 0..38 {
+                for x in 0..50 {
+                    print!("{}, ", huffman_info.image[y * 50 + x]);
+                }
+                println!("");
+            }
+        } */
+
+        let index = huffman_info.get_huff_index(0, 0);
+        let mut tree = &huffman_info.huffman_code_groups[index];
+        let mut last_cached = 0;
+        let mut index = 0;
+        let mut x = 0;
+        let mut y = 0;
+        while index < num_values {
+            if index == 3536 {
+                //println!("{}, {}, {}", x & huffman_info.mask, x, y);
+            }
+            if (x & huffman_info.mask) == 0 {
+                let index = huffman_info.get_huff_index(x, y);
+                tree = &huffman_info.huffman_code_groups[index];
+            }
+
+            let code = tree[GREEN].read_symbol(&mut self.bit_reader);
+
+            //println!("index: {}, code: {}", index, code);
+
+            if code < 256 {
+                let red = tree[RED].read_symbol(&mut self.bit_reader);
+                let blue = tree[BLUE].read_symbol(&mut self.bit_reader);
+                let alpha = tree[ALPHA].read_symbol(&mut self.bit_reader);
+
+                data[index] = (u32::from(alpha) << 24) + (u32::from(red) << 16) + (u32::from(code) << 8) + u32::from(blue);
+
+                //println!("huffman: {}", data[index]);
+
+                index += 1;
+                x += 1;
+                if x >= width {
+                    x = 0;
+                    y += 1;
+                }
+            } else if code < 256 + 24 {
+                let length_symbol = code - 256;
+                let length = usize::from(Self::get_copy_distance(&mut self.bit_reader, length_symbol));
+
+                let dist_symbol = tree[DIST].read_symbol(&mut self.bit_reader);
+                let dist_code = Self::get_copy_distance(&mut self.bit_reader, dist_symbol);
+                let dist = Self::plane_code_to_distance(width, dist_code);
+
+                if index < dist || num_values - index < length {
+                    panic!("{}, {}, {}, {:?}", index, dist, length, tree[DIST]);
+                }
+
+                println!("length_symbol: {}, length: {}, dist_symbol: {}, dist_code: {}, dist: {}", length_symbol, length, dist_symbol, dist_code, dist);
+
+                /* let help = if index == 753 && code == 273 {
+                    println!("dist_symbol: {}, dist: {}, length: {}", dist_symbol, dist, length);
+                    println!("length_symbol: {}, dist_code: {}", length_symbol, dist_code);
+                    true
+                } else {
+                    false
+                }; */
+
+                for i in 0..length {
+                    data[index + i] = data[index + i - dist];
+                }
+                index += length;
+                x += u16::try_from(length).unwrap();
+                while x >= width {
+                    x -= width;
+                    y += 1;
+                }
+                if index < num_values {
+                    let index = huffman_info.get_huff_index(x, y);
+                    tree = &huffman_info.huffman_code_groups[index];
+                }
+                /* if help {
+                    println!("new index: {}, x: {}, y: {}", index, x, y);
+                } */
+            } else {
+                let key = code - 256 - 24;
+
+                //println!("key: {}", key);
+
+                if let Some(color_cache) = huffman_info.color_cache.as_mut() {
+                    //cache old colors
+                    while last_cached < index {
+                        color_cache.insert(data[last_cached]);
+                        last_cached += 1;
+                    }
+                    data[index] = color_cache.lookup(key.into());
+                    //println!("cached: {}", data[index]);
+
+                } else {
+                    panic!(":<(");
+                }
+                index += 1;
+                x += 1;
+                if x >= width {
+                    x = 0;
+                    y += 1;
+                }
+            }
         }
 
-        Ok(())
-    }
-
-    fn read_blocks(&mut self) -> ImageResult<()> {
-
-        Ok(())
+        Ok(data)
     }
 
     fn read_color_cache(&mut self) -> ImageResult<Option<u8>> {
@@ -314,20 +580,69 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
-    fn entropy_coded_image(&mut self) -> ImageResult<()> {
-        //let size = self.color_cache_size()?;
+    fn get_copy_distance(bit_reader: &mut BitReader, prefix_code: u16) -> usize {
+        if prefix_code < 4 {
+            return usize::from(prefix_code + 1);
+        }
+        let extra_bits: u8 = ((prefix_code - 2) >> 1).try_into().unwrap();
+        let offset = (2 + (usize::from(prefix_code) & 1)) << extra_bits;
 
-        /* match size {
-            Some(size) => {
-                //
-                let color_cache = vec![0u32; usize::from(size)];
+        offset + bit_reader.read_bits::<usize>(extra_bits) + 1
+    }
+
+    fn plane_code_to_distance(xsize: u16, plane_code: usize) -> usize {
+        if plane_code > 120 {
+            return plane_code - 120;
+        } else {
+            let (xoffset, yoffset) = DISTANCE_MAP[plane_code - 1];
+
+            let dist = i32::from(xoffset) + i32::from(yoffset) * i32::from(xsize);
+            if dist < 1 {
+                return 1;
             }
-            None => {
+            return dist.try_into().unwrap();
+        }
+    }
+}
 
-            }
-        } */
+#[derive(Debug, Clone)]
+struct HuffmanInfo {
+    xsize: u16,
+    ysize: u16,
+    color_cache: Option<ColorCache>,
+    image: Vec<u32>,
+    bits: u8,
+    mask: u16,
+    huffman_code_groups: Vec<HuffmanCodeGroup>,
+}
 
+impl HuffmanInfo {
+    fn get_huff_index(&self, x: u16, y: u16) -> usize {
+        if self.bits == 0 {
+            return 0;
+        }
+        let position = usize::from((y >> self.bits) * self.xsize + (x >> self.bits));
+        let meta_huff_code: usize = self.image[position].try_into().unwrap();
+        meta_huff_code
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ColorCache {
+    color_cache_bits: u8,
+    color_cache: Vec<u32>,
+}
+
+impl ColorCache {
+    fn insert(&mut self, color: u32) -> ImageResult<()> {
+        let index = (0x1e35a7bdu32.overflowing_mul(color).0) >> (32 - self.color_cache_bits);
+        self.color_cache[index as usize] = color;
+        //println!("argb: {} -> key: {}", color, index);
         Ok(())
+    }
+
+    fn lookup(&self, index: usize) -> u32 {
+        self.color_cache[index]
     }
 }
 
@@ -379,7 +694,7 @@ struct LosslessFrame {
     width: u16,
     height: u16,
 
-    buf: Vec<u8>,
+    buf: Vec<u32>,
 }
 
 #[cfg(test)]

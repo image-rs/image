@@ -667,10 +667,24 @@ mod test {
 
         bit_reader.init(buf);
 
-        assert_eq!(bit_reader.read_bits::<u8>(3), Ok(4)); //100
-        assert_eq!(bit_reader.read_bits::<u8>(2), Ok(3)); //11
-        assert_eq!(bit_reader.read_bits::<u8>(6), Ok(12)); //001100
-        assert_eq!(bit_reader.read_bits::<u16>(10), Ok(40)); //0000101000
-        assert_eq!(bit_reader.read_bits::<u8>(3), Ok(7)); //111
+        assert_eq!(bit_reader.read_bits::<u8>(3).unwrap(), 4); //100
+        assert_eq!(bit_reader.read_bits::<u8>(2).unwrap(), 3); //11
+        assert_eq!(bit_reader.read_bits::<u8>(6).unwrap(), 12); //001100
+        assert_eq!(bit_reader.read_bits::<u16>(10).unwrap(), 40); //0000101000
+        assert_eq!(bit_reader.read_bits::<u8>(3).unwrap(), 7); //111
+    }
+
+    #[test]
+    fn bit_read_error_test() {
+        let mut bit_reader = BitReader::new();
+
+        //01101010
+        let buf = vec![0x6A];
+
+        bit_reader.init(buf);
+
+        assert_eq!(bit_reader.read_bits::<u8>(3).unwrap(), 2); //010
+        assert_eq!(bit_reader.read_bits::<u8>(5).unwrap(), 13); //01101
+        assert!(bit_reader.read_bits::<u8>(4).is_err()); //error
     }
 }

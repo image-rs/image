@@ -95,31 +95,45 @@ impl<R: Read> WebPDecoder<R> {
 
     //reads the chunk header, decodes the frame and returns the inner decoder
     fn read_frame(mut r: R) -> ImageResult<InnerDecoder<R>> {
-        let mut chunk = [0; 4];
-        r.read_exact(&mut chunk)?;
+        loop {
+            let mut chunk = [0; 4];
+            r.read_exact(&mut chunk)?;
 
-        match &chunk {
-            b"VP8 " => {
-                let _len = r.read_u32::<LittleEndian>()?;
-                let mut vp8_decoder = Vp8Decoder::new(r);
-                vp8_decoder.decode_frame()?;
+            match &chunk {
+                b"VP8 " => {
+                    let _len = r.read_u32::<LittleEndian>()?;
+                    let mut vp8_decoder = Vp8Decoder::new(r);
+                    vp8_decoder.decode_frame()?;
 
-                return Ok(InnerDecoder::Lossy(vp8_decoder));
-            }
-            b"VP8L" => {
-                let mut lossless_decoder = LosslessDecoder::new(r);
-                
-                lossless_decoder.decode_frame()?;
-                
-                return Ok(InnerDecoder::Lossless(lossless_decoder));
-            }
-            //b"ALPH" | b"ANIM" | b"ANMF" => {
-            _ => {
-                // Alpha and Animation isn't supported
-                return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormat::WebP.into(),
-                    UnsupportedErrorKind::GenericFeature(chunk.iter().map(|&b| b as char).collect()),
-                )));
+                    return Ok(InnerDecoder::Lossy(vp8_decoder));
+                }
+                b"VP8L" => {
+                    let mut lossless_decoder = LosslessDecoder::new(r);
+                    
+                    lossless_decoder.decode_frame()?;
+                    
+                    return Ok(InnerDecoder::Lossless(lossless_decoder));
+                }
+                b"ALPH" | b"ANIM" | b"ANMF" => {
+                    // Alpha, Lossless and Animation isn't supported
+                    return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                        ImageFormat::WebP.into(),
+                        UnsupportedErrorKind::GenericFeature(chunk.iter().map(|&b| b as char).collect()),
+                    )));
+                }
+                _ => {
+                    let mut len = u64::from(r.read_u32::<LittleEndian>()?);
+
+                    if len % 2 != 0 {
+                        // RIFF chunks containing an uneven number of bytes append
+                        // an extra 0x00 at the end of the chunk
+                        //
+                        // The addition cannot overflow since we have a u64 that was created from a u32
+                        len += 1;
+                    }
+
+                    io::copy(&mut r.by_ref().take(len), &mut io::sink())?;
+                }
             }
         }
     }

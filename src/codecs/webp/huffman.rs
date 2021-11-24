@@ -5,31 +5,34 @@ use super::lossless::DecoderError;
 use super::lossless::BitReader;
 
 /// Rudimentary utility for reading Canonical Huffman Codes.
-/// Based off https://github.com/webmproject/libwebp/blob/f2623dbe583b28f1bff5678193d00ea8c872666c/src/utils/huffman.c
+/// Based off https://github.com/webmproject/libwebp/blob/7f8472a610b61ec780ef0a8873cd954ac512a505/src/utils/huffman.c
 /// 
 
 const MAX_ALLOWED_CODE_LENGTH: usize = 15;
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum HuffmanTreeNode {
+enum HuffmanTreeNode {
     Branch(usize), //offset in vector to children
     Leaf(u16), //symbol stored in leaf
     Empty,
 }
 
+/// Huffman tree
 #[derive(Clone, Debug, Default)]
 pub(crate) struct HuffmanTree {
-    pub(crate) tree: Vec<HuffmanTreeNode>,
+    tree: Vec<HuffmanTreeNode>,
     max_nodes: usize,
-    pub(crate) num_nodes: usize,
+    num_nodes: usize,
 }
 
 impl HuffmanTree {
+
     fn is_full(&self) -> bool {
         self.num_nodes == self.max_nodes
     }
 
+    /// Turns a node from empty into a branch and assigns its children
     fn assign_children(&mut self, node_index: usize) -> usize {
         let offset_index = self.num_nodes - node_index;
         self.tree[node_index] = HuffmanTreeNode::Branch(offset_index);
@@ -38,6 +41,7 @@ impl HuffmanTree {
         offset_index
     }
 
+    /// Init a huffman tree
     fn init(num_leaves: usize) -> ImageResult<HuffmanTree> {
         if num_leaves == 0 {
             return Err(DecoderError::HuffmanError.into());
@@ -56,6 +60,7 @@ impl HuffmanTree {
         Ok(tree)
     }
 
+    /// Converts code lengths to codes
     fn code_lengths_to_codes(code_lengths: &Vec<u16>) -> ImageResult<Vec<Option<u16>>> {
 
         let max_code_length = *code_lengths.iter().reduce(|a, b| {
@@ -99,6 +104,7 @@ impl HuffmanTree {
         Ok(huff_codes)
     }
 
+    /// Adds a symbol to a huffman tree
     fn add_symbol(&mut self, symbol: u16, code: u16, code_length: u16) -> ImageResult<()> {
         let mut node_index = 0;
         let code = usize::from(code);
@@ -136,6 +142,7 @@ impl HuffmanTree {
         Ok(())
     }
 
+    /// Builds a tree implicitly, just from code lengths
     pub(crate) fn build_implicit(code_lengths: Vec<u16>) -> ImageResult<HuffmanTree> {
         let mut num_symbols = 0;
         let mut root_symbol = 0;
@@ -165,6 +172,7 @@ impl HuffmanTree {
         Ok(tree)
     }
 
+    /// Builds a tree explicitly from lengths, codes and symbols
     pub(crate) fn build_explicit(code_lengths: Vec<u16>, codes: Vec<u16>, symbols: Vec<u16>) -> ImageResult<HuffmanTree> {
         let mut tree = HuffmanTree::init(symbols.len())?;
 
@@ -175,6 +183,7 @@ impl HuffmanTree {
         Ok(tree)
     }
 
+    /// Reads a symbol using the bitstream
     pub(crate) fn read_symbol(&self, bit_reader: &mut BitReader) -> ImageResult<u16> {
         let mut index = 0;
         let mut node = self.tree[index];

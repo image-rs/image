@@ -1,6 +1,6 @@
 //! Decoding of lossless WebP images
 //! 
-//! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#522_decoding_entropy-coded_image_data)
+//! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification)
 //!
 
 use std::{convert::TryInto, convert::TryFrom, error, fmt, io::Read, ops::{AddAssign, Shl}};
@@ -115,7 +115,6 @@ pub(crate) struct LosslessDecoder<R> {
 impl<R: Read> LosslessDecoder<R> {
     /// Create a new decoder
     pub(crate) fn new(r: R) -> LosslessDecoder<R> {
-
         LosslessDecoder {
             r,
             bit_reader: BitReader::new(),
@@ -125,6 +124,7 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
+    /// Gets dimensions of image
     pub(crate) fn dimensions(&self) -> (u32, u32) {
         (u32::from(self.frame.width), u32::from(self.frame.height))
     }
@@ -164,6 +164,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(())
     }
 
+    /// Fills a buffer by converting from argb to rgba
     pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
         for (index, &argb_val) in self.frame.buf.iter().enumerate() {
             buf[index * 4] = ((argb_val >> 16) & 0xff).try_into().unwrap();
@@ -173,6 +174,7 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
+    /// Get buffer size from the image
     pub(crate) fn get_buf_size(&self) -> usize {
         usize::from(self.frame.width) * usize::from(self.frame.height) * 4
     }
@@ -206,6 +208,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(data)
     }
 
+    /// Reads transforms and their data from the bitstream
     fn read_transforms(&mut self) -> ImageResult<()> {
         while self.bit_reader.read_bits::<u8>(1)? == 1 {
             let transform_type_val = self.bit_reader.read_bits::<u8>(2)?;
@@ -266,6 +269,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(())
     }
 
+    /// Reads huffman codes associated with an image
     fn read_huffman_codes(
         &mut self, 
         read_meta: bool,
@@ -337,7 +341,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(info)
     }
 
-    //decodes a single huffman code
+    /// Decodes and returns a single huffman tree
     fn read_huffman_code(&mut self, alphabet_size: u16) -> ImageResult<HuffmanTree> {
         let simple = self.bit_reader.read_bits::<u8>(1)? == 1;
     
@@ -372,6 +376,7 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
+    /// Reads huffman code lengths
     fn read_huffman_code_lengths(&mut self, code_length_code_lengths: Vec<u16>, num_symbols: u16) -> ImageResult<Vec<u16>> {
 
         let table = HuffmanTree::build_implicit(code_length_code_lengths)?;
@@ -436,12 +441,13 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(code_lengths)
     }
 
+    /// Decodes the image data using the huffman trees and either of the 3 methods of decoding
     fn decode_image_data(&mut self, width: u16, height: u16, mut huffman_info: HuffmanInfo) -> ImageResult<Vec<u32>> {
         let num_values = usize::from(width) * usize::from(height);
         let mut data = vec![0; num_values];
 
-        let index = huffman_info.get_huff_index(0, 0);
-        let mut tree = &huffman_info.huffman_code_groups[index];
+        let huff_index = huffman_info.get_huff_index(0, 0);
+        let mut tree = &huffman_info.huffman_code_groups[huff_index];
         let mut last_cached = 0;
         let mut index = 0;
         let mut x = 0;
@@ -454,7 +460,9 @@ impl<R: Read> LosslessDecoder<R> {
 
             let code = tree[GREEN].read_symbol(&mut self.bit_reader)?;
 
+            //check code
             if code < 256 {
+                //literal, so just use huffman codes and read as argb
                 let red = tree[RED].read_symbol(&mut self.bit_reader)?;
                 let blue = tree[BLUE].read_symbol(&mut self.bit_reader)?;
                 let alpha = tree[ALPHA].read_symbol(&mut self.bit_reader)?;
@@ -468,6 +476,7 @@ impl<R: Read> LosslessDecoder<R> {
                     y += 1;
                 }
             } else if code < 256 + 24 {
+                //backward reference, so go back and use that to add image data
                 let length_symbol = code - 256;
                 let length = usize::from(Self::get_copy_distance(&mut self.bit_reader, length_symbol)?);
 
@@ -493,6 +502,7 @@ impl<R: Read> LosslessDecoder<R> {
                     tree = &huffman_info.huffman_code_groups[index];
                 }
             } else {
+                //color cache, so use previously stored pixels to get this pixel
                 let key = code - 256 - 24;
 
                 if let Some(color_cache) = huffman_info.color_cache.as_mut() {
@@ -518,6 +528,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(data)
     }
 
+    /// Reads color cache data from the bitstream
     fn read_color_cache(&mut self) -> ImageResult<Option<u8>> {
         if self.bit_reader.read_bits::<u8>(1)? == 1 {
             let code_bits = self.bit_reader.read_bits::<u8>(4)?;
@@ -532,6 +543,7 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
+    /// Gets the copy distance from the prefix code and bitstream
     fn get_copy_distance(bit_reader: &mut BitReader, prefix_code: u16) -> ImageResult<usize> {
         if prefix_code < 4 {
             return Ok(usize::from(prefix_code + 1));
@@ -542,6 +554,7 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(offset + bit_reader.read_bits::<usize>(extra_bits)? + 1)
     }
 
+    /// Gets distance to pixel
     fn plane_code_to_distance(xsize: u16, plane_code: usize) -> usize {
         if plane_code > 120 {
             return plane_code - 120;

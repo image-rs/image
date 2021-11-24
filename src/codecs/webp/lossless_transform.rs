@@ -13,6 +13,7 @@ pub(crate) enum TransformType {
 }
 
 impl TransformType {
+    /// Applies a transform to the image data
     pub(crate) fn apply_transform(&self, image_data: &mut Vec<u32>, width: u16, height: u16) {
         match self {
             TransformType::PredictorTransform { size_bits, predictor_data} => {
@@ -148,34 +149,41 @@ impl TransformType {
     }
 }
 
+//predictor functions
+
+/// Adds 2 pixels mod 256 for each pixel
 fn add_pixels(a: u32, b: u32) -> u32 {
     let new_alpha = ((a >> 24) + (b >> 24)) & 0xff;
     let new_red = (((a >> 16) & 0xff) + ((b >> 16) & 0xff)) & 0xff;
     let new_green = (((a >> 8) & 0xff) + ((b >> 8) & 0xff)) & 0xff;
     let new_blue = ((a & 0xff) + (b & 0xff)) & 0xff;
 
-    let out = (new_alpha << 24) + (new_red << 16) + (new_green << 8) + new_blue;
-    out
+    (new_alpha << 24) + (new_red << 16) + (new_green << 8) + new_blue
 }
 
+/// Get left pixel
 fn get_left(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
     data[y * width + x - 1]
 }
 
+/// Get top pixel
 fn get_top(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
     data[(y - 1) * width + x]
 }
 
+/// Get pixel to top right
 fn get_top_right(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
     // if x == width - 1 this gets the left most pixel of the current row
     // as described in the specification
     data[(y - 1) * width + x + 1]
 }
 
+/// Get pixel to top left
 fn get_top_left(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
     data[(y - 1) * width + x - 1]
 }
 
+/// Get average of 2 pixels
 fn average2(a: u32, b: u32) -> u32 {
     let mut avg = 0u32;
     for i in 0..4 {
@@ -186,18 +194,22 @@ fn average2(a: u32, b: u32) -> u32 {
     avg
 }
 
+/// Get average of 2 bytes
 fn sub_average2(a: u8, b: u8) -> u8 {
     ((u16::from(a) + u16::from(b)) / 2).try_into().unwrap()
 }
 
+/// Get a specific byte from argb pixel
 fn get_byte(val: u32, byte: u8) -> u8 {
     ((val >> (byte * 8)) & 0xff).try_into().unwrap()
 }
 
+/// Get byte as i32 for convenience
 fn get_byte_i32(val: u32, byte: u8) -> i32 {
     i32::from(get_byte(val, byte))
 }
 
+/// Select left or top byte
 fn select(left: u32, top: u32, top_left: u32) -> u32 {
     let predict_alpha = get_byte_i32(left, 3) + get_byte_i32(top, 3) - get_byte_i32(top_left, 3);
     let predict_red = get_byte_i32(left, 2) + get_byte_i32(top, 2) - get_byte_i32(top_left, 2);
@@ -216,6 +228,7 @@ fn select(left: u32, top: u32, top_left: u32) -> u32 {
     }
 }
 
+/// Clamp a to [0, 255]
 fn clamp(a: i32) -> i32 {
     if a < 0 {
         return 0;
@@ -228,14 +241,17 @@ fn clamp(a: i32) -> i32 {
     }
 }
 
+/// Clamp add subtract full on one part
 fn clamp_add_subtract_full_sub(a: i32, b: i32, c: i32) -> i32 {
     clamp(a + b - c)
 }
 
+/// Clamp add subtract half on one part
 fn clamp_add_subtract_half_sub(a: i32, b: i32) -> i32 {
     clamp(a + (a - b) / 2)
 }
 
+/// Clamp add subtract full on 3 pixels
 fn clamp_add_subtract_full(a: u32, b: u32, c: u32) -> u32 {
     let mut value: u32 = 0;
     for i in 0..4u8 {
@@ -247,6 +263,7 @@ fn clamp_add_subtract_full(a: u32, b: u32, c: u32) -> u32 {
     value
 }
 
+/// Clamp add subtract half on 2 pixels
 fn clamp_add_subtract_half(a: u32, b: u32) -> u32 {
     let mut value = 0;
     for i in 0..4u8 {
@@ -277,11 +294,12 @@ impl ColorTransformElement {
     }
 }
 
+/// Does color transform on red and blue transformed by green
 fn color_transform(red: u8, blue: u8, green: u8, trans: &ColorTransformElement) -> (u8, u8) {
     let mut temp_red = u32::from(red);
     let mut temp_blue = u32::from(blue);
 
-    //as does the conversion from u8 to signed two's complement i8 as required
+    //as does the conversion from u8 to signed two's complement i8 required
     temp_red += color_transform_delta(trans.green_to_red as i8, green as i8);
     temp_blue += color_transform_delta(trans.green_to_blue as i8, green as i8);
     temp_blue += color_transform_delta(trans.red_to_blue as i8, temp_red as i8);
@@ -289,11 +307,12 @@ fn color_transform(red: u8, blue: u8, green: u8, trans: &ColorTransformElement) 
     ((temp_red & 0xff).try_into().unwrap(), (temp_blue & 0xff).try_into().unwrap())
 }
 
+/// Does color transform on 2 numbers
 fn color_transform_delta(t: i8, c: i8) -> u32 {
     ((i16::from(t) * i16::from(c)) as u32) >> 5
 }
 
-//inverse
+// Does color transform on a pixel with a color transform element
 fn transform_color(multiplier: &ColorTransformElement, color_value: u32) -> u32 {
     let alpha = get_byte(color_value, 3);
     let red = get_byte(color_value, 2);
@@ -302,12 +321,12 @@ fn transform_color(multiplier: &ColorTransformElement, color_value: u32) -> u32 
 
     let (new_red, new_blue) = color_transform(red, blue, green, multiplier);
 
-    let new_value = (u32::from(alpha) << 24) + (u32::from(new_red) << 16) + (u32::from(green) << 8) + u32::from(new_blue);
-    new_value
+    (u32::from(alpha) << 24) + (u32::from(new_red) << 16) + (u32::from(green) << 8) + u32::from(new_blue)
 }
 
-//subtract green
+//subtract green function
 
+/// Adds green to red and blue of a pixel
 fn add_green(argb: u32) -> u32 {
     let red = (argb >> 16) & 0xff;
     let green = (argb >> 8) & 0xff;
@@ -320,5 +339,3 @@ fn add_green(argb: u32) -> u32 {
 
     new_argb
 }
-
-//

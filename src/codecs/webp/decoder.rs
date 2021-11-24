@@ -52,7 +52,7 @@ enum InnerDecoder<R: Read> {
     Lossless(LosslessDecoder<R>),
 }
 
-/// WebP Image format decoder. Currently only supports lossy RGB images.
+/// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
 pub struct WebPDecoder<R: Read> {
     inner_decoder: InnerDecoder<R>,
 }
@@ -65,12 +65,10 @@ impl<R: Read> WebPDecoder<R> {
         let _size = WebPDecoder::read_file_header(&mut r)?;
 
         let inner_decoder = WebPDecoder::read_frame(r)?;
-        //let len = r.read_u32::<LittleEndian>()?;
         
         let decoder = WebPDecoder {
             inner_decoder,
         };
-        //decoder.read_metadata()?;
         Ok(decoder)
     }
 
@@ -115,7 +113,7 @@ impl<R: Read> WebPDecoder<R> {
                     return Ok(InnerDecoder::Lossless(lossless_decoder));
                 }
                 b"ALPH" | b"ANIM" | b"ANMF" => {
-                    // Alpha, Lossless and Animation isn't supported
+                    // Alpha and Animation isn't supported
                     return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                         ImageFormat::WebP.into(),
                         UnsupportedErrorKind::GenericFeature(chunk.iter().map(|&b| b as char).collect()),
@@ -137,24 +135,6 @@ impl<R: Read> WebPDecoder<R> {
             }
         }
     }
-
-    /* fn read_length(&mut self) -> ImageResult<u32> {
-        let len = self.r.read_u32::<LittleEndian>()?;
-        return Ok(len);
-    } */
-
-    /* fn read_vp8_frame(&mut self, len: u32) -> ImageResult<()> {
-        let mut framedata = Vec::new();
-        self.r.by_ref().take(len as u64).read_to_end(&mut framedata)?;
-        let m = io::Cursor::new(framedata);
-
-        let mut v = Vp8Decoder::new(m);
-        let frame = v.decode_frame()?;
-
-        self.frame = frame.clone();
-
-        Ok(())
-    } */
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`

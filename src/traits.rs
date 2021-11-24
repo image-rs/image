@@ -5,7 +5,7 @@
 use num_traits::{Bounded, Num, NumCast};
 use std::ops::{AddAssign};
 
-use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
+use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
 
 /// Types which are safe to treat as an immutable byte slice in a pixel layout
 /// for image encoding.
@@ -26,26 +26,52 @@ impl EncodableLayout for [u16] {
     }
 }
 
-/// Primitive trait from old stdlib
-pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {}
+impl EncodableLayout for [f32] {
+    fn as_bytes(&self) -> &[u8] {
+        bytemuck::cast_slice(self)
+    }
+}
 
-impl Primitive for usize {}
-impl Primitive for u8 {}
-impl Primitive for u16 {}
-impl Primitive for u32 {}
-impl Primitive for u64 {}
-impl Primitive for isize {}
-impl Primitive for i8 {}
-impl Primitive for i16 {}
-impl Primitive for i32 {}
-impl Primitive for i64 {}
-impl Primitive for f32 {}
-impl Primitive for f64 {}
+/// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
+// TODO rename to `PixelComponent`? Split up into separate traits? Seal?
+pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
+
+    /// The maximum value for this type of primitive within the context of color.
+    /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
+    const DEFAULT_MAX_VALUE: Self;
+
+    /// The minimum value for this type of primitive within the context of color.
+    /// For floats, the minimum is `0.0`, whereas the integer types inherit their usual minimum values.
+    const DEFAULT_MIN_VALUE: Self;
+}
+
+macro_rules! declare_primitive {
+    ($base:ty: ($from:expr)..$to:expr) => {
+        impl Primitive for $base {
+            const DEFAULT_MAX_VALUE: Self = $to;
+            const DEFAULT_MIN_VALUE: Self = $from;
+        }
+    }
+}
+
+declare_primitive!(usize: (0)..Self::MAX);
+declare_primitive!(u8: (0)..Self::MAX);
+declare_primitive!(u16: (0)..Self::MAX);
+declare_primitive!(u32: (0)..Self::MAX);
+declare_primitive!(u64: (0)..Self::MAX);
+
+declare_primitive!(isize: (Self::MIN)..Self::MAX);
+declare_primitive!(i8: (Self::MIN)..Self::MAX);
+declare_primitive!(i16: (Self::MIN)..Self::MAX);
+declare_primitive!(i32: (Self::MIN)..Self::MAX);
+declare_primitive!(i64: (Self::MIN)..Self::MAX);
+declare_primitive!(f32: (0.0)..1.0);
+declare_primitive!(f64: (0.0)..1.0);
 
 /// An Enlargable::Larger value should be enough to calculate
 /// the sum (average) of a few hundred or thousand Enlargeable values.
 pub trait Enlargeable: Sized + Bounded + NumCast {
-    type Larger: Primitive + AddAssign + 'static;
+    type Larger: Primitive + AddAssign;
 
     fn clamp_from(n: Self::Larger) -> Self {
         // Note: Only unsigned value types supported.
@@ -65,6 +91,9 @@ impl Enlargeable for u16 {
 }
 impl Enlargeable for u32 {
     type Larger = u64;
+}
+impl Enlargeable for f32 {
+    type Larger = f64;
 }
 
 /// Linear interpolation without involving floating numbers.
@@ -99,20 +128,68 @@ impl Lerp for u32 {
     type Ratio = f64;
 }
 
+impl Lerp for f32 {
+    type Ratio = f32;
+
+    fn lerp(a: Self, b: Self, ratio: Self::Ratio) -> Self {
+        a + (b - a) * ratio
+    }
+}
+
+/// The pixel with an associated `ColorType`.
+/// Not all possible pixels represent one of the predefined `ColorType`s.
+pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
+
+    /// This pixel has the format of one of the predefined `ColorType`s,
+    /// such as `Rgb8`, `La16` or `Rgba32F`.
+    /// This is needed for automatically detecting
+    /// a color format when saving an image as a file.
+    const COLOR_TYPE: ColorType;
+}
+
+impl PixelWithColorType for Rgb<u8> { const COLOR_TYPE: ColorType = ColorType::Rgb8; }
+impl PixelWithColorType for Rgb<u16> { const COLOR_TYPE: ColorType = ColorType::Rgb16; }
+impl PixelWithColorType for Rgb<f32> { const COLOR_TYPE: ColorType = ColorType::Rgb32F; }
+
+impl PixelWithColorType for Rgba<u8> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
+impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba16; }
+impl PixelWithColorType for Rgba<f32> { const COLOR_TYPE: ColorType = ColorType::Rgba32F; }
+
+impl PixelWithColorType for Luma<u8> { const COLOR_TYPE: ColorType = ColorType::L8; }
+impl PixelWithColorType for Luma<u16> { const COLOR_TYPE: ColorType = ColorType::L16; }
+impl PixelWithColorType for LumaA<u8> { const COLOR_TYPE: ColorType = ColorType::La8; }
+impl PixelWithColorType for LumaA<u16> { const COLOR_TYPE: ColorType = ColorType::La16; }
+
+/// Prevents down-stream users from implementing the `Primitive` trait
+mod private {
+    use crate::color::*;
+
+    pub trait SealedPixelWithColorType {}
+    impl SealedPixelWithColorType for Rgb<u8> {}
+    impl SealedPixelWithColorType for Rgb<u16> {}
+    impl SealedPixelWithColorType for Rgb<f32> {}
+
+    impl SealedPixelWithColorType for Rgba<u8> {}
+    impl SealedPixelWithColorType for Rgba<u16> {}
+    impl SealedPixelWithColorType for Rgba<f32> {}
+
+    impl SealedPixelWithColorType for Luma<u8> {}
+    impl SealedPixelWithColorType for LumaA<u8> {}
+
+    impl SealedPixelWithColorType for Luma<u16> {}
+    impl SealedPixelWithColorType for LumaA<u16> {}
+}
+
 /// A generalized pixel.
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
 pub trait Pixel: Copy + Clone {
-    /// The underlying subpixel type.
+
+    /// The scalar type that is used to store each channel in this pixel.
     type Subpixel: Primitive;
 
     /// The number of channels of this pixel type.
     const CHANNEL_COUNT: u8;
-    /// Returns the number of channels of this pixel type.
-    #[deprecated(note="please use CHANNEL_COUNT associated constant")]
-    fn channel_count() -> u8 {
-        Self::CHANNEL_COUNT
-    }
 
     /// Returns the components as a slice.
     fn channels(&self) -> &[Self::Subpixel];
@@ -123,25 +200,10 @@ pub trait Pixel: Copy + Clone {
     /// A string that can help to interpret the meaning each channel
     /// See [gimp babl](http://gegl.org/babl/).
     const COLOR_MODEL: &'static str;
-    /// Returns a string that can help to interpret the meaning each channel
-    /// See [gimp babl](http://gegl.org/babl/).
-    #[deprecated(note="please use COLOR_MODEL associated constant")]
-    fn color_model() -> &'static str {
-        Self::COLOR_MODEL
-    }
-
-    /// ColorType for this pixel format
-    const COLOR_TYPE: ColorType;
-    /// Returns the ColorType for this pixel format
-    #[deprecated(note="please use COLOR_TYPE associated constant")]
-    fn color_type() -> ColorType {
-        Self::COLOR_TYPE
-    }
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
-    ///
-    /// TODO deprecate
+    #[deprecated(since="0.24.0", note="Use `channels()` or `channels_mut()`")]
     fn channels4(
         &self,
     ) -> (
@@ -153,8 +215,7 @@ pub trait Pixel: Copy + Clone {
 
     /// Construct a pixel from the 4 channels a, b, c and d.
     /// If the pixel does not contain 4 channels the extra are ignored.
-    ///
-    /// TODO deprecate
+    #[deprecated(since="0.24.0", note="Use the constructor of the pixel, for example `Rgba::new(r,g,b,a)` or `Pixel::from_slice`")]
     fn from_channels(
         a: Self::Subpixel,
         b: Self::Subpixel,
@@ -185,12 +246,6 @@ pub trait Pixel: Copy + Clone {
 
     /// Convert this pixel to luma with an alpha channel
     fn to_luma_alpha(&self) -> LumaA<Self::Subpixel>;
-
-    /// Convert this pixel to BGR
-    fn to_bgr(&self) -> Bgr<Self::Subpixel>;
-
-    /// Convert this pixel to BGR with an alpha channel
-    fn to_bgra(&self) -> Bgra<Self::Subpixel>;
 
     /// Apply the function ```f``` to each channel of this pixel.
     fn map<F>(&self, f: F) -> Self
@@ -260,4 +315,5 @@ mod seals {
 
     impl EncodableLayout for [u8] {}
     impl EncodableLayout for [u16] {}
+    impl EncodableLayout for [f32] {}
 }

@@ -5,7 +5,7 @@ use crate::color::ColorType;
 use crate::error::ImageResult;
 use crate::image::ImageEncoder;
 
-use crate::png::PngEncoder;
+use crate::codecs::png::PngEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -19,17 +19,6 @@ pub struct IcoEncoder<W: Write> {
     w: W,
 }
 
-/// ICO encoder
-///
-/// An alias of [`IcoEncoder`].
-///
-/// TODO: remove
-///
-/// [`IcoEncoder`]: struct.IcoEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `IcoEncoder` instead")]
-pub type ICOEncoder<W> = IcoEncoder<W>;
-
 impl<W: Write> IcoEncoder<W> {
     /// Create a new encoder that writes its output to ```w```.
     pub fn new(w: W) -> IcoEncoder<W> {
@@ -39,6 +28,9 @@ impl<W: Write> IcoEncoder<W> {
     /// Encodes the image ```image``` that has dimensions ```width``` and
     /// ```height``` and ```ColorType``` ```c```.  The dimensions of the image
     /// must be between 1 and 256 (inclusive) or an error will be returned.
+    ///
+    /// Expects data to be big endian.
+    #[deprecated = "Use `IcoEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
     pub fn encode(
         mut self,
         data: &[u8],
@@ -47,6 +39,7 @@ impl<W: Write> IcoEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         let mut image_data: Vec<u8> = Vec::new();
+        #[allow(deprecated)]
         PngEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
         write_icondir(&mut self.w, 1)?;
@@ -64,14 +57,33 @@ impl<W: Write> IcoEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for IcoEncoder<W> {
+    /// Write an ICO image with the specified width, height, and color type.
+    ///
+    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
+    /// native endian.
+    /// 
+    /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian. 
     fn write_image(
-        self,
+        mut self,
         buf: &[u8],
         width: u32,
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
-        self.encode(buf, width, height, color_type)
+        let mut image_data: Vec<u8> = Vec::new();
+        PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
+
+        write_icondir(&mut self.w, 1)?;
+        write_direntry(
+            &mut self.w,
+            width,
+            height,
+            color_type,
+            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
+            image_data.len() as u32,
+        )?;
+        self.w.write_all(&image_data)?;
+        Ok(())
     }
 }
 

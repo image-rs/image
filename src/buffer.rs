@@ -6,13 +6,13 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
-use crate::{ImageOutputFormat, color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra}};
+use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::flat::{FlatSamples, SampleLayout};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
-use crate::image::{GenericImage, GenericImageView, ImageFormat};
+use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
-use crate::traits::{EncodableLayout, Pixel};
+use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 
 /// Iterate over pixel refs.
@@ -585,7 +585,7 @@ where
 /// ```no_run
 /// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
-/// let on_top = open("path/to/some.png").unwrap().into_rgb();
+/// let on_top = open("path/to/some.png").unwrap().into_rgb8();
 /// let mut img = ImageBuffer::from_fn(512, 512, |x, y| {
 ///     if (x + y) % 2 == 0 {
 ///         image::Rgb([0, 0, 0])
@@ -602,8 +602,8 @@ where
 /// ```no_run
 /// use image::{open, DynamicImage};
 ///
-/// let rgba = open("path/to/some.png").unwrap().into_rgba();
-/// let gray = DynamicImage::ImageRgba8(rgba).into_luma();
+/// let rgba = open("path/to/some.png").unwrap().into_rgba8();
+/// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
@@ -614,13 +614,9 @@ pub struct ImageBuffer<P: Pixel, Container> {
 }
 
 // generic implementation, shared along all image buffers
-//
-// TODO: Is the 'static bound on `I::Pixel` really required? Can we avoid it?  Remember to remove
-// the bounds on `imageops` in case this changes!
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     /// Contructs a buffer from a generic container
@@ -795,7 +791,7 @@ where
         FlatSamples {
             samples: self.data,
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -809,7 +805,7 @@ where
         FlatSamples {
             samples: self.data.as_ref(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 
@@ -823,15 +819,14 @@ where
         FlatSamples {
             samples: self.data.as_mut(),
             layout,
-            color_hint: Some(P::COLOR_TYPE),
+            color_hint: None, // TODO: the pixel type might contain P::COLOR_TYPE if it satisfies PixelWithColorType
         }
     }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     // TODO: choose name under which to expose.
@@ -921,7 +916,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -934,6 +929,7 @@ where
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer(
@@ -941,14 +937,14 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
         )
     }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -960,6 +956,7 @@ where
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
@@ -967,7 +964,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }
@@ -975,7 +972,7 @@ where
 
 impl<P, Container> ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     [P::Subpixel]: EncodableLayout,
     Container: Deref<Target = [P::Subpixel]>,
 {
@@ -986,13 +983,11 @@ where
     ///
     /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
     /// supported types.
-    ///
-    /// **Note**: TIFF encoding uses buffered writing,
-    /// which can lead to unexpected use of resources
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where
-        W: std::io::Write,
+        W: std::io::Write + std::io::Seek,
         F: Into<ImageOutputFormat>,
+        P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
@@ -1000,7 +995,7 @@ where
             self.as_bytes(),
             self.width(),
             self.height(),
-            <P as Pixel>::COLOR_TYPE,
+            <P as PixelWithColorType>::COLOR_TYPE,
             format,
         )
     }
@@ -1023,8 +1018,7 @@ where
 
 impl<P, Container> Deref for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     type Target = [P::Subpixel];
@@ -1036,8 +1030,7 @@ where
 
 impl<P, Container> DerefMut for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
@@ -1047,8 +1040,7 @@ where
 
 impl<P, Container> Index<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
     type Output = P;
@@ -1060,8 +1052,7 @@ where
 
 impl<P, Container> IndexMut<(u32, u32)> for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
@@ -1086,9 +1077,8 @@ where
 
 impl<P, Container> GenericImageView for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + Deref,
-    P::Subpixel: 'static,
 {
     type Pixel = P;
     type InnerImageView = Self;
@@ -1119,9 +1109,8 @@ where
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
 where
-    P: Pixel + 'static,
+    P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
-    P::Subpixel: 'static,
 {
     type InnerImage = Self;
 
@@ -1165,7 +1154,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                slice_copy_within(self, start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         } else {
             for y in 0..height {
@@ -1174,7 +1163,7 @@ where
                 let Range { start, .. } = self.pixel_indices_unchecked(sx, sy);
                 let Range { end, .. } = self.pixel_indices_unchecked(sx + width - 1, sy);
                 let dst = self.pixel_indices_unchecked(dx, dy).start;
-                slice_copy_within(self, start..end, dst);
+                self.data.copy_within(start..end, dst);
             }
         }
         true
@@ -1185,34 +1174,13 @@ where
     }
 }
 
-// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten 
-//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within` 
-//  has been stabilized in 1.37.
-#[inline(always)]
-fn slice_copy_within<T: Copy>(slice: &mut [T], Range { start: src_start, end: src_end }: Range<usize>, dest: usize) {
-    assert!(src_start <= src_end, "src end is before src start");
-    assert!(src_end <= slice.len(), "src is out of bounds");
-    let count = src_end - src_start;
-    assert!(dest <= slice.len() - count, "dest is out of bounds");
-    unsafe {
-        std::ptr::copy(
-            slice.as_ptr().add(src_start),
-            slice.as_mut_ptr().add(dest),
-            count,
-        );
-    }
-}
-
 // concrete implementation for `Vec`-backed buffers
 // TODO: I think that rustc does not "see" this impl any more: the impl with
 // Container meets the same requirements. At least, I got compile errors that
 // there is no such function as `into_vec`, whereas `into_raw` did work, and
 // `into_vec` is redundant anyway, because `into_raw` will give you the vector,
 // and it is more generic.
-impl<P: Pixel + 'static> ImageBuffer<P, Vec<P::Subpixel>>
-where
-    P::Subpixel: 'static,
-{
+impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     /// Creates a new image buffer based on a `Vec<P::Subpixel>`.
     ///
     /// # Panics
@@ -1324,13 +1292,11 @@ impl GrayImage {
 // TODO: Equality constraints are not yet supported in where clauses, when they
 // are, the T parameter should be removed in favor of ToType::Subpixel, which
 // will then be FromType::Subpixel.
-impl<'a, 'b, Container, FromType: Pixel + 'static, ToType: Pixel + 'static>
+impl<'a, 'b, Container, FromType: Pixel, ToType: Pixel>
     ConvertBuffer<ImageBuffer<ToType, Vec<ToType::Subpixel>>> for ImageBuffer<FromType, Container>
 where
     Container: Deref<Target = [FromType::Subpixel]>,
     ToType: FromColor<FromType>,
-    FromType::Subpixel: 'static,
-    ToType::Subpixel: 'static,
 {
     /// # Examples
     /// Convert RGB image to gray image.
@@ -1341,7 +1307,7 @@ where
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
-    ///     .to_rgba();
+    ///     .to_rgba8();
     /// 
     /// let gray_image: GrayImage = image.convert();
     /// ```
@@ -1363,10 +1329,6 @@ pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 /// Sendable grayscale + alpha channel image buffer
 pub type GrayAlphaImage = ImageBuffer<LumaA<u8>, Vec<u8>>;
-/// Sendable Bgr image buffer
-pub(crate) type BgrImage = ImageBuffer<Bgr<u8>, Vec<u8>>;
-/// Sendable Bgr + alpha channel image buffer
-pub(crate) type BgraImage = ImageBuffer<Bgra<u8>, Vec<u8>>;
 /// Sendable 16-bit Rgb image buffer
 pub(crate) type Rgb16Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 /// Sendable 16-bit Rgb + alpha channel image buffer

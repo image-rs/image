@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::io::{self, BufReader, Cursor, Read, Seek, SeekFrom, BufRead};
 use std::path::Path;
 
 use crate::dynimage::DynamicImage;
@@ -71,7 +71,7 @@ impl<R: Read> Reader<R> {
     /// Create a new image reader without a preset format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
-    /// consider wrapping the reader with a `BufRead::new()`.
+    /// consider wrapping the reader with a `BufReader::new()`.
     ///
     /// It is possible to guess the format based on the content of the read object with
     /// [`with_guessed_format`], or to set the format directly with [`set_format`].
@@ -89,7 +89,7 @@ impl<R: Read> Reader<R> {
     /// Construct a reader with specified format.
     ///
     /// Assumes the reader is already buffered. For optimal performance,
-    /// consider wrapping the reader with a `BufRead::new()`.
+    /// consider wrapping the reader with a `BufReader::new()`.
     pub fn with_format(buffered_reader: R, format: ImageFormat) -> Self {
         Reader {
             inner: buffered_reader,
@@ -146,9 +146,8 @@ impl Reader<BufReader<File>> {
     }
 
     fn open_impl(path: &Path) -> io::Result<Self> {
-        let file = File::open(path)?;
         Ok(Reader {
-            inner: BufReader::new(file),
+            inner: BufReader::new(File::open(path)?),
             format: ImageFormat::from_path(path).ok(),
             limits: super::Limits::default(),
         })

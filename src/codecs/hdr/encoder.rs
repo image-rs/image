@@ -1,6 +1,6 @@
 use crate::color::Rgb;
 use crate::error::ImageResult;
-use crate::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
+use crate::codecs::hdr::{rgbe8, Rgbe8Pixel, SIGNATURE};
 use std::io::{Result, Write};
 use std::cmp::Ordering;
 
@@ -8,17 +8,6 @@ use std::cmp::Ordering;
 pub struct HdrEncoder<W: Write> {
     w: W,
 }
-
-/// HDR Encoder
-///
-/// An alias of [`HdrEncoder`].
-///
-/// TODO: remove
-///
-/// [`HdrEncoder`]: struct.HdrEncoder.html
-#[allow(dead_code)]
-#[deprecated(note = "Use `HdrEncoder` instead")]
-pub type HDREncoder<R> = HdrEncoder<R>;
 
 impl<W: Write> HdrEncoder<W> {
     /// Creates encoder
@@ -235,7 +224,7 @@ fn write_rgbe8<W: Write>(w: &mut W, v: Rgbe8Pixel) -> Result<()> {
     w.write_all(&[v.c[0], v.c[1], v.c[2], v.e])
 }
 
-/// Converts ```Rgb<f32>``` into ```RGBE8Pixel```
+/// Converts ```Rgb<f32>``` into ```Rgbe8Pixel```
 pub fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
     let pix = pix.0;
     let mx = f32::max(pix[0], f32::max(pix[1], pix[2]));
@@ -258,7 +247,7 @@ pub fn to_rgbe8(pix: Rgb<f32>) -> Rgbe8Pixel {
 
 #[test]
 fn to_rgbe8_test() {
-    use crate::hdr::rgbe8;
+    use crate::codecs::hdr::rgbe8;
     let test_cases = vec![rgbe8(0, 0, 0, 0), rgbe8(1, 1, 128, 128)];
     for &pix in &test_cases {
         assert_eq!(pix, to_rgbe8(pix.to_hdr()));

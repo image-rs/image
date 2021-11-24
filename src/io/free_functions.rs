@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Seek};
+use std::io::{BufReader, BufWriter, Seek, BufRead};
 use std::path::Path;
 use std::u32;
 
@@ -14,19 +14,17 @@ use crate::image::ImageFormat;
 use crate::image::{ImageDecoder, ImageEncoder};
 
 pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match File::open(path) {
-        Ok(f) => f,
-        Err(err) => return Err(ImageError::IoError(err)),
-    };
-    let fin = BufReader::new(fin);
+    let buffered_read = BufReader::new(
+        File::open(path).map_err(ImageError::IoError)?
+    );
 
-    load(fin, ImageFormat::from_path(path)?)
+    load(buffered_read, ImageFormat::from_path(path)?)
 }
 
 /// Create a new image from a Reader.
 ///
 /// Assumes the reader is already buffered. For optimal performance,
-/// consider wrapping the reader with a `BufRead::new()`.
+/// consider wrapping the reader with a `BufReader::new()`.
 ///
 /// Try [`io::Reader`] for more advanced uses.
 ///
@@ -99,17 +97,14 @@ pub(crate) fn load_inner<R: BufRead + Seek>(r: R, limits: super::Limits, format:
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
     let format = image::ImageFormat::from_path(path)?;
-
-    let fin = File::open(path)?;
-    let fin = BufReader::new(fin);
-
-    image_dimensions_with_format_impl(fin, format)
+    let reader = BufReader::new(File::open(path)?);
+    image_dimensions_with_format_impl(reader, format)
 }
 
 #[allow(unused_variables)]
 // fin is unused if no features are supported.
-pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, format: ImageFormat)
-    -> ImageResult<(u32, u32)>
+pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(buffered_read: R, format: ImageFormat)
+                                                                   -> ImageResult<(u32, u32)>
 {
         struct DimVisitor;
 
@@ -120,7 +115,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(fin: R, forma
             }
         }
 
-        load_decoder(fin, format, DimVisitor)
+        load_decoder(buffered_read, format, DimVisitor)
 }
 
 #[allow(unused_variables)]
@@ -133,7 +128,6 @@ pub(crate) fn save_buffer_impl(
     color: color::ColorType,
 ) -> ImageResult<()> {
     let format =  ImageFormat::from_path(path)?;
-    let fout = &mut BufWriter::new(File::create(path)?);
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
@@ -147,7 +141,7 @@ pub(crate) fn save_buffer_with_format_impl(
     color: color::ColorType,
     format: ImageFormat,
 ) -> ImageResult<()> {
-    let fout = &mut BufWriter::new(File::create(path)?);
+    let buffered_file_write = &mut BufWriter::new(File::create(path)?); // always seekable
 
     let format = match format {
         #[cfg(feature = "pnm")]
@@ -156,28 +150,25 @@ pub(crate) fn save_buffer_with_format_impl(
             .and_then(|s| s.to_str())
             .map_or("".to_string(), |s| s.to_ascii_lowercase());
             ImageOutputFormat::Pnm(match &*ext {
-                "pbm" => pnm::PNMSubtype::Bitmap(pnm::SampleEncoding::Binary),
-                "pgm" => pnm::PNMSubtype::Graymap(pnm::SampleEncoding::Binary),
-                "ppm" => pnm::PNMSubtype::Pixmap(pnm::SampleEncoding::Binary),
+                "pbm" => pnm::PnmSubtype::Bitmap(pnm::SampleEncoding::Binary),
+                "pgm" => pnm::PnmSubtype::Graymap(pnm::SampleEncoding::Binary),
+                "ppm" => pnm::PnmSubtype::Pixmap(pnm::SampleEncoding::Binary),
+                "pam" => pnm::PnmSubtype::ArbitraryMap,
                 _ => { return Err(ImageError::Unsupported(ImageFormatHint::Exact(format).into())) }, // Unsupported Pnm subtype.
             })
         },
         // #[cfg(feature = "hdr")]
         // image::ImageFormat::Hdr => hdr::HdrEncoder::new(fout).encode(&[Rgb<f32>], width, height), // usize
-        #[cfg(feature = "tiff")]
-        image::ImageFormat::Tiff => {
-            return tiff::TiffEncoder::new(fout).write_image(buf, width, height, color);
-        },
         format => format.into(),
     };
 
-    write_buffer_impl(fout, buf, width, height, color, format)
+    write_buffer_impl(buffered_file_write, buf, width, height, color, format)
 }
 
 #[allow(unused_variables)]
 // Most variables when no features are supported
-pub(crate) fn write_buffer_impl<W: std::io::Write>(
-    fout: &mut W,
+pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
+    buffered_write: &mut W,
     buf: &[u8],
     width: u32,
     height: u32,
@@ -186,45 +177,36 @@ pub(crate) fn write_buffer_impl<W: std::io::Write>(
 ) -> ImageResult<()> {
     match format {
         #[cfg(feature = "png")]
-        ImageOutputFormat::Png => png::PngEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Png => png::PngEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "jpeg")]
-        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(fout, quality)
+        ImageOutputFormat::Jpeg(quality) => jpeg::JpegEncoder::new_with_quality(buffered_write, quality)
             .write_image(buf, width, height, color),
         #[cfg(feature = "pnm")]
-        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(fout)
+        ImageOutputFormat::Pnm(subtype) => pnm::PnmEncoder::new(buffered_write)
             .with_subtype(subtype)
             .write_image(buf, width, height, color),
         #[cfg(feature = "gif")]
-        ImageOutputFormat::Gif => gif::GifEncoder::new(fout).encode(buf, width, height, color),
+        ImageOutputFormat::Gif => gif::GifEncoder::new(buffered_write).encode(buf, width, height, color),
         #[cfg(feature = "ico")]
-        ImageOutputFormat::Ico => ico::IcoEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Ico => ico::IcoEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "bmp")]
-        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Bmp => bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "farbfeld")]
-        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Farbfeld => farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "tga")]
-        ImageOutputFormat::Tga => tga::TgaEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Tga => tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "openexr")]
-        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::OpenExr => openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "tiff")]
-        ImageOutputFormat::Tiff => {
-            let mut cursor = std::io::Cursor::new(Vec::new());
-            tiff::TiffEncoder::new(&mut cursor).write_image(buf, width, height, color)?;
-            fout.write(&cursor.into_inner()[..])
-                .map(|_| ())
-                .map_err(ImageError::IoError)
-        }
+        ImageOutputFormat::Tiff => tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color),
         #[cfg(feature = "avif-encoder")]
-        ImageOutputFormat::Avif => avif::AvifEncoder::new(fout).write_image(buf, width, height, color),
+        ImageOutputFormat::Avif => avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color),
 
         image::ImageOutputFormat::Unsupported(msg) => {
             Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormatHint::Unknown,
                 UnsupportedErrorKind::Format(ImageFormatHint::Name(msg)))))
         }
-
-        image::ImageOutputFormat::__NonExhaustive(marker) => match marker._private {},
-
     }
 }
 

@@ -16,11 +16,12 @@ use crate::traits::Pixel;
 use crate::animation::Frames;
 
 #[cfg(feature = "pnm")]
-use crate::pnm::PNMSubtype;
+use crate::codecs::pnm::PnmSubtype;
 
 /// An enumeration of supported image formats.
 /// Not all formats support both encoding and decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[non_exhaustive]
 pub enum ImageFormat {
     /// An Image in PNG Format
     Png,
@@ -63,9 +64,6 @@ pub enum ImageFormat {
 
     /// An Image in AVIF format.
     Avif,
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl ImageFormat {
@@ -186,7 +184,6 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -209,7 +206,6 @@ impl ImageFormat {
             ImageFormat::Hdr => false,
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 
@@ -239,13 +235,13 @@ impl ImageFormat {
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
-            ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
 }
 
 /// An enumeration of supported image formats for encoding.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum ImageOutputFormat {
     #[cfg(feature = "png")]
     /// An Image in PNG Format
@@ -257,7 +253,7 @@ pub enum ImageOutputFormat {
 
     #[cfg(feature = "pnm")]
     /// An Image in one of the PNM Formats
-    Pnm(PNMSubtype),
+    Pnm(PnmSubtype),
 
     #[cfg(feature = "gif")]
     /// An Image in GIF Format
@@ -295,9 +291,6 @@ pub enum ImageOutputFormat {
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
     Unsupported(String),
-
-    #[doc(hidden)]
-    __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
 
 impl From<ImageFormat> for ImageOutputFormat {
@@ -308,7 +301,7 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "jpeg")]
             ImageFormat::Jpeg => ImageOutputFormat::Jpeg(75),
             #[cfg(feature = "pnm")]
-            ImageFormat::Pnm => ImageOutputFormat::Pnm(PNMSubtype::ArbitraryMap),
+            ImageFormat::Pnm => ImageOutputFormat::Pnm(PnmSubtype::ArbitraryMap),
             #[cfg(feature = "gif")]
             ImageFormat::Gif => ImageOutputFormat::Gif,
             #[cfg(feature = "ico")]
@@ -704,7 +697,7 @@ pub trait ImageDecoder<'a>: Sized {
 }
 
 /// Specialized image decoding not be supported by all formats
-pub trait ImageDecoderExt<'a>: ImageDecoder<'a> + Sized {
+pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     /// Decode a rectangular section of the image; see [`read_rect_with_progress()`](#fn.read_rect_with_progress).
     fn read_rect(
         &mut self,
@@ -844,8 +837,6 @@ pub trait GenericImageView {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// TODO: change this signature to &P
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
 
     /// Returns the pixel located at (x, y). Indexed from top left.
@@ -878,10 +869,12 @@ pub trait GenericImageView {
     /// Returns a reference to the underlying image.
     fn inner(&self) -> &Self::InnerImageView;
 
-    /// Returns an subimage that is an immutable view into this image.
+    /// Returns a subimage that is an immutable view into this image.
     /// You can use [`GenericImage::sub_image`] if you need a mutable view instead.
     /// The coordinates set the position of the top left corner of the view.
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         SubImage::new(self.inner(), x, y, width, height)
     }
 }
@@ -898,6 +891,22 @@ pub trait GenericImage: GenericImageView {
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of bounds.
+    ///
+    /// Panics for dynamic images (this method is deprecated and will be removed).
+    ///
+    /// ## Known issues
+    ///
+    /// This requires the buffer to contain a unique set of continuous channels in the exact order
+    /// and byte representation that the pixel type requires. This is somewhat restrictive.
+    ///
+    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
+    /// while still doing only one array lookup:
+    ///
+    /// ```ignore
+    /// let px = image.pixel_entry_at(x,y);
+    /// px.set_from_rgba(rgba)
+    /// ```
+    #[deprecated(since = "0.24.0", note="Use `get_pixel` and `put_pixel` instead.")]
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Put a pixel at location (x, y). Indexed from top left.
@@ -920,8 +929,7 @@ pub trait GenericImage: GenericImageView {
     }
 
     /// Put a pixel at location (x, y), taking into account alpha channels
-    ///
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
+    #[deprecated(since = "0.24.0", note="Use iterator `pixels_mut` to blend the pixels directly")]
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
 
     /// Copies all of the pixels from another image into this image.
@@ -1015,6 +1023,8 @@ pub trait GenericImage: GenericImageView {
         width: u32,
         height: u32,
     ) -> SubImage<&mut Self::InnerImage> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         SubImage::new(self.inner_mut(), x, y, width, height)
     }
 }
@@ -1025,6 +1035,7 @@ pub trait GenericImage: GenericImageView {
 ///   - [`GenericImage::sub_image`] to create a mutable view,
 ///   - [`GenericImageView::view`] to create an immutable view,
 ///   - [`SubImage::new`] to instantiate the struct directly.
+#[derive(Copy, Clone)]
 pub struct SubImage<I> {
     image: I,
     xoffset: u32,
@@ -1102,6 +1113,8 @@ where
     }
 
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImageView> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         let x = self.xoffset + x;
         let y = self.yoffset + y;
         SubImage::new(self.inner(), x, y, width, height)
@@ -1142,6 +1155,8 @@ where
         width: u32,
         height: u32,
     ) -> SubImage<&mut Self::InnerImage> {
+        assert!(x as u64 + width as u64 <= self.width() as u64);
+        assert!(y as u64 + height as u64 <= self.height() as u64);
         let x = self.xoffset + x;
         let y = self.yoffset + y;
         SubImage::new(self.inner_mut(), x, y, width, height)
@@ -1163,6 +1178,7 @@ mod tests {
     use crate::math::Rect;
 
     #[test]
+    #[allow(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
@@ -1227,6 +1243,65 @@ mod tests {
 
         let view2 = view1.view(1, 1, 1, 1);
         assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_coordinates_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(3, 3, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_width_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 3, 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_height_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 1, 2, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_x_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(3, 1, 3, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_view_y_out_of_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(1, 3, 3, 3);
+    }
+
+    #[test]
+    fn test_view_in_bounds() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        source.view(0, 0, 3, 3);
+        source.view(1, 1, 2, 2);
+        source.view(2, 2, 0, 0);
+    }
+
+    #[test]
+    fn test_copy_sub_image() {
+        let source = ImageBuffer::from_pixel(3, 3, Rgba([255u8, 0, 0, 255]));
+        let view = source.view(0, 0, 3, 3);
+        let mut views = Vec::new();
+        views.push(view);
+        view.to_image();
     }
 
     #[test]

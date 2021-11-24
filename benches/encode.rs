@@ -1,7 +1,7 @@
 extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use image::{ColorType, bmp::BmpEncoder, jpeg::JpegEncoder};
+use image::{ColorType, codecs::bmp::BmpEncoder, codecs::jpeg::JpegEncoder};
 
 use std::fs::File;
 use std::io::{BufWriter, Write, Seek, SeekFrom};

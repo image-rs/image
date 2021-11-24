@@ -49,16 +49,7 @@ impl TransformType {
 
                         let index = y * width + x;
 
-                        //print!("{} -> ", image_data[index]);
-
                         let green = (predictor_data[block_index] >> 8) & 0xff;
-
-                        //println!("x: {}, y: {}, code: {}", x, y, green);
-
-                        /* if image_data[index] == 1459552517 {
-                            println!("x: {}, y: {}, code: {}", x, y, green);
-                            println!("left: {}, top: {}, top_left: {}", get_left(image_data, x, y, width), get_top(image_data, x, y, width), get_top_left(image_data, x, y, width));
-                        } */
 
                         match green {
                             0 => image_data[index] = add_pixels(image_data[index], 0xff000000),
@@ -88,10 +79,7 @@ impl TransformType {
                             _ => {println!("INVALIDA PREDICTOR???? {}", predictor_data[block_index])},
                         }
 
-                        //println!("{}", image_data[index]);
-                        //println!("x: {}, y: {}, value: {}, code: {}", x, y, image_data[index], green);
                     }
-                    //println!();
                 }
             },
             TransformType::ColorTransform { size_bits, transform_data } => {
@@ -108,64 +96,8 @@ impl TransformType {
                         let multiplier = ColorTransformElement::from_color_code(transform_data[block_index]);
 
                         image_data[index] = transform_color(&multiplier, image_data[index]);
-                        //println!("{}", image_data[index]);
                     }
                 }
-                /* let mask = (1 << size_bits) - 1;
-                let block_xsize = div_round_up(width, 1 << size_bits);
-                let tiles_per_row = usize::from(div_round_up(block_xsize, 1 << size_bits));
-                let block_xsize = usize::from(block_xsize);
-
-                let width = usize::from(width);
-
-                
-
-                let mut trans_row = 0;
-
-                for y in 0..usize::from(height) {
-
-                    let mut transform_index = trans_row;
-
-                    let mut multiplier = ColorTransformElement {
-                        green_to_red: 0, 
-                        green_to_blue: 0, 
-                        red_to_blue: 0
-                    };
-
-                    for x in 0..width {
-                        if (x & mask) == 0 {
-                            multiplier = ColorTransformElement::from_color_code(transform_data[transform_index]);
-                            transform_index += 1;
-                        }
-                        image_data[y * width + x] = transform_color(&multiplier, image_data[y * width + x]);
-                    }
-                    
-                    if ((y + 1) & mask) == 0 {
-                        trans_row += tiles_per_row;
-                    }
-
-                    /* let mut transform_index = (y >> size_bits) * tiles_per_row;
-                    let mut data_index = y * width;
-                    let mut x = 0;
-
-                    while x < width {
-                        
-                        
-                        for x in 0..block_xsize {
-                            if (x & mask) == 0 {
-                                multiplier = ColorTransformElement::from_color_code(transform_data[transform_index]);
-                                transform_index += 1;
-                            }
-                            image_data[data_index] = transform_color(&multiplier, image_data[data_index]);
-                        }
-                        data_index += block_xsize;
-                        x += 1;
-
-                        if (y & mask) == 0 {
-                            transform_index += tiles_per_row;
-                        }
-                    } */
-                } */
             },
             TransformType::SubtractGreen => {
                 let width = usize::from(width);
@@ -234,7 +166,6 @@ fn add_pixels(a: u32, b: u32) -> u32 {
     let new_blue = ((a & 0xff) + (b & 0xff)) & 0xff;
 
     let out = (new_alpha << 24) + (new_red << 16) + (new_green << 8) + new_blue;
-    //println!("in: a: {}, b: {}; out: a: {}", a, b, out);
     out
 }
 
@@ -324,7 +255,6 @@ fn clamp_add_subtract_full(a: u32, b: u32, c: u32) -> u32 {
         let sub_c: i32 = ((c >> (i * 8)) & 0xff).try_into().unwrap();
         value |= u32::try_from(clamp_add_subtract_full_sub(sub_a, sub_b, sub_c)).unwrap() << (i * 8);
     }
-    //println!("a: {}, b: {}, c: {}, out: {}", a, b, c, value);
     value
 }
 
@@ -384,7 +314,6 @@ fn transform_color(multiplier: &ColorTransformElement, color_value: u32) -> u32 
     let (new_red, new_blue) = color_transform(red, blue, green, multiplier);
 
     let new_value = (u32::from(alpha) << 24) + (u32::from(new_red) << 16) + (u32::from(green) << 8) + u32::from(new_blue);
-    //println!("multiplier: {:?}, in: {}, out: {}", multiplier, color_value, new_value);
     new_value
 }
 
@@ -399,8 +328,6 @@ fn add_green(argb: u32) -> u32 {
     let new_blue = (blue + green) & 0xff;
 
     let new_argb = (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
-
-    //println!("in: {}, out: {}", argb, new_argb);
 
     new_argb
 }

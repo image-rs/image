@@ -149,9 +149,6 @@ impl HuffmanTree {
 
             for (symbol, &length) in code_lengths.iter().enumerate() {
                 if length > 0 && codes[symbol].is_some() {
-                    if num_symbols == 2 && length == 3 {
-                        println!("{:?}, {}, {:?}, {:?}", code_lengths, symbol, codes, code_lengths);
-                    }
                     tree.add_symbol(symbol.try_into().unwrap(), codes[symbol].unwrap(), length);
                 }
             }

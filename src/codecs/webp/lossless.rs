@@ -144,13 +144,10 @@ impl<R: Read> LosslessDecoder<R> {
             return Err(DecoderError::VersionNumberInvalid(version_num).into());
         }
 
-        println!("width: {}, height: {}", self.frame.width, self.frame.height);
-
         let mut data = self.decode_image_stream(self.frame.width, self.frame.height, true)?;
 
         for &trans_index in self.transform_order.iter().rev() {
             let trans = self.transforms[usize::from(trans_index)].as_ref().unwrap();
-            println!("applying transform: {:?}", trans_index);
             trans.apply_transform(&mut data, self.frame.width, self.frame.height);
         }
 
@@ -192,14 +189,7 @@ impl<R: Read> LosslessDecoder<R> {
             }
         });
 
-        println!("color_cache_bits: {:?}", color_cache_bits);
-
         let huffman_info = self.read_huffman_codes(is_argb_img, xsize, ysize, color_cache)?;
-
-        /* println!("huffman tree:\n");
-        for i in 0..huffman_info.huffman_code_groups[0][0].num_nodes {
-            print!("{:?}, ", huffman_info.huffman_code_groups[0][0].tree[i]);
-        } */
 
         //decode data
         let data = self.decode_image_data(xsize, ysize, huffman_info)?;
@@ -210,8 +200,6 @@ impl<R: Read> LosslessDecoder<R> {
     fn read_transforms(&mut self) -> ImageResult<()> {
         while self.bit_reader.read_bits::<u8>(1) == 1 {
             let transform_type_val = self.bit_reader.read_bits::<u8>(2);
-
-            println!("Transform: {}", transform_type_val);
 
             if self.transforms[usize::from(transform_type_val)].is_some() {
                 //can only have one of each transform, error
@@ -266,8 +254,6 @@ impl<R: Read> LosslessDecoder<R> {
             self.transforms[usize::from(transform_type_val)] = Some(transform_type);
         }
 
-        println!("finished transforms");
-
         Ok(())
     }
 
@@ -293,9 +279,6 @@ impl<R: Read> LosslessDecoder<R> {
             let huffman_pixels = usize::from(huffman_xsize * huffman_ysize);
 
             entropy_image = self.decode_image_stream(huffman_xsize, huffman_ysize, false)?;
-            
-            //println!("{:#?}", entropy_image);
-            println!("huffman_bits: {}, huffman_xsize: {}, huffman_ysize: {}", huffman_bits, huffman_xsize, huffman_ysize);
 
             for i in 0..huffman_pixels {
                 let meta_huff_code = (entropy_image[i] >> 8) & 0xffff;
@@ -306,10 +289,6 @@ impl<R: Read> LosslessDecoder<R> {
                     num_huff_groups = meta_huff_code + 1;
                 }
             }
-
-            println!("num_huff_groups: {}", num_huff_groups);
-
-            //println!("huffman_bits: {}, entropy_image: {:?}, num_huff_groups: {:?}", huffman_bits, entropy_image, num_huff_groups);
         }
 
         let mut hufftree_groups = Vec::new();
@@ -452,19 +431,6 @@ impl<R: Read> LosslessDecoder<R> {
         let num_values = usize::from(width) * usize::from(height);
         let mut data = vec![0; num_values];
 
-        println!("Decoding image data: {}x{}", width, height);
-        println!("huffman mask: {}", huffman_info.mask);
-        println!("huffman bits: {}", huffman_info.bits);
-
-        /* if huffman_info.image.len() > 0 {
-            for y in 0..38 {
-                for x in 0..50 {
-                    print!("{}, ", huffman_info.image[y * 50 + x]);
-                }
-                println!("");
-            }
-        } */
-
         let index = huffman_info.get_huff_index(0, 0);
         let mut tree = &huffman_info.huffman_code_groups[index];
         let mut last_cached = 0;
@@ -472,9 +438,6 @@ impl<R: Read> LosslessDecoder<R> {
         let mut x = 0;
         let mut y = 0;
         while index < num_values {
-            if index == 3536 {
-                //println!("{}, {}, {}", x & huffman_info.mask, x, y);
-            }
             if (x & huffman_info.mask) == 0 {
                 let index = huffman_info.get_huff_index(x, y);
                 tree = &huffman_info.huffman_code_groups[index];
@@ -482,16 +445,12 @@ impl<R: Read> LosslessDecoder<R> {
 
             let code = tree[GREEN].read_symbol(&mut self.bit_reader);
 
-            //println!("index: {}, code: {}", index, code);
-
             if code < 256 {
                 let red = tree[RED].read_symbol(&mut self.bit_reader);
                 let blue = tree[BLUE].read_symbol(&mut self.bit_reader);
                 let alpha = tree[ALPHA].read_symbol(&mut self.bit_reader);
 
                 data[index] = (u32::from(alpha) << 24) + (u32::from(red) << 16) + (u32::from(code) << 8) + u32::from(blue);
-
-                //println!("huffman: {}", data[index]);
 
                 index += 1;
                 x += 1;
@@ -511,16 +470,6 @@ impl<R: Read> LosslessDecoder<R> {
                     panic!("{}, {}, {}, {:?}", index, dist, length, tree[DIST]);
                 }
 
-                println!("length_symbol: {}, length: {}, dist_symbol: {}, dist_code: {}, dist: {}", length_symbol, length, dist_symbol, dist_code, dist);
-
-                /* let help = if index == 753 && code == 273 {
-                    println!("dist_symbol: {}, dist: {}, length: {}", dist_symbol, dist, length);
-                    println!("length_symbol: {}, dist_code: {}", length_symbol, dist_code);
-                    true
-                } else {
-                    false
-                }; */
-
                 for i in 0..length {
                     data[index + i] = data[index + i - dist];
                 }
@@ -534,13 +483,8 @@ impl<R: Read> LosslessDecoder<R> {
                     let index = huffman_info.get_huff_index(x, y);
                     tree = &huffman_info.huffman_code_groups[index];
                 }
-                /* if help {
-                    println!("new index: {}, x: {}, y: {}", index, x, y);
-                } */
             } else {
                 let key = code - 256 - 24;
-
-                //println!("key: {}", key);
 
                 if let Some(color_cache) = huffman_info.color_cache.as_mut() {
                     //cache old colors
@@ -549,7 +493,6 @@ impl<R: Read> LosslessDecoder<R> {
                         last_cached += 1;
                     }
                     data[index] = color_cache.lookup(key.into());
-                    //println!("cached: {}", data[index]);
 
                 } else {
                     panic!(":<(");
@@ -634,11 +577,9 @@ struct ColorCache {
 }
 
 impl ColorCache {
-    fn insert(&mut self, color: u32) -> ImageResult<()> {
+    fn insert(&mut self, color: u32) {
         let index = (0x1e35a7bdu32.overflowing_mul(color).0) >> (32 - self.color_cache_bits);
         self.color_cache[index as usize] = color;
-        //println!("argb: {} -> key: {}", color, index);
-        Ok(())
     }
 
     fn lookup(&self, index: usize) -> u32 {

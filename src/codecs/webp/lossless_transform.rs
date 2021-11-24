@@ -98,7 +98,6 @@ impl TransformType {
                 }
             },
             TransformType::ColorIndexingTransform { table_size, table_data } => {
-                
                 let mut new_image_data = Vec::with_capacity(usize::from(width) * usize::from(height));
 
                 let table_size = *table_size;
@@ -130,7 +129,6 @@ impl TransformType {
                         }
 
                         let pixels: usize = (packed_pixels & mask).try_into().unwrap();
-
                         let new_val = if pixels >= table_size.into() {
                             0x00000000
                         } else {
@@ -152,7 +150,7 @@ impl TransformType {
 //predictor functions
 
 /// Adds 2 pixels mod 256 for each pixel
-fn add_pixels(a: u32, b: u32) -> u32 {
+pub(crate) fn add_pixels(a: u32, b: u32) -> u32 {
     let new_alpha = ((a >> 24) + (b >> 24)) & 0xff;
     let new_red = (((a >> 16) & 0xff) + ((b >> 16) & 0xff)) & 0xff;
     let new_green = (((a >> 8) & 0xff) + ((b >> 8) & 0xff)) & 0xff;

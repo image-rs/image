@@ -17,16 +17,6 @@ impl TransformType {
         match self {
             TransformType::PredictorTransform { size_bits, predictor_data} => {
                 
-                /* print!("[\n");
-                for y in 0..usize::from(height) {
-                    print!("\t");
-                    for x in 0..usize::from(width) {
-                        print!("{}, ", image_data[y * usize::from(width) + x]);
-                    }
-                    print!("\n");
-                }
-                print!("]\n"); */
-                
                 let block_xsize = usize::from(div_round_up(width, 1 << size_bits));
                 let width = usize::from(width);
                 let height = usize::from(height);
@@ -76,9 +66,8 @@ impl TransformType {
                                 let first = average2(get_left(image_data, x, y, width), get_top(image_data, x, y, width));
                                 clamp_add_subtract_half(first, get_top_left(image_data, x, y, width))
                             }),
-                            _ => {println!("INVALIDA PREDICTOR???? {}", predictor_data[block_index])},
+                            _ => {},
                         }
-
                     }
                 }
             },
@@ -132,7 +121,7 @@ impl TransformType {
                 let count_mask = pixels_per_byte - 1;
                 let mut packed_pixels = 0;
                 
-                for y in 0..usize::from(height) {
+                for _y in 0..usize::from(height) {
                     for x in 0..width {
                         if (x & count_mask) == 0 {
                             packed_pixels = (image_data[src] >> 8) & 0xff;

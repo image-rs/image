@@ -312,14 +312,13 @@ impl<R: Read> LosslessDecoder<R> {
             huffman_bits = self.bit_reader.read_bits::<u8>(3)? + 2;
             huffman_xsize = div_round_up(xsize, 1 << huffman_bits);
             huffman_ysize = div_round_up(ysize, 1 << huffman_bits);
-            let huffman_pixels = usize::from(huffman_xsize * huffman_ysize);
 
             entropy_image = self.decode_image_stream(huffman_xsize, huffman_ysize, false)?;
 
-            for i in 0..huffman_pixels {
-                let meta_huff_code = (entropy_image[i] >> 8) & 0xffff;
+            for pixel in entropy_image.iter_mut() {
+                let meta_huff_code = (*pixel >> 8) & 0xffff;
 
-                entropy_image[i] = meta_huff_code;
+                *pixel = meta_huff_code;
 
                 if meta_huff_code >= num_huff_groups {
                     num_huff_groups = meta_huff_code + 1;
@@ -354,7 +353,7 @@ impl<R: Read> LosslessDecoder<R> {
         let info = HuffmanInfo {
             xsize: huffman_xsize,
             ysize: huffman_ysize,
-            color_cache: color_cache,
+            color_cache,
             image: entropy_image,
             bits: huffman_bits,
             mask: huffman_mask,
@@ -501,7 +500,7 @@ impl<R: Read> LosslessDecoder<R> {
             } else if code < 256 + 24 {
                 //backward reference, so go back and use that to add image data
                 let length_symbol = code - 256;
-                let length = usize::from(Self::get_copy_distance(&mut self.bit_reader, length_symbol)?);
+                let length = Self::get_copy_distance(&mut self.bit_reader, length_symbol)?;
 
                 let dist_symbol = tree[DIST].read_symbol(&mut self.bit_reader)?;
                 let dist_code = Self::get_copy_distance(&mut self.bit_reader, dist_symbol)?;
@@ -580,7 +579,7 @@ impl<R: Read> LosslessDecoder<R> {
     /// Gets distance to pixel
     fn plane_code_to_distance(xsize: u16, plane_code: usize) -> usize {
         if plane_code > 120 {
-            return plane_code - 120;
+            plane_code - 120
         } else {
             let (xoffset, yoffset) = DISTANCE_MAP[plane_code - 1];
 
@@ -588,7 +587,7 @@ impl<R: Read> LosslessDecoder<R> {
             if dist < 1 {
                 return 1;
             }
-            return dist.try_into().unwrap();
+            dist.try_into().unwrap()
         }
     }
 }

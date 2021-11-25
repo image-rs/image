@@ -160,24 +160,24 @@ pub(crate) fn add_pixels(a: u32, b: u32) -> u32 {
 }
 
 /// Get left pixel
-fn get_left(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
+fn get_left(data: &[u32], x: usize, y: usize, width: usize) -> u32 {
     data[y * width + x - 1]
 }
 
 /// Get top pixel
-fn get_top(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
+fn get_top(data: &[u32], x: usize, y: usize, width: usize) -> u32 {
     data[(y - 1) * width + x]
 }
 
 /// Get pixel to top right
-fn get_top_right(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
+fn get_top_right(data: &[u32], x: usize, y: usize, width: usize) -> u32 {
     // if x == width - 1 this gets the left most pixel of the current row
     // as described in the specification
     data[(y - 1) * width + x + 1]
 }
 
 /// Get pixel to top left
-fn get_top_left(data: &Vec<u32>, x: usize, y: usize, width: usize) -> u32 {
+fn get_top_left(data: &[u32], x: usize, y: usize, width: usize) -> u32 {
     data[(y - 1) * width + x - 1]
 }
 
@@ -220,22 +220,20 @@ fn select(left: u32, top: u32, top_left: u32) -> u32 {
         i32::abs(predict_green - get_byte_i32(top, 1)) + i32::abs(predict_blue - get_byte_i32(top, 0));
 
     if predict_left < predict_top {
-        return left;
+        left
     } else {
-        return top;
+        top
     }
 }
 
 /// Clamp a to [0, 255]
 fn clamp(a: i32) -> i32 {
     if a < 0 {
-        return 0;
+        0
+    } else if a > 255 {
+        255
     } else {
-        if a > 255 {
-            return 255;
-        } else {
-            return a;
-        }
+        a
     }
 }
 
@@ -333,7 +331,5 @@ fn add_green(argb: u32) -> u32 {
     let new_red = (red + green) & 0xff;
     let new_blue = (blue + green) & 0xff;
 
-    let new_argb = (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
-
-    new_argb
+    (argb & 0xff00ff00) | (new_red << 16) | (new_blue)
 }

@@ -61,7 +61,7 @@ impl HuffmanTree {
     }
 
     /// Converts code lengths to codes
-    fn code_lengths_to_codes(code_lengths: &Vec<u16>) -> ImageResult<Vec<Option<u16>>> {
+    fn code_lengths_to_codes(code_lengths: &[u16]) -> ImageResult<Vec<Option<u16>>> {
 
         let max_code_length = *code_lengths.iter().reduce(|a, b| {
             if a >= b {a} else {b}
@@ -89,11 +89,11 @@ impl HuffmanTree {
 
         let mut huff_codes = vec![None; code_lengths.len()];
 
-        for symbol in 0..code_lengths.len() {
-            let length = usize::from(code_lengths[symbol]);
+        for (symbol, &length) in code_lengths.iter().enumerate() {
+            let length = usize::from(length);
             if length > 0 {
                 huff_codes[symbol] = next_codes[length];
-                if let Some(value) = next_codes[usize::from(code_lengths[symbol])].as_mut() {
+                if let Some(value) = next_codes[length].as_mut() {
                     *value += 1;
                 }
             } else {

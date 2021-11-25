@@ -1,4 +1,4 @@
-extern crate image;
+
 
 use image::ImageFormat;
 use image::imageops::FilterType;

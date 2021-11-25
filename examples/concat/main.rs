@@ -1,4 +1,4 @@
-extern crate image;
+
 
 use image::{GenericImage, GenericImageView, ImageBuffer, Pixel, Primitive};
 

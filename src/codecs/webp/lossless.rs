@@ -167,10 +167,10 @@ impl<R: Read> LosslessDecoder<R> {
     /// Fills a buffer by converting from argb to rgba
     pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
         for (&argb_val, chunk) in self.frame.buf.iter().zip(buf.chunks_exact_mut(4)) {
-            buf[index * 4] = ((argb_val >> 16) & 0xff).try_into().unwrap();
-            buf[index * 4 + 1] = ((argb_val >> 8) & 0xff).try_into().unwrap();
-            buf[index * 4 + 2] = (argb_val & 0xff).try_into().unwrap();
-            buf[index * 4 + 3] = ((argb_val >> 24) & 0xff).try_into().unwrap();
+            chunk[0] = ((argb_val >> 16) & 0xff).try_into().unwrap();
+            chunk[1] = ((argb_val >> 8) & 0xff).try_into().unwrap();
+            chunk[2] = (argb_val & 0xff).try_into().unwrap();
+            chunk[3] = ((argb_val >> 24) & 0xff).try_into().unwrap();
         }
     }
 

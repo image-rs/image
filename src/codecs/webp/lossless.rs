@@ -185,10 +185,11 @@ impl<R: Read> LosslessDecoder<R> {
     /// xsize and ysize describe the size of the blocks where each block has its own entropy code
     fn decode_image_stream(&mut self, xsize: u16, ysize: u16, is_argb_img: bool) -> ImageResult<Vec<u32>> {
 
-        let mut trans_xsize = xsize;
-        if is_argb_img {
-            trans_xsize = self.read_transforms()?;
-        }
+        let trans_xsize = if is_argb_img {
+            self.read_transforms()?
+        } else {
+            xsize
+        };
 
         let color_cache_bits = self.read_color_cache()?;
 

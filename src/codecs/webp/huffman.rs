@@ -109,10 +109,7 @@ impl HuffmanTree {
         let mut node_index = 0;
         let code = usize::from(code);
 
-        let mut length = code_length;
-
-        while length > 0 {
-            length -= 1;
+        for length in (0..code_length).rev() {
             if node_index >= self.max_nodes {
                 return Err(DecoderError::HuffmanError.into());
             }

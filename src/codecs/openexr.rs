@@ -74,10 +74,9 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
 
         let header_index = exr_reader.headers().iter()
             .position(|header|{
-                let has_rgb = ["R","G","B"].iter().all( // alpha will be optional
-                    // check if r/g/b exists in the channels
-                    |required| header.channels.list.iter()
-                        .any(|chan| chan.name.eq(required)) // TODO use search("A") and eq_lowercase later when exrs supports it
+                // check if r/g/b exists in the channels
+                let has_rgb = ["R","G","B"].iter().all(|&required|  // alpha will be optional
+                    header.channels.find_index_of_channel(&Text::from(required)).is_some()
                 );
 
                 // we currently dont support deep images, or images with other color spaces than rgb
@@ -89,9 +88,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
             )))?;
 
         let has_alpha = exr_reader.headers()[header_index]
-            .channels.list
-            .iter()
-            .any(|chan| chan.name.eq("A")); // TODO use search("A") and eq_lowercase later when exrs supports it
+            .channels.find_index_of_channel(&Text::from("A")).is_some();
 
         Ok(Self {
             alpha_preference,

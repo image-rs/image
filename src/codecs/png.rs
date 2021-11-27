@@ -117,7 +117,7 @@ impl<R: Read> PngDecoder<R> {
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.
         decoder.set_transformations(png::Transformations::EXPAND);
-        let mut reader = decoder.read_info().map_err(ImageError::from_png)?;
+        let reader = decoder.read_info().map_err(ImageError::from_png)?;
         let (color_type, bits) = reader.output_color_type();
         let color_type = match (color_type, bits) {
             (png::ColorType::Grayscale, png::BitDepth::Eight) => ColorType::L8,
@@ -506,6 +506,9 @@ impl<W: Write> PngEncoder<W> {
     }
 
     /// Encodes the image `data` that has dimensions `width` and `height` and `ColorType` `c`.
+    ///
+    /// Expects data in big endian.
+    #[deprecated = "Use `PngEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
@@ -549,6 +552,11 @@ impl<W: Write> PngEncoder<W> {
 }
 
 impl<W: Write> ImageEncoder for PngEncoder<W> {
+    /// Write a PNG image with the specified width, height, and color type.
+    ///
+    /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
+    /// native endian. PngEncoder will automatically convert to big endian as required by the
+    /// underlying PNG format.
     fn write_image(
         self,
         buf: &[u8],
@@ -563,6 +571,7 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         // contract of `write_image`.
         // TODO: assumes equal channel bit depth.
         let bpc = color_type.bytes_per_pixel() / color_type.channel_count();
+        #[allow(deprecated)]
         match bpc {
             1 => self.encode(buf, width, height, color_type),  // No reodering necessary for u8
             2 => {

@@ -73,14 +73,14 @@
 //!
 //! # Low level encoding/decoding API
 //!
-//! The [`ImageDecoder`] and [`ImageDecoderExt`] traits are implemented for many image file
+//! The [`ImageDecoder`] and [`ImageDecoderRect`] traits are implemented for many image file
 //! formats. They decode image data by directly on raw byte slices. Given an ImageDecoder, you can
 //! produce a DynamicImage via [`DynamicImage::from_decoder`].
 //!
 //! [`ImageEncoder`] provides the analogous functionality for encoding image data.
 //!
 //! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
-//! [`ImageDecoderExt`]: trait.ImageDecoderExt.html
+//! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
 #![warn(missing_docs)]
@@ -112,7 +112,7 @@ pub use crate::image::{
     GenericImage,
     GenericImageView,
     ImageDecoder,
-    ImageDecoderExt,
+    ImageDecoderRect,
     ImageEncoder,
     ImageFormat,
     ImageOutputFormat,
@@ -136,7 +136,7 @@ pub use crate::buffer_::{
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::{EncodableLayout, Primitive, Pixel};
+pub use crate::traits::{EncodableLayout, Primitive, Pixel, PixelWithColorType};
 
 // Opening and loading images
 pub use crate::io::free_functions::{guess_format, load};

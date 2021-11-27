@@ -174,14 +174,14 @@ struct Component {
     _dc_pred: i32,
 }
 
-pub(crate) struct BitWriter<'a, W: 'a> {
-    w: &'a mut W,
+pub(crate) struct BitWriter<W> {
+    w: W,
     accumulator: u32,
     nbits: u8,
 }
 
-impl<'a, W: Write + 'a> BitWriter<'a, W> {
-    fn new(w: &'a mut W) -> Self {
+impl<W: Write> BitWriter<W> {
+    fn new(w: W) -> Self {
         BitWriter {
             w,
             accumulator: 0,
@@ -335,8 +335,8 @@ impl Default for PixelDensity {
 }
 
 /// The representation of a JPEG encoder
-pub struct JpegEncoder<'a, W: 'a> {
-    writer: BitWriter<'a, W>,
+pub struct JpegEncoder<W> {
+    writer: BitWriter<W>,
 
     components: Vec<Component>,
     tables: Vec<[u8; 64]>,
@@ -349,16 +349,16 @@ pub struct JpegEncoder<'a, W: 'a> {
     pixel_density: PixelDensity,
 }
 
-impl<'a, W: Write> JpegEncoder<'a, W> {
+impl<W: Write> JpegEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
-    pub fn new(w: &mut W) -> JpegEncoder<W> {
+    pub fn new(w: W) -> JpegEncoder<W> {
         JpegEncoder::new_with_quality(w, 75)
     }
 
     /// Create a new encoder that writes its output to ```w```, and has
     /// the quality parameter ```quality``` with a value in the range 1-100
     /// where 1 is the worst and 100 is the best.
-    pub fn new_with_quality(w: &mut W, quality: u8) -> JpegEncoder<W> {
+    pub fn new_with_quality(w: W, quality: u8) -> JpegEncoder<W> {
         let components = vec![
             Component {
                 id: LUMAID,
@@ -663,7 +663,7 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     }
 }
 
-impl<'a, W: Write> ImageEncoder for JpegEncoder<'a, W> {
+impl<W: Write> ImageEncoder for JpegEncoder<W> {
     fn write_image(
         mut self,
         buf: &[u8],

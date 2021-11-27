@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::error;
 use std::fmt::{self, Display};
 use std::io::{self, BufRead, Cursor, Read};
@@ -228,7 +229,7 @@ enum TupleType {
 
 trait Sample {
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()>;
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()>;
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()>;
 }
 
@@ -629,14 +630,13 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
 }
 
 impl<R: Read> PnmDecoder<R> {
-    fn read_samples<S: Sample>(&mut self, components: usize, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
-                let width = self.header.width();
+                let width = TryInto::<usize>::try_into(self.header.width()).unwrap();
                 let height = self.header.height();
-                let bytecount = S::bytelen(width, height, components)?;
+                let bytecount = S::bytelen(width.try_into().unwrap(), height, components)?;
                 let mut bytes = vec![];
-
                 self.reader
                     .by_ref()
                     // This conversion is potentially lossy but unlikely and in that case we error
@@ -647,8 +647,11 @@ impl<R: Read> PnmDecoder<R> {
                 if bytes.len() != bytecount {
                     return Err(DecoderError::InputTooShort.into());
                 }
-
-                S::from_bytes(&bytes, usize::checked_mul(width, components), buf)
+                let row_size = match width.checked_mul(components.try_into().unwrap()) {
+                    Some(n) => n,
+                    None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
+                };
+                S::from_bytes(&bytes, row_size, buf)          
             }
             SampleEncoding::Ascii => self.read_ascii::<S>(buf),
         }
@@ -694,7 +697,11 @@ impl Sample for U8 {
         Ok((width * height * samples) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(
+        bytes: &[u8],
+        _row_size: usize,
+        output_buf: &mut [u8],
+    ) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         Ok(())
     }
@@ -712,7 +719,11 @@ impl Sample for U16 {
         Ok((width * height * samples * 2) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(
+        bytes: &[u8],
+        _row_size: usize,
+        output_buf: &mut [u8],
+    ) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         for chunk in output_buf.chunks_exact_mut(2) {
             let v = BigEndian::read_u16(chunk);
@@ -740,8 +751,8 @@ impl Sample for PbmBit {
         Ok((linelen * height) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
-        let mut expanded = utils::expand_bits(1, row_size, bytes);
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
+        let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
         for b in expanded.iter_mut() {
             *b = !*b;
         }
@@ -776,7 +787,7 @@ impl Sample for BWBit {
         U8::bytelen(width, height, samples)
     }
 
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         U8::from_bytes(bytes, row_size, output_buf)?;
         if let Some(val) = output_buf.iter().find(|&val| *val > 1) {
             return Err(DecoderError::SampleOutOfBounds(*val).into());

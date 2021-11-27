@@ -1,6 +1,6 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::{Num, NumCast};
+use num_traits::NumCast;
 use std::f64::consts::PI;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};

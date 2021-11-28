@@ -52,8 +52,8 @@ const ALPHABET_SIZE: [u16; HUFFMAN_CODES_PER_META_CODE] = [
 ];
 
 #[inline]
-pub(crate) fn div_round_up(num: u16, den: u16) -> u16 {
-    (num + den - 1) / den 
+pub(crate) fn subsample_size(size: u16, bits: u8) -> u16 {
+    ((u32::from(size) + (1u32 << bits) - 1) >> bits).try_into().unwrap()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -229,10 +229,9 @@ impl<R: Read> LosslessDecoder<R> {
                     //predictor
 
                     let size_bits = self.bit_reader.read_bits::<u8>(3)? + 2;
-                    let block_size = 1u16 << size_bits;
 
-                    let block_xsize = div_round_up(xsize, block_size);
-                    let block_ysize = div_round_up(self.frame.height, block_size);
+                    let block_xsize = subsample_size(xsize, size_bits);
+                    let block_ysize = subsample_size(self.frame.height, size_bits);
 
                     let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
 
@@ -242,10 +241,9 @@ impl<R: Read> LosslessDecoder<R> {
                     //color transform
 
                     let size_bits = self.bit_reader.read_bits::<u8>(3)? + 2;
-                    let block_size = 1u16 << size_bits;
 
-                    let block_xsize = div_round_up(xsize, block_size);
-                    let block_ysize = div_round_up(self.frame.height, block_size);
+                    let block_xsize = subsample_size(xsize, size_bits);
+                    let block_ysize = subsample_size(self.frame.height, size_bits);
 
                     let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
 
@@ -270,7 +268,7 @@ impl<R: Read> LosslessDecoder<R> {
                     } else {
                         0
                     };
-                    xsize = div_round_up(xsize, 1 << bits);
+                    xsize = subsample_size(xsize, bits);
 
                     Self::adjust_color_map(&mut color_map);
 
@@ -311,8 +309,8 @@ impl<R: Read> LosslessDecoder<R> {
         if read_meta && self.bit_reader.read_bits::<u8>(1)? == 1 {
             //meta huffman codes
             huffman_bits = self.bit_reader.read_bits::<u8>(3)? + 2;
-            huffman_xsize = div_round_up(xsize, 1 << huffman_bits);
-            huffman_ysize = div_round_up(ysize, 1 << huffman_bits);
+            huffman_xsize = subsample_size(xsize, huffman_bits);
+            huffman_ysize = subsample_size(ysize, huffman_bits);
 
             entropy_image = self.decode_image_stream(huffman_xsize, huffman_ysize, false)?;
 

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::convert::TryFrom;
 
-use super::lossless::div_round_up;
+use super::lossless::subsample_size;
 
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ impl TransformType {
         match self {
             TransformType::PredictorTransform { size_bits, predictor_data} => {
                 
-                let block_xsize = usize::from(div_round_up(width, 1 << size_bits));
+                let block_xsize = usize::from(subsample_size(width, *size_bits));
                 let width = usize::from(width);
                 let height = usize::from(height);
 
@@ -73,7 +73,7 @@ impl TransformType {
                 }
             },
             TransformType::ColorTransform { size_bits, transform_data } => {
-                let block_xsize = usize::from(div_round_up(width, 1 << size_bits));
+                let block_xsize = usize::from(subsample_size(width, *size_bits));
                 let width = usize::from(width);
                 let height = usize::from(height);
 

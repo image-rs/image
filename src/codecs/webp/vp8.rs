@@ -884,7 +884,6 @@ impl Frame {
         (self.height + 1) / 2
     }
 
-    /// Fills an rgb buffer with the converted values from the 4:2:0 YUV planes
     /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
     pub fn fill_rgb(&self, buf: &mut [u8]) {
         for index in 0..self.ybuf.len() {
@@ -905,6 +904,11 @@ impl Frame {
             buf[rgb_index+1] = g;
             buf[rgb_index+2] = b;
         }
+    }
+
+    /// Gets the buffer size 
+    pub fn get_buf_size(&self) -> usize {
+        self.ybuf.len() * 3
     }
 }
 
@@ -2019,7 +2023,7 @@ impl<R: Read> Vp8Decoder<R> {
         (filter_level, interior_limit, hev_threshold)
     }
 
-    /// Decodes the current frame and returns a reference to it
+    /// Decodes the current frame
     pub fn decode_frame(&mut self) -> ImageResult<&Frame> {
         self.read_frame_header()?;
 

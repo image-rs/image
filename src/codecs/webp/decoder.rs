@@ -10,7 +10,10 @@ use crate::image::{ImageDecoder, ImageFormat};
 use crate::color;
 
 use super::lossless::LosslessDecoder;
+use super::lossless::LosslessFrame;
 use super::vp8::Vp8Decoder;
+use super::vp8::Frame as VP8Frame;
+
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
@@ -47,43 +50,44 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-enum InnerDecoder<R: Read> {
-    Lossy(Vp8Decoder<R>),
-    Lossless(LosslessDecoder<R>),
+enum Frame {
+    Lossy(VP8Frame),
+    Lossless(LosslessFrame),
 }
 
 /// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
-pub struct WebPDecoder<R: Read> {
-    inner_decoder: InnerDecoder<R>,
+pub struct WebPDecoder<R> {
+    r: R,
+    frame: Frame,
 }
 
 impl<R: Read> WebPDecoder<R> {
     /// Create a new WebPDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
-    pub fn new(mut r: R) -> ImageResult<WebPDecoder<R>> {
-        
-        let _size = WebPDecoder::read_file_header(&mut r)?;
+    pub fn new(r: R) -> ImageResult<WebPDecoder<R>> {
 
-        let inner_decoder = WebPDecoder::read_frame(r)?;
+        let frame = Frame::Lossy(Default::default());
         
-        let decoder = WebPDecoder {
-            inner_decoder,
+        let mut decoder = WebPDecoder {
+            r,
+            frame,
         };
+        decoder.read_data()?;
         Ok(decoder)
     }
 
     //reads the 12 bytes of the WebP file header
-    fn read_file_header(r: &mut R) -> ImageResult<u32> {
+    fn read_riff_header(&mut self) -> ImageResult<u32> {
         let mut riff = [0; 4];
-        r.read_exact(&mut riff)?;
+        self.r.read_exact(&mut riff)?;
         if &riff != b"RIFF" {
             return Err(DecoderError::RiffSignatureInvalid(riff).into());
         }
 
-        let size = r.read_u32::<LittleEndian>()?;
+        let size = self.r.read_u32::<LittleEndian>()?;
 
         let mut webp = [0; 4];
-        r.read_exact(&mut webp)?;
+        self.r.read_exact(&mut webp)?;
         if &webp != b"WEBP" {
             return Err(DecoderError::WebpSignatureInvalid(webp).into());
         }
@@ -92,25 +96,27 @@ impl<R: Read> WebPDecoder<R> {
     }
 
     //reads the chunk header, decodes the frame and returns the inner decoder
-    fn read_frame(mut r: R) -> ImageResult<InnerDecoder<R>> {
+    fn read_frame(&mut self) -> ImageResult<Frame> {
         loop {
             let mut chunk = [0; 4];
-            r.read_exact(&mut chunk)?;
+            self.r.read_exact(&mut chunk)?;
 
             match &chunk {
                 b"VP8 " => {
-                    let _len = r.read_u32::<LittleEndian>()?;
-                    let mut vp8_decoder = Vp8Decoder::new(r);
-                    vp8_decoder.decode_frame()?;
+                    let m = read_len_cursor(&mut self.r)?;
 
-                    return Ok(InnerDecoder::Lossy(vp8_decoder));
+                    let mut vp8_decoder = Vp8Decoder::new(m);
+                    let frame = vp8_decoder.decode_frame()?;
+
+                    return Ok(Frame::Lossy(frame.clone()));
                 }
                 b"VP8L" => {
-                    let mut lossless_decoder = LosslessDecoder::new(r);
+                    let m = read_len_cursor(&mut self.r)?;
+
+                    let mut lossless_decoder = LosslessDecoder::new(m);
+                    let frame = lossless_decoder.decode_frame()?;
                     
-                    lossless_decoder.decode_frame()?;
-                    
-                    return Ok(InnerDecoder::Lossless(lossless_decoder));
+                    return Ok(Frame::Lossless(frame.clone()));
                 }
                 b"ALPH" | b"ANIM" | b"ANMF" => {
                     // Alpha and Animation isn't supported
@@ -120,7 +126,7 @@ impl<R: Read> WebPDecoder<R> {
                     )));
                 }
                 _ => {
-                    let mut len = u64::from(r.read_u32::<LittleEndian>()?);
+                    let mut len = u64::from(self.r.read_u32::<LittleEndian>()?);
 
                     if len % 2 != 0 {
                         // RIFF chunks containing an uneven number of bytes append
@@ -130,11 +136,30 @@ impl<R: Read> WebPDecoder<R> {
                         len += 1;
                     }
 
-                    io::copy(&mut r.by_ref().take(len), &mut io::sink())?;
+                    io::copy(&mut self.r.by_ref().take(len), &mut io::sink())?;
                 }
             }
         }
     }
+
+    fn read_data(&mut self) -> ImageResult<()> {
+        let _size = self.read_riff_header()?;
+
+        let frame = self.read_frame()?;
+
+        self.frame = frame;
+
+        Ok(())
+    }
+}
+
+fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>
+    where R: Read {
+    let len = r.read_u32::<LittleEndian>()?;
+
+    let mut framedata = Vec::new();
+    r.by_ref().take(len as u64).read_to_end(&mut framedata)?;
+    Ok(io::Cursor::new(framedata))
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
@@ -157,30 +182,30 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     type Reader = WebpReader<R>;
 
     fn dimensions(&self) -> (u32, u32) {
-        match self.inner_decoder {
-            InnerDecoder::Lossy(ref vp8_decoder) => vp8_decoder.dimensions(),
-            InnerDecoder::Lossless(ref lossless_decoder) => lossless_decoder.dimensions(),
+        match &self.frame {
+            Frame::Lossy(vp8_frame) => (u32::from(vp8_frame.width), u32::from(vp8_frame.height)),
+            Frame::Lossless(lossless_frame) => (u32::from(lossless_frame.width), u32::from(lossless_frame.height)),
         }
     }
 
     fn color_type(&self) -> color::ColorType {
-        match self.inner_decoder {
-            InnerDecoder::Lossy(_) => color::ColorType::Rgb8,
-            InnerDecoder::Lossless(_) => color::ColorType::Rgba8,
+        match &self.frame {
+            Frame::Lossy(_) => color::ColorType::Rgb8,
+            Frame::Lossless(_) => color::ColorType::Rgba8,
         }
         
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        match self.inner_decoder {
-            InnerDecoder::Lossy(ref vp8_decoder) => {
-                let mut data = vec![0; vp8_decoder.get_buf_size()];
-                vp8_decoder.fill_rgb(data.as_mut_slice());
+        match &self.frame {
+            Frame::Lossy(vp8_frame) => {
+                let mut data = vec![0; vp8_frame.get_buf_size()];
+                vp8_frame.fill_rgb(data.as_mut_slice());
                 Ok(WebpReader(Cursor::new(data), PhantomData))
             }
-            InnerDecoder::Lossless(ref lossless_decoder) => {
-                let mut data = vec![0; lossless_decoder.get_buf_size()];
-                lossless_decoder.fill_rgba(data.as_mut_slice());
+            Frame::Lossless(lossless_frame) => {
+                let mut data = vec![0; lossless_frame.get_buf_size()];
+                lossless_frame.fill_rgba(data.as_mut_slice());
                 Ok(WebpReader(Cursor::new(data), PhantomData))
             }
         }
@@ -189,12 +214,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
-        match self.inner_decoder {
-            InnerDecoder::Lossy(ref vp8_decoder) => {
-                vp8_decoder.fill_rgb(buf);
+        match &self.frame {
+            Frame::Lossy(vp8_frame) => {
+                vp8_frame.fill_rgb(buf);
             }
-            InnerDecoder::Lossless(ref lossless_decoder) => {
-                lossless_decoder.fill_rgba(buf);
+            Frame::Lossless(lossless_frame) => {
+                lossless_frame.fill_rgba(buf);
             }
         }
         Ok(())

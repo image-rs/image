@@ -5,7 +5,7 @@
 
 use std::{convert::TryInto, convert::TryFrom, error, fmt, io::Read, ops::{AddAssign, Shl}};
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::ReadBytesExt;
 
 use crate::{ImageError, ImageFormat, ImageResult, error::DecodingError};
 
@@ -124,14 +124,9 @@ impl<R: Read> LosslessDecoder<R> {
         }
     }
 
-    /// Gets dimensions of image
-    pub(crate) fn dimensions(&self) -> (u32, u32) {
-        (u32::from(self.frame.width), u32::from(self.frame.height))
-    }
-
     /// Reads the frame
-    pub(crate) fn decode_frame(&mut self) -> ImageResult<()> {
-        let _len = self.r.read_u32::<LittleEndian>()?;
+    pub(crate) fn decode_frame(&mut self) -> ImageResult<&LosslessFrame> {
+        
         let signature = self.r.read_u8()?;
 
         if signature != 0x2f {
@@ -161,22 +156,7 @@ impl<R: Read> LosslessDecoder<R> {
         }
 
         self.frame.buf = data;
-        Ok(())
-    }
-
-    /// Fills a buffer by converting from argb to rgba
-    pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
-        for (&argb_val, chunk) in self.frame.buf.iter().zip(buf.chunks_exact_mut(4)) {
-            chunk[0] = ((argb_val >> 16) & 0xff).try_into().unwrap();
-            chunk[1] = ((argb_val >> 8) & 0xff).try_into().unwrap();
-            chunk[2] = (argb_val & 0xff).try_into().unwrap();
-            chunk[3] = ((argb_val >> 24) & 0xff).try_into().unwrap();
-        }
-    }
-
-    /// Get buffer size from the image
-    pub(crate) fn get_buf_size(&self) -> usize {
-        usize::from(self.frame.width) * usize::from(self.frame.height) * 4
+        Ok(&self.frame)
     }
 
     /// Reads Image data from the bitstream
@@ -680,11 +660,28 @@ impl BitReader {
 
 
 #[derive(Debug, Clone, Default)]
-struct LosslessFrame {
-    width: u16,
-    height: u16,
+pub(crate) struct LosslessFrame {
+    pub(crate) width: u16,
+    pub(crate) height: u16,
 
     buf: Vec<u32>,
+}
+
+impl LosslessFrame {
+    /// Fills a buffer by converting from argb to rgba
+    pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
+        for (&argb_val, chunk) in self.buf.iter().zip(buf.chunks_exact_mut(4)) {
+            chunk[0] = ((argb_val >> 16) & 0xff).try_into().unwrap();
+            chunk[1] = ((argb_val >> 8) & 0xff).try_into().unwrap();
+            chunk[2] = (argb_val & 0xff).try_into().unwrap();
+            chunk[3] = ((argb_val >> 24) & 0xff).try_into().unwrap();
+        }
+    }
+
+    /// Get buffer size from the image
+    pub(crate) fn get_buf_size(&self) -> usize {
+        usize::from(self.width) * usize::from(self.height) * 4
+    }
 }
 
 #[cfg(test)]

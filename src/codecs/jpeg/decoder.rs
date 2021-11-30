@@ -147,6 +147,7 @@ impl ColorType {
         use jpeg::PixelFormat::*;
         match pixel_format {
             L8 => ColorType::L8,
+            L16 => ColorType::L16,
             RGB24 => ColorType::Rgb8,
             CMYK32 => panic!(),
         }

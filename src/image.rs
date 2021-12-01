@@ -1033,16 +1033,29 @@ pub trait GenericImage: GenericImageView {
 ///   - [`GenericImageView::view`] to create an immutable view,
 ///   - [`SubImage::new`] to instantiate the struct directly.
 ///
+/// Note that this does _not_ implement `GenericImage`, but it dereferences to one which allows you
+/// to use it as if it did. See [Design Considerations](#Design-Considerations) below for details.
+///
+/// # Design Considerations
+///
 /// For reasons relating to coherence, this is not itself a `GenericImage` or a `GenericImageView`.
-/// This allows us to override the `GenericSubImageView` implementation such that stacking
-/// sub-images comes at no double indirect cost and instead refers to the original directly. This
-/// inconvenience may get resolved if Rust allows some forms of specialization.
+/// In short, we want to reserve the ability of adding traits implemented for _all_ generic images
+/// but in a different manner for `SubImage`. This may be required to ensure that stacking
+/// sub-images comes at no double indirect cost.
+///
+/// If, ultimately, this is not needed then a directly implementation of `GenericImage` can and
+/// will get added. This inconvenience may alternatively get resolved if Rust allows some forms of
+/// specialization, which might make this trick unnecessary and thus also allows for a direct
+/// implementation.
 #[derive(Copy, Clone)]
 pub struct SubImage<I> {
     inner: SubImageInner<I>
 }
 
 /// The inner type of `SubImage` that implements `GenericImage{,View}`.
+///
+/// This type is _nominally_ `pub` but it is not exported from the crate. It should be regarded as
+/// an existential type in any case.
 #[derive(Copy, Clone)]
 pub struct SubImageInner<I> {
     image: I,
@@ -1101,11 +1114,30 @@ impl<I> SubImage<I> {
     }
 }
 
+/// Methods for readable images.
 impl<I> SubImage<I>
 where
     I: Deref,
     I::Target: GenericImageView,
 {
+    /// Create a sub-view of the image.
+    ///
+    /// The coordinates given are relative to the current view on the underlying image.
+    ///
+    /// Note that this method is preferred to the one from `GenericImageView`. This is accessible
+    /// with the explicit method call syntax but it should rarely be needed due to causing an
+    /// extra level of indirection.
+    ///
+    /// ```
+    /// use image::{GenericImageView, RgbImage, SubImage};
+    /// let buffer = RgbImage::new(10, 10);
+    ///
+    /// let subimage: SubImage<&RgbImage> = buffer.view(0, 0, 10, 10);
+    /// let subview: SubImage<&RgbImage> = subimage.view(0, 0, 10, 10);
+    ///
+    /// // Less efficient and NOT &RgbImage
+    /// let _: SubImage<&_> = GenericImageView::view(&*subimage, 0, 0, 10, 10);
+    /// ```
     pub fn view(&self, x: u32, y: u32, width: u32, height: u32)
         -> SubImage<&I::Target>
     {
@@ -1117,6 +1149,7 @@ where
         SubImage::new(&*self.inner.image, x, y, width, height)
     }
 
+    /// Get a reference to the underlying image.
     pub fn inner(&self) -> &I::Target {
         &self.inner.image
     }
@@ -1128,7 +1161,9 @@ where
     I: DerefMut,
     I::Target: GenericImage,
 {
-
+    /// Create a mutable sub-view of the image.
+    ///
+    /// The coordinates given are relative to the current view on the underlying image.
     pub fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
         -> SubImage<&mut I::Target>
     {
@@ -1139,6 +1174,7 @@ where
         SubImage::new(&mut *self.inner.image, x, y, width, height)
     }
 
+    /// Get a mutable reference to the underlying image.
     pub fn inner_mut(&mut self) -> &mut I::Target {
         &mut self.inner.image
     }

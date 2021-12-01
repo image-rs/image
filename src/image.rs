@@ -876,37 +876,9 @@ pub trait GenericImageView {
     fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self>
         where Self: Sized,
     {
-        GenericSubImageView::view(self, x, y, width, height)
-    }
-}
-
-pub trait GenericSubImageView {
-    /// The pixel type of the underlying pixel matrix.
-    type Pixel: Pixel;
-
-    /// Underlying image type. This is mainly used by SubImages in order to
-    /// always have a reference to the original image. This allows for less
-    /// indirections and it eases the use of nested SubImages.
-    type InnerImage: GenericImageView<Pixel = Self::Pixel>;
-
-    /// Returns a reference to the underlying image.
-    fn inner(&self) -> &Self::InnerImage;
-
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage>;
-}
-
-impl<I: GenericImageView> GenericSubImageView for I {
-    type Pixel = I::Pixel;
-    type InnerImage = Self;
-
-    fn inner(&self) -> &Self::InnerImage {
-        self
-    }
-
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self> {
         assert!(x as u64 + width as u64 <= self.width() as u64);
         assert!(y as u64 + height as u64 <= self.height() as u64);
-        SubImage::new(self.inner(), x, y, width, height)
+        SubImage::new(self, x, y, width, height)
     }
 }
 
@@ -1048,41 +1020,10 @@ pub trait GenericImage: GenericImageView {
     ) -> SubImage<&mut Self>
         where Self: Sized,
     {
-        GenericSubImage::sub_image(self, x, y, width, height)
-    }
-}
-
-pub trait GenericSubImage: GenericSubImageView
-    where Self::InnerImage: GenericImage<Pixel=Self::Pixel>
-{
-    /// Returns a mutable reference to the underlying image.
-    fn inner_mut(&mut self) -> &mut Self::InnerImage;
-
-    /// Returns a mutable subimage that is a view into this image.
-    /// If you want an immutable subimage instead, use [`GenericImageView::view`]
-    /// The coordinates set the position of the top left corner of the SubImage.
-    fn sub_image(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-    ) -> SubImage<&mut Self::InnerImage>;
-}
-
-impl<I: GenericImage> GenericSubImage for I {
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
-        -> SubImage<&mut Self>
-    {
         assert!(x as u64 + width as u64 <= self.width() as u64);
         assert!(y as u64 + height as u64 <= self.height() as u64);
-        SubImage::new(self.inner_mut(), x, y, width, height)
+        SubImage::new(self, x, y, width, height)
     }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        self
-    }
-
 }
 
 /// A View into another image
@@ -1160,6 +1101,49 @@ impl<I> SubImage<I> {
     }
 }
 
+impl<I> SubImage<I>
+where
+    I: Deref,
+    I::Target: GenericImageView,
+{
+    pub fn view(&self, x: u32, y: u32, width: u32, height: u32)
+        -> SubImage<&I::Target>
+    {
+        use crate::GenericImageView as _;
+        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
+        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
+        let x = self.inner.xoffset + x;
+        let y = self.inner.yoffset + y;
+        SubImage::new(&*self.inner.image, x, y, width, height)
+    }
+
+    pub fn inner(&self) -> &I::Target {
+        &self.inner.image
+    }
+}
+
+
+impl<I> SubImage<I>
+where
+    I: DerefMut,
+    I::Target: GenericImage,
+{
+
+    pub fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
+        -> SubImage<&mut I::Target>
+    {
+        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
+        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
+        let x = self.inner.xoffset + x;
+        let y = self.inner.yoffset + y;
+        SubImage::new(&mut *self.inner.image, x, y, width, height)
+    }
+
+    pub fn inner_mut(&mut self) -> &mut I::Target {
+        &mut self.inner.image
+    }
+}
+
 impl<I> Deref for SubImage<I>
 where
     I: Deref,
@@ -1183,7 +1167,7 @@ where
 impl<I> GenericImageView for SubImageInner<I>
 where
     I: Deref,
-    I::Target: GenericImageView + Sized,
+    I::Target: GenericImageView,
 {
     type Pixel = DerefPixel<I>;
 
@@ -1200,47 +1184,6 @@ where
     }
 }
 
-impl<I> GenericSubImageView for SubImage<I>
-where
-    I: Deref,
-    I::Target: GenericImageView + Sized,
-{
-    type Pixel = <I::Target as GenericImageView>::Pixel;
-    type InnerImage = I::Target;
-
-    fn view(&self, x: u32, y: u32, width: u32, height: u32) -> SubImage<&Self::InnerImage> {
-        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
-        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
-        let x = self.inner.xoffset + x;
-        let y = self.inner.yoffset + y;
-        SubImage::new(&*self.inner.image, x, y, width, height)
-    }
-
-    fn inner(&self) -> &Self::InnerImage {
-        &self.inner.image
-    }
-}
-
-
-impl<I> GenericSubImage for SubImage<I>
-where
-    I: DerefMut,
-    I::Target: GenericImage + Sized,
-{
-    fn sub_image(&mut self, x: u32, y: u32, width: u32, height: u32)
-        -> SubImage<&mut Self::InnerImage>
-    {
-        assert!(x as u64 + width as u64 <= self.inner.width() as u64);
-        assert!(y as u64 + height as u64 <= self.inner.height() as u64);
-        let x = self.inner.xoffset + x;
-        let y = self.inner.yoffset + y;
-        SubImage::new(&mut *self.inner.image, x, y, width, height)
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        &mut self.inner.image
-    }
-}
 
 #[allow(deprecated)]
 impl<I> GenericImage for SubImageInner<I>

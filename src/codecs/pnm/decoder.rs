@@ -76,6 +76,9 @@ enum DecoderError {
     },
     /// The tuple type was not recognised by the parser
     TupleTypeUnrecognised,
+
+    /// Overflowed the specified value when parsing
+    Overflow,
 }
 
 impl Display for DecoderError {
@@ -150,6 +153,7 @@ impl Display for DecoderError {
                 tuple_type.name()
             )),
             DecoderError::TupleTypeUnrecognised => f.write_str("Tuple type not recognized"),
+            DecoderError::Overflow => f.write_str("Overflow when parsing value"),
         }
     }
 }
@@ -633,9 +637,9 @@ impl<R: Read> PnmDecoder<R> {
     fn read_samples<S: Sample>(&mut self, components: u32, buf: &mut [u8]) -> ImageResult<()> {
         match self.subtype().sample_encoding() {
             SampleEncoding::Binary => {
-                let width = TryInto::<usize>::try_into(self.header.width()).unwrap();
+                let width = self.header.width();
                 let height = self.header.height();
-                let bytecount = S::bytelen(width.try_into().unwrap(), height, components)?;
+                let bytecount = S::bytelen(width, height, components)?;
                 let mut bytes = vec![];
                 self.reader
                     .by_ref()
@@ -643,13 +647,13 @@ impl<R: Read> PnmDecoder<R> {
                     // later anyways.
                     .take(bytecount as u64)
                     .read_to_end(&mut bytes)?;
-
                 if bytes.len() != bytecount {
                     return Err(DecoderError::InputTooShort.into());
                 }
+                let width = TryInto::<usize>::try_into(self.header.width()).unwrap();
                 let row_size = match width.checked_mul(components.try_into().unwrap()) {
                     Some(n) => n,
-                    None => return Err(ImageError::IoError(io::ErrorKind::UnexpectedEof.into())),
+                    None => return Err(DecoderError::Overflow.into()),
                 };
                 S::from_bytes(&bytes, row_size, buf)          
             }
@@ -1257,4 +1261,18 @@ ENDHDR
     fn issue_1508() {
         let _ = crate::load_from_memory(b"P391919 16999 1 1 9 919 16999 1 9999 999* 99999 N");
     }
+}
+
+#[test]
+fn read_samples_test() {
+    let data = vec![80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56];
+    let mut decoder = PnmDecoder::new(&data[..]).unwrap();
+    assert_eq!(decoder.color_type(), ColorType::L8);
+    assert_eq!(decoder.dimensions(), (16, 16));
+    assert_eq!(decoder.subtype(), PnmSubtype::Graymap(SampleEncoding::Binary));
+    let mut image = vec![0; decoder.total_bytes() as usize];
+    decoder.read_image(&mut image).unwrap();
+    assert_eq!(image, vec![80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56]);
+
+    //match PnmDecoder::read_samples(
 }

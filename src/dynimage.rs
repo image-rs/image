@@ -898,7 +898,6 @@ impl From<ImageBuffer<LumaA<f32>, Vec<f32>>> for DynamicImage {
 #[allow(deprecated)]
 impl GenericImageView for DynamicImage {
     type Pixel = color::Rgba<u8>; // TODO use f32 as default for best precision and unbounded color?
-    type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         dynamic_map!(*self, |ref p| p.dimensions())
@@ -911,16 +910,10 @@ impl GenericImageView for DynamicImage {
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
         dynamic_map!(*self, |ref p| p.get_pixel(x, y).to_rgba().into_color())
     }
-
-    fn inner(&self) -> &Self::InnerImageView {
-        self
-    }
 }
 
 #[allow(deprecated)]
 impl GenericImage for DynamicImage {
-    type InnerImage = DynamicImage;
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
         match *self {
             DynamicImage::ImageLuma8(ref mut p) => p.put_pixel(x, y, pixel.to_luma()),
@@ -954,10 +947,6 @@ impl GenericImage for DynamicImage {
     /// Do not use is function: It is unimplemented!
     fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
         unimplemented!()
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        self
     }
 }
 

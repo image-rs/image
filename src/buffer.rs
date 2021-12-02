@@ -1081,7 +1081,6 @@ where
     Container: Deref<Target = [P::Subpixel]> + Deref,
 {
     type Pixel = P;
-    type InnerImageView = Self;
 
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions()
@@ -1101,10 +1100,6 @@ where
         let indices = self.pixel_indices_unchecked(x, y);
         *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
-
-    fn inner(&self) -> &Self::InnerImageView {
-        self
-    }
 }
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
@@ -1112,8 +1107,6 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    type InnerImage = Self;
-
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         self.get_pixel_mut(x, y)
     }
@@ -1167,10 +1160,6 @@ where
             }
         }
         true
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::InnerImage {
-        self
     }
 }
 

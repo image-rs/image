@@ -78,8 +78,6 @@ While some of the methods for `GenericImage` are...
 An image parameterised by its Pixel types, represented by a width and height and a vector of pixels. It provides direct access to its pixels and implements the `GenericImageView` and `GenericImage` traits.
 
 ```rust
-extern crate image;
-
 use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
 
 // Construct a new RGB ImageBuffer with the specified width and height.
@@ -125,8 +123,6 @@ The coordinates given set the position of the top left corner of the rectangle.
 This is used to perform image processing functions on a subregion of an image.
 
 ```rust
-extern crate image;
-
 use image::{GenericImageView, ImageBuffer, RgbImage, imageops};
 
 let mut img: RgbImage = ImageBuffer::new(512, 512);
@@ -165,8 +161,6 @@ format is determined from the path's file extension. An `io` module provides a
 reader which offer some more control.
 
 ```rust,no_run
-extern crate image;
-
 use image::GenericImageView;
 
 fn main() {
@@ -189,9 +183,6 @@ fn main() {
 
 ```rust,no_run
 //! An example of generating julia fractals.
-extern crate image;
-extern crate num_complex;
-
 fn main() {
     let imgx = 800;
     let imgy = 800;
@@ -243,8 +234,6 @@ Example output:
 If the high level interface is not needed because the image was obtained by other means, `image` provides the function `save_buffer` to save a buffer to a file.
 
 ```rust,no_run
-extern crate image;
-
 fn main() {
 
     let buffer: &[u8] = unimplemented!(); // Generate the image data
@@ -252,5 +241,4 @@ fn main() {
     // Save the buffer as "image.png"
     image::save_buffer("image.png", buffer, 800, 600, image::ColorType::Rgb8).unwrap()
 }
-
 ```

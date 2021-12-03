@@ -29,9 +29,31 @@ use crate::traits::Pixel;
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
+///
+/// This represents a _matrix_ of _pixels_ which are _convertible_ from and to an _RGBA_
+/// representation. More variants that adhere to these principles may get added in the future, in
+/// particular to cover other combinations typically used.
+///
+/// # Usage
+///
+/// This type can act as a converter between specific `ImageBuffer` instances.
+///
+/// ```
+/// use image::{DynamicImage, GrayImage, RgbImage};
+///
+/// let rgb: RgbImage = RgbImage::new(10, 10);
+/// let luma: GrayImage = DynamicImage::ImageRgb8(rgb).into_luma8();
+/// ```
+///
+/// # Design
+///
+/// There is no goal to provide an all-encompassing type with all possible memory layouts. This
+/// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
+/// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
+/// normalized channel order which can store common pixel values without loss.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DynamicImage {
-
     /// Each pixel in this image is 8-bit Luma
     ImageLuma8(GrayImage),
 

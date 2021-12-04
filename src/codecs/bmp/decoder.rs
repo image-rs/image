@@ -295,17 +295,10 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
         old.copy_from_slice(&new[..old_size]);
         new
     } else {
-        // If the full size is less than twice the initial buffer, we have to
-        // copy in two steps
-        let overlap = old_size - extend;
 
-        // First we copy the data that fits into the bit we extended.
-        let (lower, upper) = buffer.split_at_mut(old_size);
-        upper.copy_from_slice(&lower[overlap..]);
-
-        // Then we slide the data that hasn't been copied yet to the top of the buffer
-        let (new, old) = lower.split_at_mut(extend);
-        old[..overlap].copy_from_slice(&new[..overlap]);
+        buffer.copy_within(0..old_size, extend);
+        
+        let (new, _) = buffer.split_at_mut(extend);
         new
     };
     if blank {
@@ -1553,5 +1546,27 @@ mod test {
         let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
         let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_err());
+    }
+
+    #[test]
+    fn test_extend_buffer() {
+
+        // (input, extend_to)
+        let test_cases: &[(&[u8], usize)] = &[
+            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 20),
+            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 13),
+            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 50),
+            ( &[0, 1, 2, 3], 5),
+            ( &[0, 1, 2, 3], 15),
+            ( &[0, 1, 2, 3], 50),
+        ];
+
+        for test_case in test_cases {
+            let mut as_vec = test_case.0.to_vec();
+            let extended_by = test_case.1 - test_case.0.len();
+            let allocated = extend_buffer(&mut as_vec, test_case.1, false);
+            assert_eq!(allocated.len(), extended_by);
+            assert_eq!(&as_vec[extended_by..], test_case.0);
+        }
     }
 }

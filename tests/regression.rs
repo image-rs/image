@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fs::File, io::BufReader, path::PathBuf};
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
 const IMAGE_DIR: &str = "images";
@@ -49,7 +49,11 @@ fn bad_bmps() {
 
     let pattern = &*format!("{}", path.display());
     for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-        let im = image::open(path);
+
+        // Manually reading the file so we can use load() instead of open()
+        // We have to use load() so we can override the format
+        let im_file = BufReader::new(File::open(path).unwrap());
+        let im = image::load(im_file, image::ImageFormat::Bmp);
         assert!(im.is_err());
     }
 }

@@ -2668,6 +2668,7 @@ mod test {
 
     #[test]
     fn test_edge_pixels() {
+        #[rustfmt::skip]
         let im = vec![5, 6, 7, 8, 9,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
@@ -2687,6 +2688,7 @@ mod test {
 
     #[test]
     fn test_top_pixels() {
+        #[rustfmt::skip]
         let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
                                 0, 0, 0, 0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -2721,12 +2723,14 @@ mod test {
 
     #[test]
     fn test_predict_bhepred() {
+        #[rustfmt::skip]
         let expected: Vec<u8> = vec![5, 0, 0, 0, 0,
               4, 4, 4, 4, 4,
               3, 3, 3, 3, 3,
               2, 2, 2, 2, 2,
               1, 1, 1, 1, 1];
 
+        #[rustfmt::skip]
         let mut im = vec![5, 0, 0, 0, 0,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
@@ -2740,12 +2744,14 @@ mod test {
 
     #[test]
     fn test_predict_brdpred() {
+        #[rustfmt::skip]
         let expected: Vec<u8> = vec![5, 6, 7, 8, 9,
               4, 5, 6, 7, 8,
               3, 4, 5, 6, 7,
               2, 3, 4, 5, 6,
               1, 2, 3, 4, 5];
 
+        #[rustfmt::skip]
         let mut im = vec![5, 6, 7, 8, 9,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
@@ -2759,6 +2765,7 @@ mod test {
 
     #[test]
     fn test_predict_bldpred() {
+        #[rustfmt::skip]
         let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8,
                                    0, 0, 0, 0, 0, 0, 0, 0,
                                    0, 0, 0, 0, 0, 0, 0, 0,
@@ -2798,6 +2805,7 @@ mod test {
 
     #[test]
     fn test_predict_bvepred() {
+        #[rustfmt::skip]
         let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,
                                    0, 0, 0, 0, 0, 0, 0, 0, 0,
                                    0, 0, 0, 0, 0, 0, 0, 0, 0,

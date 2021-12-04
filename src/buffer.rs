@@ -1514,6 +1514,7 @@ mod benchmarks {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn test_image_buffer_copy_within_oob() {
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, vec![0u8; 16]).unwrap();
         assert!(!image.copy_within(Rect { x: 0, y: 0, width: 5, height: 4 }, 0, 0));

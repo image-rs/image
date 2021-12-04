@@ -2,7 +2,7 @@
 use std::cmp;
 
 use crate::image::{GenericImage, GenericImageView, SubImage};
-use crate::traits::{Lerp, Primitive, Pixel};
+use crate::traits::{Lerp, Pixel, Primitive};
 
 pub use self::sample::FilterType;
 
@@ -10,16 +10,19 @@ pub use self::sample::FilterType::{CatmullRom, Gaussian, Lanczos3, Nearest, Tria
 
 /// Affine transformations
 pub use self::affine::{
-    flip_horizontal, flip_horizontal_in_place, flip_vertical, flip_vertical_in_place, rotate180,
-    rotate180_in_place, rotate270, rotate90, rotate180_in, rotate90_in, rotate270_in, flip_horizontal_in, flip_vertical_in
+    flip_horizontal, flip_horizontal_in, flip_horizontal_in_place, flip_vertical, flip_vertical_in,
+    flip_vertical_in_place, rotate180, rotate180_in, rotate180_in_place, rotate270, rotate270_in,
+    rotate90, rotate90_in,
 };
 
 /// Image sampling
 pub use self::sample::{blur, filter3x3, resize, thumbnail, unsharpen};
 
 /// Color operations
-pub use self::colorops::{brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type, grayscale_with_type_alpha, huerotate, index_colors, invert,
-                         BiLevel, ColorMap};
+pub use self::colorops::{
+    brighten, contrast, dither, grayscale, grayscale_alpha, grayscale_with_type,
+    grayscale_with_type_alpha, huerotate, index_colors, invert, BiLevel, ColorMap,
+};
 
 mod affine;
 // Public only because of Rust bug:
@@ -130,14 +133,14 @@ pub fn overlay_bounds(
     (bottom_width, bottom_height): (u32, u32),
     (top_width, top_height): (u32, u32),
     x: u32,
-    y: u32
-)
-    -> (u32, u32)
-{
-    let x_range = top_width.saturating_add(x) // Calculate max coordinate
+    y: u32,
+) -> (u32, u32) {
+    let x_range = top_width
+        .saturating_add(x) // Calculate max coordinate
         .min(bottom_width) // Restrict to lower width
         .saturating_sub(x); // Determinate length from start `x`
-    let y_range = top_height.saturating_add(y)
+    let y_range = top_height
+        .saturating_add(y)
         .min(bottom_height)
         .saturating_sub(y);
     (x_range, y_range)

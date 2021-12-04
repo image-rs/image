@@ -151,13 +151,20 @@ impl<W: Write> PnmEncoder<W> {
     {
         let image = image.into();
         match self.header {
-            HeaderStrategy::Dynamic => self.write_dynamic_header(image, width, height, color.into()),
+            HeaderStrategy::Dynamic => {
+                self.write_dynamic_header(image, width, height, color.into())
+            }
             HeaderStrategy::Subtype(subtype) => {
                 self.write_subtyped_header(subtype, image, width, height, color.into())
             }
-            HeaderStrategy::Chosen(ref header) => {
-                Self::write_with_header(&mut self.writer, header, image, width, height, color.into())
-            }
+            HeaderStrategy::Chosen(ref header) => Self::write_with_header(
+                &mut self.writer,
+                header,
+                image,
+                width,
+                height,
+                color.into(),
+            ),
         }
     }
 
@@ -454,13 +461,11 @@ impl<'a> CheckedHeaderColor<'a> {
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Bgr8
-            | ExtendedColorType::Bgra8
-                => 0xff,
+            | ExtendedColorType::Bgra8 => 0xff,
             ExtendedColorType::L16
             | ExtendedColorType::La16
             | ExtendedColorType::Rgb16
-            | ExtendedColorType::Rgba16
-                => 0xffff,
+            | ExtendedColorType::Rgba16 => 0xffff,
             _ => {
                 // Unsupported target color type.
                 return Err(ImageError::Unsupported(
@@ -647,13 +652,11 @@ impl<'a> TupleEncoding<'a> {
             } => writer.write_all(samples).map_err(ImageError::IoError),
             TupleEncoding::Bytes {
                 samples: FlatSamples::U16(samples),
-            } => samples
-                .iter()
-                .try_for_each(|&sample| {
-                    writer
-                        .write_u16::<BigEndian>(sample)
-                        .map_err(ImageError::IoError)
-                }),
+            } => samples.iter().try_for_each(|&sample| {
+                writer
+                    .write_u16::<BigEndian>(sample)
+                    .map_err(ImageError::IoError)
+            }),
 
             TupleEncoding::Ascii {
                 samples: FlatSamples::U8(samples),

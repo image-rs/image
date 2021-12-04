@@ -61,8 +61,8 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
     ///
     /// For color types with 16-bit per channel or larger, the contents of `buf` should be in
     /// native endian.
-    /// 
-    /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian. 
+    ///
+    /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian.
     fn write_image(
         mut self,
         buf: &[u8],

@@ -2,8 +2,8 @@
 
 use crate::{error, ImageError, ImageResult};
 
-mod reader;
 pub(crate) mod free_functions;
+mod reader;
 
 pub use self::reader::Reader;
 
@@ -25,12 +25,12 @@ impl Default for LimitSupport {
 /// Resource limits for decoding.
 ///
 /// Limits can be either *strict* or *non-strict*. Non-strict limits are best-effort
-/// limits where the library does not guarantee that limit will not be exceeded. Do note 
-/// that it is still considered a bug if a non-strict limit is exceeded, however as 
-/// some of the underlying decoders do not support not support such limits one cannot 
-/// rely on these limits being supported. For stric limits the library makes a stronger 
-/// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered 
-/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it 
+/// limits where the library does not guarantee that limit will not be exceeded. Do note
+/// that it is still considered a bug if a non-strict limit is exceeded, however as
+/// some of the underlying decoders do not support not support such limits one cannot
+/// rely on these limits being supported. For stric limits the library makes a stronger
+/// guarantee that the limit will not be exceeded. Exceeding a strict limit is considered
+/// a critical bug. If a decoder cannot guarantee that it will uphold a strict limit it
 /// *must* fail with `image::error::LimitErrorKind::Unsupported`.
 ///
 /// Currently the only strict limits supported are the `max_image_width` and `max_image_height`
@@ -62,7 +62,7 @@ impl Default for Limits {
         Limits {
             max_image_width: None,
             max_image_height: None,
-            max_alloc: Some(512*1024*1024),
+            max_alloc: Some(512 * 1024 * 1024),
             _non_exhaustive: (),
         }
     }
@@ -90,14 +90,16 @@ impl Limits {
         if let Some(max_width) = self.max_image_width {
             if width > max_width {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::DimensionError)))
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
         if let Some(max_height) = self.max_image_height {
             if height > max_height {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::DimensionError)))
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
@@ -110,7 +112,8 @@ impl Limits {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             if *max_alloc < amount {
                 return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory)))
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
             }
 
             *max_alloc -= amount;

@@ -9,7 +9,7 @@
 extern crate tiff;
 
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read, Write, Seek};
+use std::io::{self, Cursor, Read, Seek, Write};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -23,7 +23,8 @@ use crate::utils;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     dimensions: (u32, u32),
     color_type: ColorType,
@@ -31,23 +32,22 @@ pub struct TiffDecoder<R>
 }
 
 impl<R> TiffDecoder<R>
-    where R: Read + Seek
+where
+    R: Read + Seek,
 {
     /// Create a new TiffDecoder.
     pub fn new(r: R) -> Result<TiffDecoder<R>, ImageError> {
         let mut inner = tiff::decoder::Decoder::new(r).map_err(ImageError::from_tiff_decode)?;
 
-        let dimensions = inner.dimensions()
-            .map_err(ImageError::from_tiff_decode)?;
-        let color_type = inner.colortype()
-            .map_err(ImageError::from_tiff_decode)?;
+        let dimensions = inner.dimensions().map_err(ImageError::from_tiff_decode)?;
+        let color_type = inner.colortype().map_err(ImageError::from_tiff_decode)?;
         match inner.find_tag_unsigned_vec::<u16>(tiff::tags::Tag::SampleFormat) {
             Ok(Some(sample_formats)) => {
                 for format in sample_formats {
                     check_sample_format(format)?;
                 }
             }
-            Ok(None) => { /* assume UInt format */ },
+            Ok(None) => { /* assume UInt format */ }
             Err(other) => return Err(ImageError::from_tiff_decode(other)),
         };
 
@@ -82,19 +82,18 @@ impl<R> TiffDecoder<R>
 fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
     match tiff::tags::SampleFormat::from_u16(sample_format) {
         Some(tiff::tags::SampleFormat::Uint) => Ok(()),
-        Some(other) => {
-            Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        Some(other) => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
                 ImageFormat::Tiff.into(),
-                UnsupportedErrorKind::GenericFeature(
-                    format!("Unhandled TIFF sample format {:?}", other)
-                ),
-            )))
-        }
-        None => {
-            Err(ImageError::Decoding(
-                    DecodingError::from_format_hint(ImageFormat::Tiff.into())
-            ))
-        }
+                UnsupportedErrorKind::GenericFeature(format!(
+                    "Unhandled TIFF sample format {:?}",
+                    other
+                )),
+            ),
+        )),
+        None => Err(ImageError::Decoding(DecodingError::from_format_hint(
+            ImageFormat::Tiff.into(),
+        ))),
     }
 }
 
@@ -109,7 +108,9 @@ impl ImageError {
     fn from_tiff_decode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
+            err @ tiff::TiffError::FormatError(_)
+            | err @ tiff::TiffError::IntSizeError
+            | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -127,7 +128,9 @@ impl ImageError {
     fn from_tiff_encode(err: tiff::TiffError) -> ImageError {
         match err {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
-            err @ tiff::TiffError::FormatError(_) | err @ tiff::TiffError::IntSizeError | err @ tiff::TiffError::UsageError(_) => {
+            err @ tiff::TiffError::FormatError(_)
+            | err @ tiff::TiffError::IntSizeError
+            | err @ tiff::TiffError::UsageError(_) => {
                 ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
             }
             tiff::TiffError::UnsupportedError(desc) => {
@@ -265,12 +268,30 @@ impl<W: Write + Seek> TiffEncoder<W> {
         let mut encoder =
             tiff::encoder::TiffEncoder::new(self.w).map_err(ImageError::from_tiff_encode)?;
         match color {
-            ColorType::L8 => encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data),
-            ColorType::Rgb8 => encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data),
-            ColorType::Rgba8 => encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data),
-            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(width, height, u8_slice_as_u16(data)?),
-            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(width, height, u8_slice_as_u16(data)?),
-            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(width, height, u8_slice_as_u16(data)?),
+            ColorType::L8 => {
+                encoder.write_image::<tiff::encoder::colortype::Gray8>(width, height, data)
+            }
+            ColorType::Rgb8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGB8>(width, height, data)
+            }
+            ColorType::Rgba8 => {
+                encoder.write_image::<tiff::encoder::colortype::RGBA8>(width, height, data)
+            }
+            ColorType::L16 => encoder.write_image::<tiff::encoder::colortype::Gray16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgb16 => encoder.write_image::<tiff::encoder::colortype::RGB16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
+            ColorType::Rgba16 => encoder.write_image::<tiff::encoder::colortype::RGBA16>(
+                width,
+                height,
+                u8_slice_as_u16(data)?,
+            ),
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

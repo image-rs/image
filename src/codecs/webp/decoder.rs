@@ -1,19 +1,20 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
-use std::{error, fmt, mem};
 use std::io::{self, Cursor, Read};
 use std::marker::PhantomData;
+use std::{error, fmt, mem};
 
-use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{
+    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+};
 use crate::image::{ImageDecoder, ImageFormat};
 
 use crate::color;
 
 use super::lossless::LosslessDecoder;
 use super::lossless::LosslessFrame;
-use super::vp8::Vp8Decoder;
 use super::vp8::Frame as VP8Frame;
-
+use super::vp8::Vp8Decoder;
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
@@ -29,15 +30,23 @@ impl fmt::Display for DecoderError {
         struct SignatureWriter([u8; 4]);
         impl fmt::Display for SignatureWriter {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "[{:#04X?}, {:#04X?}, {:#04X?}, {:#04X?}]", self.0[0], self.0[1], self.0[2], self.0[3])
+                write!(
+                    f,
+                    "[{:#04X?}, {:#04X?}, {:#04X?}, {:#04X?}]",
+                    self.0[0], self.0[1], self.0[2], self.0[3]
+                )
             }
         }
 
         match self {
-            DecoderError::RiffSignatureInvalid(riff) =>
-                f.write_fmt(format_args!("Invalid RIFF signature: {}", SignatureWriter(*riff))),
-            DecoderError::WebpSignatureInvalid(webp) =>
-                f.write_fmt(format_args!("Invalid WebP signature: {}", SignatureWriter(*webp))),
+            DecoderError::RiffSignatureInvalid(riff) => f.write_fmt(format_args!(
+                "Invalid RIFF signature: {}",
+                SignatureWriter(*riff)
+            )),
+            DecoderError::WebpSignatureInvalid(webp) => f.write_fmt(format_args!(
+                "Invalid WebP signature: {}",
+                SignatureWriter(*webp)
+            )),
         }
     }
 }
@@ -65,13 +74,9 @@ impl<R: Read> WebPDecoder<R> {
     /// Create a new WebPDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> ImageResult<WebPDecoder<R>> {
-
         let frame = Frame::Lossy(Default::default());
-        
-        let mut decoder = WebPDecoder {
-            r,
-            frame,
-        };
+
+        let mut decoder = WebPDecoder { r, frame };
         decoder.read_data()?;
         Ok(decoder)
     }
@@ -115,15 +120,19 @@ impl<R: Read> WebPDecoder<R> {
 
                     let mut lossless_decoder = LosslessDecoder::new(m);
                     let frame = lossless_decoder.decode_frame()?;
-                    
+
                     return Ok(Frame::Lossless(frame.clone()));
                 }
                 b"ALPH" | b"ANIM" | b"ANMF" => {
                     // Alpha and Animation isn't supported
-                    return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                        ImageFormat::WebP.into(),
-                        UnsupportedErrorKind::GenericFeature(chunk.iter().map(|&b| b as char).collect()),
-                    )));
+                    return Err(ImageError::Unsupported(
+                        UnsupportedError::from_format_and_kind(
+                            ImageFormat::WebP.into(),
+                            UnsupportedErrorKind::GenericFeature(
+                                chunk.iter().map(|&b| b as char).collect(),
+                            ),
+                        ),
+                    ));
                 }
                 _ => {
                     let mut len = u64::from(self.r.read_u32::<LittleEndian>()?);
@@ -154,7 +163,9 @@ impl<R: Read> WebPDecoder<R> {
 }
 
 fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>
-    where R: Read {
+where
+    R: Read,
+{
     let len = r.read_u32::<LittleEndian>()?;
 
     let mut framedata = Vec::new();
@@ -184,7 +195,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match &self.frame {
             Frame::Lossy(vp8_frame) => (u32::from(vp8_frame.width), u32::from(vp8_frame.height)),
-            Frame::Lossless(lossless_frame) => (u32::from(lossless_frame.width), u32::from(lossless_frame.height)),
+            Frame::Lossless(lossless_frame) => (
+                u32::from(lossless_frame.width),
+                u32::from(lossless_frame.height),
+            ),
         }
     }
 
@@ -193,7 +207,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
             Frame::Lossy(_) => color::ColorType::Rgb8,
             Frame::Lossless(_) => color::ColorType::Rgba8,
         }
-        
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
@@ -232,13 +245,14 @@ mod tests {
 
     #[test]
     fn add_with_overflow_size() {
-        let bytes = vec![0x52, 0x49, 0x46, 0x46, 0xaf, 0x37, 0x80, 0x47, 0x57, 0x45, 0x42, 0x50,
-                        0x6c, 0x64, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xfb, 0x7e, 0x73, 0x00,
-                        0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00,
-                        0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x40, 0xfb, 0xff, 0xff, 0x65, 0x65,
-                        0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x00, 0x00, 0x00, 0x00,
-                        0x62, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x49, 0x54,
-                        0x55, 0x50, 0x4c, 0x54, 0x59, 0x50, 0x45, 0x33, 0x37, 0x44, 0x4d, 0x46];
+        let bytes = vec![
+            0x52, 0x49, 0x46, 0x46, 0xaf, 0x37, 0x80, 0x47, 0x57, 0x45, 0x42, 0x50, 0x6c, 0x64,
+            0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xfb, 0x7e, 0x73, 0x00, 0x06, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+            0x40, 0xfb, 0xff, 0xff, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+            0x00, 0x00, 0x00, 0x00, 0x62, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49,
+            0x49, 0x54, 0x55, 0x50, 0x4c, 0x54, 0x59, 0x50, 0x45, 0x33, 0x37, 0x44, 0x4d, 0x46,
+        ];
 
         let data = std::io::Cursor::new(bytes);
 

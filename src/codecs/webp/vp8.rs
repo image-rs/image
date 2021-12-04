@@ -15,11 +15,11 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryInto;
 use std::default::Default;
-use std::{cmp, error, fmt};
 use std::io::Read;
+use std::{cmp, error, fmt};
 
-use super::transform;
 use super::loop_filter;
+use super::transform;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
@@ -689,20 +689,27 @@ enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::Vp8MagicInvalid(tag) =>
-                f.write_fmt(format_args!("Invalid VP8 magic: [{:#04X?}, {:#04X?}, {:#04X?}]", tag[0], tag[1], tag[2])),
+            DecoderError::Vp8MagicInvalid(tag) => f.write_fmt(format_args!(
+                "Invalid VP8 magic: [{:#04X?}, {:#04X?}, {:#04X?}]",
+                tag[0], tag[1], tag[2]
+            )),
 
-            DecoderError::NotEnoughInitData =>
-                f.write_str("Expected at least 2 bytes of VP8 decoder initialization data"),
+            DecoderError::NotEnoughInitData => {
+                f.write_str("Expected at least 2 bytes of VP8 decoder initialization data")
+            }
 
-            DecoderError::ColorSpaceInvalid(cs) =>
-                f.write_fmt(format_args!("Invalid non-YUV VP8 color space {}", cs)),
-            DecoderError::LumaPredictionModeInvalid(pm) =>
-                f.write_fmt(format_args!("Invalid VP8 LUMA prediction mode {}", pm)),
-            DecoderError::IntraPredictionModeInvalid(i) =>
-                f.write_fmt(format_args!("Invalid VP8 intra-prediction mode {}", i)),
-            DecoderError::ChromaPredictionModeInvalid(c) =>
-                f.write_fmt(format_args!("Invalid VP8 chroma prediction mode {}", c)),
+            DecoderError::ColorSpaceInvalid(cs) => {
+                f.write_fmt(format_args!("Invalid non-YUV VP8 color space {}", cs))
+            }
+            DecoderError::LumaPredictionModeInvalid(pm) => {
+                f.write_fmt(format_args!("Invalid VP8 LUMA prediction mode {}", pm))
+            }
+            DecoderError::IntraPredictionModeInvalid(i) => {
+                f.write_fmt(format_args!("Invalid VP8 intra-prediction mode {}", i))
+            }
+            DecoderError::ChromaPredictionModeInvalid(c) => {
+                f.write_fmt(format_args!("Invalid VP8 chroma prediction mode {}", c))
+            }
         }
     }
 }
@@ -901,12 +908,12 @@ impl Frame {
             let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
 
             buf[rgb_index] = r;
-            buf[rgb_index+1] = g;
-            buf[rgb_index+2] = b;
+            buf[rgb_index + 1] = g;
+            buf[rgb_index + 2] = b;
         }
     }
 
-    /// Gets the buffer size 
+    /// Gets the buffer size
     pub fn get_buf_size(&self) -> usize {
         self.ybuf.len() * 3
     }
@@ -1043,7 +1050,8 @@ impl<R: Read> Vp8Decoder<R> {
             self.r.read_exact(sizes.as_mut_slice())?;
 
             for (i, s) in sizes.chunks(3).enumerate() {
-                let size = {s}.read_u24::<LittleEndian>()
+                let size = { s }
+                    .read_u24::<LittleEndian>()
                     .expect("Reading from &[u8] can't fail and the chunk is complete");
 
                 let mut buf = vec![0; size as usize];
@@ -1223,15 +1231,16 @@ impl<R: Read> Vp8Decoder<R> {
 
             self.top = init_top_macroblocks(self.frame.width as usize);
             // Almost always the first macro block, except when non exists (i.e. `width == 0`)
-            self.left = self.top.get(0).cloned()
-                .unwrap_or_else(MacroBlock::default);
+            self.left = self.top.get(0).cloned().unwrap_or_else(MacroBlock::default);
 
             self.mbwidth = (self.frame.width + 15) / 16;
             self.mbheight = (self.frame.height + 15) / 16;
 
             self.frame.ybuf = vec![0u8; self.frame.width as usize * self.frame.height as usize];
-            self.frame.ubuf = vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
-            self.frame.vbuf = vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
+            self.frame.ubuf =
+                vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
+            self.frame.vbuf =
+                vec![0u8; self.frame.chroma_width() as usize * self.frame.chroma_height() as usize];
 
             self.top_border = vec![127u8; self.frame.width as usize + 4 + 16];
             self.left_border = vec![129u8; 1 + 16];
@@ -1317,8 +1326,10 @@ impl<R: Read> Vp8Decoder<R> {
         let mut mb = MacroBlock::default();
 
         if self.segments_enabled && self.segments_update_map {
-            mb.segmentid = self.b
-                .read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0) as u8;
+            mb.segmentid = self
+                .b
+                .read_with_tree(&SEGMENT_ID_TREE, &self.segment_tree_probs, 0)
+                as u8;
         };
 
         mb.coeffs_skipped = if self.prob_skip_false.is_some() {
@@ -1344,10 +1355,11 @@ impl<R: Read> Vp8Decoder<R> {
 
         if self.frame.keyframe {
             // intra prediction
-            let luma = self.b
+            let luma = self
+                .b
                 .read_with_tree(&KEYFRAME_YMODE_TREE, &KEYFRAME_YMODE_PROBS, 0);
-            mb.luma_mode = LumaMode::from_i8(luma)
-                .ok_or(DecoderError::LumaPredictionModeInvalid(luma))?;
+            mb.luma_mode =
+                LumaMode::from_i8(luma).ok_or(DecoderError::LumaPredictionModeInvalid(luma))?;
 
             match mb.luma_mode.into_intra() {
                 // `LumaMode::B` - This is predicted individually
@@ -1369,8 +1381,8 @@ impl<R: Read> Vp8Decoder<R> {
                             self.left.bpred[y] = bmode;
                         }
                     }
-                },
-                Some(mode) =>  {
+                }
+                Some(mode) => {
                     for i in 0usize..4 {
                         mb.bpred[12 + i] = mode;
                         self.left.bpred[i] = mode;
@@ -1378,7 +1390,8 @@ impl<R: Read> Vp8Decoder<R> {
                 }
             }
 
-            let chroma = self.b
+            let chroma = self
+                .b
                 .read_with_tree(&KEYFRAME_UV_MODE_TREE, &KEYFRAME_UV_MODE_PROBS, 0);
             mb.chroma_mode = ChromaMode::from_i8(chroma)
                 .ok_or(DecoderError::ChromaPredictionModeInvalid(chroma))?;
@@ -1410,7 +1423,7 @@ impl<R: Read> Vp8Decoder<R> {
                 for x in 0usize..4 {
                     let i = x + y * 4;
                     // Create a reference to a [i32; 16] array for add_residue (slices of size 16 do not work).
-                    let rb: &[i32; 16] = resdata[i*16..][..16].try_into().unwrap();
+                    let rb: &[i32; 16] = resdata[i * 16..][..16].try_into().unwrap();
                     let y0 = 1 + y * 4;
                     let x0 = 1 + x * 4;
 
@@ -1427,8 +1440,8 @@ impl<R: Read> Vp8Decoder<R> {
         }
 
         // Length is the remainder to the border, but maximally the current chunk.
-        let ylength = cmp::min(self.frame.height as usize - mby*16, 16);
-        let xlength = cmp::min(self.frame.width as usize - mbx*16, 16);
+        let ylength = cmp::min(self.frame.height as usize - mby * 16, 16);
+        let xlength = cmp::min(self.frame.width as usize - mbx * 16, 16);
 
         for y in 0usize..ylength {
             for x in 0usize..xlength {
@@ -1446,8 +1459,8 @@ impl<R: Read> Vp8Decoder<R> {
         let mut uws = [0u8; (8 + 1) * (8 + 1)];
         let mut vws = [0u8; (8 + 1) * (8 + 1)];
 
-        let ylength = cmp::min(self.frame.chroma_height() as usize - mby*8, 8);
-        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx*8, 8);
+        let ylength = cmp::min(self.frame.chroma_height() as usize - mby * 8, 8);
+        let xlength = cmp::min(self.frame.chroma_width() as usize - mbx * 8, 8);
 
         //left border
         for y in 0usize..8 {
@@ -1455,10 +1468,7 @@ impl<R: Read> Vp8Decoder<R> {
                 (129, 129)
             } else {
                 let index = (mby * 8 + y) * w + ((mbx - 1) * 8 + 7);
-                (
-                    self.frame.ubuf[index],
-                    self.frame.vbuf[index]
-                )
+                (self.frame.ubuf[index], self.frame.vbuf[index])
             };
 
             uws[(y + 1) * stride] = uy;
@@ -1470,10 +1480,7 @@ impl<R: Read> Vp8Decoder<R> {
                 (127, 127)
             } else {
                 let index = ((mby - 1) * 8 + 7) * w + (mbx * 8 + x);
-                (
-                    self.frame.ubuf[index],
-                    self.frame.vbuf[index]
-                )
+                (self.frame.ubuf[index], self.frame.vbuf[index])
             };
 
             uws[x + 1] = ux;
@@ -1490,10 +1497,7 @@ impl<R: Read> Vp8Decoder<R> {
             if index >= self.frame.ubuf.len() {
                 (127, 127)
             } else {
-                (
-                    self.frame.ubuf[index],
-                    self.frame.vbuf[index]
-                )
+                (self.frame.ubuf[index], self.frame.vbuf[index])
             }
         };
 
@@ -1504,19 +1508,19 @@ impl<R: Read> Vp8Decoder<R> {
             ChromaMode::DC => {
                 predict_dcpred(&mut uws, 8, stride, mby != 0, mbx != 0);
                 predict_dcpred(&mut vws, 8, stride, mby != 0, mbx != 0);
-            },
+            }
             ChromaMode::V => {
                 predict_vpred(&mut uws, 8, 1, 1, stride);
                 predict_vpred(&mut vws, 8, 1, 1, stride);
-            },
+            }
             ChromaMode::H => {
                 predict_hpred(&mut uws, 8, 1, 1, stride);
                 predict_hpred(&mut vws, 8, 1, 1, stride);
-            },
+            }
             ChromaMode::TM => {
                 predict_tmpred(&mut uws, 8, 1, 1, stride);
                 predict_tmpred(&mut vws, 8, 1, 1, stride);
-            },
+            }
         }
 
         for y in 0usize..2 {
@@ -1707,7 +1711,6 @@ impl<R: Read> Vp8Decoder<R> {
         let (filter_level, interior_limit, hev_threshold) = self.calculate_filter_parameters(mb);
 
         if filter_level > 0 {
-
             let mbedge_limit = (filter_level + 2) * 2 + interior_limit;
             let sub_bedge_limit = (filter_level * 2) + interior_limit;
 
@@ -1725,12 +1728,12 @@ impl<R: Read> Vp8Decoder<R> {
                         for y in 0usize..luma_ylength {
                             let y0 = mby * 16 + y;
                             let x0 = mbx * 16;
-    
+
                             loop_filter::simple_segment(
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
+                                mbedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                1,
                             );
                         }
                     }
@@ -1741,12 +1744,12 @@ impl<R: Read> Vp8Decoder<R> {
                             let x0 = mbx * 16;
 
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                1,
                             );
                         }
                     }
@@ -1755,22 +1758,22 @@ impl<R: Read> Vp8Decoder<R> {
                         for y in 0usize..chroma_ylength {
                             let y0 = mby * 8 + y;
                             let x0 = mbx * 8;
-    
+
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ubuf[..], 
-                                y0 * chroma_w + x0, 
-                                1
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.ubuf[..],
+                                y0 * chroma_w + x0,
+                                1,
                             );
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.vbuf[..], 
-                                y0 * chroma_w + x0, 
-                                1
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.vbuf[..],
+                                y0 * chroma_w + x0,
+                                1,
                             );
                         }
                     }
@@ -1780,33 +1783,33 @@ impl<R: Read> Vp8Decoder<R> {
             //filter across vertical subblocks in macroblock
             if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
                 if self.frame.filter_type {
-                    for x in (4usize..luma_xlength-1).step_by(4) {
+                    for x in (4usize..luma_xlength - 1).step_by(4) {
                         for y in 0..luma_ylength {
                             let y0 = mby * 16 + y;
                             let x0 = mbx * 16 + x;
-    
+
                             loop_filter::simple_segment(
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                1
+                                sub_bedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                1,
                             );
                         }
                     }
                 } else {
                     if luma_xlength > 3 {
-                        for x in (4usize..luma_xlength-3).step_by(4) {
+                        for x in (4usize..luma_xlength - 3).step_by(4) {
                             for y in 0..luma_ylength {
                                 let y0 = mby * 16 + y;
                                 let x0 = mbx * 16 + x;
 
                                 loop_filter::subblock_filter(
-                                    hev_threshold, 
-                                    interior_limit, 
-                                    sub_bedge_limit, 
-                                    &mut self.frame.ybuf[..], 
-                                    y0 * luma_w + x0, 
-                                    1
+                                    hev_threshold,
+                                    interior_limit,
+                                    sub_bedge_limit,
+                                    &mut self.frame.ybuf[..],
+                                    y0 * luma_w + x0,
+                                    1,
                                 );
                             }
                         }
@@ -1823,7 +1826,7 @@ impl<R: Read> Vp8Decoder<R> {
                                 sub_bedge_limit,
                                 &mut self.frame.ubuf[..],
                                 y0 * chroma_w + x0,
-                                1
+                                1,
                             );
 
                             loop_filter::subblock_filter(
@@ -1832,7 +1835,7 @@ impl<R: Read> Vp8Decoder<R> {
                                 sub_bedge_limit,
                                 &mut self.frame.vbuf[..],
                                 y0 * chroma_w + x0,
-                                1
+                                1,
                             );
                         }
                     }
@@ -1846,12 +1849,12 @@ impl<R: Read> Vp8Decoder<R> {
                         for x in 0usize..luma_xlength {
                             let y0 = mby * 16;
                             let x0 = mbx * 16 + x;
-    
+
                             loop_filter::simple_segment(
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
+                                mbedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                luma_w,
                             );
                         }
                     }
@@ -1863,12 +1866,12 @@ impl<R: Read> Vp8Decoder<R> {
                             let x0 = mbx * 16 + x;
 
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                luma_w,
                             );
                         }
                     }
@@ -1879,20 +1882,20 @@ impl<R: Read> Vp8Decoder<R> {
                             let x0 = mbx * 8 + x;
 
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.ubuf[..], 
-                                y0 * chroma_w + x0, 
-                                chroma_w
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.ubuf[..],
+                                y0 * chroma_w + x0,
+                                chroma_w,
                             );
                             loop_filter::macroblock_filter(
-                                hev_threshold, 
-                                interior_limit, 
-                                mbedge_limit, 
-                                &mut self.frame.vbuf[..], 
-                                y0 * chroma_w + x0, 
-                                chroma_w
+                                hev_threshold,
+                                interior_limit,
+                                mbedge_limit,
+                                &mut self.frame.vbuf[..],
+                                y0 * chroma_w + x0,
+                                chroma_w,
                             );
                         }
                     }
@@ -1902,33 +1905,33 @@ impl<R: Read> Vp8Decoder<R> {
             //filter across horizontal subblock edges within the macroblock
             if mb.luma_mode == LumaMode::B || !mb.coeffs_skipped {
                 if self.frame.filter_type {
-                    for y in (4usize..luma_ylength-1).step_by(4) {
+                    for y in (4usize..luma_ylength - 1).step_by(4) {
                         for x in 0..luma_xlength {
                             let y0 = mby * 16 + y;
                             let x0 = mbx * 16 + x;
-    
+
                             loop_filter::simple_segment(
-                                sub_bedge_limit, 
-                                &mut self.frame.ybuf[..], 
-                                y0 * luma_w + x0, 
-                                luma_w
+                                sub_bedge_limit,
+                                &mut self.frame.ybuf[..],
+                                y0 * luma_w + x0,
+                                luma_w,
                             );
                         }
                     }
                 } else {
                     if luma_ylength > 3 {
-                        for y in (4usize..luma_ylength-3).step_by(4) {
+                        for y in (4usize..luma_ylength - 3).step_by(4) {
                             for x in 0..luma_xlength {
                                 let y0 = mby * 16 + y;
                                 let x0 = mbx * 16 + x;
 
                                 loop_filter::subblock_filter(
-                                    hev_threshold, 
-                                    interior_limit, 
-                                    sub_bedge_limit, 
-                                    &mut self.frame.ybuf[..], 
-                                    y0 * luma_w + x0, 
-                                    luma_w
+                                    hev_threshold,
+                                    interior_limit,
+                                    sub_bedge_limit,
+                                    &mut self.frame.ybuf[..],
+                                    y0 * luma_w + x0,
+                                    luma_w,
                                 );
                             }
                         }
@@ -1945,7 +1948,7 @@ impl<R: Read> Vp8Decoder<R> {
                                 sub_bedge_limit,
                                 &mut self.frame.ubuf[..],
                                 y0 * chroma_w + x0,
-                                chroma_w
+                                chroma_w,
                             );
 
                             loop_filter::subblock_filter(
@@ -1954,7 +1957,7 @@ impl<R: Read> Vp8Decoder<R> {
                                 sub_bedge_limit,
                                 &mut self.frame.vbuf[..],
                                 y0 * chroma_w + x0,
-                                chroma_w
+                                chroma_w,
                             );
                         }
                     }
@@ -1964,9 +1967,7 @@ impl<R: Read> Vp8Decoder<R> {
     }
 
     //return values are the filter level, interior limit and hev threshold
-    fn calculate_filter_parameters(&self, macroblock: &MacroBlock)
-        -> (u8, u8, u8) {
-
+    fn calculate_filter_parameters(&self, macroblock: &MacroBlock) -> (u8, u8, u8) {
         let segment = self.segment[macroblock.segmentid as usize];
         let mut filter_level = self.frame.filter_level as i32;
 
@@ -1983,14 +1984,14 @@ impl<R: Read> Vp8Decoder<R> {
         if macroblock.luma_mode == LumaMode::B {
             filter_level += self.mode_delta[0];
         }
-        
+
         let filter_level = clamp(filter_level, 0, 63) as u8;
 
         //interior limit
         let mut interior_limit = filter_level;
 
         if self.frame.sharpness_level > 0 {
-            interior_limit >>= if self.frame.sharpness_level > 4 {2} else {1};
+            interior_limit >>= if self.frame.sharpness_level > 4 { 2 } else { 1 };
 
             if interior_limit > 9 - self.frame.sharpness_level {
                 interior_limit = 9 - self.frame.sharpness_level;
@@ -2148,7 +2149,7 @@ fn init_top_macroblocks(width: usize) -> Vec<MacroBlock> {
         // Section 11.3 #3
         bpred: [IntraMode::DC; 16],
         luma_mode: LumaMode::DC,
-        .. MacroBlock::default()
+        ..MacroBlock::default()
     };
 
     vec![mb; mb_width]
@@ -2226,7 +2227,7 @@ fn avg2(this: u8, right: u8) -> u8 {
 fn add_residue(pblock: &mut [u8], rblock: &[i32; 16], y0: usize, x0: usize, stride: usize) {
     let mut pos = y0 * stride + x0;
     for row in rblock.chunks(4) {
-        for (p, &a) in pblock[pos..pos+4].iter_mut().zip(row.iter()) {
+        for (p, &a) in pblock[pos..pos + 4].iter_mut().zip(row.iter()) {
             *p = clamp(a + i32::from(*p), 0, 255) as u8;
         }
         pos += stride;
@@ -2340,7 +2341,7 @@ fn topleft_pixel(a: &[u8], x0: usize, y0: usize, stride: usize) -> u8 {
 
 fn top_pixels(a: &[u8], x0: usize, y0: usize, stride: usize) -> (u8, u8, u8, u8, u8, u8, u8, u8) {
     let pos = (y0 - 1) * stride + x0;
-    let a_slice = &a[pos..pos+8];
+    let a_slice = &a[pos..pos + 8];
     let a0 = a_slice[0];
     let a1 = a_slice[1];
     let a2 = a_slice[2];
@@ -2369,7 +2370,7 @@ fn edge_pixels(
     stride: usize,
 ) -> (u8, u8, u8, u8, u8, u8, u8, u8, u8) {
     let pos = (y0 - 1) * stride + x0 - 1;
-    let a_slice = &a[pos..=pos+4];
+    let a_slice = &a[pos..=pos + 4];
     let e0 = a[pos + 4 * stride];
     let e1 = a[pos + 3 * stride];
     let e2 = a[pos + 2 * stride];
@@ -2404,12 +2405,16 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let p = topleft_pixel(a, x0, y0, stride);
     let (l0, l1, l2, l3) = left_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(p, l0, l1), avg3(l0, l1, l2),
-     avg3(l1, l2, l3), avg3(l2, l3, l3)];
+    let avgs = [
+        avg3(p, l0, l1),
+        avg3(l0, l1, l2),
+        avg3(l1, l2, l3),
+        avg3(l2, l3, l3),
+    ];
 
     let mut pos = y0 * stride + x0;
     for &avg in avgs.iter() {
-        for a_p in a[pos..=pos+3].iter_mut() {
+        for a_p in a[pos..=pos + 3].iter_mut() {
             *a_p = avg;
         }
         pos += stride;
@@ -2419,13 +2424,20 @@ fn predict_bhepred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (a0, a1, a2, a3, a4, a5, a6, a7) = top_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(a0, a1, a2), avg3(a1, a2, a3), avg3(a2, a3, a4),
-    avg3(a3, a4, a5), avg3(a4, a5, a6), avg3(a5, a6, a7), avg3(a6, a7, a7)];
+    let avgs = [
+        avg3(a0, a1, a2),
+        avg3(a1, a2, a3),
+        avg3(a2, a3, a4),
+        avg3(a3, a4, a5),
+        avg3(a4, a5, a6),
+        avg3(a5, a6, a7),
+        avg3(a6, a7, a7),
+    ];
 
     let mut pos = y0 * stride + x0;
 
     for i in 0..4 {
-        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i+3]);
+        a[pos..=pos + 3].copy_from_slice(&avgs[i..=i + 3]);
         pos += stride;
     }
 }
@@ -2433,12 +2445,19 @@ fn predict_bldpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 fn predict_brdpred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
     let (e0, e1, e2, e3, e4, e5, e6, e7, e8) = edge_pixels(a, x0, y0, stride);
 
-    let avgs = [avg3(e0, e1, e2), avg3(e1, e2, e3), avg3(e2, e3, e4),
-    avg3(e3, e4, e5), avg3(e4, e5, e6), avg3(e5, e6, e7), avg3(e6, e7, e8)];
+    let avgs = [
+        avg3(e0, e1, e2),
+        avg3(e1, e2, e3),
+        avg3(e2, e3, e4),
+        avg3(e3, e4, e5),
+        avg3(e4, e5, e6),
+        avg3(e5, e6, e7),
+        avg3(e6, e7, e8),
+    ];
     let mut pos = y0 * stride + x0;
 
     for i in 0..4 {
-        a[pos..=pos + 3].copy_from_slice(&avgs[3-i..7-i]);
+        a[pos..=pos + 3].copy_from_slice(&avgs[3 - i..7 - i]);
         pos += stride;
     }
 }
@@ -2532,11 +2551,14 @@ mod test {
 
     #[cfg(feature = "benchmarks")]
     extern crate test;
-    use super::{top_pixels, edge_pixels, avg2, avg3, predict_bvepred, predict_brdpred, predict_bldpred, predict_bhepred, add_residue};
+    use super::{
+        add_residue, avg2, avg3, edge_pixels, predict_bhepred, predict_bldpred, predict_brdpred,
+        predict_bvepred, top_pixels,
+    };
     #[cfg(feature = "benchmarks")]
-    use super::{IntraMode, predict_4x4};
+    use super::{predict_4x4, IntraMode};
     #[cfg(feature = "benchmarks")]
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
     #[cfg(feature = "benchmarks")]
     const W: usize = 256;
@@ -2564,14 +2586,26 @@ mod test {
 
         let res_data = vec![1i32; W * H * 4];
         let modes = [
-            IntraMode::TM, IntraMode::VE, IntraMode::HE, IntraMode::DC,
-            IntraMode::LD, IntraMode::RD, IntraMode::VR, IntraMode::VL,
-            IntraMode::HD, IntraMode::HU, IntraMode::TM, IntraMode::VE,
-            IntraMode::HE, IntraMode::DC, IntraMode::LD, IntraMode::RD
+            IntraMode::TM,
+            IntraMode::VE,
+            IntraMode::HE,
+            IntraMode::DC,
+            IntraMode::LD,
+            IntraMode::RD,
+            IntraMode::VR,
+            IntraMode::VL,
+            IntraMode::HD,
+            IntraMode::HU,
+            IntraMode::TM,
+            IntraMode::VE,
+            IntraMode::HE,
+            IntraMode::DC,
+            IntraMode::LD,
+            IntraMode::RD,
         ];
 
         b.iter(|| {
-            black_box(predict_4x4(& mut v, W * 2, &modes, &res_data));
+            black_box(predict_4x4(&mut v, W * 2, &modes, &res_data));
         });
     }
 
@@ -2641,14 +2675,27 @@ mod test {
             for j in 0u8..=255 {
                 let ceil_avg = ((i as f32) + (j as f32)) / 2.0;
                 let ceil_avg = ceil_avg.ceil() as u8;
-                assert_eq!(ceil_avg, avg2(i, j), "avg2({}, {}), expected {}, got {}.", i, j, ceil_avg, avg2(i, j));
+                assert_eq!(
+                    ceil_avg,
+                    avg2(i, j),
+                    "avg2({}, {}), expected {}, got {}.",
+                    i,
+                    j,
+                    ceil_avg,
+                    avg2(i, j)
+                );
             }
         }
     }
 
     #[test]
     fn test_avg2_specific() {
-        assert_eq!(255, avg2(255, 255), "avg2(255, 255), expected 255, got {}.", avg2(255, 255));
+        assert_eq!(
+            255,
+            avg2(255, 255),
+            "avg2(255, 255), expected 255, got {}.",
+            avg2(255, 255)
+        );
         assert_eq!(1, avg2(1, 1), "avg2(1, 1), expected 1, got {}.", avg2(1, 1));
         assert_eq!(2, avg2(2, 1), "avg2(2, 1), expected 2, got {}.", avg2(2, 1));
     }
@@ -2660,7 +2707,16 @@ mod test {
                 for k in 0u8..=255 {
                     let floor_avg = ((i as f32) + 2.0 * (j as f32) + { k as f32 } + 2.0) / 4.0;
                     let floor_avg = floor_avg.floor() as u8;
-                    assert_eq!(floor_avg, avg3(i, j, k), "avg3({}, {}, {}), expected {}, got {}.", i, j, k, floor_avg, avg3(i, j, k));
+                    assert_eq!(
+                        floor_avg,
+                        avg3(i, j, k),
+                        "avg3({}, {}, {}), expected {}, got {}.",
+                        i,
+                        j,
+                        k,
+                        floor_avg,
+                        avg3(i, j, k)
+                    );
                 }
             }
         }
@@ -2668,6 +2724,7 @@ mod test {
 
     #[test]
     fn test_edge_pixels() {
+        #[rustfmt::skip]
         let im = vec![5, 6, 7, 8, 9,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
@@ -2687,6 +2744,7 @@ mod test {
 
     #[test]
     fn test_top_pixels() {
+        #[rustfmt::skip]
         let im = vec![1, 2, 3, 4, 5, 6, 7, 8,
                                 0, 0, 0, 0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -2709,10 +2767,12 @@ mod test {
     #[test]
     fn test_add_residue() {
         let mut pblock = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let rblock = [-1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9];
-        let expected:[u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
+        let rblock = [
+            -1, -2, -3, -4, 250, 249, 248, 250, -10, -18, -192, -17, -3, 15, 18, 9,
+        ];
+        let expected: [u8; 16] = [0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 10, 29, 33, 25];
 
-        add_residue(& mut pblock, &rblock, 0, 0, 4);
+        add_residue(&mut pblock, &rblock, 0, 0, 4);
 
         for (&e, &i) in expected.iter().zip(&pblock) {
             assert_eq!(e, i);
@@ -2721,18 +2781,20 @@ mod test {
 
     #[test]
     fn test_predict_bhepred() {
+        #[rustfmt::skip]
         let expected: Vec<u8> = vec![5, 0, 0, 0, 0,
               4, 4, 4, 4, 4,
               3, 3, 3, 3, 3,
               2, 2, 2, 2, 2,
               1, 1, 1, 1, 1];
 
+        #[rustfmt::skip]
         let mut im = vec![5, 0, 0, 0, 0,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
                       2, 0, 0, 0, 0,
                       1, 0, 0, 0, 0];
-        predict_bhepred(& mut im, 1, 1, 5);
+        predict_bhepred(&mut im, 1, 1, 5);
         for (&e, i) in expected.iter().zip(im) {
             assert_eq!(e, i);
         }
@@ -2740,18 +2802,20 @@ mod test {
 
     #[test]
     fn test_predict_brdpred() {
+        #[rustfmt::skip]
         let expected: Vec<u8> = vec![5, 6, 7, 8, 9,
               4, 5, 6, 7, 8,
               3, 4, 5, 6, 7,
               2, 3, 4, 5, 6,
               1, 2, 3, 4, 5];
 
+        #[rustfmt::skip]
         let mut im = vec![5, 6, 7, 8, 9,
                       4, 0, 0, 0, 0,
                       3, 0, 0, 0, 0,
                       2, 0, 0, 0, 0,
                       1, 0, 0, 0, 0];
-        predict_brdpred(& mut im, 1, 1, 5);
+        predict_brdpred(&mut im, 1, 1, 5);
         for (&e, i) in expected.iter().zip(im) {
             assert_eq!(e, i);
         }
@@ -2759,6 +2823,7 @@ mod test {
 
     #[test]
     fn test_predict_bldpred() {
+        #[rustfmt::skip]
         let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8,
                                    0, 0, 0, 0, 0, 0, 0, 0,
                                    0, 0, 0, 0, 0, 0, 0, 0,
@@ -2798,6 +2863,7 @@ mod test {
 
     #[test]
     fn test_predict_bvepred() {
+        #[rustfmt::skip]
         let mut im: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9,
                                    0, 0, 0, 0, 0, 0, 0, 0, 0,
                                    0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -2831,6 +2897,4 @@ mod test {
         assert_eq!(im[39], avg_3);
         assert_eq!(im[40], avg_4);
     }
-
 }
-

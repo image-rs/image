@@ -36,11 +36,7 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
     let q1 = u2s(pixels[point + stride]);
 
     //value for the outer 2 pixels
-    let outer = if use_outer_taps {
-        c(p1 - q1)
-    } else {
-        0
-    };
+    let outer = if use_outer_taps { c(p1 - q1) } else { 0 };
 
     let mut a = c(outer + 3 * (q0 - p0));
 
@@ -55,23 +51,30 @@ fn common_adjust(use_outer_taps: bool, pixels: &mut [u8], point: usize, stride: 
 }
 
 fn simple_threshold(filter_limit: i32, pixels: &[u8], point: usize, stride: usize) -> bool {
-   i32::from(diff(pixels[point - stride], pixels[point])) * 2 + 
-   i32::from(diff(pixels[point - 2 * stride], pixels[point + stride])) / 2 <= filter_limit
+    i32::from(diff(pixels[point - stride], pixels[point])) * 2
+        + i32::from(diff(pixels[point - 2 * stride], pixels[point + stride])) / 2
+        <= filter_limit
 }
 
-fn should_filter(interior_limit: u8, edge_limit: u8, pixels: &[u8], point: usize, stride: usize) -> bool {
-    simple_threshold(i32::from(edge_limit), pixels, point, stride) &&
-    diff(pixels[point - 4 * stride], pixels[point - 3 * stride]) <= interior_limit && 
-    diff(pixels[point - 3 * stride], pixels[point - 2 * stride]) <= interior_limit &&
-    diff(pixels[point - 2 * stride], pixels[point - stride]) <= interior_limit &&
-    diff(pixels[point + 3 * stride], pixels[point + 2 * stride]) <= interior_limit &&
-    diff(pixels[point + 2 * stride], pixels[point + stride]) <= interior_limit &&
-    diff(pixels[point + stride], pixels[point]) <= interior_limit
+fn should_filter(
+    interior_limit: u8,
+    edge_limit: u8,
+    pixels: &[u8],
+    point: usize,
+    stride: usize,
+) -> bool {
+    simple_threshold(i32::from(edge_limit), pixels, point, stride)
+        && diff(pixels[point - 4 * stride], pixels[point - 3 * stride]) <= interior_limit
+        && diff(pixels[point - 3 * stride], pixels[point - 2 * stride]) <= interior_limit
+        && diff(pixels[point - 2 * stride], pixels[point - stride]) <= interior_limit
+        && diff(pixels[point + 3 * stride], pixels[point + 2 * stride]) <= interior_limit
+        && diff(pixels[point + 2 * stride], pixels[point + stride]) <= interior_limit
+        && diff(pixels[point + stride], pixels[point]) <= interior_limit
 }
 
 fn high_edge_variance(threshold: u8, pixels: &[u8], point: usize, stride: usize) -> bool {
-    diff(pixels[point - 2 * stride], pixels[point - stride]) > threshold || 
-    diff(pixels[point + stride], pixels[point]) > threshold
+    diff(pixels[point - 2 * stride], pixels[point - stride]) > threshold
+        || diff(pixels[point + stride], pixels[point]) > threshold
 }
 
 //simple filter
@@ -84,7 +87,14 @@ pub(crate) fn simple_segment(edge_limit: u8, pixels: &mut [u8], point: usize, st
 
 //normal filter
 //works on the 8 pixels on the edges between subblocks inside a macroblock
-pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
+pub(crate) fn subblock_filter(
+    hev_threshold: u8,
+    interior_limit: u8,
+    edge_limit: u8,
+    pixels: &mut [u8],
+    point: usize,
+    stride: usize,
+) {
     if should_filter(interior_limit, edge_limit, pixels, point, stride) {
         let hv = high_edge_variance(hev_threshold, pixels, point, stride);
 
@@ -99,8 +109,14 @@ pub(crate) fn subblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit:
 
 //normal filter
 //works on the 8 pixels on the edges between macroblocks
-pub(crate) fn macroblock_filter(hev_threshold: u8, interior_limit: u8, edge_limit: u8, pixels: &mut [u8], point: usize, stride: usize) {
-
+pub(crate) fn macroblock_filter(
+    hev_threshold: u8,
+    interior_limit: u8,
+    edge_limit: u8,
+    pixels: &mut [u8],
+    point: usize,
+    stride: usize,
+) {
     let mut spixels = [0i32; 8];
     for i in 0..8 {
         spixels[i] = u2s(pixels[point + i * stride - 4 * stride]);
@@ -124,10 +140,8 @@ pub(crate) fn macroblock_filter(hev_threshold: u8, interior_limit: u8, edge_limi
 
             pixels[point + 2 * stride] = s2u(spixels[6] - a);
             pixels[point - 3 * stride] = s2u(spixels[1] + a);
-            
         } else {
             common_adjust(true, pixels, point, stride);
         }
     }
 }
-

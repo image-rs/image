@@ -1,7 +1,7 @@
-use std::{iter, fs, path};
+use std::{fs, iter, path};
 
+use criterion::{criterion_group, criterion_main, Criterion};
 use image::ImageFormat;
-use criterion::{Criterion, criterion_group, criterion_main};
 
 #[derive(Clone, Copy)]
 struct BenchDef {
@@ -30,18 +30,12 @@ fn load_all(c: &mut Criterion) {
         },
         BenchDef {
             dir: &["gif", "simple"],
-            files: &[
-                "alpha_gif_a.gif",
-                "sample_1.gif",
-            ],
+            files: &["alpha_gif_a.gif", "sample_1.gif"],
             format: ImageFormat::Gif,
         },
         BenchDef {
             dir: &["hdr", "images"],
-            files: &[
-                "image1.hdr",
-                "rgbr4x4.hdr",
-            ],
+            files: &["image1.hdr", "rgbr4x4.hdr"],
             format: ImageFormat::Hdr,
         },
         BenchDef {
@@ -56,23 +50,14 @@ fn load_all(c: &mut Criterion) {
         },
         BenchDef {
             dir: &["jpg", "progressive"],
-            files: &[
-                "3.jpg",
-                "cat.jpg",
-                "test.jpg",
-            ],
+            files: &["3.jpg", "cat.jpg", "test.jpg"],
             format: ImageFormat::Jpeg,
         },
         // TODO: pnm
         // TODO: png
         BenchDef {
             dir: &["tga", "testsuite"],
-            files: &[
-                "cbw8.tga",
-                "ctc24.tga",
-                "ubw8.tga",
-                "utc24.tga",
-            ],
+            files: &["cbw8.tga", "ctc24.tga", "ubw8.tga", "utc24.tga"],
             format: ImageFormat::Tga,
         },
         BenchDef {
@@ -113,11 +98,12 @@ fn bench_load(c: &mut Criterion, def: &BenchDef) {
     for file_name in def.files {
         let path: path::PathBuf = paths.clone().chain(iter::once(file_name)).collect();
         let buf = fs::read(path).unwrap();
-        group.bench_function(file_name.to_owned(), |b| b.iter(|| {
-            image::load_from_memory_with_format(&buf, def.format).unwrap();
-        }));
+        group.bench_function(file_name.to_owned(), |b| {
+            b.iter(|| {
+                image::load_from_memory_with_format(&buf, def.format).unwrap();
+            })
+        });
     }
 }
 
 const IMAGE_DIR: [&'static str; 3] = [".", "tests", "images"];
-

@@ -1,10 +1,10 @@
+use std::cmp::{self, Ordering};
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
 use std::marker::PhantomData;
 use std::slice::ChunksMut;
 use std::{error, fmt, mem};
-use std::cmp::{self, Ordering};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -152,42 +152,49 @@ enum DecoderError {
     PaletteSizeExceeded {
         colors_used: u32,
         bit_count: u16,
-    }
+    },
 }
 
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::RleDataTooShort =>
-                f.write_str("Not enough RLE data"),
-            DecoderError::BitfieldMaskNonContiguous =>
-                f.write_str("Non-contiguous bitfield mask"),
-            DecoderError::BitfieldMaskInvalid =>
-                f.write_str("Invalid bitfield mask"),
-            DecoderError::BitfieldMaskMissing(bb) =>
-                f.write_fmt(format_args!("Missing {}-bit bitfield mask", bb)),
-            DecoderError::BitfieldMasksMissing(bb) =>
-                f.write_fmt(format_args!("Missing {}-bit bitfield masks", bb)),
-            DecoderError::BmpSignatureInvalid =>
-                f.write_str("BMP signature not found"),
-            DecoderError::MoreThanOnePlane =>
-                f.write_str("More than one plane"),
-            DecoderError::InvalidChannelWidth(tp, n) =>
-                f.write_fmt(format_args!("Invalid channel bit count for {}: {}", tp, n)),
-            DecoderError::NegativeWidth(w) =>
-                f.write_fmt(format_args!("Negative width ({})", w)),
-            DecoderError::ImageTooLarge(w, h) =>
-                f.write_fmt(format_args!("Image too large (one of ({}, {}) > soft limit of {})", w, h, MAX_WIDTH_HEIGHT)),
-            DecoderError::InvalidHeight =>
-                f.write_str("Invalid height"),
-            DecoderError::ImageTypeInvalidForTopDown(tp) =>
-                f.write_fmt(format_args!("Invalid image type {} for top-down image.", tp)),
-            DecoderError::ImageTypeUnknown(tp) =>
-                f.write_fmt(format_args!("Unknown image compression type {}", tp)),
-            DecoderError::HeaderTooSmall(s) =>
-                f.write_fmt(format_args!("Bitmap header too small ({} bytes)", s)),
-            DecoderError::PaletteSizeExceeded { colors_used, bit_count } =>
-                f.write_fmt(format_args!("Palette size {} exceeds maximum size for BMP with bit count of {}", colors_used, bit_count)),
+            DecoderError::RleDataTooShort => f.write_str("Not enough RLE data"),
+            DecoderError::BitfieldMaskNonContiguous => f.write_str("Non-contiguous bitfield mask"),
+            DecoderError::BitfieldMaskInvalid => f.write_str("Invalid bitfield mask"),
+            DecoderError::BitfieldMaskMissing(bb) => {
+                f.write_fmt(format_args!("Missing {}-bit bitfield mask", bb))
+            }
+            DecoderError::BitfieldMasksMissing(bb) => {
+                f.write_fmt(format_args!("Missing {}-bit bitfield masks", bb))
+            }
+            DecoderError::BmpSignatureInvalid => f.write_str("BMP signature not found"),
+            DecoderError::MoreThanOnePlane => f.write_str("More than one plane"),
+            DecoderError::InvalidChannelWidth(tp, n) => {
+                f.write_fmt(format_args!("Invalid channel bit count for {}: {}", tp, n))
+            }
+            DecoderError::NegativeWidth(w) => f.write_fmt(format_args!("Negative width ({})", w)),
+            DecoderError::ImageTooLarge(w, h) => f.write_fmt(format_args!(
+                "Image too large (one of ({}, {}) > soft limit of {})",
+                w, h, MAX_WIDTH_HEIGHT
+            )),
+            DecoderError::InvalidHeight => f.write_str("Invalid height"),
+            DecoderError::ImageTypeInvalidForTopDown(tp) => f.write_fmt(format_args!(
+                "Invalid image type {} for top-down image.",
+                tp
+            )),
+            DecoderError::ImageTypeUnknown(tp) => {
+                f.write_fmt(format_args!("Unknown image compression type {}", tp))
+            }
+            DecoderError::HeaderTooSmall(s) => {
+                f.write_fmt(format_args!("Bitmap header too small ({} bytes)", s))
+            }
+            DecoderError::PaletteSizeExceeded {
+                colors_used,
+                bit_count,
+            } => f.write_fmt(format_args!(
+                "Palette size {} exceeds maximum size for BMP with bit count of {}",
+                colors_used, bit_count
+            )),
         }
     }
 }
@@ -229,11 +236,15 @@ impl fmt::Display for ChannelWidthError {
 fn check_for_overflow(width: i32, length: i32, channels: usize) -> ImageResult<()> {
     num_bytes(width, length, channels)
         .map(|_| ())
-        .ok_or_else(||
+        .ok_or_else(|| {
             ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                 ImageFormat::Bmp.into(),
-                UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}x{} w/{} channels) are too large",
-                    width, length, channels)))))
+                UnsupportedErrorKind::GenericFeature(format!(
+                    "Image dimensions ({}x{} w/{} channels) are too large",
+                    width, length, channels
+                )),
+            ))
+        })
 }
 
 /// Calculate how many many bytes a buffer holding a decoded image with these properties would
@@ -718,7 +729,13 @@ impl<R: Read + Seek> BmpDecoder<R> {
         self.image_type = match self.bit_count {
             1 | 4 | 8 => ImageType::Palette,
             24 => ImageType::RGB24,
-            _ => return Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rgb, self.bit_count).into()),
+            _ => {
+                return Err(DecoderError::InvalidChannelWidth(
+                    ChannelWidthError::Rgb,
+                    self.bit_count,
+                )
+                .into())
+            }
         };
 
         Ok(())
@@ -772,20 +789,44 @@ impl<R: Read + Seek> BmpDecoder<R> {
                 24 => ImageType::RGB24,
                 32 if self.add_alpha_channel => ImageType::RGBA32,
                 32 => ImageType::RGB32,
-                _ => return Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rgb, self.bit_count).into()),
+                _ => {
+                    return Err(DecoderError::InvalidChannelWidth(
+                        ChannelWidthError::Rgb,
+                        self.bit_count,
+                    )
+                    .into())
+                }
             },
             1 => match self.bit_count {
                 8 => ImageType::RLE8,
-                _ => return Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rle8, self.bit_count).into()),
+                _ => {
+                    return Err(DecoderError::InvalidChannelWidth(
+                        ChannelWidthError::Rle8,
+                        self.bit_count,
+                    )
+                    .into())
+                }
             },
             2 => match self.bit_count {
                 4 => ImageType::RLE4,
-                _ => return Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Rle4, self.bit_count).into()),
+                _ => {
+                    return Err(DecoderError::InvalidChannelWidth(
+                        ChannelWidthError::Rle4,
+                        self.bit_count,
+                    )
+                    .into())
+                }
             },
             3 => match self.bit_count {
                 16 => ImageType::Bitfields16,
                 32 => ImageType::Bitfields32,
-                _ => return Err(DecoderError::InvalidChannelWidth(ChannelWidthError::Bitfields, self.bit_count).into()),
+                _ => {
+                    return Err(DecoderError::InvalidChannelWidth(
+                        ChannelWidthError::Bitfields,
+                        self.bit_count,
+                    )
+                    .into())
+                }
             },
             4 => {
                 // JPEG compression is not implemented yet.
@@ -816,7 +857,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
             }
             _ => {
                 // Unknown compression type.
-                return Err(DecoderError::ImageTypeUnknown(image_type_u32).into())
+                return Err(DecoderError::ImageTypeUnknown(image_type_u32).into());
             }
         };
 
@@ -952,8 +993,9 @@ impl<R: Read + Seek> BmpDecoder<R> {
                 if self.colors_used > 1 << self.bit_count {
                     return Err(DecoderError::PaletteSizeExceeded {
                         colors_used: self.colors_used,
-                        bit_count: self.bit_count
-                    }.into());
+                        bit_count: self.bit_count,
+                    }
+                    .into());
                 }
                 Ok(self.colors_used as usize)
             }
@@ -1225,8 +1267,13 @@ impl<R: Read + Seek> BmpDecoder<R> {
             num_bytes(self.width, self.height, self.num_channels()).ok_or_else(|| {
                 ImageError::Unsupported(UnsupportedError::from_format_and_kind(
                     ImageFormat::Bmp.into(),
-                    UnsupportedErrorKind::GenericFeature(format!("Image dimensions ({}x{} w/{} channels) are too large",
-                        self.width, self.height, self.num_channels()))))
+                    UnsupportedErrorKind::GenericFeature(format!(
+                        "Image dimensions ({}x{} w/{} channels) are too large",
+                        self.width,
+                        self.height,
+                        self.num_channels()
+                    )),
+                ))
             })?;
         let mut pixel_data = self.create_pixel_data();
         let (skip_pixels, skip_rows, eof_hit) =
@@ -1457,7 +1504,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(Cursor::new(image::decoder_to_vec(self)?), PhantomData))
+        Ok(BmpReader(
+            Cursor::new(image::decoder_to_vec(self)?),
+            PhantomData,
+        ))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -1477,8 +1527,17 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for BmpDecoder<R> {
         progress_callback: F,
     ) -> ImageResult<()> {
         let start = self.reader.seek(SeekFrom::Current(0))?;
-        image::load_rect(x, y, width, height, buf, progress_callback, self, |_, _| Ok(()),
-                         |s, buf| s.read_image_data(buf))?;
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |_, _| Ok(()),
+            |s, buf| s.read_image_data(buf),
+        )?;
         self.reader.seek(SeekFrom::Start(start))?;
         Ok(())
     }
@@ -1542,15 +1601,14 @@ mod test {
 
     #[test]
     fn test_extend_buffer() {
-
         // (input, extend_to)
         let test_cases: &[(&[u8], usize)] = &[
-            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 20),
-            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 13),
-            ( &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 50),
-            ( &[0, 1, 2, 3], 5),
-            ( &[0, 1, 2, 3], 15),
-            ( &[0, 1, 2, 3], 50),
+            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 20),
+            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 13),
+            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 50),
+            (&[0, 1, 2, 3], 5),
+            (&[0, 1, 2, 3], 15),
+            (&[0, 1, 2, 3], 50),
         ];
 
         for test_case in test_cases {

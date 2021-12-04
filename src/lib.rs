@@ -116,10 +116,10 @@ pub use crate::image::{
     ImageEncoder,
     ImageFormat,
     ImageOutputFormat,
-    Progress,
     // Iterators
     Pixels,
-    SubImage
+    Progress,
+    SubImage,
 };
 
 pub use crate::buffer_::{
@@ -127,21 +127,23 @@ pub use crate::buffer_::{
     GrayImage,
     // Image types
     ImageBuffer,
-    RgbImage,
-    RgbaImage,
-    Rgba32FImage,
     Rgb32FImage,
+    RgbImage,
+    Rgba32FImage,
+    RgbaImage,
 };
 
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::{EncodableLayout, Primitive, Pixel, PixelWithColorType};
+pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
+pub use crate::dynimage::{
+    image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
+    save_buffer_with_format, write_buffer_with_format,
+};
 pub use crate::io::free_functions::{guess_format, load};
-pub use crate::dynimage::{load_from_memory, load_from_memory_with_format, open,
-                   save_buffer, save_buffer_with_format, write_buffer_with_format, image_dimensions};
 
 pub use crate::dynimage::DynamicImage;
 
@@ -154,15 +156,8 @@ pub mod error;
 pub mod buffer {
     // Only those not exported at the top-level
     pub use crate::buffer_::{
-        ConvertBuffer,
-        EnumeratePixels,
-        EnumeratePixelsMut,
-        EnumerateRows,
-        EnumerateRowsMut,
-        Pixels,
-        PixelsMut,
-        Rows,
-        RowsMut,
+        ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
+        Pixels, PixelsMut, Rows, RowsMut,
     };
 }
 
@@ -238,6 +233,8 @@ pub mod codecs {
     pub mod ico;
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
+    #[cfg(feature = "openexr")]
+    pub mod openexr;
     #[cfg(feature = "png")]
     pub mod png;
     #[cfg(feature = "pnm")]
@@ -248,8 +245,6 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
-    #[cfg(feature = "openexr")]
-    pub mod openexr;
 }
 
 mod animation;
@@ -278,4 +273,3 @@ macro_rules! insert_as_doc {
 
 // Provides the README.md as doc, to ensure the example works!
 insert_as_doc!(include_str!("../README.md"));
-

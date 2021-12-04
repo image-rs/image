@@ -1,7 +1,5 @@
-
-
-use image::ImageFormat;
 use image::imageops::FilterType;
+use image::ImageFormat;
 use std::fmt;
 use std::fs::File;
 use std::time::{Duration, Instant};
@@ -34,7 +32,8 @@ fn main() {
         ("cmr", FilterType::CatmullRom),
         ("gauss", FilterType::Gaussian),
         ("lcz2", FilterType::Lanczos3),
-    ].iter()
+    ]
+    .iter()
     {
         let timer = Instant::now();
         let scaled = img.resize(400, 400, filter);

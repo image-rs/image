@@ -306,7 +306,11 @@ impl PnmHeader {
                 writeln!(
                     writer,
                     "\nWIDTH {}\nHEIGHT {}\nDEPTH {}\nMAXVAL {}\n{}ENDHDR",
-                    width, height, depth, maxval, TupltypeWriter(tupltype)
+                    width,
+                    height,
+                    depth,
+                    maxval,
+                    TupltypeWriter(tupltype)
                 )
             }
         }

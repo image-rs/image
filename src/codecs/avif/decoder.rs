@@ -14,7 +14,7 @@ use crate::{ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult};
 
 use dav1d::{PixelLayout, PlanarImageComponent};
 use dcv_color_primitives as dcp;
-use mp4parse::{ParseStrictness, read_avif};
+use mp4parse::{read_avif, ParseStrictness};
 
 fn error_map<E: Into<Box<dyn Error + Send + Sync>>>(err: E) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Avif.into(), err))

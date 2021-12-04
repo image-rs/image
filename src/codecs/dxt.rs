@@ -159,16 +159,25 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for DxtDecoder<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        let encoded_scanline_bytes = self.variant.encoded_bytes_per_block() as u64
-            * u64::from(self.width_blocks);
+        let encoded_scanline_bytes =
+            self.variant.encoded_bytes_per_block() as u64 * u64::from(self.width_blocks);
 
         let start = self.inner.seek(SeekFrom::Current(0))?;
-        image::load_rect(x, y, width, height, buf, progress_callback, self,
-                         |s, scanline| {
-                             s.inner.seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
-                             Ok(())
-                         },
-                         |s, buf| s.read_scanline(buf).map(|_| ()))?;
+        image::load_rect(
+            x,
+            y,
+            width,
+            height,
+            buf,
+            progress_callback,
+            self,
+            |s, scanline| {
+                s.inner
+                    .seek(SeekFrom::Start(start + scanline * encoded_scanline_bytes))?;
+                Ok(())
+            },
+            |s, buf| s.read_scanline(buf).map(|_| ()),
+        )?;
         self.inner.seek(SeekFrom::Start(start))?;
         Ok(())
     }
@@ -271,7 +280,8 @@ fn square(a: i32) -> i32 {
 
 /// returns the squared error between two RGB values
 fn diff(a: Rgb, b: Rgb) -> i32 {
-    square(i32::from(a[0]) - i32::from(b[0])) + square(i32::from(a[1]) - i32::from(b[1]))
+    square(i32::from(a[0]) - i32::from(b[0]))
+        + square(i32::from(a[1]) - i32::from(b[1]))
         + square(i32::from(a[2]) - i32::from(b[2]))
 }
 
@@ -309,8 +319,10 @@ fn decode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
     // extract color data
     let color0 = u16::from(source[0]) | (u16::from(source[1]) << 8);
     let color1 = u16::from(source[2]) | (u16::from(source[3]) << 8);
-    let color_table = u32::from(source[4]) | (u32::from(source[5]) << 8)
-        | (u32::from(source[6]) << 16) | (u32::from(source[7]) << 24);
+    let color_table = u32::from(source[4])
+        | (u32::from(source[5]) << 8)
+        | (u32::from(source[6]) << 16)
+        | (u32::from(source[7]) << 24);
     // let color_table = source[4..8].iter().rev().fold(0, |t, &b| (t << 8) | b as u32);
 
     // decode the colors to rgb format
@@ -562,7 +574,6 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
             colors[1] = c2;
 
             if is_dxt1 {
-
                 // what's inside here is ran at most 120 times.
                 for use_0 in 0..2 {
                     // and 240 times here.
@@ -578,9 +589,11 @@ fn encode_dxt_colors(source: &[u8], dest: &mut [u8], is_dxt1: bool) {
                         // interpolate to get 2 more colors
                         for i in 0..3 {
                             colors[2][i] =
-                                ((u16::from(colors[0][i]) * 2 + u16::from(colors[1][i]) + 1) / 3) as u8;
+                                ((u16::from(colors[0][i]) * 2 + u16::from(colors[1][i]) + 1) / 3)
+                                    as u8;
                             colors[3][i] =
-                                ((u16::from(colors[0][i]) + u16::from(colors[1][i]) * 2 + 1) / 3) as u8;
+                                ((u16::from(colors[0][i]) + u16::from(colors[1][i]) * 2 + 1) / 3)
+                                    as u8;
                         }
                     }
 

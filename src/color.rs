@@ -155,32 +155,32 @@ impl ExtendedColorType {
     /// an opaque datum by the library.
     pub fn channel_count(self) -> u8 {
         match self {
-            ExtendedColorType::A8 |
-            ExtendedColorType::L1 |
-            ExtendedColorType::L2 |
-            ExtendedColorType::L4 |
-            ExtendedColorType::L8 |
-            ExtendedColorType::L16 |
-            ExtendedColorType::Unknown(_) => 1,
-            ExtendedColorType::La1 |
-            ExtendedColorType::La2 |
-            ExtendedColorType::La4 |
-            ExtendedColorType::La8 |
-            ExtendedColorType::La16 => 2,
-            ExtendedColorType::Rgb1 |
-            ExtendedColorType::Rgb2 |
-            ExtendedColorType::Rgb4 |
-            ExtendedColorType::Rgb8 |
-            ExtendedColorType::Rgb16 |
-            ExtendedColorType::Rgb32F |
-            ExtendedColorType::Bgr8 => 3,
-            ExtendedColorType::Rgba1 |
-            ExtendedColorType::Rgba2 |
-            ExtendedColorType::Rgba4 |
-            ExtendedColorType::Rgba8 |
-            ExtendedColorType::Rgba16 |
-            ExtendedColorType::Rgba32F |
-            ExtendedColorType::Bgra8 => 4,
+            ExtendedColorType::A8
+            | ExtendedColorType::L1
+            | ExtendedColorType::L2
+            | ExtendedColorType::L4
+            | ExtendedColorType::L8
+            | ExtendedColorType::L16
+            | ExtendedColorType::Unknown(_) => 1,
+            ExtendedColorType::La1
+            | ExtendedColorType::La2
+            | ExtendedColorType::La4
+            | ExtendedColorType::La8
+            | ExtendedColorType::La16 => 2,
+            ExtendedColorType::Rgb1
+            | ExtendedColorType::Rgb2
+            | ExtendedColorType::Rgb4
+            | ExtendedColorType::Rgb8
+            | ExtendedColorType::Rgb16
+            | ExtendedColorType::Rgb32F
+            | ExtendedColorType::Bgr8 => 3,
+            ExtendedColorType::Rgba1
+            | ExtendedColorType::Rgba2
+            | ExtendedColorType::Rgba4
+            | ExtendedColorType::Rgba8
+            | ExtendedColorType::Rgba16
+            | ExtendedColorType::Rgba32F
+            | ExtendedColorType::Bgra8 => 4,
         }
     }
 }
@@ -367,12 +367,15 @@ define_colors! {
 
 /// Convert from one pixel component type to another. For example, convert from `u8` to `f32` pixel values.
 pub trait FromPrimitive<Component> {
-
     /// Converts from any pixel component type to this type.
     fn from_primitive(component: Component) -> Self;
 }
 
-impl<T: Primitive> FromPrimitive<T> for T { fn from_primitive(sample: T) -> Self { sample } }
+impl<T: Primitive> FromPrimitive<T> for T {
+    fn from_primitive(sample: T) -> Self {
+        sample
+    }
+}
 
 // from f32:
 // Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
@@ -396,7 +399,9 @@ impl FromPrimitive<f32> for u16 {
 
 impl FromPrimitive<u16> for u8 {
     fn from_primitive(c16: u16) -> Self {
-        fn from(c: impl Into<u32>) -> u32 { c.into() }
+        fn from(c: impl Into<u32>) -> u32 {
+            c.into()
+        }
         // The input c is the numerator of `c / u16::MAX`.
         // Derive numerator of `num / u8::MAX`, with rounding.
         //
@@ -428,13 +433,11 @@ impl FromPrimitive<u8> for u16 {
     }
 }
 
-
 /// Provides color conversions for the different pixel types.
 pub trait FromColor<Other> {
     /// Changes `self` to represent `Other` in the color space of `Self`
     fn from_color(&mut self, _: &Other);
 }
-
 
 /// Copy-based conversions to target pixel types using `FromColor`.
 // FIXME: this trait should be removed and replaced with real color space models
@@ -446,7 +449,8 @@ pub(crate) trait IntoColor<Other> {
 
 impl<O, S> IntoColor<O> for S
 where
-    O: Pixel + FromColor<S> {
+    O: Pixel + FromColor<S>,
+{
     fn into_color(&self) -> O {
         // Note we cannot use Pixel::CHANNELS_COUNT here to directly construct
         // the pixel due to a current bug/limitation of consts.
@@ -468,10 +472,12 @@ fn rgb_to_luma<T: Primitive>(rgb: &[T]) -> T {
     NumCast::from(l).unwrap()
 }
 
-
 // `FromColor` for Luma
 
-impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Luma<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Luma<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Luma<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -479,13 +485,19 @@ impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Luma<T> where T: FromPri
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Luma<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Luma<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &LumaA<S>) {
         self.channels_mut()[0] = T::from_primitive(other.channels()[0])
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Luma<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Luma<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
@@ -493,7 +505,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Luma<T> where T: FromPrim
     }
 }
 
-impl<S: Primitive,T: Primitive> FromColor<Rgba<S>> for Luma<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Luma<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray = self.channels_mut();
         let rgb = other.channels();
@@ -504,7 +519,10 @@ impl<S: Primitive,T: Primitive> FromColor<Rgba<S>> for Luma<T> where T: FromPrim
 
 // `FromColor` for LumaA
 
-impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for LumaA<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for LumaA<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &LumaA<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -513,7 +531,10 @@ impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for LumaA<T> where T: FromP
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for LumaA<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for LumaA<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgb<S>) {
         let gray_a = self.channels_mut();
         let rgb = other.channels();
@@ -522,7 +543,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for LumaA<T> where T: FromPri
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for LumaA<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for LumaA<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgba<S>) {
         let gray_a = self.channels_mut();
         let rgba = other.channels();
@@ -531,7 +555,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for LumaA<T> where T: FromPr
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for LumaA<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for LumaA<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Luma<S>) {
         let gray_a = self.channels_mut();
         gray_a[0] = T::from_primitive(other.channels()[0]);
@@ -541,7 +568,10 @@ impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for LumaA<T> where T: FromPr
 
 // `FromColor` for RGBA
 
-impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgba<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgba<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgba<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -552,7 +582,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgba<T> where T: FromPri
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgba<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgba<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgb<S>) {
         let rgba = self.channels_mut();
         let rgb = other.channels();
@@ -563,7 +596,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgba<T> where T: FromPrim
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgba<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgba<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, gray: &LumaA<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels();
@@ -574,7 +610,10 @@ impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgba<T> where T: FromPr
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgba<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgba<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, gray: &Luma<S>) {
         let rgba = self.channels_mut();
         let gray = gray.channels()[0];
@@ -587,7 +626,10 @@ impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgba<T> where T: FromPri
 
 // `FromColor` for RGB
 
-impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgb<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgb<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgb<S>) {
         let own = self.channels_mut();
         let other = other.channels();
@@ -597,7 +639,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgb<S>> for Rgb<T> where T: FromPrimi
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgb<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgb<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Rgba<S>) {
         let rgb = self.channels_mut();
         let rgba = other.channels();
@@ -607,7 +652,10 @@ impl<S: Primitive, T: Primitive> FromColor<Rgba<S>> for Rgb<T> where T: FromPrim
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgb<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgb<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &LumaA<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
@@ -617,7 +665,10 @@ impl<S: Primitive, T: Primitive> FromColor<LumaA<S>> for Rgb<T> where T: FromPri
     }
 }
 
-impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgb<T> where T: FromPrimitive<S> {
+impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgb<T>
+where
+    T: FromPrimitive<S>,
+{
     fn from_color(&mut self, other: &Luma<S>) {
         let rgb = self.channels_mut();
         let gray = other.channels()[0];
@@ -626,7 +677,6 @@ impl<S: Primitive, T: Primitive> FromColor<Luma<S>> for Rgb<T> where T: FromPrim
         rgb[2] = T::from_primitive(gray);
     }
 }
-
 
 /*macro_rules! downcast_bit_depth_early {
     ($src:ident, $intermediate:ident, $dst:ident) => {
@@ -762,7 +812,6 @@ impl<T: Primitive> Blend for Rgb<T> {
     }
 }
 
-
 /// Invert a color
 pub(crate) trait Invert {
     /// Inverts a color in-place.
@@ -798,7 +847,6 @@ impl<T: Primitive> Invert for Rgba<T> {
         *self = Rgba([max - rgba[0], max - rgba[1], max - rgba[2], rgba[3]])
     }
 }
-
 
 impl<T: Primitive> Invert for Rgb<T> {
     fn invert(&mut self) {
@@ -922,7 +970,9 @@ mod tests {
 
     macro_rules! test_lossless_conversion {
         ($a:ty, $b:ty, $c:ty) => {
-            let a: $a = [<$a as Pixel>::Subpixel::DEFAULT_MAX_VALUE >> 2; <$a as Pixel>::CHANNEL_COUNT as usize].into();
+            let a: $a = [<$a as Pixel>::Subpixel::DEFAULT_MAX_VALUE >> 2;
+                <$a as Pixel>::CHANNEL_COUNT as usize]
+                .into();
             let b: $b = a.into_color();
             let c: $c = b.into_color();
             assert_eq!(a.channels(), c.channels());

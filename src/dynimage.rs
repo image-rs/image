@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Write, Seek};
+use std::io::{Seek, Write};
 use std::path::Path;
 use std::u32;
 
@@ -11,21 +11,20 @@ use crate::codecs::png;
 use crate::codecs::pnm;
 
 use crate::buffer_::{
-    ConvertBuffer, GrayAlphaImage, GrayAlpha16Image,
-    GrayImage, Gray16Image, ImageBuffer, RgbImage, Rgb16Image, RgbaImage,
-    Rgba16Image,
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
-use crate::{image, LumaA, Luma};
 use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
-use crate::io::free_functions;
 use crate::imageops;
+use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
+use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
 
 /// A Dynamic Image
@@ -119,7 +118,6 @@ macro_rules! dynamic_map(
 );
 
 impl DynamicImage {
-
     /// Creates a dynamic image backed by a buffer of grey pixels.
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
@@ -173,9 +171,7 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>)
-        -> ImageResult<Self>
-    {
+    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
         decoder_to_image(decoder)
     }
 
@@ -556,7 +552,9 @@ impl DynamicImage {
     /// Return this image's pixels as a native endian byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(*self, |ref image_buffer| bytemuck::cast_slice(image_buffer.as_raw().as_ref()))
+        dynamic_map!(*self, |ref image_buffer| bytemuck::cast_slice(
+            image_buffer.as_raw().as_ref()
+        ))
     }
 
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`
@@ -564,12 +562,17 @@ impl DynamicImage {
     /// is returned.
     pub fn into_bytes(self) -> Vec<u8> {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(self, |image_buffer| bytemuck::allocation::cast_vec(image_buffer.into_raw()))
+        dynamic_map!(self, |image_buffer| bytemuck::allocation::cast_vec(
+            image_buffer.into_raw()
+        ))
     }
 
     /// Return a copy of this image's pixels as a byte vector.
     /// Deprecated, because it does nothing but hide an expensive clone operation.
-    #[deprecated(since = "0.24.0", note = "use `image.into_bytes()` or `image.as_bytes().to_vec()` instead")]
+    #[deprecated(
+        since = "0.24.0",
+        note = "use `image.into_bytes()` or `image.as_bytes().to_vec()` instead"
+    )]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }
@@ -592,16 +595,12 @@ impl DynamicImage {
 
     /// Returns the width of the underlying image
     pub fn width(&self) -> u32 {
-        dynamic_map!(*self, |ref p| {
-            p.width()
-        })
+        dynamic_map!(*self, |ref p| { p.width() })
     }
 
     /// Returns the height of the underlying image
     pub fn height(&self) -> u32 {
-        dynamic_map!(*self, |ref p| {
-            p.height()
-        })
+        dynamic_map!(*self, |ref p| { p.height() })
     }
 
     /// Return a grayscale version of this image.
@@ -610,15 +609,27 @@ impl DynamicImage {
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
-            DynamicImage::ImageLumaA8(ref p) => DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p)),
+            DynamicImage::ImageLumaA8(ref p) => {
+                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
+            }
             DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
-            DynamicImage::ImageRgba8(ref p) => DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p)),
+            DynamicImage::ImageRgba8(ref p) => {
+                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
+            }
             DynamicImage::ImageLuma16(ref p) => DynamicImage::ImageLuma16(p.clone()),
-            DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p)),
+            DynamicImage::ImageLumaA16(ref p) => {
+                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
+            }
             DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
-            DynamicImage::ImageRgba16(ref p) => DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p)),
-            DynamicImage::ImageRgb32F(ref p) => DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p)),
-            DynamicImage::ImageRgba32F(ref p) => DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p)),
+            DynamicImage::ImageRgba16(ref p) => {
+                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
+            }
+            DynamicImage::ImageRgb32F(ref p) => {
+                DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p))
+            }
+            DynamicImage::ImageRgba32F(ref p) => {
+                DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
+            }
         }
     }
 
@@ -785,11 +796,11 @@ impl DynamicImage {
         #[allow(unused_variables)]
         // When no features are supported
         let w = w;
-        #[allow(unused_variables,unused_mut)]
+        #[allow(unused_variables, unused_mut)]
         let mut bytes = self.as_bytes();
         #[allow(unused_variables)]
         let (width, height) = self.dimensions();
-        #[allow(unused_variables,unused_mut)]
+        #[allow(unused_variables, unused_mut)]
         let mut color = self.color();
         let format = format.into();
 
@@ -818,7 +829,7 @@ impl DynamicImage {
                 Ok(())
             }
 
-            format => write_buffer_with_format(w, bytes, width, height, color, format)
+            format => write_buffer_with_format(w, bytes, width, height, color, format),
         }
     }
 
@@ -943,7 +954,9 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgb8(ref mut p) => p.put_pixel(x, y, pixel.to_rgb()),
             DynamicImage::ImageRgba8(ref mut p) => p.put_pixel(x, y, pixel),
             DynamicImage::ImageLuma16(ref mut p) => p.put_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.put_pixel(x, y, pixel.to_luma_alpha().into_color()),
+            DynamicImage::ImageLumaA16(ref mut p) => {
+                p.put_pixel(x, y, pixel.to_luma_alpha().into_color())
+            }
             DynamicImage::ImageRgb16(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
             DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
@@ -957,11 +970,17 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
             DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
             DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma().into_color()),
-            DynamicImage::ImageLumaA16(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha().into_color()),
+            DynamicImage::ImageLuma16(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_luma().into_color())
+            }
+            DynamicImage::ImageLumaA16(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
+            }
             DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
+            DynamicImage::ImageRgb32F(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_rgb().into_color())
+            }
             DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
         }
     }
@@ -1036,20 +1055,23 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
 
         // An internal #[non_exhaustive]
         #[allow(unreachable_patterns)]
-        _ => return Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-            ImageFormatHint::Unknown,
-            UnsupportedErrorKind::Color(color_type.into()),
-        )))
+        _ => {
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Color(color_type.into()),
+                ),
+            ))
+        }
     };
 
     match image {
         Some(image) => Ok(image),
-        None => Err(ImageError::Parameter(
-            ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)
-        ))
+        None => Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        ))),
     }
 }
-
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
@@ -1222,7 +1244,10 @@ mod test {
         use crate::image::{GenericImage, GenericImageView};
         img.put_pixel(0, 0, crate::color::Rgba([255, 0, 0, 100]));
         let expected_alpha = if alpha_discarded { 255 } else { 100 };
-        assert_eq!(img.grayscale().get_pixel(0, 0), crate::color::Rgba([54, 54, 54, expected_alpha]));
+        assert_eq!(
+            img.grayscale().get_pixel(0, 0),
+            crate::color::Rgba([54, 54, 54, expected_alpha])
+        );
     }
 
     fn test_grayscale_alpha_discarded(img: super::DynamicImage) {
@@ -1267,7 +1292,7 @@ mod test {
     fn test_grayscale_rgb16() {
         test_grayscale_alpha_discarded(super::DynamicImage::new_rgb16(1, 1));
     }
-    
+
     #[test]
     fn test_grayscale_rgba16() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba16(1, 1));
@@ -1289,7 +1314,7 @@ mod test {
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
         struct Foo {
-            image: super::DynamicImage
+            image: super::DynamicImage,
         }
     }
 }

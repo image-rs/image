@@ -1,20 +1,26 @@
 //! Decoding of lossless WebP images
-//! 
+//!
 //! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification)
 //!
 
-use std::{convert::TryInto, convert::TryFrom, error, fmt, io::Read, ops::{AddAssign, Shl}};
+use std::{
+    convert::TryFrom,
+    convert::TryInto,
+    error, fmt,
+    io::Read,
+    ops::{AddAssign, Shl},
+};
 
 use byteorder::ReadBytesExt;
 
-use crate::{ImageError, ImageFormat, ImageResult, error::DecodingError};
+use crate::{error::DecodingError, ImageError, ImageFormat, ImageResult};
 
-use super::lossless_transform::{TransformType, add_pixels};
 use super::huffman::HuffmanTree;
+use super::lossless_transform::{add_pixels, TransformType};
 
 const CODE_LENGTH_CODES: usize = 19;
 const CODE_LENGTH_CODE_ORDER: [usize; CODE_LENGTH_CODES] = [
-    17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 ];
 
 #[rustfmt::skip]
@@ -46,15 +52,13 @@ const HUFFMAN_CODES_PER_META_CODE: usize = 5;
 
 type HuffmanCodeGroup = [HuffmanTree; HUFFMAN_CODES_PER_META_CODE];
 
-const ALPHABET_SIZE: [u16; HUFFMAN_CODES_PER_META_CODE] = [
-    256 + 24,
-    256, 256, 256,
-    40
-];
+const ALPHABET_SIZE: [u16; HUFFMAN_CODES_PER_META_CODE] = [256 + 24, 256, 256, 256, 40];
 
 #[inline]
 pub(crate) fn subsample_size(size: u16, bits: u8) -> u16 {
-    ((u32::from(size) + (1u32 << bits) - 1) >> bits).try_into().unwrap()
+    ((u32::from(size) + (1u32 << bits) - 1) >> bits)
+        .try_into()
+        .unwrap()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,18 +81,23 @@ pub(crate) enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::LosslessSignatureInvalid(sig) => 
-                f.write_fmt(format_args!("Invalid lossless signature: {}", sig)),
-            DecoderError::VersionNumberInvalid(num) => 
-                f.write_fmt(format_args!("Invalid version number: {}", num)),
-            DecoderError::InvalidColorCacheBits(num) => 
-                f.write_fmt(format_args!("Invalid color cache(must be between 1-11): {}", num)),
-            DecoderError::HuffmanError => 
-                f.write_fmt(format_args!("Error building Huffman Tree")),
-            DecoderError::BitStreamError => 
-                f.write_fmt(format_args!("Error while reading bitstream")),
-            DecoderError::TransformError => 
-                f.write_fmt(format_args!("Error while reading or writing transforms")),
+            DecoderError::LosslessSignatureInvalid(sig) => {
+                f.write_fmt(format_args!("Invalid lossless signature: {}", sig))
+            }
+            DecoderError::VersionNumberInvalid(num) => {
+                f.write_fmt(format_args!("Invalid version number: {}", num))
+            }
+            DecoderError::InvalidColorCacheBits(num) => f.write_fmt(format_args!(
+                "Invalid color cache(must be between 1-11): {}",
+                num
+            )),
+            DecoderError::HuffmanError => f.write_fmt(format_args!("Error building Huffman Tree")),
+            DecoderError::BitStreamError => {
+                f.write_fmt(format_args!("Error while reading bitstream"))
+            }
+            DecoderError::TransformError => {
+                f.write_fmt(format_args!("Error while reading or writing transforms"))
+            }
         }
     }
 }
@@ -127,7 +136,6 @@ impl<R: Read> LosslessDecoder<R> {
 
     /// Reads the frame
     pub(crate) fn decode_frame(&mut self) -> ImageResult<&LosslessFrame> {
-        
         let signature = self.r.read_u8()?;
 
         if signature != 0x2f {
@@ -164,8 +172,12 @@ impl<R: Read> LosslessDecoder<R> {
     /// Can be in any of the 5 roles described in the Specification
     /// ARGB Image role has different behaviour to the other 4
     /// xsize and ysize describe the size of the blocks where each block has its own entropy code
-    fn decode_image_stream(&mut self, xsize: u16, ysize: u16, is_argb_img: bool) -> ImageResult<Vec<u32>> {
-
+    fn decode_image_stream(
+        &mut self,
+        xsize: u16,
+        ysize: u16,
+        is_argb_img: bool,
+    ) -> ImageResult<Vec<u32>> {
         let trans_xsize = if is_argb_img {
             self.read_transforms()?
         } else {
@@ -216,7 +228,10 @@ impl<R: Read> LosslessDecoder<R> {
 
                     let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
 
-                    TransformType::PredictorTransform { size_bits, predictor_data: data }
+                    TransformType::PredictorTransform {
+                        size_bits,
+                        predictor_data: data,
+                    }
                 }
                 1 => {
                     //color transform
@@ -228,7 +243,10 @@ impl<R: Read> LosslessDecoder<R> {
 
                     let data = self.decode_image_stream(block_xsize, block_ysize, false)?;
 
-                    TransformType::ColorTransform { size_bits, transform_data: data }
+                    TransformType::ColorTransform {
+                        size_bits,
+                        transform_data: data,
+                    }
                 }
                 2 => {
                     //subtract green
@@ -239,7 +257,7 @@ impl<R: Read> LosslessDecoder<R> {
                     let color_table_size = self.bit_reader.read_bits::<u16>(8)? + 1;
 
                     let mut color_map = self.decode_image_stream(color_table_size, 1, false)?;
-                    
+
                     let bits = if color_table_size <= 2 {
                         3
                     } else if color_table_size <= 4 {
@@ -253,11 +271,13 @@ impl<R: Read> LosslessDecoder<R> {
 
                     Self::adjust_color_map(&mut color_map);
 
-                    TransformType::ColorIndexingTransform { table_size: color_table_size, table_data: color_map }
+                    TransformType::ColorIndexingTransform {
+                        table_size: color_table_size,
+                        table_data: color_map,
+                    }
                 }
                 _ => unreachable!(),
             };
-            
 
             self.transforms[usize::from(transform_type_val)] = Some(transform_type);
         }
@@ -268,25 +288,25 @@ impl<R: Read> LosslessDecoder<R> {
     /// Adjusts the color map since it's subtraction coded
     fn adjust_color_map(color_map: &mut Vec<u32>) {
         for i in 1..color_map.len() {
-            color_map[i] = add_pixels(color_map[i], color_map[i-1]);
+            color_map[i] = add_pixels(color_map[i], color_map[i - 1]);
         }
     }
 
     /// Reads huffman codes associated with an image
     fn read_huffman_codes(
-        &mut self, 
+        &mut self,
         read_meta: bool,
         xsize: u16,
         ysize: u16,
-        color_cache: Option<ColorCache>) -> ImageResult<HuffmanInfo> {
-        
+        color_cache: Option<ColorCache>,
+    ) -> ImageResult<HuffmanInfo> {
         let mut num_huff_groups = 1;
 
         let mut huffman_bits = 0;
         let mut huffman_xsize = 1;
         let mut huffman_ysize = 1;
         let mut entropy_image = Vec::new();
-    
+
         if read_meta && self.bit_reader.read_bits::<u8>(1)? == 1 {
             //meta huffman codes
             huffman_bits = self.bit_reader.read_bits::<u8>(3)? + 2;
@@ -329,7 +349,7 @@ impl<R: Read> LosslessDecoder<R> {
         } else {
             (1 << huffman_bits) - 1
         };
-        
+
         let info = HuffmanInfo {
             xsize: huffman_xsize,
             ysize: huffman_ysize,
@@ -339,24 +359,24 @@ impl<R: Read> LosslessDecoder<R> {
             mask: huffman_mask,
             huffman_code_groups: hufftree_groups,
         };
-    
+
         Ok(info)
     }
 
     /// Decodes and returns a single huffman tree
     fn read_huffman_code(&mut self, alphabet_size: u16) -> ImageResult<HuffmanTree> {
         let simple = self.bit_reader.read_bits::<u8>(1)? == 1;
-    
+
         if simple {
             let num_symbols = self.bit_reader.read_bits::<u8>(1)? + 1;
 
             let mut code_lengths = vec![u16::from(num_symbols - 1)];
             let mut codes = vec![0];
             let mut symbols = Vec::new();
-            
+
             let is_first_8bits = self.bit_reader.read_bits::<u8>(1)?;
             symbols.push(self.bit_reader.read_bits::<u16>(1 + 7 * is_first_8bits)?);
-            
+
             if num_symbols == 2 {
                 symbols.push(self.bit_reader.read_bits::<u16>(8)?);
                 code_lengths.push(1);
@@ -369,18 +389,23 @@ impl<R: Read> LosslessDecoder<R> {
 
             let num_code_lengths = 4 + self.bit_reader.read_bits::<usize>(4)?;
             for i in 0..num_code_lengths {
-                code_length_code_lengths[CODE_LENGTH_CODE_ORDER[i]] = self.bit_reader.read_bits(3)?;
+                code_length_code_lengths[CODE_LENGTH_CODE_ORDER[i]] =
+                    self.bit_reader.read_bits(3)?;
             }
 
-            let new_code_lengths = self.read_huffman_code_lengths(code_length_code_lengths, alphabet_size)?;
+            let new_code_lengths =
+                self.read_huffman_code_lengths(code_length_code_lengths, alphabet_size)?;
 
             HuffmanTree::build_implicit(new_code_lengths)
         }
     }
 
     /// Reads huffman code lengths
-    fn read_huffman_code_lengths(&mut self, code_length_code_lengths: Vec<u16>, num_symbols: u16) -> ImageResult<Vec<u16>> {
-
+    fn read_huffman_code_lengths(
+        &mut self,
+        code_length_code_lengths: Vec<u16>,
+        num_symbols: u16,
+    ) -> ImageResult<Vec<u16>> {
         let table = HuffmanTree::build_implicit(code_length_code_lengths)?;
 
         let mut max_symbol = if self.bit_reader.read_bits::<u8>(1)? == 1 {
@@ -395,7 +420,9 @@ impl<R: Read> LosslessDecoder<R> {
 
         let mut symbol = 0;
         while symbol < num_symbols {
-            if max_symbol == 0 {break;}
+            if max_symbol == 0 {
+                break;
+            }
             max_symbol -= 1;
 
             let code_len = table.read_symbol(&mut self.bit_reader)?;
@@ -426,11 +453,7 @@ impl<R: Read> LosslessDecoder<R> {
                 if symbol + repeat > num_symbols {
                     return Err(DecoderError::BitStreamError.into());
                 } else {
-                    let length = if use_prev {
-                        prev_code_len
-                    } else {
-                        0
-                    };
+                    let length = if use_prev { prev_code_len } else { 0 };
                     while repeat > 0 {
                         repeat -= 1;
                         code_lengths[usize::from(symbol)] = length;
@@ -444,7 +467,12 @@ impl<R: Read> LosslessDecoder<R> {
     }
 
     /// Decodes the image data using the huffman trees and either of the 3 methods of decoding
-    fn decode_image_data(&mut self, width: u16, height: u16, mut huffman_info: HuffmanInfo) -> ImageResult<Vec<u32>> {
+    fn decode_image_data(
+        &mut self,
+        width: u16,
+        height: u16,
+        mut huffman_info: HuffmanInfo,
+    ) -> ImageResult<Vec<u32>> {
         let num_values = usize::from(width) * usize::from(height);
         let mut data = vec![0; num_values];
 
@@ -469,7 +497,10 @@ impl<R: Read> LosslessDecoder<R> {
                 let blue = tree[BLUE].read_symbol(&mut self.bit_reader)?;
                 let alpha = tree[ALPHA].read_symbol(&mut self.bit_reader)?;
 
-                data[index] = (u32::from(alpha) << 24) + (u32::from(red) << 16) + (u32::from(code) << 8) + u32::from(blue);
+                data[index] = (u32::from(alpha) << 24)
+                    + (u32::from(red) << 16)
+                    + (u32::from(code) << 8)
+                    + u32::from(blue);
 
                 index += 1;
                 x += 1;
@@ -514,7 +545,6 @@ impl<R: Read> LosslessDecoder<R> {
                         last_cached += 1;
                     }
                     data[index] = color_cache.lookup(key.into())?;
-
                 } else {
                     return Err(DecoderError::BitStreamError.into());
                 }
@@ -534,11 +564,11 @@ impl<R: Read> LosslessDecoder<R> {
     fn read_color_cache(&mut self) -> ImageResult<Option<u8>> {
         if self.bit_reader.read_bits::<u8>(1)? == 1 {
             let code_bits = self.bit_reader.read_bits::<u8>(4)?;
-            
+
             if !(1..=11).contains(&code_bits) {
                 return Err(DecoderError::InvalidColorCacheBits(code_bits).into());
             }
-            
+
             Ok(Some(code_bits))
         } else {
             Ok(None)
@@ -634,11 +664,12 @@ impl BitReader {
         self.buf = buf;
     }
 
-    pub(crate) fn read_bits<T>(&mut self, num: u8) -> ImageResult<T> 
-        where T: num_traits::Unsigned + Shl<u8, Output = T> +
-            AddAssign<T> + From<bool> {
+    pub(crate) fn read_bits<T>(&mut self, num: u8) -> ImageResult<T>
+    where
+        T: num_traits::Unsigned + Shl<u8, Output = T> + AddAssign<T> + From<bool>,
+    {
         let mut value: T = T::zero();
-        
+
         for i in 0..num {
             if self.buf.len() <= self.index {
                 return Err(DecoderError::BitStreamError.into());
@@ -654,11 +685,8 @@ impl BitReader {
         }
 
         Ok(value)
-
     }
 }
-
-
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LosslessFrame {

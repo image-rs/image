@@ -3,7 +3,7 @@
 // Note copied from the stdlib under MIT license
 
 use num_traits::{Bounded, Num, NumCast};
-use std::ops::{AddAssign};
+use std::ops::AddAssign;
 
 use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
 
@@ -35,7 +35,6 @@ impl EncodableLayout for [f32] {
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
-
     /// The maximum value for this type of primitive within the context of color.
     /// For floats, the maximum is `1.0`, whereas the integer types inherit their usual maximum values.
     const DEFAULT_MAX_VALUE: Self;
@@ -51,7 +50,7 @@ macro_rules! declare_primitive {
             const DEFAULT_MAX_VALUE: Self = $to;
             const DEFAULT_MIN_VALUE: Self = $from;
         }
-    }
+    };
 }
 
 declare_primitive!(usize: (0)..Self::MAX);
@@ -139,7 +138,6 @@ impl Lerp for f32 {
 /// The pixel with an associated `ColorType`.
 /// Not all possible pixels represent one of the predefined `ColorType`s.
 pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
-
     /// This pixel has the format of one of the predefined `ColorType`s,
     /// such as `Rgb8`, `La16` or `Rgba32F`.
     /// This is needed for automatically detecting
@@ -147,18 +145,38 @@ pub trait PixelWithColorType: Pixel + self::private::SealedPixelWithColorType {
     const COLOR_TYPE: ColorType;
 }
 
-impl PixelWithColorType for Rgb<u8> { const COLOR_TYPE: ColorType = ColorType::Rgb8; }
-impl PixelWithColorType for Rgb<u16> { const COLOR_TYPE: ColorType = ColorType::Rgb16; }
-impl PixelWithColorType for Rgb<f32> { const COLOR_TYPE: ColorType = ColorType::Rgb32F; }
+impl PixelWithColorType for Rgb<u8> {
+    const COLOR_TYPE: ColorType = ColorType::Rgb8;
+}
+impl PixelWithColorType for Rgb<u16> {
+    const COLOR_TYPE: ColorType = ColorType::Rgb16;
+}
+impl PixelWithColorType for Rgb<f32> {
+    const COLOR_TYPE: ColorType = ColorType::Rgb32F;
+}
 
-impl PixelWithColorType for Rgba<u8> { const COLOR_TYPE: ColorType = ColorType::Rgba8; }
-impl PixelWithColorType for Rgba<u16> { const COLOR_TYPE: ColorType = ColorType::Rgba16; }
-impl PixelWithColorType for Rgba<f32> { const COLOR_TYPE: ColorType = ColorType::Rgba32F; }
+impl PixelWithColorType for Rgba<u8> {
+    const COLOR_TYPE: ColorType = ColorType::Rgba8;
+}
+impl PixelWithColorType for Rgba<u16> {
+    const COLOR_TYPE: ColorType = ColorType::Rgba16;
+}
+impl PixelWithColorType for Rgba<f32> {
+    const COLOR_TYPE: ColorType = ColorType::Rgba32F;
+}
 
-impl PixelWithColorType for Luma<u8> { const COLOR_TYPE: ColorType = ColorType::L8; }
-impl PixelWithColorType for Luma<u16> { const COLOR_TYPE: ColorType = ColorType::L16; }
-impl PixelWithColorType for LumaA<u8> { const COLOR_TYPE: ColorType = ColorType::La8; }
-impl PixelWithColorType for LumaA<u16> { const COLOR_TYPE: ColorType = ColorType::La16; }
+impl PixelWithColorType for Luma<u8> {
+    const COLOR_TYPE: ColorType = ColorType::L8;
+}
+impl PixelWithColorType for Luma<u16> {
+    const COLOR_TYPE: ColorType = ColorType::L16;
+}
+impl PixelWithColorType for LumaA<u8> {
+    const COLOR_TYPE: ColorType = ColorType::La8;
+}
+impl PixelWithColorType for LumaA<u16> {
+    const COLOR_TYPE: ColorType = ColorType::La16;
+}
 
 /// Prevents down-stream users from implementing the `Primitive` trait
 mod private {
@@ -184,7 +202,6 @@ mod private {
 ///
 /// A pixel object is usually not used standalone but as a view into an image buffer.
 pub trait Pixel: Copy + Clone {
-
     /// The scalar type that is used to store each channel in this pixel.
     type Subpixel: Primitive;
 
@@ -203,7 +220,7 @@ pub trait Pixel: Copy + Clone {
 
     /// Returns the channels of this pixel as a 4 tuple. If the pixel
     /// has less than 4 channels the remainder is filled with the maximum value
-    #[deprecated(since="0.24.0", note="Use `channels()` or `channels_mut()`")]
+    #[deprecated(since = "0.24.0", note = "Use `channels()` or `channels_mut()`")]
     fn channels4(
         &self,
     ) -> (
@@ -215,7 +232,10 @@ pub trait Pixel: Copy + Clone {
 
     /// Construct a pixel from the 4 channels a, b, c and d.
     /// If the pixel does not contain 4 channels the extra are ignored.
-    #[deprecated(since="0.24.0", note="Use the constructor of the pixel, for example `Rgba::new(r,g,b,a)` or `Pixel::from_slice`")]
+    #[deprecated(
+        since = "0.24.0",
+        note = "Use the constructor of the pixel, for example `Rgba::new(r,g,b,a)` or `Pixel::from_slice`"
+    )]
     fn from_channels(
         a: Self::Subpixel,
         b: Self::Subpixel,

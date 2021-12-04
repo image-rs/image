@@ -1,15 +1,16 @@
 //! Functions for performing affine transformations.
 
-use crate::ImageBuffer;
-use crate::image::{GenericImage, GenericImageView};
 use crate::error::{ImageError, ParameterError, ParameterErrorKind};
+use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
+use crate::ImageBuffer;
 
 /// Rotate an image 90 degrees clockwise.
 pub fn rotate90<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
+where
+    I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
@@ -21,7 +22,8 @@ pub fn rotate90<I: GenericImageView>(
 pub fn rotate180<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
+where
+    I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -33,7 +35,8 @@ pub fn rotate180<I: GenericImageView>(
 pub fn rotate270<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
+where
+    I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(height, width);
@@ -44,11 +47,12 @@ pub fn rotate270<I: GenericImageView>(
 /// Rotate an image 90 degrees clockwise and put the result into the destination [`ImageBuffer`].
 pub fn rotate90_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>
-) -> crate::ImageResult<()> where
+    destination: &mut ImageBuffer<I::Pixel, Container>,
+) -> crate::ImageResult<()>
+where
     I: GenericImageView,
-    I::Pixel: 'static, 
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]> 
+    I::Pixel: 'static,
+    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
@@ -69,11 +73,12 @@ pub fn rotate90_in<I, Container>(
 /// Rotate an image 180 degrees clockwise and put the result into the destination [`ImageBuffer`].
 pub fn rotate180_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>
-) -> crate::ImageResult<()> where
+    destination: &mut ImageBuffer<I::Pixel, Container>,
+) -> crate::ImageResult<()>
+where
     I: GenericImageView,
-    I::Pixel: 'static, 
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]> 
+    I::Pixel: 'static,
+    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -94,11 +99,12 @@ pub fn rotate180_in<I, Container>(
 /// Rotate an image 270 degrees clockwise and put the result into the destination [`ImageBuffer`].
 pub fn rotate270_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>
-) -> crate::ImageResult<()> where
+    destination: &mut ImageBuffer<I::Pixel, Container>,
+) -> crate::ImageResult<()>
+where
     I: GenericImageView,
-    I::Pixel: 'static, 
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]> 
+    I::Pixel: 'static,
+    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
@@ -120,7 +126,8 @@ pub fn rotate270_in<I, Container>(
 pub fn flip_horizontal<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
+where
+    I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -132,7 +139,8 @@ pub fn flip_horizontal<I: GenericImageView>(
 pub fn flip_vertical<I: GenericImageView>(
     image: &I,
 ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
-    where I::Pixel: 'static,
+where
+    I::Pixel: 'static,
 {
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
@@ -143,11 +151,12 @@ pub fn flip_vertical<I: GenericImageView>(
 /// Flip an image horizontally and put the result into the destination [`ImageBuffer`].
 pub fn flip_horizontal_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>
-) -> crate::ImageResult<()> where
+    destination: &mut ImageBuffer<I::Pixel, Container>,
+) -> crate::ImageResult<()>
+where
     I: GenericImageView,
-    I::Pixel: 'static, 
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]> 
+    I::Pixel: 'static,
+    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -168,11 +177,12 @@ pub fn flip_horizontal_in<I, Container>(
 /// Flip an image vertically and put the result into the destination [`ImageBuffer`].
 pub fn flip_vertical_in<I, Container>(
     image: &I,
-    destination: &mut ImageBuffer<I::Pixel, Container>
-) -> crate::ImageResult<()> where
+    destination: &mut ImageBuffer<I::Pixel, Container>,
+) -> crate::ImageResult<()>
+where
     I: GenericImageView,
-    I::Pixel: 'static, 
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]> 
+    I::Pixel: 'static,
+    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -257,9 +267,9 @@ mod test {
         flip_horizontal, flip_horizontal_in_place, flip_vertical, flip_vertical_in_place,
         rotate180, rotate180_in_place, rotate270, rotate90,
     };
-    use crate::{GrayImage, ImageBuffer};
     use crate::image::GenericImage;
     use crate::traits::Pixel;
+    use crate::{GrayImage, ImageBuffer};
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

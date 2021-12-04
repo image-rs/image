@@ -7,9 +7,9 @@ use std::path::Path;
 use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::flat::{FlatSamples, SampleLayout};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
+use crate::flat::{FlatSamples, SampleLayout};
 use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
@@ -56,7 +56,9 @@ where
 
 impl<P: Pixel> Clone for Pixels<'_, P> {
     fn clone(&self) -> Self {
-        Pixels { chunks: self.chunks.clone() }
+        Pixels {
+            chunks: self.chunks.clone(),
+        }
     }
 }
 
@@ -65,8 +67,7 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-            .debug_struct("Pixels")
+        f.debug_struct("Pixels")
             .field("chunks", &self.chunks)
             .finish()
     }
@@ -118,8 +119,7 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-            .debug_struct("PixelsMut")
+        f.debug_struct("PixelsMut")
             .field("chunks", &self.chunks)
             .finish()
     }
@@ -147,7 +147,8 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
                 pixels: [].chunks_exact(1),
             }
         } else {
-            let pixels = pixels.get(..row_len*height as usize)
+            let pixels = pixels
+                .get(..row_len * height as usize)
                 .expect("Pixel buffer has too few subpixels");
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
@@ -199,7 +200,9 @@ where
 
 impl<P: Pixel> Clone for Rows<'_, P> {
     fn clone(&self) -> Self {
-        Rows { pixels: self.pixels.clone() }
+        Rows {
+            pixels: self.pixels.clone(),
+        }
     }
 }
 
@@ -208,8 +211,7 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-            .debug_struct("Rows")
+        f.debug_struct("Rows")
             .field("pixels", &self.pixels)
             .finish()
     }
@@ -237,7 +239,8 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
                 pixels: [].chunks_exact_mut(1),
             }
         } else {
-            let pixels = pixels.get_mut(..row_len*height as usize)
+            let pixels = pixels
+                .get_mut(..row_len * height as usize)
                 .expect("Pixel buffer has too few subpixels");
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
@@ -292,8 +295,7 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-            .debug_struct("RowsMut")
+        f.debug_struct("RowsMut")
             .field("pixels", &self.pixels)
             .finish()
     }
@@ -351,13 +353,12 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-          .debug_struct("EnumeratePixels")
-          .field("pixels", &self.pixels)
-          .field("x", &self.x)
-          .field("y", &self.y)
-          .field("width", &self.width)
-          .finish()
+        f.debug_struct("EnumeratePixels")
+            .field("pixels", &self.pixels)
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .finish()
     }
 }
 
@@ -418,12 +419,11 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-          .debug_struct("EnumerateRows")
-          .field("rows", &self.rows)
-          .field("y", &self.y)
-          .field("width", &self.width)
-          .finish()
+        f.debug_struct("EnumerateRows")
+            .field("rows", &self.rows)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .finish()
     }
 }
 
@@ -470,13 +470,12 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-          .debug_struct("EnumeratePixelsMut")
-          .field("pixels", &self.pixels)
-          .field("x", &self.x)
-          .field("y", &self.y)
-          .field("width", &self.width)
-          .finish()
+        f.debug_struct("EnumeratePixelsMut")
+            .field("pixels", &self.pixels)
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .finish()
     }
 }
 
@@ -528,12 +527,11 @@ where
     P::Subpixel: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f
-          .debug_struct("EnumerateRowsMut")
-          .field("rows", &self.rows)
-          .field("y", &self.y)
-          .field("width", &self.width)
-          .finish()
+        f.debug_struct("EnumerateRowsMut")
+            .field("rows", &self.rows)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .finish()
     }
 }
 
@@ -672,7 +670,9 @@ where
     /// The iteration order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
-            chunks: self.inner_pixels().chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self
+                .inner_pixels()
+                .chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -717,7 +717,11 @@ where
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
         match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
             Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
         }
     }
@@ -757,7 +761,7 @@ where
     #[inline(always)]
     fn pixel_indices(&self, x: u32, y: u32) -> Option<Range<usize>> {
         if x >= self.width || y >= self.height {
-            return None
+            return None;
         }
 
         Some(self.pixel_indices_unchecked(x, y))
@@ -767,8 +771,8 @@ where
     fn pixel_indices_unchecked(&self, x: u32, y: u32) -> Range<usize> {
         let no_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         // If in bounds, this can't overflow as we have tested that at construction!
-        let min_index = (y as usize*self.width as usize + x as usize)*no_channels;
-        min_index..min_index+no_channels
+        let min_index = (y as usize * self.width as usize + x as usize) * no_channels;
+        min_index..min_index + no_channels
     }
 
     /// Get the format of the buffer when viewed as a matrix of samples.
@@ -784,7 +788,8 @@ where
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.
     pub fn into_flat_samples(self) -> FlatSamples<Container>
-        where Container: AsRef<[P::Subpixel]>
+    where
+        Container: AsRef<[P::Subpixel]>,
     {
         // None of these can overflow, as all our memory is addressable.
         let layout = self.sample_layout();
@@ -799,7 +804,8 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples(&self) -> FlatSamples<&[P::Subpixel]>
-        where Container: AsRef<[P::Subpixel]>
+    where
+        Container: AsRef<[P::Subpixel]>,
     {
         let layout = self.sample_layout();
         FlatSamples {
@@ -813,7 +819,8 @@ where
     ///
     /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
     pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
-        where Container: AsMut<[P::Subpixel]>
+    where
+        Container: AsMut<[P::Subpixel]>,
     {
         let layout = self.sample_layout();
         FlatSamples {
@@ -838,7 +845,9 @@ where
     /// Returns an iterator over the mutable pixels of this image.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.inner_pixels_mut().chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self
+                .inner_pixels_mut()
+                .chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -883,7 +892,11 @@ where
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
             Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
         }
     }
@@ -1131,12 +1144,17 @@ where
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
-        let Rect { x: sx, y: sy, width, height } = source;
+        let Rect {
+            x: sx,
+            y: sy,
+            width,
+            height,
+        } = source;
         let dx = x;
         let dy = y;
-        assert!(sx < self.width() && dx < self.width()); 
+        assert!(sx < self.width() && dx < self.width());
         assert!(sy < self.height() && dy < self.height());
-        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height  {
+        if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height {
             return false;
         }
 
@@ -1292,12 +1310,12 @@ where
     /// ```no_run
     /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
-    /// 
+    ///
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba8();
-    /// 
+    ///
     /// let gray_image: GrayImage = image.convert();
     /// ```
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
@@ -1391,7 +1409,6 @@ mod test {
         assert_eq!(image.pixels().count(), 0);
     }
 
-
     #[test]
     fn zero_width_nonzero_height() {
         let mut image = RgbImage::new(0, 2);
@@ -1436,8 +1453,8 @@ mod test {
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
     use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
-    use crate::GenericImage;
     use crate::math::Rect;
+    use crate::GenericImage;
     use test;
 
     #[bench]
@@ -1529,76 +1546,88 @@ mod benchmarks {
     #[test]
     fn test_image_buffer_copy_within_tl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            04, 00, 01, 02,
-            08, 04, 05, 06,
-            12, 08, 09, 10,
+            00, 01, 02, 03, 04, 00, 01, 02, 08, 04, 05, 06, 12, 08, 09, 10,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 0, y: 0, width: 3, height: 3 }, 1, 1));
+        assert!(image.copy_within(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            1,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_tr() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 01, 02, 03,
-            01, 02, 03, 07,
-            05, 06, 07, 11,
-            09, 10, 11, 15
+            00, 01, 02, 03, 01, 02, 03, 07, 05, 06, 07, 11, 09, 10, 11, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 1, y: 0, width: 3, height: 3 }, 0, 1));
+        assert!(image.copy_within(
+            Rect {
+                x: 1,
+                y: 0,
+                width: 3,
+                height: 3
+            },
+            0,
+            1
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_bl() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            00, 04, 05, 06,
-            04, 08, 09, 10,
-            08, 12, 13, 14,
-            12, 13, 14, 15
+            00, 04, 05, 06, 04, 08, 09, 10, 08, 12, 13, 14, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 0, y: 1, width: 3, height: 3 }, 1, 0));
+        assert!(image.copy_within(
+            Rect {
+                x: 0,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            1,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 
     #[test]
     fn test_image_buffer_copy_within_br() {
         let data = &[
-            00, 01, 02, 03,
-            04, 05, 06, 07,
-            08, 09, 10, 11,
-            12, 13, 14, 15
+            00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15,
         ];
         let expected = [
-            05, 06, 07, 03,
-            09, 10, 11, 07,
-            13, 14, 15, 11,
-            12, 13, 14, 15
+            05, 06, 07, 03, 09, 10, 11, 07, 13, 14, 15, 11, 12, 13, 14, 15,
         ];
         let mut image: GrayImage = ImageBuffer::from_raw(4, 4, Vec::from(&data[..])).unwrap();
-        assert!(image.copy_within(Rect { x: 1, y: 1, width: 3, height: 3 }, 0, 0));
+        assert!(image.copy_within(
+            Rect {
+                x: 1,
+                y: 1,
+                width: 3,
+                height: 3
+            },
+            0,
+            0
+        ));
         assert_eq!(&image.into_raw(), &expected);
     }
 }

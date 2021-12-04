@@ -6,7 +6,10 @@ use std::path::Path;
 
 fn main() {
     let (from, into) = if env::args_os().count() == 3 {
-        (env::args_os().nth(1).unwrap(), env::args_os().nth(2).unwrap())
+        (
+            env::args_os().nth(1).unwrap(),
+            env::args_os().nth(2).unwrap(),
+        )
     } else {
         println!("Please enter a from and into path.");
         std::process::exit(1);

@@ -50,12 +50,13 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                     "Unsupported color type {:?} when using a non-empty palette. Supported types: Gray(8), GrayA(8).",
                     c
                 ),
-            )))
+            )));
         }
 
         let bmp_header_size = BITMAPFILEHEADER_SIZE;
 
-        let (dib_header_size, written_pixel_size, palette_color_count) = get_pixel_info(c, palette)?;
+        let (dib_header_size, written_pixel_size, palette_color_count) =
+            get_pixel_info(c, palette)?;
         let row_pad_size = (4 - (width * written_pixel_size) % 4) % 4; // each row must be padded to a multiple of 4 bytes
         let image_size = width
             .checked_mul(height)
@@ -112,12 +113,8 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
 
         // write image data
         match c {
-            color::ColorType::Rgb8 => {
-                self.encode_rgb(image, width, height, row_pad_size, 3)?
-            }
-            color::ColorType::Rgba8 => {
-                self.encode_rgba(image, width, height, row_pad_size, 4)?
-            }
+            color::ColorType::Rgb8 => self.encode_rgb(image, width, height, row_pad_size, 3)?,
+            color::ColorType::Rgba8 => self.encode_rgba(image, width, height, row_pad_size, 4)?,
             color::ColorType::L8 => {
                 self.encode_gray(image, width, height, row_pad_size, 1, palette)?
             }
@@ -266,8 +263,16 @@ fn get_pixel_info(c: color::ColorType, palette: Option<&[[u8; 3]]>) -> io::Resul
     let sizes = match c {
         color::ColorType::Rgb8 => (BITMAPINFOHEADER_SIZE, 3, 0),
         color::ColorType::Rgba8 => (BITMAPV4HEADER_SIZE, 4, 0),
-        color::ColorType::L8 => (BITMAPINFOHEADER_SIZE, 1, palette.map(|p| p.len()).unwrap_or(256) as u32),
-        color::ColorType::La8 => (BITMAPINFOHEADER_SIZE, 1, palette.map(|p| p.len()).unwrap_or(256) as u32),
+        color::ColorType::L8 => (
+            BITMAPINFOHEADER_SIZE,
+            1,
+            palette.map(|p| p.len()).unwrap_or(256) as u32,
+        ),
+        color::ColorType::La8 => (
+            BITMAPINFOHEADER_SIZE,
+            1,
+            palette.map(|p| p.len()).unwrap_or(256) as u32,
+        ),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,

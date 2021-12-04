@@ -1,4 +1,4 @@
-use image::{Rgba, RgbaImage, Pixel};
+use image::{Pixel, Rgba, RgbaImage};
 
 fn main() {
     let mut img = RgbaImage::new(100, 100);

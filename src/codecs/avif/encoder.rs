@@ -4,18 +4,20 @@
 ///
 /// [AVIF]: https://aomediacodec.github.io/av1-avif/
 use std::borrow::Cow;
-use std::io::Write;
 use std::cmp::min;
+use std::io::Write;
 
-use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
-use crate::{ImageError, ImageResult};
 use crate::buffer::ConvertBuffer;
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
-use crate::error::{EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{
+    EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+};
+use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
+use crate::{ImageError, ImageResult};
 
-use bytemuck::{Pod, PodCastError, try_cast_slice, try_cast_slice_mut};
+use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
-use ravif::{encode_rgba, encode_rgb, Config, Img, RGB8, RGBA8};
+use ravif::{encode_rgb, encode_rgba, Config, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
 /// AVIF Encoder.
@@ -24,7 +26,7 @@ use rgb::AsPixels;
 pub struct AvifEncoder<W> {
     inner: W,
     fallback: Vec<u8>,
-    config: Config
+    config: Config,
 }
 
 /// An enumeration over supported AVIF color spaces
@@ -76,7 +78,7 @@ impl<W: Write> AvifEncoder<W> {
                 color_space: ravif::ColorSpace::RGB,
                 // match core count
                 threads: 0,
-            } 
+            },
         }
     }
 
@@ -129,11 +131,15 @@ impl<W: Write> AvifEncoder<W> {
         color: ColorType,
     ) -> ImageResult<RgbColor<'buf>> {
         // Error wrapping utility for color dependent buffer dimensions.
-        fn try_from_raw<P: Pixel + 'static>(data: &[P::Subpixel], width: u32, height: u32)
-            -> ImageResult<ImageBuffer<P, &[P::Subpixel]>>
-        {
+        fn try_from_raw<P: Pixel + 'static>(
+            data: &[P::Subpixel],
+            width: u32,
+            height: u32,
+        ) -> ImageResult<ImageBuffer<P, &[P::Subpixel]>> {
             ImageBuffer::from_raw(width, height, data).ok_or_else(|| {
-                ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch))
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
             })
         };
 
@@ -161,14 +167,16 @@ impl<W: Write> AvifEncoder<W> {
         {
             match try_cast_slice(buf) {
                 Ok(slice) => Ok(Cow::Borrowed(slice)),
-                Err(PodCastError::OutputSliceWouldHaveSlop) => {
-                    Err(ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))
-                }
+                Err(PodCastError::OutputSliceWouldHaveSlop) => Err(ImageError::Parameter(
+                    ParameterError::from_kind(ParameterErrorKind::DimensionMismatch),
+                )),
                 Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
                     // Sad, but let's allocate.
                     // bytemuck checks alignment _before_ slop but size mismatch before this..
                     if buf.len() % std::mem::size_of::<Channel>() != 0 {
-                        Err(ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)))
+                        Err(ImageError::Parameter(ParameterError::from_kind(
+                            ParameterErrorKind::DimensionMismatch,
+                        )))
                     } else {
                         let len = buf.len() / std::mem::size_of::<Channel>();
                         let mut data = vec![Channel::zero(); len];
@@ -177,9 +185,10 @@ impl<W: Write> AvifEncoder<W> {
                         Ok(Cow::Owned(data))
                     }
                 }
-                Err(err) => { // Are you trying to encode a ZST??
+                Err(err) => {
+                    // Are you trying to encode a ZST??
                     Err(ImageError::Parameter(ParameterError::from_kind(
-                        ParameterErrorKind::Generic(format!("{:?}", err))
+                        ParameterErrorKind::Generic(format!("{:?}", err)),
                     )))
                 }
             }
@@ -251,10 +260,12 @@ impl<W: Write> AvifEncoder<W> {
                 Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
             }
             // for cases we do not support at all?
-            _ => Err(ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+            _ => Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
                     ImageFormat::Avif.into(),
                     UnsupportedErrorKind::Color(color.into()),
-                )))
+                ),
+            )),
         }
     }
 }

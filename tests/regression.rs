@@ -9,17 +9,20 @@ where
     F: Fn(PathBuf),
 {
     let base: PathBuf = BASE_PATH.iter().collect();
-    let decoders = &["tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp", "exr"];
+    let decoders = &[
+        "tga", "tiff", "png", "gif", "bmp", "ico", "jpg", "hdr", "pbm", "webp", "exr",
+    ];
     for decoder in decoders {
         let mut path = base.clone();
         path.push(dir);
         path.push(decoder);
         path.push("**");
         path.push(
-            "*.".to_string() + match input_decoder {
-                Some(val) => val,
-                None => decoder,
-            },
+            "*.".to_string()
+                + match input_decoder {
+                    Some(val) => val,
+                    None => decoder,
+                },
         );
         let pattern = &*format!("{}", path.display());
         for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
@@ -49,7 +52,6 @@ fn bad_bmps() {
 
     let pattern = &*format!("{}", path.display());
     for path in glob::glob(pattern).unwrap().filter_map(Result::ok) {
-
         // Manually reading the file so we can use load() instead of open()
         // We have to use load() so we can override the format
         let im_file = BufReader::new(File::open(path).unwrap());

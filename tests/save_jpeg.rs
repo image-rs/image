@@ -2,7 +2,7 @@
 #![cfg(all(feature = "jpeg", feature = "tiff"))]
 extern crate image;
 
-use image::{ImageOutputFormat, ImageFormat};
+use image::{ImageFormat, ImageOutputFormat};
 use std::io::Cursor;
 
 #[test]
@@ -10,7 +10,8 @@ fn jqeg_qualitys() {
     let img = image::open("tests/images/tiff/testsuite/mandrill.tiff").unwrap();
 
     let mut default = vec![];
-    img.write_to(&mut Cursor::new(&mut default), ImageFormat::Jpeg).unwrap();
+    img.write_to(&mut Cursor::new(&mut default), ImageFormat::Jpeg)
+        .unwrap();
     assert_eq!(&[255, 216], &default[..2]);
 
     let mut small = vec![];

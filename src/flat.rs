@@ -41,17 +41,20 @@
 //! }
 //! ```
 //!
-use std::{cmp, error, fmt};
-use std::ops::{Deref, Index, IndexMut};
 use std::marker::PhantomData;
+use std::ops::{Deref, Index, IndexMut};
+use std::{cmp, error, fmt};
 
 use num_traits::Zero;
 
-use crate::ImageBuffer;
 use crate::color::ColorType;
-use crate::error::{ImageError, ImageFormatHint, DecodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{
+    DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
+};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, PixelWithColorType};
+use crate::ImageBuffer;
 
 /// A flat buffer over a (multi channel) image.
 ///
@@ -139,8 +142,9 @@ impl SampleLayout {
     /// in the `height` direction would be larger than `usize::max_value()`. On other platforms
     /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
-        let height_stride = (channels as usize).checked_mul(width as usize)
-            .expect("Row major packed image can not be described because it does not fit into memory");
+        let height_stride = (channels as usize).checked_mul(width as usize).expect(
+            "Row major packed image can not be described because it does not fit into memory",
+        );
         SampleLayout {
             channels,
             channel_stride: 1,
@@ -168,8 +172,9 @@ impl SampleLayout {
     /// in the `width` direction would be larger than `usize::max_value()`. On other platforms
     /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
-        let width_stride = (channels as usize).checked_mul(height as usize)
-            .expect("Column major packed image can not be described because it does not fit into memory");
+        let width_stride = (channels as usize).checked_mul(height as usize).expect(
+            "Column major packed image can not be described because it does not fit into memory",
+        );
         SampleLayout {
             channels,
             channel_stride: 1,
@@ -193,7 +198,11 @@ impl SampleLayout {
     /// The interface is optimized for use with `strides_cwh` instead. The channel extent will be
     /// before width and height.
     pub fn extents(&self) -> (usize, usize, usize) {
-        (self.channels as usize, self.width as usize, self.height as usize)
+        (
+            self.channels as usize,
+            self.width as usize,
+            self.height as usize,
+        )
     }
 
     /// Tuple of bounds in the order of coordinate inputs.
@@ -257,7 +266,7 @@ impl SampleLayout {
     /// `index_of(1, 2) = 4`.
     pub fn min_length(&self) -> Option<usize> {
         if self.width == 0 || self.height == 0 || self.channels == 0 {
-            return Some(0)
+            return Some(0);
         }
 
         self.index(self.channels - 1, self.width - 1, self.height - 1)
@@ -275,7 +284,8 @@ impl SampleLayout {
         let mut grouped: [Dim; 3] = [
             Dim(self.channel_stride, self.channels as usize),
             Dim(self.width_stride, self.width as usize),
-            Dim(self.height_stride, self.height as usize)];
+            Dim(self.height_stride, self.height as usize),
+        ];
 
         grouped.sort();
 
@@ -342,7 +352,7 @@ impl SampleLayout {
                 return false;
             }
 
-            if  mid_dim.len() != max_dim.stride() {
+            if mid_dim.len() != max_dim.stride() {
                 return false;
             }
         }
@@ -352,7 +362,7 @@ impl SampleLayout {
                 return false;
             }
 
-            if self.width as usize*self.width_stride != self.height_stride {
+            if self.width as usize * self.width_stride != self.height_stride {
                 return false;
             }
         }
@@ -362,7 +372,7 @@ impl SampleLayout {
                 return false;
             }
 
-            if self.height as usize*self.height_stride != self.width_stride {
+            if self.height as usize * self.height_stride != self.width_stride {
                 return false;
             }
         }
@@ -384,7 +394,7 @@ impl SampleLayout {
     /// `None` if the index is outside the bounds or does not fit into a `usize`.
     pub fn index(&self, channel: u8, x: u32, y: u32) -> Option<usize> {
         if !self.in_bounds(channel, x, y) {
-            return None
+            return None;
         }
 
         self.index_ignoring_bounds(channel as usize, x as usize, y as usize)
@@ -421,7 +431,6 @@ impl SampleLayout {
         (y as usize * y_stride) + (x as usize * x_stride) + (c as usize * c_stride)
     }
 
-
     /// Shrink the image to the minimum of current and given extents.
     ///
     /// This does not modify the strides, so that the resulting sample buffer may have holes
@@ -445,7 +454,7 @@ impl Dim {
     }
 
     fn len(self) -> usize {
-        self.0*self.1
+        self.0 * self.1
     }
 }
 
@@ -475,7 +484,10 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 
     /// Get a reference based version.
-    pub fn as_ref<T>(&self) -> FlatSamples<&[T]> where Buffer: AsRef<[T]> {
+    pub fn as_ref<T>(&self) -> FlatSamples<&[T]>
+    where
+        Buffer: AsRef<[T]>,
+    {
         FlatSamples {
             samples: self.samples.as_ref(),
             layout: self.layout,
@@ -484,7 +496,10 @@ impl<Buffer> FlatSamples<Buffer> {
     }
 
     /// Get a mutable reference based version.
-    pub fn as_mut<T>(&mut self) -> FlatSamples<&mut [T]> where Buffer: AsMut<[T]> {
+    pub fn as_mut<T>(&mut self) -> FlatSamples<&mut [T]>
+    where
+        Buffer: AsMut<[T]>,
+    {
         FlatSamples {
             samples: self.samples.as_mut(),
             layout: self.layout,
@@ -494,7 +509,9 @@ impl<Buffer> FlatSamples<Buffer> {
 
     /// Copy the data into an owned vector.
     pub fn to_vec<T>(&self) -> FlatSamples<Vec<T>>
-        where T: Clone, Buffer: AsRef<[T]>
+    where
+        T: Clone,
+        Buffer: AsRef<[T]>,
     {
         FlatSamples {
             samples: self.samples.as_ref().to_vec(),
@@ -525,11 +542,12 @@ impl<Buffer> FlatSamples<Buffer> {
     /// on `index_ignoring_bounds` since it can not have a-priori knowledge that the sample
     /// coordinate is in fact backed by any memory buffer.
     pub fn get_sample<T>(&self, channel: u8, x: u32, y: u32) -> Option<&T>
-        where Buffer: AsRef<[T]>,
+    where
+        Buffer: AsRef<[T]>,
     {
-        self.index(channel, x, y).and_then(|idx| self.samples.as_ref().get(idx))
+        self.index(channel, x, y)
+            .and_then(|idx| self.samples.as_ref().get(idx))
     }
-
 
     /// Get a mutable reference to a single sample.
     ///
@@ -558,7 +576,8 @@ impl<Buffer> FlatSamples<Buffer> {
     /// on `index_ignoring_bounds` since it can not have a-priori knowledge that the sample
     /// coordinate is in fact backed by any memory buffer.
     pub fn get_mut_sample<T>(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut T>
-        where Buffer: AsMut<[T]>,
+    where
+        Buffer: AsMut<[T]>,
     {
         match self.index(channel, x, y) {
             None => None,
@@ -573,15 +592,17 @@ impl<Buffer> FlatSamples<Buffer> {
     /// that are present in this buffer. Neither are larger nor a smaller number will be accepted.
     /// There is no automatic conversion.
     pub fn as_view<P>(&self) -> Result<View<&[P::Subpixel], P>, Error>
-        where P: PixelWithColorType, Buffer: AsRef<[P::Subpixel]>,
+    where
+        P: PixelWithColorType,
+        Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_ref = self.samples.as_ref();
         if !self.layout.fits(as_ref.len()) {
-            return Err(Error::TooLarge)
+            return Err(Error::TooLarge);
         }
 
         Ok(View {
@@ -610,15 +631,17 @@ impl<Buffer> FlatSamples<Buffer> {
     /// for one sample can in fact modify other samples as well. Sometimes exactly this is
     /// intended.
     pub fn as_view_with_mut_samples<P>(&mut self) -> Result<View<&mut [P::Subpixel], P>, Error>
-        where P: PixelWithColorType, Buffer: AsMut<[P::Subpixel]>,
+    where
+        P: PixelWithColorType,
+        Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_mut = self.samples.as_mut();
         if !self.layout.fits(as_mut.len()) {
-            return Err(Error::TooLarge)
+            return Err(Error::TooLarge);
         }
 
         Ok(View {
@@ -643,19 +666,21 @@ impl<Buffer> FlatSamples<Buffer> {
     /// generally polished. You can also try to convert this buffer inline, see
     /// `ImageBuffer::from_raw`.
     pub fn as_view_mut<P>(&mut self) -> Result<ViewMut<&mut [P::Subpixel], P>, Error>
-        where P: PixelWithColorType, Buffer: AsMut<[P::Subpixel]>,
+    where
+        P: PixelWithColorType,
+        Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.layout.is_normal(NormalForm::PixelPacked) {
-            return Err(Error::NormalFormRequired(NormalForm::PixelPacked))
+            return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE))
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_mut = self.samples.as_mut();
         if !self.layout.fits(as_mut.len()) {
-            return Err(Error::TooLarge)
+            return Err(Error::TooLarge);
         }
 
         Ok(ViewMut {
@@ -672,7 +697,10 @@ impl<Buffer> FlatSamples<Buffer> {
     ///
     /// The slice is not limited to the region of the image and not all sample indices are valid
     /// indices into this buffer. See `image_mut_slice` as an alternative.
-    pub fn as_slice<T>(&self) -> &[T] where Buffer: AsRef<[T]> {
+    pub fn as_slice<T>(&self) -> &[T]
+    where
+        Buffer: AsRef<[T]>,
+    {
         self.samples.as_ref()
     }
 
@@ -680,7 +708,10 @@ impl<Buffer> FlatSamples<Buffer> {
     ///
     /// The slice is not limited to the region of the image and not all sample indices are valid
     /// indices into this buffer. See `image_mut_slice` as an alternative.
-    pub fn as_mut_slice<T>(&mut self) -> &mut [T] where Buffer: AsMut<[T]> {
+    pub fn as_mut_slice<T>(&mut self) -> &mut [T]
+    where
+        Buffer: AsMut<[T]>,
+    {
         self.samples.as_mut()
     }
 
@@ -689,7 +720,10 @@ impl<Buffer> FlatSamples<Buffer> {
     /// This may fail when the coordinates in this image are either out-of-bounds of the underlying
     /// buffer or can not be represented. Note that the slice may have holes that do not correspond
     /// to any sample in the image represented by it.
-    pub fn image_slice<T>(&self) -> Option<&[T]> where Buffer: AsRef<[T]> {
+    pub fn image_slice<T>(&self) -> Option<&[T]>
+    where
+        Buffer: AsRef<[T]>,
+    {
         let min_length = match self.min_length() {
             None => return None,
             Some(index) => index,
@@ -697,14 +731,17 @@ impl<Buffer> FlatSamples<Buffer> {
 
         let slice = self.samples.as_ref();
         if slice.len() < min_length {
-            return None
+            return None;
         }
 
         Some(&slice[..min_length])
     }
 
     /// Mutable portion of the buffer that holds sample values.
-    pub fn image_mut_slice<T>(&mut self) -> Option<&mut [T]> where Buffer: AsMut<[T]> {
+    pub fn image_mut_slice<T>(&mut self) -> Option<&mut [T]>
+    where
+        Buffer: AsMut<[T]>,
+    {
         let min_length = match self.min_length() {
             None => return None,
             Some(index) => index,
@@ -712,7 +749,7 @@ impl<Buffer> FlatSamples<Buffer> {
 
         let slice = self.samples.as_mut();
         if slice.len() < min_length {
-            return None
+            return None;
         }
 
         Some(&mut slice[..min_length])
@@ -727,23 +764,26 @@ impl<Buffer> FlatSamples<Buffer> {
     where
         P: PixelWithColorType + 'static,
         P::Subpixel: 'static,
-        Buffer: Deref<Target=[P::Subpixel]>,
+        Buffer: Deref<Target = [P::Subpixel]>,
     {
         if !self.is_normal(NormalForm::RowMajorPacked) {
-            return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self))
+            return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self));
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((Error::WrongColor(P::COLOR_TYPE), self))
+            return Err((Error::WrongColor(P::COLOR_TYPE), self));
         }
 
         if !self.fits(self.samples.deref().len()) {
-            return Err((Error::TooLarge, self))
+            return Err((Error::TooLarge, self));
         }
 
-
-        Ok(ImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples).unwrap_or_else(
-            || panic!("Preconditions should have been ensured before conversion")))
+        Ok(
+            ImageBuffer::from_raw(self.layout.width, self.layout.height, self.samples)
+                .unwrap_or_else(|| {
+                    panic!("Preconditions should have been ensured before conversion")
+                }),
+        )
     }
 
     /// Get the minimum length of a buffer such that all in-bounds samples have valid indices.
@@ -893,7 +933,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
     /// ```
     pub fn with_monocolor<P>(pixel: &'buf P, width: u32, height: u32) -> Self
     where
-        P: Pixel<Subpixel=Subpixel>,
+        P: Pixel<Subpixel = Subpixel>,
         Subpixel: crate::Primitive,
     {
         FlatSamples {
@@ -930,7 +970,7 @@ impl<'buf, Subpixel> FlatSamples<&'buf [Subpixel]> {
 #[derive(Clone, Debug)]
 pub struct View<Buffer, P: Pixel>
 where
-    Buffer: AsRef<[P::Subpixel]>
+    Buffer: AsRef<[P::Subpixel]>,
 {
     inner: FlatSamples<Buffer>,
     phantom: PhantomData<P>,
@@ -953,7 +993,7 @@ where
 #[derive(Clone, Debug)]
 pub struct ViewMut<Buffer, P: Pixel>
 where
-    Buffer: AsMut<[P::Subpixel]>
+    Buffer: AsMut<[P::Subpixel]>,
 {
     inner: FlatSamples<Buffer>,
     phantom: PhantomData<P>,
@@ -1029,7 +1069,7 @@ pub enum NormalForm {
 
 impl<Buffer, P: Pixel> View<Buffer, P>
 where
-    Buffer: AsRef<[P::Subpixel]>
+    Buffer: AsRef<[P::Subpixel]>,
 {
     /// Take out the sample buffer.
     ///
@@ -1062,7 +1102,7 @@ where
     /// occur due to overflow have been eliminated while construction the `View`.
     pub fn get_sample(&self, channel: u8, x: u32, y: u32) -> Option<&P::Subpixel> {
         if !self.inner.in_bounds(channel, x, y) {
-            return None
+            return None;
         }
 
         let index = self.inner.in_bounds_index(channel, x, y);
@@ -1079,10 +1119,11 @@ where
     /// **WARNING**: Note that of course samples may alias, so that the mutable reference returned
     /// here can in fact modify more than the coordinate in the argument.
     pub fn get_mut_sample(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut P::Subpixel>
-        where Buffer: AsMut<[P::Subpixel]>
+    where
+        Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.inner.in_bounds(channel, x, y) {
-            return None
+            return None;
         }
 
         let index = self.inner.in_bounds_index(channel, x, y);
@@ -1111,7 +1152,8 @@ where
     /// this can not fail–the validity of all coordinates has been validated during the conversion
     /// from `FlatSamples`–the resulting slice may still contain holes.
     pub fn image_mut_slice(&mut self) -> &mut [P::Subpixel]
-        where Buffer: AsMut<[P::Subpixel]>
+    where
+        Buffer: AsMut<[P::Subpixel]>,
     {
         let min_length = self.min_length();
         &mut self.inner.samples.as_mut()[..min_length]
@@ -1146,10 +1188,11 @@ where
     /// let view_mut = view.try_upgrade().unwrap();
     /// ```
     pub fn try_upgrade(self) -> Result<ViewMut<Buffer, P>, (Error, Self)>
-        where Buffer: AsMut<[P::Subpixel]>
+    where
+        Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.inner.is_normal(NormalForm::PixelPacked) {
-            return Err((Error::NormalFormRequired(NormalForm::PixelPacked), self))
+            return Err((Error::NormalFormRequired(NormalForm::PixelPacked), self));
         }
 
         // No length check or channel count check required, all the same.
@@ -1162,7 +1205,7 @@ where
 
 impl<Buffer, P: Pixel> ViewMut<Buffer, P>
 where
-    Buffer: AsMut<[P::Subpixel]>
+    Buffer: AsMut<[P::Subpixel]>,
 {
     /// Take out the sample buffer.
     ///
@@ -1202,10 +1245,11 @@ where
     /// This method will return `None` when the sample is out-of-bounds. All errors that could
     /// occur due to overflow have been eliminated while construction the `View`.
     pub fn get_sample(&self, channel: u8, x: u32, y: u32) -> Option<&P::Subpixel>
-        where Buffer: AsRef<[P::Subpixel]>
+    where
+        Buffer: AsRef<[P::Subpixel]>,
     {
         if !self.inner.in_bounds(channel, x, y) {
-            return None
+            return None;
         }
 
         let index = self.inner.in_bounds_index(channel, x, y);
@@ -1219,7 +1263,7 @@ where
     /// occur due to overflow have been eliminated while construction the `View`.
     pub fn get_mut_sample(&mut self, channel: u8, x: u32, y: u32) -> Option<&mut P::Subpixel> {
         if !self.inner.in_bounds(channel, x, y) {
-            return None
+            return None;
         }
 
         let index = self.inner.in_bounds_index(channel, x, y);
@@ -1231,7 +1275,10 @@ where
     ///
     /// While this can not fail–the validity of all coordinates has been validated during the
     /// conversion from `FlatSamples`–the resulting slice may still contain holes.
-    pub fn image_slice(&self) -> &[P::Subpixel] where Buffer: AsRef<[P::Subpixel]> {
+    pub fn image_slice(&self) -> &[P::Subpixel]
+    where
+        Buffer: AsRef<[P::Subpixel]>,
+    {
         &self.inner.samples.as_ref()[..self.min_length()]
     }
 
@@ -1252,30 +1299,32 @@ where
     }
 }
 
-
 // The out-of-bounds panic for single sample access similar to `slice::index`.
 #[inline(never)]
 #[cold]
 fn panic_cwh_out_of_bounds(
     (c, x, y): (u8, u32, u32),
     bounds: (u8, u32, u32),
-    strides: (usize, usize, usize)) -> !
-{
-    panic!("Sample coordinates {:?} out of sample matrix bounds {:?} with strides {:?}", (c, x, y), bounds, strides)
+    strides: (usize, usize, usize),
+) -> ! {
+    panic!(
+        "Sample coordinates {:?} out of sample matrix bounds {:?} with strides {:?}",
+        (c, x, y),
+        bounds,
+        strides
+    )
 }
 
 // The out-of-bounds panic for pixel access similar to `slice::index`.
 #[inline(never)]
 #[cold]
-fn panic_pixel_out_of_bounds(
-    (x, y): (u32, u32),
-    bounds: (u32, u32)) -> !
-{
+fn panic_pixel_out_of_bounds((x, y): (u32, u32), bounds: (u32, u32)) -> ! {
     panic!("Image index {:?} out of bounds {:?}", (x, y), bounds)
 }
 
 impl<Buffer> Index<(u8, u32, u32)> for FlatSamples<Buffer>
-    where Buffer: Index<usize>
+where
+    Buffer: Index<usize>,
 {
     type Output = Buffer::Output;
 
@@ -1287,16 +1336,17 @@ impl<Buffer> Index<(u8, u32, u32)> for FlatSamples<Buffer>
     fn index(&self, (c, x, y): (u8, u32, u32)) -> &Self::Output {
         let bounds = self.bounds();
         let strides = self.strides_cwh();
-        let index = self.index(c, x, y).unwrap_or_else(||
-            panic_cwh_out_of_bounds((c, x, y), bounds, strides));
+        let index = self
+            .index(c, x, y)
+            .unwrap_or_else(|| panic_cwh_out_of_bounds((c, x, y), bounds, strides));
         &self.samples[index]
     }
 }
 
 impl<Buffer> IndexMut<(u8, u32, u32)> for FlatSamples<Buffer>
-    where Buffer: IndexMut<usize>
+where
+    Buffer: IndexMut<usize>,
 {
-
     /// Return a mutable reference to a single sample at specified coordinates.
     ///
     /// # Panics
@@ -1305,14 +1355,16 @@ impl<Buffer> IndexMut<(u8, u32, u32)> for FlatSamples<Buffer>
     fn index_mut(&mut self, (c, x, y): (u8, u32, u32)) -> &mut Self::Output {
         let bounds = self.bounds();
         let strides = self.strides_cwh();
-        let index = self.index(c, x, y).unwrap_or_else(||
-            panic_cwh_out_of_bounds((c, x, y), bounds, strides));
+        let index = self
+            .index(c, x, y)
+            .unwrap_or_else(|| panic_cwh_out_of_bounds((c, x, y), bounds, strides));
         &mut self.samples[index]
     }
 }
 
 impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
-    where Buffer: AsRef<[P::Subpixel]>
+where
+    Buffer: AsRef<[P::Subpixel]>,
 {
     type Pixel = P;
 
@@ -1340,17 +1392,22 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
         let channels = P::CHANNEL_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
-        buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
-            let index = base_index + c*self.inner.layout.channel_stride;
-            *to = image[index];
-        });
+        buffer
+            .iter_mut()
+            .enumerate()
+            .take(channels)
+            .for_each(|(c, to)| {
+                let index = base_index + c * self.inner.layout.channel_stride;
+                *to = image[index];
+            });
 
         *P::from_slice(&buffer[..channels])
     }
 }
 
 impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
-    where Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
+where
+    Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
     type Pixel = P;
 
@@ -1378,17 +1435,22 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
         let channels = P::CHANNEL_COUNT as usize;
 
         let mut buffer = [Zero::zero(); 256];
-        buffer.iter_mut().enumerate().take(channels).for_each(|(c, to)| {
-            let index = base_index + c*self.inner.layout.channel_stride;
-            *to = image[index];
-        });
+        buffer
+            .iter_mut()
+            .enumerate()
+            .take(channels)
+            .for_each(|(c, to)| {
+                let index = base_index + c * self.inner.layout.channel_stride;
+                *to = image[index];
+            });
 
         *P::from_slice(&buffer[..channels])
     }
 }
 
 impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
-    where Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
+where
+    Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
     fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
         if !self.inner.in_bounds(0, x, y) {
@@ -1424,13 +1486,19 @@ impl From<Error> for ImageError {
         impl error::Error for NormalFormRequiredError {}
 
         match error {
-            Error::TooLarge => ImageError::Parameter(ParameterError::from_kind(ParameterErrorKind::DimensionMismatch)),
+            Error::TooLarge => ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )),
             Error::NormalFormRequired(form) => ImageError::Decoding(DecodingError::new(
                 ImageFormatHint::Unknown,
-                NormalFormRequiredError(form))),
-            Error::WrongColor(color) => ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                ImageFormatHint::Unknown,
-                UnsupportedErrorKind::Color(color.into()))),
+                NormalFormRequiredError(form),
+            )),
+            Error::WrongColor(color) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Color(color.into()),
+                ))
+            }
         }
     }
 }
@@ -1471,7 +1539,9 @@ impl PartialOrd for NormalForm {
             (NormalForm::PixelPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Equal),
             (NormalForm::ImagePacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Equal),
             (NormalForm::RowMajorPacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Equal),
-            (NormalForm::ColumnMajorPacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Equal),
+            (NormalForm::ColumnMajorPacked, NormalForm::ColumnMajorPacked) => {
+                Some(cmp::Ordering::Equal)
+            }
 
             (NormalForm::Unaliased, _) => Some(cmp::Ordering::Less),
             (_, NormalForm::Unaliased) => Some(cmp::Ordering::Greater),
@@ -1479,12 +1549,16 @@ impl PartialOrd for NormalForm {
             (NormalForm::PixelPacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Less),
             (NormalForm::PixelPacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Less),
             (NormalForm::RowMajorPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Greater),
-            (NormalForm::ColumnMajorPacked, NormalForm::PixelPacked) => Some(cmp::Ordering::Greater),
+            (NormalForm::ColumnMajorPacked, NormalForm::PixelPacked) => {
+                Some(cmp::Ordering::Greater)
+            }
 
             (NormalForm::ImagePacked, NormalForm::ColumnMajorPacked) => Some(cmp::Ordering::Less),
             (NormalForm::ImagePacked, NormalForm::RowMajorPacked) => Some(cmp::Ordering::Less),
             (NormalForm::RowMajorPacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Greater),
-            (NormalForm::ColumnMajorPacked, NormalForm::ImagePacked) => Some(cmp::Ordering::Greater),
+            (NormalForm::ColumnMajorPacked, NormalForm::ImagePacked) => {
+                Some(cmp::Ordering::Greater)
+            }
 
             (NormalForm::ImagePacked, NormalForm::PixelPacked) => None,
             (NormalForm::PixelPacked, NormalForm::ImagePacked) => None,
@@ -1502,25 +1576,25 @@ mod tests {
 
     #[test]
     fn aliasing_view() {
-       let buffer = FlatSamples {
-           samples: &[42],
-           layout: SampleLayout {
-               channels: 3,
-               channel_stride: 0,
-               width: 100,
-               width_stride: 0,
-               height: 100,
-               height_stride: 0,
-           },
-           color_hint: None,
-       };
+        let buffer = FlatSamples {
+            samples: &[42],
+            layout: SampleLayout {
+                channels: 3,
+                channel_stride: 0,
+                width: 100,
+                width_stride: 0,
+                height: 100,
+                height_stride: 0,
+            },
+            color_hint: None,
+        };
 
-       let view = buffer.as_view::<Rgb<u8>>()
-           .expect("This is a valid view");
-       let pixel_count = view.pixels()
-           .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
-           .count();
-       assert_eq!(pixel_count, 100*100);
+        let view = buffer.as_view::<Rgb<u8>>().expect("This is a valid view");
+        let pixel_count = view
+            .pixels()
+            .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
+            .count();
+        assert_eq!(pixel_count, 100 * 100);
     }
 
     #[test]
@@ -1539,7 +1613,8 @@ mod tests {
         };
 
         {
-            let mut view = buffer.as_view_mut::<LumaA<u16>>()
+            let mut view = buffer
+                .as_view_mut::<LumaA<u16>>()
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
             #[allow(deprecated)]
@@ -1548,7 +1623,9 @@ mod tests {
             }
         }
 
-        buffer.samples.iter()
+        buffer
+            .samples
+            .iter()
             .enumerate()
             .for_each(|(idx, sample)| assert_eq!(idx, *sample as usize));
     }
@@ -1566,7 +1643,8 @@ mod tests {
                 height_stride: 28,
             },
             color_hint: None,
-        }.is_normal(NormalForm::PixelPacked));
+        }
+        .is_normal(NormalForm::PixelPacked));
 
         assert!(FlatSamples {
             samples: [0u8; 0],
@@ -1579,7 +1657,8 @@ mod tests {
                 height_stride: 4,
             },
             color_hint: None,
-        }.is_normal(NormalForm::ImagePacked));
+        }
+        .is_normal(NormalForm::ImagePacked));
 
         assert!(FlatSamples {
             samples: [0u8; 0],
@@ -1592,7 +1671,8 @@ mod tests {
                 height_stride: 8,
             },
             color_hint: None,
-        }.is_normal(NormalForm::RowMajorPacked));
+        }
+        .is_normal(NormalForm::RowMajorPacked));
 
         assert!(FlatSamples {
             samples: [0u8; 0],
@@ -1605,7 +1685,8 @@ mod tests {
                 height_stride: 2,
             },
             color_hint: None,
-        }.is_normal(NormalForm::ColumnMajorPacked));
+        }
+        .is_normal(NormalForm::ColumnMajorPacked));
     }
 
     #[test]
@@ -1624,7 +1705,8 @@ mod tests {
 
         assert_eq!(buffer.layout, expected_layout);
 
-        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)|
-            panic!("Expected buffer to be convertible but {:?}", error));
+        let _: GrayAlphaImage = buffer.try_into_buffer().unwrap_or_else(|(error, _)| {
+            panic!("Expected buffer to be convertible but {:?}", error)
+        });
     }
 }

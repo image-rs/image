@@ -21,6 +21,10 @@ use crate::error::{
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
 
+// http://www.w3.org/TR/PNG-Structure.html
+// The first eight bytes of a PNG file always contain the following (decimal) values:
+pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+
 /// Png Reader
 ///
 /// This reader will try to read the png one row at a time,

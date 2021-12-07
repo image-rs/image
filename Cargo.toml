@@ -35,7 +35,7 @@ ravif = { version = "0.8.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 mp4parse = { version = "0.12.0", optional = true }
 dav1d = { version = "0.6.0", optional = true }
-dcv-color-primitives = { version = "0.1.16", optional = true }
+dcv-color-primitives = { version = "0.3.0", optional = true }
 exr = { version = "1.4.1", optional = true }
 color_quant = "1.1"
 

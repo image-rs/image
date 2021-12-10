@@ -27,7 +27,7 @@ num-iter = "0.1.32"
 num-rational = { version = "0.4", default-features = false }
 num-traits = "0.2.0"
 gif = { version = "0.11.1", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.1.22", default-features = false, optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.2.1", default-features = false, optional = true }
 png = { version = "0.17.0", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }
 tiff = { version = "0.7.1", optional = true }
@@ -35,7 +35,7 @@ ravif = { version = "0.8.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 mp4parse = { version = "0.12.0", optional = true }
 dav1d = { version = "0.6.0", optional = true }
-dcv-color-primitives = { version = "0.1.16", optional = true }
+dcv-color-primitives = { version = "0.3.0", optional = true }
 exr = { version = "1.4.1", optional = true }
 color_quant = "1.1"
 

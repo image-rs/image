@@ -1,12 +1,11 @@
 use byteorder::{LittleEndian, WriteBytesExt};
-use std::io::{self, Cursor, Write};
+use std::io::{self, Write};
 
 use crate::color::ColorType;
 use crate::error::ImageResult;
-use crate::image::{ImageDecoder, ImageEncoder};
+use crate::image::ImageEncoder;
 
-use crate::codecs::bmp::BmpDecoder;
-use crate::codecs::png::{PngDecoder, PngEncoder, PNG_SIGNATURE};
+use crate::codecs::png::PngEncoder;
 
 // Enum value indicating an ICO image (as opposed to a CUR image):
 const ICO_IMAGE_TYPE: u16 = 1;
@@ -58,27 +57,12 @@ impl<W: Write> IcoEncoder<W> {
 
     /// Takes an already encoded PNG or BMP image and encodes it into an ICO.
     ///
+    /// `width`, `height` and `color_type` should match the
+    /// real properties of the `encoded_image`.
+    ///
     /// The dimensions of the image must be between 1 and 256 (inclusive) or
     /// an error will be returned.
-    pub fn write_pre_encoded_image(self, encoded_image: &[u8]) -> ImageResult<()> {
-        let (width, height, color_type) = if encoded_image.starts_with(&PNG_SIGNATURE) {
-            let decoder = PngDecoder::new(Cursor::new(encoded_image))?;
-
-            let (width, height) = decoder.dimensions();
-            let color_type = decoder.color_type();
-            (width, height, color_type)
-        } else {
-            let decoder = BmpDecoder::new(Cursor::new(encoded_image))?;
-
-            let (width, height) = decoder.dimensions();
-            let color_type = decoder.color_type();
-            (width, height, color_type)
-        };
-
-        self.write_pre_encoded_image_impl(encoded_image, width, height, color_type)
-    }
-
-    fn write_pre_encoded_image_impl(
+    pub fn write_pre_encoded_image(
         mut self,
         encoded_image: &[u8],
         width: u32,
@@ -116,7 +100,7 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
-        self.write_pre_encoded_image_impl(&image_data, width, height, color_type)
+        self.write_pre_encoded_image(&image_data, width, height, color_type)
     }
 }
 

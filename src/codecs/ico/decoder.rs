@@ -12,11 +12,7 @@ use crate::image::{self, ImageDecoder, ImageFormat};
 
 use self::InnerDecoder::*;
 use crate::codecs::bmp::BmpDecoder;
-use crate::codecs::png::PngDecoder;
-
-// http://www.w3.org/TR/PNG-Structure.html
-// The first eight bytes of a PNG file always contain the following (decimal) values:
-const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+use crate::codecs::png::{PngDecoder, PNG_SIGNATURE};
 
 /// Errors that can occur during decoding and parsing an ICO image or one of its enclosed images.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

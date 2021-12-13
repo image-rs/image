@@ -54,6 +54,33 @@ impl<W: Write> IcoEncoder<W> {
         self.w.write_all(&image_data)?;
         Ok(())
     }
+
+    /// Takes an already encoded PNG or BMP image and encodes it into an ICO.
+    ///
+    /// `width`, `height` and `color_type` should match the
+    /// real properties of the `encoded_image`.
+    ///
+    /// The dimensions of the image must be between 1 and 256 (inclusive) or
+    /// an error will be returned.
+    pub fn write_pre_encoded_image(
+        mut self,
+        encoded_image: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        write_icondir(&mut self.w, 1)?;
+        write_direntry(
+            &mut self.w,
+            width,
+            height,
+            color_type,
+            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
+            encoded_image.len() as u32,
+        )?;
+        self.w.write_all(&encoded_image)?;
+        Ok(())
+    }
 }
 
 impl<W: Write> ImageEncoder for IcoEncoder<W> {
@@ -64,7 +91,7 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
     ///
     /// WARNING: In image 0.23.14 and earlier this method erroneously expected buf to be in big endian.
     fn write_image(
-        mut self,
+        self,
         buf: &[u8],
         width: u32,
         height: u32,
@@ -73,17 +100,7 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
-        write_icondir(&mut self.w, 1)?;
-        write_direntry(
-            &mut self.w,
-            width,
-            height,
-            color_type,
-            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
-            image_data.len() as u32,
-        )?;
-        self.w.write_all(&image_data)?;
-        Ok(())
+        self.write_pre_encoded_image(&image_data, width, height, color_type)
     }
 }
 

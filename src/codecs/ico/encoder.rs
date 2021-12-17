@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
 use crate::color::ColorType;
-use crate::error::ImageResult;
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::ImageEncoder;
 
 use crate::codecs::png::PngEncoder;
@@ -55,30 +55,52 @@ impl<W: Write> IcoEncoder<W> {
         Ok(())
     }
 
-    /// Takes an already encoded PNG or BMP image and encodes it into an ICO.
+    /// Takes some already encoded PNG or BMP images and encodes them into an ICO.
     ///
-    /// `width`, `height` and `color_type` should match the
-    /// real properties of the `encoded_image`.
+    /// `images` is a list of images, usually ordered by dimension.
+    /// The items of the tuple composing the list are as follows:
+    ///
+    /// * `encoded_image`: a PNG or BMP image
+    /// * `width`: the width of the `encoded_image`
+    /// * `height`: the height of the `encoded_image`
+    /// * `color_type`: the [`ColorType`] of the `encoded_image`
     ///
     /// The dimensions of the image must be between 1 and 256 (inclusive) or
     /// an error will be returned.
-    pub fn write_pre_encoded_image(
+    /// `images` must have a lenght between 1 and 65535 (inclusive).
+    pub fn write_pre_encoded_images(
         mut self,
-        encoded_image: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ColorType,
+        images: &[(&[u8], u32, u32, ColorType)],
     ) -> ImageResult<()> {
-        write_icondir(&mut self.w, 1)?;
-        write_direntry(
-            &mut self.w,
-            width,
-            height,
-            color_type,
-            ICO_ICONDIR_SIZE + ICO_DIRENTRY_SIZE,
-            encoded_image.len() as u32,
-        )?;
-        self.w.write_all(&encoded_image)?;
+        if !(1..=usize::from(u16::MAX)).contains(&images.len()) {
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(format!(
+                    "the number of images must be `1..=u16::MAX`, instead {} images were provided",
+                    images.len(),
+                )),
+            )));
+        }
+        let num_images = images.len() as u16;
+
+        let mut offset = ICO_ICONDIR_SIZE;
+        write_icondir(&mut self.w, num_images)?;
+        for &(encoded_image, width, height, color_type) in images {
+            offset += ICO_DIRENTRY_SIZE;
+
+            write_direntry(
+                &mut self.w,
+                width,
+                height,
+                color_type,
+                offset,
+                encoded_image.len() as u32,
+            )?;
+
+            offset += encoded_image.len() as u32;
+        }
+        for &(encoded_image, _width, _height, _color_type) in images {
+            self.w.write_all(encoded_image)?;
+        }
         Ok(())
     }
 }
@@ -100,7 +122,8 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
-        self.write_pre_encoded_image(&image_data, width, height, color_type)
+        let images = [(image_data.as_slice(), width, height, color_type)];
+        self.write_pre_encoded_images(&images)
     }
 }
 

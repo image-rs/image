@@ -48,6 +48,12 @@ const R8_G8_B8_COLOR_MASK: Bitfields = Bitfields {
     b: Bitfield { len: 8, shift: 8 },
     a: Bitfield { len: 0, shift: 0 },
 };
+const R8_G8_B8_A8_COLOR_MASK: Bitfields = Bitfields {
+    r: Bitfield { len: 8, shift: 16 },
+    g: Bitfield { len: 8, shift: 8 },
+    b: Bitfield { len: 8, shift: 0 },
+    a: Bitfield { len: 8, shift: 24 },
+};
 
 const RLE_ESCAPE: u8 = 0;
 const RLE_ESCAPE_EOL: u8 = 0;
@@ -1459,6 +1465,9 @@ impl<R: Read + Seek> BmpDecoder<R> {
             ImageType::Bitfields32 => match self.bitfields {
                 Some(R8_G8_B8_COLOR_MASK) => {
                     self.read_full_byte_pixel_data(&FormatFullBytes::Format888)
+                }
+                Some(R8_G8_B8_A8_COLOR_MASK) => {
+                    self.read_full_byte_pixel_data(&FormatFullBytes::RGBA32)
                 }
                 Some(_) => self.read_32_bit_pixel_data(),
                 None => Err(DecoderError::BitfieldMasksMissing(32).into()),

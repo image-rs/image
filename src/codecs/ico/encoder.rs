@@ -35,7 +35,7 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` using a pre-encoded PNG or BMP
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive).
-    pub fn new(
+    pub fn with_encoded(
         encoded_image: impl Into<Cow<'a, [u8]>>,
         width: u32,
         height: u32,
@@ -72,16 +72,11 @@ impl<'a> IcoFrame<'a> {
     /// Construct a new `IcoFrame` by encoding `buf` as a PNG
     ///
     /// The `width` and `height` must be between 1 and 256 (inclusive)
-    pub fn new_as_png(
-        buf: &[u8],
-        width: u32,
-        height: u32,
-        color_type: ColorType,
-    ) -> ImageResult<Self> {
+    pub fn as_png(buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<Self> {
         let mut image_data: Vec<u8> = Vec::new();
         PngEncoder::new(&mut image_data).write_image(buf, width, height, color_type)?;
 
-        let frame = Self::new(image_data, width, height, color_type)?;
+        let frame = Self::with_encoded(image_data, width, height, color_type)?;
         Ok(frame)
     }
 }
@@ -103,15 +98,15 @@ impl<W: Write> IcoEncoder<W> {
         #[allow(deprecated)]
         PngEncoder::new(&mut image_data).encode(data, width, height, color)?;
 
-        let image = IcoFrame::new(&image_data, width, height, color)?;
-        self.write_pre_encoded_images(&[image])
+        let image = IcoFrame::with_encoded(&image_data, width, height, color)?;
+        self.encode_images(&[image])
     }
 
     /// Takes some [`IcoFrame`]s and encodes them into an ICO.
     ///
     /// `images` is a list of images, usually ordered by dimension, which
     /// must be between 1 and 65535 (inclusive) in length.
-    pub fn write_pre_encoded_images(mut self, images: &[IcoFrame<'_>]) -> ImageResult<()> {
+    pub fn encode_images(mut self, images: &[IcoFrame<'_>]) -> ImageResult<()> {
         if !(1..=usize::from(u16::MAX)).contains(&images.len()) {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::Generic(format!(
@@ -159,8 +154,8 @@ impl<W: Write> ImageEncoder for IcoEncoder<W> {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
-        let image = IcoFrame::new_as_png(buf, width, height, color_type)?;
-        self.write_pre_encoded_images(&[image])
+        let image = IcoFrame::as_png(buf, width, height, color_type)?;
+        self.encode_images(&[image])
     }
 }
 

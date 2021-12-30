@@ -117,11 +117,9 @@ impl<W: Write> IcoEncoder<W> {
         }
         let num_images = images.len() as u16;
 
-        let mut offset = ICO_ICONDIR_SIZE;
+        let mut offset = ICO_ICONDIR_SIZE + (ICO_DIRENTRY_SIZE * (images.len() as u32));
         write_icondir(&mut self.w, num_images)?;
         for image in images {
-            offset += ICO_DIRENTRY_SIZE;
-
             write_direntry(
                 &mut self.w,
                 image.width,

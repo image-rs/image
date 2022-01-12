@@ -966,4 +966,12 @@ mod tests {
         test_lossless_conversion!(Rgb<u8>, Rgb<u16>, Rgb<u8>);
         test_lossless_conversion!(Rgba<u8>, Rgba<u16>, Rgba<u8>);
     }
+
+    #[test]
+    fn accuracy_conversion() {
+        use super::{Luma, Pixel, Rgb};
+        let pixel = Rgb::from([13, 13, 13]);
+        let Luma([luma]) = pixel.to_luma();
+        assert_eq!(luma, 13);
+    }
 }

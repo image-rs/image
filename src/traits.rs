@@ -75,7 +75,7 @@ pub trait Enlargeable: Sized + Bounded + NumCast {
     fn clamp_from(n: Self::Larger) -> Self {
         if n > Self::max_value().to_larger() {
             Self::max_value()
-        } else if n < Self::min_value().to_larger(){
+        } else if n < Self::min_value().to_larger() {
             Self::min_value()
         } else {
             NumCast::from(n).unwrap()

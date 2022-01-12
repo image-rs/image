@@ -208,7 +208,7 @@ pub(crate) fn save_buffer_with_format_impl(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 20] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 21] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -229,6 +229,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 20] = [
     (b"P7", ImageFormat::Pnm),
     (b"farbfeld", ImageFormat::Farbfeld),
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
+    (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
 ];
 
 /// Guess image format from memory block

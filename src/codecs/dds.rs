@@ -8,7 +8,6 @@
 use std::io::Read;
 use std::{error, fmt};
 
-use bytemuck::bytes_of;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 #[allow(deprecated)]
@@ -193,11 +192,8 @@ impl<R: Read> DdsDecoder<R> {
             #[allow(deprecated)]
             let bytes_per_pixel = variant.color_type().bytes_per_pixel();
 
-            if crate::utils::check_dimension_overflow(
-                header.width,
-                header.height,
-                bytes_per_pixel,
-            ) {
+            if crate::utils::check_dimension_overflow(header.width, header.height, bytes_per_pixel)
+            {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::Dds.into(),

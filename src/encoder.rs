@@ -4,7 +4,7 @@ use ops::{Deref, DerefMut};
 use std::{borrow, error, fmt, io, mem, ops, result};
 
 use crc32fast::Hasher as Crc32;
-use deflate::write::ZlibEncoder;
+use flate2::write::ZlibEncoder;
 
 use crate::chunk::{self, ChunkType};
 use crate::common::{
@@ -670,17 +670,14 @@ impl<W: Write> Writer<W> {
         let mut prev = prev.as_slice();
         let mut current = vec![0; in_len];
 
-        let mut zlib = deflate::write::ZlibEncoder::new(
-            Vec::new(),
-            self.info.compression.clone().to_options(),
-        );
+        let mut zlib = ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
         let bpp = self.info.bpp_in_prediction();
         let filter_method = self.options.filter;
         let adaptive_method = self.options.adaptive_filter;
 
         for line in data.chunks(in_len) {
-            current.copy_from_slice(&line);
-            let filter_type = filter(filter_method, adaptive_method, bpp, &prev, &mut current);
+            current.copy_from_slice(line);
+            let filter_type = filter(filter_method, adaptive_method, bpp, prev, &mut current);
             zlib.write_all(&[filter_type as u8])?;
             zlib.write_all(&current)?;
             prev = line;
@@ -732,7 +729,7 @@ impl<W: Write> Writer<W> {
 
     fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
         for chunk in zlib_encoded.chunks(Self::MAX_IDAT_CHUNK_LEN as usize) {
-            self.write_chunk(chunk::IDAT, &chunk)?;
+            self.write_chunk(chunk::IDAT, chunk)?;
         }
         Ok(())
     }
@@ -2242,13 +2239,13 @@ mod tests {
 /// Since this only contains trait impls, there is no need to make this public, they are simply
 /// available when the mod is compiled as well.
 impl Compression {
-    fn to_options(self) -> deflate::CompressionOptions {
+    fn to_options(self) -> flate2::Compression {
         match self {
-            Compression::Default => deflate::CompressionOptions::default(),
-            Compression::Fast => deflate::CompressionOptions::fast(),
-            Compression::Best => deflate::CompressionOptions::high(),
-            Compression::Huffman => deflate::CompressionOptions::huffman_only(),
-            Compression::Rle => deflate::CompressionOptions::rle(),
+            Compression::Default => flate2::Compression::default(),
+            Compression::Fast => flate2::Compression::fast(),
+            Compression::Best => flate2::Compression::best(),
+            Compression::Huffman => flate2::Compression::fast(), // TODO
+            Compression::Rle => flate2::Compression::fast(),     // TODO
         }
     }
 }

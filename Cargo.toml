@@ -2,14 +2,20 @@
 name = "image"
 version = "0.24.0-alpha"
 edition = "2018"
+rust-version = "1.56"
+
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
 authors = ["The image-rs Developers"]
 readme = "README.md"
+
+# crates.io meta data
 documentation = "https://docs.rs/image"
 repository = "https://github.com/image-rs/image"
 homepage = "https://github.com/image-rs/image"
 categories = ["multimedia::images", "multimedia::encoding"]
+
+# Crate build related
 exclude = [
     "src/png/testdata/*",
     "examples/*",

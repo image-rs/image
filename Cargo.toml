@@ -9,7 +9,7 @@ description = "Imaging library written in Rust. Provides basic filters and decod
 authors = ["The image-rs Developers"]
 readme = "README.md"
 
-# crates.io meta data
+# crates.io metadata
 documentation = "https://docs.rs/image"
 repository = "https://github.com/image-rs/image"
 homepage = "https://github.com/image-rs/image"

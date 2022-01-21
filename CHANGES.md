@@ -15,19 +15,20 @@ Breaking changes
 
 Structural changes:
 - Minimum Rust version is now `1.56` and may change in minor versions until
-  further notice. It is now tracked in the libraries `Cargo.toml`, instead, by
+  further notice. It is now tracked in the library's `Cargo.toml`, instead, by
   the standard `[package.rust-version]` field. Note: this applies _to the
   library itself_. You may need different version resolutions for dependencies
   when using a non-stable version of Rust.
-- The `math::utils::{nq, utils}` module have been removed. These are better
+- The `math::utils::{nq, utils}` modules have been removed. These are better
   served through the `color_quant` crate and the standard library respectively.
 - All codecs are now available through `image::codecs`, no longer top-level.
 - `ExtendedColorType` and `DynamicImage` have been made `#[non_exhaustive]`,
   providing more methods instead of exhaustive matching.
-- Reading images through the generic trait now requires decoders to be `BufRead
-  + Seek`. This allows more efficient support more formats. Similarly, writing
-  now requires `Write + Seek`.
-- The `Bgra*` variants of buffers, which were only half-support, have been
+- Reading images through the generic `io::Reader`, as well as generic
+  convenience interfaces, now requires the underlying reader to be `BufRead +
+  Seek`. This allows more efficient support more formats. Similarly, writing
+  now requires writers to be `Write + Seek`.
+- The `Bgra*` variants of buffers, which were only half-supported, have been
   removed. The owning buffer types `ImageBuffer` and `DynamicImage`
   fundamentally already make a choice in supported pixel representations. This
   allows for more consistent internal behavior. Callers are expected to convert
@@ -61,7 +62,7 @@ Additions
 
 Image formats:
 - Reading lossless WebP is now supported.
-- The OpenEXR format is now support.
+- The OpenEXR format is now supported.
 - The `jpeg` decoder has been upgraded to Lossless JPEG.
 - The `AvifEncoder` 
 - The `Bmp` codec now decodes more valid images. It can decode a raw image

@@ -35,7 +35,7 @@ glob = "0.3"
 rand = "0.7.0"
 
 [dev-dependencies.glium]
-version = "0.24"
+version = "0.31"
 features = ["glutin"]
 default-features = false
 

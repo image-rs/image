@@ -1,22 +1,20 @@
-extern crate glium;
-extern crate glob;
-extern crate png;
-
-use std::borrow::Cow;
-use std::env;
-use std::fs::File;
-use std::io;
-use std::path;
-
-use glium::backend::glutin::Display;
-use glium::glutin::{self, dpi, Event, VirtualKeyCode};
-use glium::texture::{ClientFormat, RawImage2d};
-use glium::{BlitTarget, Rect, Surface};
+use glium::{
+    backend::glutin::Display,
+    glutin::{
+        self, dpi,
+        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event_loop::ControlFlow,
+    },
+    texture::{ClientFormat, RawImage2d},
+    BlitTarget, Rect, Surface,
+};
+use std::{borrow::Cow, env, fs::File, io, path};
 
 /// Load the image using `png`
 fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
     use png::ColorType::*;
-    let decoder = png::Decoder::new(File::open(path)?);
+    let mut decoder = png::Decoder::new(File::open(path)?);
+    decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info()?;
     let mut img_data = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut img_data)?;
@@ -58,91 +56,72 @@ fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
 }
 
 fn main_loop(files: Vec<path::PathBuf>) -> io::Result<()> {
-    use glium::glutin::{KeyboardInput, WindowEvent};
+    let mut files = files.into_iter();
+    let image = load_image(&files.next().unwrap())?;
 
-    let mut files = files.iter();
-    let image = load_image(files.next().unwrap())?;
-
-    let mut events_loop = glutin::EventsLoop::new();
-    let window = glutin::WindowBuilder::new();
-    let context = glutin::ContextBuilder::new().with_vsync(true);
-
-    let display = Display::new(window, context, &events_loop)
+    let event_loop = glutin::event_loop::EventLoop::new();
+    let window_builder = glutin::window::WindowBuilder::new().with_title("Show Example");
+    let context_builder = glutin::ContextBuilder::new().with_vsync(true);
+    let display = glium::Display::new(window_builder, context_builder, &event_loop)
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-    // building the display, ie. the main object
     resize_window(&display, &image);
-    let mut opengl_texture = glium::Texture2d::new(&display, image).unwrap();
+    let mut texture = glium::Texture2d::new(&display, image).unwrap();
+    draw(&display, &texture);
 
-    let mut stop = false;
-    let mut res = Ok(());
-    'main: loop {
-        let frame = display.draw();
-        fill_v_flipped(
-            &opengl_texture.as_surface(),
-            &frame,
-            glium::uniforms::MagnifySamplerFilter::Linear,
-        );
-        frame.finish().unwrap();
-
-        // polling and handling the events received by the window
-        events_loop.poll_events(|event| {
-            if stop {
-                return;
-            }
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => {
-                    stop = true;
-                    return;
-                }
-                Event::WindowEvent {
-                    event:
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: glutin::ElementState::Pressed,
-                                    virtual_keycode: code,
-                                    ..
-                                },
+    event_loop.run(move |event, _, control_flow| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => exit(control_flow),
+        Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state: ElementState::Pressed,
+                            virtual_keycode: code,
                             ..
                         },
                     ..
-                } => match code {
-                    Some(VirtualKeyCode::Escape) => {
-                        stop = true;
-                        return;
-                    }
-                    Some(VirtualKeyCode::Right) => match files.next() {
-                        Some(path) => {
-                            let image = match load_image(path) {
-                                Ok(image) => image,
-                                Err(err) => {
-                                    stop = true;
-                                    res = Err(err);
-                                    return;
-                                }
-                            };
-                            resize_window(&display, &image);
-                            opengl_texture = glium::Texture2d::new(&display, image).unwrap();
-                        }
-                        None => {
-                            stop = true;
-                            return;
-                        }
-                    },
-                    _ => (),
                 },
-                _ => (),
-            }
-        });
+            ..
+        } => match code {
+            Some(VirtualKeyCode::Escape) => exit(control_flow),
+            Some(VirtualKeyCode::Right) => match &files.next() {
+                Some(path) => {
+                    match load_image(path) {
+                        Ok(image) => {
+                            resize_window(&display, &image);
+                            texture = glium::Texture2d::new(&display, image).unwrap();
+                            draw(&display, &texture);
+                        }
+                        Err(err) => {
+                            println!("Error: {}", err);
+                            exit(control_flow);
+                        }
+                    };
+                }
+                None => exit(control_flow),
+            },
+            _ => {}
+        },
+        Event::RedrawRequested(_) => draw(&display, &texture),
+        _ => {}
+    });
+}
 
-        if stop {
-            break 'main;
-        }
-    }
-    res
+fn draw(display: &glium::Display, texture: &glium::Texture2d) {
+    let frame = display.draw();
+    fill_v_flipped(
+        &texture.as_surface(),
+        &frame,
+        glium::uniforms::MagnifySamplerFilter::Linear,
+    );
+    frame.finish().unwrap();
+}
+
+fn exit(control_flow: &mut ControlFlow) {
+    *control_flow = ControlFlow::Exit;
 }
 
 fn fill_v_flipped<S1, S2>(src: &S1, target: &S2, filter: glium::uniforms::MagnifySamplerFilter)

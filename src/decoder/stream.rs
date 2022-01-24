@@ -289,8 +289,25 @@ impl fmt::Display for FormatError {
             UnexpectedEof => write!(fmt, "Unexpected end of data before image end."),
             UnexpectedEndOfChunk => write!(fmt, "Unexpected end of data within a chunk."),
             NoMoreImageData => write!(fmt, "IDAT or fDAT chunk is has not enough data for image."),
-            // TODO: figure out a good way to print the error.
-            CorruptFlateStream { err: _ } => write!(fmt, "Corrupt deflate stream."),
+            CorruptFlateStream { err } => {
+                write!(fmt, "Corrupt deflate stream. ")?;
+                use miniz_oxide::inflate::TINFLStatus;
+                match err {
+                    TINFLStatus::Adler32Mismatch => write!(fmt, "Adler32 checksum failed."),
+                    TINFLStatus::BadParam => write!(fmt, "Invalid input parameters."),
+                    // The Done status should already have been handled.
+                    TINFLStatus::Done => write!(fmt, "Unexpected done status."),
+                    TINFLStatus::FailedCannotMakeProgress => {
+                        write!(fmt, "Unexpected end of data.")
+                    }
+                    // The HasMoreOutput status should already have been handled.
+                    TINFLStatus::HasMoreOutput => write!(fmt, "Has more output."),
+                    // The HasMoreInput status should already have been handled.
+                    TINFLStatus::NeedsMoreInput => write!(fmt, "Needs more input."),
+                    // Write out the error number in case a new has been added.
+                    _ => write!(fmt, "Error number {:?}.", err),
+                }
+            }
             BadFilter(message) => write!(fmt, "{}.", message),
             // TODO: Wrap more info in the enum variant
             BadTextEncoding(tde) => {

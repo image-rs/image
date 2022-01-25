@@ -81,7 +81,7 @@ impl fmt::Debug for ChunkType {
         impl fmt::Debug for DebugType {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 for &c in &self.0[..] {
-                    write!(f, "{:?}", char::from(c).escape_debug())?;
+                    write!(f, "{}", char::from(c).escape_debug())?;
                 }
                 Ok(())
             }

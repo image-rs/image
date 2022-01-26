@@ -64,7 +64,8 @@ Image formats:
 - Reading lossless WebP is now supported.
 - The OpenEXR format is now supported.
 - The `jpeg` decoder has been upgraded to Lossless JPEG.
-- The `AvifEncoder` 
+- The `AvifEncoder` now correctly handles alpha-less images. Some additional
+  color formats are converted to RGBA as well.
 - The `Bmp` codec now decodes more valid images. It can decode a raw image
   without performing the palette mapping. It provides a method to access the
   palette. The encoder provides the inverse capabilities.

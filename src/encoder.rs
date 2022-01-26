@@ -2226,7 +2226,7 @@ mod tests {
     impl<R: Rng, W: Write> Write for RandomChunkWriter<R, W> {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             // choose a random length to write
-            let len = cmp::min(self.rng.gen_range(1, 50), buf.len());
+            let len = cmp::min(self.rng.gen_range(1..50), buf.len());
 
             self.w.write(&buf[0..len])
         }

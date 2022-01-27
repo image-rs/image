@@ -22,17 +22,15 @@ include = [
 [dependencies]
 bitflags = "1.0"
 crc32fast = "1.2.0"
-deflate = "0.9"
-[dependencies.miniz_oxide]
-version = "0.4.1"
-features = ["no_extern_crate_alloc"]
+deflate = "1.0"
+miniz_oxide = "0.5.1"
 
 [dev-dependencies]
 criterion = "0.3.1"
 getopts = "0.2.14"
-term = "0.6.1"
+term = "0.7"
 glob = "0.3"
-rand = "0.7.0"
+rand = "0.8.4"
 
 [dev-dependencies.glium]
 version = "0.31"

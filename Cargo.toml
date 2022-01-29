@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.24.0-alpha"
+version = "0.24.0"
 edition = "2018"
 rust-version = "1.56"
 

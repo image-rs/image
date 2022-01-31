@@ -3,19 +3,104 @@
 Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
 
 ## Known issues
- - Images with *n* bit/channel (*n ≠ 8*) are not well supported but basic
-     support for 16-bit is available and implemented for PNG.
  - Not all Interlaced (progressive) or animated images are well supported.
  - The color space information of pixels is not clearly communicated.
+ - Initialization via byte-based buffers and ffi is a work-in-progress.
 
 ## Changes
+
+### Unreleased
+
+- More convenient to use differently laid-out buffers for initialization and
+  results, but not operation directly, will be added in the future. The plan
+  is for these to use a byte-based interface similar to `ImageDecoder`.
 
 ### Version 0.24.0
 
 Breaking changes
 
-- The `math::utils::{nq, utils}` module have been removed. These are better
+Structural changes:
+- Minimum Rust version is now `1.56` and may change in minor versions until
+  further notice. It is now tracked in the library's `Cargo.toml`, instead, by
+  the standard `[package.rust-version]` field. Note: this applies _to the
+  library itself_. You may need different version resolutions for dependencies
+  when using a non-stable version of Rust.
+- The `math::utils::{nq, utils}` modules have been removed. These are better
   served through the `color_quant` crate and the standard library respectively.
+- All codecs are now available through `image::codecs`, no longer top-level.
+- `ExtendedColorType` and `DynamicImage` have been made `#[non_exhaustive]`,
+  providing more methods instead of exhaustive matching.
+- Reading images through the generic `io::Reader`, as well as generic
+  convenience interfaces, now requires the underlying reader to be `BufRead +
+  Seek`. This allows more efficient support more formats. Similarly, writing
+  now requires writers to be `Write + Seek`.
+- The `Bgra*` variants of buffers, which were only half-supported, have been
+  removed. The owning buffer types `ImageBuffer` and `DynamicImage`
+  fundamentally already make a choice in supported pixel representations. This
+  allows for more consistent internal behavior. Callers are expected to convert
+  formats when using those buffers, which they are required to do in any case
+  already, and which is routinely performed by decoders.
+
+Trait reworks:
+- The `Pixel` trait is no longer implemented quite as liberally for structs
+  defined in the crate. Instead, it is now restricted to a set of known channel
+  which ensures accuracy in computations involving those channels.
+- The `ImageDecoderExt` trait has been renamed to `ImageDecoderRect`, according
+  to its actual functionality.
+- The `Pixel` trait and its `Subpixel` field no longer require (or provide) a
+  `'static` lifetime bound.
+- The `Pixel` trait no longer requires specifying an associated, constant
+  `ColorType`. This was of little relevance to computation but made it much
+  harder to implement and extend correctly. Instead, the _private_
+  `PixelWithColorType` extension is added for interfaces that require a
+  properly known variant.
+- Reworked how `SubImage` interacts with the `GenericImage` trait. It is now a
+  default implementation. Note that `SubImage` now has _inherent_ methods that
+  avoid double-indirection, the trait's method will no longer avoid this.
+- The `Primitive` trait now requires implementations to provide a minimum and
+  maximum logical bound for the purpose of converting to other primitive
+  representations.
+
+Additions
+
+Image formats:
+- Reading lossless WebP is now supported.
+- The OpenEXR format is now supported.
+- The `jpeg` decoder has been upgraded to Lossless JPEG.
+- The `AvifEncoder` now correctly handles alpha-less images. Some additional
+  color formats are converted to RGBA as well.
+- The `Bmp` codec now decodes more valid images. It can decode a raw image
+  without performing the palette mapping. It provides a method to access the
+  palette. The encoder provides the inverse capabilities.
+- `Tiff` is now an output format.
+
+Buffers and Operations:
+- The channel / primitive type `f32` is now supported. Currently only the
+  OpenEXR codec makes full use of it but this is expected to change.
+- `ImageBuffer::{get_pixel_checked, get_pixel_mut_checked}` provide panic-free
+  access to pixels and channels by returning `Option<&P>` and `Option<&mut P>`.
+- `ImageBuffer::write_to` has been added, encoding the buffer to a writer. This
+  method already existed on `DynamicImage`.
+- `DynamicImage` now implements `From<_>` for all supported buffer types.
+- `DynamicImage` now implements `Default`, an empty `Rgba8` image.
+- `imageops::overlay` now takes coordinates as `i64`.
+
+Limits:
+- Added `Limits` and `LimitSupport`, utilized in `io::Reader`. These can be
+  configured for rudimentary protection against resource exhaustion (images
+  pretending to require a very large buffer). These types are not yet
+  exhaustive by design, and more and stricter limits may be added in the
+  future.
+- Encoders that do provide inherent support for limits, or reserve a
+  significant amount of internal memory, are urged to implement the
+  `set_limits` extension to `ImageDecoder`. Some strict limit are opt-in, which
+  may cause decoding to fail if not supported.
+
+Miscellaneous:
+- `PNMSubtype` has been renamed to `PnmSubtype`, by Rust's naming scheme.
+- Several incorrectly capitalized `PNM*` aliases have been removed.
+- Several `enum` types that had previously used a hidden variant now use the
+  official `#[non_exhaustive]` attribute instead.
 
 ### Version 0.23.14
 

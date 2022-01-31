@@ -9,6 +9,12 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Unreleased
+
+- More convenient to use differently laid-out buffers for initialization and
+  results, but not operation directly, will be added in the future. The plan
+  is for these to use a byte-based interface similar to `ImageDecoder`.
+
 ### Version 0.24.0
 
 Breaking changes
@@ -34,9 +40,6 @@ Structural changes:
   allows for more consistent internal behavior. Callers are expected to convert
   formats when using those buffers, which they are required to do in any case
   already, and which is routinely performed by decoders.
-- More convenient to use differently laid-out buffers for initialization and
-  results, but not operation directly, will be added in the future. The plan
-  is for these to use a byte-based interface similar to `ImageDecoder`.
 
 Trait reworks:
 - The `Pixel` trait is no longer implemented quite as liberally for structs

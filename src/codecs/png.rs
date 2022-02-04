@@ -7,6 +7,7 @@
 //!
 
 use std::convert::TryFrom;
+use std::fmt;
 use std::io::{self, Read, Write};
 
 use num_rational::Ratio;
@@ -15,8 +16,8 @@ use png::{BlendOp, DisposeOp};
 use crate::animation::{Delay, Frame, Frames};
 use crate::color::{Blend, ColorType, ExtendedColorType};
 use crate::error::{
-    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, EncodingError, ImageError, ImageResult, LimitError, LimitErrorKind,
+    ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
@@ -240,6 +241,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         // contract of `read_image`.
         // TODO: assumes equal channel bit depth.
         let bpc = self.color_type().bytes_per_pixel() / self.color_type().channel_count();
+
         match bpc {
             1 => (), // No reodering necessary for u8
             2 => buf.chunks_mut(2).for_each(|c| {
@@ -502,6 +504,12 @@ pub enum FilterType {
     Adaptive,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+enum BadPngRepresentation {
+    ColorType(ColorType),
+}
+
 impl<W: Write> PngEncoder<W> {
     /// Create a new encoder that writes its output to ```w```
     pub fn new(w: W) -> PngEncoder<W> {
@@ -541,6 +549,16 @@ impl<W: Write> PngEncoder<W> {
     /// Expects data in big endian.
     #[deprecated = "Use `PngEncoder::write_image` instead. Beware that `write_image` has a different endianness convention"]
     pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        self.encode_inner(data, width, height, color)
+    }
+
+    fn encode_inner(
+        self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<()> {
         let (ct, bits) = match color {
             ColorType::L8 => (png::ColorType::Grayscale, png::BitDepth::Eight),
             ColorType::L16 => (png::ColorType::Grayscale, png::BitDepth::Sixteen),
@@ -607,16 +625,18 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
         color_type: ColorType,
     ) -> ImageResult<()> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
+        use ColorType::*;
 
         // PNG images are big endian. For 16 bit per channel and larger types,
         // the buffer may need to be reordered to big endian per the
         // contract of `write_image`.
         // TODO: assumes equal channel bit depth.
-        let bpc = color_type.bytes_per_pixel() / color_type.channel_count();
-        #[allow(deprecated)]
-        match bpc {
-            1 => self.encode(buf, width, height, color_type), // No reodering necessary for u8
-            2 => {
+        match color_type {
+            L8 | La8 | Rgb8 | Rgba8 => {
+                // No reodering necessary for u8
+                self.encode_inner(buf, width, height, color_type)
+            }
+            L16 | La16 | Rgb16 | Rgba16 => {
                 // Because the buffer is immutable and the PNG encoder does not
                 // yet take Write/Read traits, create a temporary buffer for
                 // big endian reordering.
@@ -624,9 +644,12 @@ impl<W: Write> ImageEncoder for PngEncoder<W> {
                 buf.chunks(2)
                     .zip(reordered.chunks_mut(2))
                     .for_each(|(b, r)| BigEndian::write_u16(r, NativeEndian::read_u16(b)));
-                self.encode(&reordered, width, height, color_type)
+                self.encode_inner(&reordered, width, height, color_type)
             }
-            _ => unreachable!(),
+            _ => Err(ImageError::Encoding(EncodingError::new(
+                ImageFormat::Png.into(),
+                BadPngRepresentation::ColorType(color_type),
+            ))),
         }
     }
 }
@@ -666,11 +689,27 @@ impl Default for FilterType {
     }
 }
 
+impl fmt::Display for BadPngRepresentation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::ColorType(color_type) => write!(
+                f,
+                "The color {:?} can not be represented in PNG.",
+                color_type
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BadPngRepresentation {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::image::ImageDecoder;
-    use std::io::Read;
+    use crate::ImageOutputFormat;
+
+    use std::io::{Cursor, Read};
 
     #[test]
     fn ensure_no_decoder_off_by_one() {
@@ -713,5 +752,13 @@ mod tests {
             .unwrap()
             .downcast_ref::<png::DecodingError>()
             .expect("Caused by a png error");
+    }
+
+    #[test]
+    fn encode_bad_color_type() {
+        // regression test for issue #1663
+        let image = DynamicImage::new_rgb32f(1, 1);
+        let mut target = Cursor::new(vec![]);
+        let _ = image.write_to(&mut target, ImageOutputFormat::Png);
     }
 }

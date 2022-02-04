@@ -152,22 +152,12 @@ pub struct Encoder<'a, W: Write> {
 }
 
 /// Decoding options, internal type, forwarded to the Writer.
+#[derive(Default)]
 struct Options {
     filter: FilterType,
     adaptive_filter: AdaptiveFilterType,
     sep_def_img: bool,
     validate_sequence: bool,
-}
-
-impl Default for Options {
-    fn default() -> Options {
-        Options {
-            filter: FilterType::default(),
-            adaptive_filter: AdaptiveFilterType::default(),
-            sep_def_img: false,
-            validate_sequence: false,
-        }
-    }
 }
 
 impl<'a, W: Write> Encoder<'a, W> {
@@ -513,15 +503,16 @@ impl PartialInfo {
     /// Converts this partial info to an owned Info struct,
     /// setting missing values to their defaults
     fn to_info(&self) -> Info<'static> {
-        let mut info = Info::default();
-        info.width = self.width;
-        info.height = self.height;
-        info.bit_depth = self.bit_depth;
-        info.color_type = self.color_type;
-        info.frame_control = self.frame_control;
-        info.animation_control = self.animation_control;
-        info.compression = self.compression;
-        info
+        Info {
+            width: self.width,
+            height: self.height,
+            bit_depth: self.bit_depth,
+            color_type: self.color_type,
+            frame_control: self.frame_control,
+            animation_control: self.animation_control,
+            compression: self.compression,
+            ..Default::default()
+        }
     }
 }
 
@@ -623,9 +614,9 @@ impl<W: Write> Writer<W> {
             return Ok(());
         }
 
-        if self.info.animation_control.is_some() && self.info.frame_control.is_some() {
-            Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
-        } else if self.written == 0 {
+        if (self.info.animation_control.is_some() && self.info.frame_control.is_some())
+            || self.written == 0
+        {
             Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
         } else {
             Ok(())
@@ -670,17 +661,15 @@ impl<W: Write> Writer<W> {
         let mut prev = prev.as_slice();
         let mut current = vec![0; in_len];
 
-        let mut zlib = deflate::write::ZlibEncoder::new(
-            Vec::new(),
-            self.info.compression.clone().to_options(),
-        );
+        let mut zlib =
+            deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
         let bpp = self.info.bpp_in_prediction();
         let filter_method = self.options.filter;
         let adaptive_method = self.options.adaptive_filter;
 
         for line in data.chunks(in_len) {
-            current.copy_from_slice(&line);
-            let filter_type = filter(filter_method, adaptive_method, bpp, &prev, &mut current);
+            current.copy_from_slice(line);
+            let filter_type = filter(filter_method, adaptive_method, bpp, prev, &mut current);
             zlib.write_all(&[filter_type as u8])?;
             zlib.write_all(&current)?;
             prev = line;
@@ -732,7 +721,7 @@ impl<W: Write> Writer<W> {
 
     fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
         for chunk in zlib_encoded.chunks(Self::MAX_IDAT_CHUNK_LEN as usize) {
-            self.write_chunk(chunk::IDAT, &chunk)?;
+            self.write_chunk(chunk::IDAT, chunk)?;
         }
         Ok(())
     }
@@ -1468,9 +1457,8 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         // TODO: call `writer.finish` somehow?
         self.flush()?;
 
-        match self.writer.take() {
-            Wrapper::Chunk(wrt) => wrt.writer.validate_sequence_done()?,
-            _ => {}
+        if let Wrapper::Chunk(wrt) = self.writer.take() {
+            wrt.writer.validate_sequence_done()?;
         }
 
         Ok(())
@@ -1485,7 +1473,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
             Wrapper::Chunk(wrt) => wrt,
             Wrapper::Unrecoverable => {
                 let err = FormatErrorKind::Unrecoverable.into();
-                return Err(EncodingError::Format(err).into());
+                return Err(EncodingError::Format(err));
             }
             Wrapper::Zlib(_) => unreachable!("never called on a half-finished frame"),
             Wrapper::None => unreachable!(),

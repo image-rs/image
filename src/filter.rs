@@ -274,7 +274,7 @@ pub(crate) fn filter(
             // values of each filtered buffer treating the bytes as signed
             // integers. Choose the filter with the smallest sum.
             let mut filtered_buffer = vec![0; len];
-            filtered_buffer.copy_from_slice(&current);
+            filtered_buffer.copy_from_slice(current);
             let mut scratch = vec![0; len];
 
             // Initialize min_sum with the NoFilter buffer sum
@@ -282,7 +282,7 @@ pub(crate) fn filter(
             let mut filter_choice = FilterType::NoFilter;
 
             for &filter in [Sub, Up, Avg, Paeth].iter() {
-                scratch.copy_from_slice(&current);
+                scratch.copy_from_slice(current);
                 filter_internal(filter, bpp, len, previous, &mut scratch);
                 let sum = sum_buffer(&scratch);
                 if sum < min_sum {

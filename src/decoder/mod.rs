@@ -562,7 +562,7 @@ impl<R: Read> Reader<R> {
             (false, InterlaceInfo::Null)
         };
         // swap back
-        let _ = mem::replace(&mut self.processed, buffer);
+        self.processed = buffer;
 
         if !got_next {
             return Ok(None);

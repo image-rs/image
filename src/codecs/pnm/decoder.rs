@@ -640,6 +640,7 @@ impl<R: Read> PnmDecoder<R> {
                 let width = self.header.width();
                 let height = self.header.height();
                 let bytecount = S::bytelen(width, height, components)?;
+
                 let mut bytes = vec![];
                 self.reader
                     .by_ref()
@@ -650,11 +651,14 @@ impl<R: Read> PnmDecoder<R> {
                 if bytes.len() != bytecount {
                     return Err(DecoderError::InputTooShort.into());
                 }
-                let width = TryInto::<usize>::try_into(self.header.width()).unwrap();
-                let row_size = match width.checked_mul(components.try_into().unwrap()) {
-                    Some(n) => n,
-                    None => return Err(DecoderError::Overflow.into()),
-                };
+
+                let width: usize = width.try_into().map_err(|_| DecoderError::Overflow)?;
+                let components: usize =
+                    components.try_into().map_err(|_| DecoderError::Overflow)?;
+                let row_size = width
+                    .checked_mul(components)
+                    .ok_or(DecoderError::Overflow)?;
+
                 S::from_bytes(&bytes, row_size, buf)
             }
             SampleEncoding::Ascii => self.read_ascii::<S>(buf),

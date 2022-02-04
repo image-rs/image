@@ -172,18 +172,6 @@ impl<R: Read> Decoder<R> {
         let mut reader = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
         reader.init()?;
 
-        let color_type = reader.info().color_type;
-        let bit_depth = reader.info().bit_depth;
-        if color_type.is_combination_invalid(bit_depth) {
-            return Err(DecodingError::Format(
-                FormatErrorInner::InvalidColorBitDepth {
-                    color: color_type,
-                    depth: bit_depth,
-                }
-                .into(),
-            ));
-        }
-
         // Check if the output buffer can be represented at all.
         if reader.checked_output_buffer_size().is_none() {
             return Err(DecodingError::LimitsExceeded);
@@ -852,8 +840,8 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
             // This should have been caught earlier but let's check again. Can't hurt.
             Err(DecodingError::Format(
                 FormatErrorInner::InvalidColorBitDepth {
-                    color: ColorType::Indexed,
-                    depth: BitDepth::Sixteen,
+                    color_type: ColorType::Indexed,
+                    bit_depth: BitDepth::Sixteen,
                 }
                 .into(),
             ))

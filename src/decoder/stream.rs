@@ -125,6 +125,7 @@ pub(crate) enum FormatErrorInner {
         crc_val: u32,
         /// Calculated CRC32 sum
         crc_sum: u32,
+        /// The chunk type that has the CRC mismatch.
         chunk: ChunkType,
     },
     /// Not a PNG, the magic signature is missing.
@@ -236,11 +237,14 @@ impl fmt::Display for FormatError {
         use FormatErrorInner::*;
         match &self.inner {
             CrcMismatch {
-                crc_val, crc_sum, ..
+                crc_val,
+                crc_sum,
+                chunk,
+                ..
             } => write!(
                 fmt,
-                "CRC error: expected 0x{:x} have 0x{:x}",
-                crc_val, crc_sum
+                "CRC error: expected 0x{:x} have 0x{:x} while decoding {:?} chunk.",
+                crc_val, crc_sum, chunk
             ),
             MissingIhdr => write!(fmt, "IHDR chunk missing"),
             MissingFctl => write!(fmt, "fcTL chunk missing before fdAT chunk."),

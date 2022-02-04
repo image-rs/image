@@ -655,7 +655,7 @@ impl<R: Read> PnmDecoder<R> {
                     Some(n) => n,
                     None => return Err(DecoderError::Overflow.into()),
                 };
-                S::from_bytes(&bytes, row_size, buf)          
+                S::from_bytes(&bytes, row_size, buf)
             }
             SampleEncoding::Ascii => self.read_ascii::<S>(buf),
         }
@@ -701,11 +701,7 @@ impl Sample for U8 {
         Ok((width * height * samples) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        _row_size: usize,
-        output_buf: &mut [u8],
-    ) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         Ok(())
     }
@@ -723,11 +719,7 @@ impl Sample for U16 {
         Ok((width * height * samples * 2) as usize)
     }
 
-    fn from_bytes(
-        bytes: &[u8],
-        _row_size: usize,
-        output_buf: &mut [u8],
-    ) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         for chunk in output_buf.chunks_exact_mut(2) {
             let v = BigEndian::read_u16(chunk);
@@ -1261,18 +1253,16 @@ ENDHDR
     fn issue_1508() {
         let _ = crate::load_from_memory(b"P391919 16999 1 1 9 919 16999 1 9999 999* 99999 N");
     }
-}
 
-#[test]
-fn read_samples_test() {
-    let data = vec![80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56];
-    let mut decoder = PnmDecoder::new(&data[..]).unwrap();
-    assert_eq!(decoder.color_type(), ColorType::L8);
-    assert_eq!(decoder.dimensions(), (16, 16));
-    assert_eq!(decoder.subtype(), PnmSubtype::Graymap(SampleEncoding::Binary));
-    let mut image = vec![0; decoder.total_bytes() as usize];
-    decoder.read_image(&mut image).unwrap();
-    assert_eq!(image, vec![80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56]);
-
-    //match PnmDecoder::read_samples(
+    #[test]
+    fn issue_1616_overflow() {
+        let data = vec![
+            80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56,
+        ];
+        // Validate: we have a header. Note: we might already calculate that this will fail but
+        // then we could not return information about the header to the caller.
+        let decoder = PnmDecoder::new(&data[..]).unwrap();
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        let _ = decoder.read_image(&mut image);
+    }
 }

@@ -460,6 +460,7 @@ impl SrgbRenderingIntent {
 
 /// PNG info struct
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Info<'a> {
     pub width: u32,
     pub height: u32,
@@ -491,8 +492,6 @@ pub struct Info<'a> {
     pub compressed_latin1_text: Vec<ZTXtChunk>,
     /// iTXt field
     pub utf8_text: Vec<ITXtChunk>,
-    /// Private field to mark the struct as non-exhaustive.
-    _extensible: (),
 }
 
 impl Default for Info<'_> {
@@ -518,7 +517,6 @@ impl Default for Info<'_> {
             uncompressed_latin1_text: Vec::new(),
             compressed_latin1_text: Vec::new(),
             utf8_text: Vec::new(),
-            _extensible: (),
         }
     }
 }

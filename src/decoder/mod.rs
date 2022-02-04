@@ -554,7 +554,7 @@ impl<R: Read> Reader<R> {
         }
 
         // swap buffer to circumvent borrow issues
-        let mut buffer = mem::replace(&mut self.processed, Vec::new());
+        let mut buffer = mem::take(&mut self.processed);
         let (got_next, adam7) = if let Some(row) = self.next_raw_interlaced_row()? {
             (&mut buffer[..]).write_all(row.data)?;
             (true, row.interlace)

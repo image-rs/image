@@ -1075,14 +1075,16 @@ impl StreamingDecoder {
                 ))
             }
         };
-        let mut info = Info::default();
 
-        info.width = width;
-        info.height = height;
-        info.bit_depth = bit_depth;
-        info.color_type = color_type;
-        info.interlaced = interlaced;
-        self.info = Some(info);
+        self.info = Some(Info {
+            width,
+            height,
+            bit_depth,
+            color_type,
+            interlaced,
+            ..Default::default()
+        });
+
         Ok(Decoded::Header(
             width, height, bit_depth, color_type, interlaced,
         ))
@@ -1092,7 +1094,7 @@ impl StreamingDecoder {
         let null_byte_index = buf
             .iter()
             .position(|&b| b == 0)
-            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
+            .ok_or_else(|| DecodingError::from(TextDecodingError::MissingNullSeparator))?;
 
         if null_byte_index == 0 || null_byte_index > 79 {
             return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
@@ -1106,9 +1108,11 @@ impl StreamingDecoder {
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
-        self.info.as_mut().unwrap().uncompressed_latin1_text.push(
-            TEXtChunk::decode(keyword_slice, value_slice).map_err(|e| DecodingError::from(e))?,
-        );
+        self.info
+            .as_mut()
+            .unwrap()
+            .uncompressed_latin1_text
+            .push(TEXtChunk::decode(keyword_slice, value_slice).map_err(DecodingError::from)?);
 
         Ok(Decoded::Nothing)
     }
@@ -1118,15 +1122,15 @@ impl StreamingDecoder {
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
-        let compression_method = *value_slice.get(0).ok_or(DecodingError::from(
-            TextDecodingError::InvalidCompressionMethod,
-        ))?;
+        let compression_method = *value_slice
+            .get(0)
+            .ok_or_else(|| DecodingError::from(TextDecodingError::InvalidCompressionMethod))?;
 
         let text_slice = &value_slice[1..];
 
         self.info.as_mut().unwrap().compressed_latin1_text.push(
             ZTXtChunk::decode(keyword_slice, compression_method, text_slice)
-                .map_err(|e| DecodingError::from(e))?,
+                .map_err(DecodingError::from)?,
         );
 
         Ok(Decoded::Nothing)
@@ -1199,18 +1203,18 @@ impl StreamingDecoder {
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
-        let compression_flag = *value_slice.get(0).ok_or(DecodingError::from(
-            TextDecodingError::MissingCompressionFlag,
-        ))?;
+        let compression_flag = *value_slice
+            .get(0)
+            .ok_or_else(|| DecodingError::from(TextDecodingError::MissingCompressionFlag))?;
 
-        let compression_method = *value_slice.get(1).ok_or(DecodingError::from(
-            TextDecodingError::InvalidCompressionMethod,
-        ))?;
+        let compression_method = *value_slice
+            .get(1)
+            .ok_or_else(|| DecodingError::from(TextDecodingError::InvalidCompressionMethod))?;
 
         let second_null_byte_index = value_slice[2..]
             .iter()
             .position(|&b| b == 0)
-            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+            .ok_or_else(|| DecodingError::from(TextDecodingError::MissingNullSeparator))?
             + 2;
 
         let language_tag_slice = &value_slice[2..second_null_byte_index];
@@ -1218,7 +1222,7 @@ impl StreamingDecoder {
         let third_null_byte_index = value_slice[second_null_byte_index + 1..]
             .iter()
             .position(|&b| b == 0)
-            .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
+            .ok_or_else(|| DecodingError::from(TextDecodingError::MissingNullSeparator))?
             + (second_null_byte_index + 1);
 
         let translated_keyword_slice =
@@ -1235,7 +1239,7 @@ impl StreamingDecoder {
                 translated_keyword_slice,
                 text_slice,
             )
-            .map_err(|e| DecodingError::from(e))?,
+            .map_err(DecodingError::from)?,
         );
 
         Ok(Decoded::Nothing)

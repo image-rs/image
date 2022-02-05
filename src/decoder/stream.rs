@@ -154,7 +154,6 @@ pub(crate) enum FormatErrorInner {
         kind: ChunkType,
     },
     /// 4.3., some chunks must be between PLTE and IDAT.
-    // FIXME: why are we not using this?
     OutsidePlteIdat {
         kind: ChunkType,
     },
@@ -856,10 +855,18 @@ impl StreamingDecoder {
                 Ok(Decoded::Nothing)
             }
             ColorType::Indexed => {
-                // FIXME: what's going on here??
-                let _ = info.palette.as_ref().ok_or_else(|| {
-                    DecodingError::Format(FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into())
-                });
+                // The transparency chunk must be after the palette chunk and
+                // before the data chunk.
+                if info.palette.is_none() {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into(),
+                    ));
+                } else if self.have_idat {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::OutsidePlteIdat { kind: chunk::tRNS }.into(),
+                    ));
+                }
+
                 info.trns = Some(Cow::Owned(vec));
                 Ok(Decoded::Nothing)
             }

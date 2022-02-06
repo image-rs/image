@@ -452,11 +452,19 @@ impl<'a, W: Write> Encoder<'a, W> {
 /// to guarantee the next image to be prefaced with a fcTL-chunk, and all other chunks would be
 /// guaranteed to be `IDAT`/not affected by APNG's frame control.
 pub struct Writer<W: Write> {
+    /// The underlying writer.
     w: W,
+    /// The local version of the `Info` struct.
     info: PartialInfo,
+    /// Global encoding options.
     options: Options,
-    written: u64,
+    /// The total number of image frames, counting all consecutive IDAT and fdAT chunks.
+    images_written: u64,
+    /// The total number of animation frames, that is equivalent to counting fcTL chunks.
     animation_written: u32,
+    /// A flag to note when the IEND chunk was already added.
+    /// This is only set on code paths that drop `Self` to control the destructor.
+    iend_written: bool,
 }
 
 /// Contains the subset of attributes of [Info] needed for [Writer] to function
@@ -535,8 +543,9 @@ impl<W: Write> Writer<W> {
             w,
             info,
             options,
-            written: 0,
+            images_written: 0,
             animation_written: 0,
+            iend_written: false,
         }
     }
 
@@ -593,7 +602,7 @@ impl<W: Write> Writer<W> {
 
         match self.info.animation_control {
             None => {
-                if self.written == 0 {
+                if self.images_written == 0 {
                     Ok(())
                 } else {
                     Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
@@ -615,7 +624,7 @@ impl<W: Write> Writer<W> {
         }
 
         if (self.info.animation_control.is_some() && self.info.frame_control.is_some())
-            || self.written == 0
+            || self.images_written == 0
         {
             Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
         } else {
@@ -689,7 +698,7 @@ impl<W: Write> Writer<W> {
                 self.animation_written += 1;
 
                 // If the default image is the first frame of an animation, it's still an IDAT.
-                if self.written == 0 {
+                if self.images_written == 0 {
                     self.write_zlib_encoded_idat(&zlib_encoded)?;
                 } else {
                     let buff_size = zlib_encoded.len().min(Self::MAX_fdAT_CHUNK_LEN as usize);
@@ -704,19 +713,29 @@ impl<W: Write> Writer<W> {
             }
         }
 
-        self.written += 1;
+        self.increment_images_written();
+
+        Ok(())
+    }
+
+    fn increment_images_written(&mut self) {
+        self.images_written = self.images_written.saturating_add(1);
+
         if let Some(actl) = self.info.animation_control {
             if actl.num_frames <= self.animation_written {
                 // If we've written all animation frames, all following will be normal image chunks.
                 self.info.frame_control = None;
             }
         }
+    }
 
-        Ok(())
+    fn write_iend(&mut self) -> Result<()> {
+        self.iend_written = true;
+        self.write_chunk(chunk::IEND, &[])
     }
 
     fn should_skip_frame_control_on_default_image(&self) -> bool {
-        self.options.sep_def_img && self.written == 0
+        self.options.sep_def_img && self.images_written == 0
     }
 
     fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
@@ -953,17 +972,22 @@ impl<W: Write> Writer<W> {
     /// Unlike a simple drop this ensures that the final chunk was written correctly. When other
     /// validation options (chunk sequencing) had been turned on in the configuration then it will
     /// also do a check on their correctness _before_ writing the final chunk.
-    pub fn finish(self) -> Result<()> {
+    pub fn finish(mut self) -> Result<()> {
         self.validate_sequence_done()?;
-        // Prevent the writing on Drop, we do it fallibly.
-        let mut finalize = mem::ManuallyDrop::new(self);
-        finalize.write_chunk(chunk::IEND, &[])
+        self.write_iend()?;
+        self.w.flush()?;
+
+        // Explicitly drop `self` just for clarity.
+        drop(self);
+        Ok(())
     }
 }
 
 impl<W: Write> Drop for Writer<W> {
     fn drop(&mut self) {
-        let _ = self.write_chunk(chunk::IEND, &[]);
+        if !self.iend_written {
+            let _ = self.write_iend();
+        }
     }
 }
 
@@ -1025,7 +1049,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
         let curr_chunk;
-        if writer.written == 0 {
+        if writer.images_written == 0 {
             curr_chunk = chunk::IDAT;
         } else {
             curr_chunk = chunk::fdAT;
@@ -1069,7 +1093,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         assert_eq!(self.index, 0, "Called when not flushed");
         let wrt = self.writer.deref_mut();
 
-        self.curr_chunk = if wrt.written == 0 {
+        self.curr_chunk = if wrt.images_written == 0 {
             chunk::IDAT
         } else {
             chunk::fdAT
@@ -1487,8 +1511,9 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         let (scansize, size) = wrt.next_frame_info();
         self.line_len = scansize;
         self.to_write = size;
-        wrt.writer.written += 1;
+
         wrt.write_header()?;
+        wrt.writer.increment_images_written();
 
         // now it can be taken because the next statements cannot cause any errors
         match self.writer.take() {
@@ -2202,6 +2227,40 @@ mod tests {
         let mut png_writer = encoder.write_header()?;
 
         assert!(png_writer.write_chunk(chunk::fdAT, &empty).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn finish_drops_inner_writer() -> Result<()> {
+        struct NoWriter<'flag>(&'flag mut bool);
+
+        impl Write for NoWriter<'_> {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        impl Drop for NoWriter<'_> {
+            fn drop(&mut self) {
+                *self.0 = true;
+            }
+        }
+
+        let mut flag = false;
+
+        {
+            let mut encoder = Encoder::new(NoWriter(&mut flag), 10, 10);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::Grayscale);
+
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(&vec![0; 100])?;
+            writer.finish()?;
+        }
+
+        assert!(flag, "PNG finished but writer was not dropped");
         Ok(())
     }
 

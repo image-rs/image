@@ -452,10 +452,16 @@ impl<'a, W: Write> Encoder<'a, W> {
 /// to guarantee the next image to be prefaced with a fcTL-chunk, and all other chunks would be
 /// guaranteed to be `IDAT`/not affected by APNG's frame control.
 pub struct Writer<W: Write> {
+    /// The underlying writer.
     w: W,
+    /// The local version of the `Info` struct.
     info: PartialInfo,
+    /// Global encoding options.
     options: Options,
-    written: u64,
+    /// The total number of image frames, counting all consecutive IDAT and fdAT chunks.
+    /// Note: we use `u64::MAX` as a flag to note when the IEND chunk was also added.
+    frames_written: u64,
+    /// The total number of animation frames, that is equivalent to counting fcTL chunks.
     animation_written: u32,
 }
 
@@ -535,7 +541,7 @@ impl<W: Write> Writer<W> {
             w,
             info,
             options,
-            written: 0,
+            frames_written: 0,
             animation_written: 0,
         }
     }
@@ -593,7 +599,7 @@ impl<W: Write> Writer<W> {
 
         match self.info.animation_control {
             None => {
-                if self.written == 0 {
+                if self.frames_written == 0 {
                     Ok(())
                 } else {
                     Err(EncodingError::Format(FormatErrorKind::EndReached.into()))
@@ -615,7 +621,7 @@ impl<W: Write> Writer<W> {
         }
 
         if (self.info.animation_control.is_some() && self.info.frame_control.is_some())
-            || self.written == 0
+            || self.frames_written == 0
         {
             Err(EncodingError::Format(FormatErrorKind::MissingFrames.into()))
         } else {
@@ -689,7 +695,7 @@ impl<W: Write> Writer<W> {
                 self.animation_written += 1;
 
                 // If the default image is the first frame of an animation, it's still an IDAT.
-                if self.written == 0 {
+                if self.frames_written == 0 {
                     self.write_zlib_encoded_idat(&zlib_encoded)?;
                 } else {
                     let buff_size = zlib_encoded.len().min(Self::MAX_fdAT_CHUNK_LEN as usize);
@@ -704,19 +710,29 @@ impl<W: Write> Writer<W> {
             }
         }
 
-        self.written += 1;
+        self.image_written();
+
+        Ok(())
+    }
+
+    fn image_written(&mut self) {
+        self.frames_written = self.frames_written.saturating_add(1);
+
         if let Some(actl) = self.info.animation_control {
             if actl.num_frames <= self.animation_written {
                 // If we've written all animation frames, all following will be normal image chunks.
                 self.info.frame_control = None;
             }
         }
+    }
 
-        Ok(())
+    fn write_iend(&mut self) -> Result<()> {
+        self.frames_written = u64::MAX;
+        self.write_chunk(chunk::IEND, &[])
     }
 
     fn should_skip_frame_control_on_default_image(&self) -> bool {
-        self.options.sep_def_img && self.written == 0
+        self.options.sep_def_img && self.frames_written == 0
     }
 
     fn write_zlib_encoded_idat(&mut self, zlib_encoded: &[u8]) -> Result<()> {
@@ -953,17 +969,22 @@ impl<W: Write> Writer<W> {
     /// Unlike a simple drop this ensures that the final chunk was written correctly. When other
     /// validation options (chunk sequencing) had been turned on in the configuration then it will
     /// also do a check on their correctness _before_ writing the final chunk.
-    pub fn finish(self) -> Result<()> {
+    pub fn finish(mut self) -> Result<()> {
         self.validate_sequence_done()?;
-        // Prevent the writing on Drop, we do it fallibly.
-        let mut finalize = mem::ManuallyDrop::new(self);
-        finalize.write_chunk(chunk::IEND, &[])
+        self.write_iend()?;
+        self.w.flush()?;
+
+        // Explicitly drop `self` just for clarity.
+        drop(self);
+        Ok(())
     }
 }
 
 impl<W: Write> Drop for Writer<W> {
     fn drop(&mut self) {
-        let _ = self.write_chunk(chunk::IEND, &[]);
+        if self.frames_written != u64::MAX {
+            let _ = self.write_iend();
+        }
     }
 }
 
@@ -1025,7 +1046,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
         let curr_chunk;
-        if writer.written == 0 {
+        if writer.frames_written == 0 {
             curr_chunk = chunk::IDAT;
         } else {
             curr_chunk = chunk::fdAT;
@@ -1069,7 +1090,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         assert_eq!(self.index, 0, "Called when not flushed");
         let wrt = self.writer.deref_mut();
 
-        self.curr_chunk = if wrt.written == 0 {
+        self.curr_chunk = if wrt.frames_written == 0 {
             chunk::IDAT
         } else {
             chunk::fdAT
@@ -1487,8 +1508,9 @@ impl<'a, W: Write> StreamWriter<'a, W> {
         let (scansize, size) = wrt.next_frame_info();
         self.line_len = scansize;
         self.to_write = size;
-        wrt.writer.written += 1;
+
         wrt.write_header()?;
+        wrt.writer.image_written();
 
         // now it can be taken because the next statements cannot cause any errors
         match self.writer.take() {

@@ -2205,6 +2205,40 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn finish_drops_inner_writer() -> Result<()> {
+        struct NoWriter<'flag>(&'flag mut bool);
+
+        impl Write for NoWriter<'_> {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        impl Drop for NoWriter<'_> {
+            fn drop(&mut self) {
+                *self.0 = true;
+            }
+        }
+
+        let mut flag = false;
+
+        {
+            let mut encoder = Encoder::new(NoWriter(&mut flag), 10, 10);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_color(ColorType::Grayscale);
+
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(&vec![0; 100])?;
+            writer.finish()?;
+        }
+
+        assert!(flag, "PNG finished but writer was not dropped");
+        Ok(())
+    }
+
     /// A Writer that only writes a few bytes at a time
     struct RandomChunkWriter<R: Rng, W: Write> {
         rng: R,

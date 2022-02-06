@@ -178,7 +178,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     ///
     /// When this method is returns successfully then the images written will be encoded as fdAT
     /// chunks, except for the first image that is still encoded as `IDAT`. You can control if the
-    /// first frame should be treated as an animation frame with [`set_sep_def_img()`].
+    /// first frame should be treated as an animation frame with [`Encoder::set_sep_def_img()`].
     ///
     /// This method returns an error if `num_frames` is 0.
     pub fn set_animated(&mut self, num_frames: u32, num_plays: u32) -> Result<()> {
@@ -211,7 +211,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// the animation is often interpreted as a thumbnail.
     ///
     /// This method will return an error when animation control was not configured
-    /// (which is doing by calling [`set_animated`]).
+    /// (which is done by calling [`Encoder::set_animated`]).
     pub fn set_sep_def_img(&mut self, sep_def_img: bool) -> Result<()> {
         if self.info.animation_control.is_some() {
             self.options.sep_def_img = sep_def_img;
@@ -311,7 +311,7 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// Set the fraction of time every frame is going to be displayed, in seconds.
     ///
     /// *Note that this parameter can be set for each individual frame after
-    /// [`write_header`] is called. (see [`Writer::set_frame_delay`])*
+    /// [`Encoder::write_header`] is called. (see [`Writer::set_frame_delay`])*
     ///
     /// If the denominator is 0, it is to be treated as if it were 100
     /// (that is, the numerator then specifies 1/100ths of a second).
@@ -343,9 +343,9 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// replace its region in the output buffer.
     ///
     /// *Note that this parameter can be set for each individual frame after
-    /// [`writer_header`] is called. (see [`Writer::set_blend_op`])*
+    /// [`write_header`] is called. (see [`Writer::set_blend_op`])*
     ///
-    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    /// See the [`BlendOp`] documentation for the possible values and their effects.
     ///
     /// *Note that for the first frame the two blend modes are functionally
     /// equivalent due to the clearing of the output buffer at the beginning
@@ -376,9 +376,9 @@ impl<'a, W: Write> Encoder<'a, W> {
     /// at the end of the delay (before rendering the next frame)
     ///
     /// *Note that this parameter can be set for each individual frame after
-    /// [`writer_header`] is called (see [`Writer::set_dispose_op`])*
+    /// [`write_header`] is called (see [`Writer::set_dispose_op`])*
     ///
-    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    /// See the [`DisposeOp`] documentation for the possible values and their effects.
     ///
     /// *Note that if the first frame uses [`DisposeOp::Previous`]
     /// it will be treated as [`DisposeOp::Background`].*
@@ -794,7 +794,7 @@ impl<W: Write> Writer<W> {
     /// - The image is not an animated;
     ///
     /// - The selected dimension, considering also the current frame position,
-    ///   goes outside the image boudries;
+    ///   goes outside the image boundaries;
     ///
     /// - One or both the width and height are 0;
     ///
@@ -825,7 +825,7 @@ impl<W: Write> Writer<W> {
     /// - The image is not animated;
     ///
     /// - The selected position, considering also the current frame dimension,
-    ///   goes outside the image boudries;
+    ///   goes outside the image boundaries;
     ///
     // ??? TODO ???
     // - The next frame is the default image
@@ -886,7 +886,7 @@ impl<W: Write> Writer<W> {
     /// into the current output buffer content, or whether it should completely
     /// replace its region in the output buffer.
     ///
-    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    /// See the [`BlendOp`] documentation for the possible values and their effects.
     ///
     /// *Note that for the first frame the two blend modes are functionally
     /// equivalent due to the clearing of the output buffer at the beginning
@@ -909,7 +909,7 @@ impl<W: Write> Writer<W> {
     /// The dispose operation specifies how the output buffer should be changed
     /// at the end of the delay (before rendering the next frame)
     ///
-    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    /// See the [`DisposeOp`] documentation for the possible values and their effects.
     ///
     /// *Note that if the first frame uses [`DisposeOp::Previous`]
     /// it will be treated as [`DisposeOp::Background`].*
@@ -1022,7 +1022,7 @@ impl<'a, W: Write> DerefMut for ChunkOutput<'a, W> {
 /// data into a PNG chunk, based on the image metadata
 ///
 /// Currently the way it works is that the specified buffer
-/// will hold one chunk at the time and bufferize the incoming
+/// will hold one chunk at the time and buffer the incoming
 /// data until `flush` is called or the maximum chunk size
 /// is reached.
 ///
@@ -1117,7 +1117,7 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
     /// as it is updated internally.
     fn set_fctl(&mut self, f: FrameControl) {
         if let Some(ref mut fctl) = self.writer.info.frame_control {
-            // ingnore the sequence number
+            // Ignore the sequence number
             *fctl = FrameControl {
                 sequence_number: fctl.sequence_number,
                 ..f
@@ -1163,7 +1163,7 @@ impl<'a, W: Write> Write for ChunkWriter<'a, W> {
             }
         }
 
-        // cap the buffer length to the maximum nuber of bytes that can't still
+        // Cap the buffer length to the maximum number of bytes that can't still
         // be added to the current chunk
         let written = data.len().min(self.buffer.len() - self.index);
         data = &data[..written];
@@ -1201,7 +1201,7 @@ impl<W: Write> Drop for ChunkWriter<'_, W> {
 /// exiting the function, and this is where `Wrapper` comes in.
 ///
 /// Unfortunately the `ZlibWriter` can't be used because on the
-/// write following the error, `finish` wuold be called and that
+/// write following the error, `finish` would be called and that
 /// would write some data even if 0 bytes where compressed.
 ///
 /// If the `finish` function fails then there is nothing much to
@@ -1342,7 +1342,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// - The image is not an animated;
     ///
     /// - The selected dimension, considering also the current frame position,
-    ///   goes outside the image boudries;
+    ///   goes outside the image boundaries;
     ///
     /// - One or both the width and height are 0;
     ///
@@ -1371,7 +1371,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// - The image is not animated;
     ///
     /// - The selected position, considering also the current frame dimension,
-    ///   goes outside the image boudries;
+    ///   goes outside the image boundaries;
     ///
     pub fn set_frame_position(&mut self, x: u32, y: u32) -> Result<()> {
         if let Some(ref mut fctl) = self.fctl {
@@ -1430,7 +1430,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// into the current output buffer content, or whether it should completely
     /// replace its region in the output buffer.
     ///
-    /// See the [`BlendOp`] documentaion for the possible values and their effects.
+    /// See the [`BlendOp`] documentation for the possible values and their effects.
     ///
     /// *Note that for the first frame the two blend modes are functionally
     /// equivalent due to the clearing of the output buffer at the beginning
@@ -1453,7 +1453,7 @@ impl<'a, W: Write> StreamWriter<'a, W> {
     /// The dispose operation specifies how the output buffer should be changed
     /// at the end of the delay (before rendering the next frame)
     ///
-    /// See the [`DisposeOp`] documentaion for the possible values and their effects.
+    /// See the [`DisposeOp`] documentation for the possible values and their effects.
     ///
     /// *Note that if the first frame uses [`DisposeOp::Previous`]
     /// it will be treated as [`DisposeOp::Background`].*

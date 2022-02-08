@@ -179,8 +179,8 @@ pub(crate) enum FormatErrorInner {
     PaletteRequired,
     /// The color-depth combination is not valid according to Table 11.1.
     InvalidColorBitDepth {
-        color: ColorType,
-        depth: BitDepth,
+        color_type: ColorType,
+        bit_depth: BitDepth,
     },
     ColorWithBadTrns(ColorType),
     InvalidBitDepth(u8),
@@ -268,10 +268,13 @@ impl fmt::Display for FormatError {
                 expected, len
             ),
             PaletteRequired => write!(fmt, "Missing palette of indexed image."),
-            InvalidColorBitDepth { color, depth } => write!(
+            InvalidColorBitDepth {
+                color_type,
+                bit_depth,
+            } => write!(
                 fmt,
                 "Invalid color/depth combination in header: {:?}/{:?}",
-                color, depth,
+                color_type, bit_depth,
             ),
             ColorWithBadTrns(color_type) => write!(
                 fmt,
@@ -1033,7 +1036,6 @@ impl StreamingDecoder {
     }
 
     fn parse_ihdr(&mut self) -> Result<Decoded, DecodingError> {
-        // TODO: check if color/bit depths combination is valid
         let mut buf = &self.current_chunk.raw_bytes[..];
         let width = buf.read_be()?;
         let height = buf.read_be()?;
@@ -1048,7 +1050,19 @@ impl StreamingDecoder {
         };
         let color_type = buf.read_be()?;
         let color_type = match ColorType::from_u8(color_type) {
-            Some(color_type) => color_type,
+            Some(color_type) => {
+                if color_type.is_combination_invalid(bit_depth) {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::InvalidColorBitDepth {
+                            color_type,
+                            bit_depth,
+                        }
+                        .into(),
+                    ));
+                } else {
+                    color_type
+                }
+            }
             None => {
                 return Err(DecodingError::Format(
                     FormatErrorInner::InvalidColorType(color_type).into(),

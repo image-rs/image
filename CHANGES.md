@@ -1,5 +1,14 @@
 ## Unreleased
 
+## 0.17.3
+
+* Fixed a bug where `Writer::finish` would not drop the underlying writer. This
+  would fail to flush and leak memory when using a buffered file writers.
+* Calling `Writer::finish` will now eagerly flush the underlying writer,
+  returning any error that this operation may result in.
+* Errors in inflate are now diagnosed with more details.
+* The color and depth combination is now checked in stream decoder.
+
 ## 0.17.2
 
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.

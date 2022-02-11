@@ -10,4 +10,6 @@ mod huffman;
 mod lossless;
 mod lossless_transform;
 
+mod extended;
+
 pub mod vp8;

@@ -16,6 +16,8 @@ use super::lossless::LosslessFrame;
 use super::vp8::Frame as VP8Frame;
 use super::vp8::Vp8Decoder;
 
+use super::extended::read_extended_header;
+
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
 enum DecoderError {
@@ -23,6 +25,8 @@ enum DecoderError {
     RiffSignatureInvalid([u8; 4]),
     /// WebP's "WEBP" signature not found or invalid
     WebpSignatureInvalid([u8; 4]),
+    /// Chunk Header was incorrect or invalid in its usage
+    ChunkHeaderInvalid([u8; 4]),
 }
 
 impl fmt::Display for DecoderError {
@@ -46,6 +50,10 @@ impl fmt::Display for DecoderError {
             DecoderError::WebpSignatureInvalid(webp) => f.write_fmt(format_args!(
                 "Invalid WebP signature: {}",
                 SignatureWriter(*webp)
+            )),
+            DecoderError::ChunkHeaderInvalid(header) => f.write_fmt(format_args!(
+                "Invalid Chunk header: {}", 
+                SignatureWriter(*header)
             )),
         }
     }
@@ -102,51 +110,37 @@ impl<R: Read> WebPDecoder<R> {
 
     //reads the chunk header, decodes the frame and returns the inner decoder
     fn read_frame(&mut self) -> ImageResult<Frame> {
-        loop {
-            let mut chunk = [0; 4];
-            self.r.read_exact(&mut chunk)?;
+        let mut chunk = [0; 4];
+        self.r.read_exact(&mut chunk)?;
 
-            match &chunk {
-                b"VP8 " => {
-                    let m = read_len_cursor(&mut self.r)?;
+        match &chunk {
+            b"VP8 " => {
+                let m = read_len_cursor(&mut self.r)?;
 
-                    let mut vp8_decoder = Vp8Decoder::new(m);
-                    let frame = vp8_decoder.decode_frame()?;
+                let mut vp8_decoder = Vp8Decoder::new(m);
+                let frame = vp8_decoder.decode_frame()?;
 
-                    return Ok(Frame::Lossy(frame.clone()));
-                }
-                b"VP8L" => {
-                    let m = read_len_cursor(&mut self.r)?;
+                return Ok(Frame::Lossy(frame.clone()));
+            }
+            b"VP8L" => {
+                let m = read_len_cursor(&mut self.r)?;
 
-                    let mut lossless_decoder = LosslessDecoder::new(m);
-                    let frame = lossless_decoder.decode_frame()?;
+                let mut lossless_decoder = LosslessDecoder::new(m);
+                let frame = lossless_decoder.decode_frame()?;
 
-                    return Ok(Frame::Lossless(frame.clone()));
-                }
-                b"ALPH" | b"ANIM" | b"ANMF" => {
-                    // Alpha and Animation isn't supported
-                    return Err(ImageError::Unsupported(
-                        UnsupportedError::from_format_and_kind(
-                            ImageFormat::WebP.into(),
-                            UnsupportedErrorKind::GenericFeature(
-                                chunk.iter().map(|&b| b as char).collect(),
-                            ),
-                        ),
-                    ));
-                }
-                _ => {
-                    let mut len = u64::from(self.r.read_u32::<LittleEndian>()?);
+                return Ok(Frame::Lossless(frame.clone()));
+            }
+            b"VP8X" => {
+                let mut m = read_len_cursor(&mut self.r)?;
 
-                    if len % 2 != 0 {
-                        // RIFF chunks containing an uneven number of bytes append
-                        // an extra 0x00 at the end of the chunk
-                        //
-                        // The addition cannot overflow since we have a u64 that was created from a u32
-                        len += 1;
-                    }
+                let info = read_extended_header(&mut m)?;
 
-                    io::copy(&mut self.r.by_ref().take(len), &mut io::sink())?;
-                }
+                println!("{:?}", info);
+
+                todo!()
+            }
+            _ => {
+                return Err(DecoderError::ChunkHeaderInvalid(chunk).into());
             }
         }
     }

@@ -735,7 +735,8 @@ where
         let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         let i = (y as usize)
             .saturating_mul(self.width as usize)
-            .saturating_add(x as usize);
+            .saturating_add(x as usize)
+            .saturating_mul(num_channels);
 
         self.data
             .get(i..i + num_channels)
@@ -910,7 +911,8 @@ where
         let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
         let i = (y as usize)
             .saturating_mul(self.width as usize)
-            .saturating_add(x as usize);
+            .saturating_add(x as usize)
+            .saturating_mul(num_channels);
 
         self.data
             .get_mut(i..i + num_channels)
@@ -1379,14 +1381,22 @@ mod test {
     #[test]
     fn get_pixel_checked() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
-        {
-            if let Some(b) = a.get_pixel_mut_checked(0, 1) {
-                b[0] = 255;
-            }
-        }
+        a.get_pixel_mut_checked(0, 1).map(|b| b[0] = 255);
+
         assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
-        assert_eq!(a.get_pixel_checked(100, 0), None);
-        assert_eq!(a.get_pixel_mut_checked(0, 100), None);
+        assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));
+        assert_eq!(a.get_pixel_checked(10, 0), None);
+        assert_eq!(a.get_pixel_checked(0, 10), None);
+        assert_eq!(a.get_pixel_mut_checked(10, 0), None);
+        assert_eq!(a.get_pixel_mut_checked(0, 10), None);
+
+        // From image/issues/1672
+        const WHITE: Rgb<u8> = Rgb([255_u8, 255, 255]);
+        let mut a = RgbImage::new(2, 1);
+        a.put_pixel(1, 0, WHITE);
+
+        assert_eq!(a.get_pixel_checked(1, 0), Some(&WHITE));
+        assert_eq!(a.get_pixel_checked(1, 0).unwrap(), a.get_pixel(1, 0));
     }
 
     #[test]

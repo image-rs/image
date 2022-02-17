@@ -16,7 +16,7 @@ use super::lossless::LosslessFrame;
 use super::vp8::Frame as VP8Frame;
 use super::vp8::Vp8Decoder;
 
-use super::extended::read_extended_header;
+use super::extended::{read_extended_chunks, read_extended_header};
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
@@ -67,24 +67,25 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-enum Frame {
+enum Image {
     Lossy(VP8Frame),
     Lossless(LosslessFrame),
+    Extended(ExtendedImage),
 }
 
 /// WebP Image format decoder. Currently only supports lossy RGB images or lossless RGBA images.
 pub struct WebPDecoder<R> {
     r: R,
-    frame: Frame,
+    image: Image,
 }
 
 impl<R: Read> WebPDecoder<R> {
     /// Create a new WebPDecoder from the Reader ```r```.
     /// This function takes ownership of the Reader.
     pub fn new(r: R) -> ImageResult<WebPDecoder<R>> {
-        let frame = Frame::Lossy(Default::default());
+        let image = Image::Lossy(Default::default());
 
-        let mut decoder = WebPDecoder { r, frame };
+        let mut decoder = WebPDecoder { r, image };
         decoder.read_data()?;
         Ok(decoder)
     }
@@ -109,7 +110,7 @@ impl<R: Read> WebPDecoder<R> {
     }
 
     //reads the chunk header, decodes the frame and returns the inner decoder
-    fn read_frame(&mut self) -> ImageResult<Frame> {
+    fn read_frame(&mut self) -> ImageResult<Image> {
         let mut chunk = [0; 4];
         self.r.read_exact(&mut chunk)?;
 
@@ -120,7 +121,7 @@ impl<R: Read> WebPDecoder<R> {
                 let mut vp8_decoder = Vp8Decoder::new(m);
                 let frame = vp8_decoder.decode_frame()?;
 
-                return Ok(Frame::Lossy(frame.clone()));
+                return Ok(Image::Lossy(frame.clone()));
             }
             b"VP8L" => {
                 let m = read_len_cursor(&mut self.r)?;
@@ -128,7 +129,7 @@ impl<R: Read> WebPDecoder<R> {
                 let mut lossless_decoder = LosslessDecoder::new(m);
                 let frame = lossless_decoder.decode_frame()?;
 
-                return Ok(Frame::Lossless(frame.clone()));
+                return Ok(Image::Lossless(frame.clone()));
             }
             b"VP8X" => {
                 let mut m = read_len_cursor(&mut self.r)?;
@@ -136,6 +137,8 @@ impl<R: Read> WebPDecoder<R> {
                 let info = read_extended_header(&mut m)?;
 
                 println!("{:?}", info);
+
+                read_extended_chunks(info, &mut self.r)?;
 
                 todo!()
             }
@@ -230,6 +233,17 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
             }
         }
         Ok(())
+    }
+}
+
+impl<'a, R: 'a + Read> AnimationDecoder<'a> for WebPDecoder<'a> {
+    fn into_frames(self) -> Frames<'a> {
+        match self.image {
+            Lossy(_) | Lossless(_) => Frames::new(std::iter::empty()),
+            Extended(extended_image) => {
+                
+            }
+        }
     }
 }
 

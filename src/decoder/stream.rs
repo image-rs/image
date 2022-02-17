@@ -396,6 +396,7 @@ pub struct StreamingDecoder {
     /// Stores where in decoding an `fdAT` chunk we are.
     apng_seq_handled: bool,
     have_idat: bool,
+    ignore_text_chunk: bool,
 }
 
 struct ChunkState {
@@ -426,6 +427,7 @@ impl StreamingDecoder {
             current_seq_no: None,
             apng_seq_handled: false,
             have_idat: false,
+            ignore_text_chunk: false,
         }
     }
 
@@ -445,6 +447,11 @@ impl StreamingDecoder {
     /// Provides access to the inner `info` field
     pub fn info(&self) -> Option<&Info<'static>> {
         self.info.as_ref()
+    }
+
+    /// Ignore parse text(text/ztxt/itxt) chunk while read meta data
+    pub fn ignore_text_chunk(&mut self) {
+        self.ignore_text_chunk = true;
     }
 
     /// Low level StreamingDecoder interface.
@@ -705,9 +712,9 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
-            chunk::tEXt => self.parse_text(),
-            chunk::zTXt => self.parse_ztxt(),
-            chunk::iTXt => self.parse_itxt(),
+            chunk::tEXt if !self.ignore_text_chunk => self.parse_text(),
+            chunk::zTXt if !self.ignore_text_chunk => self.parse_ztxt(),
+            chunk::iTXt if !self.ignore_text_chunk => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {

@@ -75,6 +75,8 @@ pub struct Decoder<R: Read> {
     transform: Transformations,
     /// Limits on resources the Decoder is allowed to use
     limits: Limits,
+    /// Ignore text chunk when decode
+    ignore_text_chunk: bool,
 }
 
 /// A row of data with interlace information attached.
@@ -137,6 +139,7 @@ impl<R: Read> Decoder<R> {
             r,
             transform: Transformations::IDENTITY,
             limits,
+            ignore_text_chunk: false,
         }
     }
 
@@ -167,9 +170,18 @@ impl<R: Read> Decoder<R> {
         self.limits = limits;
     }
 
+    /// Ignore parse text(text/ztxt/itxt) chunk while read meta data
+    pub fn ignore_text_chunk(&mut self) {
+        self.ignore_text_chunk = true;
+    }
+
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(self) -> Result<Reader<R>, DecodingError> {
-        let mut reader = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
+        let mut decoder = StreamingDecoder::new();
+        if self.ignore_text_chunk {
+            decoder.ignore_text_chunk();
+        }
+        let mut reader = Reader::new(self.r, decoder, self.transform, self.limits);
         reader.init()?;
 
         // Check if the output buffer can be represented at all.

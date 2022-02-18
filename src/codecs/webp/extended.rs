@@ -66,7 +66,7 @@ struct WebPStatic {
 struct WebPAnimated {
     background_color: Rgba<u8>,
     loop_count: u16,
-    frames: Vec<SimpleFrame>,
+    frames: Vec<WebPStatic>,
 }
 
 pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPExtendedInfo> {
@@ -203,7 +203,6 @@ fn read_anim_frame<R: Read>(reader: &mut R) -> ImageResult<SimpleFrame> {
     println!("{frame_x}, {frame_y}, {frame_width}, {frame_height}, {duration}");
 
     //read normal bitstream now
-    read_simple_bitstream(reader)
 }
 
 fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
@@ -213,7 +212,7 @@ fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
     Ok(value)
 }
 
-fn read_simple_bitstream<R: Read>(reader: &mut R) -> ImageResult<SimpleFrame> {
+fn read_image<R: Read>(reader: &mut R) -> WebPStatic {
     let mut chunk = [0; 4];
     reader.read_exact(&mut chunk)?;
 
@@ -224,7 +223,14 @@ fn read_simple_bitstream<R: Read>(reader: &mut R) -> ImageResult<SimpleFrame> {
             let mut vp8_decoder = Vp8Decoder::new(reader);
             let frame = vp8_decoder.decode_frame()?;
 
-            Ok(SimpleFrame::Lossy(frame.clone()))
+            let frame = SimpleFrame::Lossy(frame.clone());
+
+            let img = WebPStatic {
+                alpha: None,
+                frame,
+            };
+
+            Ok(img)
         }
         b"VP8L" => {
             let len = reader.read_u32::<LittleEndian>()?;
@@ -232,7 +238,38 @@ fn read_simple_bitstream<R: Read>(reader: &mut R) -> ImageResult<SimpleFrame> {
             let mut lossless_decoder = LosslessDecoder::new(reader);
             let frame = lossless_decoder.decode_frame()?;
 
-            Ok(SimpleFrame::Lossless(frame.clone()))
+            let frame = SimpleFrame::Lossless(frame.clone());
+
+            let img = WebPStatic {
+                alpha: None,
+                frame,
+            };
+
+            Ok(img)
+        }
+        b"ALPH" => {
+            let alpha = read_alpha_chunk(reader);
+
+            let mut chunk = [0; 4];
+            reader.read_exact(&mut chunk)?;
+
+            if chunk != b"VP8 " {
+                return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+            }
+
+            let len = reader.read_u32::<LittleEndian>()?;
+
+            let mut vp8_decoder = Vp8Decoder::new(reader);
+            let frame = vp8_decoder.decode_frame()?;
+
+            let frame = SimpleFrame::Lossy(frame.clone());
+
+            let img = WebPStatic {
+                alpha,
+                frame,
+            };
+
+            Ok(img)
         }
         _ => Err(ExtendedWebPDecoderError::HeaderInvalid.into())
     }
@@ -266,12 +303,6 @@ impl FilteringMethod {
 
 //note only for VP8 frames
 fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<AlphaChunk> {
-    let mut chunk: [u8; 4] = [0; 4];
-    reader.read_exact(&mut chunk)?;
-
-    if &chunk != b"ALPH" {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
-    }
 
     //TODO: if odd, add 1
     let len = reader.read_u32::<LittleEndian>()?;

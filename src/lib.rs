@@ -59,7 +59,7 @@
 //! ```
 //!
 
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 #[macro_use]
 extern crate bitflags;

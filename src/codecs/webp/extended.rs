@@ -95,22 +95,6 @@ impl ExtendedImage {
                     let frame = animated.frames.get(self.index);
                     match frame {
                         Some(anim_image) => {
-                            //let mut sub_image = self.canvas.sub_image(anim_image.offset_x, anim_image.offset_y, anim_image.width, anim_image.height);
-
-                            /* if anim_image.dispose {
-                                for x in 0..anim_image.width {
-                                    for y in 0..anim_image.height {
-                                        sub_image.put_pixel(x, y, animated.background_color);
-                                    }
-                                }
-                            } */
-
-
-
-
-                            /* let mut img = RgbaImage::from_pixel(self.width, self.height, animated.background_color);
-
-                            blend_subimage(&mut img, &anim_image); */
 
                             let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
                             anim_image.image.fill_buf(&mut buffer);
@@ -123,7 +107,6 @@ impl ExtendedImage {
                                         let canvas = self.canvas[canvas_index];
                                         let canvas_alpha = f64::from(canvas[3]);
                                         let buffer_alpha = f64::from(buffer[index + 3]);
-                                        //let blend_alpha_f64 = canvas_alpha + buffer_alpha * (1.0 - canvas_alpha / 255.0);
                                         let blend_alpha_f64 = buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
                                         let blend_alpha = blend_alpha_f64 as u8;
 
@@ -135,7 +118,6 @@ impl ExtendedImage {
                                                 let canvas_f64 = f64::from(canvas[i]);
                                                 let buffer_f64 = f64::from(buffer[index + i]);
 
-                                                //let val = (canvas_f64 * canvas_alpha + buffer_f64 * buffer_alpha * (1.0 - canvas_alpha / 255.0)) / blend_alpha_f64;
                                                 let val = (buffer_f64 * buffer_alpha + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0)) / blend_alpha_f64;
                                                 rgb[i] = val as u8;
                                             }
@@ -150,14 +132,22 @@ impl ExtendedImage {
                                 }
                             }
 
-                            //let img = self.canvas.view(anim_image.offset_x, anim_image.offset_y, anim_image.width, anim_image.height).to_image();
 
                             let delay = Delay::from_numer_denom_ms(anim_image.duration, 1);
-                            //let frame = Frame::from_parts(img, anim_image.offset_x, anim_image.offset_y, delay);
                             let img = self.canvas.clone();
                             let frame = Frame::from_parts(img, 0, 0, delay);
+
+                            if anim_image.dispose {
+                                for x in 0..anim_image.width {
+                                    for y in 0..anim_image.height {
+                                        let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
+                                        self.canvas[canvas_index] = animated.background_color;
+                                    }
+                                }
+                            }
+
                             self.index += 1;
-                            println!("output frame: {}", self.index);
+                            
                             Some(Ok(frame))
                         },
                         None => None,

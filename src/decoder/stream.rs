@@ -818,59 +818,58 @@ impl StreamingDecoder {
             return Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::PLTE }.into(),
             ));
-        } else {
-            let (color_type, bit_depth) = { (info.color_type, info.bit_depth as u8) };
-            let mut vec = self.current_chunk.raw_bytes.clone();
-            let len = vec.len();
-            match color_type {
-                ColorType::Grayscale => {
-                    if len < 2 {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::ShortPalette { expected: 2, len }.into(),
-                        ));
-                    }
-                    if bit_depth < 16 {
-                        vec[0] = vec[1];
-                        vec.truncate(1);
-                    }
-                    info.trns = Some(Cow::Owned(vec));
-                    Ok(Decoded::Nothing)
+        }
+        let (color_type, bit_depth) = { (info.color_type, info.bit_depth as u8) };
+        let mut vec = self.current_chunk.raw_bytes.clone();
+        let len = vec.len();
+        match color_type {
+            ColorType::Grayscale => {
+                if len < 2 {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::ShortPalette { expected: 2, len }.into(),
+                    ));
                 }
-                ColorType::Rgb => {
-                    if len < 6 {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::ShortPalette { expected: 6, len }.into(),
-                        ));
-                    }
-                    if bit_depth < 16 {
-                        vec[0] = vec[1];
-                        vec[1] = vec[3];
-                        vec[2] = vec[5];
-                        vec.truncate(3);
-                    }
-                    info.trns = Some(Cow::Owned(vec));
-                    Ok(Decoded::Nothing)
+                if bit_depth < 16 {
+                    vec[0] = vec[1];
+                    vec.truncate(1);
                 }
-                ColorType::Indexed => {
-                    // The transparency chunk must be after the palette chunk and
-                    // before the data chunk.
-                    if info.palette.is_none() {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into(),
-                        ));
-                    } else if self.have_idat {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::OutsidePlteIdat { kind: chunk::tRNS }.into(),
-                        ));
-                    }
-
-                    info.trns = Some(Cow::Owned(vec));
-                    Ok(Decoded::Nothing)
-                }
-                c => Err(DecodingError::Format(
-                    FormatErrorInner::ColorWithBadTrns(c).into(),
-                )),
+                info.trns = Some(Cow::Owned(vec));
+                Ok(Decoded::Nothing)
             }
+            ColorType::Rgb => {
+                if len < 6 {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::ShortPalette { expected: 6, len }.into(),
+                    ));
+                }
+                if bit_depth < 16 {
+                    vec[0] = vec[1];
+                    vec[1] = vec[3];
+                    vec[2] = vec[5];
+                    vec.truncate(3);
+                }
+                info.trns = Some(Cow::Owned(vec));
+                Ok(Decoded::Nothing)
+            }
+            ColorType::Indexed => {
+                // The transparency chunk must be after the palette chunk and
+                // before the data chunk.
+                if info.palette.is_none() {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::AfterPlte { kind: chunk::tRNS }.into(),
+                    ));
+                } else if self.have_idat {
+                    return Err(DecodingError::Format(
+                        FormatErrorInner::OutsidePlteIdat { kind: chunk::tRNS }.into(),
+                    ));
+                }
+
+                info.trns = Some(Cow::Owned(vec));
+                Ok(Decoded::Nothing)
+            }
+            c => Err(DecodingError::Format(
+                FormatErrorInner::ColorWithBadTrns(c).into(),
+            )),
         }
     }
 

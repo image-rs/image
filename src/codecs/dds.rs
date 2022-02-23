@@ -192,26 +192,26 @@ impl DX10Header {
 
     fn validate(&self) -> Result<(), ImageError> {
         // Note: see https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dds-header-dxt10 for info on valid values
-        if dxgi_format < 0 || dxgi_format > 132 {
+        if self.dxgi_format < 0 || self.dxgi_format > 132 {
             // Invalid format
-            return Err(DecoderError::DxgiFormatInvalid(dxgi_format).into());
+            return Err(DecoderError::DxgiFormatInvalid(self.dxgi_format).into());
         }
 
-        if misc_flag != 0x4 && misc_flag != 0x4 {
+        if self.misc_flag != 0x4 && self.misc_flag != 0x4 {
             // Invalid flag
             // Only no (0x0) and DDS_RESOURCE_MISC_TEXTURECUBE (0x4) flags are allowed
-            return Err(DecoderError::Dx10FlagsInvalid(misc_flag).into());
+            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flag).into());
         }
 
-        if resource_dimension == 4 && array_size != 1 {
+        if self.resource_dimension == 4 && self.array_size != 1 {
             // Invalid array size
             // 3D textures (resource dimension == 4) must have an array size of 1
-            return Err(DecoderError::Dx10ArraySizeInvalid(array_size).into());
+            return Err(DecoderError::Dx10ArraySizeInvalid(self.array_size).into());
         }
 
-        if misc_flags_2 < 0x0 || misc_flags_2 > 0x4 {
+        if self.misc_flags_2 < 0x0 || self.misc_flags_2 > 0x4 {
             // Invalid alpha flags
-            return Err(DecoderError::Dx10FlagsInvalid(misc_flags_2).into());
+            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flags_2).into());
         }
 
         Ok(())

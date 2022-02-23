@@ -51,6 +51,15 @@ impl fmt::Display for DecoderError {
             DecoderError::HeaderFlagsInvalid(fs) => {
                 f.write_fmt(format_args!("Invalid DDS header flags: {:#010X}", fs))
             }
+            DecoderError::DxgiFormatInvalid(df) => {
+                f.write_fmt(format_args!("Invalid DDS DXGI format: {}", df))
+            }
+            DecoderError::Dx10FlagsInvalid(fs) => {
+                f.write_fmt(format_args!("Invalid DDS DX10 header flags: {:#010X}", fs))
+            }
+            DecoderError::Dx10ArraySizeInvalid(s) => {
+                f.write_fmt(format_args!("Invalid DDS DX10 array size: {}", s))
+            }
             DecoderError::DdsSignatureInvalid => f.write_str("DDS signature not found"),
         }
     }

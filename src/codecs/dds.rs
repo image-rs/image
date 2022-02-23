@@ -30,6 +30,8 @@ enum DecoderError {
 
     /// Invalid DXGI format in DX10 header
     DxgiFormatInvalid(u32),
+    /// Invalid resource dimension
+    ResourceDimensionInvalid(u32),
     /// Invalid flags in DX10 header
     Dx10FlagsInvalid(u32),
     /// Invalid array size in DX10 header
@@ -53,6 +55,9 @@ impl fmt::Display for DecoderError {
             }
             DecoderError::DxgiFormatInvalid(df) => {
                 f.write_fmt(format_args!("Invalid DDS DXGI format: {}", df))
+            }
+            DecoderError::ResourceDimensionInvalid(d) => {
+                f.write_fmt(format_args!("Invalid DDS resource dimension: {}", d))
             }
             DecoderError::Dx10FlagsInvalid(fs) => {
                 f.write_fmt(format_args!("Invalid DDS DX10 header flags: {:#010X}", fs))
@@ -206,7 +211,13 @@ impl DX10Header {
             return Err(DecoderError::DxgiFormatInvalid(self.dxgi_format).into());
         }
 
-        if self.misc_flag != 0x4 && self.misc_flag != 0x4 {
+        if self.resource_dimension < 2 || self.resource_dimension > 4 {
+            // Invalid dimension
+            // Only 1D (2), 2D (3) and 3D (4) resource dimensions are allowed
+            return Err(DecoderError::ResourceDimensionInvalid(self.resource_dimension).into());
+        }
+
+        if self.misc_flag != 0x0 && self.misc_flag != 0x4 {
             // Invalid flag
             // Only no (0x0) and DDS_RESOURCE_MISC_TEXTURECUBE (0x4) flags are allowed
             return Err(DecoderError::Dx10FlagsInvalid(self.misc_flag).into());

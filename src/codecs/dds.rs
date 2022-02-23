@@ -71,6 +71,16 @@ struct Header {
     caps2: u32,
 }
 
+/// Extended DX10 header used by some DDS image files
+#[derive(Debug)]
+struct DX10Header {
+    dxgi_format: u32,
+    resource_dimension: u32,
+    misc_flag: u32,
+    array_size: u32,
+    misc_flags_2: u32,
+}
+
 /// DDS pixel format
 #[derive(Debug)]
 struct PixelFormat {
@@ -153,6 +163,24 @@ impl Header {
     }
 }
 
+impl DX10Header {
+    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+        let dxgi_format = r.read_u32::<LittleEndian>()?;
+        let resource_dimension = r.read_u32::<LittleEndian>()?;
+        let misc_flag = r.read_u32::<LittleEndian>()?;
+        let array_size = r.read_u32::<LittleEndian>()?;
+        let misc_flags_2 = r.read_u32::<LittleEndian>()?;
+
+        Ok(Self {
+            dxgi_format,
+            resource_dimension,
+            misc_flag,
+            array_size,
+            misc_flags_2,
+        })
+    }
+}
+
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
     #[allow(deprecated)]
@@ -176,6 +204,23 @@ impl<R: Read> DdsDecoder<R> {
                 b"DXT1" => DxtVariant::DXT1,
                 b"DXT3" => DxtVariant::DXT3,
                 b"DXT5" => DxtVariant::DXT5,
+                b"DX10" => {
+                    let dx10_header = DX10Header::from_reader(&mut r)?;
+                    match dx10_header.dxgi_format {
+                        70 | 71 | 72 => DxtVariant::DXT1,
+                        73 | 74 | 75 => DxtVariant::DXT3,
+                        76 | 77 | 78 => DxtVariant::DXT5,
+                        _ => return Err(ImageError::Unsupported(
+                            UnsupportedError::from_format_and_kind(
+                                ImageFormat::Dds.into(),
+                                UnsupportedErrorKind::GenericFeature(format!(
+                                    "DDS DXGI Format {}",
+                                    dx10_header.dxgi_format
+                                )),
+                            ),
+                        ))
+                    }
+                }
                 fourcc => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(

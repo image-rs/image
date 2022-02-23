@@ -210,15 +210,17 @@ impl<R: Read> DdsDecoder<R> {
                         70 | 71 | 72 => DxtVariant::DXT1,
                         73 | 74 | 75 => DxtVariant::DXT3,
                         76 | 77 | 78 => DxtVariant::DXT5,
-                        _ => return Err(ImageError::Unsupported(
-                            UnsupportedError::from_format_and_kind(
-                                ImageFormat::Dds.into(),
-                                UnsupportedErrorKind::GenericFeature(format!(
-                                    "DDS DXGI Format {}",
-                                    dx10_header.dxgi_format
-                                )),
-                            ),
-                        ))
+                        _ => {
+                            return Err(ImageError::Unsupported(
+                                UnsupportedError::from_format_and_kind(
+                                    ImageFormat::Dds.into(),
+                                    UnsupportedErrorKind::GenericFeature(format!(
+                                        "DDS DXGI Format {}",
+                                        dx10_header.dxgi_format
+                                    )),
+                                ),
+                            ))
+                        }
                     }
                 }
                 fourcc => {

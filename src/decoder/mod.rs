@@ -272,6 +272,7 @@ pub struct Reader<R: Read> {
     transform: Transformations,
     /// Processed line
     processed: Vec<u8>,
+    /// How resources we can spend (for example, on allocation).
     limits: Limits,
 }
 

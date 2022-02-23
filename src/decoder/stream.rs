@@ -42,7 +42,7 @@ enum State {
     U32Byte2(U32Value, u32),
     U32Byte1(U32Value, u32),
     U32(U32Value),
-    ReadChunk(ChunkType, bool),
+    ReadChunk(ChunkType),
     PartialChunk(ChunkType),
     DecodeData(ChunkType, usize),
 }
@@ -545,8 +545,9 @@ impl StreamingDecoder {
                         self.current_chunk.crc.update(&type_str.0);
                         self.current_chunk.remaining = length;
                         self.apng_seq_handled = false;
+                        self.current_chunk.raw_bytes.clear();
                         goto!(
-                            ReadChunk(type_str, true),
+                            ReadChunk(type_str),
                             emit Decoded::ChunkBegin(length, type_str)
                         )
                     }
@@ -626,25 +627,31 @@ impl StreamingDecoder {
                             // complete chunk
                             Ok((0, self.parse_chunk(type_str)?))
                         } else {
+                            // Make sure we have room to read more of the chunk.
+                            // We need it fully before parsing.
+                            self.reserve_current_chunk()?;
+
                             goto!(
-                                0, ReadChunk(type_str, true),
+                                0, ReadChunk(type_str),
                                 emit Decoded::PartialChunk(type_str)
                             )
                         }
                     }
                 }
             }
-            ReadChunk(type_str, clear) => {
-                if clear {
-                    self.current_chunk.raw_bytes.clear();
-                }
-                if self.current_chunk.remaining > 0 {
+            ReadChunk(type_str) => {
+                // The _previous_ event wanted to return the contents of raw_bytes, and let the
+                // caller consume it,
+                if self.current_chunk.remaining == 0 {
+                    goto!(0, U32(U32Value::Crc(type_str)))
+                } else {
                     let ChunkState {
                         crc,
                         remaining,
                         raw_bytes,
                         type_: _,
                     } = &mut self.current_chunk;
+
                     let buf_avail = raw_bytes.capacity() - raw_bytes.len();
                     let bytes_avail = min(buf.len(), buf_avail);
                     let n = min(*remaining, bytes_avail as u32);
@@ -654,15 +661,14 @@ impl StreamingDecoder {
                         let buf = &buf[..n as usize];
                         crc.update(buf);
                         raw_bytes.extend_from_slice(buf);
+
                         *remaining -= n;
                         if *remaining == 0 {
                             goto!(n as usize, PartialChunk(type_str))
                         } else {
-                            goto!(n as usize, ReadChunk(type_str, false))
+                            goto!(n as usize, ReadChunk(type_str))
                         }
                     }
-                } else {
-                    goto!(0, U32(U32Value::Crc(type_str)))
                 }
             }
             DecodeData(type_str, mut n) => {
@@ -671,9 +677,10 @@ impl StreamingDecoder {
                 let c = self.inflater.decompress(chunk_data, image_data)?;
                 n += c;
                 if n == chunk_len && c == 0 {
+                    self.current_chunk.raw_bytes.clear();
                     goto!(
                         0,
-                        ReadChunk(type_str, true),
+                        ReadChunk(type_str),
                         emit Decoded::ImageData
                     )
                 } else {
@@ -684,6 +691,22 @@ impl StreamingDecoder {
                     )
                 }
             }
+        }
+    }
+
+    fn reserve_current_chunk(&mut self) -> Result<(), DecodingError> {
+        // FIXME: use limits, also do so in iccp/zlib decompression.
+        const MAX: usize = 0x10_0000;
+        let ref mut buffer = self.current_chunk.raw_bytes;
+
+        // Double if necessary, but no more than until the limit is reached.
+        let reserve_size = MAX.saturating_sub(buffer.capacity()).min(buffer.len());
+        buffer.reserve_exact(reserve_size);
+
+        if buffer.capacity() == buffer.len() {
+            Err(DecodingError::LimitsExceeded)
+        } else {
+            Ok(())
         }
     }
 
@@ -1158,68 +1181,6 @@ impl StreamingDecoder {
     }
 
     fn parse_itxt(&mut self) -> Result<Decoded, DecodingError> {
-        // let buf = &self.current_chunk.raw_bytes[..];
-
-        // let (first_null_byte_index, _) = buf
-        //     .iter()
-        //     .enumerate()
-        //     .find(|(_, &b)| b == 0)
-        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?;
-
-        // if first_null_byte_index == 0 || first_null_byte_index > 79 {
-        //     return Err(DecodingError::from(TextDecodingError::InvalidKeywordSize));
-        // }
-
-        // let keyword_slice = &buf[..first_null_byte_index];
-
-        // let compression_flag = *buf
-        //     .get(first_null_byte_index + 1)
-        //     .ok_or(DecodingError::from(
-        //         TextDecodingError::MissingCompressionFlag,
-        //     ))?;
-
-        // let compression_method = *buf
-        //     .get(first_null_byte_index + 2)
-        //     .ok_or(DecodingError::from(
-        //         TextDecodingError::InvalidCompressionMethod,
-        //     ))?;
-
-        // let second_null_byte_index = buf[first_null_byte_index + 3..]
-        //     .iter()
-        //     .enumerate()
-        //     .find(|(_, &b)| b == 0)
-        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
-        //     .0
-        //     + (first_null_byte_index + 3);
-
-        // let language_tag_slice = &buf[first_null_byte_index + 3..second_null_byte_index];
-
-        // let third_null_byte_index = buf[second_null_byte_index + 1..]
-        //     .iter()
-        //     .enumerate()
-        //     .find(|(_, &b)| b == 0)
-        //     .ok_or(DecodingError::from(TextDecodingError::MissingNullSeparator))?
-        //     .0
-        //     + (second_null_byte_index + 1);
-
-        // let translated_keyword_slice = &buf[second_null_byte_index + 1..third_null_byte_index];
-
-        // let text_slice = &buf[third_null_byte_index + 1..];
-
-        // self.info.as_mut().unwrap().utf8_text.push(
-        //     ITXtChunk::decode(
-        //         keyword_slice,
-        //         compression_flag,
-        //         compression_method,
-        //         language_tag_slice,
-        //         translated_keyword_slice,
-        //         text_slice,
-        //     )
-        //     .map_err(|e| DecodingError::from(e))?,
-        // );
-
-        // Ok(Decoded::Nothing)
-
         let buf = &self.current_chunk.raw_bytes[..];
 
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;

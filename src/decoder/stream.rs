@@ -383,6 +383,18 @@ impl From<TextDecodingError> for DecodingError {
     }
 }
 
+/// Decode config
+#[derive(Default)]
+pub(crate) struct DecodeConfig {
+    ignore_text_chunk: bool,
+}
+
+impl DecodeConfig {
+    pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
+        self.ignore_text_chunk = ignore_text_chunk;
+    }
+}
+
 /// PNG StreamingDecoder (low-level interface)
 pub struct StreamingDecoder {
     state: Option<State>,
@@ -396,7 +408,7 @@ pub struct StreamingDecoder {
     /// Stores where in decoding an `fdAT` chunk we are.
     apng_seq_handled: bool,
     have_idat: bool,
-    ignore_text_chunk: bool,
+    decode_config: DecodeConfig,
 }
 
 struct ChunkState {
@@ -427,7 +439,7 @@ impl StreamingDecoder {
             current_seq_no: None,
             apng_seq_handled: false,
             have_idat: false,
-            ignore_text_chunk: false,
+            decode_config: DecodeConfig::default(),
         }
     }
 
@@ -449,9 +461,13 @@ impl StreamingDecoder {
         self.info.as_ref()
     }
 
-    /// Ignore parse text(text/ztxt/itxt) chunk while read meta data
-    pub fn ignore_text_chunk(&mut self) {
-        self.ignore_text_chunk = true;
+    /// Set decode config
+    pub(crate) fn set_decode_config(&mut self, decode_config: DecodeConfig) {
+        self.decode_config = decode_config;
+    }
+
+    pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
+        self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
     }
 
     /// Low level StreamingDecoder interface.
@@ -712,9 +728,9 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
-            chunk::tEXt if !self.ignore_text_chunk => self.parse_text(),
-            chunk::zTXt if !self.ignore_text_chunk => self.parse_ztxt(),
-            chunk::iTXt if !self.ignore_text_chunk => self.parse_itxt(),
+            chunk::tEXt if !self.decode_config.ignore_text_chunk => self.parse_text(),
+            chunk::zTXt if !self.decode_config.ignore_text_chunk => self.parse_ztxt(),
+            chunk::iTXt if !self.decode_config.ignore_text_chunk => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {

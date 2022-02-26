@@ -1,5 +1,17 @@
 ## Unreleased
 
+## 0.17.4
+
+* Added `{Decoder,StreamDecoder}::set_ignore_text_chunk` to disable decoding of
+  ancillary text chunks during the decoding process (chunks decoded by default).
+* Added duplicate chunk checks. The decoder now enforces that standard chunks
+  such as palette, gamma, … occur at most once as specified.
+* Added `#[forbid(unsafe_code)]` again. This may come at a minor performance
+  cost when decoding ASCII text for now.
+* Fixed a bug where decoding of large chunks (>32kB) failed to produce the
+  correct result, or fail the image decoding. As new chunk types are decoded
+  this introduced regressions relative to previous versions.
+
 ## 0.17.3
 
 * Fixed a bug where `Writer::finish` would not drop the underlying writer. This

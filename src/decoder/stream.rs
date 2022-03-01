@@ -954,13 +954,10 @@ impl StreamingDecoder {
             Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::cHRM }.into(),
             ))
-        } else if info.source_chromaticities.is_some() {
+        } else if info.chrm_chunk.is_some() {
             return Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::cHRM }.into(),
             ));
-        } else if info.srgb.is_some() {
-            // Ignore chromaticities if sRGB profile is used.
-            Ok(Decoded::Nothing)
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let white_x: u32 = buf.read_be()?;
@@ -991,7 +988,12 @@ impl StreamingDecoder {
                 ),
             };
 
-            info.source_chromaticities = Some(source_chromaticities);
+            info.chrm_chunk = Some(source_chromaticities);
+            // Ignore chromaticities if sRGB profile is used.
+            if info.srgb.is_none() {
+                info.source_chromaticities = Some(source_chromaticities);
+            }
+
             Ok(Decoded::Nothing)
         }
     }
@@ -1002,17 +1004,21 @@ impl StreamingDecoder {
             Err(DecodingError::Format(
                 FormatErrorInner::AfterIdat { kind: chunk::gAMA }.into(),
             ))
-        } else if info.source_gamma.is_some() {
+        } else if info.gama_chunk.is_some() {
             return Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::gAMA }.into(),
             ));
-        } else if info.srgb.is_some() {
-            // Ignore chromaticities if sRGB profile is used.
-            Ok(Decoded::Nothing)
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let source_gamma: u32 = buf.read_be()?;
-            self.info.as_mut().unwrap().source_gamma = Some(ScaledFloat::from_scaled(source_gamma));
+            let source_gamma = ScaledFloat::from_scaled(source_gamma);
+
+            info.gama_chunk = Some(source_gamma);
+            // Ignore chromaticities if sRGB profile is used.
+            if info.srgb.is_none() {
+                info.source_gamma = Some(source_gamma);
+            }
+
             Ok(Decoded::Nothing)
         }
     }

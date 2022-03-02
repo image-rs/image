@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.17.5
+
+* Fixed a regression, introduced by chunk validation, that made the decoder
+  sensitive to the order of `gAMA`, `cHRM`, and `sRGB` chunks.
+
 ## 0.17.4
 
 * Added `{Decoder,StreamDecoder}::set_ignore_text_chunk` to disable decoding of

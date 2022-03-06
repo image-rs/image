@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::{error, fmt, mem};
 
 use crate::error::{
-    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageResult,
 };
 use crate::image::{ImageDecoder, ImageFormat};
 use crate::{Frames, AnimationDecoder, color};
@@ -15,7 +15,7 @@ use super::lossless::LosslessFrame;
 use super::vp8::Frame as VP8Frame;
 use super::vp8::Vp8Decoder;
 
-use super::extended::{read_extended_chunks, read_extended_header, ExtendedImage};
+use super::extended::{read_extended_header, ExtendedImage};
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
@@ -65,6 +65,41 @@ impl From<DecoderError> for ImageError {
 }
 
 impl error::Error for DecoderError {}
+
+/// All possible RIFF chunks in a WebP image file
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum WebPRiffChunk {
+    RIFF,
+    WEBP,
+    VP8,
+    VP8L,
+    VP8X,
+    ANIM,
+    ANMF,
+    ALPH,
+    ICCP,
+    EXIF,
+    XMP,
+}
+
+impl WebPRiffChunk {
+    pub(crate) fn from_fourcc(chunk_fourcc: [u8; 4]) -> ImageResult<Self> {
+        match &chunk_fourcc {
+            b"RIFF" => Ok(Self::RIFF),
+            b"WEBP" => Ok(Self::WEBP),
+            b"VP8 " => Ok(Self::VP8),
+            b"VP8L" => Ok(Self::VP8L),
+            b"VP8X" => Ok(Self::VP8X),
+            b"ANIM" => Ok(Self::ANIM),
+            b"ANMF" => Ok(Self::ANMF),
+            b"ALPH" => Ok(Self::ALPH),
+            b"ICCP" => Ok(Self::ICCP),
+            b"EXIF" => Ok(Self::EXIF),
+            b"XMP " => Ok(Self::XMP),
+            _ => Err(DecoderError::ChunkHeaderInvalid(chunk_fourcc).into())
+        }
+    }
+}
 
 enum WebPImage {
     Lossy(VP8Frame),
@@ -135,7 +170,7 @@ impl<R: Read> WebPDecoder<R> {
 
                 let info = read_extended_header(&mut m)?;
 
-                let image = read_extended_chunks(info, &mut self.r)?;
+                let image = ExtendedImage::read_extended_chunks(&mut self.r, info)?;
 
                 return Ok(WebPImage::Extended(image));
             }
@@ -169,6 +204,34 @@ where
     let mut framedata = Vec::new();
     r.by_ref().take(len).read_to_end(&mut framedata)?;
     Ok(io::Cursor::new(framedata))
+}
+
+/// Reads a chunk
+/// Returns an error if the chunk header is not a valid webp header or some other reading error
+/// Returns None if and only if we hit end of file reading the 
+pub(crate) fn read_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
+where 
+    R: Read, 
+{
+    let mut chunk_fourcc = [0; 4];
+    let result = r.read_exact(&mut chunk_fourcc);
+
+    match result {
+        Ok(()) => {},
+        Err(err) => {
+            if err.kind() == io::ErrorKind::UnexpectedEof {
+                return Ok(None);
+            } else {
+                return Err(err.into());
+            }
+        }
+    }
+
+    let chunk = WebPRiffChunk::from_fourcc(chunk_fourcc)?;
+
+    let cursor = read_len_cursor(r)?;
+
+    Ok(Some((cursor, chunk)))
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`

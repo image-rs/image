@@ -1,23 +1,21 @@
 use std::{error, fmt};
 use std::convert::TryInto;
-use std::io::{self, Read};
+use std::io::{self, Read, Error};
 
 use crate::{ImageResult, ImageError};
 use crate::image::ImageFormat;
-use crate::image::GenericImageView;
 use crate::color;
 use crate::color::Blend;
 use crate::Rgba;
 use crate::Frames;
 use crate::Frame;
 use crate::Delay;
-use crate::ImageBuffer;
 use crate::RgbaImage;
 use crate::error::DecodingError;
 use super::vp8::{Vp8Decoder, Frame as VP8Frame};
 use super::lossless::{LosslessDecoder, LosslessFrame};
-use super::decoder::read_len_cursor;
-use byteorder::{ReadBytesExt, LittleEndian, BigEndian};
+use super::decoder::{read_len_cursor, read_chunk, WebPRiffChunk};
+use byteorder::{ReadBytesExt, LittleEndian};
 
 #[derive(Debug, Clone, Copy)]
 enum ExtendedWebPDecoderError {
@@ -25,8 +23,11 @@ enum ExtendedWebPDecoderError {
 }
 
 #[derive(Debug)]
-enum SimpleFrame {
-    Lossy(VP8Frame),
+enum WebPStatic {
+    Lossy {
+        frame: VP8Frame,
+        alpha: Option<AlphaChunk>,
+    },
     Lossless(LosslessFrame),
 }
 
@@ -57,6 +58,15 @@ pub(crate) struct WebPExtendedInfo {
     animation: bool,
     canvas_width: u32,
     canvas_height: u32,
+}
+
+#[derive(Debug)]
+enum ExtendedImageData {
+    Animation {
+        frames: Vec<AnimatedFrame>,
+        anim_info: WebPAnimatedInfo,
+    },
+    Static(WebPStatic),
 }
 
 #[derive(Debug)]
@@ -91,8 +101,8 @@ impl ExtendedImage {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                if let ExtendedImageData::Animation(animated) = &self.image.image {
-                    let frame = animated.frames.get(self.index);
+                if let ExtendedImageData::Animation{ frames, anim_info } = &self.image.image {
+                    let frame = frames.get(self.index);
                     match frame {
                         Some(anim_image) => {
 
@@ -141,7 +151,7 @@ impl ExtendedImage {
                                 for x in 0..anim_image.width {
                                     for y in 0..anim_image.height {
                                         let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
-                                        self.canvas[canvas_index] = animated.background_color;
+                                        self.canvas[canvas_index] = anim_info.background_color;
                                     }
                                 }
                             }
@@ -160,8 +170,8 @@ impl ExtendedImage {
 
         let width = self.info.canvas_width;
         let height = self.info.canvas_height;
-        let background_color = if let ExtendedImageData::Animation(ref animated) = self.image {
-            animated.background_color
+        let background_color = if let ExtendedImageData::Animation{ ref anim_info, .. } = self.image {
+            anim_info.background_color
         } else {
             Rgba([0, 0, 0, 255])
         };
@@ -175,6 +185,82 @@ impl ExtendedImage {
         };
 
         Frames::new(Box::new(frame_iter))
+    }
+
+    pub(crate) fn read_extended_chunks<R: Read>(reader: &mut R, info: WebPExtendedInfo) -> ImageResult<ExtendedImage> {
+        let mut anim_info: Option<WebPAnimatedInfo> = None;
+        let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
+        let mut static_frame: Option<WebPStatic> = None;
+
+        //go until end of file
+        while let Some((mut cursor, chunk)) = read_chunk(reader)? {
+            match chunk {
+                WebPRiffChunk::ICCP |
+                WebPRiffChunk::EXIF |
+                WebPRiffChunk::XMP => {
+                    //ignore these chunks
+                }
+                WebPRiffChunk::ANIM => {
+                    if anim_info.is_none() {
+                        anim_info = Some(Self::read_anim_info(&mut cursor)?);
+                    }
+                }
+                WebPRiffChunk::ANMF => {
+                    let frame = read_anim_frame(cursor)?;
+                    anim_frames.push(frame);
+                }
+                WebPRiffChunk::ALPH => {
+                    if static_frame.is_none() {
+                        //reads alpha chunk
+                        let alpha_chunk = read_alpha_chunk(&mut cursor, info.canvas_width, info.canvas_height)?;
+
+                        let vp8_frame = read_lossy(reader)?;
+
+                        let img = WebPStatic::Lossy {
+                            alpha: Some(alpha_chunk),
+                            frame: vp8_frame,
+                        };
+
+                        static_frame = Some(img);
+                    }
+                }
+                _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
+            }
+        }
+
+        let image = if let Some(info) = anim_info {
+            ExtendedImageData::Animation {
+                frames: anim_frames,
+                anim_info: info,
+            }
+        } else if let Some(frame) = static_frame {
+            ExtendedImageData::Static(frame)
+        } else {
+            return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        };
+
+        let image = ExtendedImage {
+            image,
+            info,
+        };
+
+        Ok(image)
+    }
+
+    fn read_anim_info<R: Read>(reader: &mut R) -> ImageResult<WebPAnimatedInfo> {
+        let mut background_color: [u8; 4] = [0; 4];
+        reader.read_exact(&mut background_color)?;
+
+        let background_color = Rgba(background_color);
+        
+        let loop_count = reader.read_u16::<LittleEndian>()?;
+
+        let info = WebPAnimatedInfo {
+            background_color,
+            loop_count,
+        };
+
+        Ok(info)
     }
 }
 
@@ -191,54 +277,43 @@ fn blend_subimage(image: &mut RgbaImage, anim_frame: &AnimatedFrame) {
     }
 }
 
-#[derive(Debug)]
-enum ExtendedImageData {
-    Animation(WebPAnimated),
-    Static(WebPStatic),
-}
-
-#[derive(Debug)]
-struct WebPStatic {
-    alpha: Option<AlphaChunk>,
-    frame: SimpleFrame,
-}
-
 impl WebPStatic {
+
     //note if alpha, assumes rgba buffer, else rgb buffer
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
-        match &self.frame {
-            SimpleFrame::Lossy(lossy) => {
-                match &self.alpha {
+        match self {
+            WebPStatic::Lossy{ frame, alpha } => {
+                match alpha {
                     Some(alpha_chunk) => {
                         for (index, (val, alpha)) in buf.chunks_exact_mut(4).zip(alpha_chunk.data.iter()).enumerate() {
-                            let (r, g, b) = lossy.get_rgb(index);
+                            let (r, g, b) = frame.get_rgb(index);
                             val[0] = r;
                             val[1] = g;
                             val[2] = b;
                             val[3] = *alpha;
                         }
                     },
-                    None => lossy.fill_rgb(buf),
+                    None => frame.fill_rgb(buf),
                 }
             }
-            SimpleFrame::Lossless(lossless) => {
+            WebPStatic::Lossless(lossless) => {
                 lossless.fill_rgba(buf);
             }
         }
     }
 
     pub(crate) fn get_at_pos(&self, index: usize) -> Rgba<u8> {
-        match &self.frame {
-            SimpleFrame::Lossy(lossy) => {
-                let (r, g, b) = lossy.get_rgb(index);
-                let alpha = match &self.alpha {
+        match self {
+            WebPStatic::Lossy{ frame, alpha } => {
+                let (r, g, b) = frame.get_rgb(index);
+                let alpha = match alpha {
                     Some(alpha_chunk) => alpha_chunk.data[index],
                     None => 0,
                 };
 
                 Rgba([r, g, b, alpha])
             }
-            SimpleFrame::Lossless(lossless) => {
+            WebPStatic::Lossless(lossless) => {
                 lossless.get_rgba(index)
             }
         }
@@ -246,10 +321,9 @@ impl WebPStatic {
 }
 
 #[derive(Debug)]
-struct WebPAnimated {
+struct WebPAnimatedInfo {
     background_color: Rgba<u8>,
     loop_count: u16,
-    frames: Vec<AnimatedFrame>,
 }
 
 #[derive(Debug)]
@@ -285,8 +359,6 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     let canvas_width = read_3_bytes(reader)? + 1;
     let canvas_height = read_3_bytes(reader)? + 1;
 
-    println!("width: {canvas_width}, height: {canvas_height}");
-
     let info = WebPExtendedInfo {
         icc_profile,
         alpha,
@@ -297,121 +369,17 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
         canvas_height,
     };
 
-    println!("info: {info:?}");
-
     return Ok(info);
 }
 
-pub(crate) fn read_extended_chunks<R: Read>(info: WebPExtendedInfo, reader: &mut R) -> ImageResult<ExtendedImage> {
-    if info.icc_profile {
-        //ignore iccp
-        ignore_chunk(reader, b"ICCP")?;
-    }
+fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
 
-    let image = if info.animation {
-        //read animation
-        let anim = read_animation(reader)?;
-        ExtendedImageData::Animation(anim)
-    } else if info.alpha {
-        todo!()
-    } else {
-        todo!()
-    };
+    let frame_x = read_3_bytes(&mut reader)?;
+    let frame_y = read_3_bytes(&mut reader)?;
 
-    if info.exif_metadata {
-        //ignore exif metadat
-        ignore_chunk(reader, b"EXIF")?;
-        println!("ignored exif");
-    }
-
-    if info.xmp_metadata {
-        //ignore xmp metadata
-        ignore_chunk(reader, b"XMP ")?;
-        println!("ignored xmp");
-    }
-
-    let image = ExtendedImage {
-        info,
-        image,
-    };
-
-    Ok(image)
-}
-
-fn ignore_chunk<R: Read>(reader: &mut R, chunk_fourcc: &[u8; 4]) -> ImageResult<()> {
-    let mut chunk: [u8; 4] = [0; 4];
-    reader.read_exact(&mut chunk)?;
-
-    if &chunk != chunk_fourcc {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
-    }
-
-    let mut len = u64::from(reader.read_u32::<LittleEndian>()?);
-
-    if len % 2 != 0 {
-        // RIFF chunks containing an uneven number of bytes append
-        // an extra 0x00 at the end of the chunk
-        //
-        // The addition cannot overflow since we have a u64 that was created from a u32
-        len += 1;
-    }
-    
-    io::copy(&mut reader.by_ref().take(len), &mut io::sink())?;
-
-    Ok(())
-}
-
-fn read_animation<R: Read>(reader: &mut R) -> ImageResult<WebPAnimated> {
-    //read anim chunk
-    let mut chunk: [u8; 4] = [0; 4];
-
-    reader.read_exact(&mut chunk)?;
-
-    if &chunk != b"ANIM" {
-        println!("anim chunk invalid: {:?}", chunk);
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
-    }
-
-    let _len = reader.read_u32::<LittleEndian>()?;
-
-    let mut background_color: [u8; 4] = [0; 4];
-    reader.read_exact(&mut background_color)?;
-
-    let background_color = Rgba(background_color);
-    
-    let loop_count = reader.read_u16::<LittleEndian>()?;
-
-    let mut frames = Vec::new();
-
-    loop {
-        let mut chunk: [u8; 4] = [0; 4];
-        let _ = reader.read_exact(&mut chunk);
-
-        if &chunk == b"ANMF" {
-            let len = reader.read_u32::<LittleEndian>()?;
-            println!("ANMF len: {len}");
-            frames.push(read_anim_frame(reader)?);
-        } else {
-            println!("num of frames: {}", frames.len());
-            let animated = WebPAnimated {
-                background_color,
-                loop_count,
-                frames,
-            };
-
-            return Ok(animated);
-        }
-    }
-}
-
-fn read_anim_frame<R: Read>(reader: &mut R) -> ImageResult<AnimatedFrame> {
-
-    let frame_x = read_3_bytes(reader)?;
-    let frame_y = read_3_bytes(reader)?;
-
-    let frame_width = read_3_bytes(reader)? + 1;
-    let frame_height = read_3_bytes(reader)? + 1;
-    let duration = read_3_bytes(reader)?;
+    let frame_width = read_3_bytes(&mut reader)? + 1;
+    let frame_height = read_3_bytes(&mut reader)? + 1;
+    let duration = read_3_bytes(&mut reader)?;
 
     let frame_info = reader.read_u8()?;
     let reserved = frame_info & 0b11111100;
@@ -422,7 +390,7 @@ fn read_anim_frame<R: Read>(reader: &mut R) -> ImageResult<AnimatedFrame> {
     let dispose = frame_info & 0b00000001 != 0;
 
     //read normal bitstream now
-    let static_image = read_image(reader, frame_width, frame_height)?;
+    let static_image = read_image(&mut reader, frame_width, frame_height)?;
 
     let frame = AnimatedFrame {
         offset_x: frame_x,
@@ -435,8 +403,6 @@ fn read_anim_frame<R: Read>(reader: &mut R) -> ImageResult<AnimatedFrame> {
         image: static_image,
     };
 
-    println!("frame: x: {}, y: {}, width: {}, height: {}, duration: {}, alpha_blending: {}, dispose: {}", frame_x, frame_y, frame_width, frame_height, duration, use_alpha_blending, dispose);
-
     Ok(frame)
 }
 
@@ -447,71 +413,56 @@ fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
     Ok(value)
 }
 
+fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
+
+    let (cursor, chunk) = read_chunk(reader)?.ok_or(Error::from(io::ErrorKind::UnexpectedEof))?;
+
+    if chunk != WebPRiffChunk::VP8 {
+        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+    }
+
+    let mut vp8_decoder = Vp8Decoder::new(cursor);
+    let frame = vp8_decoder.decode_frame()?;
+
+    Ok(frame.clone())
+}
+
 fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<WebPStatic> {
-    let mut chunk = [0; 4];
-    reader.read_exact(&mut chunk)?;
+    let chunk = read_chunk(reader)?;
 
-    match &chunk {
-        b"VP8 " => {
-            let len = reader.read_u32::<LittleEndian>()?;
-
-            println!("vp8 len: {len}");
-
-            let mut vp8_decoder = Vp8Decoder::new(reader);
+    match chunk {
+        Some((cursor, WebPRiffChunk::VP8)) => {
+            let mut vp8_decoder = Vp8Decoder::new(cursor);
             let frame = vp8_decoder.decode_frame()?;
 
-            let frame = SimpleFrame::Lossy(frame.clone());
-
-            let img = WebPStatic {
+            let img = WebPStatic::Lossy {
+                frame: frame.clone(),
                 alpha: None,
-                frame,
             };
 
             Ok(img)
         }
-        b"VP8L" => {
-            let cursor = read_len_cursor(reader)?;
-
+        Some((cursor, WebPRiffChunk::VP8L)) => {
             let mut lossless_decoder = LosslessDecoder::new(cursor);
             let frame = lossless_decoder.decode_frame()?;
 
-            let frame = SimpleFrame::Lossless(frame.clone());
-
-            let img = WebPStatic {
-                alpha: None,
-                frame,
-            };
+            let img = WebPStatic::Lossless(frame.clone());
 
             Ok(img)
         }
-        b"ALPH" => {
-            let alpha = read_alpha_chunk(reader, width, height)?;
+        Some((mut cursor, WebPRiffChunk::ALPH)) => {
+            let alpha_chunk = read_alpha_chunk(&mut cursor, width, height)?;
 
-            let mut chunk = [0; 4];
-            reader.read_exact(&mut chunk)?;
+            let vp8_frame = read_lossy(reader)?;
 
-            if &chunk != b"VP8 " {
-                return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
-            }
-
-            let len = reader.read_u32::<LittleEndian>()?;
-
-            println!("vp8 with alpha len: {len}");
-
-            let mut vp8_decoder = Vp8Decoder::new(reader);
-            let frame = vp8_decoder.decode_frame()?;
-
-            let frame = SimpleFrame::Lossy(frame.clone());
-
-            let img = WebPStatic {
-                alpha: Some(alpha),
-                frame,
+            let img = WebPStatic::Lossy {
+                alpha: Some(alpha_chunk),
+                frame: vp8_frame,
             };
 
             Ok(img)
         }
         _ => {
-            println!("this chunk invalid: {:?}", chunk);
             Err(ExtendedWebPDecoderError::HeaderInvalid.into())
         }
     }
@@ -548,11 +499,6 @@ impl FilteringMethod {
 //note only for VP8 frames
 fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<AlphaChunk> {
 
-    //TODO: if odd, add 1
-    let len = reader.read_u32::<LittleEndian>()?;
-
-    println!("alph len: {len}");
-
     let info_byte = reader.read_u8()?;
 
     let reserved = info_byte & 0b11000000;
@@ -579,7 +525,7 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     };
 
     let mut framedata = Vec::new();
-    reader.take(len as u64).read_to_end(&mut framedata)?;
+    reader.read_to_end(&mut framedata)?;
     
     let data = if lossless_compression {
         let cursor = std::io::Cursor::new(framedata);

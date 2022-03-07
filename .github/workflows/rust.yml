@@ -38,7 +38,7 @@ jobs:
     - name: build
       run: cargo build -v --release
     - name: test
-      run: cargo test -v --release
+      run: cargo test -v --release --features jpeg/platform_independent
   test_avif:
     runs-on: ubuntu-20.04
     steps:

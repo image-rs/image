@@ -1,6 +1,6 @@
 use std::{error, fmt};
 use std::convert::TryInto;
-use std::io::{self, Read, Error, Cursor};
+use std::io::{self, Read, Error};
 
 use crate::{ImageResult, ImageError};
 use crate::image::ImageFormat;
@@ -16,34 +16,40 @@ use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::decoder::{read_chunk, WebPRiffChunk};
 use byteorder::{ReadBytesExt, LittleEndian};
 
+//all errors that can occur while parsing extended chunks in a WebP file
 #[derive(Debug, Clone, Copy)]
-enum ExtendedWebPDecoderError {
-    HeaderInvalid,
+enum DecoderError {
+    ChunkInvalid,
+    SizeMismatch,
+    InfoBitsInvalid,
 }
+
+impl fmt::Display for DecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecoderError::ChunkInvalid =>
+                f.write_str("Invalid Header"),
+            DecoderError::SizeMismatch => 
+                f.write_str("Size doesn't fit"),
+            DecoderError::InfoBitsInvalid =>
+                f.write_str("Some info bits were invalid"),
+        }
+    }
+}
+
+impl From<DecoderError> for ImageError {
+    fn from(e: DecoderError) -> ImageError {
+        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
+    }
+}
+
+impl error::Error for DecoderError {}
 
 #[derive(Debug)]
 enum WebPStatic {
     Lossy(RgbaImage),
     Lossless(LosslessFrame),
 }
-
-impl fmt::Display for ExtendedWebPDecoderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ExtendedWebPDecoderError::HeaderInvalid => {
-                f.write_str("Invalid Header")
-            }
-        }
-    }
-}
-
-impl From<ExtendedWebPDecoderError> for ImageError {
-    fn from(e: ExtendedWebPDecoderError) -> ImageError {
-        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
-    }
-}
-
-impl error::Error for ExtendedWebPDecoderError {}
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WebPExtendedInfo {
@@ -234,7 +240,7 @@ impl ExtendedImage {
                         static_frame = Some(image);
                     }
                 }
-                _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
+                _ => return Err(DecoderError::ChunkInvalid.into()),
             }
         }
 
@@ -246,7 +252,8 @@ impl ExtendedImage {
         } else if let Some(frame) = static_frame {
             ExtendedImageData::Static(frame)
         } else {
-            return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+            //reached end of file too early before image data was reached
+            return Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof)));
         };
 
         let image = ExtendedImage {
@@ -279,7 +286,7 @@ impl WebPStatic {
 
     pub(crate) fn from_alpha_lossy(alpha: AlphaChunk, vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
         if alpha.data.len() != usize::from(vp8_frame.width * vp8_frame.height) {
-            return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+            return Err(DecoderError::SizeMismatch.into());
         }
 
         let mut image_vec = vec![0u8; usize::from(vp8_frame.width) * usize::from(vp8_frame.height) * 4];
@@ -427,7 +434,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     reader.read_exact(&mut reserved_third)?;
 
     if reserved_first != 0 || reserved_second != 0 || reserved_third != [0, 0, 0] {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        return Err(DecoderError::InfoBitsInvalid.into());
     }
 
     let canvas_width = read_3_bytes(reader)? + 1;
@@ -435,7 +442,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
 
     //product of canvas dimensions cannot be larger than u32 max
     if u32::checked_mul(canvas_width.into(), canvas_height.into()).is_none() {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        return Err(DecoderError::SizeMismatch.into());
     }
 
     let info = WebPExtendedInfo {
@@ -463,7 +470,7 @@ fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
     let frame_info = reader.read_u8()?;
     let reserved = frame_info & 0b11111100;
     if reserved != 0 {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        return Err(DecoderError::InfoBitsInvalid.into());
     }
     let use_alpha_blending = frame_info & 0b00000010 == 0;
     let dispose = frame_info & 0b00000001 != 0;
@@ -497,7 +504,7 @@ fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
     let (cursor, chunk) = read_chunk(reader)?.ok_or(Error::from(io::ErrorKind::UnexpectedEof))?;
 
     if chunk != WebPRiffChunk::VP8 {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        return Err(DecoderError::ChunkInvalid.into());
     }
 
     let mut vp8_decoder = Vp8Decoder::new(cursor);
@@ -536,7 +543,7 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
             Ok(img)
         }
         _ => {
-            Err(ExtendedWebPDecoderError::HeaderInvalid.into())
+            Err(DecoderError::ChunkInvalid.into())
         }
     }
 }
@@ -578,13 +585,13 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let compression = info_byte & 0b00000011;
 
     if reserved != 0 {
-        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        return Err(DecoderError::InfoBitsInvalid.into());
     }
 
     let preprocessing = match preprocessing {
         0 => false,
         1 => true,
-        _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
+        _ => return Err(DecoderError::InfoBitsInvalid.into()),
     };
 
     let filtering_method = FilteringMethod::from_num(filtering);
@@ -592,7 +599,7 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let lossless_compression = match compression {
         0 => false,
         1 => true,
-        _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
+        _ => return Err(DecoderError::InfoBitsInvalid.into()),
     };
 
     let mut framedata = Vec::new();
@@ -603,8 +610,8 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
 
         let mut decoder = LosslessDecoder::new(cursor);
         //this is a potential problem for large images; would require rewriting lossless decoder to use u32 for width and height
-        let width: u16 = width.try_into().map_err(|_| ImageError::from(ExtendedWebPDecoderError::HeaderInvalid))?;
-        let height: u16 = height.try_into().map_err(|_| ImageError::from(ExtendedWebPDecoderError::HeaderInvalid))?;
+        let width: u16 = width.try_into().map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
+        let height: u16 = height.try_into().map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
         let frame = decoder.decode_frame_implicit_dims(width, height)?;
 
         let mut data = vec![0; usize::from(width) * usize::from(height)];
@@ -617,7 +624,7 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     };
 
     let chunk = AlphaChunk {
-        preprocessing,
+        _preprocessing: preprocessing,
         filtering_method,
         data,
     };

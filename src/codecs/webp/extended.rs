@@ -1,11 +1,10 @@
 use std::{error, fmt};
 use std::convert::TryInto;
-use std::io::{self, Read, Error};
+use std::io::{self, Read, Error, Cursor};
 
 use crate::{ImageResult, ImageError};
 use crate::image::ImageFormat;
 use crate::color;
-use crate::color::Blend;
 use crate::Rgba;
 use crate::Frames;
 use crate::Frame;
@@ -14,7 +13,7 @@ use crate::RgbaImage;
 use crate::error::DecodingError;
 use super::vp8::{Vp8Decoder, Frame as VP8Frame};
 use super::lossless::{LosslessDecoder, LosslessFrame};
-use super::decoder::{read_len_cursor, read_chunk, WebPRiffChunk};
+use super::decoder::{read_chunk, WebPRiffChunk};
 use byteorder::{ReadBytesExt, LittleEndian};
 
 #[derive(Debug, Clone, Copy)]
@@ -167,8 +166,11 @@ impl ExtendedImage {
 
         let width = self.info.canvas_width;
         let height = self.info.canvas_height;
-        //using transparent background instead of the suggested background colour
-        let background_color = Rgba([0, 0, 0, 0]);
+        let background_color = if let ExtendedImageData::Animation{ ref anim_info, .. } = self.image {
+            anim_info.background_color
+        } else {
+            Rgba([0, 0, 0, 0])
+        };
 
         let frame_iter = FrameIterator {
             image: self,
@@ -205,7 +207,6 @@ impl ExtendedImage {
                 }
                 WebPRiffChunk::ALPH => {
                     if static_frame.is_none() {
-                        //reads alpha chunk
                         let alpha_chunk = read_alpha_chunk(&mut cursor, info.canvas_width, info.canvas_height)?;
 
                         let vp8_frame = read_lossy(reader)?;
@@ -219,7 +220,7 @@ impl ExtendedImage {
                     if static_frame.is_none() {
                         let vp8_frame = read_lossy(&mut cursor)?;
 
-                        let img = WebPStatic::from_lossy(vp8_frame);
+                        let img = WebPStatic::from_lossy(vp8_frame)?;
 
                         static_frame = Some(img);
                     }
@@ -432,6 +433,11 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     let canvas_width = read_3_bytes(reader)? + 1;
     let canvas_height = read_3_bytes(reader)? + 1;
 
+    //product of canvas dimensions cannot be larger than u32 max
+    if u32::checked_mul(canvas_width.into(), canvas_height.into()).is_none() {
+        return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+    }
+
     let info = WebPExtendedInfo {
         icc_profile,
         alpha,
@@ -537,9 +543,8 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
 
 #[derive(Debug)]
 struct AlphaChunk {
-    preprocessing: bool,
+    _preprocessing: bool,
     filtering_method: FilteringMethod,
-    lossless_compression: bool,
     data: Vec<u8>,
 }
 
@@ -563,7 +568,6 @@ impl FilteringMethod {
     }
 }
 
-//note only for VP8 frames
 fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<AlphaChunk> {
 
     let info_byte = reader.read_u8()?;
@@ -595,14 +599,15 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     reader.read_to_end(&mut framedata)?;
     
     let data = if lossless_compression {
-        let cursor = std::io::Cursor::new(framedata);
+        let cursor = io::Cursor::new(framedata);
 
         let mut decoder = LosslessDecoder::new(cursor);
-        //fix both casts, ensure checks are made when values are read that this won't cause issues
-        let frame = decoder.decode_frame_implicit_dims(width.try_into().unwrap(), height.try_into().unwrap())?;
+        //this is a potential problem for large images; would require rewriting lossless decoder to use u32 for width and height
+        let width: u16 = width.try_into().map_err(|_| ImageError::from(ExtendedWebPDecoderError::HeaderInvalid))?;
+        let height: u16 = height.try_into().map_err(|_| ImageError::from(ExtendedWebPDecoderError::HeaderInvalid))?;
+        let frame = decoder.decode_frame_implicit_dims(width, height)?;
 
-        //TODO: change to proper cast
-        let mut data = vec![0; (width * height).try_into().unwrap()];
+        let mut data = vec![0; usize::from(width) * usize::from(height)];
 
         frame.fill_green(&mut data);
 
@@ -614,7 +619,6 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let chunk = AlphaChunk {
         preprocessing,
         filtering_method,
-        lossless_compression,
         data,
     };
 

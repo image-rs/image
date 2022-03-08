@@ -215,7 +215,24 @@ impl ExtendedImage {
                         static_frame = Some(img);
                     }
                 }
-                //TODO: FORGOT VP8 AND VP8L
+                WebPRiffChunk::VP8 => {
+                    if static_frame.is_none() {
+                        let vp8_frame = read_lossy(&mut cursor)?;
+
+                        let img = WebPStatic::from_lossy(vp8_frame);
+
+                        static_frame = Some(img);
+                    }
+                }
+                WebPRiffChunk::VP8L => {
+                    if static_frame.is_none() {
+                        let mut lossless_decoder = LosslessDecoder::new(cursor);
+                        let frame = lossless_decoder.decode_frame()?;
+                        let image = WebPStatic::Lossless(frame.clone());
+
+                        static_frame = Some(image);
+                    }
+                }
                 _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
             }
         }
@@ -254,20 +271,6 @@ impl ExtendedImage {
         };
 
         Ok(info)
-    }
-}
-
-fn blend_subimage(image: &mut RgbaImage, anim_frame: &AnimatedFrame) {
-    for y in 0..anim_frame.height {
-        for x in 0..anim_frame.width {
-            let index = y * anim_frame.width + x;
-            //TODO: fix
-            let rgba = anim_frame.image.get_at_pos(index.try_into().unwrap());
-
-            let img_index = (x + anim_frame.offset_x, y + anim_frame.offset_y);
-            //image[img_index].blend(&rgba);
-            image[img_index] = rgba;
-        }
     }
 }
 

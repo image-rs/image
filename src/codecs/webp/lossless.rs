@@ -13,7 +13,7 @@ use std::{
 
 use byteorder::ReadBytesExt;
 
-use crate::{error::DecodingError, ImageError, ImageFormat, ImageResult, Rgba};
+use crate::{error::DecodingError, ImageError, ImageFormat, ImageResult};
 
 use super::huffman::HuffmanTree;
 use super::lossless_transform::{add_pixels, TransformType};
@@ -733,19 +733,12 @@ impl LosslessFrame {
         usize::from(self.width) * usize::from(self.height) * 4
     }
 
+    /// Fills a buffer with just the green values from the lossless decoding
+    /// Used in extended alpha decoding
     pub(crate) fn fill_green(&self, buf: &mut [u8]) {
         for (&argb_val, buf_value) in self.buf.iter().zip(buf.iter_mut()) {
             *buf_value = ((argb_val >> 8) & 0xff).try_into().unwrap();
         }
-    }
-
-    pub(crate) fn get_rgba(&self, index: usize) -> Rgba<u8> {
-        let argb_val = self.buf[index];
-        let r = ((argb_val >> 16) & 0xff).try_into().unwrap();
-        let g = ((argb_val >> 8) & 0xff).try_into().unwrap();
-        let b = (argb_val & 0xff).try_into().unwrap();
-        let a = ((argb_val >> 24) & 0xff).try_into().unwrap();
-        Rgba([r, g, b, a])
     }
 }
 

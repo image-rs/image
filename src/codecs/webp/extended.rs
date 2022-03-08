@@ -53,11 +53,11 @@ enum WebPStatic {
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WebPExtendedInfo {
-    icc_profile: bool,
+    _icc_profile: bool,
     alpha: bool,
-    exif_metadata: bool,
-    xmp_metadata: bool,
-    animation: bool,
+    _exif_metadata: bool,
+    _xmp_metadata: bool,
+    _animation: bool,
     canvas_width: u32,
     canvas_height: u32,
 }
@@ -94,8 +94,6 @@ impl ExtendedImage {
         struct FrameIterator {
             image: ExtendedImage,
             index: usize,
-            width: u32,
-            height: u32,
             canvas: RgbaImage,
         }
 
@@ -181,8 +179,6 @@ impl ExtendedImage {
         let frame_iter = FrameIterator {
             image: self,
             index: 0,
-            width,
-            height,
             canvas: RgbaImage::from_pixel(width, height, background_color),
         };
 
@@ -275,7 +271,7 @@ impl ExtendedImage {
 
         let info = WebPAnimatedInfo {
             background_color,
-            loop_count,
+            _loop_count: loop_count,
         };
 
         Ok(info)
@@ -385,26 +381,12 @@ impl WebPStatic {
             }
         }
     }
-
-    pub(crate) fn get_at_pos(&self, index: usize) -> Rgba<u8> {
-        match self {
-            WebPStatic::Lossy(image) => {
-                let index: u32 = index.try_into().unwrap();
-                let y = index / image.width();
-                let x = index % image.width();
-                *image.get_pixel(x, y)
-            }
-            WebPStatic::Lossless(lossless) => {
-                lossless.get_rgba(index)
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
 struct WebPAnimatedInfo {
     background_color: Rgba<u8>,
-    loop_count: u16,
+    _loop_count: u16,
 }
 
 #[derive(Debug)]
@@ -446,11 +428,11 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     }
 
     let info = WebPExtendedInfo {
-        icc_profile,
+        _icc_profile: icc_profile,
         alpha,
-        exif_metadata,
-        xmp_metadata,
-        animation,
+        _exif_metadata: exif_metadata,
+        _xmp_metadata: xmp_metadata,
+        _animation: animation,
         canvas_width,
         canvas_height,
     };

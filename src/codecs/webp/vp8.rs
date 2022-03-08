@@ -913,21 +913,26 @@ impl Frame {
         }
     }
 
-    pub(crate) fn get_rgb(&self, index: usize) -> (u8, u8, u8) {
-        let y = index / self.width as usize;
-        let x = index % self.width as usize;
-        let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
+    /// Fills an rgba buffer by skipping the alpha values
+    pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
+        for index in 0..self.ybuf.len() {
+            let y = index / self.width as usize;
+            let x = index % self.width as usize;
+            let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
 
-        let rgb_index = index * 3;
-        let c = self.ybuf[index] as i32 - 16;
-        let d = self.ubuf[chroma_index] as i32 - 128;
-        let e = self.vbuf[chroma_index] as i32 - 128;
+            let rgb_index = index * 4;
+            let c = self.ybuf[index] as i32 - 16;
+            let d = self.ubuf[chroma_index] as i32 - 128;
+            let e = self.vbuf[chroma_index] as i32 - 128;
 
-        let r = clamp((298 * c + 409 * e + 128) >> 8, 0, 255) as u8;
-        let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
-        let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
+            let r = clamp((298 * c + 409 * e + 128) >> 8, 0, 255) as u8;
+            let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
+            let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
 
-        (r, g, b)
+            buf[rgb_index] = r;
+            buf[rgb_index + 1] = g;
+            buf[rgb_index + 2] = b;
+        }
     }
 
     /// Gets the buffer size

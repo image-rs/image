@@ -714,7 +714,7 @@ pub(crate) struct LosslessFrame {
     pub(crate) width: u16,
     pub(crate) height: u16,
 
-    buf: Vec<u32>,
+    pub(crate) buf: Vec<u32>,
 }
 
 impl LosslessFrame {
@@ -734,8 +734,8 @@ impl LosslessFrame {
     }
 
     pub(crate) fn fill_green(&self, buf: &mut [u8]) {
-        for (&argb_val, green) in self.buf.iter().skip(1).step_by(4).zip(buf.iter_mut()) {
-            *green = ((argb_val >> 8) & 0xff).try_into().unwrap();
+        for (&argb_val, buf_value) in self.buf.iter().zip(buf.iter_mut()) {
+            *buf_value = ((argb_val >> 8) & 0xff).try_into().unwrap();
         }
     }
 

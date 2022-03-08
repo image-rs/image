@@ -24,10 +24,7 @@ enum ExtendedWebPDecoderError {
 
 #[derive(Debug)]
 enum WebPStatic {
-    Lossy {
-        frame: VP8Frame,
-        alpha: Option<AlphaChunk>,
-    },
+    Lossy(RgbaImage),
     Lossless(LosslessFrame),
 }
 
@@ -170,11 +167,8 @@ impl ExtendedImage {
 
         let width = self.info.canvas_width;
         let height = self.info.canvas_height;
-        let background_color = if let ExtendedImageData::Animation{ ref anim_info, .. } = self.image {
-            anim_info.background_color
-        } else {
-            Rgba([0, 0, 0, 255])
-        };
+        //using transparent background instead of the suggested background colour
+        let background_color = Rgba([0, 0, 0, 0]);
 
         let frame_iter = FrameIterator {
             image: self,
@@ -192,7 +186,7 @@ impl ExtendedImage {
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
 
-        //go until end of file
+        //go until end of file and while chunk headers are valid
         while let Some((mut cursor, chunk)) = read_chunk(reader)? {
             match chunk {
                 WebPRiffChunk::ICCP |
@@ -216,14 +210,12 @@ impl ExtendedImage {
 
                         let vp8_frame = read_lossy(reader)?;
 
-                        let img = WebPStatic::Lossy {
-                            alpha: Some(alpha_chunk),
-                            frame: vp8_frame,
-                        };
+                        let img = WebPStatic::from_alpha_lossy(alpha_chunk, vp8_frame)?;
 
                         static_frame = Some(img);
                     }
                 }
+                //TODO: FORGOT VP8 AND VP8L
                 _ => return Err(ExtendedWebPDecoderError::HeaderInvalid.into()),
             }
         }
@@ -248,10 +240,11 @@ impl ExtendedImage {
     }
 
     fn read_anim_info<R: Read>(reader: &mut R) -> ImageResult<WebPAnimatedInfo> {
-        let mut background_color: [u8; 4] = [0; 4];
-        reader.read_exact(&mut background_color)?;
+        let mut colors: [u8; 4] = [0; 4];
+        reader.read_exact(&mut colors)?;
 
-        let background_color = Rgba(background_color);
+        //background color is [blue, green, red, alpha]
+        let background_color = Rgba([colors[2], colors[1], colors[0], colors[3]]);
         
         let loop_count = reader.read_u16::<LittleEndian>()?;
 
@@ -272,29 +265,109 @@ fn blend_subimage(image: &mut RgbaImage, anim_frame: &AnimatedFrame) {
             let rgba = anim_frame.image.get_at_pos(index.try_into().unwrap());
 
             let img_index = (x + anim_frame.offset_x, y + anim_frame.offset_y);
-            image[img_index].blend(&rgba);
+            //image[img_index].blend(&rgba);
+            image[img_index] = rgba;
         }
     }
 }
 
 impl WebPStatic {
 
-    //note if alpha, assumes rgba buffer, else rgb buffer
-    pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
-        match self {
-            WebPStatic::Lossy{ frame, alpha } => {
-                match alpha {
-                    Some(alpha_chunk) => {
-                        for (index, (val, alpha)) in buf.chunks_exact_mut(4).zip(alpha_chunk.data.iter()).enumerate() {
-                            let (r, g, b) = frame.get_rgb(index);
-                            val[0] = r;
-                            val[1] = g;
-                            val[2] = b;
-                            val[3] = *alpha;
+    pub(crate) fn from_alpha_lossy(alpha: AlphaChunk, vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
+        if alpha.data.len() != usize::from(vp8_frame.width * vp8_frame.height) {
+            return Err(ExtendedWebPDecoderError::HeaderInvalid.into());
+        }
+
+        let mut image_vec = vec![0u8; usize::from(vp8_frame.width) * usize::from(vp8_frame.height) * 4];
+
+        vp8_frame.fill_rgba(&mut image_vec);
+
+        for y in 0..vp8_frame.height {
+            for x in 0..vp8_frame.width {
+                
+                let predictor: u8 = match alpha.filtering_method {
+                    FilteringMethod::None => 0,
+                    FilteringMethod::Horizontal => {
+                        if x == 0 && y == 0 {
+                            0
+                        } else if x == 0 {
+                            let index = usize::from((y - 1) * vp8_frame.width + x);
+                            image_vec[index* 4 + 3]
+                        } else {
+                            let index = usize::from(y * vp8_frame.width + x - 1);
+                            image_vec[index * 4 + 3]
                         }
                     },
-                    None => frame.fill_rgb(buf),
-                }
+                    FilteringMethod::Vertical => {
+                        if x == 0 && y == 0 {
+                            0
+                        } else if y == 0 {
+                            let index = usize::from(y * vp8_frame.width + x - 1);
+                            image_vec[index * 4 + 3]
+                        } else {
+                            let index = usize::from((y - 1) * vp8_frame.width + x);
+                            image_vec[index * 4 + 3]
+                        }
+                    },
+                    FilteringMethod::Gradient => {
+                        let (left, top, top_left) = match (x, y) {
+                            (0, 0) => (0, 0, 0),
+                            (0, y) => {
+                                let above_index = usize::from((y - 1) * vp8_frame.width + x);
+                                let val = image_vec[above_index * 4 + 3];
+                                (val, val, val)
+                            },
+                            (x, 0) => {
+                                let before_index = usize::from(y * vp8_frame.width + x - 1);
+                                let val = image_vec[before_index * 4 + 3];
+                                (val, val, val)
+                            },
+                            (x, y) => {
+                                let left_index = usize::from(y * vp8_frame.width + x - 1);
+                                let left = image_vec[left_index * 4 + 3];
+                                let top_index = usize::from((y - 1) * vp8_frame.width + x);
+                                let top = image_vec[top_index * 4 + 3];
+                                let top_left_index = usize::from((y - 1) * vp8_frame.width + x - 1);
+                                let top_left = image_vec[top_left_index * 4 + 3];
+
+                                (left, top, top_left)
+                            },
+                        };
+
+                        let combination = u16::from(left) + u16::from(top) - u16::from(top_left);
+                        u16::clamp(combination, 0, 255).try_into().unwrap()
+                    },
+                };
+                let predictor = u16::from(predictor);
+
+                let alpha_index = usize::from(y * vp8_frame.width + x);
+                let alpha_val = alpha.data[alpha_index];
+                let alpha: u8 = ((predictor + u16::from(alpha_val)) % 256).try_into().unwrap();
+
+                let alpha_index = alpha_index * 4 + 3;
+                image_vec[alpha_index] = alpha;
+
+            }
+        }
+
+        let image = RgbaImage::from_vec(vp8_frame.width.into(), vp8_frame.height.into(), image_vec).unwrap();
+
+        Ok(WebPStatic::Lossy(image))
+    }
+
+    pub(crate) fn from_lossy(vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
+        let mut image = RgbaImage::from_pixel(vp8_frame.width.into(), vp8_frame.height.into(), Rgba([0, 0, 0, 255]));
+
+        vp8_frame.fill_rgba(&mut image);
+
+        Ok(WebPStatic::Lossy(image))
+    }
+
+    //
+    pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
+        match self {
+            WebPStatic::Lossy(image) => {
+                buf.copy_from_slice(&**image);
             }
             WebPStatic::Lossless(lossless) => {
                 lossless.fill_rgba(buf);
@@ -304,14 +377,11 @@ impl WebPStatic {
 
     pub(crate) fn get_at_pos(&self, index: usize) -> Rgba<u8> {
         match self {
-            WebPStatic::Lossy{ frame, alpha } => {
-                let (r, g, b) = frame.get_rgb(index);
-                let alpha = match alpha {
-                    Some(alpha_chunk) => alpha_chunk.data[index],
-                    None => 0,
-                };
-
-                Rgba([r, g, b, alpha])
+            WebPStatic::Lossy(image) => {
+                let index: u32 = index.try_into().unwrap();
+                let y = index / image.width();
+                let x = index % image.width();
+                *image.get_pixel(x, y)
             }
             WebPStatic::Lossless(lossless) => {
                 lossless.get_rgba(index)
@@ -435,10 +505,7 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
             let mut vp8_decoder = Vp8Decoder::new(cursor);
             let frame = vp8_decoder.decode_frame()?;
 
-            let img = WebPStatic::Lossy {
-                frame: frame.clone(),
-                alpha: None,
-            };
+            let img = WebPStatic::from_lossy(frame.clone())?;
 
             Ok(img)
         }
@@ -455,10 +522,7 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
 
             let vp8_frame = read_lossy(reader)?;
 
-            let img = WebPStatic::Lossy {
-                alpha: Some(alpha_chunk),
-                frame: vp8_frame,
-            };
+            let img = WebPStatic::from_alpha_lossy(alpha_chunk, vp8_frame)?;
 
             Ok(img)
         }
@@ -531,11 +595,11 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
         let cursor = std::io::Cursor::new(framedata);
 
         let mut decoder = LosslessDecoder::new(cursor);
-        //fix both casts
-        let frame = decoder.decode_frame_implicit_dims(width as u16, height as u16)?;
+        //fix both casts, ensure checks are made when values are read that this won't cause issues
+        let frame = decoder.decode_frame_implicit_dims(width.try_into().unwrap(), height.try_into().unwrap())?;
 
         //TODO: change to proper cast
-        let mut data = vec![0; (width * height) as usize];
+        let mut data = vec![0; (width * height).try_into().unwrap()];
 
         frame.fill_green(&mut data);
 

@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor, Read, Error};
 use std::marker::PhantomData;
 use std::{error, fmt, mem};
 
@@ -10,10 +10,8 @@ use crate::error::{
 use crate::image::{ImageDecoder, ImageFormat};
 use crate::{Frames, AnimationDecoder, color};
 
-use super::lossless::LosslessDecoder;
-use super::lossless::LosslessFrame;
-use super::vp8::Frame as VP8Frame;
-use super::vp8::Vp8Decoder;
+use super::lossless::{LosslessDecoder, LosslessFrame};
+use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 
 use super::extended::{read_extended_header, ExtendedImage};
 
@@ -67,6 +65,7 @@ impl From<DecoderError> for ImageError {
 impl error::Error for DecoderError {}
 
 /// All possible RIFF chunks in a WebP image file
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum WebPRiffChunk {
     RIFF,
@@ -97,6 +96,22 @@ impl WebPRiffChunk {
             b"EXIF" => Ok(Self::EXIF),
             b"XMP " => Ok(Self::XMP),
             _ => Err(DecoderError::ChunkHeaderInvalid(chunk_fourcc).into())
+        }
+    }
+
+    fn to_fourcc(&self) -> [u8; 4] {
+        match self {
+            Self::RIFF => *b"RIFF",
+            Self::WEBP => *b"WEBP",
+            Self::VP8 => *b"VP8 ",
+            Self::VP8L => *b"VP8L",
+            Self::VP8X => *b"VP8X",
+            Self::ANIM => *b"ANIM",
+            Self::ANMF => *b"ANMF",
+            Self::ALPH => *b"ALPH",
+            Self::ICCP => *b"ICCP",
+            Self::EXIF => *b"EXIF",
+            Self::XMP => *b"XMP ",
         }
     }
 }
@@ -145,37 +160,34 @@ impl<R: Read> WebPDecoder<R> {
 
     //reads the chunk header, decodes the frame and returns the inner decoder
     fn read_frame(&mut self) -> ImageResult<WebPImage> {
-        let mut chunk = [0; 4];
-        self.r.read_exact(&mut chunk)?;
 
-        match &chunk {
-            b"VP8 " => {
-                let m = read_len_cursor(&mut self.r)?;
+        let chunk = read_chunk(&mut self.r)?;
 
-                let mut vp8_decoder = Vp8Decoder::new(m);
+        match chunk {
+            Some((cursor, WebPRiffChunk::VP8)) => {
+
+                let mut vp8_decoder = Vp8Decoder::new(cursor);
                 let frame = vp8_decoder.decode_frame()?;
 
-                return Ok(WebPImage::Lossy(frame.clone()));
+                Ok(WebPImage::Lossy(frame.clone()))
             }
-            b"VP8L" => {
-                let m = read_len_cursor(&mut self.r)?;
+            Some((cursor, WebPRiffChunk::VP8L)) => {
 
-                let mut lossless_decoder = LosslessDecoder::new(m);
+                let mut lossless_decoder = LosslessDecoder::new(cursor);
                 let frame = lossless_decoder.decode_frame()?;
 
-                return Ok(WebPImage::Lossless(frame.clone()));
+                Ok(WebPImage::Lossless(frame.clone()))
             }
-            b"VP8X" => {
-                let mut m = read_len_cursor(&mut self.r)?;
-
-                let info = read_extended_header(&mut m)?;
+            Some((mut cursor, WebPRiffChunk::VP8X)) => {
+                let info = read_extended_header(&mut cursor)?;
 
                 let image = ExtendedImage::read_extended_chunks(&mut self.r, info)?;
 
-                return Ok(WebPImage::Extended(image));
+                Ok(WebPImage::Extended(image))
             }
-            _ => {
-                return Err(DecoderError::ChunkHeaderInvalid(chunk).into());
+            None => Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof))),
+            Some((_, chunk)) => {
+                Err(DecoderError::ChunkHeaderInvalid(chunk.to_fourcc()).into())
             }
         }
     }
@@ -208,7 +220,7 @@ where
 
 /// Reads a chunk
 /// Returns an error if the chunk header is not a valid webp header or some other reading error
-/// Returns None if and only if we hit end of file reading the 
+/// Returns None if and only if we hit end of file reading the four character code of the chunk
 pub(crate) fn read_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
 where 
     R: Read, 

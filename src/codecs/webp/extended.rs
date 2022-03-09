@@ -2,14 +2,8 @@ use std::{error, fmt};
 use std::convert::TryInto;
 use std::io::{self, Read, Error};
 
-use crate::{ImageResult, ImageError};
+use crate::{ImageResult, ImageError, color, Rgba, Frames, Frame, Delay, RgbaImage};
 use crate::image::ImageFormat;
-use crate::color;
-use crate::Rgba;
-use crate::Frames;
-use crate::Frame;
-use crate::Delay;
-use crate::RgbaImage;
 use crate::error::DecodingError;
 use super::vp8::{Vp8Decoder, Frame as VP8Frame};
 use super::lossless::{LosslessDecoder, LosslessFrame};
@@ -428,7 +422,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     let canvas_height = read_3_bytes(reader)? + 1;
 
     //product of canvas dimensions cannot be larger than u32 max
-    if u32::checked_mul(canvas_width.into(), canvas_height.into()).is_none() {
+    if u32::checked_mul(canvas_width, canvas_height).is_none() {
         return Err(DecoderError::SizeMismatch.into());
     }
 
@@ -442,7 +436,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
         canvas_height,
     };
 
-    return Ok(info);
+    Ok(info)
 }
 
 fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
@@ -488,7 +482,7 @@ fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
 
 fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
 
-    let (cursor, chunk) = read_chunk(reader)?.ok_or(Error::from(io::ErrorKind::UnexpectedEof))?;
+    let (cursor, chunk) = read_chunk(reader)?.ok_or_else(|| Error::from(io::ErrorKind::UnexpectedEof))?;
 
     if chunk != WebPRiffChunk::VP8 {
         return Err(DecoderError::ChunkInvalid.into());

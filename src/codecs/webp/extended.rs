@@ -1,14 +1,14 @@
-use std::{error, fmt};
 use std::convert::TryInto;
-use std::io::{self, Read, Error};
+use std::io::{self, Error, Read};
+use std::{error, fmt};
 
-use crate::{ImageResult, ImageError, color, Rgba, Frames, Frame, Delay, RgbaImage};
-use crate::image::ImageFormat;
-use crate::error::DecodingError;
-use super::vp8::{Vp8Decoder, Frame as VP8Frame};
-use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::decoder::{read_chunk, WebPRiffChunk};
-use byteorder::{ReadBytesExt, LittleEndian};
+use super::lossless::{LosslessDecoder, LosslessFrame};
+use super::vp8::{Frame as VP8Frame, Vp8Decoder};
+use crate::error::DecodingError;
+use crate::image::ImageFormat;
+use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgba, RgbaImage};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 //all errors that can occur while parsing extended chunks in a WebP file
 #[derive(Debug, Clone, Copy)]
@@ -21,12 +21,9 @@ enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::ChunkInvalid =>
-                f.write_str("Invalid Header"),
-            DecoderError::SizeMismatch => 
-                f.write_str("Size doesn't fit"),
-            DecoderError::InfoBitsInvalid =>
-                f.write_str("Some info bits were invalid"),
+            DecoderError::ChunkInvalid => f.write_str("Invalid Header"),
+            DecoderError::SizeMismatch => f.write_str("Size doesn't fit"),
+            DecoderError::InfoBitsInvalid => f.write_str("Some info bits were invalid"),
         }
     }
 }
@@ -89,13 +86,17 @@ impl ExtendedImage {
             type Item = ImageResult<Frame>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                if let ExtendedImageData::Animation{ frames, anim_info } = &self.image.image {
+                if let ExtendedImageData::Animation { frames, anim_info } = &self.image.image {
                     let frame = frames.get(self.index);
                     match frame {
                         Some(anim_image) => {
                             self.index += 1;
-                            ExtendedImage::draw_subimage(&mut self.canvas, anim_image, anim_info.background_color)
-                        },
+                            ExtendedImage::draw_subimage(
+                                &mut self.canvas,
+                                anim_image,
+                                anim_info.background_color,
+                            )
+                        }
                         None => None,
                     }
                 } else {
@@ -106,11 +107,12 @@ impl ExtendedImage {
 
         let width = self.info.canvas_width;
         let height = self.info.canvas_height;
-        let background_color = if let ExtendedImageData::Animation{ ref anim_info, .. } = self.image {
-            anim_info.background_color
-        } else {
-            Rgba([0, 0, 0, 0])
-        };
+        let background_color =
+            if let ExtendedImageData::Animation { ref anim_info, .. } = self.image {
+                anim_info.background_color
+            } else {
+                Rgba([0, 0, 0, 0])
+            };
 
         let frame_iter = FrameIterator {
             image: self,
@@ -121,7 +123,10 @@ impl ExtendedImage {
         Frames::new(Box::new(frame_iter))
     }
 
-    pub(crate) fn read_extended_chunks<R: Read>(reader: &mut R, info: WebPExtendedInfo) -> ImageResult<ExtendedImage> {
+    pub(crate) fn read_extended_chunks<R: Read>(
+        reader: &mut R,
+        info: WebPExtendedInfo,
+    ) -> ImageResult<ExtendedImage> {
         let mut anim_info: Option<WebPAnimatedInfo> = None;
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
@@ -129,9 +134,7 @@ impl ExtendedImage {
         //go until end of file and while chunk headers are valid
         while let Some((mut cursor, chunk)) = read_chunk(reader)? {
             match chunk {
-                WebPRiffChunk::ICCP |
-                WebPRiffChunk::EXIF |
-                WebPRiffChunk::XMP => {
+                WebPRiffChunk::ICCP | WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
                 }
                 WebPRiffChunk::ANIM => {
@@ -145,7 +148,8 @@ impl ExtendedImage {
                 }
                 WebPRiffChunk::ALPH => {
                     if static_frame.is_none() {
-                        let alpha_chunk = read_alpha_chunk(&mut cursor, info.canvas_width, info.canvas_height)?;
+                        let alpha_chunk =
+                            read_alpha_chunk(&mut cursor, info.canvas_width, info.canvas_height)?;
 
                         let vp8_frame = read_lossy(reader)?;
 
@@ -178,7 +182,9 @@ impl ExtendedImage {
 
         let image = if let Some(info) = anim_info {
             if anim_frames.len() == 0 {
-                return Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof)));
+                return Err(ImageError::IoError(Error::from(
+                    io::ErrorKind::UnexpectedEof,
+                )));
             }
             ExtendedImageData::Animation {
                 frames: anim_frames,
@@ -188,13 +194,12 @@ impl ExtendedImage {
             ExtendedImageData::Static(frame)
         } else {
             //reached end of file too early before image data was reached
-            return Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof)));
+            return Err(ImageError::IoError(Error::from(
+                io::ErrorKind::UnexpectedEof,
+            )));
         };
 
-        let image = ExtendedImage {
-            image,
-            info,
-        };
+        let image = ExtendedImage { image, info };
 
         Ok(image)
     }
@@ -205,7 +210,7 @@ impl ExtendedImage {
 
         //background color is [blue, green, red, alpha]
         let background_color = Rgba([colors[2], colors[1], colors[0], colors[3]]);
-        
+
         let loop_count = reader.read_u16::<LittleEndian>()?;
 
         let info = WebPAnimatedInfo {
@@ -216,7 +221,11 @@ impl ExtendedImage {
         Ok(info)
     }
 
-    fn draw_subimage(canvas: &mut RgbaImage, anim_image: &AnimatedFrame, background_color: Rgba<u8>) -> Option<ImageResult<Frame>> {
+    fn draw_subimage(
+        canvas: &mut RgbaImage,
+        anim_image: &AnimatedFrame,
+        background_color: Rgba<u8>,
+    ) -> Option<ImageResult<Frame>> {
         let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
         anim_image.image.fill_buf(&mut buffer);
 
@@ -228,7 +237,8 @@ impl ExtendedImage {
                     let canvas = canvas[canvas_index];
                     let canvas_alpha = f64::from(canvas[3]);
                     let buffer_alpha = f64::from(buffer[index + 3]);
-                    let blend_alpha_f64 = buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
+                    let blend_alpha_f64 =
+                        buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
                     let blend_alpha = blend_alpha_f64 as u8;
 
                     let blend_rgb: [u8; 3] = if blend_alpha == 0 {
@@ -239,16 +249,23 @@ impl ExtendedImage {
                             let canvas_f64 = f64::from(canvas[i]);
                             let buffer_f64 = f64::from(buffer[index + i]);
 
-                            let val = (buffer_f64 * buffer_alpha + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0)) / blend_alpha_f64;
+                            let val = (buffer_f64 * buffer_alpha
+                                + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0))
+                                / blend_alpha_f64;
                             rgb[i] = val as u8;
                         }
-                        
+
                         rgb
                     };
 
                     Rgba([blend_rgb[0], blend_rgb[1], blend_rgb[2], blend_alpha])
                 } else {
-                    Rgba([buffer[index], buffer[index + 1], buffer[index + 2], buffer[index + 3]])
+                    Rgba([
+                        buffer[index],
+                        buffer[index + 1],
+                        buffer[index + 2],
+                        buffer[index + 3],
+                    ])
                 };
             }
         }
@@ -265,7 +282,7 @@ impl ExtendedImage {
                 }
             }
         }
-        
+
         Some(Ok(frame))
     }
 
@@ -287,9 +304,7 @@ impl ExtendedImage {
                 //will always have at least one frame
                 frames[0].image.get_buf_size()
             }
-            ExtendedImageData::Static(image) => {
-                image.get_buf_size()
-            }
+            ExtendedImageData::Static(image) => image.get_buf_size(),
         }
     }
 }
@@ -301,38 +316,54 @@ enum WebPStatic {
 }
 
 impl WebPStatic {
-
-    pub(crate) fn from_alpha_lossy(alpha: AlphaChunk, vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
+    pub(crate) fn from_alpha_lossy(
+        alpha: AlphaChunk,
+        vp8_frame: VP8Frame,
+    ) -> ImageResult<WebPStatic> {
         if alpha.data.len() != usize::from(vp8_frame.width * vp8_frame.height) {
             return Err(DecoderError::SizeMismatch.into());
         }
 
-        let mut image_vec = vec![0u8; usize::from(vp8_frame.width) * usize::from(vp8_frame.height) * 4];
+        let mut image_vec =
+            vec![0u8; usize::from(vp8_frame.width) * usize::from(vp8_frame.height) * 4];
 
         vp8_frame.fill_rgba(&mut image_vec);
 
         for y in 0..vp8_frame.height {
             for x in 0..vp8_frame.width {
-                
-                let predictor: u8 = WebPStatic::get_predictor(x.into(), y.into(), vp8_frame.width.into(), alpha.filtering_method, &image_vec);
+                let predictor: u8 = WebPStatic::get_predictor(
+                    x.into(),
+                    y.into(),
+                    vp8_frame.width.into(),
+                    alpha.filtering_method,
+                    &image_vec,
+                );
                 let predictor = u16::from(predictor);
 
                 let alpha_index = usize::from(y * vp8_frame.width + x);
                 let alpha_val = alpha.data[alpha_index];
-                let alpha: u8 = ((predictor + u16::from(alpha_val)) % 256).try_into().unwrap();
+                let alpha: u8 = ((predictor + u16::from(alpha_val)) % 256)
+                    .try_into()
+                    .unwrap();
 
                 let alpha_index = alpha_index * 4 + 3;
                 image_vec[alpha_index] = alpha;
-
             }
         }
 
-        let image = RgbaImage::from_vec(vp8_frame.width.into(), vp8_frame.height.into(), image_vec).unwrap();
+        let image = RgbaImage::from_vec(vp8_frame.width.into(), vp8_frame.height.into(), image_vec)
+            .unwrap();
 
         Ok(WebPStatic::Lossy(image))
     }
 
-    fn get_predictor(x: usize, y: usize, width: usize, filtering_method: FilteringMethod, image_slice: &[u8]) -> u8 {
+    fn get_predictor(
+        x: usize,
+        y: usize,
+        width: usize,
+        filtering_method: FilteringMethod,
+        image_slice: &[u8],
+    ) -> u8 {
         match filtering_method {
             FilteringMethod::None => 0,
             FilteringMethod::Horizontal => {
@@ -345,7 +376,7 @@ impl WebPStatic {
                     let index = y * width + x - 1;
                     image_slice[index * 4 + 3]
                 }
-            },
+            }
             FilteringMethod::Vertical => {
                 if x == 0 && y == 0 {
                     0
@@ -356,7 +387,7 @@ impl WebPStatic {
                     let index = (y - 1) * width + x;
                     image_slice[index * 4 + 3]
                 }
-            },
+            }
             FilteringMethod::Gradient => {
                 let (left, top, top_left) = match (x, y) {
                     (0, 0) => (0, 0, 0),
@@ -364,12 +395,12 @@ impl WebPStatic {
                         let above_index = (y - 1) * width + x;
                         let val = image_slice[above_index * 4 + 3];
                         (val, val, val)
-                    },
+                    }
                     (x, 0) => {
                         let before_index = y * width + x - 1;
                         let val = image_slice[before_index * 4 + 3];
                         (val, val, val)
-                    },
+                    }
                     (x, y) => {
                         let left_index = y * width + x - 1;
                         let left = image_slice[left_index * 4 + 3];
@@ -379,17 +410,21 @@ impl WebPStatic {
                         let top_left = image_slice[top_left_index * 4 + 3];
 
                         (left, top, top_left)
-                    },
+                    }
                 };
 
                 let combination = i16::from(left) + i16::from(top) - i16::from(top_left);
                 i16::clamp(combination, 0, 255).try_into().unwrap()
-            },
+            }
         }
     }
 
     pub(crate) fn from_lossy(vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
-        let mut image = RgbaImage::from_pixel(vp8_frame.width.into(), vp8_frame.height.into(), Rgba([0, 0, 0, 255]));
+        let mut image = RgbaImage::from_pixel(
+            vp8_frame.width.into(),
+            vp8_frame.height.into(),
+            Rgba([0, 0, 0, 255]),
+        );
 
         vp8_frame.fill_rgba(&mut image);
 
@@ -473,7 +508,6 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
 }
 
 fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
-
     let frame_x = read_3_bytes(&mut reader)?;
     let frame_y = read_3_bytes(&mut reader)?;
 
@@ -509,13 +543,14 @@ fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
 fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
     let mut buffer: [u8; 3] = [0; 3];
     reader.read_exact(&mut buffer)?;
-    let value: u32 = (u32::from(buffer[2]) << 16) | (u32::from(buffer[1]) << 8) | u32::from(buffer[0]);
+    let value: u32 =
+        (u32::from(buffer[2]) << 16) | (u32::from(buffer[1]) << 8) | u32::from(buffer[0]);
     Ok(value)
 }
 
 fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
-
-    let (cursor, chunk) = read_chunk(reader)?.ok_or_else(|| Error::from(io::ErrorKind::UnexpectedEof))?;
+    let (cursor, chunk) =
+        read_chunk(reader)?.ok_or_else(|| Error::from(io::ErrorKind::UnexpectedEof))?;
 
     if chunk != WebPRiffChunk::VP8 {
         return Err(DecoderError::ChunkInvalid.into());
@@ -556,9 +591,7 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
 
             Ok(img)
         }
-        _ => {
-            Err(DecoderError::ChunkInvalid.into())
-        }
+        _ => Err(DecoderError::ChunkInvalid.into()),
     }
 }
 
@@ -590,7 +623,6 @@ impl FilteringMethod {
 }
 
 fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<AlphaChunk> {
-
     let info_byte = reader.read_u8()?;
 
     let reserved = info_byte & 0b11000000;
@@ -618,14 +650,18 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
 
     let mut framedata = Vec::new();
     reader.read_to_end(&mut framedata)?;
-    
+
     let data = if lossless_compression {
         let cursor = io::Cursor::new(framedata);
 
         let mut decoder = LosslessDecoder::new(cursor);
         //this is a potential problem for large images; would require rewriting lossless decoder to use u32 for width and height
-        let width: u16 = width.try_into().map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
-        let height: u16 = height.try_into().map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
+        let width: u16 = width
+            .try_into()
+            .map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
+        let height: u16 = height
+            .try_into()
+            .map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
         let frame = decoder.decode_frame_implicit_dims(width, height)?;
 
         let mut data = vec![0; usize::from(width) * usize::from(height)];

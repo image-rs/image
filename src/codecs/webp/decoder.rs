@@ -1,14 +1,12 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read, Error};
+use std::io::{self, Cursor, Error, Read};
 use std::marker::PhantomData;
 use std::{error, fmt, mem};
 
-use crate::error::{
-    DecodingError, ImageError, ImageResult,
-};
+use crate::error::{DecodingError, ImageError, ImageResult};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{Frames, AnimationDecoder, color};
+use crate::{color, AnimationDecoder, Frames};
 
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
@@ -49,7 +47,7 @@ impl fmt::Display for DecoderError {
                 SignatureWriter(*webp)
             )),
             DecoderError::ChunkHeaderInvalid(header) => f.write_fmt(format_args!(
-                "Invalid Chunk header: {}", 
+                "Invalid Chunk header: {}",
                 SignatureWriter(*header)
             )),
         }
@@ -95,7 +93,7 @@ impl WebPRiffChunk {
             b"ICCP" => Ok(Self::ICCP),
             b"EXIF" => Ok(Self::EXIF),
             b"XMP " => Ok(Self::XMP),
-            _ => Err(DecoderError::ChunkHeaderInvalid(chunk_fourcc).into())
+            _ => Err(DecoderError::ChunkHeaderInvalid(chunk_fourcc).into()),
         }
     }
 
@@ -160,19 +158,16 @@ impl<R: Read> WebPDecoder<R> {
 
     //reads the chunk header, decodes the frame and returns the inner decoder
     fn read_frame(&mut self) -> ImageResult<WebPImage> {
-
         let chunk = read_chunk(&mut self.r)?;
 
         match chunk {
             Some((cursor, WebPRiffChunk::VP8)) => {
-
                 let mut vp8_decoder = Vp8Decoder::new(cursor);
                 let frame = vp8_decoder.decode_frame()?;
 
                 Ok(WebPImage::Lossy(frame.clone()))
             }
             Some((cursor, WebPRiffChunk::VP8L)) => {
-
                 let mut lossless_decoder = LosslessDecoder::new(cursor);
                 let frame = lossless_decoder.decode_frame()?;
 
@@ -185,10 +180,10 @@ impl<R: Read> WebPDecoder<R> {
 
                 Ok(WebPImage::Extended(image))
             }
-            None => Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof))),
-            Some((_, chunk)) => {
-                Err(DecoderError::ChunkHeaderInvalid(chunk.to_fourcc()).into())
-            }
+            None => Err(ImageError::IoError(Error::from(
+                io::ErrorKind::UnexpectedEof,
+            ))),
+            Some((_, chunk)) => Err(DecoderError::ChunkHeaderInvalid(chunk.to_fourcc()).into()),
         }
     }
 
@@ -222,14 +217,14 @@ where
 /// Returns an error if the chunk header is not a valid webp header or some other reading error
 /// Returns None if and only if we hit end of file reading the four character code of the chunk
 pub(crate) fn read_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
-where 
-    R: Read, 
+where
+    R: Read,
 {
     let mut chunk_fourcc = [0; 4];
     let result = r.read_exact(&mut chunk_fourcc);
 
     match result {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(err) => {
             if err.kind() == io::ErrorKind::UnexpectedEof {
                 return Ok(None);
@@ -267,14 +262,14 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
 
     fn dimensions(&self) -> (u32, u32) {
         match &self.image {
-            WebPImage::Lossy(vp8_frame) => (u32::from(vp8_frame.width), u32::from(vp8_frame.height)),
+            WebPImage::Lossy(vp8_frame) => {
+                (u32::from(vp8_frame.width), u32::from(vp8_frame.height))
+            }
             WebPImage::Lossless(lossless_frame) => (
                 u32::from(lossless_frame.width),
                 u32::from(lossless_frame.height),
             ),
-            WebPImage::Extended(extended) => {
-                extended.dimensions()
-            },
+            WebPImage::Extended(extended) => extended.dimensions(),
         }
     }
 
@@ -302,7 +297,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
                 let mut data = vec![0; extended.get_buf_size()];
                 extended.fill_buf(data.as_mut_slice());
                 Ok(WebpReader(Cursor::new(data), PhantomData))
-            },
+            }
         }
     }
 
@@ -318,7 +313,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
             }
             WebPImage::Extended(extended) => {
                 extended.fill_buf(buf);
-            },
+            }
         }
         Ok(())
     }
@@ -327,10 +322,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
 impl<'a, R: 'a + Read> AnimationDecoder<'a> for WebPDecoder<R> {
     fn into_frames(self) -> Frames<'a> {
         match self.image {
-            WebPImage::Lossy(_) | WebPImage::Lossless(_) => Frames::new(Box::new(std::iter::empty())),
-            WebPImage::Extended(extended_image) => {
-                extended_image.into_frames()
+            WebPImage::Lossy(_) | WebPImage::Lossless(_) => {
+                Frames::new(Box::new(std::iter::empty()))
             }
+            WebPImage::Extended(extended_image) => extended_image.into_frames(),
         }
     }
 }

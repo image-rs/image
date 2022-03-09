@@ -169,8 +169,11 @@ impl<R: Read> LosslessDecoder<R> {
     }
 
     //used for alpha data in extended decoding
-    pub(crate) fn decode_frame_implicit_dims(&mut self, width: u16, height: u16) -> ImageResult<&LosslessFrame> {
-
+    pub(crate) fn decode_frame_implicit_dims(
+        &mut self,
+        width: u16,
+        height: u16,
+    ) -> ImageResult<&LosslessFrame> {
         let mut buf = Vec::new();
         self.r.read_to_end(&mut buf)?;
         self.bit_reader.init(buf);

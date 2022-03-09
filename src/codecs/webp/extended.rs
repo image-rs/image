@@ -183,6 +183,9 @@ impl ExtendedImage {
         }
 
         let image = if let Some(info) = anim_info {
+            if anim_frames.len() == 0 {
+                return Err(ImageError::IoError(Error::from(io::ErrorKind::UnexpectedEof)));
+            }
             ExtendedImageData::Animation {
                 frames: anim_frames,
                 anim_info: info,
@@ -271,6 +274,30 @@ impl ExtendedImage {
         
         Some(Ok(frame))
     }
+
+    pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
+        match &self.image {
+            ExtendedImageData::Animation { frames, .. } => {
+                //will always have at least one frame
+                frames[0].image.fill_buf(buf);
+            }
+            ExtendedImageData::Static(image) => {
+                image.fill_buf(buf);
+            }
+        }
+    }
+
+    pub(crate) fn get_buf_size(&self) -> usize {
+        match &self.image {
+            ExtendedImageData::Animation { frames, .. } => {
+                //will always have at least one frame
+                frames[0].image.get_buf_size()
+            }
+            ExtendedImageData::Static(image) => {
+                image.get_buf_size()
+            }
+        }
+    }
 }
 
 impl WebPStatic {
@@ -355,8 +382,8 @@ impl WebPStatic {
                     },
                 };
 
-                let combination = u16::from(left) + u16::from(top) - u16::from(top_left);
-                u16::clamp(combination, 0, 255).try_into().unwrap()
+                let combination = i16::from(left) + i16::from(top) - i16::from(top_left);
+                i16::clamp(combination, 0, 255).try_into().unwrap()
             },
         }
     }
@@ -378,6 +405,13 @@ impl WebPStatic {
             WebPStatic::Lossless(lossless) => {
                 lossless.fill_rgba(buf);
             }
+        }
+    }
+
+    pub(crate) fn get_buf_size(&self) -> usize {
+        match self {
+            WebPStatic::Lossy(lossy) => lossy.len(),
+            WebPStatic::Lossless(lossless) => lossless.get_buf_size(),
         }
     }
 }

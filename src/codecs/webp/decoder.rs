@@ -298,7 +298,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
                 lossless_frame.fill_rgba(data.as_mut_slice());
                 Ok(WebpReader(Cursor::new(data), PhantomData))
             }
-            WebPImage::Extended(_) => todo!(),
+            WebPImage::Extended(extended) => {
+                let mut data = vec![0; extended.get_buf_size()];
+                extended.fill_buf(data.as_mut_slice());
+                Ok(WebpReader(Cursor::new(data), PhantomData))
+            },
         }
     }
 
@@ -312,7 +316,9 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
             WebPImage::Lossless(lossless_frame) => {
                 lossless_frame.fill_rgba(buf);
             }
-            WebPImage::Extended(_) => todo!(),
+            WebPImage::Extended(extended) => {
+                extended.fill_buf(buf);
+            },
         }
         Ok(())
     }

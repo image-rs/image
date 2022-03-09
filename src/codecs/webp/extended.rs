@@ -105,60 +105,8 @@ impl ExtendedImage {
                     let frame = frames.get(self.index);
                     match frame {
                         Some(anim_image) => {
-
-                            let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
-                            anim_image.image.fill_buf(&mut buffer);
-
-                            for x in 0..anim_image.width {
-                                for y in 0..anim_image.height {
-                                    let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
-                                    let index = (y * 4 * anim_image.width + x * 4) as usize;
-                                    self.canvas[canvas_index] = if anim_image.use_alpha_blending {
-                                        let canvas = self.canvas[canvas_index];
-                                        let canvas_alpha = f64::from(canvas[3]);
-                                        let buffer_alpha = f64::from(buffer[index + 3]);
-                                        let blend_alpha_f64 = buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
-                                        let blend_alpha = blend_alpha_f64 as u8;
-
-                                        let blend_rgb: [u8; 3] = if blend_alpha == 0 {
-                                            [0, 0, 0]
-                                        } else {
-                                            let mut rgb = [0; 3];
-                                            for i in 0..3 {
-                                                let canvas_f64 = f64::from(canvas[i]);
-                                                let buffer_f64 = f64::from(buffer[index + i]);
-
-                                                let val = (buffer_f64 * buffer_alpha + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0)) / blend_alpha_f64;
-                                                rgb[i] = val as u8;
-                                            }
-                                            
-                                            rgb
-                                        };
-
-                                        Rgba([blend_rgb[0], blend_rgb[1], blend_rgb[2], blend_alpha])
-                                    } else {
-                                        Rgba([buffer[index], buffer[index + 1], buffer[index + 2], buffer[index + 3]])
-                                    };
-                                }
-                            }
-
-
-                            let delay = Delay::from_numer_denom_ms(anim_image.duration, 1);
-                            let img = self.canvas.clone();
-                            let frame = Frame::from_parts(img, 0, 0, delay);
-
-                            if anim_image.dispose {
-                                for x in 0..anim_image.width {
-                                    for y in 0..anim_image.height {
-                                        let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
-                                        self.canvas[canvas_index] = anim_info.background_color;
-                                    }
-                                }
-                            }
-
                             self.index += 1;
-                            
-                            Some(Ok(frame))
+                            ExtendedImage::draw_subimage(&mut self.canvas, anim_image, anim_info.background_color)
                         },
                         None => None,
                     }
@@ -276,6 +224,59 @@ impl ExtendedImage {
 
         Ok(info)
     }
+
+    fn draw_subimage(canvas: &mut RgbaImage, anim_image: &AnimatedFrame, background_color: Rgba<u8>) -> Option<ImageResult<Frame>> {
+        let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
+        anim_image.image.fill_buf(&mut buffer);
+
+        for x in 0..anim_image.width {
+            for y in 0..anim_image.height {
+                let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
+                let index = (y * 4 * anim_image.width + x * 4) as usize;
+                canvas[canvas_index] = if anim_image.use_alpha_blending {
+                    let canvas = canvas[canvas_index];
+                    let canvas_alpha = f64::from(canvas[3]);
+                    let buffer_alpha = f64::from(buffer[index + 3]);
+                    let blend_alpha_f64 = buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
+                    let blend_alpha = blend_alpha_f64 as u8;
+
+                    let blend_rgb: [u8; 3] = if blend_alpha == 0 {
+                        [0, 0, 0]
+                    } else {
+                        let mut rgb = [0; 3];
+                        for i in 0..3 {
+                            let canvas_f64 = f64::from(canvas[i]);
+                            let buffer_f64 = f64::from(buffer[index + i]);
+
+                            let val = (buffer_f64 * buffer_alpha + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0)) / blend_alpha_f64;
+                            rgb[i] = val as u8;
+                        }
+                        
+                        rgb
+                    };
+
+                    Rgba([blend_rgb[0], blend_rgb[1], blend_rgb[2], blend_alpha])
+                } else {
+                    Rgba([buffer[index], buffer[index + 1], buffer[index + 2], buffer[index + 3]])
+                };
+            }
+        }
+
+        let delay = Delay::from_numer_denom_ms(anim_image.duration, 1);
+        let img = canvas.clone();
+        let frame = Frame::from_parts(img, 0, 0, delay);
+
+        if anim_image.dispose {
+            for x in 0..anim_image.width {
+                for y in 0..anim_image.height {
+                    let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
+                    canvas[canvas_index] = background_color;
+                }
+            }
+        }
+        
+        Some(Ok(frame))
+    }
 }
 
 impl WebPStatic {
@@ -292,59 +293,7 @@ impl WebPStatic {
         for y in 0..vp8_frame.height {
             for x in 0..vp8_frame.width {
                 
-                let predictor: u8 = match alpha.filtering_method {
-                    FilteringMethod::None => 0,
-                    FilteringMethod::Horizontal => {
-                        if x == 0 && y == 0 {
-                            0
-                        } else if x == 0 {
-                            let index = usize::from((y - 1) * vp8_frame.width + x);
-                            image_vec[index* 4 + 3]
-                        } else {
-                            let index = usize::from(y * vp8_frame.width + x - 1);
-                            image_vec[index * 4 + 3]
-                        }
-                    },
-                    FilteringMethod::Vertical => {
-                        if x == 0 && y == 0 {
-                            0
-                        } else if y == 0 {
-                            let index = usize::from(y * vp8_frame.width + x - 1);
-                            image_vec[index * 4 + 3]
-                        } else {
-                            let index = usize::from((y - 1) * vp8_frame.width + x);
-                            image_vec[index * 4 + 3]
-                        }
-                    },
-                    FilteringMethod::Gradient => {
-                        let (left, top, top_left) = match (x, y) {
-                            (0, 0) => (0, 0, 0),
-                            (0, y) => {
-                                let above_index = usize::from((y - 1) * vp8_frame.width + x);
-                                let val = image_vec[above_index * 4 + 3];
-                                (val, val, val)
-                            },
-                            (x, 0) => {
-                                let before_index = usize::from(y * vp8_frame.width + x - 1);
-                                let val = image_vec[before_index * 4 + 3];
-                                (val, val, val)
-                            },
-                            (x, y) => {
-                                let left_index = usize::from(y * vp8_frame.width + x - 1);
-                                let left = image_vec[left_index * 4 + 3];
-                                let top_index = usize::from((y - 1) * vp8_frame.width + x);
-                                let top = image_vec[top_index * 4 + 3];
-                                let top_left_index = usize::from((y - 1) * vp8_frame.width + x - 1);
-                                let top_left = image_vec[top_left_index * 4 + 3];
-
-                                (left, top, top_left)
-                            },
-                        };
-
-                        let combination = u16::from(left) + u16::from(top) - u16::from(top_left);
-                        u16::clamp(combination, 0, 255).try_into().unwrap()
-                    },
-                };
+                let predictor: u8 = WebPStatic::get_predictor(x.into(), y.into(), vp8_frame.width.into(), alpha.filtering_method, &image_vec);
                 let predictor = u16::from(predictor);
 
                 let alpha_index = usize::from(y * vp8_frame.width + x);
@@ -360,6 +309,62 @@ impl WebPStatic {
         let image = RgbaImage::from_vec(vp8_frame.width.into(), vp8_frame.height.into(), image_vec).unwrap();
 
         Ok(WebPStatic::Lossy(image))
+    }
+
+    fn get_predictor(x: usize, y: usize, width: usize, filtering_method: FilteringMethod, image_slice: &[u8]) -> u8 {
+        match filtering_method {
+            FilteringMethod::None => 0,
+            FilteringMethod::Horizontal => {
+                if x == 0 && y == 0 {
+                    0
+                } else if x == 0 {
+                    let index = (y - 1) * width + x;
+                    image_slice[index * 4 + 3]
+                } else {
+                    let index = y * width + x - 1;
+                    image_slice[index * 4 + 3]
+                }
+            },
+            FilteringMethod::Vertical => {
+                if x == 0 && y == 0 {
+                    0
+                } else if y == 0 {
+                    let index = y * width + x - 1;
+                    image_slice[index * 4 + 3]
+                } else {
+                    let index = (y - 1) * width + x;
+                    image_slice[index * 4 + 3]
+                }
+            },
+            FilteringMethod::Gradient => {
+                let (left, top, top_left) = match (x, y) {
+                    (0, 0) => (0, 0, 0),
+                    (0, y) => {
+                        let above_index = (y - 1) * width + x;
+                        let val = image_slice[above_index * 4 + 3];
+                        (val, val, val)
+                    },
+                    (x, 0) => {
+                        let before_index = y * width + x - 1;
+                        let val = image_slice[before_index * 4 + 3];
+                        (val, val, val)
+                    },
+                    (x, y) => {
+                        let left_index = y * width + x - 1;
+                        let left = image_slice[left_index * 4 + 3];
+                        let top_index = (y - 1) * width + x;
+                        let top = image_slice[top_index * 4 + 3];
+                        let top_left_index = (y - 1) * width + x - 1;
+                        let top_left = image_slice[top_left_index * 4 + 3];
+
+                        (left, top, top_left)
+                    },
+                };
+
+                let combination = u16::from(left) + u16::from(top) - u16::from(top_left);
+                u16::clamp(combination, 0, 255).try_into().unwrap()
+            },
+        }
     }
 
     pub(crate) fn from_lossy(vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
@@ -537,7 +542,7 @@ struct AlphaChunk {
     data: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum FilteringMethod {
     None,
     Horizontal,

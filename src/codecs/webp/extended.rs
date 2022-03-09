@@ -39,12 +39,6 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-#[derive(Debug)]
-enum WebPStatic {
-    Lossy(RgbaImage),
-    Lossless(LosslessFrame),
-}
-
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WebPExtendedInfo {
     _icc_profile: bool,
@@ -300,6 +294,12 @@ impl ExtendedImage {
     }
 }
 
+#[derive(Debug)]
+enum WebPStatic {
+    Lossy(RgbaImage),
+    Lossless(LosslessFrame),
+}
+
 impl WebPStatic {
 
     pub(crate) fn from_alpha_lossy(alpha: AlphaChunk, vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
@@ -396,7 +396,6 @@ impl WebPStatic {
         Ok(WebPStatic::Lossy(image))
     }
 
-    //
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match self {
             WebPStatic::Lossy(image) => {

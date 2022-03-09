@@ -28,6 +28,15 @@ enum DecoderError {
     /// Wrong DDS header flags
     HeaderFlagsInvalid(u32),
 
+    /// Invalid DXGI format in DX10 header
+    DxgiFormatInvalid(u32),
+    /// Invalid resource dimension
+    ResourceDimensionInvalid(u32),
+    /// Invalid flags in DX10 header
+    Dx10FlagsInvalid(u32),
+    /// Invalid array size in DX10 header
+    Dx10ArraySizeInvalid(u32),
+
     /// DDS "DDS " signature invalid or missing
     DdsSignatureInvalid,
 }
@@ -43,6 +52,18 @@ impl fmt::Display for DecoderError {
             }
             DecoderError::HeaderFlagsInvalid(fs) => {
                 f.write_fmt(format_args!("Invalid DDS header flags: {:#010X}", fs))
+            }
+            DecoderError::DxgiFormatInvalid(df) => {
+                f.write_fmt(format_args!("Invalid DDS DXGI format: {}", df))
+            }
+            DecoderError::ResourceDimensionInvalid(d) => {
+                f.write_fmt(format_args!("Invalid DDS resource dimension: {}", d))
+            }
+            DecoderError::Dx10FlagsInvalid(fs) => {
+                f.write_fmt(format_args!("Invalid DDS DX10 header flags: {:#010X}", fs))
+            }
+            DecoderError::Dx10ArraySizeInvalid(s) => {
+                f.write_fmt(format_args!("Invalid DDS DX10 array size: {}", s))
             }
             DecoderError::DdsSignatureInvalid => f.write_str("DDS signature not found"),
         }
@@ -69,6 +90,16 @@ struct Header {
     pixel_format: PixelFormat,
     caps: u32,
     caps2: u32,
+}
+
+/// Extended DX10 header used by some DDS image files
+#[derive(Debug)]
+struct DX10Header {
+    dxgi_format: u32,
+    resource_dimension: u32,
+    misc_flag: u32,
+    array_size: u32,
+    misc_flags_2: u32,
 }
 
 /// DDS pixel format
@@ -153,6 +184,60 @@ impl Header {
     }
 }
 
+impl DX10Header {
+    fn from_reader(r: &mut dyn Read) -> ImageResult<Self> {
+        let dxgi_format = r.read_u32::<LittleEndian>()?;
+        let resource_dimension = r.read_u32::<LittleEndian>()?;
+        let misc_flag = r.read_u32::<LittleEndian>()?;
+        let array_size = r.read_u32::<LittleEndian>()?;
+        let misc_flags_2 = r.read_u32::<LittleEndian>()?;
+
+        let dx10_header = Self {
+            dxgi_format,
+            resource_dimension,
+            misc_flag,
+            array_size,
+            misc_flags_2,
+        };
+        dx10_header.validate()?;
+
+        Ok(dx10_header)
+    }
+
+    fn validate(&self) -> Result<(), ImageError> {
+        // Note: see https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dds-header-dxt10 for info on valid values
+        if self.dxgi_format < 0 || self.dxgi_format > 132 {
+            // Invalid format
+            return Err(DecoderError::DxgiFormatInvalid(self.dxgi_format).into());
+        }
+
+        if self.resource_dimension < 2 || self.resource_dimension > 4 {
+            // Invalid dimension
+            // Only 1D (2), 2D (3) and 3D (4) resource dimensions are allowed
+            return Err(DecoderError::ResourceDimensionInvalid(self.resource_dimension).into());
+        }
+
+        if self.misc_flag != 0x0 && self.misc_flag != 0x4 {
+            // Invalid flag
+            // Only no (0x0) and DDS_RESOURCE_MISC_TEXTURECUBE (0x4) flags are allowed
+            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flag).into());
+        }
+
+        if self.resource_dimension == 4 && self.array_size != 1 {
+            // Invalid array size
+            // 3D textures (resource dimension == 4) must have an array size of 1
+            return Err(DecoderError::Dx10ArraySizeInvalid(self.array_size).into());
+        }
+
+        if self.misc_flags_2 < 0x0 || self.misc_flags_2 > 0x4 {
+            // Invalid alpha flags
+            return Err(DecoderError::Dx10FlagsInvalid(self.misc_flags_2).into());
+        }
+
+        Ok(())
+    }
+}
+
 /// The representation of a DDS decoder
 pub struct DdsDecoder<R: Read> {
     #[allow(deprecated)]
@@ -176,6 +261,28 @@ impl<R: Read> DdsDecoder<R> {
                 b"DXT1" => DxtVariant::DXT1,
                 b"DXT3" => DxtVariant::DXT3,
                 b"DXT5" => DxtVariant::DXT5,
+                b"DX10" => {
+                    let dx10_header = DX10Header::from_reader(&mut r)?;
+                    // Format equivalents were taken from https://docs.microsoft.com/en-us/windows/win32/direct3d11/texture-block-compression-in-direct3d-11
+                    // The enum integer values were taken from https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
+                    // DXT1 represents the different BC1 variants, DTX3 represents the different BC2 variants and DTX5 represents the different BC3 variants
+                    match dx10_header.dxgi_format {
+                        70 | 71 | 72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
+                        73 | 74 | 75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
+                        76 | 77 | 78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
+                        _ => {
+                            return Err(ImageError::Unsupported(
+                                UnsupportedError::from_format_and_kind(
+                                    ImageFormat::Dds.into(),
+                                    UnsupportedErrorKind::GenericFeature(format!(
+                                        "DDS DXGI Format {}",
+                                        dx10_header.dxgi_format
+                                    )),
+                                ),
+                            ))
+                        }
+                    }
+                }
                 fourcc => {
                     return Err(ImageError::Unsupported(
                         UnsupportedError::from_format_and_kind(

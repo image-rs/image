@@ -15,6 +15,12 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   results, but not operation directly, will be added in the future. The plan
   is for these to use a byte-based interface similar to `ImageDecoder`.
 
+### Version 0.24.1
+
+Bug Fixes:
+- ImageBuffer::get_pixel_checked would sometimes return the incorrect pixel.
+- PNG encoding would sometimes not recognize unsupported color.
+
 ### Version 0.24.0
 
 Breaking changes

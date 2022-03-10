@@ -15,7 +15,7 @@ use super::extended::{read_extended_header, ExtendedImage};
 
 /// All errors that can occur when attempting to parse a WEBP container
 #[derive(Debug, Clone, Copy)]
-enum DecoderError {
+pub(crate) enum DecoderError {
     /// RIFF's "RIFF" signature not found or invalid
     RiffSignatureInvalid([u8; 4]),
     /// WebP's "WEBP" signature not found or invalid
@@ -97,7 +97,7 @@ impl WebPRiffChunk {
         }
     }
 
-    fn to_fourcc(&self) -> [u8; 4] {
+    pub(crate) fn to_fourcc(&self) -> [u8; 4] {
         match self {
             Self::RIFF => *b"RIFF",
             Self::WEBP => *b"WEBP",
@@ -205,11 +205,21 @@ where
     let mut len = u64::from(r.read_u32::<LittleEndian>()?);
 
     if len % 2 == 1 {
+        // RIFF chunks containing an uneven number of bytes append
+        // an extra 0x00 at the end of the chunk
+        //
+        // The addition cannot overflow since we have a u64 that was created from a u32
         len += 1;
     }
 
     let mut framedata = Vec::new();
     r.by_ref().take(len).read_to_end(&mut framedata)?;
+
+    //remove padding byte
+    if len % 2 == 1 {
+        framedata.pop();
+    }
+
     Ok(io::Cursor::new(framedata))
 }
 

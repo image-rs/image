@@ -183,6 +183,7 @@ impl<R: Read> LosslessDecoder<R> {
 
         let mut data = self.decode_image_stream(self.frame.width, self.frame.height, true)?;
 
+        //transform_order is vector of indices(0-3) into transforms in order decoded
         for &trans_index in self.transform_order.iter().rev() {
             let trans = self.transforms[usize::from(trans_index)].as_ref().unwrap();
             trans.apply_transform(&mut data, self.frame.width, self.frame.height);

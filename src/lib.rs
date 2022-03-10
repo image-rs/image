@@ -185,7 +185,7 @@ pub mod flat;
 /// | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
 /// | ICO    | Yes | Yes |
 /// | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
-/// | WebP   | Lossy(Luma channel only) | No |
+/// | WebP   | Yes | No |
 /// | AVIF   | Only 8-bit | Lossy |
 /// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 /// | DDS    | DXT1, DXT3, DXT5 | No |

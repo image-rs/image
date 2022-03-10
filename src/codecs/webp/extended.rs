@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::io::{self, Error, Read};
 use std::{error, fmt};
 
-use super::decoder::{read_chunk, WebPRiffChunk};
+use super::decoder::{read_chunk, WebPRiffChunk, DecoderError::ChunkHeaderInvalid};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
@@ -13,17 +13,31 @@ use byteorder::{LittleEndian, ReadBytesExt};
 //all errors that can occur while parsing extended chunks in a WebP file
 #[derive(Debug, Clone, Copy)]
 enum DecoderError {
-    ChunkInvalid,
-    SizeMismatch,
-    InfoBitsInvalid,
+    // Some bits were invalid
+    InfoBitsInvalid { name: &'static str, value: u32},
+    // Alpha chunk doesn't match the frame's size
+    AlphaChunkSizeMismatch,
+    // Image is too large, either for the platform's pointer size or generally
+    ImageTooLarge,
+    // Frame would go out of the canvas
+    FrameOutsideImage,
 }
 
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::ChunkInvalid => f.write_str("Invalid Header"),
-            DecoderError::SizeMismatch => f.write_str("Size doesn't fit"),
-            DecoderError::InfoBitsInvalid => f.write_str("Some info bits were invalid"),
+            DecoderError::InfoBitsInvalid { name, value } => {
+                f.write_fmt(format_args!("Info bits `{}` invalid, received value: {}", name, value))
+            },
+            DecoderError::AlphaChunkSizeMismatch => {
+                f.write_str("Alpha chunk doesn't match the size of the frame")
+            },
+            DecoderError::ImageTooLarge => {
+                f.write_str("Image is too large to be decoded")
+            },
+            DecoderError::FrameOutsideImage => {
+                f.write_str("Frame is too large and would go outside the image")
+            }
         }
     }
 }
@@ -143,7 +157,7 @@ impl ExtendedImage {
                     }
                 }
                 WebPRiffChunk::ANMF => {
-                    let frame = read_anim_frame(cursor)?;
+                    let frame = read_anim_frame(cursor, info.canvas_width, info.canvas_height)?;
                     anim_frames.push(frame);
                 }
                 WebPRiffChunk::ALPH => {
@@ -176,7 +190,7 @@ impl ExtendedImage {
                         static_frame = Some(image);
                     }
                 }
-                _ => return Err(DecoderError::ChunkInvalid.into()),
+                _ => return Err(ChunkHeaderInvalid(chunk.to_fourcc()).into()),
             }
         }
 
@@ -231,34 +245,11 @@ impl ExtendedImage {
 
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
-                let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
-                let index = (y * 4 * anim_image.width + x * 4) as usize;
+                let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
+                let index: usize = (y * 4 * anim_image.width + x * 4).try_into().unwrap();
                 canvas[canvas_index] = if anim_image.use_alpha_blending {
-                    let canvas = canvas[canvas_index];
-                    let canvas_alpha = f64::from(canvas[3]);
-                    let buffer_alpha = f64::from(buffer[index + 3]);
-                    let blend_alpha_f64 =
-                        buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
-                    let blend_alpha = blend_alpha_f64 as u8;
-
-                    let blend_rgb: [u8; 3] = if blend_alpha == 0 {
-                        [0, 0, 0]
-                    } else {
-                        let mut rgb = [0; 3];
-                        for i in 0..3 {
-                            let canvas_f64 = f64::from(canvas[i]);
-                            let buffer_f64 = f64::from(buffer[index + i]);
-
-                            let val = (buffer_f64 * buffer_alpha
-                                + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0))
-                                / blend_alpha_f64;
-                            rgb[i] = val as u8;
-                        }
-
-                        rgb
-                    };
-
-                    Rgba([blend_rgb[0], blend_rgb[1], blend_rgb[2], blend_alpha])
+                    let buffer: [u8; 4] = buffer[index..][..4].try_into().unwrap();
+                    ExtendedImage::do_alpha_blending(buffer, canvas[canvas_index])
                 } else {
                     Rgba([
                         buffer[index],
@@ -277,13 +268,42 @@ impl ExtendedImage {
         if anim_image.dispose {
             for x in 0..anim_image.width {
                 for y in 0..anim_image.height {
-                    let canvas_index = (x + anim_image.offset_x * 2, y + anim_image.offset_y * 2);
+                    let canvas_index = (x + anim_image.offset_x, y + anim_image.offset_y);
                     canvas[canvas_index] = background_color;
                 }
             }
         }
 
         Some(Ok(frame))
+    }
+
+    fn do_alpha_blending(buffer: [u8; 4], canvas: Rgba<u8>) -> Rgba<u8> {
+        let canvas_alpha = f64::from(canvas[3]);
+        let buffer_alpha = f64::from(buffer[3]);
+        let blend_alpha_f64 =
+            buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
+        //value should be between 0 and 255, this truncates the fractional part
+        let blend_alpha: u8 = blend_alpha_f64 as u8;
+
+        let blend_rgb: [u8; 3] = if blend_alpha == 0 {
+            [0, 0, 0]
+        } else {
+            let mut rgb = [0u8; 3];
+            for i in 0..3 {
+                let canvas_f64 = f64::from(canvas[i]);
+                let buffer_f64 = f64::from(buffer[i]);
+
+                let val = (buffer_f64 * buffer_alpha
+                    + canvas_f64 * canvas_alpha * (1.0 - buffer_alpha / 255.0))
+                    / blend_alpha_f64;
+                //value should be between 0 and 255, this truncates the fractional part
+                rgb[i] = val as u8;
+            }
+
+            rgb
+        };
+
+        Rgba([blend_rgb[0], blend_rgb[1], blend_rgb[2], blend_alpha])
     }
 
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
@@ -320,12 +340,15 @@ impl WebPStatic {
         alpha: AlphaChunk,
         vp8_frame: VP8Frame,
     ) -> ImageResult<WebPStatic> {
-        if alpha.data.len() != usize::from(vp8_frame.width * vp8_frame.height) {
-            return Err(DecoderError::SizeMismatch.into());
+        if alpha.data.len() != usize::from(vp8_frame.width) * usize::from(vp8_frame.height) {
+            return Err(DecoderError::AlphaChunkSizeMismatch.into());
         }
 
-        let mut image_vec =
-            vec![0u8; usize::from(vp8_frame.width) * usize::from(vp8_frame.height) * 4];
+        let size = usize::from(vp8_frame.width).checked_mul(usize::from(vp8_frame.height) * 4);
+        let mut image_vec = match size {
+            Some(size) => vec![0u8; size],
+            None => return Err(DecoderError::ImageTooLarge.into()),
+        };
 
         vp8_frame.fill_rgba(&mut image_vec);
 
@@ -340,7 +363,7 @@ impl WebPStatic {
                 );
                 let predictor = u16::from(predictor);
 
-                let alpha_index = usize::from(y * vp8_frame.width + x);
+                let alpha_index = usize::from(y) * usize::from(vp8_frame.width) + usize::from(x);
                 let alpha_val = alpha.data[alpha_index];
                 let alpha: u8 = ((predictor + u16::from(alpha_val)) % 256)
                     .try_into()
@@ -479,11 +502,17 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     let animation = chunk_flags & 0b00000010 != 0;
     let reserved_second = chunk_flags & 0b00000001;
 
-    let mut reserved_third: [u8; 3] = [0; 3];
-    reader.read_exact(&mut reserved_third)?;
+    let reserved_third = read_3_bytes(reader)?;
 
-    if reserved_first != 0 || reserved_second != 0 || reserved_third != [0, 0, 0] {
-        return Err(DecoderError::InfoBitsInvalid.into());
+    if reserved_first != 0 || reserved_second != 0 || reserved_third != 0 {
+        let value: u32 = if reserved_first != 0 {
+            reserved_first.into()
+        } else if reserved_second != 0 {
+            reserved_second.into()
+        } else {
+            reserved_third
+        };
+        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value }.into());
     }
 
     let canvas_width = read_3_bytes(reader)? + 1;
@@ -491,7 +520,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
 
     //product of canvas dimensions cannot be larger than u32 max
     if u32::checked_mul(canvas_width, canvas_height).is_none() {
-        return Err(DecoderError::SizeMismatch.into());
+        return Err(DecoderError::ImageTooLarge.into());
     }
 
     let info = WebPExtendedInfo {
@@ -507,18 +536,24 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     Ok(info)
 }
 
-fn read_anim_frame<R: Read>(mut reader: R) -> ImageResult<AnimatedFrame> {
-    let frame_x = read_3_bytes(&mut reader)?;
-    let frame_y = read_3_bytes(&mut reader)?;
+fn read_anim_frame<R: Read>(mut reader: R, canvas_width: u32, canvas_height: u32) -> ImageResult<AnimatedFrame> {
+    //offsets for the frames are twice the values
+    let frame_x = read_3_bytes(&mut reader)? * 2;
+    let frame_y = read_3_bytes(&mut reader)? * 2;
 
     let frame_width = read_3_bytes(&mut reader)? + 1;
     let frame_height = read_3_bytes(&mut reader)? + 1;
+
+    if frame_x + frame_width > canvas_width || frame_y + frame_height > canvas_height {
+        return Err(DecoderError::FrameOutsideImage.into());
+    }
+
     let duration = read_3_bytes(&mut reader)?;
 
     let frame_info = reader.read_u8()?;
     let reserved = frame_info & 0b11111100;
     if reserved != 0 {
-        return Err(DecoderError::InfoBitsInvalid.into());
+        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: reserved.into() }.into());
     }
     let use_alpha_blending = frame_info & 0b00000010 == 0;
     let dispose = frame_info & 0b00000001 != 0;
@@ -553,7 +588,7 @@ fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
         read_chunk(reader)?.ok_or_else(|| Error::from(io::ErrorKind::UnexpectedEof))?;
 
     if chunk != WebPRiffChunk::VP8 {
-        return Err(DecoderError::ChunkInvalid.into());
+        return Err(ChunkHeaderInvalid(chunk.to_fourcc()).into());
     }
 
     let mut vp8_decoder = Vp8Decoder::new(cursor);
@@ -591,7 +626,10 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
 
             Ok(img)
         }
-        _ => Err(DecoderError::ChunkInvalid.into()),
+        None => Err(ImageError::IoError(Error::from(
+            io::ErrorKind::UnexpectedEof,
+        ))),
+        Some((_, chunk)) => Err(ChunkHeaderInvalid(chunk.to_fourcc()).into()),
     }
 }
 
@@ -610,18 +648,6 @@ enum FilteringMethod {
     Gradient,
 }
 
-impl FilteringMethod {
-    fn from_num(num: u8) -> Self {
-        match num {
-            0 => FilteringMethod::None,
-            1 => FilteringMethod::Horizontal,
-            2 => FilteringMethod::Vertical,
-            3 => FilteringMethod::Gradient,
-            _ => panic!("Invalid filter for alpha chunk in WebP image, should be unreachable"),
-        }
-    }
-}
-
 fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<AlphaChunk> {
     let info_byte = reader.read_u8()?;
 
@@ -631,21 +657,27 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let compression = info_byte & 0b00000011;
 
     if reserved != 0 {
-        return Err(DecoderError::InfoBitsInvalid.into());
+        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: reserved.into() }.into());
     }
 
     let preprocessing = match preprocessing {
         0 => false,
         1 => true,
-        _ => return Err(DecoderError::InfoBitsInvalid.into()),
+        _ => return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: preprocessing.into() }.into()),
     };
 
-    let filtering_method = FilteringMethod::from_num(filtering);
+    let filtering_method = match filtering {
+        0 => FilteringMethod::None,
+        1 => FilteringMethod::Horizontal,
+        2 => FilteringMethod::Vertical,
+        3 => FilteringMethod::Gradient,
+        _ => unreachable!(),
+    };
 
     let lossless_compression = match compression {
         0 => false,
         1 => true,
-        _ => return Err(DecoderError::InfoBitsInvalid.into()),
+        _ => return Err(DecoderError::InfoBitsInvalid { name: "lossless compression", value: compression.into() }.into()),
     };
 
     let mut framedata = Vec::new();
@@ -658,13 +690,13 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
         //this is a potential problem for large images; would require rewriting lossless decoder to use u32 for width and height
         let width: u16 = width
             .try_into()
-            .map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
+            .map_err(|_| ImageError::from(DecoderError::ImageTooLarge))?;
         let height: u16 = height
             .try_into()
-            .map_err(|_| ImageError::from(DecoderError::SizeMismatch))?;
+            .map_err(|_| ImageError::from(DecoderError::ImageTooLarge))?;
         let frame = decoder.decode_frame_implicit_dims(width, height)?;
 
-        let mut data = vec![0; usize::from(width) * usize::from(height)];
+        let mut data = vec![0u8; usize::from(width) * usize::from(height)];
 
         frame.fill_green(&mut data);
 

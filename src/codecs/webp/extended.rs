@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::io::{self, Error, Read};
 use std::{error, fmt};
 
-use super::decoder::{read_chunk, WebPRiffChunk, DecoderError::ChunkHeaderInvalid};
+use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
@@ -14,7 +14,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 #[derive(Debug, Clone, Copy)]
 enum DecoderError {
     // Some bits were invalid
-    InfoBitsInvalid { name: &'static str, value: u32},
+    InfoBitsInvalid { name: &'static str, value: u32 },
     // Alpha chunk doesn't match the frame's size
     AlphaChunkSizeMismatch,
     // Image is too large, either for the platform's pointer size or generally
@@ -26,15 +26,14 @@ enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::InfoBitsInvalid { name, value } => {
-                f.write_fmt(format_args!("Info bits `{}` invalid, received value: {}", name, value))
-            },
+            DecoderError::InfoBitsInvalid { name, value } => f.write_fmt(format_args!(
+                "Info bits `{}` invalid, received value: {}",
+                name, value
+            )),
             DecoderError::AlphaChunkSizeMismatch => {
                 f.write_str("Alpha chunk doesn't match the size of the frame")
-            },
-            DecoderError::ImageTooLarge => {
-                f.write_str("Image is too large to be decoded")
-            },
+            }
+            DecoderError::ImageTooLarge => f.write_str("Image is too large to be decoded"),
             DecoderError::FrameOutsideImage => {
                 f.write_str("Frame is too large and would go outside the image")
             }
@@ -280,8 +279,7 @@ impl ExtendedImage {
     fn do_alpha_blending(buffer: [u8; 4], canvas: Rgba<u8>) -> Rgba<u8> {
         let canvas_alpha = f64::from(canvas[3]);
         let buffer_alpha = f64::from(buffer[3]);
-        let blend_alpha_f64 =
-            buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
+        let blend_alpha_f64 = buffer_alpha + canvas_alpha * (1.0 - buffer_alpha / 255.0);
         //value should be between 0 and 255, this truncates the fractional part
         let blend_alpha: u8 = blend_alpha_f64 as u8;
 
@@ -512,7 +510,11 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
         } else {
             reserved_third
         };
-        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value }.into());
+        return Err(DecoderError::InfoBitsInvalid {
+            name: "reserved",
+            value,
+        }
+        .into());
     }
 
     let canvas_width = read_3_bytes(reader)? + 1;
@@ -536,7 +538,11 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
     Ok(info)
 }
 
-fn read_anim_frame<R: Read>(mut reader: R, canvas_width: u32, canvas_height: u32) -> ImageResult<AnimatedFrame> {
+fn read_anim_frame<R: Read>(
+    mut reader: R,
+    canvas_width: u32,
+    canvas_height: u32,
+) -> ImageResult<AnimatedFrame> {
     //offsets for the frames are twice the values
     let frame_x = read_3_bytes(&mut reader)? * 2;
     let frame_y = read_3_bytes(&mut reader)? * 2;
@@ -553,7 +559,11 @@ fn read_anim_frame<R: Read>(mut reader: R, canvas_width: u32, canvas_height: u32
     let frame_info = reader.read_u8()?;
     let reserved = frame_info & 0b11111100;
     if reserved != 0 {
-        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: reserved.into() }.into());
+        return Err(DecoderError::InfoBitsInvalid {
+            name: "reserved",
+            value: reserved.into(),
+        }
+        .into());
     }
     let use_alpha_blending = frame_info & 0b00000010 == 0;
     let dispose = frame_info & 0b00000001 != 0;
@@ -657,13 +667,23 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let compression = info_byte & 0b00000011;
 
     if reserved != 0 {
-        return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: reserved.into() }.into());
+        return Err(DecoderError::InfoBitsInvalid {
+            name: "reserved",
+            value: reserved.into(),
+        }
+        .into());
     }
 
     let preprocessing = match preprocessing {
         0 => false,
         1 => true,
-        _ => return Err(DecoderError::InfoBitsInvalid { name: "reserved", value: preprocessing.into() }.into()),
+        _ => {
+            return Err(DecoderError::InfoBitsInvalid {
+                name: "reserved",
+                value: preprocessing.into(),
+            }
+            .into())
+        }
     };
 
     let filtering_method = match filtering {
@@ -677,7 +697,13 @@ fn read_alpha_chunk<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageRe
     let lossless_compression = match compression {
         0 => false,
         1 => true,
-        _ => return Err(DecoderError::InfoBitsInvalid { name: "lossless compression", value: compression.into() }.into()),
+        _ => {
+            return Err(DecoderError::InfoBitsInvalid {
+                name: "lossless compression",
+                value: compression.into(),
+            }
+            .into())
+        }
     };
 
     let mut framedata = Vec::new();

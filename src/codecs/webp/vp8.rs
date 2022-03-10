@@ -898,7 +898,12 @@ impl Frame {
             let x = index % self.width as usize;
             let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
 
-            Frame::fill_single(self.ybuf[index], self.ubuf[chroma_index], self.vbuf[chroma_index], rgb_chunk);
+            Frame::fill_single(
+                self.ybuf[index],
+                self.ubuf[chroma_index],
+                self.vbuf[chroma_index],
+                rgb_chunk,
+            );
         }
     }
 
@@ -909,7 +914,12 @@ impl Frame {
             let x = index % self.width as usize;
             let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
 
-            Frame::fill_single(self.ybuf[index], self.ubuf[chroma_index], self.vbuf[chroma_index], rgba_chunk);
+            Frame::fill_single(
+                self.ybuf[index],
+                self.ubuf[chroma_index],
+                self.vbuf[chroma_index],
+                rgba_chunk,
+            );
         }
     }
 
@@ -919,9 +929,15 @@ impl Frame {
         let d: i32 = i32::from(u) - 128;
         let e: i32 = i32::from(v) - 128;
 
-        let r: u8 = clamp((298 * c + 409 * e + 128) >> 8, 0, 255).try_into().unwrap();
-        let g: u8 = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255).try_into().unwrap();
-        let b: u8 = clamp((298 * c + 516 * d + 128) >> 8, 0, 255).try_into().unwrap();
+        let r: u8 = clamp((298 * c + 409 * e + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
+        let g: u8 = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
+        let b: u8 = clamp((298 * c + 516 * d + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
 
         rgb[0] = r;
         rgb[1] = g;

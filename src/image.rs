@@ -1164,6 +1164,42 @@ impl<I> SubImage<I> {
     }
 }
 
+impl<I> GenericImageView for SubImage<I>
+where
+    I: Deref,
+    I::Target: GenericImageView,
+{
+    type Pixel = <<I as Deref>::Target as GenericImageView>::Pixel;
+    fn dimensions(&self) -> (u32, u32) {
+        (self.xstride, self.ystride)
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        if x > self.xstride || y > self.ystride {
+            panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                self.dimensions()
+            );
+        }
+        self.inner.get_pixel(x + self.xoffset, y + self.yoffset)
+    }
+
+    fn bounds(&self) -> (u32, u32, u32, u32) {
+        (
+            self.xoffset,
+            self.yoffset,
+            self.xoffset + self.xstride,
+            self.yoffset + self.ystride,
+        )
+    }
+
+    unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+        self.inner
+            .unsafe_get_pixel(x + self.xoffset, y + self.yoffset)
+    }
+}
+
 /// Methods for readable images.
 impl<I> SubImage<I>
 where

@@ -56,7 +56,7 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for pixel in image.pixels() {
+    for (x, y, color) in image.pixels() {
         let grayscale = pixel.2.to_luma_alpha();
         let new_pixel = grayscale.into_color(); // no-op for luma->luma
 

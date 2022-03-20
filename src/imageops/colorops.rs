@@ -36,11 +36,11 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for pixel in image.pixels() {
-        let grayscale = pixel.2.to_luma();
+    for (x, y, pixel) in image.pixels() {
+        let grayscale = pixel.to_luma();
         let new_pixel = grayscale.into_color(); // no-op for luma->luma
 
-        out.put_pixel(pixel.0, pixel.1, new_pixel);
+        out.put_pixel(x, y, new_pixel);
     }
 
     out
@@ -56,11 +56,11 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for (x, y, color) in image.pixels() {
-        let grayscale = pixel.2.to_luma_alpha();
+    for (x, y, pixel) in image.pixels() {
+        let grayscale = pixel.to_luma_alpha();
         let new_pixel = grayscale.into_color(); // no-op for luma->luma
 
-        out.put_pixel(pixel.0, pixel.1, new_pixel);
+        out.put_pixel(x, y, new_pixel);
     }
 
     out
@@ -93,8 +93,8 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    image.pixels().map(|p| {
-        let f = p.2.map(|b| {
+    image.pixels().map(|(x, y, pixel)| {
+        let f = pixel.map(|b| {
             let c: f32 = NumCast::from(b).unwrap();
 
             let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -102,7 +102,7 @@ where
 
             NumCast::from(e).unwrap()
         });
-        out.put_pixel(p.0, p.1, f);
+        out.put_pixel(x, y, f);
     });
 
     out
@@ -122,8 +122,8 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    image.pixels().map(|mut p| {
-        let f = p.2.map(|b| {
+    image.pixels().map(|(_, _, mut pixel)| {
+        let f = pixel.map(|b| {
             let c: f32 = NumCast::from(b).unwrap();
 
             let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -131,7 +131,7 @@ where
 
             NumCast::from(e).unwrap()
         });
-        p.2 = f;
+        pixel = f;
     });
 }
 
@@ -152,8 +152,8 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
 
-    image.pixels().map(|p| {
-        let e = p.2.map_with_alpha(
+    image.pixels().map(|(x, y, pixel)| {
+        let e = pixel.map_with_alpha(
             |b| {
                 let c: i32 = NumCast::from(b).unwrap();
                 let d = clamp(c + value, 0, max);
@@ -162,7 +162,7 @@ where
             },
             |alpha| alpha,
         );
-        out.put_pixel(p.0, p.1, e);
+        out.put_pixel(x, y, e);
     });
 
     out
@@ -180,8 +180,8 @@ where
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
-    image.pixels().map(|mut p| {
-        let e = p.2.map_with_alpha(
+    image.pixels().map(|(_, _, mut pixel)| {
+        let e = pixel.map_with_alpha(
             |b| {
                 let c: i32 = NumCast::from(b).unwrap();
                 let d = clamp(c + value, 0, max);
@@ -190,7 +190,7 @@ where
             },
             |alpha| alpha,
         );
-        p.2 = e;
+        pixel = e;
     });
 }
 
@@ -288,9 +288,9 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    for mut pixel in image.pixels().borrow_mut() {
+    for (_, _, mut pixel) in image.pixels() {
         #[allow(deprecated)]
-        let (k1, k2, k3, k4) = pixel.2.channels4();
+        let (k1, k2, k3, k4) = pixel.channels4();
 
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -316,7 +316,7 @@ where
             NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
         );
 
-        pixel.2 = outpixel;
+        pixel = outpixel;
     }
 }
 

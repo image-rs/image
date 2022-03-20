@@ -36,13 +36,11 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in 0..height {
-        for x in 0..width {
-            let grayscale = image.get_pixel(x, y).to_luma();
-            let pixel = grayscale.into_color(); // no-op for luma->luma
+    for pixel in image.pixels() {
+        let grayscale = pixel.2.to_luma();
+        let new_pixel = grayscale.into_color(); // no-op for luma->luma
 
-            out.put_pixel(x, y, pixel);
-        }
+        out.put_pixel(pixel.0, pixel.1, new_pixel);
     }
 
     out
@@ -58,13 +56,11 @@ where
     let (width, height) = image.dimensions();
     let mut out = ImageBuffer::new(width, height);
 
-    for y in 0..height {
-        for x in 0..width {
-            let grayscale = image.get_pixel(x, y).to_luma_alpha();
-            let pixel = grayscale.into_color(); // no-op for luma->luma
+    for pixel in image.pixels() {
+        let grayscale = pixel.2.to_luma_alpha();
+        let new_pixel = grayscale.into_color(); // no-op for luma->luma
 
-            out.put_pixel(x, y, pixel);
-        }
+        out.put_pixel(pixel.0, pixel.1, new_pixel);
     }
 
     out

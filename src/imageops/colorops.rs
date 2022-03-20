@@ -1,6 +1,7 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::{Num, NumCast};
+use std::borrow::BorrowMut;
 use std::f64::consts::PI;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
@@ -72,16 +73,8 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
-    // TODO why is this not just `for pixel in image.pixels_mut() { pixel.invert(); }`
-    let (width, height) = image.dimensions();
-
-    for y in 0..height {
-        for x in 0..width {
-            let mut p = image.get_pixel(x, y);
-            p.invert();
-
-            image.put_pixel(x, y, p);
-        }
+    for mut pixel in image.pixels() {
+        pixel.2.invert();
     }
 }
 
@@ -104,21 +97,17 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    // TODO use pixels_mut?
-    for y in 0..height {
-        for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
-                let c: f32 = NumCast::from(b).unwrap();
+    image.pixels().map(|p| {
+        let f = p.2.map(|b| {
+            let c: f32 = NumCast::from(b).unwrap();
 
-                let d = ((c / max - 0.5) * percent + 0.5) * max;
-                let e = clamp(d, 0.0, max);
+            let d = ((c / max - 0.5) * percent + 0.5) * max;
+            let e = clamp(d, 0.0, max);
 
-                NumCast::from(e).unwrap()
-            });
-
-            out.put_pixel(x, y, f);
-        }
-    }
+            NumCast::from(e).unwrap()
+        });
+        out.put_pixel(p.0, p.1, f);
+    });
 
     out
 }
@@ -132,28 +121,22 @@ pub fn contrast_in_place<I>(image: &mut I, contrast: f32)
 where
     I: GenericImage,
 {
-    let (width, height) = image.dimensions();
-
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    // TODO use pixels_mut?
-    for y in 0..height {
-        for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
-                let c: f32 = NumCast::from(b).unwrap();
+    image.pixels().map(|mut p| {
+        let f = p.2.map(|b| {
+            let c: f32 = NumCast::from(b).unwrap();
 
-                let d = ((c / max - 0.5) * percent + 0.5) * max;
-                let e = clamp(d, 0.0, max);
+            let d = ((c / max - 0.5) * percent + 0.5) * max;
+            let e = clamp(d, 0.0, max);
 
-                NumCast::from(e).unwrap()
-            });
-
-            image.put_pixel(x, y, f);
-        }
-    }
+            NumCast::from(e).unwrap()
+        });
+        p.2 = f;
+    });
 }
 
 /// Brighten the supplied image.
@@ -173,22 +156,18 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
 
-    // TODO use pixels_mut?
-    for y in 0..height {
-        for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
-                |b| {
-                    let c: i32 = NumCast::from(b).unwrap();
-                    let d = clamp(c + value, 0, max);
+    image.pixels().map(|p| {
+        let e = p.2.map_with_alpha(
+            |b| {
+                let c: i32 = NumCast::from(b).unwrap();
+                let d = clamp(c + value, 0, max);
 
-                    NumCast::from(d).unwrap()
-                },
-                |alpha| alpha,
-            );
-
-            out.put_pixel(x, y, e);
-        }
-    }
+                NumCast::from(d).unwrap()
+            },
+            |alpha| alpha,
+        );
+        out.put_pixel(p.0, p.1, e);
+    });
 
     out
 }
@@ -202,27 +181,21 @@ pub fn brighten_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
-    let (width, height) = image.dimensions();
-
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
-    // TODO use pixels_mut?
-    for y in 0..height {
-        for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
-                |b| {
-                    let c: i32 = NumCast::from(b).unwrap();
-                    let d = clamp(c + value, 0, max);
+    image.pixels().map(|mut p| {
+        let e = p.2.map_with_alpha(
+            |b| {
+                let c: i32 = NumCast::from(b).unwrap();
+                let d = clamp(c + value, 0, max);
 
-                    NumCast::from(d).unwrap()
-                },
-                |alpha| alpha,
-            );
-
-            image.put_pixel(x, y, e);
-        }
-    }
+                NumCast::from(d).unwrap()
+            },
+            |alpha| alpha,
+        );
+        p.2 = e;
+    });
 }
 
 /// Hue rotate the supplied image.
@@ -301,8 +274,6 @@ pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
-    let (width, height) = image.dimensions();
-
     let angle: f64 = NumCast::from(value).unwrap();
 
     let cosv = (angle * PI / 180.0).cos();
@@ -321,40 +292,35 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    // TODO use pixels_mut?
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+    for mut pixel in image.pixels().borrow_mut() {
+        #[allow(deprecated)]
+        let (k1, k2, k3, k4) = pixel.2.channels4();
 
-            #[allow(deprecated)]
-            let (k1, k2, k3, k4) = pixel.channels4();
+        let vec: (f64, f64, f64, f64) = (
+            NumCast::from(k1).unwrap(),
+            NumCast::from(k2).unwrap(),
+            NumCast::from(k3).unwrap(),
+            NumCast::from(k4).unwrap(),
+        );
 
-            let vec: (f64, f64, f64, f64) = (
-                NumCast::from(k1).unwrap(),
-                NumCast::from(k2).unwrap(),
-                NumCast::from(k3).unwrap(),
-                NumCast::from(k4).unwrap(),
-            );
+        let r = vec.0;
+        let g = vec.1;
+        let b = vec.2;
 
-            let r = vec.0;
-            let g = vec.1;
-            let b = vec.2;
+        let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
+        let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
+        let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+        let max = 255f64;
 
-            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-            let max = 255f64;
+        #[allow(deprecated)]
+        let outpixel = Pixel::from_channels(
+            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
+        );
 
-            #[allow(deprecated)]
-            let outpixel = Pixel::from_channels(
-                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-            );
-
-            image.put_pixel(x, y, outpixel);
-        }
+        pixel.2 = outpixel;
     }
 }
 

@@ -118,12 +118,12 @@ macro_rules! dynamic_map(
 );
 
 impl DynamicImage {
-    /// Creates a dynamic image backed by a buffer of grey pixels.
+    /// Creates a dynamic image backed by a buffer of gray pixels.
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
     }
 
-    /// Creates a dynamic image backed by a buffer of grey
+    /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
     pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
@@ -139,12 +139,12 @@ impl DynamicImage {
         DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
     }
 
-    /// Creates a dynamic image backed by a buffer of grey pixels.
+    /// Creates a dynamic image backed by a buffer of gray pixels.
     pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
     }
 
-    /// Creates a dynamic image backed by a buffer of grey
+    /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
     pub fn new_luma_a16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA16(ImageBuffer::new(w, h))
@@ -605,7 +605,7 @@ impl DynamicImage {
 
     /// Return a grayscale version of this image.
     /// Returns `Luma` images in most cases. However, for `f32` images,
-    /// this will return a greyscale `Rgb/Rgba` image instead.
+    /// this will return a grayscale `Rgb/Rgba` image instead.
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),

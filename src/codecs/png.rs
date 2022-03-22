@@ -488,7 +488,7 @@ pub enum CompressionType {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum FilterType {
-    /// No processing done, best used for low bit depth greyscale or data with a
+    /// No processing done, best used for low bit depth grayscale or data with a
     /// low color count
     NoFilter,
     /// Filters based on previous pixel in the same scanline

@@ -1,7 +1,8 @@
 //! Functions for altering and converting the color of pixelbufs
 
-use num_traits::{Num, NumCast};
-use std::borrow::BorrowMut;
+use num_traits::NumCast;
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::RefCell;
 use std::f64::consts::PI;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
@@ -69,8 +70,10 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
-    for mut pixel in image.pixels() {
-        pixel.2.invert();
+    let mut image = RefCell::new(image);
+    for (x, y, mut pixel) in image.borrow().pixels() {
+        pixel.invert();
+        image.borrow_mut().put_pixel(x, y, pixel);
     }
 }
 
@@ -122,7 +125,8 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    image.pixels().map(|(_, _, mut pixel)| {
+    let mut image = RefCell::new(image);
+    image.borrow().pixels().map(|(x, y, mut pixel)| {
         let f = pixel.map(|b| {
             let c: f32 = NumCast::from(b).unwrap();
 
@@ -131,7 +135,7 @@ where
 
             NumCast::from(e).unwrap()
         });
-        pixel = f;
+        image.borrow_mut().put_pixel(x, y, f);
     });
 }
 
@@ -180,7 +184,8 @@ where
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
-    image.pixels().map(|(_, _, mut pixel)| {
+    let mut image = RefCell::new(image);
+    image.borrow().pixels().map(|(x, y, mut pixel)| {
         let e = pixel.map_with_alpha(
             |b| {
                 let c: i32 = NumCast::from(b).unwrap();
@@ -190,7 +195,7 @@ where
             },
             |alpha| alpha,
         );
-        pixel = e;
+        image.borrow_mut().put_pixel(x, y, e);
     });
 }
 
@@ -288,7 +293,8 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    for (_, _, mut pixel) in image.pixels() {
+    let mut image = RefCell::new(image);
+    for (x, y, mut pixel) in image.borrow().pixels() {
         #[allow(deprecated)]
         let (k1, k2, k3, k4) = pixel.channels4();
 
@@ -316,7 +322,7 @@ where
             NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
         );
 
-        pixel = outpixel;
+        image.borrow_mut().put_pixel(x, y, outpixel);
     }
 }
 

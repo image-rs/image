@@ -2,7 +2,6 @@
 
 use num_traits::NumCast;
 use std::f64::consts::PI;
-use std::ptr::addr_of_mut;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
 use crate::image::{GenericImage, GenericImageView};
@@ -69,12 +68,15 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
-    let mut image = image;
-    let image = addr_of_mut!(image);
-    unsafe {
-        for (x, y, mut pixel) in image.as_ref().unwrap().pixels() {
-            pixel.invert();
-            image.as_mut().unwrap().put_pixel(x, y, pixel);
+    // TODO find a way to use pixels?
+    let (width, height) = image.dimensions();
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut p = image.get_pixel(x, y);
+            p.invert();
+
+            image.put_pixel(x, y, p);
         }
     }
 }
@@ -122,16 +124,17 @@ pub fn contrast_in_place<I>(image: &mut I, contrast: f32)
 where
     I: GenericImage,
 {
+    let (width, height) = image.dimensions();
+
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: f32 = NumCast::from(max).unwrap();
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    let mut image = image;
-    let image = addr_of_mut!(image);
-    unsafe {
-        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
-            let f = pixel.map(|b| {
+    // TODO find a way to use pixels?
+    for y in 0..height {
+        for x in 0..width {
+            let f = image.get_pixel(x, y).map(|b| {
                 let c: f32 = NumCast::from(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -139,7 +142,8 @@ where
 
                 NumCast::from(e).unwrap()
             });
-            image.as_mut().unwrap().put_pixel(x, y, f);
+
+            image.put_pixel(x, y, f);
         }
     }
 }
@@ -186,14 +190,15 @@ pub fn brighten_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
+    let (width, height) = image.dimensions();
+
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
-    let mut image = image;
-    let image = addr_of_mut!(image);
-    unsafe {
-        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
-            let e = pixel.map_with_alpha(
+    // TODO find a way to use pixels?
+    for y in 0..height {
+        for x in 0..width {
+            let e = image.get_pixel(x, y).map_with_alpha(
                 |b| {
                     let c: i32 = NumCast::from(b).unwrap();
                     let d = clamp(c + value, 0, max);
@@ -202,7 +207,8 @@ where
                 },
                 |alpha| alpha,
             );
-            image.as_mut().unwrap().put_pixel(x, y, e);
+
+            image.put_pixel(x, y, e);
         }
     }
 }
@@ -283,6 +289,8 @@ pub fn huerotate_in_place<I>(image: &mut I, value: i32)
 where
     I: GenericImage,
 {
+    let (width, height) = image.dimensions();
+
     let angle: f64 = NumCast::from(value).unwrap();
 
     let cosv = (angle * PI / 180.0).cos();
@@ -301,10 +309,12 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    let mut image = image;
-    let image = addr_of_mut!(image);
-    unsafe {
-        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
+
+    // TODO find a way to use pixels?
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+
             #[allow(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
 
@@ -332,7 +342,7 @@ where
                 NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
             );
 
-            image.as_mut().unwrap().put_pixel(x, y, outpixel);
+            image.put_pixel(x, y, outpixel);
         }
     }
 }

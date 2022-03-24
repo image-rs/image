@@ -891,26 +891,57 @@ impl Frame {
         (self.height + 1) / 2
     }
 
-    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
-    pub fn fill_rgb(&self, buf: &mut [u8]) {
-        for index in 0..self.ybuf.len() {
+    /// Fills an rgb buffer with the image
+    pub(crate) fn fill_rgb(&self, buf: &mut [u8]) {
+        for (index, rgb_chunk) in (0..self.ybuf.len()).zip(buf.chunks_exact_mut(3)) {
             let y = index / self.width as usize;
             let x = index % self.width as usize;
             let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
 
-            let rgb_index = index * 3;
-            let c = self.ybuf[index] as i32 - 16;
-            let d = self.ubuf[chroma_index] as i32 - 128;
-            let e = self.vbuf[chroma_index] as i32 - 128;
-
-            let r = clamp((298 * c + 409 * e + 128) >> 8, 0, 255) as u8;
-            let g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255) as u8;
-            let b = clamp((298 * c + 516 * d + 128) >> 8, 0, 255) as u8;
-
-            buf[rgb_index] = r;
-            buf[rgb_index + 1] = g;
-            buf[rgb_index + 2] = b;
+            Frame::fill_single(
+                self.ybuf[index],
+                self.ubuf[chroma_index],
+                self.vbuf[chroma_index],
+                rgb_chunk,
+            );
         }
+    }
+
+    /// Fills an rgba buffer by skipping the alpha values
+    pub(crate) fn fill_rgba(&self, buf: &mut [u8]) {
+        for (index, rgba_chunk) in (0..self.ybuf.len()).zip(buf.chunks_exact_mut(4)) {
+            let y = index / self.width as usize;
+            let x = index % self.width as usize;
+            let chroma_index = self.chroma_width() as usize * (y / 2) + x / 2;
+
+            Frame::fill_single(
+                self.ybuf[index],
+                self.ubuf[chroma_index],
+                self.vbuf[chroma_index],
+                rgba_chunk,
+            );
+        }
+    }
+
+    /// Conversion values from https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+    fn fill_single(y: u8, u: u8, v: u8, rgb: &mut [u8]) {
+        let c: i32 = i32::from(y) - 16;
+        let d: i32 = i32::from(u) - 128;
+        let e: i32 = i32::from(v) - 128;
+
+        let r: u8 = clamp((298 * c + 409 * e + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
+        let g: u8 = clamp((298 * c - 100 * d - 208 * e + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
+        let b: u8 = clamp((298 * c + 516 * d + 128) >> 8, 0, 255)
+            .try_into()
+            .unwrap();
+
+        rgb[0] = r;
+        rgb[1] = g;
+        rgb[2] = b;
     }
 
     /// Gets the buffer size

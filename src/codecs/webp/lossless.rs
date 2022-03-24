@@ -168,6 +168,31 @@ impl<R: Read> LosslessDecoder<R> {
         Ok(&self.frame)
     }
 
+    //used for alpha data in extended decoding
+    pub(crate) fn decode_frame_implicit_dims(
+        &mut self,
+        width: u16,
+        height: u16,
+    ) -> ImageResult<&LosslessFrame> {
+        let mut buf = Vec::new();
+        self.r.read_to_end(&mut buf)?;
+        self.bit_reader.init(buf);
+
+        self.frame.width = width;
+        self.frame.height = height;
+
+        let mut data = self.decode_image_stream(self.frame.width, self.frame.height, true)?;
+
+        //transform_order is vector of indices(0-3) into transforms in order decoded
+        for &trans_index in self.transform_order.iter().rev() {
+            let trans = self.transforms[usize::from(trans_index)].as_ref().unwrap();
+            trans.apply_transform(&mut data, self.frame.width, self.frame.height);
+        }
+
+        self.frame.buf = data;
+        Ok(&self.frame)
+    }
+
     /// Reads Image data from the bitstream
     /// Can be in any of the 5 roles described in the Specification
     /// ARGB Image role has different behaviour to the other 4
@@ -693,7 +718,7 @@ pub(crate) struct LosslessFrame {
     pub(crate) width: u16,
     pub(crate) height: u16,
 
-    buf: Vec<u32>,
+    pub(crate) buf: Vec<u32>,
 }
 
 impl LosslessFrame {
@@ -710,6 +735,14 @@ impl LosslessFrame {
     /// Get buffer size from the image
     pub(crate) fn get_buf_size(&self) -> usize {
         usize::from(self.width) * usize::from(self.height) * 4
+    }
+
+    /// Fills a buffer with just the green values from the lossless decoding
+    /// Used in extended alpha decoding
+    pub(crate) fn fill_green(&self, buf: &mut [u8]) {
+        for (&argb_val, buf_value) in self.buf.iter().zip(buf.iter_mut()) {
+            *buf_value = ((argb_val >> 8) & 0xff).try_into().unwrap();
+        }
     }
 }
 

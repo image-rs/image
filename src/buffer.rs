@@ -661,7 +661,7 @@ where
     }
 
     // TODO: choose name under which to expose.
-    fn inner_pixels(&self) -> &[P::Subpixel] {
+    pub(crate) fn inner_pixels(&self) -> &[P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &self.data[..len]
     }
@@ -949,7 +949,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer(
             path,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -976,7 +976,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1007,7 +1007,7 @@ where
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1639,5 +1639,14 @@ mod benchmarks {
             0
         ));
         assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn write_to_with_large_buffer() {
+        // A buffer of 1 pixel, padded to 4 bytes as would be common in, e.g. BMP.
+        let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]);
+        let mut buffer = vec![];
+        assert!(img.write_to(&mut buffer, ImageOutputFormat::Png).is_ok());
     }
 }

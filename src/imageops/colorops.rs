@@ -1,9 +1,8 @@
 //! Functions for altering and converting the color of pixelbufs
 
 use num_traits::NumCast;
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
 use std::f64::consts::PI;
+use std::ptr::addr_of_mut;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
 use crate::image::{GenericImage, GenericImageView};
@@ -70,10 +69,13 @@ where
 /// Invert each pixel within the supplied image.
 /// This function operates in place.
 pub fn invert<I: GenericImage>(image: &mut I) {
-    let mut image = RefCell::new(image);
-    for (x, y, mut pixel) in image.borrow().pixels() {
-        pixel.invert();
-        image.borrow_mut().put_pixel(x, y, pixel);
+    let mut image = image;
+    let image = addr_of_mut!(image);
+    unsafe {
+        for (x, y, mut pixel) in image.as_ref().unwrap().pixels() {
+            pixel.invert();
+            image.as_mut().unwrap().put_pixel(x, y, pixel);
+        }
     }
 }
 
@@ -96,7 +98,7 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    image.pixels().map(|(x, y, pixel)| {
+    for (x, y, pixel) in image.pixels() {
         let f = pixel.map(|b| {
             let c: f32 = NumCast::from(b).unwrap();
 
@@ -106,7 +108,7 @@ where
             NumCast::from(e).unwrap()
         });
         out.put_pixel(x, y, f);
-    });
+    }
 
     out
 }
@@ -125,18 +127,21 @@ where
 
     let percent = ((100.0 + contrast) / 100.0).powi(2);
 
-    let mut image = RefCell::new(image);
-    image.borrow().pixels().map(|(x, y, mut pixel)| {
-        let f = pixel.map(|b| {
-            let c: f32 = NumCast::from(b).unwrap();
+    let mut image = image;
+    let image = addr_of_mut!(image);
+    unsafe {
+        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
+            let f = pixel.map(|b| {
+                let c: f32 = NumCast::from(b).unwrap();
 
-            let d = ((c / max - 0.5) * percent + 0.5) * max;
-            let e = clamp(d, 0.0, max);
+                let d = ((c / max - 0.5) * percent + 0.5) * max;
+                let e = clamp(d, 0.0, max);
 
-            NumCast::from(e).unwrap()
-        });
-        image.borrow_mut().put_pixel(x, y, f);
-    });
+                NumCast::from(e).unwrap()
+            });
+            image.as_mut().unwrap().put_pixel(x, y, f);
+        }
+    }
 }
 
 /// Brighten the supplied image.
@@ -156,7 +161,7 @@ where
     let max = S::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap();
 
-    image.pixels().map(|(x, y, pixel)| {
+    for (x, y, pixel) in image.pixels() {
         let e = pixel.map_with_alpha(
             |b| {
                 let c: i32 = NumCast::from(b).unwrap();
@@ -167,7 +172,7 @@ where
             |alpha| alpha,
         );
         out.put_pixel(x, y, e);
-    });
+    }
 
     out
 }
@@ -184,19 +189,22 @@ where
     let max = <I::Pixel as Pixel>::Subpixel::DEFAULT_MAX_VALUE;
     let max: i32 = NumCast::from(max).unwrap(); // TODO what does this do for f32? clamp at 1??
 
-    let mut image = RefCell::new(image);
-    image.borrow().pixels().map(|(x, y, mut pixel)| {
-        let e = pixel.map_with_alpha(
-            |b| {
-                let c: i32 = NumCast::from(b).unwrap();
-                let d = clamp(c + value, 0, max);
+    let mut image = image;
+    let image = addr_of_mut!(image);
+    unsafe {
+        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
+            let e = pixel.map_with_alpha(
+                |b| {
+                    let c: i32 = NumCast::from(b).unwrap();
+                    let d = clamp(c + value, 0, max);
 
-                NumCast::from(d).unwrap()
-            },
-            |alpha| alpha,
-        );
-        image.borrow_mut().put_pixel(x, y, e);
-    });
+                    NumCast::from(d).unwrap()
+                },
+                |alpha| alpha,
+            );
+            image.as_mut().unwrap().put_pixel(x, y, e);
+        }
+    }
 }
 
 /// Hue rotate the supplied image.
@@ -293,36 +301,39 @@ where
         0.715 - cosv * 0.715 + sinv * 0.715,
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
-    let mut image = RefCell::new(image);
-    for (x, y, mut pixel) in image.borrow().pixels() {
-        #[allow(deprecated)]
-        let (k1, k2, k3, k4) = pixel.channels4();
+    let mut image = image;
+    let image = addr_of_mut!(image);
+    unsafe {
+        for (x, y, pixel) in image.as_ref().unwrap().pixels() {
+            #[allow(deprecated)]
+            let (k1, k2, k3, k4) = pixel.channels4();
 
-        let vec: (f64, f64, f64, f64) = (
-            NumCast::from(k1).unwrap(),
-            NumCast::from(k2).unwrap(),
-            NumCast::from(k3).unwrap(),
-            NumCast::from(k4).unwrap(),
-        );
+            let vec: (f64, f64, f64, f64) = (
+                NumCast::from(k1).unwrap(),
+                NumCast::from(k2).unwrap(),
+                NumCast::from(k3).unwrap(),
+                NumCast::from(k4).unwrap(),
+            );
 
-        let r = vec.0;
-        let g = vec.1;
-        let b = vec.2;
+            let r = vec.0;
+            let g = vec.1;
+            let b = vec.2;
 
-        let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-        let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-        let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
-        let max = 255f64;
+            let new_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
+            let new_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
+            let new_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+            let max = 255f64;
 
-        #[allow(deprecated)]
-        let outpixel = Pixel::from_channels(
-            NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
-            NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
-            NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
-        );
+            #[allow(deprecated)]
+            let outpixel = Pixel::from_channels(
+                NumCast::from(clamp(new_r, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_g, 0.0, max)).unwrap(),
+                NumCast::from(clamp(new_b, 0.0, max)).unwrap(),
+                NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
+            );
 
-        image.borrow_mut().put_pixel(x, y, outpixel);
+            image.as_mut().unwrap().put_pixel(x, y, outpixel);
+        }
     }
 }
 
@@ -524,7 +535,38 @@ where
 mod test {
 
     use super::*;
-    use crate::ImageBuffer;
+    use crate::{GrayImage, ImageBuffer};
+
+    macro_rules! assert_pixels_eq {
+        ($actual:expr, $expected:expr) => {{
+            let actual_dim = $actual.dimensions();
+            let expected_dim = $expected.dimensions();
+
+            if actual_dim != expected_dim {
+                panic!(
+                    "dimensions do not match. \
+                     actual: {:?}, expected: {:?}",
+                    actual_dim, expected_dim
+                )
+            }
+
+            let diffs = pixel_diffs($actual, $expected);
+
+            if !diffs.is_empty() {
+                let mut err = "".to_string();
+
+                let diff_messages = diffs
+                    .iter()
+                    .take(5)
+                    .map(|d| format!("\nactual: {:?}, expected {:?} ", d.0, d.1))
+                    .collect::<Vec<_>>()
+                    .join("");
+
+                err.push_str(&diff_messages);
+                panic!("pixels do not match. {:?}", err)
+            }
+        }};
+    }
 
     #[test]
     fn test_dither() {
@@ -533,5 +575,62 @@ mod test {
         dither(&mut image, &cmap);
         assert_eq!(&*image, &[0, 0xFF, 0xFF, 0]);
         assert_eq!(index_colors(&image, &cmap).into_raw(), vec![0, 1, 1, 0])
+    }
+
+    #[test]
+    fn test_grayscale() {
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+
+        assert_pixels_eq!(&grayscale(&mut image), &expected);
+    }
+
+    #[test]
+    fn test_invert() {
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![255u8, 254u8, 253u8, 245u8, 244u8, 243u8]).unwrap();
+
+        invert(&mut image);
+        assert_pixels_eq!(&image, &expected);
+    }
+    #[test]
+    fn test_brighten() {
+        let image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+
+        assert_pixels_eq!(&brighten(&image, 10), &expected);
+    }
+
+    #[test]
+    fn test_brighten_place() {
+        let mut image: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![00u8, 01u8, 02u8, 10u8, 11u8, 12u8]).unwrap();
+
+        let expected: GrayImage =
+            ImageBuffer::from_raw(3, 2, vec![10u8, 11u8, 12u8, 20u8, 21u8, 22u8]).unwrap();
+
+        brighten_in_place(&mut image, 10);
+        assert_pixels_eq!(&image, &expected);
+    }
+
+    fn pixel_diffs<I, J, P>(left: &I, right: &J) -> Vec<((u32, u32, P), (u32, u32, P))>
+    where
+        I: GenericImage<Pixel = P>,
+        J: GenericImage<Pixel = P>,
+        P: Pixel + Eq,
+    {
+        left.pixels()
+            .zip(right.pixels())
+            .filter(|&(p, q)| p != q)
+            .collect::<Vec<_>>()
     }
 }

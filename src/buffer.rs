@@ -661,7 +661,7 @@ where
     }
 
     // TODO: choose name under which to expose.
-    fn inner_pixels(&self) -> &[P::Subpixel] {
+    pub(crate) fn inner_pixels(&self) -> &[P::Subpixel] {
         let len = Self::image_buffer_len(self.width, self.height).unwrap();
         &self.data[..len]
     }
@@ -949,7 +949,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer(
             path,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -976,7 +976,7 @@ where
         // This is valid as the subpixel is u8.
         save_buffer_with_format(
             path,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1007,7 +1007,7 @@ where
         // This is valid as the subpixel is u8.
         write_buffer_with_format(
             writer,
-            self.as_bytes(),
+            self.inner_pixels().as_bytes(),
             self.width(),
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
@@ -1357,7 +1357,9 @@ pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
 
 #[cfg(test)]
 mod test {
-    use super::{ImageBuffer, RgbImage};
+    use super::{GrayImage, ImageBuffer, ImageOutputFormat, RgbImage};
+    use crate::math::Rect;
+    use crate::GenericImage as _;
     use crate::{color, Rgb};
 
     #[test]
@@ -1456,88 +1458,6 @@ mod test {
     fn default() {
         let image = ImageBuffer::<Rgb<u8>, Vec<u8>>::default();
         assert_eq!(image.dimensions(), (0, 0));
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "benchmarks")]
-mod benchmarks {
-    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
-    use crate::math::Rect;
-    use crate::GenericImage;
-    use test;
-
-    #[bench]
-    fn conversion(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
-        }
-        assert!(a.data[0] != 0);
-        b.iter(|| {
-            let b: GrayImage = a.convert();
-            assert!(0 != b.data[0]);
-            assert!(a.data[0] != b.data[0]);
-            test::black_box(b);
-        });
-        b.bytes = 1000 * 1000 * 3
-    }
-
-    #[bench]
-    fn image_access_row_by_row(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
-        }
-
-        b.iter(move || {
-            let image: &RgbImage = test::black_box(&a);
-            let mut sum: usize = 0;
-            for y in 0..1000 {
-                for x in 0..1000 {
-                    let pixel = image.get_pixel(x, y);
-                    sum = sum.wrapping_add(pixel[0] as usize);
-                    sum = sum.wrapping_add(pixel[1] as usize);
-                    sum = sum.wrapping_add(pixel[2] as usize);
-                }
-            }
-            test::black_box(sum)
-        });
-
-        b.bytes = 1000 * 1000 * 3;
-    }
-
-    #[bench]
-    fn image_access_col_by_col(b: &mut test::Bencher) {
-        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
-        for p in a.pixels_mut() {
-            let rgb = p.channels_mut();
-            rgb[0] = 255;
-            rgb[1] = 23;
-            rgb[2] = 42;
-        }
-
-        b.iter(move || {
-            let image: &RgbImage = test::black_box(&a);
-            let mut sum: usize = 0;
-            for x in 0..1000 {
-                for y in 0..1000 {
-                    let pixel = image.get_pixel(x, y);
-                    sum = sum.wrapping_add(pixel[0] as usize);
-                    sum = sum.wrapping_add(pixel[1] as usize);
-                    sum = sum.wrapping_add(pixel[2] as usize);
-                }
-            }
-            test::black_box(sum)
-        });
-
-        b.bytes = 1000 * 1000 * 3;
     }
 
     #[test]
@@ -1639,5 +1559,95 @@ mod benchmarks {
             0
         ));
         assert_eq!(&image.into_raw(), &expected);
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn write_to_with_large_buffer() {
+        // A buffer of 1 pixel, padded to 4 bytes as would be common in, e.g. BMP.
+        let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
+        let mut buffer = std::io::Cursor::new(vec![]);
+        assert!(img.write_to(&mut buffer, ImageOutputFormat::Png).is_ok());
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "benchmarks")]
+mod benchmarks {
+    use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
+    use crate::GenericImage;
+    use test;
+
+    #[bench]
+    fn conversion(b: &mut test::Bencher) {
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+        assert!(a.data[0] != 0);
+        b.iter(|| {
+            let b: GrayImage = a.convert();
+            assert!(0 != b.data[0]);
+            assert!(a.data[0] != b.data[0]);
+            test::black_box(b);
+        });
+        b.bytes = 1000 * 1000 * 3
+    }
+
+    #[bench]
+    fn image_access_row_by_row(b: &mut test::Bencher) {
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+
+        b.iter(move || {
+            let image: &RgbImage = test::black_box(&a);
+            let mut sum: usize = 0;
+            for y in 0..1000 {
+                for x in 0..1000 {
+                    let pixel = image.get_pixel(x, y);
+                    sum = sum.wrapping_add(pixel[0] as usize);
+                    sum = sum.wrapping_add(pixel[1] as usize);
+                    sum = sum.wrapping_add(pixel[2] as usize);
+                }
+            }
+            test::black_box(sum)
+        });
+
+        b.bytes = 1000 * 1000 * 3;
+    }
+
+    #[bench]
+    fn image_access_col_by_col(b: &mut test::Bencher) {
+        let mut a: RgbImage = ImageBuffer::new(1000, 1000);
+        for p in a.pixels_mut() {
+            let rgb = p.channels_mut();
+            rgb[0] = 255;
+            rgb[1] = 23;
+            rgb[2] = 42;
+        }
+
+        b.iter(move || {
+            let image: &RgbImage = test::black_box(&a);
+            let mut sum: usize = 0;
+            for x in 0..1000 {
+                for y in 0..1000 {
+                    let pixel = image.get_pixel(x, y);
+                    sum = sum.wrapping_add(pixel[0] as usize);
+                    sum = sum.wrapping_add(pixel[1] as usize);
+                    sum = sum.wrapping_add(pixel[2] as usize);
+                }
+            }
+            test::black_box(sum)
+        });
+
+        b.bytes = 1000 * 1000 * 3;
     }
 }

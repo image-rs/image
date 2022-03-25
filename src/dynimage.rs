@@ -557,6 +557,14 @@ impl DynamicImage {
         ))
     }
 
+    // TODO: choose a name under which to expose?
+    fn inner_bytes(&self) -> &[u8] {
+        // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
+        dynamic_map!(*self, |ref image_buffer| bytemuck::cast_slice(
+            image_buffer.inner_pixels()
+        ))
+    }
+
     /// Return this image's pixels as a byte vector. If the `ImageBuffer`
     /// container is `Vec<u8>`, this operation is free. Otherwise, a copy
     /// is returned.
@@ -797,7 +805,7 @@ impl DynamicImage {
         // When no features are supported
         let w = w;
         #[allow(unused_variables, unused_mut)]
-        let mut bytes = self.as_bytes();
+        let mut bytes = self.inner_bytes();
         #[allow(unused_variables)]
         let (width, height) = self.dimensions();
         #[allow(unused_variables, unused_mut)]

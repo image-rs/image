@@ -11,6 +11,11 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Unreleased
 
+Bug fixes:
+- Calling `DynamicImage`/`ImageBuffer`'s methods `write_to` and `save` will now
+  work properly even if the backing container is larger than the image layout
+  requires. Only the relevant slice of pixel data is passed to the encoder.
+
 - More convenient to use differently laid-out buffers for initialization and
   results, but not operation directly, will be added in the future. The plan
   is for these to use a byte-based interface similar to `ImageDecoder`.

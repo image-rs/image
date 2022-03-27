@@ -77,7 +77,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
                 // check if r/g/b exists in the channels
                 let has_rgb = ["R","G","B"].iter().all(|&required|  // alpha will be optional
                     header.channels.find_index_of_channel(&Text::from(required)).is_some()
-                );
+                );s
 
                 // we currently dont support deep images, or images with other color spaces than rgb
                 !header.deep && has_rgb
@@ -210,8 +210,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
 
 
 /// Write a raw byte buffer of pixels,
-/// returning an Error if the buffer is not aligned to `f32`
-/// or if it has an invalid length.
+/// returning an Error if it has an invalid length.
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
@@ -311,9 +310,7 @@ impl<W> ImageEncoder for OpenExrEncoder<W> where W: Write + Seek {
 
     /// Writes the complete image.
     ///
-    /// Returns an Error if the buffer is not aligned to `f32`
-    /// or if it has an invalid length.
-    ///
+    /// Returns an Error if it has an invalid length.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     fn write_image(self, buf: &[u8], width: u32, height: u32, color_type: ColorType) -> ImageResult<()> {

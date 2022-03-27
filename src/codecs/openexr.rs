@@ -77,7 +77,7 @@ impl<R: Read + Seek> OpenExrDecoder<R> {
                 // check if r/g/b exists in the channels
                 let has_rgb = ["R","G","B"].iter().all(|&required|  // alpha will be optional
                     header.channels.find_index_of_channel(&Text::from(required)).is_some()
-                );s
+                );
 
                 // we currently dont support deep images, or images with other color spaces than rgb
                 !header.deep && has_rgb

@@ -938,15 +938,11 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg, png, ico, pnm, bmp and
-    /// tiff files are supported.
-    // TODO exr supported, but Rgba32F is not yet
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
         P: PixelWithColorType,
     {
-        // This is valid as the subpixel is u8.
         save_buffer(
             path,
             self.inner_pixels().as_bytes(),

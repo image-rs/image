@@ -238,8 +238,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
 }
 
 /// Write a raw byte buffer of pixels,
-/// returning an Error if the buffer is not aligned to `f32`
-/// or if it has an invalid length.
+/// returning an Error if it has an invalid length.
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
@@ -358,9 +357,7 @@ where
 {
     /// Writes the complete image.
     ///
-    /// Returns an Error if the buffer is not aligned to `f32`
-    /// or if it has an invalid length.
-    ///
+    /// Returns an Error if it has an invalid length.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     fn write_image(

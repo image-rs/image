@@ -157,7 +157,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
         unaligned_bytes: &mut [u8],
         mut progress_callback: F,
     ) -> ImageResult<()> {
-        let blocks_in_header = self.selected_exr_header().chunk_count as u64;
+        let blocks_in_header = self.selected_exr_header().chunk_count;
         let channel_count = self.color_type().channel_count() as usize;
 
         let display_window = self.selected_exr_header().shared_attributes.display_window;
@@ -217,10 +217,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
             .all_attributes()
             .on_progress(|progress| {
                 progress_callback(
-                    Progress::new(
-                        (progress * blocks_in_header as f64) as u64,
-                        blocks_in_header,
-                    ), // TODO precision errors?
+                    progress_from_f32(blocks_in_header, progress),
                 );
             })
             .from_chunks(self.exr_reader)
@@ -237,18 +234,20 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
     }
 }
 
+
 /// Write a raw byte buffer of pixels,
 /// returning an Error if it has an invalid length.
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
 // private. access via `OpenExrEncoder`
-fn write_buffer(
+fn write_buffer<F: FnMut(Progress)>(
     mut buffered_write: impl Write + Seek,
     unaligned_bytes: &[u8],
     width: u32,
     height: u32,
     color_type: ColorType,
+    mut progress: F,
 ) -> ImageResult<()> {
     let width = width as usize;
     let height = height as usize;
@@ -298,7 +297,7 @@ fn write_buffer(
                 }),
             )
             .write()
-            // .on_progress(|progress| todo!())
+            .on_progress(|progress_f32| progress(progress_from_f32(unaligned_bytes.len(), progress_f32)))
             .to_buffered(&mut buffered_write)
             .map_err(to_image_err)?;
         }
@@ -318,7 +317,7 @@ fn write_buffer(
                 }),
             )
             .write()
-            // .on_progress(|progress| todo!())
+            .on_progress(|progress_f32| progress(progress_from_f32(unaligned_bytes.len(), progress_f32)))
             .to_buffered(&mut buffered_write)
             .map_err(to_image_err)?;
         }
@@ -360,6 +359,22 @@ where
     /// Returns an Error if it has an invalid length.
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
+    fn write_image_with_progress<F: FnMut(Progress)>(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+        progress: F,
+    ) -> ImageResult<()> {
+        write_buffer(self.0, buf, width, height, color_type, progress)
+    }
+
+    /// Writes the complete image.
+    ///
+    /// Returns an Error if it has an invalid length.
+    /// Assumes the writer is buffered. In most cases,
+    /// you should wrap your writer in a `BufWriter` for best performance.
     fn write_image(
         self,
         buf: &[u8],
@@ -367,7 +382,7 @@ where
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()> {
-        write_buffer(self.0, buf, width, height, color_type)
+        write_buffer(self.0, buf, width, height, color_type, |_|{})
     }
 }
 
@@ -593,3 +608,14 @@ mod test {
         assert!(original.pixels().zip(cropped.pixels()).all(|(a, b)| a == b));
     }
 }
+
+fn progress_from_f32(granularity: usize, progress: f64) -> Progress {
+    // avoid float precision in this special case:
+    if progress == 1.0 { return Progress::new(granularity as u64, granularity as u64) }
+
+    Progress::new(
+        (progress * granularity as f64) as u64,
+        granularity as u64,
+    )
+}
+

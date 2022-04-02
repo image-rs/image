@@ -802,9 +802,7 @@ pub trait ImageEncoder {
         width: u32,
         height: u32,
         color_type: ColorType,
-    ) -> ImageResult<()> {
-        self.write_image_with_progress(buf, width, height, color_type, |_|{})
-    }
+    ) -> ImageResult<()>;
 
     /// Writes all the bytes in an image to the encoder.
     ///
@@ -816,14 +814,28 @@ pub trait ImageEncoder {
     ///
     /// See also `ImageDecoder::read_image` which reads byte buffers into
     /// native endian.
+    ///
+    /// The progress callback is a function that is called occasionally,
+    /// and can be used to update, for example, a progress bar.
+    /// The granularity of those updates is implementation-defined
+    /// and might not be very accurate in some implementations.
     fn write_image_with_progress<F: FnMut(Progress)>(
         self,
         buf: &[u8],
         width: u32,
         height: u32,
         color_type: ColorType,
-        progress: F,
-    ) -> ImageResult<()>;
+        mut progress: F,
+    ) -> ImageResult<()> where Self:Sized {
+        let max_progress = buf.len() as u64;
+        // TODO force implementations to implement this function instead of write_image()?
+        progress(Progress::new(0, max_progress));
+
+        self.write_image(buf, width, height, color_type);
+
+        progress(Progress::new(max_progress, max_progress));
+        Ok(())
+    }
 }
 
 /// Immutable pixel iterator

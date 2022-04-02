@@ -688,10 +688,10 @@ pub trait ImageDecoder<'a>: Sized {
 
     /// Same as `read_image` but periodically calls the provided callback to give updates on loading
     /// progress.
-    fn read_image_with_progress<F: Fn(Progress)>(
+    fn read_image_with_progress<F: FnMut(Progress)>(
         self,
         buf: &mut [u8],
-        progress_callback: F,
+        mut progress_callback: F,
     ) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 

@@ -152,10 +152,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
     }
 
     // reads with or without alpha, depending on `self.alpha_preference` and `self.alpha_present_in_file`
-    fn read_image_with_progress<F: Fn(Progress)>(
+    fn read_image_with_progress<F: FnMut(Progress)>(
         self,
         unaligned_bytes: &mut [u8],
-        progress_callback: F,
+        mut progress_callback: F,
     ) -> ImageResult<()> {
         let blocks_in_header = self.selected_exr_header().chunk_count as u64;
         let channel_count = self.color_type().channel_count() as usize;

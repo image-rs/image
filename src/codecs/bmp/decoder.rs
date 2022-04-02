@@ -1526,7 +1526,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
 }
 
 impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for BmpDecoder<R> {
-    fn read_rect_with_progress<F: Fn(Progress)>(
+    fn read_rect_with_progress<F: FnMut(Progress)>(
         &mut self,
         x: u32,
         y: u32,

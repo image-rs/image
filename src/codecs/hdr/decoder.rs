@@ -212,7 +212,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
 }
 
 impl<'a, R: 'a + BufRead + Seek> ImageDecoderRect<'a> for HdrAdapter<R> {
-    fn read_rect_with_progress<F: Fn(Progress)>(
+    fn read_rect_with_progress<F: FnMut(Progress)>(
         &mut self,
         x: u32,
         y: u32,

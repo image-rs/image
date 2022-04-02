@@ -425,14 +425,14 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(
     width: u32,
     height: u32,
     buf: &mut [u8],
-    progress_callback: F,
+    mut progress_callback: F,
     decoder: &mut D,
     mut seek_scanline: F1,
     mut read_scanline: F2,
 ) -> ImageResult<()>
 where
     D: ImageDecoder<'a>,
-    F: Fn(Progress),
+    F: FnMut(Progress),
     F1: FnMut(&mut D, u64) -> io::Result<()>,
     F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
     ImageError: From<E>,
@@ -463,6 +463,11 @@ where
     let mut tmp_scanline = None;
 
     {
+        progress_callback(Progress {
+            current: 0,
+            total: total_bytes,
+        });
+
         // Read a range of the image starting from byte number `start` and continuing until byte
         // number `end`. Updates `current_scanline` and `bytes_read` appropiately.
         let mut read_image_range = |mut start: u64, end: u64| -> ImageResult<()> {
@@ -545,10 +550,6 @@ where
             )));
         }
 
-        progress_callback(Progress {
-            current: 0,
-            total: total_bytes,
-        });
         if x == 0 && width == u64::from(dimensions.0) {
             let start = x * bytes_per_pixel + y * row_bytes;
             let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
@@ -767,7 +768,7 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     ///
     /// This function will panic if the output buffer isn't at least
     /// `color_type().bytes_per_pixel() * color_type().channel_count() * width * height` bytes long.
-    fn read_rect_with_progress<F: Fn(Progress)>(
+    fn read_rect_with_progress<F: FnMut(Progress)>(
         &mut self,
         x: u32,
         y: u32,

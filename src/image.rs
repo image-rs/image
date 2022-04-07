@@ -805,7 +805,7 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         progress_callback: F,
     ) -> ImageResult<()> {
         let mutable_callback_cell = std::cell::RefCell::new(progress_callback);
-        self.read_rect_with_progress(x, y, width, height, buf,|progress| {
+        self.read_rect_with_progress(x, y, width, height, buf, |progress| {
             if let Ok(mut progress_callback) = mutable_callback_cell.try_borrow_mut() {
                 progress_callback(progress)
             }

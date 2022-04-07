@@ -150,7 +150,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for DxtDecoder<R> {
 }
 
 impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for DxtDecoder<R> {
-    fn read_rect_with_progress<F: FnMut(Progress)>(
+    fn read_rect_with_progress<F: Fn(Progress)>(
         &mut self,
         x: u32,
         y: u32,

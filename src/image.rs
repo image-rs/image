@@ -425,14 +425,14 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(
     width: u32,
     height: u32,
     buf: &mut [u8],
-    mut progress_callback: F,
+    progress_callback: F,
     decoder: &mut D,
     mut seek_scanline: F1,
     mut read_scanline: F2,
 ) -> ImageResult<()>
 where
     D: ImageDecoder<'a>,
-    F: FnMut(Progress),
+    F: Fn(Progress),
     F1: FnMut(&mut D, u64) -> io::Result<()>,
     F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
     ImageError: From<E>,
@@ -463,11 +463,6 @@ where
     let mut tmp_scanline = None;
 
     {
-        progress_callback(Progress {
-            current: 0,
-            total: total_bytes,
-        });
-
         // Read a range of the image starting from byte number `start` and continuing until byte
         // number `end`. Updates `current_scanline` and `bytes_read` appropiately.
         let mut read_image_range = |mut start: u64, end: u64| -> ImageResult<()> {
@@ -550,6 +545,10 @@ where
             )));
         }
 
+        progress_callback(Progress {
+            current: 0,
+            total: total_bytes,
+        });
         if x == 0 && width == u64::from(dimensions.0) {
             let start = x * bytes_per_pixel + y * row_bytes;
             let end = (x + width) * bytes_per_pixel + (y + height - 1) * row_bytes;
@@ -687,12 +686,12 @@ pub trait ImageDecoder<'a>: Sized {
         self.read_image_with_progress(buf, |_| {})
     }
 
-    /// Same as `read_image` but periodically calls the provided callback to give updates on loading
-    /// progress.
-    fn read_image_with_progress<F: FnMut(Progress)>(
+    /// Same as `read_image_with_progress_mut`, but the callback cannot mutate state.
+    /// Use `read_image_with_progress_mut` if you want to mutate your state from within the callback.
+    fn read_image_with_progress<F: Fn(Progress)>(
         self,
         buf: &mut [u8],
-        mut progress_callback: F,
+        progress_callback: F,
     ) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
@@ -719,6 +718,22 @@ pub trait ImageDecoder<'a>: Sized {
         }
 
         Ok(())
+    }
+
+    /// Same as `read_image` but periodically calls the provided callback to give updates on loading
+    /// progress.
+    // TODO find a way to have only _mut versions, eliminating refcells
+    fn read_image_with_progress_mut<F: FnMut(Progress)>(
+        self,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        let mutable_callback_cell = std::cell::RefCell::new(progress_callback);
+        self.read_image_with_progress(buf, |progress| {
+            if let Ok(mut progress_callback) = mutable_callback_cell.try_borrow_mut() {
+                progress_callback(progress)
+            }
+        })
     }
 
     /// Set decoding limits for this decoder. See [`Limits`] for the different kinds of
@@ -756,6 +771,17 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         self.read_rect_with_progress(x, y, width, height, buf, |_| {})
     }
 
+    /// Same as `read_rect_with_progress_mut`, but the callback is not mutable.
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()>;
+
     /// Decode a rectangular section of the image, periodically reporting progress.
     ///
     /// The output buffer will be filled with fields specified by
@@ -768,7 +794,8 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     ///
     /// This function will panic if the output buffer isn't at least
     /// `color_type().bytes_per_pixel() * color_type().channel_count() * width * height` bytes long.
-    fn read_rect_with_progress<F: FnMut(Progress)>(
+    // TODO find a way to have only _mut versions, eliminating refcells
+    fn read_rect_with_progress_mut<F: FnMut(Progress)>(
         &mut self,
         x: u32,
         y: u32,
@@ -776,7 +803,14 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         height: u32,
         buf: &mut [u8],
         progress_callback: F,
-    ) -> ImageResult<()>;
+    ) -> ImageResult<()> {
+        let mutable_callback_cell = std::cell::RefCell::new(progress_callback);
+        self.read_rect_with_progress(x, y, width, height, buf,|progress| {
+            if let Ok(mut progress_callback) = mutable_callback_cell.try_borrow_mut() {
+                progress_callback(progress)
+            }
+        })
+    }
 }
 
 /// AnimationDecoder trait

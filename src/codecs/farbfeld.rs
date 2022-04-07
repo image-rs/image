@@ -259,12 +259,12 @@ impl<W: Write> FarbfeldEncoder<W> {
 
     /// Encodes the image ```data``` (native endian)
     /// that has dimensions ```width``` and ```height```
-    pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
-        self.encode_impl(data, width, height)?;
+    pub fn encode<F: FnMut(Progress)>(self, data: &[u8], width: u32, height: u32, progress: F) -> ImageResult<()> {
+        self.encode_impl(data, width, height, progress)?;
         Ok(())
     }
 
-    fn encode_impl(mut self, data: &[u8], width: u32, height: u32) -> io::Result<()> {
+    fn encode_impl<F: FnMut(Progress)>(mut self, data: &[u8], width: u32, height: u32, mut progress: F) -> io::Result<()> {
         self.w.write_all(b"farbfeld")?;
 
         let mut buf = [0u8; 4];
@@ -274,22 +274,29 @@ impl<W: Write> FarbfeldEncoder<W> {
         BigEndian::write_u32(&mut buf, height);
         self.w.write_all(&buf)?;
 
-        for channel in data.chunks_exact(2) {
+        let u16_chunks = data.chunks_exact(2);
+        let chunk_count = u16_chunks.len() as u64;
+
+        for (chunk_index, channel) in u16_chunks.enumerate() {
+            progress(Progress::new(chunk_index as u64, chunk_count));
+
             BigEndian::write_u16(&mut buf, NativeEndian::read_u16(channel));
             self.w.write_all(&buf[..2])?;
         }
 
+        progress(Progress::new(chunk_count, chunk_count));
         Ok(())
     }
 }
 
 impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
-    fn write_image(
+    fn write_image_with_progress<F: FnMut(Progress)>(
         self,
         buf: &[u8],
         width: u32,
         height: u32,
         color_type: ColorType,
+        progress: F,
     ) -> ImageResult<()> {
         if color_type != ColorType::Rgba16 {
             return Err(ImageError::Unsupported(
@@ -300,7 +307,17 @@ impl<W: Write> ImageEncoder for FarbfeldEncoder<W> {
             ));
         }
 
-        self.encode(buf, width, height)
+        self.encode(buf, width, height, progress)
+    }
+
+    fn write_image(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+    ) -> ImageResult<()> {
+        self.write_image_with_progress(buf, width, height, color_type, |_|{})
     }
 }
 

@@ -3,6 +3,7 @@ name = "image"
 version = "0.24.1"
 edition = "2018"
 rust-version = "1.56"
+resolver = "2"
 
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -51,6 +52,9 @@ num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
 criterion = "0.3"
+# Keep this in sync with the jpeg dependency above. This is used to enable the platform_independent
+# feature when testing, so `cargo test` works correctly.
+jpeg = { package = "jpeg-decoder", version = "0.2.1", default-features = false, features = ["platform_independent"] }
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0

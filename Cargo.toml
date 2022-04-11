@@ -3,6 +3,7 @@ name = "image"
 version = "0.24.1"
 edition = "2018"
 rust-version = "1.56"
+resolver = "2"
 
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."

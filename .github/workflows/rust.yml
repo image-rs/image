@@ -159,3 +159,8 @@ jobs:
       with:
         command: fmt
         args: -- --check
+  cargo-deny:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: EmbarkStudios/cargo-deny-action@v1

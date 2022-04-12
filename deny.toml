@@ -21,10 +21,7 @@ ignore = []
 multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
-skip = [
-    { name = "jpeg-decoder" }, # Duplicated by tiff crate; awaiting patch release: https://github.com/image-rs/image-tiff/pull/155
-    { name = "miniz_oxide" },  # Used by tiff/flate2; awaiting patch release: https://github.com/rust-lang/flate2-rs/pull/293
-]
+skip = []
 skip-tree = [
     { name = "criterion" }, # dev-dependnecy
 ]

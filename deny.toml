@@ -33,5 +33,5 @@ skip-tree = [
 
 [licenses]
 unlicensed = "allow"
-allow-osi-fsf-free = "allow"
+allow-osi-fsf-free = "either"
 copyleft = "allow"

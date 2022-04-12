@@ -26,7 +26,8 @@ wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny
 deny = []
 skip = []
 skip-tree = [
-    { name = "criterion" }, # dev-dependnecy
+    { name = "criterion" },  # dev-dependency
+    { name = "quickcheck" }, # dev-dependency
 ]
 
 

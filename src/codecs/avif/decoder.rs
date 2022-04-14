@@ -112,7 +112,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 num_planes: 3,
             };
             let dst_format = dcp::ImageFormat {
-                pixel_format: dcp::PixelFormat::Bgra,
+                pixel_format: dcp::PixelFormat::Rgba,
                 color_space: dcp::ColorSpace::Lrgb,
                 num_planes: 1,
             };
@@ -158,11 +158,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                     buf[3 + i * 4] = slice[i];
                 }
             }
-        }
-
-        // Convert Bgra to Rgba
-        for chunk in buf.chunks_exact_mut(4) {
-            chunk.swap(0, 2);
         }
 
         Ok(())

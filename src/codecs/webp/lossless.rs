@@ -377,7 +377,7 @@ impl<R: Read> LosslessDecoder<R> {
 
         let info = HuffmanInfo {
             xsize: huffman_xsize,
-            ysize: huffman_ysize,
+            _ysize: huffman_ysize,
             color_cache,
             image: entropy_image,
             bits: huffman_bits,
@@ -630,7 +630,7 @@ impl<R: Read> LosslessDecoder<R> {
 #[derive(Debug, Clone)]
 struct HuffmanInfo {
     xsize: u16,
-    ysize: u16,
+    _ysize: u16,
     color_cache: Option<ColorCache>,
     image: Vec<u32>,
     bits: u8,

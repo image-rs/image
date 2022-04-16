@@ -81,15 +81,15 @@ impl error::Error for DecoderError {}
 /// Header used by DDS image files
 #[derive(Debug)]
 struct Header {
-    flags: u32,
+    _flags: u32,
     height: u32,
     width: u32,
-    pitch_or_linear_size: u32,
-    depth: u32,
-    mipmap_count: u32,
+    _pitch_or_linear_size: u32,
+    _depth: u32,
+    _mipmap_count: u32,
     pixel_format: PixelFormat,
-    caps: u32,
-    caps2: u32,
+    _caps: u32,
+    _caps2: u32,
 }
 
 /// Extended DX10 header used by some DDS image files
@@ -107,11 +107,11 @@ struct DX10Header {
 struct PixelFormat {
     flags: u32,
     fourcc: [u8; 4],
-    rgb_bit_count: u32,
-    r_bit_mask: u32,
-    g_bit_mask: u32,
-    b_bit_mask: u32,
-    a_bit_mask: u32,
+    _rgb_bit_count: u32,
+    _r_bit_mask: u32,
+    _g_bit_mask: u32,
+    _b_bit_mask: u32,
+    _a_bit_mask: u32,
 }
 
 impl PixelFormat {
@@ -128,11 +128,11 @@ impl PixelFormat {
                 r.read_exact(&mut v)?;
                 v
             },
-            rgb_bit_count: r.read_u32::<LittleEndian>()?,
-            r_bit_mask: r.read_u32::<LittleEndian>()?,
-            g_bit_mask: r.read_u32::<LittleEndian>()?,
-            b_bit_mask: r.read_u32::<LittleEndian>()?,
-            a_bit_mask: r.read_u32::<LittleEndian>()?,
+            _rgb_bit_count: r.read_u32::<LittleEndian>()?,
+            _r_bit_mask: r.read_u32::<LittleEndian>()?,
+            _g_bit_mask: r.read_u32::<LittleEndian>()?,
+            _b_bit_mask: r.read_u32::<LittleEndian>()?,
+            _a_bit_mask: r.read_u32::<LittleEndian>()?,
         })
     }
 }
@@ -171,15 +171,15 @@ impl Header {
         }
 
         Ok(Self {
-            flags,
+            _flags: flags,
             height,
             width,
-            pitch_or_linear_size,
-            depth,
-            mipmap_count,
+            _pitch_or_linear_size: pitch_or_linear_size,
+            _depth: depth,
+            _mipmap_count: mipmap_count,
             pixel_format,
-            caps,
-            caps2,
+            _caps: caps,
+            _caps2: caps2,
         })
     }
 }
@@ -206,7 +206,7 @@ impl DX10Header {
 
     fn validate(&self) -> Result<(), ImageError> {
         // Note: see https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dds-header-dxt10 for info on valid values
-        if self.dxgi_format < 0 || self.dxgi_format > 132 {
+        if self.dxgi_format > 132 {
             // Invalid format
             return Err(DecoderError::DxgiFormatInvalid(self.dxgi_format).into());
         }
@@ -229,7 +229,7 @@ impl DX10Header {
             return Err(DecoderError::Dx10ArraySizeInvalid(self.array_size).into());
         }
 
-        if self.misc_flags_2 < 0x0 || self.misc_flags_2 > 0x4 {
+        if self.misc_flags_2 > 0x4 {
             // Invalid alpha flags
             return Err(DecoderError::Dx10FlagsInvalid(self.misc_flags_2).into());
         }

@@ -122,8 +122,26 @@ impl Limits {
         Ok(())
     }
 
+    /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
+    pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
+        use std::convert::TryFrom;
+
+        match u64::try_from(amount) {
+            Ok(n) => self.reserve(n),
+            Err(_) if self.max_alloc.is_some() => {
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
+            }
+            Err(_) => {
+                // Out of bounds, but we weren't asked to consider any limit.
+                Ok(())
+            }
+        }
+    }
+
     /// This function increases the `max_alloc` limit with amount. Should only be used
-    /// togheter with [`reserve`].
+    /// together with [`reserve`].
     ///
     /// [`reserve`]: #method.reserve
     pub fn free(&mut self, amount: u64) {

@@ -174,10 +174,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
             let mut frame_buffer = vec![0; buffer_size];
 
-            self.limits.free(
-                u64::try_from(buffer_size)
-                    .expect("if buffer_size overflows a usize, we should have returned already"),
-            );
+            self.limits.free_usize(buffer_size);
 
             self.reader
                 .read_into_buffer(&mut frame_buffer[..])

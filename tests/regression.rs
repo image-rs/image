@@ -71,7 +71,7 @@ fn bad_gif_oom() {
     // It then exits normally with an EOF when reading.
     //
     // So instead we look for a limits error (or an unsupported error, for the case that we're
-    // running these tests without bmp being actually supported)
+    // running these tests without gif being actually supported)
     let error = image::load_from_memory(&data).unwrap_err();
 
     assert!(

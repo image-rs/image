@@ -1,5 +1,7 @@
 //! Input and output of images.
 
+use std::convert::TryFrom;
+
 use crate::{error, ImageError, ImageResult};
 
 pub(crate) mod free_functions;
@@ -122,13 +124,42 @@ impl Limits {
         Ok(())
     }
 
+    /// This function acts identically to [`reserve`], but takes a `usize` for convenience.
+    pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
+        match u64::try_from(amount) {
+            Ok(n) => self.reserve(n),
+            Err(_) if self.max_alloc.is_some() => {
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
+            }
+            Err(_) => {
+                // Out of bounds, but we weren't asked to consider any limit.
+                Ok(())
+            }
+        }
+    }
+
     /// This function increases the `max_alloc` limit with amount. Should only be used
-    /// togheter with [`reserve`].
+    /// together with [`reserve`].
     ///
     /// [`reserve`]: #method.reserve
     pub fn free(&mut self, amount: u64) {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             *max_alloc = max_alloc.saturating_add(amount);
+        }
+    }
+
+    /// This function acts identically to [`free`], but takes a `usize` for convenience.
+    pub fn free_usize(&mut self, amount: usize) {
+        match u64::try_from(amount) {
+            Ok(n) => self.free(n),
+            Err(_) if self.max_alloc.is_some() => {
+                panic!("max_alloc is set, we should have exited earlier when the reserve failed");
+            }
+            Err(_) => {
+                // Out of bounds, but we weren't asked to consider any limit.
+            }
         }
     }
 }

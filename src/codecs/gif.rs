@@ -43,22 +43,36 @@ use crate::error::{
     UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{self, AnimationDecoder, ImageDecoder, ImageFormat};
+use crate::io::Limits;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
 
 /// GIF decoder
 pub struct GifDecoder<R: Read> {
     reader: gif::Decoder<R>,
+    limits: Limits,
 }
 
 impl<R: Read> GifDecoder<R> {
-    /// Creates a new decoder that decodes the input steam ```r```
+    /// Creates a new decoder that decodes the input steam `r`
     pub fn new(r: R) -> ImageResult<GifDecoder<R>> {
         let mut decoder = gif::DecodeOptions::new();
         decoder.set_color_output(ColorOutput::RGBA);
 
         Ok(GifDecoder {
             reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
+            limits: Limits::default(),
+        })
+    }
+
+    /// Creates a new decoder that decodes the input steam `r`, using limits `limits`
+    pub fn with_limits(r: R, limits: Limits) -> ImageResult<GifDecoder<R>> {
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(ColorOutput::RGBA);
+
+        Ok(GifDecoder {
+            reader: decoder.read_info(r).map_err(ImageError::from_decoding)?,
+            limits,
         })
     }
 }
@@ -154,7 +168,14 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
         } else {
             // If the frame does not match the logical screen, read into an extra buffer
             // and 'insert' the frame from left/top to logical screen width/height.
-            let mut frame_buffer = vec![0; self.reader.buffer_size()];
+            let buffer_size = self.reader.buffer_size();
+
+            self.limits.reserve_usize(buffer_size)?;
+
+            let mut frame_buffer = vec![0; buffer_size];
+
+            self.limits.free_usize(buffer_size);
+
             self.reader
                 .read_into_buffer(&mut frame_buffer[..])
                 .map_err(ImageError::from_decoding)?;

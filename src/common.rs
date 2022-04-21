@@ -627,6 +627,17 @@ impl Info<'_> {
         data[9] = self.color_type as u8;
         data[12] = self.interlaced as u8;
         encoder::write_chunk(&mut w, chunk::IHDR, &data)?;
+        // Encode the pHYs chunk
+        if let Some(pd) = self.pixel_dims{
+            let mut phys_data = [0; 9];
+            phys_data[0..4].copy_from_slice(&pd.xppu.to_be_bytes());
+            phys_data[4..8].copy_from_slice(&pd.yppu.to_be_bytes());
+            match pd.unit{
+                Unit::Meter => phys_data[8] = 1,
+                Unit::Unspecified => phys_data[8] = 0,
+            }
+            encoder::write_chunk(&mut w, chunk::pHYs, &phys_data)?;
+        }
 
         if let Some(p) = &self.palette {
             encoder::write_chunk(&mut w, chunk::PLTE, p)?;

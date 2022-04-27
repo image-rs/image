@@ -1341,4 +1341,16 @@ mod test {
         let _ = super::DynamicImage::new_luma8(1, 1).into_bytes();
         let _ = super::DynamicImage::new_luma16(1, 1).into_bytes();
     }
+
+    #[test]
+    fn issue_1705_can_turn_16bit_image_into_bytes() {
+        let pixels = vec![65535u16; 64 * 64];
+        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+
+        let img = super::DynamicImage::ImageLuma16(img.into());
+        assert!(img.as_luma16().is_some());
+
+        let bytes: Vec<u8> = img.into_bytes();
+        assert_eq!(bytes, vec![0xFF; 64 * 64 * 2]);
+    }
 }

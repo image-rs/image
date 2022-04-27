@@ -570,9 +570,19 @@ impl DynamicImage {
     /// is returned.
     pub fn into_bytes(self) -> Vec<u8> {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
-        dynamic_map!(self, |image_buffer| bytemuck::allocation::cast_vec(
-            image_buffer.into_raw()
-        ))
+        dynamic_map!(self, |image_buffer| {
+            match bytemuck::allocation::try_cast_vec(image_buffer.into_raw()) {
+                Ok(vec) => vec,
+                Err((_, vec)) => {
+                    // Fallback: vector requires an exact alignment and size match
+                    // Reuse of the allocation as done in the Ok branch only works if the
+                    // underlying container is exactly Vec<u8> (or compatible but that's the only
+                    // alternative at the time of writing).
+                    // In all other cases we must allocate a new vector with the 'same' contents.
+                    bytemuck::cast_slice(&vec).to_owned()
+                }
+            }
+        })
     }
 
     /// Return a copy of this image's pixels as a byte vector.
@@ -1324,5 +1334,23 @@ mod test {
         struct Foo {
             image: super::DynamicImage,
         }
+    }
+
+    #[test]
+    fn test_to_vecu8() {
+        let _ = super::DynamicImage::new_luma8(1, 1).into_bytes();
+        let _ = super::DynamicImage::new_luma16(1, 1).into_bytes();
+    }
+
+    #[test]
+    fn issue_1705_can_turn_16bit_image_into_bytes() {
+        let pixels = vec![65535u16; 64 * 64];
+        let img = super::ImageBuffer::from_vec(64, 64, pixels).unwrap();
+
+        let img = super::DynamicImage::ImageLuma16(img.into());
+        assert!(img.as_luma16().is_some());
+
+        let bytes: Vec<u8> = img.into_bytes();
+        assert_eq!(bytes, vec![0xFF; 64 * 64 * 2]);
     }
 }

@@ -11,14 +11,29 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Unreleased
 
+- More convenient to use buffers will be added in the future. In particular,
+  improving initialization, passing of output buffers, and adding a more
+  complete representation for layouts. The plan is for these to interact with
+  the rest of the library through a byte-based interface similar to
+  `ImageDecoder`.
+  See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
+  you want to participate.
+
+### Version 0.24.2
+
+Structural changes:
+- CI now runs `cargo-deny`, checking dependent crates to an OSS license list
+  and against RUSTSEC advisories.
+
+New Features:
+- The WebP decoder recognizes and decodes images with `VP8X` header.
+- The DDS decoder recognizes and decodes images with `DX10` headers.
+
 Bug fixes:
 - Calling `DynamicImage`/`ImageBuffer`'s methods `write_to` and `save` will now
   work properly even if the backing container is larger than the image layout
   requires. Only the relevant slice of pixel data is passed to the encoder.
-
-- More convenient to use differently laid-out buffers for initialization and
-  results, but not operation directly, will be added in the future. The plan
-  is for these to use a byte-based interface similar to `ImageDecoder`.
+- Fixed a OOM-panic caused by malformed images in the `gif` decoder.
 
 ### Version 0.24.1
 

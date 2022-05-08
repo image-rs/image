@@ -28,7 +28,9 @@ where
 {
     dimensions: (u32, u32),
     color_type: ColorType,
-    inner: tiff::decoder::Decoder<R>,
+
+    // We only use an Option here so we can call with_limits on the decoder without moving.
+    inner: Option<tiff::decoder::Decoder<R>>,
 }
 
 impl<R> TiffDecoder<R>
@@ -74,7 +76,7 @@ where
         Ok(TiffDecoder {
             dimensions,
             color_type,
-            inner,
+            inner: Some(inner),
         })
     }
 }
@@ -173,9 +175,30 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.color_type
     }
 
-    fn into_reader(mut self) -> ImageResult<Self::Reader> {
+    fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let (width, height) = self.dimensions();
+        limits.check_dimensions(width, height)?;
+
+        let max_alloc = limits.max_alloc.unwrap_or(u64::MAX);
+        let max_intermediate_alloc = max_alloc.saturating_sub(self.total_bytes());
+
+        let mut tiff_limits: tiff::decoder::Limits = Default::default();
+        tiff_limits.decoding_buffer_size =
+            usize::try_from(max_alloc - max_intermediate_alloc).unwrap_or(usize::MAX);
+        tiff_limits.intermediate_buffer_size =
+            usize::try_from(max_intermediate_alloc).unwrap_or(usize::MAX);
+        tiff_limits.ifd_value_size = tiff_limits.intermediate_buffer_size;
+        self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
+
+        Ok(())
+    }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
         let buf = match self
             .inner
+            .unwrap()
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {
@@ -194,10 +217,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         Ok(TiffReader(Cursor::new(buf), PhantomData))
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self
             .inner
+            .unwrap()
             .read_image()
             .map_err(ImageError::from_tiff_decode)?
         {

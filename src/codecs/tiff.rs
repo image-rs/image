@@ -28,6 +28,8 @@ where
 {
     dimensions: (u32, u32),
     color_type: ColorType,
+
+    // We only use an Option here so we can call with_limits on the decoder without moving.
     inner: Option<tiff::decoder::Decoder<R>>,
 }
 

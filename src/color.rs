@@ -731,6 +731,14 @@ impl<T: Primitive> Blend for Rgba<T> {
     fn blend(&mut self, other: &Rgba<T>) {
         // http://stackoverflow.com/questions/7438263/alpha-compositing-algorithm-blend-modes#answer-11163848
 
+        if other.0[3].is_zero() {
+            return;
+        }
+        if other.0[3].to_i32().unwrap() == 255 {
+            *self = *other;
+            return;
+        }
+
         // First, as we don't know what type our pixel is, we have to convert to floats between 0.0 and 1.0
         let max_t = T::DEFAULT_MAX_VALUE;
         let max_t = max_t.to_f32().unwrap();

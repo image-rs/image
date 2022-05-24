@@ -12,7 +12,7 @@ use crate::codecs::pnm;
 
 use crate::buffer_::{
     ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+    Rgb16Image, RgbImage, Rgba16Image, RgbaImage, Canvas,
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
@@ -233,6 +233,11 @@ impl DynamicImage {
     /// Returns a copy of this image as a LumaA image.
     pub fn to_luma_alpha32f(&self) -> ImageBuffer<LumaA<f32>, Vec<f32>> {
         dynamic_map!(*self, |ref p| p.convert())
+    }
+
+    /// Returns a copy of this image as an sRGB canvas.
+    pub fn to_canvas(&self) -> Canvas {
+        dynamic_map!(*self, |ref p| p.into())
     }
 
     /// Consume the image and returns a RGB image.

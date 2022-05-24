@@ -1,4 +1,7 @@
 //! Contains the generic `ImageBuffer` struct.
+#[path = "buffer/canvas.rs"]
+mod canvas;
+
 use num_traits::Zero;
 use std::fmt;
 use std::marker::PhantomData;
@@ -14,6 +17,8 @@ use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputForma
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
+
+pub use self::canvas::Canvas;
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>

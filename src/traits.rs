@@ -12,11 +12,16 @@ use crate::color::{ColorType, Luma, LumaA, Rgb, Rgba};
 pub trait EncodableLayout: seals::EncodableLayout {
     /// Get the bytes of this value.
     fn as_bytes(&self) -> &[u8];
+    /// Get a mutable reference to all bytes of this value.
+    fn as_bytes_mut(&mut self) -> &mut [u8];
 }
 
 impl EncodableLayout for [u8] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
+    }
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
     }
 }
 
@@ -24,11 +29,17 @@ impl EncodableLayout for [u16] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
     }
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
+    }
 }
 
 impl EncodableLayout for [f32] {
     fn as_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(self)
+    }
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self)
     }
 }
 

@@ -159,6 +159,8 @@ pub mod buffer {
         ConvertBuffer, EnumeratePixels, EnumeratePixelsMut, EnumerateRows, EnumerateRowsMut,
         Pixels, PixelsMut, Rows, RowsMut,
     };
+
+    pub use crate::buffer_::{Canvas, CanvasLayout, UnknownCanvasTexelError};
 }
 
 // Math utils

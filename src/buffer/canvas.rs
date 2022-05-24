@@ -12,6 +12,7 @@ use image_canvas::color::Color;
 use image_canvas::layout::{CanvasLayout as InnerLayout, SampleParts, Texel};
 use image_canvas::Canvas as Inner;
 
+/// A byte buffer for various color and layout combinations.
 pub struct Canvas {
     inner: Inner,
 }
@@ -19,6 +20,18 @@ pub struct Canvas {
 #[derive(Clone, PartialEq)]
 pub struct CanvasLayout {
     inner: InnerLayout,
+}
+
+/// Signals that the `ExtendedColorType` couldn't be made into a canvas texel.
+///
+/// The goal here is to incrementally increase the support for texels and *eventually* turn this
+/// struct into a public one, whose only member is an uninhabited (`Never`) type—such that all
+/// methods returning it as a result become infallible.
+#[derive(Clone, Debug, PartialEq)]
+// By design. Please, clippy, recognizing this pattern would be helpful.
+#[allow(missing_copy_implementations)]
+pub struct UnknownCanvasTexelError {
+    _inner: (),
 }
 
 impl Canvas {
@@ -79,11 +92,23 @@ impl Canvas {
     }
 
     pub fn as_flat_samples_u8(&self) -> Option<FlatSamples<&[u8]>> {
-        todo!()
+        let channels = self.inner.channels_u8()?;
+        let spec = channels.layout().spec();
+        Some(FlatSamples {
+            samples: channels.into_slice(),
+            layout: Self::sample_layout(spec),
+            color_hint: Self::color_type(self.inner.layout()),
+        })
     }
 
     pub fn as_flat_samples_u16(&self) -> Option<FlatSamples<&[u16]>> {
-        todo!()
+        let channels = self.inner.channels_u16()?;
+        let spec = channels.layout().spec();
+        Some(FlatSamples {
+            samples: channels.into_slice(),
+            layout: Self::sample_layout(spec),
+            color_hint: Self::color_type(self.inner.layout()),
+        })
     }
 
     pub fn as_flat_samples_i8(&self) -> Option<FlatSamples<&[i8]>> {
@@ -95,7 +120,13 @@ impl Canvas {
     }
 
     pub fn as_flat_samples_f32(&self) -> Option<FlatSamples<&[f32]>> {
-        todo!()
+        let channels = self.inner.channels_f32()?;
+        let spec = channels.layout().spec();
+        Some(FlatSamples {
+            samples: channels.into_slice(),
+            layout: Self::sample_layout(spec),
+            color_hint: Self::color_type(self.inner.layout()),
+        })
     }
 
     pub fn to_buffer<P: PixelWithColorType>(&self) -> ImageBuffer<P, Vec<P::Subpixel>>
@@ -155,9 +186,15 @@ impl Canvas {
         }
     }
 
-    fn sample_layout(layout: &InnerLayout) -> Option<SampleLayout> {
-        let plane = layout.as_plane()?;
-        None
+    fn sample_layout(spec: image_canvas::layout::ChannelSpec) -> SampleLayout {
+        SampleLayout {
+            channels: spec.channels,
+            channel_stride: spec.channel_stride,
+            width: spec.width,
+            width_stride: spec.width_stride,
+            height: spec.height,
+            height_stride: spec.height_stride,
+        }
     }
 
     fn color_type(_: &InnerLayout) -> Option<ColorType> {
@@ -178,10 +215,18 @@ impl CanvasLayout {
         Some(CanvasLayout { inner: layout })
     }
 
-    pub fn with_extended(color: ExtendedColorType, w: u32, h: u32) -> Option<Self> {
-        let texel = extended_color_to_texel(color)?;
-        let layout = InnerLayout::with_texel(&texel, w, h).ok()?;
-        Some(CanvasLayout { inner: layout })
+    pub fn with_extended(
+        color: ExtendedColorType,
+        w: u32,
+        h: u32,
+    ) -> Result<Self, UnknownCanvasTexelError> {
+        fn inner(color: ExtendedColorType, w: u32, h: u32) -> Option<CanvasLayout> {
+            let texel = extended_color_to_texel(color)?;
+            let layout = InnerLayout::with_texel(&texel, w, h).ok()?;
+            Some(CanvasLayout { inner: layout })
+        }
+
+        inner(color, w, h).ok_or(UnknownCanvasTexelError { _inner: () })
     }
 }
 

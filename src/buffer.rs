@@ -18,7 +18,7 @@ use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
 
-pub use self::canvas::Canvas;
+pub use self::canvas::{Canvas, CanvasLayout, UnknownCanvasTexelError};
 
 /// Iterate over pixel refs.
 pub struct Pixels<'a, P: Pixel + 'a>

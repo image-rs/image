@@ -13,10 +13,18 @@ use image_canvas::layout::{CanvasLayout as InnerLayout, SampleParts, Texel};
 use image_canvas::Canvas as Inner;
 
 /// A byte buffer for various color and layout combinations.
+///
+/// Note that it is possible to convert most [`ImageBuffer`] as well as [`DynamicImage`] instances
+/// into a canvas that represents the same pixels and color. See `From` implementations below.
 pub struct Canvas {
     inner: Inner,
 }
 
+/// The layout of a [`Canvas`].
+///
+/// Apart from the simplistic cases of matrices of uniform channel arrays, this can internally also
+/// represent complex cases such as pixels with mixed channel types, matrices of compressed blocks,
+/// and planar layouts. The public constructors define the possibilities that are support.
 #[derive(Clone, PartialEq)]
 pub struct CanvasLayout {
     inner: InnerLayout,
@@ -35,7 +43,10 @@ pub struct UnknownCanvasTexelError {
 }
 
 impl Canvas {
+    /// Allocate an image canvas for a given color, and dimensions.
+    ///
     /// # Panics
+    ///
     /// If the layout is invalid for this platform, i.e. requires more than `isize::MAX` bytes to
     /// allocate. Also panics if the allocator fails.
     pub fn new(color: ColorType, w: u32, h: u32) -> Self {
@@ -47,12 +58,18 @@ impl Canvas {
         }
     }
 
+    /// Allocate an image canvas with complex layout.
+    ///
+    /// This is a generalization of [`Self::new`] and the error case of an invalid layout is
+    /// isolated, and can be properly handled. Furthermore, this provides control over the
+    /// allocation by making its size available to the caller before it is performed.
     pub fn with_layout(layout: CanvasLayout) -> Self {
         Canvas {
             inner: Inner::new(layout.inner),
         }
     }
 
+    /// Allocate a canvas for the result of an image decoder, then read the image into it.
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
         // FIXME: we can also handle ExtendedColorType...
         let texel = color_to_texel(decoder.color_type());
@@ -70,27 +87,57 @@ impl Canvas {
         Ok(Canvas { inner: canvas })
     }
 
+    /// The width of this canvas, in represented pixels.
     pub fn width(&self) -> u32 {
         self.inner.layout().width()
     }
 
+    /// The height of this canvas, in represented pixels.
     pub fn height(&self) -> u32 {
         self.inner.layout().height()
     }
 
+    /// Get a reference to the raw bytes making up this canvas.
+    ///
+    /// The interpretation will very much depend on the current layout. Note that primitive
+    /// channels will be generally stored in native-endian order.
+    ///
+    /// This can be used to pass the bytes through FFI but prefer [`Self::as_flat_samples_u8`] and
+    /// related methods for a typed descriptor that will check against the underlying type of
+    /// channels.
     pub fn as_bytes(&self) -> &[u8] {
         self.inner.as_bytes()
     }
 
+    /// Get a mutable reference to the raw bytes making up this canvas.
+    ///
+    /// The interpretation will very much depend on the current layout. Note that primitive
+    /// channels will be generally stored in native-endian order.
+    ///
+    /// This can be used to initialize bytes from FFI.
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         self.inner.as_bytes_mut()
     }
 
+    /// Drop all layout information and turn into raw bytes.
+    ///
+    /// This will not be any less efficient than calling `as_bytes().to_owned()` but it *may* be
+    /// possible to reuse the allocation in the future.
+    ///
+    /// However, note that it is **unsound** to take the underlying allocation as its layout has an
+    /// alignment mismatch with the layout that `Vec<u8>` is expecting (it is generally allocated
+    /// to a much higher alignment). Instead, a reallocation is required; the allocator might
+    /// recycle the allocation which avoids the byte copy.
     pub fn into_bytes(self) -> Vec<u8> {
-        // No better way, we're changing the alignment of the layout.
+        // No better way in `image-texel = 0.2.0` but may be in the future, we're changing the
+        // alignment of the layout.
         self.as_bytes().to_owned()
     }
 
+    /// Get a reference to channels, without conversion.
+    ///
+    /// This returns `None` if the channels of the underlying layout are not unsigned bytes, or if
+    /// the layout is not a single image plane.
     pub fn as_flat_samples_u8(&self) -> Option<FlatSamples<&[u8]>> {
         let channels = self.inner.channels_u8()?;
         let spec = channels.layout().spec();
@@ -101,6 +148,10 @@ impl Canvas {
         })
     }
 
+    /// Get a reference to channels, without conversion.
+    ///
+    /// This returns `None` if the channels of the underlying layout are not unsigned shorts, or if
+    /// the layout is not a single image plane.
     pub fn as_flat_samples_u16(&self) -> Option<FlatSamples<&[u16]>> {
         let channels = self.inner.channels_u16()?;
         let spec = channels.layout().spec();
@@ -111,14 +162,10 @@ impl Canvas {
         })
     }
 
-    pub fn as_flat_samples_i8(&self) -> Option<FlatSamples<&[i8]>> {
-        todo!()
-    }
-
-    pub fn as_flat_samples_i16(&self) -> Option<FlatSamples<&[i16]>> {
-        todo!()
-    }
-
+    /// Get a reference to channels, without conversion.
+    ///
+    /// This returns `None` if the channels of the underlying layout are not 32-bit floating point
+    /// numbers, or if the layout is not a single image plane.
     pub fn as_flat_samples_f32(&self) -> Option<FlatSamples<&[f32]>> {
         let channels = self.inner.channels_f32()?;
         let spec = channels.layout().spec();
@@ -129,6 +176,13 @@ impl Canvas {
         })
     }
 
+    /// Convert the data into an `ImageBuffer`.
+    ///
+    /// Performs color conversion if necessary, such as rearranging color channel order,
+    /// transforming pixels to the `sRGB` color space etc.
+    ///
+    /// The subpixel of the result type is constrained by a sealed, internal trait that is
+    /// implemented for all primitive numeric types.
     pub fn to_buffer<P: PixelWithColorType>(&self) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         [P::Subpixel]: EncodableLayout,
@@ -160,7 +214,7 @@ impl Canvas {
 
         debug_assert!(
             destination.len() == initializer.len(),
-            "The layout computation should do the same"
+            "The layout computation should not differ"
         );
 
         destination[..len].copy_from_slice(&initializer[..len]);
@@ -168,6 +222,15 @@ impl Canvas {
         buffer
     }
 
+    /// Convert this canvas into an enumeration of simple buffer types.
+    ///
+    /// If the underlying texels are any of the simple [`ColorType`] formats then this format is
+    /// chosen as the output variant. Otherwise, prefers `Rgba<f32>` if an alpha channel is present
+    /// and `Rgb<f32>` otherwise. The conversion _may_ be lossy.
+    ///
+    /// This entails a re-allocation! However, the actual runtime costs vary depending on the
+    /// actual current image layout. For example, if a color conversion to `sRGB` is necessary then
+    /// this is more expensive than a channel reordering.
     pub fn to_dynamic(&self) -> DynamicImage {
         let layout = self.inner.layout();
         match Self::color_type(layout) {
@@ -197,24 +260,26 @@ impl Canvas {
         }
     }
 
-    fn color_type(_: &InnerLayout) -> Option<ColorType> {
+    fn color_type(layout: &InnerLayout) -> Option<ColorType> {
         // FIXME: check for pixel types.
         None
     }
 
-    fn has_alpha(_: &InnerLayout) -> bool {
+    fn has_alpha(layout: &InnerLayout) -> bool {
         // FIXME: check channels.
         true
     }
 }
 
 impl CanvasLayout {
+    /// Construct a row-major matrix for a given color type.
     pub fn new(color: ColorType, w: u32, h: u32) -> Option<Self> {
         let texel = color_to_texel(color);
         let layout = InnerLayout::with_texel(&texel, w, h).ok()?;
         Some(CanvasLayout { inner: layout })
     }
 
+    /// Construct a row-major matrix for an extended color type, i.e. generic texels.
     pub fn with_extended(
         color: ExtendedColorType,
         w: u32,
@@ -228,12 +293,20 @@ impl CanvasLayout {
 
         inner(color, w, h).ok_or(UnknownCanvasTexelError { _inner: () })
     }
+
+    /// Returns the number of bytes required for this layout.
+    pub fn byte_len(&self) -> usize {
+        self.inner.byte_len()
+    }
 }
 
 use crate::ImageOutputFormat;
 use std::io::{Seek, Write};
 
 impl Canvas {
+    /// Encode the image into the writer, using the specified format.
+    ///
+    /// Will internally perform a conversion with [`Self::to_dynamic`].
     pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
@@ -244,6 +317,24 @@ impl Canvas {
     }
 }
 
+/// Allocate a canvas with the layout of the buffer.
+///
+/// This can't result in an invalid layout, as the `ImageBuffer` certifies that the layout fits
+/// into the address space. However, this conversion may panic while performing an allocation.
+///
+/// ## Design note.
+///
+/// Converting an owned image buffer is not currently implemented, until agreeing upon a design.
+/// There's two goals that are subtly at odds: We will want to utilize a zero-copy reallocation as
+/// best as possible but this is not possible while being generic over the container in the same
+/// manner as here.
+///
+/// However, for the near future we will only ever be able to reuse an allocation originating from
+/// a standard `Vec<_>` (of the *global* allocator). We can only specialize on this by giving the
+/// type explicitly on the impl, or by restricting the container such that `C: Any` is available.
+/// Both cases may justify explicit methods as a superior alternative.
+///
+/// The first of these options would be consistent with supporting `DynamicImage`.
 impl<P, C> From<&'_ ImageBuffer<P, C>> for Canvas
 where
     P: PixelWithColorType,
@@ -263,9 +354,10 @@ where
         let destination = canvas.as_bytes_mut();
         let initializer = buf.inner_pixels().as_bytes();
         let len = destination.len().min(initializer.len());
+
         debug_assert!(
             destination.len() == initializer.len(),
-            "The layout computation should do the same"
+            "The layout computation should not differ"
         );
 
         destination[..len].copy_from_slice(&initializer[..len]);
@@ -334,4 +426,25 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
         ColorType::La4 => todo!(),
         ColorType::Unknown(_) => return None,
     })
+}
+
+#[test]
+fn test_conversions() {
+    use crate::{Rgb, Rgba, RgbImage, buffer::ConvertBuffer};
+
+    let buffer = RgbImage::from_fn(32, 32, |x, y| {
+        if (x + y) % 2 == 0 {
+            Rgb([0, 0, 0])
+        } else {
+            Rgb([255, 255, 255])
+        }
+    });
+
+    let canvas = Canvas::from(&buffer);
+
+    assert_eq!(canvas.to_buffer::<Rgb<u8>>(), buffer.clone());
+    assert_eq!(canvas.to_buffer::<Rgb<u16>>(), buffer.convert());
+    assert_eq!(canvas.to_buffer::<Rgba<f32>>(), buffer.convert());
+
+    assert!(canvas.to_dynamic().as_rgb8().is_some());
 }

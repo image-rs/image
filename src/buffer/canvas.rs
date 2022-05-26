@@ -8,9 +8,9 @@ use crate::{
     ImageResult, Luma, LumaA, Rgb, Rgba,
 };
 
-use image_canvas::color::Color;
-use image_canvas::layout::{CanvasLayout as InnerLayout, SampleParts, Texel};
+use image_canvas::layout::{CanvasLayout as InnerLayout, SampleBits, SampleParts, Texel};
 use image_canvas::Canvas as Inner;
+use image_canvas::{color::Color, layout::Block};
 
 /// A byte buffer for various color and layout combinations.
 ///
@@ -191,9 +191,11 @@ impl Canvas {
         let mut buffer = ImageBuffer::new(width, height);
 
         let mut fallback_canvas;
+        // FIXME(perf): can we wrap the output buffer into a proper layout and have the library
+        // convert into the output buffer instead?
         let canvas = if false {
             /* self.inner.layout().texel() == texel */
-            // FIXME: can select `self` if it's correct color type.
+            // FIXME: can select `self` if it's correct color type and layout.
             &self.inner
         } else {
             let texel = color_to_texel(P::COLOR_TYPE);
@@ -261,13 +263,49 @@ impl Canvas {
     }
 
     fn color_type(layout: &InnerLayout) -> Option<ColorType> {
-        // FIXME: check for pixel types.
-        None
+        if let &Color::SRGB = layout.color()? {
+        } else {
+            return None;
+        };
+
+        let texel = layout.texel();
+
+        if let Block::Pixel = texel.block {
+        } else {
+            return None;
+        };
+
+        if let SampleBits::UInt8x3 = texel.bits {
+            if let SampleParts::Rgb = texel.parts {
+                return Some(ColorType::Rgb8);
+            }
+        } else if let SampleBits::UInt8x4 = texel.bits {
+            if let SampleParts::RgbA = texel.parts {
+                return Some(ColorType::Rgba8);
+            }
+        } else if let SampleBits::UInt16x3 = texel.bits {
+            if let SampleParts::Rgb = texel.parts {
+                return Some(ColorType::Rgb16);
+            }
+        } else if let SampleBits::UInt16x4 = texel.bits {
+            if let SampleParts::RgbA = texel.parts {
+                return Some(ColorType::Rgba16);
+            }
+        } else if let SampleBits::Float32x3 = texel.bits {
+            if let SampleParts::Rgb = texel.parts {
+                return Some(ColorType::Rgb32F);
+            }
+        } else if let SampleBits::Float32x4 = texel.bits {
+            if let SampleParts::RgbA = texel.parts {
+                return Some(ColorType::Rgba32F);
+            }
+        }
+
+        return None;
     }
 
     fn has_alpha(layout: &InnerLayout) -> bool {
-        // FIXME: check channels.
-        true
+        layout.texel().parts.has_alpha()
     }
 }
 
@@ -430,7 +468,7 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
 
 #[test]
 fn test_conversions() {
-    use crate::{Rgb, Rgba, RgbImage, buffer::ConvertBuffer};
+    use crate::{buffer::ConvertBuffer, Rgb, RgbImage, Rgba};
 
     let buffer = RgbImage::from_fn(32, 32, |x, y| {
         if (x + y) % 2 == 0 {

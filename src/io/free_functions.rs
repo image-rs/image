@@ -72,7 +72,7 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
         image::ImageFormat::Ico => visitor.visit_decoder(ico::IcoDecoder::new(r)?),
         #[cfg(feature = "hdr")]
         image::ImageFormat::Hdr => visitor.visit_decoder(hdr::HdrAdapter::new(BufReader::new(r))?),
-        #[cfg(feature = "openexr")]
+        #[cfg(feature = "exr")]
         image::ImageFormat::OpenExr => visitor.visit_decoder(openexr::OpenExrDecoder::new(r)?),
         #[cfg(feature = "pnm")]
         image::ImageFormat::Pnm => visitor.visit_decoder(pnm::PnmDecoder::new(r)?),
@@ -230,7 +230,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageOutputFormat::Tga => {
             tga::TgaEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
-        #[cfg(feature = "openexr")]
+        #[cfg(feature = "exr")]
         ImageOutputFormat::OpenExr => {
             openexr::OpenExrEncoder::new(buffered_write).write_image(buf, width, height, color)
         }

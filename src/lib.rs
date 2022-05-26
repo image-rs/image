@@ -234,7 +234,7 @@ pub mod codecs {
     pub mod ico;
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
-    #[cfg(feature = "openexr")]
+    #[cfg(feature = "exr")]
     pub mod openexr;
     #[cfg(feature = "png")]
     pub mod png;

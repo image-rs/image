@@ -20,8 +20,6 @@
 //!     - meta data is lost
 //!     - dwaa/dwab compressed images not supported yet by the exr library
 //!     - (chroma) subsampling not supported yet by the exr library
-
-extern crate exr;
 use exr::prelude::*;
 
 use crate::error::{DecodingError, EncodingError, ImageFormatHint};

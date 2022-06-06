@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::io::{self, Error, Read};
+use std::io::{self, Error, Read, Cursor};
 use std::{error, fmt};
 
 use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
@@ -164,7 +164,7 @@ impl ExtendedImage {
                         let alpha_chunk =
                             read_alpha_chunk(&mut cursor, info.canvas_width, info.canvas_height)?;
 
-                        let vp8_frame = read_lossy(reader)?;
+                        let vp8_frame = read_lossy_with_chunk(reader)?;
 
                         let img = WebPStatic::from_alpha_lossy(alpha_chunk, vp8_frame)?;
 
@@ -173,7 +173,7 @@ impl ExtendedImage {
                 }
                 WebPRiffChunk::VP8 => {
                     if static_frame.is_none() {
-                        let vp8_frame = read_lossy(&mut cursor)?;
+                        let vp8_frame = read_lossy(cursor)?;
 
                         let img = WebPStatic::from_lossy(vp8_frame)?;
 
@@ -593,7 +593,7 @@ fn read_3_bytes<R: Read>(reader: &mut R) -> ImageResult<u32> {
     Ok(value)
 }
 
-fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
+fn read_lossy_with_chunk<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
     let (cursor, chunk) =
         read_chunk(reader)?.ok_or_else(|| Error::from(io::ErrorKind::UnexpectedEof))?;
 
@@ -601,6 +601,10 @@ fn read_lossy<R: Read>(reader: &mut R) -> ImageResult<VP8Frame> {
         return Err(ChunkHeaderInvalid(chunk.to_fourcc()).into());
     }
 
+    read_lossy(cursor)
+}
+
+fn read_lossy(cursor: Cursor<Vec<u8>>) -> ImageResult<VP8Frame> {
     let mut vp8_decoder = Vp8Decoder::new(cursor);
     let frame = vp8_decoder.decode_frame()?;
 
@@ -630,7 +634,7 @@ fn read_image<R: Read>(reader: &mut R, width: u32, height: u32) -> ImageResult<W
         Some((mut cursor, WebPRiffChunk::ALPH)) => {
             let alpha_chunk = read_alpha_chunk(&mut cursor, width, height)?;
 
-            let vp8_frame = read_lossy(reader)?;
+            let vp8_frame = read_lossy_with_chunk(reader)?;
 
             let img = WebPStatic::from_alpha_lossy(alpha_chunk, vp8_frame)?;
 

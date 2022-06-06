@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::io::{self, Error, Read, Cursor};
+use std::io::{self, Cursor, Error, Read};
 use std::{error, fmt};
 
 use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
@@ -7,7 +7,7 @@ use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
 use crate::image::ImageFormat;
-use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgba, RgbaImage, RgbImage, Rgb};
+use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 //all errors that can occur while parsing extended chunks in a WebP file
@@ -457,7 +457,7 @@ impl WebPStatic {
         match self {
             WebPStatic::LossyWithAlpha(image) => {
                 buf.copy_from_slice(image);
-            },
+            }
             WebPStatic::LossyWithoutAlpha(image) => {
                 buf.copy_from_slice(image);
             }

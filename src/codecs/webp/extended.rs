@@ -7,7 +7,7 @@ use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
 use crate::image::ImageFormat;
-use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgba, RgbaImage};
+use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgba, RgbaImage, RgbImage, Rgb};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 //all errors that can occur while parsing extended chunks in a WebP file
@@ -329,7 +329,8 @@ impl ExtendedImage {
 
 #[derive(Debug)]
 enum WebPStatic {
-    Lossy(RgbaImage),
+    LossyWithAlpha(RgbaImage),
+    LossyWithoutAlpha(RgbImage),
     Lossless(LosslessFrame),
 }
 
@@ -375,7 +376,7 @@ impl WebPStatic {
         let image = RgbaImage::from_vec(vp8_frame.width.into(), vp8_frame.height.into(), image_vec)
             .unwrap();
 
-        Ok(WebPStatic::Lossy(image))
+        Ok(WebPStatic::LossyWithAlpha(image))
     }
 
     fn get_predictor(
@@ -441,21 +442,24 @@ impl WebPStatic {
     }
 
     pub(crate) fn from_lossy(vp8_frame: VP8Frame) -> ImageResult<WebPStatic> {
-        let mut image = RgbaImage::from_pixel(
+        let mut image = RgbImage::from_pixel(
             vp8_frame.width.into(),
             vp8_frame.height.into(),
-            Rgba([0, 0, 0, 255]),
+            Rgb([0, 0, 0]),
         );
 
-        vp8_frame.fill_rgba(&mut image);
+        vp8_frame.fill_rgb(&mut image);
 
-        Ok(WebPStatic::Lossy(image))
+        Ok(WebPStatic::LossyWithoutAlpha(image))
     }
 
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match self {
-            WebPStatic::Lossy(image) => {
-                buf.copy_from_slice(&**image);
+            WebPStatic::LossyWithAlpha(image) => {
+                buf.copy_from_slice(image);
+            },
+            WebPStatic::LossyWithoutAlpha(image) => {
+                buf.copy_from_slice(image);
             }
             WebPStatic::Lossless(lossless) => {
                 lossless.fill_rgba(buf);
@@ -465,7 +469,8 @@ impl WebPStatic {
 
     pub(crate) fn get_buf_size(&self) -> usize {
         match self {
-            WebPStatic::Lossy(lossy) => lossy.len(),
+            WebPStatic::LossyWithAlpha(rgb_image) => rgb_image.len(),
+            WebPStatic::LossyWithoutAlpha(rgba_image) => rgba_image.len(),
             WebPStatic::Lossless(lossless) => lossless.get_buf_size(),
         }
     }

@@ -422,7 +422,7 @@ impl<W: Write> GifEncoder<W> {
     }
 
     /// Create a new GIF encoder, and has the speed parameter `speed`. See
-    /// [`Frame::from_rgba_speed`](/gif/struct.Frame.html#method.from_rgb_speed)
+    /// [`Frame::from_rgba_speed`](https://docs.rs/gif/latest/gif/struct.Frame.html#method.from_rgba_speed)
     /// for more information.
     pub fn new_with_speed(w: W, speed: i32) -> GifEncoder<W> {
         assert!(

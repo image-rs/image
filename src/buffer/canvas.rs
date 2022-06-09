@@ -446,23 +446,81 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
         ColorType::Bgra8 => Texel::new_u8(SampleParts::BgrA),
 
         ColorType::A8 => Texel::new_u8(SampleParts::A),
-        _ => return None,
 
-        // For exposition, all other patterns that aren't covered.
-        ColorType::Rgb4 => todo!(),
-        ColorType::Rgba4 => todo!(),
+        // Layouts with non-byte colors but still pixel
+        ColorType::Rgba2 => Texel {
+            block: Block::Pixel,
+            bits: SampleBits::UInt2x4,
+            parts: SampleParts::RgbA,
+        },
+        ColorType::Rgba4 => Texel {
+            block: Block::Pixel,
+            bits: SampleBits::UInt4x4,
+            parts: SampleParts::RgbA,
+        },
 
-        ColorType::L1 => todo!(),
-        ColorType::La1 => todo!(),
-        ColorType::Rgb1 => todo!(),
-        ColorType::Rgba1 => todo!(),
-        ColorType::L2 => todo!(),
-        ColorType::La2 => todo!(),
-        ColorType::Rgb2 => todo!(),
-        ColorType::Rgba2 => todo!(),
-        ColorType::L4 => todo!(),
-        ColorType::La4 => todo!(),
-        ColorType::Unknown(_) => return None,
+        // Repeated pixel layouts
+        /*ColorType::Rgb4 => Texel {
+            block: Block::Pack1x2,
+            bits: SampleBits::UInt4x6,
+            parts: SampleParts::RgbA,
+        },*/
+        ColorType::L1 => Texel {
+            block: Block::Pack1x8,
+            bits: SampleBits::UInt1x8,
+            parts: SampleParts::Luma,
+        },
+        ColorType::La1 => Texel {
+            block: Block::Pack1x4,
+            bits: SampleBits::UInt2x4,
+            parts: SampleParts::LumaA,
+        },
+        ColorType::Rgba1 => Texel {
+            block: Block::Pack1x2,
+            bits: SampleBits::UInt1x8,
+            parts: SampleParts::RgbA,
+        },
+        ColorType::L2 => Texel {
+            block: Block::Pack1x4,
+            bits: SampleBits::UInt2x4,
+            parts: SampleParts::Luma,
+        },
+        ColorType::La2 => Texel {
+            block: Block::Pack1x2,
+            bits: SampleBits::UInt2x4,
+            parts: SampleParts::LumaA,
+        },
+        /*ColorType::L4 => Texel {
+            block: Block::Pack1x2,
+            bits: SampleBits::UInt4x2,
+            parts: SampleParts::Luma,
+        },
+        ColorType::La4 => Texel {
+            block: Block::Pixel,
+            bits: SampleBits::UInt4x2,
+            parts: SampleParts::LumaA,
+        },*/
+        ColorType::Rgb4 | ColorType::L4 | ColorType::La4 => return None,
+
+        // Placeholder for non-RGBA formats (CMYK, YUV, Lab).
+        // …
+
+        // Placeholder for subsampled YUV formats
+        // …
+
+        // Placeholder for planar formats?
+        // …
+
+        // Placeholder for Block layouts (ASTC, BC, ETC/EAC, PVRTC)
+        // …
+
+        // Uncovered variants..
+        //
+        // Rgb1/2 require 1x4 blocks with 12 channels, not supported.
+        ColorType::Rgb1
+        | ColorType::Rgb2
+        // Obvious..
+        | ColorType::Unknown(_) => return None,
     })
 }
 
@@ -485,4 +543,21 @@ fn test_conversions() {
     assert_eq!(canvas.to_buffer::<Rgba<f32>>(), buffer.convert());
 
     assert!(canvas.to_dynamic().as_rgb8().is_some());
+}
+
+#[test]
+#[rustfmt::skip]
+fn test_expansion_bits() {
+    let layout = CanvasLayout::with_extended(ExtendedColorType::L1, 6, 2)
+        .expect("valid layout type");
+    let mut buffer = Canvas::with_layout(layout);
+
+    assert_eq!(buffer.as_bytes(), b"\x00\x00");
+    buffer.as_bytes_mut().copy_from_slice(&[0b01101100 as u8, 0b10110111]);
+
+    let image = buffer.to_dynamic().into_luma8();
+    assert_eq!(image.as_bytes(), vec![
+        0x00, 0xff, 0xff, 0x00, 0xff, 0xff,
+        0xff, 0x00, 0xff, 0xff, 0x00, 0xff,
+    ]);
 }

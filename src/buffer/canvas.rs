@@ -201,10 +201,11 @@ impl Canvas {
             let texel = color_to_texel(P::COLOR_TYPE);
             let layout = InnerLayout::with_texel(&texel, width, height)
                 .expect("Valid layout because buffer has one");
+            let color = color_to_color(P::COLOR_TYPE);
 
             fallback_canvas = Inner::new(layout);
             fallback_canvas
-                .set_color(Color::SRGB)
+                .set_color(color)
                 .expect("Valid for rgb layout");
             self.inner.convert(&mut fallback_canvas);
             &fallback_canvas
@@ -325,7 +326,11 @@ impl CanvasLayout {
     ) -> Result<Self, UnknownCanvasTexelError> {
         fn inner(color: ExtendedColorType, w: u32, h: u32) -> Option<CanvasLayout> {
             let texel = extended_color_to_texel(color)?;
-            let layout = InnerLayout::with_texel(&texel, w, h).ok()?;
+            let mut layout = InnerLayout::with_texel(&texel, w, h).ok()?;
+            if let Some(color) = extended_color_to_color(color) {
+                layout.set_color(color).ok()?;
+            }
+
             Some(CanvasLayout { inner: layout })
         }
 
@@ -400,7 +405,8 @@ where
 
         destination[..len].copy_from_slice(&initializer[..len]);
 
-        canvas.set_color(Color::SRGB).expect("Valid for rgb layout");
+        let color = color_to_color(P::COLOR_TYPE);
+        canvas.set_color(color).expect("Valid for rgb layout");
         Canvas { inner: canvas }
     }
 }
@@ -423,6 +429,24 @@ fn color_to_texel(color: ColorType) -> Texel {
         ColorType::Rgba16 => Texel::new_u16(SampleParts::RgbA),
         ColorType::Rgb32F => Texel::new_f32(SampleParts::Rgb),
         ColorType::Rgba32F => Texel::new_f32(SampleParts::RgbA),
+    }
+}
+
+fn color_to_color(color: ColorType) -> Color {
+    use ColorType::*;
+    match color {
+        L8 | La8 | L16 | La16 => Color::BT709,
+        Rgb8 | Rgba8 | Rgb16 | Rgba16 | Rgb32F | Rgba32F => Color::SRGB,
+    }
+}
+
+fn extended_color_to_color(color: ExtendedColorType) -> Option<Color> {
+    use ExtendedColorType::*;
+    match color {
+        L1 | La1 | L2 | La2 | L4 | La4 | L8 | La8 | L16 | La16 => Some(Color::BT709),
+        A8 | Rgb1 | Rgb2 | Rgb4 | Rgb8 | Rgb16 | Rgba1 | Rgba2 | Rgba4 | Rgba8 | Rgba16 | Bgr8
+        | Bgra8 | Rgb32F | Rgba32F => Some(Color::BT709),
+        Unknown(_) => return None,
     }
 }
 
@@ -460,11 +484,11 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
         },
 
         // Repeated pixel layouts
-        /*ColorType::Rgb4 => Texel {
+        ColorType::Rgb4 => Texel {
             block: Block::Pack1x2,
             bits: SampleBits::UInt4x6,
             parts: SampleParts::RgbA,
-        },*/
+        },
         ColorType::L1 => Texel {
             block: Block::Pack1x8,
             bits: SampleBits::UInt1x8,
@@ -490,7 +514,7 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
             bits: SampleBits::UInt2x4,
             parts: SampleParts::LumaA,
         },
-        /*ColorType::L4 => Texel {
+        ColorType::L4 => Texel {
             block: Block::Pack1x2,
             bits: SampleBits::UInt4x2,
             parts: SampleParts::Luma,
@@ -499,8 +523,7 @@ fn extended_color_to_texel(color: ExtendedColorType) -> Option<Texel> {
             block: Block::Pixel,
             bits: SampleBits::UInt4x2,
             parts: SampleParts::LumaA,
-        },*/
-        ColorType::Rgb4 | ColorType::L4 | ColorType::La4 => return None,
+        },
 
         // Placeholder for non-RGBA formats (CMYK, YUV, Lab).
         // …

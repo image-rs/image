@@ -1350,6 +1350,9 @@ impl<R: Read + Seek> BmpDecoder<R> {
                             }
                             RLEInsn::Delta(x_delta, y_delta) => {
                                 if y_delta > 0 {
+                                    // we skip at least a line -> clear the rest of the current line
+                                    blank_bytes(pixel_iter);
+
                                     for n in 1..y_delta {
                                         if let Some(row) = row_iter.next() {
                                             // The msdn site on bitmap compression doesn't specify
@@ -1361,12 +1364,13 @@ impl<R: Read + Seek> BmpDecoder<R> {
                                                 *b = 0;
                                             }
                                         } else {
-                                            delta_pixels_left = x_delta;
                                             // We've reached the end of the buffer.
                                             delta_rows_left = y_delta - n;
                                             break 'row_loop;
                                         }
                                     }
+                                    delta_pixels_left = x_delta;
+                                    break 'rle_loop;
                                 }
 
                                 for _ in 0..x_delta {

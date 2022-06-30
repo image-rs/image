@@ -1106,7 +1106,7 @@ where
     free_functions::open_impl(path.as_ref())
 }
 
-/// Read the dimensions of the image located at the specified path.
+/// Read a tuple containing the (width, height) of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 ///
 /// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's

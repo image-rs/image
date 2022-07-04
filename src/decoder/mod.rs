@@ -872,6 +872,19 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
         } else {
             let black = [0, 0, 0];
             if let Some(ref trns) = info.trns {
+                // > The tRNS chunk shall not contain more alpha values than there are palette
+                // entries, but a tRNS chunk may contain fewer values than there are palette
+                // entries. In this case, the alpha value for all remaining palette entries is
+                // assumed to be 255.
+                //
+                // It seems, accepted reading is to fully *ignore* an invalid tRNS as if it were
+                // completely empty / all pixels are non-transparent.
+                let trns = if trns.len() <= palette.len() / 3 {
+                    trns.as_ref()
+                } else {
+                    &[]
+                };
+
                 utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
                     let (rgb, a) = (
                         palette

@@ -23,6 +23,14 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
     load(buffered_read, ImageFormat::from_path(path)?)
 }
 
+/// Enum describing how to handle load errors
+pub(crate) enum LoadErrorHandling {
+    /// Fail the whole load if an error is encountered
+    Strict,
+    /// Ignore errors while reading pixel data (use a default value)
+    Lossy,
+}
+
 /// Create a new image from a Reader.
 ///
 /// Assumes the reader is already buffered. For optimal performance,
@@ -34,7 +42,27 @@ pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
 #[allow(unused_variables)]
 // r is unused if no features are supported.
 pub fn load<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
-    load_inner(r, super::Limits::default(), format)
+    load_inner(r, super::Limits::default(), format, LoadErrorHandling::Strict)
+}
+
+/// Create a new image from a Reader, even if there are some errors.
+///
+/// This is a lenient version of the image loader. If an error is encountered
+/// when reading pixel data, it will use a default pixel value (e.g.
+/// `transparent`) for those pixels instead of failing the whole read.
+///
+/// Use [`load`] to only accept well-formed images.
+///
+/// Assumes the reader is already buffered. For optimal performance,
+/// consider wrapping the reader with a `BufReader::new()`.
+///
+/// Try [`io::Reader`] for more advanced uses.
+///
+/// [`io::Reader`]: io/struct.Reader.html
+#[allow(unused_variables)]
+// r is unused if no features are supported.
+pub fn load_lossy<R: BufRead + Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+    load_inner(r, super::Limits::default(), format, LoadErrorHandling::Lossy)
 }
 
 pub(crate) trait DecoderVisitor {
@@ -89,8 +117,9 @@ pub(crate) fn load_inner<R: BufRead + Seek>(
     r: R,
     limits: super::Limits,
     format: ImageFormat,
+    error_handling: LoadErrorHandling,
 ) -> ImageResult<DynamicImage> {
-    struct LoadVisitor(super::Limits);
+    struct LoadVisitor(super::Limits, LoadErrorHandling);
 
     impl DecoderVisitor for LoadVisitor {
         type Result = DynamicImage;
@@ -99,16 +128,16 @@ pub(crate) fn load_inner<R: BufRead + Seek>(
             self,
             mut decoder: D,
         ) -> ImageResult<Self::Result> {
-            let mut limits = self.0;
+            let LoadVisitor(mut limits, error_handling) = self;
             // Check that we do not allocate a bigger buffer than we are allowed to
             // FIXME: should this rather go in `DynamicImage::from_decoder` somehow?
             limits.reserve(decoder.total_bytes())?;
             decoder.set_limits(limits)?;
-            DynamicImage::from_decoder(decoder)
+            DynamicImage::from_decoder_inner(decoder, error_handling)
         }
     }
 
-    load_decoder(r, format, LoadVisitor(limits))
+    load_decoder(r, format, LoadVisitor(limits, error_handling))
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {

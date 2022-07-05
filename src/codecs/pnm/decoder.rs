@@ -615,7 +615,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(PnmReader(
-            Cursor::new(image::decoder_to_vec(self)?),
+            Cursor::new(image::decoder_to_vec(self).map_err(|(_, e)| e)?),
             PhantomData,
         ))
     }

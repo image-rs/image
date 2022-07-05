@@ -572,20 +572,26 @@ where
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
-pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<T>>
+///
+/// If an error occurs after the pixel buffer was created, it is returned. Note
+/// however that it may be incomplete. Pixels that were not read use their
+/// default "zero" value (the memory is initialized and safe to access).
+pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> Result<Vec<T>, (Option<Vec<T>>, ImageError)>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
-        return Err(ImageError::Limits(LimitError::from_kind(
+        return Err((None, ImageError::Limits(LimitError::from_kind(
             LimitErrorKind::InsufficientMemory,
-        )));
+        ))));
     }
 
     let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
-    decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
-    Ok(buf)
+    match decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice())) {
+        Ok(()) => Ok(buf),
+        Err(e) => Err((Some(buf), e))
+    }
 }
 
 /// Represents the progress of an image operation.
@@ -1306,7 +1312,7 @@ mod tests {
     };
     use crate::color::Rgba;
     use crate::math::Rect;
-    use crate::{GrayImage, ImageBuffer};
+    use crate::{GrayImage, ImageBuffer, ImageError};
 
     #[test]
     #[allow(deprecated)]
@@ -1835,7 +1841,7 @@ mod tests {
         }
         assert_eq!(D.total_bytes(), u64::max_value());
 
-        let v: ImageResult<Vec<u8>> = super::decoder_to_vec(D);
+        let v: Result<Vec<u8>, (Option<Vec<_>>, ImageError)> = super::decoder_to_vec(D);
         assert!(v.is_err());
     }
 }

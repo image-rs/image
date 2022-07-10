@@ -22,6 +22,7 @@ jobs:
       env:
         FEATURES: ${{ matrix.features }}
     - name: test
+      if: ${{ matrix.rust == 'stable' || matrix.rust == 'beta' || matrix.rust == 'nightly' }}
       run: >
         cargo test -v --no-default-features --features "$FEATURES" &&
         cargo doc -v --no-default-features --features "$FEATURES"

@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.24.2"
+version = "0.24.3"
 edition = "2018"
 rust-version = "1.56"
 resolver = "2"

@@ -19,6 +19,15 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
 
+### Version 0.24.3
+
+New Features:
+- `TiffDecoder` now supports setting resource limits.
+
+Bug fixes:
+- Fix compile issues on little endian systems.
+- Various panics discovered by fuzzing.
+
 ### Version 0.24.2
 
 Structural changes:

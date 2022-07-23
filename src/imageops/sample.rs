@@ -7,7 +7,7 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::image::{GenericImageView, GenericImage};
+use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
@@ -757,15 +757,17 @@ pub fn resize<I, P, S>(
     filter: FilterType,
 ) -> ImageBuffer<P, Vec<S>>
 where
-    I: GenericImageView<Pixel=P>,
-    P: Pixel<Subpixel=S> + 'static,
+    I: GenericImageView<Pixel = P>,
+    P: Pixel<Subpixel = S> + 'static,
     S: Primitive + 'static,
 {
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
         let mut tmp = ImageBuffer::<P, Vec<S>>::new(image.width(), image.height());
         match tmp.copy_from(image, 0, 0) {
-            Ok(_) => { return tmp; }
+            Ok(_) => {
+                return tmp;
+            }
             Err(_) => {} // something has gone wrong doing a direct copy, continue with normal path
         };
     }
@@ -889,9 +891,10 @@ mod tests {
     fn test_resize_same_size() {
         use std::path::Path;
         let img = crate::open(&Path::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/images/tiff/testsuite/mandrill.tiff"
-        ))).unwrap();
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
+        )))
+        .unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resize.pixels()))
     }
@@ -900,8 +903,8 @@ mod tests {
     #[cfg(all(feature = "benchmarks", feature = "tiff"))]
     fn bench_resize_same_size(b: &mut test::Bencher) {
         let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/images/tiff/testsuite/mandrill.tiff"
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/images/tiff/testsuite/mandrill.tiff"
         );
         let image = crate::open(path).unwrap();
         b.iter(|| {

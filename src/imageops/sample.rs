@@ -870,7 +870,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{resize, FilterType};
-    use crate::{ImageBuffer, RgbImage};
+    use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
 
@@ -907,7 +907,7 @@ mod tests {
         b.iter(|| {
             test::black_box(image.resize(image.width(), image.height(), FilterType::CatmullRom));
         });
-        b.bytes = (image.width() * image.height() * 4) as u64;
+        b.bytes = (image.width() * image.height() * 3) as u64;
     }
 
     #[test]

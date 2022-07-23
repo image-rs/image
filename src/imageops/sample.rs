@@ -7,7 +7,7 @@ use std::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
-use crate::image::GenericImageView;
+use crate::image::{GenericImageView, GenericImage};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;
 use crate::{ImageBuffer, Rgba32FImage};
@@ -750,16 +750,26 @@ where
 /// Resize the supplied image to the specified dimensions.
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<I: GenericImageView>(
+pub fn resize<I, P, S>(
     image: &I,
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+) -> ImageBuffer<P, Vec<S>>
 where
-    I::Pixel: 'static,
-    <I::Pixel as Pixel>::Subpixel: 'static,
+    I: GenericImageView<Pixel=P>,
+    P: Pixel<Subpixel=S> + 'static,
+    S: Primitive + 'static,
 {
+    // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
+    if (nwidth, nheight) == image.dimensions() {
+        let mut tmp = ImageBuffer::<P, Vec<S>>::new(image.width(), image.height());
+        match tmp.copy_from(image, 0, 0) {
+            Ok(_) => { return tmp; }
+            Err(_) => {} // something has gone wrong doing a direct copy, continue with normal path
+        };
+    }
+
     let mut method = match filter {
         FilterType::Nearest => Filter {
             kernel: Box::new(box_kernel),
@@ -873,6 +883,31 @@ mod tests {
             test::black_box(resize(&img, 200, 200, FilterType::Nearest));
         });
         b.bytes = 800 * 800 * 3 + 200 * 200 * 3;
+    }
+
+    #[test]
+    fn test_resize_same_size() {
+        use std::path::Path;
+        let img = crate::open(&Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/images/tiff/testsuite/mandrill.tiff"
+        ))).unwrap();
+        let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
+        assert!(img.pixels().eq(resize.pixels()))
+    }
+
+    #[bench]
+    #[cfg(all(feature = "benchmarks", feature = "tiff"))]
+    fn bench_resize_same_size(b: &mut test::Bencher) {
+        let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/images/tiff/testsuite/mandrill.tiff"
+        );
+        let image = crate::open(path).unwrap();
+        b.iter(|| {
+            test::black_box(image.resize(image.width(), image.height(), FilterType::CatmullRom));
+        });
+        b.bytes = (image.width() * image.height() * 4) as u64;
     }
 
     #[test]

@@ -715,6 +715,7 @@ where
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
+    #[inline]
     pub fn get_pixel(&self, x: u32, y: u32) -> &P {
         match self.pixel_indices(x, y) {
             None => panic!(
@@ -891,6 +892,7 @@ where
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
+    #[inline]
     pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
         match self.pixel_indices(x, y) {
             None => panic!(

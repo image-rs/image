@@ -890,11 +890,7 @@ mod tests {
     #[test]
     fn test_resize_same_size() {
         use std::path::Path;
-        let img = crate::open(&Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/images/tiff/testsuite/mandrill.tiff"
-        )))
-        .unwrap();
+        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resize.pixels()))
     }

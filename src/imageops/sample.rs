@@ -750,16 +750,15 @@ where
 /// Resize the supplied image to the specified dimensions.
 /// ```nwidth``` and ```nheight``` are the new dimensions.
 /// ```filter``` is the sampling filter to use.
-pub fn resize<I, P, S>(
+pub fn resize<I: GenericImageView>(
     image: &I,
     nwidth: u32,
     nheight: u32,
     filter: FilterType,
-) -> ImageBuffer<P, Vec<S>>
+) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
 where
-    I: GenericImageView<Pixel = P>,
-    P: Pixel<Subpixel = S> + 'static,
-    S: Primitive + 'static,
+    I::Pixel: 'static,
+    <I::Pixel as Pixel>::Subpixel: 'static,
 {
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {

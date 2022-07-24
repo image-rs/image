@@ -764,12 +764,8 @@ where
     // check if the new dimensions are the same as the old. if they are, make a copy instead of resampling
     if (nwidth, nheight) == image.dimensions() {
         let mut tmp = ImageBuffer::<P, Vec<S>>::new(image.width(), image.height());
-        match tmp.copy_from(image, 0, 0) {
-            Ok(_) => {
-                return tmp;
-            }
-            Err(_) => {} // something has gone wrong doing a direct copy, continue with normal path
-        };
+        tmp.copy_from(image, 0, 0).unwrap();
+        return tmp;
     }
 
     let mut method = match filter {

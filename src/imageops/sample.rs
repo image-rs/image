@@ -888,6 +888,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "png")]
     fn test_resize_same_size() {
         use std::path::Path;
         let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();

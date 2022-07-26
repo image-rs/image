@@ -166,7 +166,7 @@ impl Iterator for Adam7Iterator {
     }
 }
 
-fn subbyte_pixels<'a>(scanline: &'a [u8], bits_pp: usize) -> impl Iterator<Item = u8> + 'a {
+fn subbyte_pixels(scanline: &[u8], bits_pp: usize) -> impl Iterator<Item = u8> + '_ {
     (0..scanline.len() * 8)
         .step_by(bits_pp)
         .map(move |bit_idx| {

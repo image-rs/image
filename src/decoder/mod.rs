@@ -1,8 +1,8 @@
 mod stream;
 mod zlib;
 
+use self::stream::{DecodeConfig, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
-use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
@@ -75,6 +75,7 @@ pub struct Decoder<R: Read> {
     transform: Transformations,
     /// Limits on resources the Decoder is allowed to use
     limits: Limits,
+    decode_config: DecodeConfig,
 }
 
 /// A row of data with interlace information attached.
@@ -137,6 +138,7 @@ impl<R: Read> Decoder<R> {
             r,
             transform: Transformations::IDENTITY,
             limits,
+            decode_config: DecodeConfig::default(),
         }
     }
 
@@ -169,20 +171,11 @@ impl<R: Read> Decoder<R> {
 
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(self) -> Result<Reader<R>, DecodingError> {
-        let mut reader = Reader::new(self.r, StreamingDecoder::new(), self.transform, self.limits);
-        reader.init()?;
+        let mut streaming_decoder = StreamingDecoder::new();
+        streaming_decoder.set_decode_config(self.decode_config);
 
-        let color_type = reader.info().color_type;
-        let bit_depth = reader.info().bit_depth;
-        if color_type.is_combination_invalid(bit_depth) {
-            return Err(DecodingError::Format(
-                FormatErrorInner::InvalidColorBitDepth {
-                    color: color_type,
-                    depth: bit_depth,
-                }
-                .into(),
-            ));
-        }
+        let mut reader = Reader::new(self.r, streaming_decoder, self.transform, self.limits);
+        reader.init()?;
 
         // Check if the output buffer can be represented at all.
         if reader.checked_output_buffer_size().is_none() {
@@ -198,6 +191,20 @@ impl<R: Read> Decoder<R> {
     /// Many options have an impact on memory or CPU usage during decoding.
     pub fn set_transformations(&mut self, transform: Transformations) {
         self.transform = transform;
+    }
+
+    /// Set the decoder to ignore all text chunks while parsing.
+    ///
+    /// eg.
+    /// ```
+    /// use std::fs::File;
+    /// use png::Decoder;
+    /// let mut decoder = Decoder::new(File::open("tests/pngsuite/basi0g01.png").unwrap());
+    /// decoder.set_ignore_text_chunk(true);
+    /// assert!(decoder.read_info().is_ok());
+    /// ```
+    pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
+        self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
     }
 }
 
@@ -284,6 +291,7 @@ pub struct Reader<R: Read> {
     transform: Transformations,
     /// Processed line
     processed: Vec<u8>,
+    /// How resources we can spend (for example, on allocation).
     limits: Limits,
 }
 
@@ -554,7 +562,7 @@ impl<R: Read> Reader<R> {
         }
 
         // swap buffer to circumvent borrow issues
-        let mut buffer = mem::replace(&mut self.processed, Vec::new());
+        let mut buffer = mem::take(&mut self.processed);
         let (got_next, adam7) = if let Some(row) = self.next_raw_interlaced_row()? {
             (&mut buffer[..]).write_all(row.data)?;
             (true, row.interlace)
@@ -562,7 +570,7 @@ impl<R: Read> Reader<R> {
             (false, InterlaceInfo::Null)
         };
         // swap back
-        let _ = mem::replace(&mut self.processed, buffer);
+        self.processed = buffer;
 
         if !got_next {
             return Ok(None);
@@ -852,8 +860,8 @@ fn expand_paletted(buffer: &mut [u8], info: &Info) -> Result<(), DecodingError> 
             // This should have been caught earlier but let's check again. Can't hurt.
             Err(DecodingError::Format(
                 FormatErrorInner::InvalidColorBitDepth {
-                    color: ColorType::Indexed,
-                    depth: BitDepth::Sixteen,
+                    color_type: ColorType::Indexed,
+                    bit_depth: BitDepth::Sixteen,
                 }
                 .into(),
             ))

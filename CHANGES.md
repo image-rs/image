@@ -1,5 +1,31 @@
 ## Unreleased
 
+## 0.17.5
+
+* Fixed a regression, introduced by chunk validation, that made the decoder
+  sensitive to the order of `gAMA`, `cHRM`, and `sRGB` chunks.
+
+## 0.17.4
+
+* Added `{Decoder,StreamDecoder}::set_ignore_text_chunk` to disable decoding of
+  ancillary text chunks during the decoding process (chunks decoded by default).
+* Added duplicate chunk checks. The decoder now enforces that standard chunks
+  such as palette, gamma, … occur at most once as specified.
+* Added `#[forbid(unsafe_code)]` again. This may come at a minor performance
+  cost when decoding ASCII text for now.
+* Fixed a bug where decoding of large chunks (>32kB) failed to produce the
+  correct result, or fail the image decoding. As new chunk types are decoded
+  this introduced regressions relative to previous versions.
+
+## 0.17.3
+
+* Fixed a bug where `Writer::finish` would not drop the underlying writer. This
+  would fail to flush and leak memory when using a buffered file writers.
+* Calling `Writer::finish` will now eagerly flush the underlying writer,
+  returning any error that this operation may result in.
+* Errors in inflate are now diagnosed with more details.
+* The color and depth combination is now checked in stream decoder.
+
 ## 0.17.2
 
 * Added support for encoding and decoding tEXt/zTXt/iTXt chunks.

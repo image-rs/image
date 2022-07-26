@@ -178,11 +178,11 @@ fn encode_iso_8859_1_iter(text: &str) -> impl Iterator<Item = Result<u8, TextEnc
         .map(|c| u8::try_from(c as u32).map_err(|_| TextEncodingError::Unrepresentable))
 }
 
-#[allow(unsafe_code)]
 fn decode_ascii(text: &[u8]) -> Result<&str, TextDecodingError> {
     if text.is_ascii() {
-        // SAFETY: ASCII is a subset of UTF-8.
-        unsafe { Ok(std::str::from_utf8_unchecked(text)) }
+        // `from_utf8` cannot panic because we're already checked that `text` is ASCII-7.
+        // And this is the only safe way to get ASCII-7 string from `&[u8]`.
+        Ok(std::str::from_utf8(text).expect("unreachable"))
     } else {
         Err(TextDecodingError::Unrepresentable)
     }

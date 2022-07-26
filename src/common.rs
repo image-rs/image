@@ -460,6 +460,7 @@ impl SrgbRenderingIntent {
 
 /// PNG info struct
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Info<'a> {
     pub width: u32,
     pub height: u32,
@@ -470,14 +471,23 @@ pub struct Info<'a> {
     /// The image's `tRNS` chunk, if present; contains the alpha channel of the image's palette, 1 byte per entry.
     pub trns: Option<Cow<'a, [u8]>>,
     pub pixel_dims: Option<PixelDimensions>,
-    /// Gamma of the source system.
-    pub source_gamma: Option<ScaledFloat>,
     /// The image's `PLTE` chunk, if present; contains the RGB channels (in that order) of the image's palettes, 3 bytes per entry (1 per channel).
     pub palette: Option<Cow<'a, [u8]>>,
+    /// The contents of the image's gAMA chunk, if present.
+    /// Prefer `source_gamma` to also get the derived replacement gamma from sRGB chunks.
+    pub gama_chunk: Option<ScaledFloat>,
+    /// The contents of the image's `cHRM` chunk, if present.
+    /// Prefer `source_chromaticities` to also get the derived replacements from sRGB chunks.
+    pub chrm_chunk: Option<SourceChromaticities>,
+
     pub frame_control: Option<FrameControl>,
     pub animation_control: Option<AnimationControl>,
     pub compression: Compression,
+    /// Gamma of the source system.
+    /// Set by both `gAMA` as well as to a replacement by `sRGB` chunk.
+    pub source_gamma: Option<ScaledFloat>,
     /// Chromaticities of the source system.
+    /// Set by both `cHRM` as well as to a replacement by `sRGB` chunk.
     pub source_chromaticities: Option<SourceChromaticities>,
     /// The rendering intent of an SRGB image.
     ///
@@ -491,8 +501,6 @@ pub struct Info<'a> {
     pub compressed_latin1_text: Vec<ZTXtChunk>,
     /// iTXt field
     pub utf8_text: Vec<ITXtChunk>,
-    /// Private field to mark the struct as non-exhaustive.
-    _extensible: (),
 }
 
 impl Default for Info<'_> {
@@ -505,20 +513,21 @@ impl Default for Info<'_> {
             interlaced: false,
             palette: None,
             trns: None,
+            gama_chunk: None,
+            chrm_chunk: None,
             pixel_dims: None,
-            source_gamma: None,
             frame_control: None,
             animation_control: None,
             // Default to `deflate::Compression::Fast` and `filter::FilterType::Sub`
             // to maintain backward compatible output.
             compression: Compression::Fast,
+            source_gamma: None,
             source_chromaticities: None,
             srgb: None,
             icc_profile: None,
             uncompressed_latin1_text: Vec::new(),
             compressed_latin1_text: Vec::new(),
             utf8_text: Vec::new(),
-            _extensible: (),
         }
     }
 }

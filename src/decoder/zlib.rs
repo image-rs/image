@@ -74,7 +74,7 @@ impl ZlibStream {
             decompress(
                 &mut self.state,
                 in_data,
-                &mut self.out_buffer.as_mut_slice(),
+                self.out_buffer.as_mut_slice(),
                 self.out_pos,
                 BASE_FLAGS,
             )
@@ -138,7 +138,7 @@ impl ZlibStream {
                 decompress(
                     &mut self.state,
                     &tail[start..],
-                    &mut self.out_buffer.as_mut_slice(),
+                    self.out_buffer.as_mut_slice(),
                     self.out_pos,
                     BASE_FLAGS,
                 )

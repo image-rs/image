@@ -4,7 +4,7 @@ use ops::{Deref, DerefMut};
 use std::{borrow, error, fmt, io, mem, ops, result};
 
 use crc32fast::Hasher as Crc32;
-use deflate::write::ZlibEncoder;
+use flate2::write::ZlibEncoder;
 
 use crate::chunk::{self, ChunkType};
 use crate::common::{
@@ -670,8 +670,7 @@ impl<W: Write> Writer<W> {
         let mut prev = prev.as_slice();
         let mut current = vec![0; in_len];
 
-        let mut zlib =
-            deflate::write::ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
+        let mut zlib = ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
         let bpp = self.info.bpp_in_prediction();
         let filter_method = self.options.filter;
         let adaptive_method = self.options.adaptive_filter;
@@ -2289,13 +2288,13 @@ mod tests {
 /// Since this only contains trait impls, there is no need to make this public, they are simply
 /// available when the mod is compiled as well.
 impl Compression {
-    fn to_options(self) -> deflate::CompressionOptions {
+    fn to_options(self) -> flate2::Compression {
         match self {
-            Compression::Default => deflate::CompressionOptions::default(),
-            Compression::Fast => deflate::CompressionOptions::fast(),
-            Compression::Best => deflate::CompressionOptions::high(),
-            Compression::Huffman => deflate::CompressionOptions::huffman_only(),
-            Compression::Rle => deflate::CompressionOptions::rle(),
+            Compression::Default => flate2::Compression::default(),
+            Compression::Fast => flate2::Compression::fast(),
+            Compression::Best => flate2::Compression::best(),
+            Compression::Huffman => flate2::Compression::none(),
+            Compression::Rle => flate2::Compression::none(),
         }
     }
 }

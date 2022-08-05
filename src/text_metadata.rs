@@ -103,7 +103,8 @@
 #![warn(missing_docs)]
 
 use crate::{chunk, encoder, DecodingError, EncodingError};
-use deflate::{write::ZlibEncoder, Compression};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use miniz_oxide::inflate::{decompress_to_vec_zlib, decompress_to_vec_zlib_with_limit};
 use std::{convert::TryFrom, io::Write};
 
@@ -322,7 +323,7 @@ impl ZTXtChunk {
         match &self.text {
             OptCompressed::Uncompressed(s) => {
                 let uncompressed_raw = encode_iso_8859_1(s)?;
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::Fast);
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
                 encoder
                     .write_all(&uncompressed_raw)
                     .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
@@ -360,7 +361,7 @@ impl EncodableTextChunk for ZTXtChunk {
             OptCompressed::Uncompressed(s) => {
                 // This code may have a bug. Check for correctness.
                 let uncompressed_raw = encode_iso_8859_1(s)?;
-                let mut encoder = ZlibEncoder::new(data, Compression::Fast);
+                let mut encoder = ZlibEncoder::new(data, Compression::fast());
                 encoder
                     .write_all(&uncompressed_raw)
                     .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
@@ -496,7 +497,7 @@ impl ITXtChunk {
         match &self.text {
             OptCompressed::Uncompressed(s) => {
                 let uncompressed_raw = s.as_bytes();
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::Fast);
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
                 encoder
                     .write_all(uncompressed_raw)
                     .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;
@@ -558,7 +559,7 @@ impl EncodableTextChunk for ITXtChunk {
                 }
                 OptCompressed::Uncompressed(s) => {
                     let uncompressed_raw = s.as_bytes();
-                    let mut encoder = ZlibEncoder::new(data, Compression::Fast);
+                    let mut encoder = ZlibEncoder::new(data, Compression::fast());
                     encoder
                         .write_all(uncompressed_raw)
                         .map_err(|_| EncodingError::from(TextEncodingError::CompressionError))?;

@@ -327,6 +327,12 @@ pub enum Compression {
     Rle,
 }
 
+impl Default for Compression {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
 /// An unsigned integer scaled version of a floating point value,
 /// equivalent to an integer quotient with fixed denominator (100_000)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

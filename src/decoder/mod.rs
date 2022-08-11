@@ -69,8 +69,7 @@ impl Default for Limits {
 
 /// PNG Decoder
 pub struct Decoder<R: Read> {
-    /// Reader
-    r: R,
+    read_decoder: ReadDecoder<R>,
     /// Output transformations
     transform: Transformations,
     /// Limits on resources the Decoder is allowed to use
@@ -135,7 +134,11 @@ impl<R: Read> Decoder<R> {
     /// Create a new decoder configuration with custom limits.
     pub fn new_with_limits(r: R, limits: Limits) -> Decoder<R> {
         Decoder {
-            r,
+            read_decoder: ReadDecoder {
+                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
+                decoder: StreamingDecoder::new(),
+                at_eof: false,
+            },
             transform: Transformations::IDENTITY,
             limits,
             decode_config: DecodeConfig::default(),
@@ -169,18 +172,30 @@ impl<R: Read> Decoder<R> {
         self.limits = limits;
     }
 
-    /// Reads all meta data until the first IDAT chunk
-    pub fn read_info(self) -> Result<Reader<R>, DecodingError> {
-        let mut streaming_decoder = StreamingDecoder::new();
-        streaming_decoder.set_decode_config(self.decode_config);
-
-        let mut reader = Reader::new(self.r, streaming_decoder, self.transform, self.limits);
-        reader.init()?;
-
-        // Check if the output buffer can be represented at all.
-        if reader.checked_output_buffer_size().is_none() {
-            return Err(DecodingError::LimitsExceeded);
+    /// Read the PNG header and return the information contained within.
+    ///
+    /// Most image metadata will not be read until `read_info` is called, so those fields will be
+    /// None or empty.
+    pub fn read_header_info(&mut self) -> Result<&Info, DecodingError> {
+        while self.read_decoder.info().is_none() {
+            if self.read_decoder.decode_next(&mut Vec::new())?.is_none() {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::UnexpectedEof.into(),
+                ));
+            }
         }
+        Ok(self.read_decoder.info().unwrap())
+    }
+
+    /// Reads all meta data until the first IDAT chunk
+    pub fn read_info(mut self) -> Result<Reader<R>, DecodingError> {
+        self.read_header_info()?;
+        self.read_decoder
+            .decoder
+            .set_decode_config(self.decode_config);
+
+        let mut reader = Reader::new(self.read_decoder, self.transform, self.limits);
+        reader.read_until_image_data(true)?;
 
         Ok(reader)
     }
@@ -338,13 +353,9 @@ macro_rules! get_info(
 
 impl<R: Read> Reader<R> {
     /// Creates a new PNG reader
-    fn new(r: R, d: StreamingDecoder, t: Transformations, limits: Limits) -> Reader<R> {
+    fn new(read_decoder: ReadDecoder<R>, t: Transformations, limits: Limits) -> Reader<R> {
         Reader {
-            decoder: ReadDecoder {
-                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
-                decoder: d,
-                at_eof: false,
-            },
+            decoder: read_decoder,
             bpp: BytesPerPixel::One,
             subframe: SubframeInfo::not_yet_init(),
             fctl_read: 0,
@@ -360,13 +371,22 @@ impl<R: Read> Reader<R> {
 
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
-    fn init(&mut self) -> Result<OutputInfo, DecodingError> {
-        if self.next_frame == self.subframe_idx() {
-            return Ok(self.output_info());
-        } else if self.next_frame == SubframeIdx::End {
-            return Err(DecodingError::Parameter(
-                ParameterErrorKind::PolledAfterEndOfImage.into(),
-            ));
+    fn read_until_image_data(&mut self, initial_frame: bool) -> Result<OutputInfo, DecodingError> {
+        if initial_frame {
+            self.validate_buffer_sizes()?;
+        } else {
+            let subframe_idx = match self.decoder.info().unwrap().frame_control() {
+                None => SubframeIdx::Initial,
+                Some(_) => SubframeIdx::Some(self.fctl_read - 1),
+            };
+
+            if self.next_frame == subframe_idx {
+                return Ok(self.output_info());
+            } else if self.next_frame == SubframeIdx::End {
+                return Err(DecodingError::Parameter(
+                    ParameterErrorKind::PolledAfterEndOfImage.into(),
+                ));
+            }
         }
 
         loop {
@@ -386,9 +406,6 @@ impl<R: Read> Reader<R> {
                     return Err(DecodingError::Format(
                         FormatErrorInner::MissingImageData.into(),
                     ))
-                }
-                Some(Decoded::Header { .. }) => {
-                    self.validate_buffer_sizes()?;
                 }
                 // Ignore all other chunk events. Any other chunk may be between IDAT chunks, fdAT
                 // chunks and their control chunks.
@@ -438,19 +455,6 @@ impl<R: Read> Reader<R> {
         self.decoder.info().unwrap()
     }
 
-    /// Get the subframe index of the current info.
-    fn subframe_idx(&self) -> SubframeIdx {
-        let info = match self.decoder.info() {
-            None => return SubframeIdx::Uninit,
-            Some(info) => info,
-        };
-
-        match info.frame_control() {
-            None => SubframeIdx::Initial,
-            Some(_) => SubframeIdx::Some(self.fctl_read - 1),
-        }
-    }
-
     /// Call after decoding an image, to advance expected state to the next.
     fn finished_frame(&mut self) {
         // Should only be called after frame is done, so we have an info.
@@ -492,7 +496,7 @@ impl<R: Read> Reader<R> {
     /// frame (or subframe), all samples are in big endian byte order where this matters.
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<OutputInfo, DecodingError> {
         // Advance until we've read the info / fcTL for this frame.
-        let info = self.init()?;
+        let info = self.read_until_image_data(false)?;
         // TODO 16 bit
         let (color_type, bit_depth) = self.output_color_type();
         if buf.len() < self.output_buffer_size() {

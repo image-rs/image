@@ -500,25 +500,6 @@ impl StreamingDecoder {
     ) -> Result<(usize, Decoded), DecodingError> {
         use self::State::*;
 
-        macro_rules! goto (
-            ($n:expr, $state:expr) => ({
-                self.state = Some($state);
-                Ok(($n, Decoded::Nothing))
-            });
-            ($state:expr) => ({
-                self.state = Some($state);
-                Ok((1, Decoded::Nothing))
-            });
-            ($n:expr, $state:expr, emit $res:expr) => ({
-                self.state = Some($state);
-                Ok(($n, $res))
-            });
-            ($state:expr, emit $res:expr) => ({
-                self.state = Some($state);
-                Ok((1, $res))
-            })
-        );
-
         let current_byte = buf[0];
 
         // Driver should ensure that state is never None
@@ -527,12 +508,14 @@ impl StreamingDecoder {
         match state {
             Signature(i, mut signature) if i < 7 => {
                 signature[i as usize] = current_byte;
-                goto!(Signature(i + 1, signature))
+                self.state = Some(Signature(i + 1, signature));
+                Ok((1, Decoded::Nothing))
             }
             Signature(_, signature)
                 if signature == [137, 80, 78, 71, 13, 10, 26] && current_byte == 10 =>
             {
-                goto!(U32(U32Value::Length))
+                self.state = Some(U32(U32Value::Length));
+                Ok((1, Decoded::Nothing))
             }
             Signature(..) => Err(DecodingError::Format(
                 FormatErrorInner::InvalidSignature.into(),
@@ -541,7 +524,10 @@ impl StreamingDecoder {
                 use self::U32Value::*;
                 val |= u32::from(current_byte);
                 match type_ {
-                    Length => goto!(U32(Type(val))),
+                    Length => {
+                        self.state = Some(U32(Type(val)));
+                        Ok((1, Decoded::Nothing))
+                    }
                     Type(length) => {
                         let type_str = ChunkType([
                             (val >> 24) as u8,
@@ -556,11 +542,8 @@ impl StreamingDecoder {
                             self.current_chunk.type_ = type_str;
                             self.inflater.finish_compressed_chunks(image_data)?;
                             self.inflater.reset();
-                            return goto!(
-                                0,
-                                U32Byte3(Type(length), val & !0xff),
-                                emit Decoded::ImageDataFlushed
-                            );
+                            self.state = Some(U32Byte3(Type(length), val & !0xff));
+                            return Ok((0, Decoded::ImageDataFlushed));
                         }
                         self.current_chunk.type_ = type_str;
                         self.current_chunk.crc.reset();
@@ -568,22 +551,18 @@ impl StreamingDecoder {
                         self.current_chunk.remaining = length;
                         self.apng_seq_handled = false;
                         self.current_chunk.raw_bytes.clear();
-                        goto!(
-                            ReadChunk(type_str),
-                            emit Decoded::ChunkBegin(length, type_str)
-                        )
+                        self.state = Some(ReadChunk(type_str));
+                        Ok((1, Decoded::ChunkBegin(length, type_str)))
                     }
                     Crc(type_str) => {
                         let sum = self.current_chunk.crc.clone().finalize();
                         if CHECKSUM_DISABLED || val == sum {
-                            goto!(
-                                State::U32(U32Value::Length),
-                                emit if type_str == IEND {
-                                    Decoded::ImageEnd
-                                } else {
-                                    Decoded::ChunkComplete(val, type_str)
-                                }
-                            )
+                            self.state = Some(State::U32(U32Value::Length));
+                            if type_str == IEND {
+                                Ok((1, Decoded::ImageEnd))
+                            } else {
+                                Ok((1, Decoded::ChunkComplete(val, type_str)))
+                            }
                         } else {
                             Err(DecodingError::Format(
                                 FormatErrorInner::CrcMismatch {
@@ -598,18 +577,24 @@ impl StreamingDecoder {
                     }
                 }
             }
-            U32Byte2(type_, val) => goto!(U32Byte3(type_, val | u32::from(current_byte) << 8)),
-            U32Byte1(type_, val) => goto!(U32Byte2(type_, val | u32::from(current_byte) << 16)),
-            U32(type_) => goto!(U32Byte1(type_, u32::from(current_byte) << 24)),
+            U32Byte2(type_, val) => {
+                self.state = Some(U32Byte3(type_, val | u32::from(current_byte) << 8));
+                Ok((1, Decoded::Nothing))
+            }
+            U32Byte1(type_, val) => {
+                self.state = Some(U32Byte2(type_, val | u32::from(current_byte) << 16));
+                Ok((1, Decoded::Nothing))
+            }
+            U32(type_) => {
+                self.state = Some(U32Byte1(type_, u32::from(current_byte) << 24));
+                Ok((1, Decoded::Nothing))
+            }
             PartialChunk(type_str) => {
                 match type_str {
                     IDAT => {
                         self.have_idat = true;
-                        goto!(
-                            0,
-                            DecodeData(type_str, 0),
-                            emit Decoded::PartialChunk(type_str)
-                        )
+                        self.state = Some(DecodeData(type_str, 0));
+                        Ok((0, Decoded::PartialChunk(type_str)))
                     }
                     chunk::fdAT => {
                         let data_start;
@@ -637,11 +622,8 @@ impl StreamingDecoder {
                                 FormatErrorInner::MissingFctl.into(),
                             ));
                         }
-                        goto!(
-                            0,
-                            DecodeData(type_str, data_start),
-                            emit Decoded::PartialChunk(type_str)
-                        )
+                        self.state = Some(DecodeData(type_str, data_start));
+                        Ok((0, Decoded::PartialChunk(type_str)))
                     }
                     // Handle other chunks
                     _ => {
@@ -653,10 +635,8 @@ impl StreamingDecoder {
                             // We need it fully before parsing.
                             self.reserve_current_chunk()?;
 
-                            goto!(
-                                0, ReadChunk(type_str),
-                                emit Decoded::PartialChunk(type_str)
-                            )
+                            self.state = Some(ReadChunk(type_str));
+                            Ok((0, Decoded::PartialChunk(type_str)))
                         }
                     }
                 }
@@ -665,7 +645,8 @@ impl StreamingDecoder {
                 // The _previous_ event wanted to return the contents of raw_bytes, and let the
                 // caller consume it,
                 if self.current_chunk.remaining == 0 {
-                    goto!(0, U32(U32Value::Crc(type_str)))
+                    self.state = Some(U32(U32Value::Crc(type_str)));
+                    Ok((0, Decoded::Nothing))
                 } else {
                     let ChunkState {
                         crc,
@@ -678,7 +659,8 @@ impl StreamingDecoder {
                     let bytes_avail = min(buf.len(), buf_avail);
                     let n = min(*remaining, bytes_avail as u32);
                     if buf_avail == 0 {
-                        goto!(0, PartialChunk(type_str))
+                        self.state = Some(PartialChunk(type_str));
+                        Ok((0, Decoded::Nothing))
                     } else {
                         let buf = &buf[..n as usize];
                         crc.update(buf);
@@ -686,10 +668,11 @@ impl StreamingDecoder {
 
                         *remaining -= n;
                         if *remaining == 0 {
-                            goto!(n as usize, PartialChunk(type_str))
+                            self.state = Some(PartialChunk(type_str));
                         } else {
-                            goto!(n as usize, ReadChunk(type_str))
+                            self.state = Some(ReadChunk(type_str));
                         }
+                        Ok((n as usize, Decoded::Nothing))
                     }
                 }
             }
@@ -700,17 +683,11 @@ impl StreamingDecoder {
                 n += c;
                 if n == chunk_len && c == 0 {
                     self.current_chunk.raw_bytes.clear();
-                    goto!(
-                        0,
-                        ReadChunk(type_str),
-                        emit Decoded::ImageData
-                    )
+                    self.state = Some(ReadChunk(type_str));
+                    Ok((0, Decoded::ImageData))
                 } else {
-                    goto!(
-                        0,
-                        DecodeData(type_str, n),
-                        emit Decoded::ImageData
-                    )
+                    self.state = Some(DecodeData(type_str, n));
+                    Ok((0, Decoded::ImageData))
                 }
             }
         }

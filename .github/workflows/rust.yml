@@ -18,6 +18,10 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         override: true
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v1.3.0
+      with:
+        cache-on-failure: true
     - name: build
       run: cargo build -v --no-default-features --features "$FEATURES"
       env:
@@ -55,6 +59,11 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cross
+
+      - name: Cache Cargo Dependencies
+        uses: Swatinem/rust-cache@v1.3.0
+        with:
+          cache-on-failure: true
 
       - name: Start Docker (required for cross-rs)
         run: sudo systemctl start docker

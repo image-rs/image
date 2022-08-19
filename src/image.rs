@@ -291,7 +291,6 @@ pub enum ImageOutputFormat {
     Tga,
 
     #[cfg(feature = "exr")]
-    #[cfg(target_endian = "little")]
     /// An Image in OpenEXR Format
     OpenExr,
 
@@ -329,7 +328,6 @@ impl From<ImageFormat> for ImageOutputFormat {
             #[cfg(feature = "tga")]
             ImageFormat::Tga => ImageOutputFormat::Tga,
             #[cfg(feature = "exr")]
-            #[cfg(target_endian = "little")]
             ImageFormat::OpenExr => ImageOutputFormat::OpenExr,
             #[cfg(feature = "tiff")]
             ImageFormat::Tiff => ImageOutputFormat::Tiff,

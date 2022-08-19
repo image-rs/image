@@ -235,7 +235,6 @@ pub mod codecs {
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
     #[cfg(feature = "exr")]
-    #[cfg(target_endian = "little")]
     pub mod openexr;
     #[cfg(feature = "png")]
     pub mod png;

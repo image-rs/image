@@ -31,14 +31,20 @@ jobs:
         FEATURES: ${{ matrix.features }}
 
   test_defaults_big_endian:
+    name: Run tests on big endian architecture
+
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.
     runs-on: ubuntu-20.04
-    name: Run tests on big endian architecture
     strategy:
       matrix:
         features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
+
+    # we need to limit the number of parallel jobs
+    # so we artificially depend on another job
+    # to make this whole thing sequential
+    needs: build
 
     # we are using the cross project for cross compilation to mips:
     # https://github.com/cross-rs/cross

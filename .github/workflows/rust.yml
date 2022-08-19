@@ -6,11 +6,12 @@ on:
     branches: [ master, next ]
 jobs:
   build:
+    name: Build and Run the features using a combination of features and rust toolchains
     runs-on: ubuntu-latest
     strategy:
       matrix:
         rust: ["1.51.0", stable, beta, nightly]
-        features: [ gif, jpeg, png, pnm, tga, dds, tiff, webp, hdr, farbfeld, '' ]
+        features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -28,6 +29,43 @@ jobs:
         cargo doc -v --no-default-features --features "$FEATURES"
       env:
         FEATURES: ${{ matrix.features }}
+
+  test_defaults_big_endian:
+    # github actions does not support big endian systems directly, but it does support QEMU.
+    # so we install qemu, then build and run the tests in an emulated mips system.
+    # note: you can also use this approach to test for big endian locally.
+    runs-on: ubuntu-20.04
+    name: Run tests on an emulated big endian mips system using stable toolchain (exluding doc tests)
+    strategy:
+      matrix:
+        features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
+
+    # we are using the cross project for cross compilation to mips:
+    # https://github.com/cross-rs/cross
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install or use cached cross-rs/cross
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cross
+
+      - name: Start Docker (required for cross-rs)
+        run: sudo systemctl start docker
+
+      - name: Cross-Compile project to mips-unknown-linux-gnu for ${{ matrix.features }}
+        run: |
+          cross build --target=mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+        env:
+          FEATURES: ${{ matrix.features }}
+
+      # https://github.com/cross-rs/cross#supported-targets
+      - name: Cross-Run Tests in mips-unknown-linux-gnu using Qemu for ${{ matrix.features }}
+        run: |
+          cross test --target mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
+        env:
+          FEATURES: ${{ matrix.features }}
+
   test_defaults:
     runs-on: ubuntu-latest
     steps:
@@ -40,6 +78,7 @@ jobs:
       run: cargo build -v --release
     - name: test
       run: cargo test -v --release
+
   test_avif:
     runs-on: ubuntu-20.04
     steps:
@@ -52,6 +91,7 @@ jobs:
         override: true
     - name: build
       run: cargo build -v --no-default-features --features="avif"
+
   test_avif_decoding:
     runs-on: ubuntu-20.04
     steps:
@@ -66,6 +106,7 @@ jobs:
       run: cargo build -v --no-default-features --features="avif-decoder"
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+
   clippy:
     runs-on: ubuntu-20.04
     steps:
@@ -82,6 +123,7 @@ jobs:
         args: clippy --all-features -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
+
   build_fuzz_afl:
     name: "Fuzz targets (afl)"
     runs-on: ubuntu-latest
@@ -103,6 +145,7 @@ jobs:
         cargo afl check --bin fuzz_pnm
       env:
         RUSTFLAGS: "-Znew-llvm-pass-manager=no"
+
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"
     runs-on: ubuntu-latest
@@ -121,6 +164,7 @@ jobs:
         for format in $(cargo fuzz list); do
           cargo fuzz run "$format" -- -runs=0;
         done
+
   public_private_dependencies:
     name: "Public private dependencies"
     runs-on: ubuntu-latest
@@ -136,6 +180,7 @@ jobs:
         echo "#![deny(exported_private_dependencies)]" | cat - src/lib.rs > src/lib.rs.0
         mv src/lib.rs.0 src/lib.rs
         cargo check
+
   build_benchmarks:
     runs-on: ubuntu-latest
     steps:
@@ -146,6 +191,7 @@ jobs:
         override: true
     - name: build
       run: cargo build -v --benches --features=benchmarks
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -160,6 +206,7 @@ jobs:
       with:
         command: fmt
         args: -- --check
+
   cargo-deny:
     runs-on: ubuntu-20.04
     steps:

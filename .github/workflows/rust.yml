@@ -9,7 +9,7 @@ on:
 # here we group some parameters for later
 env:
   # see rust-version in Cargo.toml
-  MINIMUM_SUPPORTED_RUST_VERSION: 1.56.0
+  MINIMUM_SUPPORTED_RUST_VERSION: "1.56.0"
 
 jobs:
   build:

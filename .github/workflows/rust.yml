@@ -1,16 +1,22 @@
 name: Rust CI
+
 on:
   push:
     branches: [ master, next ]
   pull_request:
     branches: [ master, next ]
+
+# here we group some parameters for later
+env:
+  MINIMUM_SUPPORTED_RUST_VERSION: 1.56.0
+
 jobs:
   build:
-    name: Run tests and doctests
+    name: Run tests and doctests on ubuntu
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: ["1.51.0", stable, beta, nightly]
+        rust: [$MINIMUM_SUPPORTED_RUST_VERSION, stable, beta, nightly]
         features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
     steps:
     - uses: actions/checkout@v2
@@ -34,7 +40,7 @@ jobs:
       env:
         FEATURES: ${{ matrix.features }}
 
-  test_defaults_big_endian:
+  build_big_endian:
     name: Run tests on big endian architecture
 
     # github actions does not support big endian systems directly, but it does support QEMU.

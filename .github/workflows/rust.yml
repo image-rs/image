@@ -10,7 +10,6 @@ on:
 env:
   # see rust-version in Cargo.toml
   MINIMUM_SUPPORTED_RUST_VERSION: 1.56.0
-  CRATE_FEATURES: (gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '')
 
 jobs:
   build:
@@ -19,7 +18,7 @@ jobs:
     strategy:
       matrix:
         rust: [${{ env.MINIMUM_SUPPORTED_RUST_VERSION }}, stable, beta, nightly]
-        features: ${{ env.CRATE_FEATURES }}
+        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '']
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -51,7 +50,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        features: ${{ env.CRATE_FEATURES }}
+        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '']
 
     # we need to limit the number of parallel jobs
     # so we artificially depend on another job
@@ -235,3 +234,17 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1
+
+  verify_msrv:
+    name: Verify Minimum Supported Rust Version in Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install or use cached `cargo-msrv`
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-msrv
+
+      - name: Verify Minimum Rust Version
+        run: cargo-msrv verify

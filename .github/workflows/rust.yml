@@ -21,7 +21,7 @@ jobs:
         toolchain: ${{ matrix.rust }}
         override: true
     - name: Cache Cargo Dependencies
-      uses: Swatinem/rust-cache@v1.3.0
+      uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
     - name: build
@@ -63,7 +63,7 @@ jobs:
           crate: cross
 
       - name: Cache Cargo Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
 

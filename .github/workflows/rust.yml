@@ -8,7 +8,9 @@ on:
 
 # here we group some parameters for later
 env:
+  # see rust-version in Cargo.toml
   MINIMUM_SUPPORTED_RUST_VERSION: 1.56.0
+  CRATE_FEATURES: (gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '')
 
 jobs:
   build:
@@ -16,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [$MINIMUM_SUPPORTED_RUST_VERSION, stable, beta, nightly]
-        features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
+        rust: [${{ env.MINIMUM_SUPPORTED_RUST_VERSION }}, stable, beta, nightly]
+        features: ${{ env.CRATE_FEATURES }}
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -49,7 +51,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        features: [ gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '' ]
+        features: ${{ env.CRATE_FEATURES }}
 
     # we need to limit the number of parallel jobs
     # so we artificially depend on another job

@@ -322,6 +322,17 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
                 lossless_frame.fill_rgba(buf);
             }
             WebPImage::Extended(extended) => {
+                if !extended.is_supported_format() {
+                    use crate::error::*;
+                    let format_hint = ImageFormatHint::Exact(ImageFormat::WebP);
+                    return ImageResult::Err(
+                        ImageError::Unsupported(
+                        UnsupportedError::from_format_and_kind(
+                            format_hint.clone(),
+                            UnsupportedErrorKind::Format(format_hint),
+                        ),
+                    ));
+                }
                 extended.fill_buf(buf);
             }
         }

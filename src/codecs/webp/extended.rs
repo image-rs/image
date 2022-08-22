@@ -325,6 +325,18 @@ impl ExtendedImage {
             ExtendedImageData::Static(image) => image.get_buf_size(),
         }
     }
+
+    pub(crate) fn is_supported_format(&self) -> bool{
+        match &self.image {
+            ExtendedImageData::Animation { frames, .. } => {
+                //will always have at least one frame
+                let first_fame = &frames[0];
+                //Currently only animated images where the canvas size matches the first frame size is supported
+                self.info.canvas_width  == first_fame.width && self.info.canvas_height == first_fame.height
+            }
+            ExtendedImageData::Static(_) => true
+        }
+    }
 }
 
 #[derive(Debug)]

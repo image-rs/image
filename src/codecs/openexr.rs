@@ -455,10 +455,9 @@ mod test {
 
     #[test]
     fn compare_exr_hdr() {
-        assert!(
-            cfg!(feature = "hdr"),
-            "to run all the openexr tests, activate the hdr feature flag"
-        );
+        if cfg!(not(feature = "hdr")) {
+            eprintln!("warning: to run all the openexr tests, activate the hdr feature flag");
+        }
 
         #[cfg(feature = "hdr")]
         {

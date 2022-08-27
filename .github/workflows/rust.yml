@@ -73,6 +73,7 @@ jobs:
 
       # https://github.com/cross-rs/cross#supported-targets
       - name: Cross-Run Tests in mips-unknown-linux-gnu using Qemu
+        continue-on-error: true
         run: |
           cross test --target mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:

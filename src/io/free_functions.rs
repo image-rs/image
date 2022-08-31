@@ -78,6 +78,8 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
         image::ImageFormat::Pnm => visitor.visit_decoder(pnm::PnmDecoder::new(r)?),
         #[cfg(feature = "farbfeld")]
         image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
+        #[cfg(feature = "qoi")]
+        image::ImageFormat::Qoi => visitor.visit_decoder(qoi::QoiDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(
             ImageFormatHint::Exact(format).into(),
         )),
@@ -242,6 +244,10 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageOutputFormat::Avif => {
             avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
+        #[cfg(feature = "qoi")]
+        ImageOutputFormat::Qoi => {
+            qoi::QoiEncoder::new(buffered_write).write_image(buf, width, height, color)
+        }
 
         image::ImageOutputFormat::Unsupported(msg) => Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(
@@ -252,7 +258,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 22] = [
+static MAGIC_BYTES: [(&[u8], ImageFormat); 23] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -275,6 +281,7 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 22] = [
     (b"\0\0\0 ftypavif", ImageFormat::Avif),
     (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
+    (b"qoif", ImageFormat::Qoi),
 ];
 
 /// Guess image format from memory block

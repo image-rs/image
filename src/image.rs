@@ -67,6 +67,9 @@ pub enum ImageFormat {
 
     /// An Image in AVIF format.
     Avif,
+
+    /// An Image in QOI format.
+    Qoi,
 }
 
 impl ImageFormat {
@@ -104,6 +107,7 @@ impl ImageFormat {
                 "exr" => ImageFormat::OpenExr,
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
+                "qoi" => ImageFormat::Qoi,
                 _ => return None,
             })
         }
@@ -176,6 +180,9 @@ impl ImageFormat {
             | "image/x-portable-graymap"
             | "image/x-portable-pixmap"
             | "image/x-portable-anymap" => Some(ImageFormat::Pnm),
+            // Qoi's MIME type is being worked on.
+            // See: https://github.com/phoboslab/qoi/issues/167
+            "image/x-qoi" => Some(ImageFormat::Qoi),
             _ => None,
         }
     }
@@ -199,6 +206,7 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
+            ImageFormat::Qoi => true,
         }
     }
 
@@ -221,6 +229,7 @@ impl ImageFormat {
             ImageFormat::Hdr => false,
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
+            ImageFormat::Qoi => true,
         }
     }
 
@@ -250,6 +259,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => &["ff"],
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
+            ImageFormat::Qoi => &["qoi"],
         }
     }
 }
@@ -302,6 +312,10 @@ pub enum ImageOutputFormat {
     /// An image in AVIF Format
     Avif,
 
+    #[cfg(feature = "qoi")]
+    /// An image in QOI Format
+    Qoi,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -334,6 +348,9 @@ impl From<ImageFormat> for ImageOutputFormat {
 
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
+
+            #[cfg(feature = "qoi")]
+            ImageFormat::Qoi => ImageOutputFormat::Qoi,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }

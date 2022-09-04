@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.17.6
+
+* Added `Decoder::read_header_info` to query the information contained in the
+  PNG header.
+* Switched to using the flate2 crate for encoding.
+
 ## 0.17.5
 
 * Fixed a regression, introduced by chunk validation, that made the decoder

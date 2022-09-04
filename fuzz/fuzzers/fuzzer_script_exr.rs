@@ -4,6 +4,7 @@ extern crate libfuzzer_sys;
 extern crate image;
 
 use image::codecs::openexr::*;
+use image::io::Limits;
 use image::ColorType;
 use image::ImageDecoder;
 use image::ImageEncoder;
@@ -19,27 +20,20 @@ fn roundtrip(bytes: &[u8]) -> ImageResult<()> {
     /// Read the file from the specified path into an `Rgba32FImage`.
     // TODO this method should probably already exist in the main image crate
     fn read_as_rgba_byte_image(read: impl Read + Seek) -> ImageResult<(u32, u32, Vec<u8>)> {
-        let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
-        let (width, height) = decoder.dimensions();
-
-        if let Ok(decoded_size) = usize::try_from(decoder.total_bytes()) {
-            if decoded_size > 256 * 1024 * 1024 {
-                return Err(image::ImageError::Limits(
-                    image::error::LimitError::from_kind(
-                        image::error::LimitErrorKind::InsufficientMemory,
-                    ),
-                ));
+        let mut decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
+        match usize::try_from(decoder.total_bytes()) {
+            Ok(decoded_size) if decoded_size <= 256 * 1024 * 1024 => {
+                decoder.set_limits(Limits::default())?;
+                let (width, height) = decoder.dimensions();
+                let mut buffer = vec![0; decoded_size];
+                decoder.read_image(buffer.as_mut_slice())?;
+                Ok((width, height, buffer))
             }
-            let mut buffer = vec![0; decoded_size];
-            decoder.read_image(buffer.as_mut_slice())?;
-
-            Ok((width, height, buffer))
-        } else {
-            Err(image::ImageError::Limits(
+            _ => Err(image::ImageError::Limits(
                 image::error::LimitError::from_kind(
                     image::error::LimitErrorKind::InsufficientMemory,
                 ),
-            ))
+            )),
         }
     }
 

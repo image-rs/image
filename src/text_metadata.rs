@@ -289,7 +289,7 @@ impl ZTXtChunk {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
                     Ok(s) => s,
-                    Err(miniz_oxide::inflate::TINFLStatus::HasMoreOutput) => {
+                    Err(err) if err.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));
@@ -459,7 +459,7 @@ impl ITXtChunk {
             OptCompressed::Compressed(v) => {
                 let uncompressed_raw = match decompress_to_vec_zlib_with_limit(&v[..], limit) {
                     Ok(s) => s,
-                    Err(miniz_oxide::inflate::TINFLStatus::HasMoreOutput) => {
+                    Err(err) if err.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
                         return Err(DecodingError::from(
                             TextDecodingError::OutOfDecompressionSpace,
                         ));

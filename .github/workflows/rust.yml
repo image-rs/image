@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         rust: ["1.56.1", stable, beta, nightly]
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '']
+        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, '']
+        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
 
     # we are using the cross project for cross compilation to mips:
     # https://github.com/cross-rs/cross

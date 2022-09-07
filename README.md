@@ -26,7 +26,7 @@ All image processing functions provided operate on types that implement the `Gen
 | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
 | ICO    | Yes | Yes |
 | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
-| WebP   | Yes | No |
+| WebP   | Yes | Rgb8, Rgba8 |
 | AVIF   | Only 8-bit | Lossy |
 | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 | DDS    | DXT1, DXT3, DXT5 | No |

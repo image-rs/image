@@ -332,7 +332,7 @@ impl ExtendedImage {
                 //will always have at least one frame
                 let first_fame = &frames[0];
                 //Currently only animated images where the canvas size matches the first frame size is supported
-                self.info.canvas_width  == first_fame.width && self.info.canvas_height == first_fame.height
+                self.info.canvas_width  == first_fame.width && self.info.canvas_height == first_fame.height && self.info.alpha == first_fame.use_alpha_blending
             }
             ExtendedImageData::Static(_) => true
         }

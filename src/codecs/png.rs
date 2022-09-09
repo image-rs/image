@@ -579,10 +579,8 @@ impl<W: Write> PngEncoder<W> {
         };
         let comp = match self.compression {
             CompressionType::Default => png::Compression::Default,
-            CompressionType::Fast => png::Compression::Fast,
             CompressionType::Best => png::Compression::Best,
-            CompressionType::Huffman => png::Compression::Huffman,
-            CompressionType::Rle => png::Compression::Rle,
+            _ => png::Compression::Fast,
         };
         let (filter, adaptive_filter) = match self.filter {
             FilterType::NoFilter => (

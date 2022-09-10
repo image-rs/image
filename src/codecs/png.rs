@@ -477,8 +477,10 @@ pub enum CompressionType {
     /// High compression level
     Best,
     /// Huffman coding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Huffman,
     /// Run-length encoding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Rle,
 }
 

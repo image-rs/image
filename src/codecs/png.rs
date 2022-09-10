@@ -477,8 +477,10 @@ pub enum CompressionType {
     /// High compression level
     Best,
     /// Huffman coding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Huffman,
     /// Run-length encoding compression
+    #[deprecated(note = "use one of the other compression levels instead, such as 'Fast'")]
     Rle,
 }
 
@@ -579,10 +581,8 @@ impl<W: Write> PngEncoder<W> {
         };
         let comp = match self.compression {
             CompressionType::Default => png::Compression::Default,
-            CompressionType::Fast => png::Compression::Fast,
             CompressionType::Best => png::Compression::Best,
-            CompressionType::Huffman => png::Compression::Huffman,
-            CompressionType::Rle => png::Compression::Rle,
+            _ => png::Compression::Fast,
         };
         let (filter, adaptive_filter) = match self.filter {
             FilterType::NoFilter => (

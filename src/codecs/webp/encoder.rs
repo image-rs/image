@@ -10,6 +10,7 @@ use libwebp::{Encoder, PixelLayout, WebPMemory};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
+use crate::flat::SampleLayout;
 use crate::{ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
@@ -79,9 +80,9 @@ impl<W: Write> WebPEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         // TODO: convert color types internally?
-        let (layout, stride) = match color {
-            ColorType::Rgb8 => (PixelLayout::Rgb, 3),
-            ColorType::Rgba8 => (PixelLayout::Rgba, 4),
+        let layout = match color {
+            ColorType::Rgb8 => PixelLayout::Rgb,
+            ColorType::Rgba8 => PixelLayout::Rgba,
             _ => {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
@@ -93,8 +94,7 @@ impl<W: Write> WebPEncoder<W> {
         };
 
         // Validate dimensions upfront to avoid panics.
-        let expected_len = stride * (width * height) as u64;
-        if expected_len > data.len() as u64 {
+        if !SampleLayout::row_major_packed(color.channel_count(), width, height).fits(data.len()) {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )));

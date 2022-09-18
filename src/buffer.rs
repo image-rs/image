@@ -33,6 +33,12 @@ where
     fn next(&mut self) -> Option<&'a P> {
         self.chunks.next().map(|v| <P as Pixel>::from_slice(v))
     }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
 }
 
 impl<'a, P: Pixel + 'a> ExactSizeIterator for Pixels<'a, P>
@@ -90,6 +96,12 @@ where
     #[inline(always)]
     fn next(&mut self) -> Option<&'a mut P> {
         self.chunks.next().map(|v| <P as Pixel>::from_slice_mut(v))
+    }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
     }
 }
 
@@ -172,6 +184,12 @@ where
             // Note: this is not reached when CHANNEL_COUNT is 0.
             chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
+    }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
     }
 }
 
@@ -265,6 +283,12 @@ where
             chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
 }
 
 impl<'a, P: Pixel + 'a> ExactSizeIterator for RowsMut<'a, P>
@@ -327,6 +351,12 @@ where
         let (x, y) = (self.x, self.y);
         self.x += 1;
         self.pixels.next().map(|p| (x, y, p))
+    }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
     }
 }
 
@@ -394,6 +424,12 @@ where
             )
         })
     }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
 }
 
 impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumerateRows<'a, P>
@@ -454,6 +490,12 @@ where
         self.x += 1;
         self.pixels.next().map(|p| (x, y, p))
     }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
 }
 
 impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixelsMut<'a, P>
@@ -510,6 +552,12 @@ where
                 },
             )
         })
+    }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
     }
 }
 
@@ -1566,6 +1614,49 @@ mod test {
         let img: GrayImage = ImageBuffer::from_raw(1, 1, vec![0u8; 4]).unwrap();
         let mut buffer = std::io::Cursor::new(vec![]);
         assert!(img.write_to(&mut buffer, ImageOutputFormat::Png).is_ok());
+    }
+
+    #[test]
+    fn exact_size_iter_size_hint() {
+        // The docs for `std::iter::ExactSizeIterator` requires that the implementation of
+        // `size_hint` on the iterator returns the same value as the `len` implementation.
+
+        // This test should work for any size image.
+        const N: u32 = 10;
+
+        let mut image = RgbImage::from_raw(N, N, vec![0; (N * N * 3) as usize]).unwrap();
+
+        let iter = image.pixels();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.pixels_mut();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.rows();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.rows_mut();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.enumerate_pixels();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.enumerate_rows();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.enumerate_pixels_mut();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
+
+        let iter = image.enumerate_rows_mut();
+        let exact_len = ExactSizeIterator::len(&iter);
+        assert_eq!(iter.size_hint(), (exact_len, Some(exact_len)));
     }
 }
 

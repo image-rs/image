@@ -46,6 +46,7 @@ dav1d = { version = "0.6.0", optional = true }
 dcv-color-primitives = { version = "0.4.0", optional = true }
 color_quant = "1.1"
 exr = { version = "1.5.0", optional = true }
+libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -64,13 +65,17 @@ default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hd
 ico = ["bmp", "png"]
 pnm = []
 tga = []
-webp = []
 bmp = []
 hdr = ["scoped_threadpool"]
 dxt = []
 dds = ["dxt"]
 farbfeld = []
 openexr = ["exr"]
+
+# Enables WebP decoder support.
+webp = []
+# Non-default, not included in `webp`. Requires native dependency libwebp.
+webp-encoder = ["libwebp"]
 
 # Enables multi-threading.
 # Requires latest stable Rust.

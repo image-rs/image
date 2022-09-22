@@ -217,7 +217,7 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
-            ImageFormat::WebP => false,
+            ImageFormat::WebP => true,
             ImageFormat::Hdr => false,
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
@@ -302,6 +302,10 @@ pub enum ImageOutputFormat {
     /// An image in AVIF Format
     Avif,
 
+    #[cfg(feature = "webp-encoder")]
+    /// An image in WebP Format.
+    WebP,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -334,6 +338,8 @@ impl From<ImageFormat> for ImageOutputFormat {
 
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
+            #[cfg(feature = "webp-encoder")]
+            ImageFormat::WebP => ImageOutputFormat::WebP,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }

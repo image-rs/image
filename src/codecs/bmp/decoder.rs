@@ -270,7 +270,7 @@ fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
 ///
 /// For images that specify large sizes, we don't allocate the full buffer right away
 /// to somewhat mitigate trying to make the decoder run out of memory by sending a bogus image.
-/// This is somewhat of a workaroud as ideally we would check against the expected file size
+/// This is somewhat of a workaround as ideally we would check against the expected file size
 /// but that's not possible through the Read and Seek traits alone and would require the encoder
 /// to provided with it from the caller.
 ///

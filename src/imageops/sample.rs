@@ -110,7 +110,7 @@ struct FloatNearest(f32);
 // to_i64, to_u64, and to_f64 implicitly affect all other lower conversions.
 // Note that to_f64 by default calls to_i64 and thus needs to be overridden.
 impl ToPrimitive for FloatNearest {
-    // to_{i,u}64 is required, to_{i,u}{8,16} are usefull.
+    // to_{i,u}64 is required, to_{i,u}{8,16} are useful.
     // If a usecase for full 32 bits is found its trivial to add
     fn to_i8(&self) -> Option<i8> {
         self.0.round().to_i8()

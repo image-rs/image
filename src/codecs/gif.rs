@@ -183,7 +183,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
             let frame_buffer = ImageBuffer::from_raw(frame.width, frame.height, frame_buffer);
             let image_buffer = ImageBuffer::from_raw(width, height, buf);
 
-            // `buffer_size` uses wrapping arithmetics, thus might not report the
+            // `buffer_size` uses wrapping arithmetic, thus might not report the
             // correct storage requirement if the result does not fit in `usize`.
             // `ImageBuffer::from_raw` detects overflow and reports by returning `None`.
             if frame_buffer.is_none() || image_buffer.is_none() {
@@ -272,7 +272,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         }
 
         // create the image buffer from the raw frame.
-        // `buffer_size` uses wrapping arithmetics, thus might not report the
+        // `buffer_size` uses wrapping arithmetic, thus might not report the
         // correct storage requirement if the result does not fit in `usize`.
         // on the other hand, `ImageBuffer::from_raw` detects overflow and
         // reports by returning `None`.

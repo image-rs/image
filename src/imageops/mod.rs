@@ -474,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    /// Test blur doens't panick when passed 0.0
+    /// Test blur doesn't panick when passed 0.0
     fn test_blur_zero() {
         let image = RgbaImage::new(50, 50);
         let _ = super::blur(&image, 0.0);

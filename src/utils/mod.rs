@@ -31,7 +31,7 @@ where
 }
 
 /// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
-/// every `row_size` entries there are padding bits up to the next byte boundry.
+/// every `row_size` entries there are padding bits up to the next byte boundary.
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {

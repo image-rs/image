@@ -1080,7 +1080,7 @@ ENDHDR
         }
     }
 
-    /// A previous inifite loop.
+    /// A previous infinite loop.
     #[test]
     fn pbm_binary_ascii_termination() {
         use std::io::{BufReader, Cursor, Error, ErrorKind, Read, Result};

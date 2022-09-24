@@ -411,7 +411,7 @@ formats, first. We'll get to color spaces in a later major version.
 - Changed color structs to tuple types with single component. Improves
   ergonomics of destructuring assignment and construction.
 - Add lifetime parameter on `ImageDecoder` trait.
-- Remove unecessary `'static` bounds on affine operations
+- Remove unnecessary `'static` bounds on affine operations
 - Add function to retrieve image dimensions without loading full image
 - Allow different image types in overlay and replace
 - Iterators over rows of `ImageBuffer`, mutable variants

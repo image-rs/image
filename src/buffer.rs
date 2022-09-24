@@ -665,7 +665,7 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]>,
 {
-    /// Contructs a buffer from a generic container
+    /// Constructs a buffer from a generic container
     /// (for example a `Vec` or a slice)
     ///
     /// Returns `None` if the container is not big enough (including when the image dimensions
@@ -833,7 +833,7 @@ where
 
     /// Return the raw sample buffer with its stride an dimension information.
     ///
-    /// The returned buffer is guaranteed to be well formed in all cases. It is layed out by
+    /// The returned buffer is guaranteed to be well formed in all cases. It is laid out by
     /// colors, width then height, meaning `channel_stride <= width_stride <= height_stride`. All
     /// strides are in numbers of elements but those are mostly `u8` in which case the strides are
     /// also byte strides.

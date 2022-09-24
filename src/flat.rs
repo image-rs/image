@@ -140,7 +140,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `height` direction would be larger than `usize::max_value()`. On other platforms
-    /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
+    /// where it can surely accommodate `u8::max_value() * u32::max_value(), this can never happen.
     pub fn row_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let height_stride = (channels as usize).checked_mul(width as usize).expect(
             "Row major packed image can not be described because it does not fit into memory",
@@ -170,7 +170,7 @@ impl SampleLayout {
     ///
     /// On platforms where `usize` has the same size as `u32` this panics when the resulting stride
     /// in the `width` direction would be larger than `usize::max_value()`. On other platforms
-    /// where it can surely accomodate `u8::max_value() * u32::max_value(), this can never happen.
+    /// where it can surely accommodate `u8::max_value() * u32::max_value(), this can never happen.
     pub fn column_major_packed(channels: u8, width: u32, height: u32) -> Self {
         let width_stride = (channels as usize).checked_mul(height as usize).expect(
             "Column major packed image can not be described because it does not fit into memory",
@@ -384,7 +384,7 @@ impl SampleLayout {
     ///
     /// An in-bound coordinate does not yet guarantee that the corresponding calculation of a
     /// buffer index does not overflow. However, if such a buffer large enough to hold all samples
-    /// actually exists in memory, this porperty of course follows.
+    /// actually exists in memory, this property of course follows.
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
         channel < self.channels && x < self.width && y < self.height
     }
@@ -870,7 +870,7 @@ impl<Buffer> FlatSamples<Buffer> {
     ///
     /// An in-bound coordinate does not yet guarantee that the corresponding calculation of a
     /// buffer index does not overflow. However, if such a buffer large enough to hold all samples
-    /// actually exists in memory, this porperty of course follows.
+    /// actually exists in memory, this property of course follows.
     pub fn in_bounds(&self, channel: u8, x: u32, y: u32) -> bool {
         self.layout.in_bounds(channel, x, y)
     }

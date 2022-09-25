@@ -19,6 +19,22 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
 
+### Version 0.24.4
+
+New Features:
+- Encoding for `webp` is now available with the native library. This needs to
+  be activate explicitly with the `web-encoder` feature.
+- `exr` decoding has gained basic limit support.
+
+Bug fixes:
+- The `Iterator::size_hint` implementation of pixel iterators has been fixed to
+  return the current length indicated by its `ExactSizeIterator` hint.
+- Typos and bad references in the documentation have been removed.
+
+Performance:
+- `ImageBuffer::get_pixel{,_mut}` is now marked inline.
+- `resize` now short-circuits when image dimensions are unchanged.
+
 ### Version 0.24.3
 
 New Features:

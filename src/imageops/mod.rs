@@ -82,7 +82,7 @@ fn crop_dimms<I: GenericImageView>(
 /// * Overflows in the computation
 /// * Coordinates could be completely out of bounds
 ///
-/// The main idea is to make use of inequalities provided by the nature of `saturing_add` and
+/// The main idea is to make use of inequalities provided by the nature of `saturating_add` and
 /// `saturating_sub`. These intrinsically validate that all resulting coordinates will be in bounds
 /// for both images.
 ///

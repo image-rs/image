@@ -592,7 +592,7 @@ where
 /// been shown to improve performance.
 ///
 /// The crate defines a few type aliases with regularly used pixel types for your convenience, such
-/// as `RgbImage`, `GrayImage` etc.
+/// as [`RgbImage`], [`GrayImage`] etc.
 ///
 /// [`GenericImage`]: trait.GenericImage.html
 /// [`GenericImageView`]: trait.GenericImageView.html
@@ -1042,7 +1042,7 @@ where
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
     ///
-    /// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
+    /// See [`ImageOutputFormat`](enum.ImageOutputFormat.html) for
     /// supported types.
     pub fn write_to<W, F>(&self, writer: &mut W, format: F) -> ImageResult<()>
     where

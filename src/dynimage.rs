@@ -10,7 +10,10 @@ use crate::codecs::png;
 #[cfg(feature = "pnm")]
 use crate::codecs::pnm;
 
-use crate::buffer_::{ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer, Rgb16Image, RgbImage, Rgba16Image, RgbaImage};
+use crate::buffer_::{
+    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
+    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
+};
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
@@ -22,7 +25,7 @@ use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
-use crate::{Rgb32FImage, Rgba32FImage, Rgb64FImage, Rgba64FImage};
+use crate::{Rgb32FImage, Rgb64FImage, Rgba32FImage, Rgba64FImage};
 
 /// A Dynamic Image
 ///

@@ -30,6 +30,10 @@ pub enum ColorType {
     Rgb32F,
     /// Pixel is 32-bit float RGBA
     Rgba32F,
+    /// Pixel is 64-bit float RGB
+    Rgb64F,
+    /// Pixel is 64-bit float RGBA
+    Rgba64F,
 }
 
 impl ColorType {
@@ -44,6 +48,8 @@ impl ColorType {
             ColorType::Rgba16 => 8,
             ColorType::Rgb32F => 3 * 4,
             ColorType::Rgba32F => 4 * 4,
+            ColorType::Rgb64F => 3 * 8,
+            ColorType::Rgba64F => 4 * 8,
         }
     }
 
@@ -51,8 +57,8 @@ impl ColorType {
     pub fn has_alpha(self) -> bool {
         use ColorType::*;
         match self {
-            L8 | L16 | Rgb8 | Rgb16 | Rgb32F => false,
-            La8 | Rgba8 | La16 | Rgba16 | Rgba32F => true,
+            L8 | L16 | Rgb8 | Rgb16 | Rgb32F | Rgb64F => false,
+            La8 | Rgba8 | La16 | Rgba16 | Rgba32F | Rgba64F => true,
         }
     }
 
@@ -61,7 +67,7 @@ impl ColorType {
         use ColorType::*;
         match self {
             L8 | L16 | La8 | La16 => false,
-            Rgb8 | Rgb16 | Rgba8 | Rgba16 | Rgb32F | Rgba32F => true,
+            Rgb8 | Rgb16 | Rgba8 | Rgba16 | Rgb32F | Rgba32F | Rgb64F | Rgba64F => true,
         }
     }
 
@@ -141,6 +147,10 @@ pub enum ExtendedColorType {
     Rgb32F,
     /// Pixel is 32-bit float RGBA
     Rgba32F,
+    /// Pixel is 64-bit float RGB
+    Rgb64F,
+    /// Pixel is 64-bit float RGBA
+    Rgba64F,
 
     /// Pixel is of unknown color type with the specified bits per pixel. This can apply to pixels
     /// which are associated with an external palette. In that case, the pixel value is an index
@@ -173,6 +183,7 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgb8
             | ExtendedColorType::Rgb16
             | ExtendedColorType::Rgb32F
+            | ExtendedColorType::Rgb64F
             | ExtendedColorType::Bgr8 => 3,
             ExtendedColorType::Rgba1
             | ExtendedColorType::Rgba2
@@ -180,6 +191,7 @@ impl ExtendedColorType {
             | ExtendedColorType::Rgba8
             | ExtendedColorType::Rgba16
             | ExtendedColorType::Rgba32F
+            | ExtendedColorType::Rgba64F
             | ExtendedColorType::Bgra8 => 4,
         }
     }
@@ -197,6 +209,8 @@ impl From<ColorType> for ExtendedColorType {
             ColorType::Rgba16 => ExtendedColorType::Rgba16,
             ColorType::Rgb32F => ExtendedColorType::Rgb32F,
             ColorType::Rgba32F => ExtendedColorType::Rgba32F,
+            ColorType::Rgb64F => ExtendedColorType::Rgb64F,
+            ColorType::Rgba64F => ExtendedColorType::Rgba64F,
         }
     }
 }
@@ -399,6 +413,36 @@ impl FromPrimitive<f32> for u16 {
     }
 }
 
+impl FromPrimitive<f32> for f64 {
+    fn from_primitive(float: f32) -> Self {
+        NumCast::from(float).unwrap()
+    }
+}
+
+// from f64:
+// Note that in to-integer-conversion we are performing rounding but NumCast::from is implemented
+// as truncate towards zero. We emulate rounding by adding a bias.
+
+impl FromPrimitive<f64> for u8 {
+    fn from_primitive(float: f64) -> Self {
+        let inner = (float.clamp(0.0, 1.0) * u8::MAX as f64).round();
+        NumCast::from(inner).unwrap()
+    }
+}
+
+impl FromPrimitive<f64> for u16 {
+    fn from_primitive(float: f64) -> Self {
+        let inner = (float.clamp(0.0, 1.0) * u16::MAX as f64).round();
+        NumCast::from(inner).unwrap()
+    }
+}
+
+impl FromPrimitive<f64> for f32 {
+    fn from_primitive(float: f64) -> Self {
+        NumCast::from(float).unwrap()
+    }
+}
+
 // from u16:
 
 impl FromPrimitive<u16> for u8 {
@@ -422,11 +466,23 @@ impl FromPrimitive<u16> for f32 {
     }
 }
 
+impl FromPrimitive<u16> for f64 {
+    fn from_primitive(int: u16) -> Self {
+        (int as f64 / u16::MAX as f64).clamp(0.0, 1.0)
+    }
+}
+
 // from u8:
 
 impl FromPrimitive<u8> for f32 {
     fn from_primitive(int: u8) -> Self {
         (int as f32 / u8::MAX as f32).clamp(0.0, 1.0)
+    }
+}
+
+impl FromPrimitive<u8> for f64 {
+    fn from_primitive(int: u8) -> Self {
+        (int as f64 / u8::MAX as f64).clamp(0.0, 1.0)
     }
 }
 

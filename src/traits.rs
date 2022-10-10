@@ -32,6 +32,12 @@ impl EncodableLayout for [f32] {
     }
 }
 
+impl EncodableLayout for [f64] {
+    fn as_bytes(&self) -> &[u8] {
+        bytemuck::cast_slice(self)
+    }
+}
+
 /// The type of each channel in a pixel. For example, this can be `u8`, `u16`, `f32`.
 // TODO rename to `PixelComponent`? Split up into separate traits? Seal?
 pub trait Primitive: Copy + NumCast + Num + PartialOrd<Self> + Clone + Bounded {
@@ -185,6 +191,9 @@ impl PixelWithColorType for Rgb<u16> {
 impl PixelWithColorType for Rgb<f32> {
     const COLOR_TYPE: ColorType = ColorType::Rgb32F;
 }
+impl PixelWithColorType for Rgb<f64> {
+    const COLOR_TYPE: ColorType = ColorType::Rgb64F;
+}
 
 impl PixelWithColorType for Rgba<u8> {
     const COLOR_TYPE: ColorType = ColorType::Rgba8;
@@ -194,6 +203,9 @@ impl PixelWithColorType for Rgba<u16> {
 }
 impl PixelWithColorType for Rgba<f32> {
     const COLOR_TYPE: ColorType = ColorType::Rgba32F;
+}
+impl PixelWithColorType for Rgba<f64> {
+    const COLOR_TYPE: ColorType = ColorType::Rgba64F;
 }
 
 impl PixelWithColorType for Luma<u8> {
@@ -217,10 +229,12 @@ mod private {
     impl SealedPixelWithColorType for Rgb<u8> {}
     impl SealedPixelWithColorType for Rgb<u16> {}
     impl SealedPixelWithColorType for Rgb<f32> {}
+    impl SealedPixelWithColorType for Rgb<f64> {}
 
     impl SealedPixelWithColorType for Rgba<u8> {}
     impl SealedPixelWithColorType for Rgba<u16> {}
     impl SealedPixelWithColorType for Rgba<f32> {}
+    impl SealedPixelWithColorType for Rgba<f64> {}
 
     impl SealedPixelWithColorType for Luma<u8> {}
     impl SealedPixelWithColorType for LumaA<u8> {}
@@ -367,4 +381,5 @@ mod seals {
     impl EncodableLayout for [u8] {}
     impl EncodableLayout for [u16] {}
     impl EncodableLayout for [f32] {}
+    impl EncodableLayout for [f64] {}
 }

@@ -128,8 +128,10 @@ pub use crate::buffer_::{
     // Image types
     ImageBuffer,
     Rgb32FImage,
+    Rgb64FImage,
     RgbImage,
     Rgba32FImage,
+    Rgba64FImage,
     RgbaImage,
 };
 

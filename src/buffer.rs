@@ -1401,6 +1401,14 @@ pub type Rgb32FImage = ImageBuffer<Rgb<f32>, Vec<f32>>;
 /// where the backing container is a flattened vector of floats.
 pub type Rgba32FImage = ImageBuffer<Rgba<f32>, Vec<f32>>;
 
+/// An image buffer for 64-bit float RGB pixels,
+/// where the backing container is a flattened vector of floats.
+pub type Rgb64FImage = ImageBuffer<Rgb<f64>, Vec<f64>>;
+
+/// An image buffer for 64-bit float RGBA pixels,
+/// where the backing container is a flattened vector of floats.
+pub type Rgba64FImage = ImageBuffer<Rgba<f64>, Vec<f64>>;
+
 #[cfg(test)]
 mod test {
     use super::{GrayImage, ImageBuffer, ImageOutputFormat, RgbImage};

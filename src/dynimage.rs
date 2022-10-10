@@ -10,10 +10,7 @@ use crate::codecs::png;
 #[cfg(feature = "pnm")]
 use crate::codecs::pnm;
 
-use crate::buffer_::{
-    ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer,
-    Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
-};
+use crate::buffer_::{ConvertBuffer, Gray16Image, GrayAlpha16Image, GrayAlphaImage, GrayImage, ImageBuffer, Rgb16Image, RgbImage, Rgba16Image, RgbaImage};
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
@@ -25,7 +22,7 @@ use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
-use crate::{Rgb32FImage, Rgba32FImage};
+use crate::{Rgb32FImage, Rgba32FImage, Rgb64FImage, Rgba64FImage};
 
 /// A Dynamic Image
 ///
@@ -82,6 +79,12 @@ pub enum DynamicImage {
 
     /// Each pixel in this image is 32-bit float Rgb with alpha
     ImageRgba32F(Rgba32FImage),
+
+    /// Each pixel in this image is 64-bit float Rgb
+    ImageRgb64F(Rgb64FImage),
+
+    /// Each pixel in this image is 64-bit float Rgb with alpha
+    ImageRgba64F(Rgba64FImage),
 }
 
 macro_rules! dynamic_map(
@@ -98,6 +101,8 @@ macro_rules! dynamic_map(
                 ImageRgba16($image) => ImageRgba16($action),
                 ImageRgb32F($image) => ImageRgb32F($action),
                 ImageRgba32F($image) => ImageRgba32F($action),
+                ImageRgb64F($image) => ImageRgb64F($action),
+                ImageRgba64F($image) => ImageRgba64F($action),
             }
         });
 
@@ -113,6 +118,8 @@ macro_rules! dynamic_map(
                 DynamicImage::ImageRgba16($image) => $action,
                 DynamicImage::ImageRgb32F($image) => $action,
                 DynamicImage::ImageRgba32F($image) => $action,
+                DynamicImage::ImageRgb64F($image) => $action,
+                DynamicImage::ImageRgba64F($image) => $action,
             }
         );
 );
@@ -170,6 +177,16 @@ impl DynamicImage {
         DynamicImage::ImageRgba32F(ImageBuffer::new(w, h))
     }
 
+    /// Creates a dynamic image backed by a buffer of RGB pixels.
+    pub fn new_rgb64f(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageRgb64F(ImageBuffer::new(w, h))
+    }
+
+    /// Creates a dynamic image backed by a buffer of RGBA pixels.
+    pub fn new_rgba64f(w: u32, h: u32) -> DynamicImage {
+        DynamicImage::ImageRgba64F(ImageBuffer::new(w, h))
+    }
+
     /// Decodes an encoded image into a dynamic image.
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
         decoder_to_image(decoder)
@@ -190,6 +207,10 @@ impl DynamicImage {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
+    /// Returns a copy of this image as an RGB image.
+    pub fn to_rgb64f(&self) -> Rgb64FImage {
+        dynamic_map!(*self, |ref p| p.convert())
+    }
     /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba8(&self) -> RgbaImage {
         dynamic_map!(*self, |ref p| p.convert())
@@ -202,6 +223,11 @@ impl DynamicImage {
 
     /// Returns a copy of this image as an RGBA image.
     pub fn to_rgba32f(&self) -> Rgba32FImage {
+        dynamic_map!(*self, |ref p| p.convert())
+    }
+
+    /// Returns a copy of this image as an RGBA image.
+    pub fn to_rgba64f(&self) -> Rgba64FImage {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
@@ -268,6 +294,17 @@ impl DynamicImage {
         }
     }
 
+    /// Consume the image and returns a RGB image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgb64f(self) -> Rgb64FImage {
+        match self {
+            DynamicImage::ImageRgb64F(x) => x,
+            x => x.to_rgb64f(),
+        }
+    }
+
     /// Consume the image and returns a RGBA image.
     ///
     /// If the image was already the correct format, it is returned as is.
@@ -298,6 +335,17 @@ impl DynamicImage {
         match self {
             DynamicImage::ImageRgba32F(x) => x,
             x => x.to_rgba32f(),
+        }
+    }
+
+    /// Consume the image and returns a RGBA image.
+    ///
+    /// If the image was already the correct format, it is returned as is.
+    /// Otherwise, a copy is created.
+    pub fn into_rgba64f(self) -> Rgba64FImage {
+        match self {
+            DynamicImage::ImageRgba64F(x) => x,
+            x => x.to_rgba64f(),
         }
     }
 
@@ -454,7 +502,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit RGB image
+    /// Return a reference to an 32bit RGB image
     pub fn as_rgb32f(&self) -> Option<&Rgb32FImage> {
         match *self {
             DynamicImage::ImageRgb32F(ref p) => Some(p),
@@ -478,10 +526,42 @@ impl DynamicImage {
         }
     }
 
-    /// Return a mutable reference to an 16bit RGBA image
+    /// Return a mutable reference to an 32bit RGBA image
     pub fn as_mut_rgba32f(&mut self) -> Option<&mut Rgba32FImage> {
         match *self {
             DynamicImage::ImageRgba32F(ref mut p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a reference to an 64bit RGB image
+    pub fn as_rgb64f(&self) -> Option<&Rgb64FImage> {
+        match *self {
+            DynamicImage::ImageRgb64F(ref p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a mutable reference to an 64bit RGB image
+    pub fn as_mut_rgb64f(&mut self) -> Option<&mut Rgb64FImage> {
+        match *self {
+            DynamicImage::ImageRgb64F(ref mut p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a reference to an 64bit RGBA image
+    pub fn as_rgba64f(&self) -> Option<&Rgba64FImage> {
+        match *self {
+            DynamicImage::ImageRgba64F(ref p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Return a mutable reference to an 64bit RGBA image
+    pub fn as_mut_rgba64f(&mut self) -> Option<&mut Rgba64FImage> {
+        match *self {
+            DynamicImage::ImageRgba64F(ref mut p) => Some(p),
             _ => None,
         }
     }
@@ -549,6 +629,15 @@ impl DynamicImage {
         }
     }
 
+    /// Return a view on the raw sample buffer for 64bit per channel images.
+    pub fn as_flat_samples_f64(&self) -> Option<FlatSamples<&[f64]>> {
+        match *self {
+            DynamicImage::ImageRgb64F(ref p) => Some(p.as_flat_samples()),
+            DynamicImage::ImageRgba64F(ref p) => Some(p.as_flat_samples()),
+            _ => None,
+        }
+    }
+
     /// Return this image's pixels as a native endian byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         // we can do this because every variant contains an `ImageBuffer<_, Vec<_>>`
@@ -608,6 +697,8 @@ impl DynamicImage {
             DynamicImage::ImageRgba16(_) => color::ColorType::Rgba16,
             DynamicImage::ImageRgb32F(_) => color::ColorType::Rgb32F,
             DynamicImage::ImageRgba32F(_) => color::ColorType::Rgba32F,
+            DynamicImage::ImageRgb64F(_) => color::ColorType::Rgb64F,
+            DynamicImage::ImageRgba64F(_) => color::ColorType::Rgba64F,
         }
     }
 
@@ -647,6 +738,12 @@ impl DynamicImage {
             }
             DynamicImage::ImageRgba32F(ref p) => {
                 DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
+            }
+            DynamicImage::ImageRgb64F(ref p) => {
+                DynamicImage::ImageRgb64F(imageops::grayscale_with_type(p))
+            }
+            DynamicImage::ImageRgba64F(ref p) => {
+                DynamicImage::ImageRgba64F(imageops::grayscale_with_type_alpha(p))
             }
         }
     }
@@ -934,6 +1031,18 @@ impl From<Rgba32FImage> for DynamicImage {
     }
 }
 
+impl From<Rgb64FImage> for DynamicImage {
+    fn from(image: Rgb64FImage) -> Self {
+        DynamicImage::ImageRgb64F(image)
+    }
+}
+
+impl From<Rgba64FImage> for DynamicImage {
+    fn from(image: Rgba64FImage) -> Self {
+        DynamicImage::ImageRgba64F(image)
+    }
+}
+
 impl From<ImageBuffer<Luma<f32>, Vec<f32>>> for DynamicImage {
     fn from(image: ImageBuffer<Luma<f32>, Vec<f32>>) -> Self {
         DynamicImage::ImageRgb32F(image.convert())
@@ -979,6 +1088,8 @@ impl GenericImage for DynamicImage {
             DynamicImage::ImageRgba16(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
             DynamicImage::ImageRgb32F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
             DynamicImage::ImageRgba32F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageRgb64F(ref mut p) => p.put_pixel(x, y, pixel.to_rgb().into_color()),
+            DynamicImage::ImageRgba64F(ref mut p) => p.put_pixel(x, y, pixel.into_color()),
         }
     }
 
@@ -1000,6 +1111,10 @@ impl GenericImage for DynamicImage {
                 p.blend_pixel(x, y, pixel.to_rgb().into_color())
             }
             DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
+            DynamicImage::ImageRgb64F(ref mut p) => {
+                p.blend_pixel(x, y, pixel.to_rgb().into_color())
+            }
+            DynamicImage::ImageRgba64F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
         }
     }
 
@@ -1059,6 +1174,16 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
         color::ColorType::Rgba32F => {
             let buf = image::decoder_to_vec(decoder)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
+        }
+
+        color::ColorType::Rgb64F => {
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb64F)
+        }
+
+        color::ColorType::Rgba64F => {
+            let buf = image::decoder_to_vec(decoder)?;
+            ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba64F)
         }
 
         color::ColorType::L16 => {
@@ -1324,6 +1449,16 @@ mod test {
     #[test]
     fn test_grayscale_rgba32f() {
         test_grayscale_alpha_preserved(super::DynamicImage::new_rgba32f(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgb64f() {
+        test_grayscale_alpha_discarded(super::DynamicImage::new_rgb64f(1, 1));
+    }
+
+    #[test]
+    fn test_grayscale_rgba64f() {
+        test_grayscale_alpha_preserved(super::DynamicImage::new_rgba64f(1, 1));
     }
 
     #[test]

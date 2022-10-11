@@ -5,7 +5,7 @@ edition = "2018"
 resolver = "2"
 
 # note: when changed, also update test runner in `.github/workflows/rust.yml`
-rust-version = "1.56.1"
+rust-version = "1.61.0"
 
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."

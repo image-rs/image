@@ -359,8 +359,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
 
                 let r = decoder.reader();
                 let image_end = r.seek(SeekFrom::Current(0))?;
-                let data_end =
-                    u64::from(self.selected_entry.image_offset + self.selected_entry.image_length);
+                let data_end = u64::from(self.selected_entry.image_offset)
+                    + u64::from(self.selected_entry.image_length);
 
                 let mask_row_bytes = ((width + 31) / 32) * 4;
                 let mask_length = u64::from(mask_row_bytes) * u64::from(height);

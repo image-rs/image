@@ -42,7 +42,6 @@
 //! let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
 //! encoder.set_color(png::ColorType::Rgba);
 //! encoder.set_depth(png::BitDepth::Eight);
-//! encoder.set_trns(vec!(0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8));
 //! encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
 //! encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
 //! let source_chromaticities = png::SourceChromaticities::new(     // Using unscaled instantiation here

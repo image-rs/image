@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 
 use super::lossless::subsample_size;
+use super::lossless::DecoderError;
 
 #[derive(Debug, Clone)]
 pub(crate) enum TransformType {
@@ -22,7 +23,12 @@ pub(crate) enum TransformType {
 
 impl TransformType {
     /// Applies a transform to the image data
-    pub(crate) fn apply_transform(&self, image_data: &mut Vec<u32>, width: u16, height: u16) {
+    pub(crate) fn apply_transform(
+        &self,
+        image_data: &mut Vec<u32>,
+        width: u16,
+        height: u16,
+    ) -> Result<(), DecoderError> {
         match self {
             TransformType::PredictorTransform {
                 size_bits,
@@ -33,7 +39,7 @@ impl TransformType {
                 let height = usize::from(height);
 
                 if image_data.len() < width * height {
-                    return;
+                    return Err(DecoderError::TransformError);
                 }
 
                 //handle top and left borders specially
@@ -254,6 +260,8 @@ impl TransformType {
                 *image_data = new_image_data;
             }
         }
+
+        Ok(())
     }
 }
 

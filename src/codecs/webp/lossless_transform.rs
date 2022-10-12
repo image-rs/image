@@ -32,6 +32,10 @@ impl TransformType {
                 let width = usize::from(width);
                 let height = usize::from(height);
 
+                if image_data.len() < width * height {
+                    return;
+                }
+
                 //handle top and left borders specially
                 //this involves ignoring mode and just setting prediction values like this
                 image_data[0] = add_pixels(image_data[0], 0xff000000);

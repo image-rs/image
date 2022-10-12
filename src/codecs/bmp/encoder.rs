@@ -68,7 +68,15 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                 ))
             })?;
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
-        let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
+        let file_size = bmp_header_size
+            .checked_add(dib_header_size)
+            .and_then(|v| v.checked_add(palette_size))
+            .and_then(|v| v.checked_add(image_size))
+            .ok_or_else(|| {
+                ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                ))
+            })?;
 
         // write BMP header
         self.writer.write_u8(b'B')?;

@@ -1,9 +1,11 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use crate::color;
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
+};
 use crate::image::ImageEncoder;
+use crate::{color, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -73,8 +75,9 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
             .and_then(|v| v.checked_add(palette_size))
             .and_then(|v| v.checked_add(image_size))
             .ok_or_else(|| {
-                ImageError::Parameter(ParameterError::from_kind(
-                    ParameterErrorKind::DimensionMismatch,
+                ImageError::Encoding(EncodingError::new(
+                    ImageFormatHint::Exact(ImageFormat::Bmp),
+                    "calculated BMP header size larger than 2^32",
                 ))
             })?;
 

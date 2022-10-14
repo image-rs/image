@@ -454,7 +454,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit RGB image
+    /// Return a reference to an 32bit RGB image
     pub fn as_rgb32f(&self) -> Option<&Rgb32FImage> {
         match *self {
             DynamicImage::ImageRgb32F(ref p) => Some(p),

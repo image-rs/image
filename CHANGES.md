@@ -11,6 +11,7 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Unreleased
 
+- The `as_rgb32f` function of `DynamicImage` is now correctly documented
 - More convenient to use buffers will be added in the future. In particular,
   improving initialization, passing of output buffers, and adding a more
   complete representation for layouts. The plan is for these to interact with

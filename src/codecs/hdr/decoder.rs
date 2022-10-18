@@ -201,7 +201,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
         Ok(HdrReader(
-            Cursor::new(image::decoder_to_vec(self)?),
+            Cursor::new(image::decoder_to_vec(self).map_err(|(_, e)| e)?),
             PhantomData,
         ))
     }

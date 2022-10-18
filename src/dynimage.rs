@@ -26,6 +26,7 @@ use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
+use crate::io::free_functions::LoadErrorHandling;
 
 /// A Dynamic Image
 ///
@@ -172,7 +173,20 @@ impl DynamicImage {
 
     /// Decodes an encoded image into a dynamic image.
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
-        decoder_to_image(decoder)
+        Self::from_decoder_inner(decoder, LoadErrorHandling::Strict)
+    }
+
+    /// Decodes an encoded image into a dynamic image, even if there are some errors.
+    ///
+    /// If an error is encountered while reading pixel data, use a default pixel
+    /// value (e.g. transparent) instead of failing the whole operation.
+    pub fn from_decoder_lossy<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
+        Self::from_decoder_inner(decoder, LoadErrorHandling::Lossy)
+    }
+
+    /// Decodes an encoded image into a dynamic image, with the supplied error handling mode.
+    pub(crate) fn from_decoder_inner<'a>(decoder: impl ImageDecoder<'a>, error_handling: LoadErrorHandling) -> ImageResult<Self> {
+        decoder_to_image(decoder, error_handling)
     }
 
     /// Returns a copy of this image as an RGB image.
@@ -1016,58 +1030,71 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I, error_handling: LoadErrorHandling) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
+    fn handle_result<T>(result: Result<Vec<T>, (Option<Vec<T>>, ImageError)>, error_handling: LoadErrorHandling) -> ImageResult<Vec<T>> {
+        match result {
+            Ok(buf) => Ok(buf),
+            Err((None, e)) => Err(e),
+            Err((Some(buf), e)) => {
+                match error_handling {
+                    LoadErrorHandling::Strict => Err(e),
+                    LoadErrorHandling::Lossy => Ok(buf),
+                }
+            }
+        }
+    }
+
     let image = match color_type {
         color::ColorType::Rgb8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb8)
         }
 
         color::ColorType::Rgba8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba8)
         }
 
         color::ColorType::L8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma8)
         }
 
         color::ColorType::La8 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA8)
         }
 
         color::ColorType::Rgb16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb16)
         }
 
         color::ColorType::Rgba16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba16)
         }
 
         color::ColorType::Rgb32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgb32F)
         }
 
         color::ColorType::Rgba32F => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageRgba32F)
         }
 
         color::ColorType::L16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLuma16)
         }
 
         color::ColorType::La16 => {
-            let buf = image::decoder_to_vec(decoder)?;
+            let buf = handle_result(image::decoder_to_vec(decoder), error_handling)?;
             ImageBuffer::from_raw(w, h, buf).map(DynamicImage::ImageLumaA16)
         }
 

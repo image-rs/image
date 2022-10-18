@@ -138,7 +138,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
     /// Use `read_image` instead if possible,
     /// as this method creates a whole new buffer just to contain the entire image.
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?))
+        Ok(Cursor::new(decoder_to_vec(self).map_err(|(_, e)| e)?))
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -429,7 +429,7 @@ mod test {
     fn read_as_rgb_image(read: impl Read + Seek) -> ImageResult<Rgb32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(false))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = decoder_to_vec(decoder).map_err(|(_, e)| e)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,
@@ -443,7 +443,7 @@ mod test {
     fn read_as_rgba_image(read: impl Read + Seek) -> ImageResult<Rgba32FImage> {
         let decoder = OpenExrDecoder::with_alpha_preference(read, Some(true))?;
         let (width, height) = decoder.dimensions();
-        let buffer: Vec<f32> = decoder_to_vec(decoder)?;
+        let buffer: Vec<f32> = decoder_to_vec(decoder).map_err(|(_, e)| e)?;
 
         ImageBuffer::from_raw(width, height, buffer)
             // this should be the only reason for the "from raw" call to fail,

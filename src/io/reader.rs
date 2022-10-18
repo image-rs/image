@@ -6,6 +6,7 @@ use crate::dynimage::DynamicImage;
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
 use crate::{ImageError, ImageResult};
+use crate::io::free_functions::LoadErrorHandling;
 
 use super::free_functions;
 
@@ -225,7 +226,7 @@ impl<R: BufRead + Seek> Reader<R> {
     /// If no format was determined, returns an `ImageError::Unsupported`.
     pub fn decode(mut self) -> ImageResult<DynamicImage> {
         let format = self.require_format()?;
-        free_functions::load_inner(self.inner, self.limits, format)
+        free_functions::load_inner(self.inner, self.limits, format, LoadErrorHandling::Strict)
     }
 
     fn require_format(&mut self) -> ImageResult<ImageFormat> {

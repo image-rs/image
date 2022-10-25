@@ -20,6 +20,7 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{AnimationDecoder, ImageDecoder, ImageEncoder, ImageFormat};
+use crate::io::Limits;
 use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, RgbaImage};
 
 // http://www.w3.org/TR/PNG-Structure.html
@@ -117,10 +118,19 @@ pub struct PngDecoder<R: Read> {
 impl<R: Read> PngDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
     pub fn new(r: R) -> ImageResult<PngDecoder<R>> {
-        let limits = png::Limits {
-            bytes: usize::max_value(),
-        };
-        let mut decoder = png::Decoder::new_with_limits(r, limits);
+        Self::with_limits(r, Limits::default())
+    }
+
+    /// Creates a new decoder that decodes from the stream ```r``` with the given limits.
+    pub fn with_limits(r: R, limits: Limits) -> ImageResult<PngDecoder<R>> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+
+        let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
+        let mut decoder = png::Decoder::new_with_limits(r, png::Limits { bytes: max_bytes });
+
+        let info = decoder.read_header_info().map_err(ImageError::from_png)?;
+        limits.check_dimensions(info.width, info.height)?;
+
         // By default the PNG decoder will scale 16 bpc to 8 bpc, so custom
         // transformations must be set. EXPAND preserves the default behavior
         // expanding bpc < 8 to 8 bpc.

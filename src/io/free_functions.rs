@@ -45,6 +45,7 @@ pub(crate) trait DecoderVisitor {
 pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
     r: R,
     format: ImageFormat,
+    limits: super::Limits,
     visitor: V,
 ) -> ImageResult<V::Result> {
     #[allow(unreachable_patterns)]
@@ -53,7 +54,7 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
         #[cfg(feature = "avif-decoder")]
         image::ImageFormat::Avif => visitor.visit_decoder(avif::AvifDecoder::new(r)?),
         #[cfg(feature = "png")]
-        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::new(r)?),
+        image::ImageFormat::Png => visitor.visit_decoder(png::PngDecoder::with_limits(r, limits)?),
         #[cfg(feature = "gif")]
         image::ImageFormat::Gif => visitor.visit_decoder(gif::GifDecoder::new(r)?),
         #[cfg(feature = "jpeg")]
@@ -107,7 +108,7 @@ pub(crate) fn load_inner<R: BufRead + Seek>(
         }
     }
 
-    load_decoder(r, format, LoadVisitor(limits))
+    load_decoder(r, format, limits.clone(), LoadVisitor(limits))
 }
 
 pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
@@ -131,7 +132,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(
         }
     }
 
-    load_decoder(buffered_read, format, DimVisitor)
+    load_decoder(buffered_read, format, super::Limits::default(), DimVisitor)
 }
 
 #[allow(unused_variables)]

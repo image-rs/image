@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.17.7
+
+* Fixed handling broken tRNS chunk.
+* Updated to miniz_oxide 0.6.
+
 ## 0.17.6
 
 * Added `Decoder::read_header_info` to query the information contained in the

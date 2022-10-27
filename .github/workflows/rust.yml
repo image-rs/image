@@ -157,7 +157,7 @@ jobs:
         cargo afl check --bin fuzz_webp
         cargo afl check --bin fuzz_pnm
       env:
-        RUSTFLAGS: "-Znew-llvm-pass-manager=no"
+        RUSTFLAGS: ""
 
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"

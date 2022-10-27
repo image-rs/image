@@ -1332,7 +1332,7 @@ mod test {
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
         struct Foo {
-            image: super::DynamicImage,
+            _image: super::DynamicImage,
         }
     }
 

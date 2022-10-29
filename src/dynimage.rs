@@ -19,7 +19,7 @@ use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
+use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat, ImageEncoder};
 use crate::imageops;
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
@@ -829,14 +829,14 @@ impl DynamicImage {
             #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
                 let p = png::PngEncoder::new(w);
-                p.encode(bytes, width, height, color)?;
+                p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "pnm")]
             image::ImageOutputFormat::Pnm(subtype) => {
-                let mut p = pnm::PnmEncoder::new(w).with_subtype(subtype);
-                p.encode(bytes, width, height, color)?;
+                let p = pnm::PnmEncoder::new(w).with_subtype(subtype);
+                p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 

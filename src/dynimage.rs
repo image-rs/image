@@ -658,22 +658,17 @@ impl DynamicImage {
     }
 
     /// Resize this image using the specified filter algorithm.
+    /// Returns a new image. The image's aspect ratio is preserved.
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
-    /// The image's aspect ratio is preserved.
-    /// Returns a new image if the requested image size is different than the already existing one.
-    /// Otherwise the function returns a copy of self.
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
         if (nwidth, nheight) == self.dimensions() {
-            // Image is already in the desired dimensions --> no need to resize.
             return self.clone();
         }
-        else {
-            let (width2, height2) =
-            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+        let (width2, height2) =
+        resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
-            return self.resize_exact(width2, height2, filter);
-        }
+        self.resize_exact(width2, height2, filter)
     }
 
     /// Resize this image using the specified filter algorithm.

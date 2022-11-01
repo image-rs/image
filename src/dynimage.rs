@@ -664,6 +664,9 @@ impl DynamicImage {
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
+        if (nwidth, nheight) == self.dimensions() {
+            return self.clone();
+        }
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 

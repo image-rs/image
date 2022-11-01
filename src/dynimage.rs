@@ -668,7 +668,7 @@ impl DynamicImage {
             return self.clone();
         }
         let (width2, height2) =
-        resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
+            resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
         self.resize_exact(width2, height2, filter)
     }

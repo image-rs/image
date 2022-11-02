@@ -1,11 +1,12 @@
 use core::ops::Deref;
+use std::io::{Seek, Write};
 
 use crate::{
     error::{DecodingError, ImageFormatHint},
     flat::SampleLayout,
     traits::{EncodableLayout, PixelWithColorType},
     ColorType, DynamicImage, ExtendedColorType, FlatSamples, ImageBuffer, ImageDecoder, ImageError,
-    ImageResult, Luma, LumaA, Rgb, Rgba,
+    ImageOutputFormat, ImageResult, Luma, LumaA, Rgb, Rgba,
 };
 
 use image_canvas::layout::{CanvasLayout as InnerLayout, SampleBits, SampleParts, Texel};
@@ -71,20 +72,28 @@ impl Canvas {
 
     /// Allocate a canvas for the result of an image decoder, then read the image into it.
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
-        // FIXME: we can also handle ExtendedColorType...
-        let texel = color_to_texel(decoder.color_type());
-        let (width, height) = decoder.dimensions();
-
-        // FIXME: What about other scanline sizes?
-        let layout = InnerLayout::with_texel(&texel, width, height).map_err(|layout| {
-            let decoder = DecodingError::new(ImageFormatHint::Unknown, format!("{:?}", layout));
-            ImageError::Decoding(decoder)
-        })?;
-
+        let layout = CanvasLayout::from_decoder(&decoder)?;
         let mut canvas = Inner::new(layout);
+
         decoder.read_image(canvas.as_bytes_mut())?;
 
         Ok(Canvas { inner: canvas })
+    }
+
+    /// Read an image into the canvas.
+    ///
+    /// The allocated memory of the current canvas is reused.
+    ///
+    /// On success, returns an `Ok`-value. The layout and contents are changed to the new image. On
+    /// failure, returns an appropriate `Err`-value and the contents of this canvas are not defined
+    /// (but initialized). The layout may have changed.
+    pub fn decode<'a>(&mut self, decoder: impl ImageDecoder<'a>) -> ImageResult<()> {
+        let layout = CanvasLayout::from_decoder(&decoder)?;
+        self.inner.set_layout(layout);
+
+        decoder.read_image(self.inner.as_bytes_mut())?;
+
+        Ok(())
     }
 
     /// The width of this canvas, in represented pixels.
@@ -318,6 +327,18 @@ impl CanvasLayout {
         Some(CanvasLayout { inner: layout })
     }
 
+    fn from_decoder<'a>(decoder: &impl ImageDecoder<'a>) -> ImageResult<InnerLayout> {
+        // FIXME: we can also handle ExtendedColorType...
+        let texel = color_to_texel(decoder.color_type());
+        let (width, height) = decoder.dimensions();
+
+        // FIXME: What about other scanline sizes?
+        InnerLayout::with_texel(&texel, width, height).map_err(|layout| {
+            let decoder = DecodingError::new(ImageFormatHint::Unknown, format!("{:?}", layout));
+            ImageError::Decoding(decoder)
+        })
+    }
+
     /// Construct a row-major matrix for an extended color type, i.e. generic texels.
     pub fn with_extended(
         color: ExtendedColorType,
@@ -342,9 +363,6 @@ impl CanvasLayout {
         self.inner.byte_len()
     }
 }
-
-use crate::ImageOutputFormat;
-use std::io::{Seek, Write};
 
 impl Canvas {
     /// Encode the image into the writer, using the specified format.

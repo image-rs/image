@@ -276,7 +276,7 @@ pub trait Pixel: Copy + Clone {
     /// If the pixel does not contain 4 channels the extra are ignored.
     #[deprecated(
         since = "0.24.0",
-        note = "Use the constructor of the pixel, for example `Rgba::new(r,g,b,a)` or `Pixel::from_slice`"
+        note = "Use the constructor of the pixel, for example `Rgba([r,g,b,a])` or `Pixel::from_slice`"
     )]
     fn from_channels(
         a: Self::Subpixel,

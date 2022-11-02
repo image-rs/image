@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::error;
 use std::fmt::{self, Display};
 use std::io::{self, BufRead, Cursor, Read};
@@ -75,6 +76,9 @@ enum DecoderError {
     },
     /// The tuple type was not recognised by the parser
     TupleTypeUnrecognised,
+
+    /// Overflowed the specified value when parsing
+    Overflow,
 }
 
 impl Display for DecoderError {
@@ -149,6 +153,7 @@ impl Display for DecoderError {
                 tuple_type.name()
             )),
             DecoderError::TupleTypeUnrecognised => f.write_str("Tuple type not recognized"),
+            DecoderError::Overflow => f.write_str("Overflow when parsing value"),
         }
     }
 }
@@ -228,7 +233,7 @@ enum TupleType {
 
 trait Sample {
     fn bytelen(width: u32, height: u32, samples: u32) -> ImageResult<usize>;
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()>;
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()>;
     fn from_ascii(reader: &mut dyn Read, output_buf: &mut [u8]) -> ImageResult<()>;
 }
 
@@ -635,20 +640,26 @@ impl<R: Read> PnmDecoder<R> {
                 let width = self.header.width();
                 let height = self.header.height();
                 let bytecount = S::bytelen(width, height, components)?;
-                let mut bytes = vec![];
 
+                let mut bytes = vec![];
                 self.reader
                     .by_ref()
                     // This conversion is potentially lossy but unlikely and in that case we error
                     // later anyways.
                     .take(bytecount as u64)
                     .read_to_end(&mut bytes)?;
-
                 if bytes.len() != bytecount {
                     return Err(DecoderError::InputTooShort.into());
                 }
 
-                S::from_bytes(&bytes, width * components, buf)
+                let width: usize = width.try_into().map_err(|_| DecoderError::Overflow)?;
+                let components: usize =
+                    components.try_into().map_err(|_| DecoderError::Overflow)?;
+                let row_size = width
+                    .checked_mul(components)
+                    .ok_or(DecoderError::Overflow)?;
+
+                S::from_bytes(&bytes, row_size, buf)
             }
             SampleEncoding::Ascii => self.read_ascii::<S>(buf),
         }
@@ -694,7 +705,7 @@ impl Sample for U8 {
         Ok((width * height * samples) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         Ok(())
     }
@@ -712,7 +723,7 @@ impl Sample for U16 {
         Ok((width * height * samples * 2) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], _row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], _row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         output_buf.copy_from_slice(bytes);
         for chunk in output_buf.chunks_exact_mut(2) {
             let v = BigEndian::read_u16(chunk);
@@ -740,8 +751,8 @@ impl Sample for PbmBit {
         Ok((linelen * height) as usize)
     }
 
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
-        let mut expanded = utils::expand_bits(1, row_size, bytes);
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
+        let mut expanded = utils::expand_bits(1, row_size.try_into().unwrap(), bytes);
         for b in expanded.iter_mut() {
             *b = !*b;
         }
@@ -776,7 +787,7 @@ impl Sample for BWBit {
         U8::bytelen(width, height, samples)
     }
 
-    fn from_bytes(bytes: &[u8], row_size: u32, output_buf: &mut [u8]) -> ImageResult<()> {
+    fn from_bytes(bytes: &[u8], row_size: usize, output_buf: &mut [u8]) -> ImageResult<()> {
         U8::from_bytes(bytes, row_size, output_buf)?;
         if let Some(val) = output_buf.iter().find(|&val| *val > 1) {
             return Err(DecoderError::SampleOutOfBounds(*val).into());
@@ -1069,7 +1080,7 @@ ENDHDR
         }
     }
 
-    /// A previous inifite loop.
+    /// A previous infinite loop.
     #[test]
     fn pbm_binary_ascii_termination() {
         use std::io::{BufReader, Cursor, Error, ErrorKind, Read, Result};
@@ -1245,5 +1256,17 @@ ENDHDR
     #[test]
     fn issue_1508() {
         let _ = crate::load_from_memory(b"P391919 16999 1 1 9 919 16999 1 9999 999* 99999 N");
+    }
+
+    #[test]
+    fn issue_1616_overflow() {
+        let data = vec![
+            80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56,
+        ];
+        // Validate: we have a header. Note: we might already calculate that this will fail but
+        // then we could not return information about the header to the caller.
+        let decoder = PnmDecoder::new(&data[..]).unwrap();
+        let mut image = vec![0; decoder.total_bytes() as usize];
+        let _ = decoder.read_image(&mut image);
     }
 }

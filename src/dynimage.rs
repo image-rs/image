@@ -19,7 +19,9 @@ use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
 use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageOutputFormat};
+use crate::image::{
+    GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
+};
 use crate::imageops;
 use crate::io::free_functions;
 use crate::math::resize_dimensions;
@@ -459,7 +461,7 @@ impl DynamicImage {
         }
     }
 
-    /// Return a reference to an 16bit RGB image
+    /// Return a reference to an 32bit RGB image
     pub fn as_rgb32f(&self) -> Option<&Rgb32FImage> {
         match *self {
             DynamicImage::ImageRgb32F(ref p) => Some(p),
@@ -667,6 +669,9 @@ impl DynamicImage {
     /// The image is scaled to the maximum possible size that fits
     /// within the bounds specified by `nwidth` and `nheight`.
     pub fn resize(&self, nwidth: u32, nheight: u32, filter: imageops::FilterType) -> DynamicImage {
+        if (nwidth, nheight) == self.dimensions() {
+            return self.clone();
+        }
         let (width2, height2) =
             resize_dimensions(self.width(), self.height(), nwidth, nheight, false);
 
@@ -834,14 +839,14 @@ impl DynamicImage {
             #[cfg(feature = "png")]
             image::ImageOutputFormat::Png => {
                 let p = png::PngEncoder::new(w);
-                p.encode(bytes, width, height, color)?;
+                p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
             #[cfg(feature = "pnm")]
             image::ImageOutputFormat::Pnm(subtype) => {
-                let mut p = pnm::PnmEncoder::new(w).with_subtype(subtype);
-                p.encode(bytes, width, height, color)?;
+                let p = pnm::PnmEncoder::new(w).with_subtype(subtype);
+                p.write_image(bytes, width, height, color)?;
                 Ok(())
             }
 
@@ -1111,7 +1116,7 @@ where
     free_functions::open_impl(path.as_ref())
 }
 
-/// Read the dimensions of the image located at the specified path.
+/// Read a tuple containing the (width, height) of the image located at the specified path.
 /// This is faster than fully loading the image and then getting its dimensions.
 ///
 /// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
@@ -1337,7 +1342,7 @@ mod test {
         // ensures that DynamicImage implements Default (if it didn't, this would cause a compile error).
         #[derive(Default)]
         struct Foo {
-            image: super::DynamicImage,
+            _image: super::DynamicImage,
         }
     }
 

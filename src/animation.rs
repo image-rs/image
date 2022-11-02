@@ -53,7 +53,7 @@ pub struct Delay {
 }
 
 impl Frame {
-    /// Contructs a new frame without any delay.
+    /// Constructs a new frame without any delay.
     pub fn new(buffer: RgbaImage) -> Frame {
         Frame {
             delay: Delay::from_ratio(Ratio::from_integer(0)),
@@ -63,7 +63,7 @@ impl Frame {
         }
     }
 
-    /// Contructs a new frame
+    /// Constructs a new frame
     pub fn from_parts(buffer: RgbaImage, left: u32, top: u32, delay: Delay) -> Frame {
         Frame {
             delay,

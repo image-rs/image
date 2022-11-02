@@ -4,8 +4,6 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use num_iter::range_step;
-
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
     UnsupportedErrorKind,
@@ -583,8 +581,8 @@ impl<W: Write> JpegEncoder<W> {
         let mut y_dcprev = 0;
         let mut dct_yblock = [0i32; 64];
 
-        for y in range_step(0, image.height(), 8) {
-            for x in range_step(0, image.width(), 8) {
+        for y in (0..image.height()).step_by(8) {
+            for x in (0..image.width()).step_by(8) {
                 copy_blocks_gray(image, x, y, &mut yblock);
 
                 // Level shift and fdct
@@ -619,8 +617,8 @@ impl<W: Write> JpegEncoder<W> {
         let mut cb_block = [0u8; 64];
         let mut cr_block = [0u8; 64];
 
-        for y in range_step(0, image.height(), 8) {
-            for x in range_step(0, image.width(), 8) {
+        for y in (0..image.height()).step_by(8) {
+            for x in (0..image.width()).step_by(8) {
                 // RGB -> YCbCr
                 copy_blocks_ycbcr(image, x, y, &mut yblock, &mut cb_block, &mut cr_block);
 

@@ -1,6 +1,5 @@
 //!  Utilities
 
-use num_iter::range_step;
 use std::iter::repeat;
 
 #[inline(always)]
@@ -20,20 +19,19 @@ where
         .rev() // Reverse iterator
         .flat_map(|idx|
             // This has to be reversed to
-            range_step(0, 8, bit_depth)
-            .zip(repeat(idx)))
+            (0..8/bit_depth).map(|i| i*bit_depth).zip(repeat(idx)))
         .skip(extra);
-    let channels = channels as isize;
-    let j = range_step(buf.len() as isize - channels, -channels, -channels);
-    //let j = range_step(0, buf.len(), channels).rev(); // ideal solution;
-    for ((shift, i), j) in i.zip(j) {
+    let buf_len = buf.len();
+    let j_inv = (channels..buf_len).step_by(channels);
+    for ((shift, i), j_inv) in i.zip(j_inv) {
+        let j = buf_len - j_inv;
         let pixel = (buf[i] & (mask << shift)) >> shift;
         func(pixel, &mut buf[j as usize..(j + channels) as usize])
     }
 }
 
 /// Expand a buffer of packed 1, 2, or 4 bits integers into u8's. Assumes that
-/// every `row_size` entries there are padding bits up to the next byte boundry.
+/// every `row_size` entries there are padding bits up to the next byte boundary.
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
@@ -50,8 +48,8 @@ pub(crate) fn expand_bits(bit_depth: u8, row_size: u32, buf: &[u8]) -> Vec<u8> {
     let mut p = Vec::new();
     let mut i = 0;
     for v in buf {
-        for shift in num_iter::range_step_inclusive(8i8 - (bit_depth as i8), 0, -(bit_depth as i8))
-        {
+        for shift_inv in 1..=8 / bit_depth {
+            let shift = 8 - bit_depth * shift_inv;
             // skip the pixels that can be neglected because scanlines should
             // start at byte boundaries
             if i % (row_len as usize) < (row_size as usize) {

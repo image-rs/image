@@ -20,8 +20,6 @@
 //!     - meta data is lost
 //!     - dwaa/dwab compressed images not supported yet by the exr library
 //!     - (chroma) subsampling not supported yet by the exr library
-
-extern crate exr;
 use exr::prelude::*;
 
 use crate::error::{DecodingError, EncodingError, ImageFormatHint};
@@ -457,10 +455,9 @@ mod test {
 
     #[test]
     fn compare_exr_hdr() {
-        assert!(
-            cfg!(feature = "hdr"),
-            "to run all the openexr tests, activate the hdr feature flag"
-        );
+        if cfg!(not(feature = "hdr")) {
+            eprintln!("warning: to run all the openexr tests, activate the hdr feature flag");
+        }
 
         #[cfg(feature = "hdr")]
         {

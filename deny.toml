@@ -26,6 +26,7 @@ wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny
 deny = []
 skip = []
 skip-tree = [
+    { name = "flate2", version = "=1.0.24" }, # until a new version is published
     { name = "criterion" },  # dev-dependency
     { name = "quickcheck" }, # dev-dependency
 ]

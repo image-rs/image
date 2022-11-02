@@ -1,9 +1,11 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{self, Write};
 
-use crate::color;
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{
+    EncodingError, ImageError, ImageFormatHint, ImageResult, ParameterError, ParameterErrorKind,
+};
 use crate::image::ImageEncoder;
+use crate::{color, ImageFormat};
 
 const BITMAPFILEHEADER_SIZE: u32 = 14;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -68,7 +70,16 @@ impl<'a, W: Write + 'a> BmpEncoder<'a, W> {
                 ))
             })?;
         let palette_size = palette_color_count * 4; // all palette colors are BGRA
-        let file_size = bmp_header_size + dib_header_size + palette_size + image_size;
+        let file_size = bmp_header_size
+            .checked_add(dib_header_size)
+            .and_then(|v| v.checked_add(palette_size))
+            .and_then(|v| v.checked_add(image_size))
+            .ok_or_else(|| {
+                ImageError::Encoding(EncodingError::new(
+                    ImageFormatHint::Exact(ImageFormat::Bmp),
+                    "calculated BMP header size larger than 2^32",
+                ))
+            })?;
 
         // write BMP header
         self.writer.write_u8(b'B')?;
@@ -319,6 +330,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn huge_files_return_error() {
         let mut encoded_data = Vec::new();
         let image = vec![0u8; 3 * 40_000 * 40_000]; // 40_000x40_000 pixels, 3 bytes per pixel, allocated on the heap

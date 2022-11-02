@@ -11,6 +11,7 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Unreleased
 
+- The `as_rgb32f` function of `DynamicImage` is now correctly documented
 - More convenient to use buffers will be added in the future. In particular,
   improving initialization, passing of output buffers, and adding a more
   complete representation for layouts. The plan is for these to interact with
@@ -18,6 +19,31 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   `ImageDecoder`.
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
+
+### Version 0.24.4
+
+New Features:
+- Encoding for `webp` is now available with the native library. This needs to
+  be activate explicitly with the `web-encoder` feature.
+- `exr` decoding has gained basic limit support.
+
+Bug fixes:
+- The `Iterator::size_hint` implementation of pixel iterators has been fixed to
+  return the current length indicated by its `ExactSizeIterator` hint.
+- Typos and bad references in the documentation have been removed.
+
+Performance:
+- `ImageBuffer::get_pixel{,_mut}` is now marked inline.
+- `resize` now short-circuits when image dimensions are unchanged.
+
+### Version 0.24.3
+
+New Features:
+- `TiffDecoder` now supports setting resource limits.
+
+Bug fixes:
+- Fix compile issues on little endian systems.
+- Various panics discovered by fuzzing.
 
 ### Version 0.24.2
 
@@ -402,7 +428,7 @@ formats, first. We'll get to color spaces in a later major version.
 - Changed color structs to tuple types with single component. Improves
   ergonomics of destructuring assignment and construction.
 - Add lifetime parameter on `ImageDecoder` trait.
-- Remove unecessary `'static` bounds on affine operations
+- Remove unnecessary `'static` bounds on affine operations
 - Add function to retrieve image dimensions without loading full image
 - Allow different image types in overlay and replace
 - Iterators over rows of `ImageBuffer`, mutable variants

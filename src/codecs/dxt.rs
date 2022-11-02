@@ -478,7 +478,7 @@ fn decode_dxt5_row(source: &[u8], dest: &mut [u8]) {
 /// Another way to perform this analysis would be to perform a
 /// singular value decomposition of the different colors, and
 /// then pick 2 points on this line as the base colors. But
-/// this is still rather unwieldly math and has issues
+/// this is still rather unwieldy math and has issues
 /// with the 3-linear-colors-and-0 case, it's also worse
 /// at conserving the original colors.
 ///

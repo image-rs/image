@@ -52,7 +52,10 @@ impl Canvas {
     /// allocate. Also panics if the allocator fails.
     pub fn new(color: ColorType, w: u32, h: u32) -> Self {
         let texel = color_to_texel(color);
-        let layout = InnerLayout::with_texel(&texel, w, h).expect("layout error");
+        let color = color_to_color(color);
+
+        let mut layout = InnerLayout::with_texel(&texel, w, h).expect("layout error");
+        layout.set_color(color).expect("layout error");
 
         Canvas {
             inner: Inner::new(layout),
@@ -192,6 +195,8 @@ impl Canvas {
     ///
     /// The subpixel of the result type is constrained by a sealed, internal trait that is
     /// implemented for all primitive numeric types.
+    ///
+    /// This is essentially an optimized method compared to using an intermediate `DynamicImage`.
     pub fn to_buffer<P: PixelWithColorType>(&self) -> ImageBuffer<P, Vec<P::Subpixel>>
     where
         [P::Subpixel]: EncodableLayout,
@@ -204,7 +209,8 @@ impl Canvas {
         // convert into the output buffer instead?
         let canvas = if false {
             /* self.inner.layout().texel() == texel */
-            // FIXME: can select `self` if it's correct color type and layout.
+            // FIXME: can select `self` if it's exactly the correct color type and layout. For now
+            // we just note the possibility down in the type system.
             &self.inner
         } else {
             let texel = color_to_texel(P::COLOR_TYPE);
@@ -273,45 +279,61 @@ impl Canvas {
     }
 
     fn color_type(layout: &InnerLayout) -> Option<ColorType> {
-        if let &Color::SRGB = layout.color()? {
-        } else {
-            return None;
-        };
-
         let texel = layout.texel();
+        let color = layout.color()?;
 
-        if let Block::Pixel = texel.block {
-        } else {
+        if !matches!(texel.block, Block::Pixel) {
             return None;
         };
 
-        if let SampleBits::UInt8x3 = texel.bits {
-            if let SampleParts::Rgb = texel.parts {
-                return Some(ColorType::Rgb8);
+        if let &Color::SRGB = color {
+            // Recognized color type, no color management required.
+            if let SampleBits::UInt8x3 = texel.bits {
+                if let SampleParts::Rgb = texel.parts {
+                    return Some(ColorType::Rgb8);
+                }
+            } else if let SampleBits::UInt8x4 = texel.bits {
+                if let SampleParts::RgbA = texel.parts {
+                    return Some(ColorType::Rgba8);
+                }
+            } else if let SampleBits::UInt16x3 = texel.bits {
+                if let SampleParts::Rgb = texel.parts {
+                    return Some(ColorType::Rgb16);
+                }
+            } else if let SampleBits::UInt16x4 = texel.bits {
+                if let SampleParts::RgbA = texel.parts {
+                    return Some(ColorType::Rgba16);
+                }
+            } else if let SampleBits::Float32x3 = texel.bits {
+                if let SampleParts::Rgb = texel.parts {
+                    return Some(ColorType::Rgb32F);
+                }
+            } else if let SampleBits::Float32x4 = texel.bits {
+                if let SampleParts::RgbA = texel.parts {
+                    return Some(ColorType::Rgba32F);
+                }
             }
-        } else if let SampleBits::UInt8x4 = texel.bits {
-            if let SampleParts::RgbA = texel.parts {
-                return Some(ColorType::Rgba8);
-            }
-        } else if let SampleBits::UInt16x3 = texel.bits {
-            if let SampleParts::Rgb = texel.parts {
-                return Some(ColorType::Rgb16);
-            }
-        } else if let SampleBits::UInt16x4 = texel.bits {
-            if let SampleParts::RgbA = texel.parts {
-                return Some(ColorType::Rgba16);
-            }
-        } else if let SampleBits::Float32x3 = texel.bits {
-            if let SampleParts::Rgb = texel.parts {
-                return Some(ColorType::Rgb32F);
-            }
-        } else if let SampleBits::Float32x4 = texel.bits {
-            if let SampleParts::RgbA = texel.parts {
-                return Some(ColorType::Rgba32F);
+        } else if let &Color::BT709 = color {
+            if let SampleBits::UInt8 = texel.bits {
+                if let SampleParts::Luma = texel.parts {
+                    return Some(ColorType::L8);
+                }
+            } else if let SampleBits::UInt8x2 = texel.bits {
+                if let SampleParts::LumaA = texel.parts {
+                    return Some(ColorType::La8);
+                }
+            } else if let SampleBits::UInt16 = texel.bits {
+                if let SampleParts::Luma = texel.parts {
+                    return Some(ColorType::L16);
+                }
+            } else if let SampleBits::UInt16x2 = texel.bits {
+                if let SampleParts::LumaA = texel.parts {
+                    return Some(ColorType::La16);
+                }
             }
         }
 
-        return None;
+        None
     }
 
     fn has_alpha(layout: &InnerLayout) -> bool {
@@ -323,7 +345,11 @@ impl CanvasLayout {
     /// Construct a row-major matrix for a given color type.
     pub fn new(color: ColorType, w: u32, h: u32) -> Option<Self> {
         let texel = color_to_texel(color);
-        let layout = InnerLayout::with_texel(&texel, w, h).ok()?;
+        let color = color_to_color(color);
+
+        let mut layout = InnerLayout::with_texel(&texel, w, h).ok()?;
+        layout.set_color(color).ok()?;
+
         Some(CanvasLayout { inner: layout })
     }
 
@@ -429,6 +455,15 @@ where
     }
 }
 
+impl From<&'_ DynamicImage> for Canvas {
+    fn from(image: &'_ DynamicImage) -> Self {
+        image.to_canvas()
+    }
+}
+
+/// Convert a dynamic image to a canvas.
+///
+/// This *may* reuse the underlying buffer if it is suitably aligned already.
 impl From<DynamicImage> for Canvas {
     fn from(image: DynamicImage) -> Self {
         image.to_canvas()

@@ -206,7 +206,7 @@ impl Canvas {
     /// implemented for all primitive numeric types.
     ///
     /// This is essentially an optimized method compared to using an intermediate `DynamicImage`.
-    pub fn to_buffer<P: PixelWithColorType>(&self) -> ImageBuffer<P, Vec<P::Subpixel>>
+    pub fn to_buffer<P: PixelWithColorType>(&self) -> ImageResult<ImageBuffer<P, Vec<P::Subpixel>>>
     where
         [P::Subpixel]: EncodableLayout,
     {
@@ -246,7 +246,7 @@ impl Canvas {
 
         destination[..len].copy_from_slice(&initializer[..len]);
 
-        buffer
+        Ok(buffer)
     }
 
     /// Convert this canvas into an enumeration of simple buffer types.
@@ -258,22 +258,22 @@ impl Canvas {
     /// This entails a re-allocation! However, the actual runtime costs vary depending on the
     /// actual current image layout. For example, if a color conversion to `sRGB` is necessary then
     /// this is more expensive than a channel reordering.
-    pub fn to_dynamic(&self) -> DynamicImage {
+    pub fn to_dynamic(&self) -> ImageResult<DynamicImage> {
         let layout = self.inner.layout();
-        match Self::color_type(layout) {
-            Some(ColorType::L8) => self.to_buffer::<Luma<u8>>().into(),
-            Some(ColorType::La8) => self.to_buffer::<LumaA<u8>>().into(),
-            Some(ColorType::Rgb8) => self.to_buffer::<Rgb<u8>>().into(),
-            Some(ColorType::Rgba8) => self.to_buffer::<Rgba<u8>>().into(),
-            Some(ColorType::L16) => self.to_buffer::<Luma<u16>>().into(),
-            Some(ColorType::La16) => self.to_buffer::<LumaA<u16>>().into(),
-            Some(ColorType::Rgb16) => self.to_buffer::<Rgb<u16>>().into(),
-            Some(ColorType::Rgba16) => self.to_buffer::<Rgba<u16>>().into(),
-            Some(ColorType::Rgb32F) => self.to_buffer::<Rgb<f32>>().into(),
-            Some(ColorType::Rgba32F) => self.to_buffer::<Rgba<f32>>().into(),
-            None if !Self::has_alpha(layout) => self.to_buffer::<Rgb<f32>>().into(),
-            None => self.to_buffer::<Rgba<f32>>().into(),
-        }
+        Ok(match Self::color_type(layout) {
+            Some(ColorType::L8) => self.to_buffer::<Luma<u8>>()?.into(),
+            Some(ColorType::La8) => self.to_buffer::<LumaA<u8>>()?.into(),
+            Some(ColorType::Rgb8) => self.to_buffer::<Rgb<u8>>()?.into(),
+            Some(ColorType::Rgba8) => self.to_buffer::<Rgba<u8>>()?.into(),
+            Some(ColorType::L16) => self.to_buffer::<Luma<u16>>()?.into(),
+            Some(ColorType::La16) => self.to_buffer::<LumaA<u16>>()?.into(),
+            Some(ColorType::Rgb16) => self.to_buffer::<Rgb<u16>>()?.into(),
+            Some(ColorType::Rgba16) => self.to_buffer::<Rgba<u16>>()?.into(),
+            Some(ColorType::Rgb32F) => self.to_buffer::<Rgb<f32>>()?.into(),
+            Some(ColorType::Rgba32F) => self.to_buffer::<Rgba<f32>>()?.into(),
+            None if !Self::has_alpha(layout) => self.to_buffer::<Rgb<f32>>()?.into(),
+            None => self.to_buffer::<Rgba<f32>>()?.into(),
+        })
     }
 
     fn sample_layout(spec: image_canvas::layout::ChannelSpec) -> SampleLayout {

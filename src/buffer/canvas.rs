@@ -409,7 +409,7 @@ impl Canvas {
         format: F,
     ) -> ImageResult<()> {
         // FIXME(perf): should check if the byte layout is already correct.
-        self.to_dynamic().write_to(w, format)
+        self.to_dynamic()?.write_to(w, format)
     }
 }
 
@@ -623,11 +623,11 @@ fn test_conversions() {
 
     let canvas = Canvas::from(&buffer);
 
-    assert_eq!(canvas.to_buffer::<Rgb<u8>>(), buffer.clone());
-    assert_eq!(canvas.to_buffer::<Rgb<u16>>(), buffer.convert());
-    assert_eq!(canvas.to_buffer::<Rgba<f32>>(), buffer.convert());
+    assert_eq!(canvas.to_buffer::<Rgb<u8>>().unwrap(), buffer.clone());
+    assert_eq!(canvas.to_buffer::<Rgb<u16>>().unwrap(), buffer.convert());
+    assert_eq!(canvas.to_buffer::<Rgba<f32>>().unwrap(), buffer.convert());
 
-    assert!(canvas.to_dynamic().as_rgb8().is_some());
+    assert!(canvas.to_dynamic().unwrap().as_rgb8().is_some());
 }
 
 #[test]
@@ -640,7 +640,7 @@ fn test_expansion_bits() {
     assert_eq!(buffer.as_bytes(), b"\x00\x00");
     buffer.as_bytes_mut().copy_from_slice(&[0b01101100 as u8, 0b10110111]);
 
-    let image = buffer.to_dynamic().into_luma8();
+    let image = buffer.to_dynamic().unwrap().into_luma8();
     assert_eq!(image.as_bytes(), vec![
         0x00, 0xff, 0xff, 0x00, 0xff, 0xff,
         0xff, 0x00, 0xff, 0xff, 0x00, 0xff,

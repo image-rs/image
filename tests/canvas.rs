@@ -35,10 +35,14 @@ fn conversion_to_buffer() {
     assert!(canvas.as_flat_samples_u16().is_none());
     assert!(canvas.as_flat_samples_f32().is_none());
 
-    assert!(matches!(canvas.to_dynamic(), DynamicImage::ImageRgb8(_)));
+    assert!(matches!(
+        canvas.to_dynamic(),
+        Ok(DynamicImage::ImageRgb8(_))
+    ));
 
-    let buffer_rgb8 = canvas.to_buffer::<image::Rgb<u8>>();
-    let buffer_rgb16 = canvas.to_buffer::<image::Rgb<u16>>();
+    let buffer_rgb8 = canvas.to_buffer::<image::Rgb<u8>>().unwrap();
+    let buffer_rgb16 = canvas.to_buffer::<image::Rgb<u16>>().unwrap();
+
     let compare_rgb16 = DynamicImage::ImageRgb8(buffer_rgb8).into_rgb16();
     assert_eq!(buffer_rgb16, compare_rgb16);
 
@@ -64,7 +68,7 @@ fn test_dynamic_image() {
 
         let canvas = Canvas::new(ct, 32, 32);
         assert_eq!(
-            core::mem::discriminant(&canvas.to_dynamic()),
+            core::mem::discriminant(&canvas.to_dynamic().unwrap()),
             core::mem::discriminant(&dynamic),
             "{:?}",
             ct
@@ -72,7 +76,7 @@ fn test_dynamic_image() {
 
         let canvas = Canvas::from(&dynamic);
         assert_eq!(
-            core::mem::discriminant(&canvas.to_dynamic()),
+            core::mem::discriminant(&canvas.to_dynamic().unwrap()),
             core::mem::discriminant(&dynamic),
             "{:?}",
             ct

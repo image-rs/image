@@ -13,7 +13,16 @@ use image_canvas::layout::{CanvasLayout as InnerLayout, SampleBits, SampleParts,
 use image_canvas::Canvas as Inner;
 use image_canvas::{color::Color, layout::Block};
 
-/// A byte buffer for various color and layout combinations.
+/// A byte buffer for raw image data, with various layout and color possibilities.
+///
+/// This container is designed to hold byte data suitably aligned for further processing, without
+/// making too many choices on allowed layouts and representations. In contrast to `DynamicImage`,
+/// we try to avoid making assumptions about the suitable layout or policy about the color
+/// representations. The user is given control over these at the cost of some convenience.
+///
+/// This implies that image operations can not be total for all possible `Canvas` data, there are
+/// always error cases of unknown or unsupported data. In particular, the design work for data and
+/// conversion pipelines for [`Canvas`] is still ongoing.
 ///
 /// Note that it is possible to convert most [`ImageBuffer`] as well as [`DynamicImage`] instances
 /// into a canvas that represents the same pixels and color. See `From` implementations below.

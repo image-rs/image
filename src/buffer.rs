@@ -1,4 +1,16 @@
-//! Contains the generic `ImageBuffer` struct.
+//! Defines standard containers for image data.
+//!
+//! The best container depends on the use:
+//! * The generic [`ImageBuffer`] struct, a simplified pixel container with a standard matrix
+//!   layout of uniform channels. The strength is convenient access for modifications with a direct
+//!   mapping and access to the underlying data.
+//! * The [`DynamicImage`] enumeration builds on `ImageBuffer` to provide a standard selection of
+//!   basic channel representations, and conventionally in sRGB color space. This is usually enough
+//!   to represent any source data without loosing much precision. This makes is suitable for
+//!   basic, but generic, image operations.
+//! * The [`Canvas`] struct as general texel container of general layouts as a buffer. The strength
+//!   is the generality (and extensibility) that allows its use for interchange of image data and
+//!   reduced processing cost if the convenience above is not required.
 #[path = "buffer/canvas.rs"]
 mod canvas;
 

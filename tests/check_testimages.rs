@@ -2,12 +2,11 @@ extern crate crc32fast;
 extern crate glob;
 extern crate png;
 
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::{prelude::*, BufReader},
-    path::{Component, Path, PathBuf},
-};
+use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::path::{Component, Path, PathBuf};
 
 use crc32fast::Hasher as Crc32;
 

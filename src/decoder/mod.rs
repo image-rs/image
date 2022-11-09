@@ -4,18 +4,16 @@ mod zlib;
 use self::stream::{DecodeConfig, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    mem,
-    ops::Range,
-};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::mem;
+use std::ops::Range;
 
-use crate::{
-    chunk,
-    common::{BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations},
-    filter::{unfilter, FilterType},
-    utils,
+use crate::chunk;
+use crate::common::{
+    BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
 };
+use crate::filter::{unfilter, FilterType};
+use crate::utils;
 
 /*
 pub enum InterlaceHandling {
@@ -428,9 +426,13 @@ impl<R: Read> Reader<R> {
             self.subframe = SubframeInfo::new(info);
         }
         self.allocate_out_buf()?;
+
+        // Instead of allocating a new buffer for prev, we simply clear and
+        // reuse the buffer we used for chunk decoding.
         buf.clear();
         buf.resize(self.subframe.rowlen, 0);
         self.prev = buf;
+
         Ok(self.output_info())
     }
 
@@ -949,10 +951,8 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
 #[cfg(test)]
 mod tests {
     use super::Decoder;
-    use std::{
-        io::{BufRead, Read, Result},
-        mem::discriminant,
-    };
+    use std::io::{BufRead, Read, Result};
+    use std::mem::discriminant;
 
     /// A reader that reads at most `n` bytes.
     struct SmalBuf<R: BufRead> {

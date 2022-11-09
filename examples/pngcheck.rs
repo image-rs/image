@@ -4,7 +4,11 @@ extern crate getopts;
 extern crate glob;
 extern crate png;
 
-use std::{env, fs::File, io, io::prelude::*, path::Path};
+use std::env;
+use std::fs::File;
+use std::io;
+use std::io::prelude::*;
+use std::path::Path;
 
 use getopts::{Matches, Options, ParsingStyle};
 use term::{color, Attr};

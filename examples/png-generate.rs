@@ -1,6 +1,8 @@
 // For reading and opening files
 use png::text_metadata::{ITXtChunk, ZTXtChunk};
-use std::{env, fs::File, io::BufWriter};
+use std::env;
+use std::fs::File;
+use std::io::BufWriter;
 
 fn main() {
     let path = env::args()

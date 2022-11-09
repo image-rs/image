@@ -1,8 +1,6 @@
 //! Common types shared between the encoder and decoder
-use crate::{
-    chunk, encoder,
-    text_metadata::{EncodableTextChunk, ITXtChunk, TEXtChunk, ZTXtChunk},
-};
+use crate::text_metadata::{EncodableTextChunk, ITXtChunk, TEXtChunk, ZTXtChunk};
+use crate::{chunk, encoder};
 use io::Write;
 use std::{borrow::Cow, convert::TryFrom, fmt, io};
 

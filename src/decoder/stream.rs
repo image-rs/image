@@ -1,19 +1,22 @@
 extern crate crc32fast;
 
-use std::{borrow::Cow, cmp::min, convert::From, default::Default, error, fmt, io};
+use std::convert::From;
+use std::default::Default;
+use std::error;
+use std::fmt;
+use std::io;
+use std::{borrow::Cow, cmp::min};
 
 use crc32fast::Hasher as Crc32;
 
 use super::zlib::ZlibStream;
-use crate::{
-    chunk::{self, ChunkType, IDAT, IEND, IHDR},
-    common::{
-        AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info,
-        ParameterError, PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
-    },
-    text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk},
-    traits::ReadBytesExt,
+use crate::chunk::{self, ChunkType, IDAT, IEND, IHDR};
+use crate::common::{
+    AnimationControl, BitDepth, BlendOp, ColorType, DisposeOp, FrameControl, Info, ParameterError,
+    PixelDimensions, ScaledFloat, SourceChromaticities, Unit,
 };
+use crate::text_metadata::{ITXtChunk, TEXtChunk, TextDecodingError, ZTXtChunk};
+use crate::traits::ReadBytesExt;
 
 /// TODO check if these size are reasonable
 pub const CHUNCK_BUFFER_SIZE: usize = 32 * 1024;
@@ -1279,7 +1282,8 @@ impl Default for ChunkState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ScaledFloat, SourceChromaticities};
+    use super::ScaledFloat;
+    use super::SourceChromaticities;
     use std::fs::File;
 
     #[test]

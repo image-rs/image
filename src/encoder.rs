@@ -6,16 +6,16 @@ use std::{borrow, error, fmt, io, mem, ops, result};
 use crc32fast::Hasher as Crc32;
 use flate2::write::ZlibEncoder;
 
-use crate::{
-    chunk::{self, ChunkType},
-    common::{
-        AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
-        FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
-    },
-    filter::{filter, AdaptiveFilterType, FilterType},
-    text_metadata::{EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk},
-    traits::WriteBytesExt,
+use crate::chunk::{self, ChunkType};
+use crate::common::{
+    AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
+    FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
 };
+use crate::filter::{filter, AdaptiveFilterType, FilterType};
+use crate::text_metadata::{
+    EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk,
+};
+use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -1671,12 +1671,9 @@ mod tests {
     use crate::Decoder;
 
     use rand::{thread_rng, Rng};
-    use std::{
-        cmp,
-        fs::File,
-        io,
-        io::{Cursor, Write},
-    };
+    use std::fs::File;
+    use std::io::{Cursor, Write};
+    use std::{cmp, io};
 
     #[test]
     fn roundtrip() {

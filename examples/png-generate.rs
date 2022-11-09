@@ -1,16 +1,13 @@
 // For reading and opening files
-use png;
 use png::text_metadata::{ITXtChunk, ZTXtChunk};
-use std::env;
-use std::fs::File;
-use std::io::BufWriter;
+use std::{env, fs::File, io::BufWriter};
 
 fn main() {
     let path = env::args()
         .nth(1)
         .expect("Expected a filename to output to.");
     let file = File::create(path).unwrap();
-    let ref mut w = BufWriter::new(file);
+    let w = &mut BufWriter::new(file);
 
     let mut encoder = png::Encoder::new(w, 2, 1); // Width is 2 pixels and height is 1.
     encoder.set_color(png::ColorType::Rgba);

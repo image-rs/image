@@ -51,7 +51,7 @@ fn load_image(path: &path::PathBuf) -> io::Result<RawImage2d<'static, u8>> {
         data: Cow::Owned(data),
         width: info.width,
         height: info.height,
-        format: format,
+        format,
     })
 }
 
@@ -152,9 +152,6 @@ fn resize_window(display: &Display, image: &RawImage2d<'static, u8>) {
     if width < 50 && height < 50 {
         width *= 10;
         height *= 10;
-    } else if width < 5 && height < 5 {
-        width *= 10;
-        height *= 10;
     }
     display
         .gl_window()
@@ -169,9 +166,9 @@ fn main() {
     } else {
         let mut files = vec![];
         for file in args.iter().skip(1) {
-            match if file.contains("*") {
+            match if file.contains('*') {
                 (|| -> io::Result<_> {
-                    for entry in glob::glob(&file)
+                    for entry in glob::glob(file)
                         .map_err(|err| io::Error::new(io::ErrorKind::Other, err.msg))?
                     {
                         files.push(

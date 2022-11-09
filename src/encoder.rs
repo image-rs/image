@@ -6,16 +6,16 @@ use std::{borrow, error, fmt, io, mem, ops, result};
 use crc32fast::Hasher as Crc32;
 use flate2::write::ZlibEncoder;
 
-use crate::chunk::{self, ChunkType};
-use crate::common::{
-    AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
-    FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
+use crate::{
+    chunk::{self, ChunkType},
+    common::{
+        AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
+        FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat,
+    },
+    filter::{filter, AdaptiveFilterType, FilterType},
+    text_metadata::{EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk},
+    traits::WriteBytesExt,
 };
-use crate::filter::{filter, AdaptiveFilterType, FilterType};
-use crate::text_metadata::{
-    EncodableTextChunk, ITXtChunk, TEXtChunk, TextEncodingError, ZTXtChunk,
-};
-use crate::traits::WriteBytesExt;
 
 pub type Result<T> = result::Result<T, EncodingError>;
 
@@ -1671,9 +1671,12 @@ mod tests {
     use crate::Decoder;
 
     use rand::{thread_rng, Rng};
-    use std::fs::File;
-    use std::io::{Cursor, Write};
-    use std::{cmp, io};
+    use std::{
+        cmp,
+        fs::File,
+        io,
+        io::{Cursor, Write},
+    };
 
     #[test]
     fn roundtrip() {
@@ -2339,7 +2342,7 @@ mod tests {
             encoder.set_color(ColorType::Grayscale);
 
             let mut writer = encoder.write_header()?;
-            writer.write_image_data(&vec![0; 100])?;
+            writer.write_image_data(&[0; 100])?;
             writer.finish()?;
         }
 
@@ -2373,6 +2376,7 @@ mod tests {
 /// available when the mod is compiled as well.
 impl Compression {
     fn to_options(self) -> flate2::Compression {
+        #[allow(deprecated)]
         match self {
             Compression::Default => flate2::Compression::default(),
             Compression::Fast => flate2::Compression::fast(),

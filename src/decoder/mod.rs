@@ -4,16 +4,18 @@ mod zlib;
 use self::stream::{DecodeConfig, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::mem;
-use std::ops::Range;
-
-use crate::chunk;
-use crate::common::{
-    BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations,
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    mem,
+    ops::Range,
 };
-use crate::filter::{unfilter, FilterType};
-use crate::utils;
+
+use crate::{
+    chunk,
+    common::{BitDepth, BytesPerPixel, ColorType, Info, ParameterErrorKind, Transformations},
+    filter::{unfilter, FilterType},
+    utils,
+};
 
 /*
 pub enum InterlaceHandling {
@@ -177,8 +179,10 @@ impl<R: Read> Decoder<R> {
     /// Most image metadata will not be read until `read_info` is called, so those fields will be
     /// None or empty.
     pub fn read_header_info(&mut self) -> Result<&Info, DecodingError> {
+        let mut buf = Vec::new();
         while self.read_decoder.info().is_none() {
-            if self.read_decoder.decode_next(&mut Vec::new())?.is_none() {
+            buf.clear();
+            if self.read_decoder.decode_next(&mut buf)?.is_none() {
                 return Err(DecodingError::Format(
                     FormatErrorInner::UnexpectedEof.into(),
                 ));
@@ -333,9 +337,6 @@ enum InterlaceIter {
 /// Denote a frame as given by sequence numbers.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum SubframeIdx {
-    /// The info has not yet been decoded.
-    #[allow(unused)]
-    Uninit,
     /// The initial frame in an IDAT chunk without fcTL chunk applying to it.
     /// Note that this variant precedes `Some` as IDAT frames precede fdAT frames and all fdAT
     /// frames must have a fcTL applying to it.
@@ -390,8 +391,10 @@ impl<R: Read> Reader<R> {
             }
         }
 
+        let mut buf = Vec::new();
         loop {
-            match self.decoder.decode_next(&mut Vec::new())? {
+            buf.clear();
+            match self.decoder.decode_next(&mut buf)? {
                 Some(Decoded::ChunkBegin(_, chunk::IDAT))
                 | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
                 Some(Decoded::FrameControl(_)) => {
@@ -425,7 +428,9 @@ impl<R: Read> Reader<R> {
             self.subframe = SubframeInfo::new(info);
         }
         self.allocate_out_buf()?;
-        self.prev = vec![0; self.subframe.rowlen];
+        buf.clear();
+        buf.resize(self.subframe.rowlen, 0);
+        self.prev = buf;
         Ok(self.output_info())
     }
 
@@ -469,7 +474,6 @@ impl<R: Read> Reader<R> {
         };
 
         self.next_frame = match self.next_frame {
-            SubframeIdx::Uninit => unreachable!("Next frame can never be initial"),
             SubframeIdx::End => unreachable!("Next frame called when already at image end"),
             // Reached the end of non-animated image.
             SubframeIdx::Initial if past_end_subframe == 0 => SubframeIdx::End,
@@ -945,8 +949,10 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info) {
 #[cfg(test)]
 mod tests {
     use super::Decoder;
-    use std::io::{BufRead, Read, Result};
-    use std::mem::discriminant;
+    use std::{
+        io::{BufRead, Read, Result},
+        mem::discriminant,
+    };
 
     /// A reader that reads at most `n` bytes.
     struct SmalBuf<R: BufRead> {

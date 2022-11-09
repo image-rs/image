@@ -4,11 +4,7 @@ extern crate getopts;
 extern crate glob;
 extern crate png;
 
-use std::env;
-use std::fs::File;
-use std::io;
-use std::io::prelude::*;
-use std::path::Path;
+use std::{env, fs::File, io, io::prelude::*, path::Path};
 
 use getopts::{Matches, Options, ParsingStyle};
 use term::{color, Attr};
@@ -31,10 +27,7 @@ fn parse_args() -> Matches {
             Err(err) => println!("{}", err),
         }
     }
-    println!(
-        "{}",
-        opts.usage(&format!("Usage: pngcheck [-cpt] [file ...]"))
-    );
+    println!("{}", opts.usage("Usage: pngcheck [-cpt] [file ...]"));
     std::process::exit(0);
 }
 
@@ -72,9 +65,9 @@ fn display_image_type(bits: u8, color: png::ColorType) -> String {
 fn final_channels(c: png::ColorType, trns: bool) -> u8 {
     use png::ColorType::*;
     match c {
-        Grayscale => 1 + if trns { 1 } else { 0 },
+        Grayscale => 1 + u8::from(trns),
         Rgb => 3,
-        Indexed => 3 + if trns { 1 } else { 0 },
+        Indexed => 3 + u8::from(trns),
         GrayscaleAlpha => 2,
         Rgba => 4,
     }
@@ -82,10 +75,8 @@ fn final_channels(c: png::ColorType, trns: bool) -> u8 {
 fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
     // TODO improve performance by resusing allocations from decoder
     use png::Decoded::*;
-    let mut t = term::stdout().ok_or(io::Error::new(
-        io::ErrorKind::Other,
-        "could not open terminal",
-    ))?;
+    let mut t = term::stdout()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not open terminal"))?;
     let data = &mut vec![0; 10 * 1024][..];
     let mut reader = io::BufReader::new(File::open(&fname)?);
     let fname = fname.as_ref().to_string_lossy();
@@ -113,10 +104,8 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         });
     );
     let display_error = |err| -> Result<_, io::Error> {
-        let mut t = term::stdout().ok_or(io::Error::new(
-            io::ErrorKind::Other,
-            "could not open terminal",
-        ))?;
+        let mut t = term::stdout()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not open terminal"))?;
         if c.verbose {
             if c.color {
                 print!(": ");
@@ -169,7 +158,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
         print!(" ({}) bytes", data.len())
     }
     loop {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             // circumvent borrow checker
             assert!(!data.is_empty());
             let n = reader.read(data)?;
@@ -214,7 +203,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         100.0 * (1.0 - c_ratio!())
                     )
                 } else if !c.quiet {
-                    println!("");
+                    println!();
                     if c.color {
                         t.fg(color::GREEN)?;
                         t.attr(Attr::Bold)?;
@@ -248,7 +237,7 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                         n_chunks += 1;
                         if c.verbose {
                             let chunk = type_str;
-                            println!("");
+                            println!();
                             print!("  chunk ");
                             if c.color {
                                 t.fg(color::YELLOW)?;
@@ -279,27 +268,24 @@ fn check_image<P: AsRef<Path>>(c: Config, fname: P) -> io::Result<()> {
                     }
                     ChunkComplete(_, type_str) if c.verbose => {
                         use png::chunk::*;
-                        match type_str {
-                            IHDR => {
-                                println!("");
-                                print!(
-                                    "    {} x {} image, {}{}, {}",
-                                    width,
-                                    height,
-                                    display_image_type(bits, color),
-                                    (if trns { "+trns" } else { "" }),
-                                    display_interlaced(interlaced),
-                                );
-                            }
-                            _ => (),
+                        if type_str == IHDR {
+                            println!();
+                            print!(
+                                "    {} x {} image, {}{}, {}",
+                                width,
+                                height,
+                                display_image_type(bits, color),
+                                (if trns { "+trns" } else { "" }),
+                                display_interlaced(interlaced),
+                            );
                         }
                     }
                     AnimationControl(actl) => {
-                        println!("");
+                        println!();
                         print!("    {} frames, {} plays", actl.num_frames, actl.num_plays,);
                     }
                     FrameControl(fctl) => {
-                        println!("");
+                        println!();
                         println!(
                             "    sequence #{}, {} x {} pixels @ ({}, {})",
                             fctl.sequence_number,
@@ -369,7 +355,7 @@ fn main() {
     };
 
     for file in m.free {
-        let result = if file.contains("*") {
+        let result = if file.contains('*') {
             glob::glob(&file)
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
                 .and_then(|mut glob| {

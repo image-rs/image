@@ -4,16 +4,14 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use png::Decoder;
 
 fn load_all(c: &mut Criterion) {
-    for file in fs::read_dir("tests/benches/").unwrap() {
-        if let Ok(entry) = file {
-            match entry.path().extension() {
-                Some(st) if st == "png" => {}
-                _ => continue,
-            }
-
-            let data = fs::read(entry.path()).unwrap();
-            bench_file(c, data, entry.file_name().into_string().unwrap());
+    for entry in fs::read_dir("tests/benches/").unwrap().flatten() {
+        match entry.path().extension() {
+            Some(st) if st == "png" => {}
+            _ => continue,
         }
+
+        let data = fs::read(entry.path()).unwrap();
+        bench_file(c, data, entry.file_name().into_string().unwrap());
     }
 }
 

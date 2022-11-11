@@ -11,7 +11,6 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ### Unreleased
 
-- The `as_rgb32f` function of `DynamicImage` is now correctly documented
 - More convenient to use buffers will be added in the future. In particular,
   improving initialization, passing of output buffers, and adding a more
   complete representation for layouts. The plan is for these to interact with
@@ -19,6 +18,32 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   `ImageDecoder`.
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
+
+### Version 0.24.5
+
+Structural changes:
+- Increased the minimum supported Rust version (MSRV) to 1.61.
+- Increased the version requirement for the `tiff` crate to 0.8.0.
+- Increased the version requirement for the `jpeg` crate to 0.3.0.
+
+Bug fixes:
+- The `as_rgb32f` function of `DynamicImage` is now correctly documented.
+- Fixed a crash when decoding ICO images. Added a regression test.
+- Fixed a panic when transforming webp images. Added a regression test.
+- Added a check to prevent integer overflow when calculating file size for BMP
+  images. The missing check could panic in debug mode or else set an incorrect
+  file size in release mode.
+- Upgraded the PNG image encoder to use the newer `PngEncoder::write_image`
+  instead of the deprecated `PngEncoder::encode` which did not account for byte
+  order and could result in images with incorrect colors.
+- Fixed `InsufficientMemory` error when trying to decode a PNG image.
+- Fix warnings and CI issues.
+- Typos and links in the documentation have been corrected.
+
+Performance:
+- Added check for dynamic image dimensions before resizing. This improves
+  performance in cases where the image does not need to be resized or has
+  already been resized.
 
 ### Version 0.24.4
 

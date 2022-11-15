@@ -1,3 +1,5 @@
+//! Decoding and encoding of QOI images
+
 use crate::{
     error::{DecodingError, EncodingError},
     ColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,

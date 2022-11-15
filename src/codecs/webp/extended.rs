@@ -239,14 +239,20 @@ impl ExtendedImage {
         anim_image: &AnimatedFrame,
         background_color: Rgba<u8>,
     ) -> Option<ImageResult<Frame>> {
-        let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
+        let mut buffer = vec![0; anim_image.image.get_buf_size()];
         anim_image.image.fill_buf(&mut buffer);
+        let has_alpha = match &anim_image.image {
+            WebPStatic::LossyWithAlpha(..) => true,
+            WebPStatic::LossyWithoutAlpha(..) => false,
+            WebPStatic::Lossless(..) => true,
+        };
+        let pixel_len = if has_alpha { 4 } else { 3 };
 
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
                 let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
-                let index: usize = (y * 4 * anim_image.width + x * 4).try_into().unwrap();
-                canvas[canvas_index] = if anim_image.use_alpha_blending {
+                let index: usize = ((y * anim_image.width + x) * pixel_len).try_into().unwrap();
+                canvas[canvas_index] = if anim_image.use_alpha_blending && has_alpha {
                     let buffer: [u8; 4] = buffer[index..][..4].try_into().unwrap();
                     ExtendedImage::do_alpha_blending(buffer, canvas[canvas_index])
                 } else {
@@ -254,7 +260,7 @@ impl ExtendedImage {
                         buffer[index],
                         buffer[index + 1],
                         buffer[index + 2],
-                        buffer[index + 3],
+                        if has_alpha { buffer[index + 3] } else { 255 },
                     ])
                 };
             }

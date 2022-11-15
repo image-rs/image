@@ -7,7 +7,9 @@ use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
 use crate::image::ImageFormat;
-use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage};
+use crate::{
+    ColorType, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage,
+};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 //all errors that can occur while parsing extended chunks in a WebP file
@@ -52,7 +54,7 @@ impl error::Error for DecoderError {}
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WebPExtendedInfo {
     _icc_profile: bool,
-    alpha: bool,
+    _alpha: bool,
     _exif_metadata: bool,
     _xmp_metadata: bool,
     _animation: bool,
@@ -80,12 +82,12 @@ impl ExtendedImage {
         (self.info.canvas_width, self.info.canvas_height)
     }
 
-    pub(crate) fn color_type(&self) -> color::ColorType {
-        if self.info.alpha {
-            color::ColorType::Rgba8
-        } else {
-            color::ColorType::Rgb8
+    pub(crate) fn color_type(&self) -> ColorType {
+        match &self.image {
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .color_type()
     }
 
     pub(crate) fn into_frames<'a>(self) -> Frames<'a> {
@@ -241,12 +243,13 @@ impl ExtendedImage {
     ) -> Option<ImageResult<Frame>> {
         let mut buffer = vec![0; anim_image.image.get_buf_size()];
         anim_image.image.fill_buf(&mut buffer);
-        let has_alpha = match &anim_image.image {
-            WebPStatic::LossyWithAlpha(..) => true,
-            WebPStatic::LossyWithoutAlpha(..) => false,
-            WebPStatic::Lossless(..) => true,
+        let color_type = anim_image.image.color_type();
+        let has_alpha = match color_type {
+            ColorType::Rgba8 => true,
+            ColorType::Rgb8 => false,
+            _ => unreachable!(),
         };
-        let pixel_len = if has_alpha { 4 } else { 3 };
+        let pixel_len = u32::from(color_type.bytes_per_pixel());
 
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
@@ -312,24 +315,20 @@ impl ExtendedImage {
 
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => {
-                //will always have at least one frame
-                frames[0].image.fill_buf(buf);
-            }
-            ExtendedImageData::Static(image) => {
-                image.fill_buf(buf);
-            }
+            // will always have at least one frame
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .fill_buf(buf);
     }
 
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => {
-                //will always have at least one frame
-                frames[0].image.get_buf_size()
-            }
-            ExtendedImageData::Static(image) => image.get_buf_size(),
+            // will always have at least one frame
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .get_buf_size()
     }
 }
 
@@ -480,6 +479,13 @@ impl WebPStatic {
             WebPStatic::Lossless(lossless) => lossless.get_buf_size(),
         }
     }
+
+    pub(crate) fn color_type(&self) -> ColorType {
+        match self {
+            Self::LossyWithAlpha(..) | Self::Lossless(..) => ColorType::Rgba8,
+            Self::LossyWithoutAlpha(..) => ColorType::Rgb8,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -538,7 +544,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
 
     let info = WebPExtendedInfo {
         _icc_profile: icc_profile,
-        alpha,
+        _alpha: alpha,
         _exif_metadata: exif_metadata,
         _xmp_metadata: xmp_metadata,
         _animation: animation,

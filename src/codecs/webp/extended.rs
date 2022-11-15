@@ -243,13 +243,8 @@ impl ExtendedImage {
     ) -> Option<ImageResult<Frame>> {
         let mut buffer = vec![0; anim_image.image.get_buf_size()];
         anim_image.image.fill_buf(&mut buffer);
-        let color_type = anim_image.image.color_type();
-        let has_alpha = match color_type {
-            ColorType::Rgba8 => true,
-            ColorType::Rgb8 => false,
-            _ => unreachable!(),
-        };
-        let pixel_len = u32::from(color_type.bytes_per_pixel());
+        let has_alpha = anim_image.image.has_alpha();
+        let pixel_len: u32 = anim_image.image.color_type().bytes_per_pixel().into();
 
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
@@ -481,9 +476,17 @@ impl WebPStatic {
     }
 
     pub(crate) fn color_type(&self) -> ColorType {
+        if self.has_alpha() {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
+        }
+    }
+
+    pub(crate) fn has_alpha(&self) -> bool {
         match self {
-            Self::LossyWithAlpha(..) | Self::Lossless(..) => ColorType::Rgba8,
-            Self::LossyWithoutAlpha(..) => ColorType::Rgb8,
+            Self::LossyWithAlpha(..) | Self::Lossless(..) => true,
+            Self::LossyWithoutAlpha(..) => false,
         }
     }
 }

@@ -68,8 +68,15 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         buf: &[u8],
         width: u32,
         height: u32,
-        _color_type: ColorType,
+        color_type: ColorType,
     ) -> ImageResult<()> {
+        if !matches!(color_type, ColorType::Rgba8 | ColorType::Rgb8) {
+            return Err(ImageError::Encoding(EncodingError::new(
+                ImageFormat::Qoi.into(),
+                format!("unsupported color type {color_type:?}. Supported are Rgba8 and Rgb8."),
+            )));
+        }
+
         // Encode data in QOI
         let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;
 

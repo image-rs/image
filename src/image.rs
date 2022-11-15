@@ -225,7 +225,7 @@ impl ImageFormat {
             ImageFormat::Pnm => true,
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
-            ImageFormat::WebP => false,
+            ImageFormat::WebP => true,
             ImageFormat::Hdr => false,
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
@@ -316,6 +316,10 @@ pub enum ImageOutputFormat {
     /// An image in QOI Format
     Qoi,
 
+    #[cfg(feature = "webp-encoder")]
+    /// An image in WebP Format.
+    WebP,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -348,6 +352,8 @@ impl From<ImageFormat> for ImageOutputFormat {
 
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
+            #[cfg(feature = "webp-encoder")]
+            ImageFormat::WebP => ImageOutputFormat::WebP,
 
             #[cfg(feature = "qoi")]
             ImageFormat::Qoi => ImageOutputFormat::Qoi,
@@ -481,7 +487,7 @@ where
 
     {
         // Read a range of the image starting from byte number `start` and continuing until byte
-        // number `end`. Updates `current_scanline` and `bytes_read` appropiately.
+        // number `end`. Updates `current_scanline` and `bytes_read` appropriately.
         let mut read_image_range = |mut start: u64, end: u64| -> ImageResult<()> {
             // If the first scanline we need is already stored in the temporary buffer, then handle
             // it first.
@@ -649,7 +655,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns the color type of the image data produced by this decoder
     fn color_type(&self) -> ColorType;
 
-    /// Retuns the color type of the image file before decoding
+    /// Returns the color type of the image file before decoding
     fn original_color_type(&self) -> ExtendedColorType {
         self.color_type().into()
     }
@@ -808,7 +814,7 @@ pub trait ImageEncoder {
     /// This function takes a slice of bytes of the pixel data of the image
     /// and encodes them. Unlike particular format encoders inherent impl encode
     /// methods where endianness is not specified, here image data bytes should
-    /// always be in native endian. The implementor will reorder the endianess
+    /// always be in native endian. The implementor will reorder the endianness
     /// as necessary for the target encoding format.
     ///
     /// See also `ImageDecoder::read_image` which reads byte buffers into

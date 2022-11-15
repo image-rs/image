@@ -46,6 +46,10 @@ fn decoding_error(error: qoi::Error) -> ImageError {
     ImageError::Decoding(DecodingError::new(ImageFormat::Qoi.into(), error))
 }
 
+fn encoding_error(error: qoi::Error) -> ImageError {
+    ImageError::Encoding(EncodingError::new(ImageFormat::Qoi.into(), error))
+}
+
 /// QOI encoder
 pub struct QoiEncoder<W> {
     writer: W,
@@ -67,16 +71,11 @@ impl<W: Write> ImageEncoder for QoiEncoder<W> {
         _color_type: ColorType,
     ) -> ImageResult<()> {
         // Encode data in QOI
-        let data = qoi::encode_to_vec(&buf, width, height)
-            .map_err(|e| ImageError::Encoding(EncodingError::new(ImageFormat::Qoi.into(), e)))?;
+        let data = qoi::encode_to_vec(buf, width, height).map_err(encoding_error)?;
 
         // Write data to buffer
-        {
-            self.writer.write_all(&data[..])?;
-            self.writer.flush()?;
-            Ok(())
-        }
-        .map_err(ImageError::IoError)?;
+        self.writer.write_all(&data[..])?;
+        self.writer.flush()?;
 
         Ok(())
     }

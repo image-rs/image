@@ -7,7 +7,9 @@ use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::DecodingError;
 use crate::image::ImageFormat;
-use crate::{color, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage};
+use crate::{
+    ColorType, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage,
+};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 //all errors that can occur while parsing extended chunks in a WebP file
@@ -52,7 +54,7 @@ impl error::Error for DecoderError {}
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WebPExtendedInfo {
     _icc_profile: bool,
-    alpha: bool,
+    _alpha: bool,
     _exif_metadata: bool,
     _xmp_metadata: bool,
     _animation: bool,
@@ -80,12 +82,12 @@ impl ExtendedImage {
         (self.info.canvas_width, self.info.canvas_height)
     }
 
-    pub(crate) fn color_type(&self) -> color::ColorType {
-        if self.info.alpha {
-            color::ColorType::Rgba8
-        } else {
-            color::ColorType::Rgb8
+    pub(crate) fn color_type(&self) -> ColorType {
+        match &self.image {
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .color_type()
     }
 
     pub(crate) fn into_frames<'a>(self) -> Frames<'a> {
@@ -239,14 +241,16 @@ impl ExtendedImage {
         anim_image: &AnimatedFrame,
         background_color: Rgba<u8>,
     ) -> Option<ImageResult<Frame>> {
-        let mut buffer = vec![0; (anim_image.width * anim_image.height * 4) as usize];
+        let mut buffer = vec![0; anim_image.image.get_buf_size()];
         anim_image.image.fill_buf(&mut buffer);
+        let has_alpha = anim_image.image.has_alpha();
+        let pixel_len: u32 = anim_image.image.color_type().bytes_per_pixel().into();
 
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
                 let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
-                let index: usize = (y * 4 * anim_image.width + x * 4).try_into().unwrap();
-                canvas[canvas_index] = if anim_image.use_alpha_blending {
+                let index: usize = ((y * anim_image.width + x) * pixel_len).try_into().unwrap();
+                canvas[canvas_index] = if anim_image.use_alpha_blending && has_alpha {
                     let buffer: [u8; 4] = buffer[index..][..4].try_into().unwrap();
                     ExtendedImage::do_alpha_blending(buffer, canvas[canvas_index])
                 } else {
@@ -254,7 +258,7 @@ impl ExtendedImage {
                         buffer[index],
                         buffer[index + 1],
                         buffer[index + 2],
-                        buffer[index + 3],
+                        if has_alpha { buffer[index + 3] } else { 255 },
                     ])
                 };
             }
@@ -306,24 +310,20 @@ impl ExtendedImage {
 
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => {
-                //will always have at least one frame
-                frames[0].image.fill_buf(buf);
-            }
-            ExtendedImageData::Static(image) => {
-                image.fill_buf(buf);
-            }
+            // will always have at least one frame
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .fill_buf(buf);
     }
 
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => {
-                //will always have at least one frame
-                frames[0].image.get_buf_size()
-            }
-            ExtendedImageData::Static(image) => image.get_buf_size(),
+            // will always have at least one frame
+            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
+            ExtendedImageData::Static(image) => image,
         }
+        .get_buf_size()
     }
 }
 
@@ -474,6 +474,21 @@ impl WebPStatic {
             WebPStatic::Lossless(lossless) => lossless.get_buf_size(),
         }
     }
+
+    pub(crate) fn color_type(&self) -> ColorType {
+        if self.has_alpha() {
+            ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
+        }
+    }
+
+    pub(crate) fn has_alpha(&self) -> bool {
+        match self {
+            Self::LossyWithAlpha(..) | Self::Lossless(..) => true,
+            Self::LossyWithoutAlpha(..) => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -532,7 +547,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
 
     let info = WebPExtendedInfo {
         _icc_profile: icc_profile,
-        alpha,
+        _alpha: alpha,
         _exif_metadata: exif_metadata,
         _xmp_metadata: xmp_metadata,
         _animation: animation,

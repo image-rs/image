@@ -240,6 +240,8 @@ pub mod codecs {
     pub mod png;
     #[cfg(feature = "pnm")]
     pub mod pnm;
+    #[cfg(feature = "qoi")]
+    pub mod qoi;
     #[cfg(feature = "tga")]
     pub mod tga;
     #[cfg(feature = "tiff")]

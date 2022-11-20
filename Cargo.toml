@@ -34,7 +34,7 @@ bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes c
 byteorder = "1.3.2"
 num-rational = { version = "0.4", default-features = false }
 num-traits = "0.2.0"
-gif = { version = "0.11.1", optional = true }
+gif = { version = "0.12", optional = true }
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
 png = { version = "0.17.6", optional = true }
 scoped_threadpool = { version = "0.1", optional = true }

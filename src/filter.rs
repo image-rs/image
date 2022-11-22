@@ -55,15 +55,13 @@ impl Default for AdaptiveFilterType {
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
-    let ia = i16::from(a);
-    let ib = i16::from(b);
-    let ic = i16::from(c);
-
-    let p = ia + ib - ic;
-
-    let pa = (p - ia).abs();
-    let pb = (p - ib).abs();
-    let pc = (p - ic).abs();
+    let pa = b.max(c) - c.min(b);
+    let pb = a.max(c) - c.min(a);
+    let pc = if (c.min(b) == c) == (c.min(a) == a) {
+        pa.max(pb) - pa.min(pb)
+    } else {
+        255
+    };
 
     if pa <= pb && pa <= pc {
         a
@@ -209,47 +207,90 @@ fn filter_internal(
     bpp: usize,
     len: usize,
     previous: &[u8],
-    current: &mut [u8],
+    current: &[u8],
+    output: &mut [u8],
 ) -> FilterType {
     use self::FilterType::*;
 
+    const CHUNK_SIZE: usize = 32;
+
     match method {
-        NoFilter => NoFilter,
+        NoFilter => {
+            output.copy_from_slice(current);
+            NoFilter
+        }
         Sub => {
-            for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub(current[i - bpp]);
+            let mut out_chunks = output[bpp..].chunks_exact_mut(CHUNK_SIZE);
+            let mut cur_chunks = current[bpp..].chunks_exact(CHUNK_SIZE);
+            let mut prev_chunks = current[..len - bpp].chunks_exact(CHUNK_SIZE);
+
+            for ((out, cur), prev) in (&mut out_chunks).zip(&mut cur_chunks).zip(&mut prev_chunks) {
+                for i in 0..CHUNK_SIZE {
+                    out[i] = cur[i].wrapping_sub(prev[i]);
+                }
             }
+
+            for ((out, cur), &prev) in out_chunks
+                .into_remainder()
+                .into_iter()
+                .zip(cur_chunks.remainder())
+                .zip(prev_chunks.remainder())
+            {
+                *out = cur.wrapping_sub(prev);
+            }
+
+            output[..bpp].copy_from_slice(&current[..bpp]);
             Sub
         }
         Up => {
             for i in 0..len {
-                current[i] = current[i].wrapping_sub(previous[i]);
+                output[i] = current[i].wrapping_sub(previous[i]);
             }
             Up
         }
         Avg => {
             for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub(
+                output[i] = current[i].wrapping_sub(
                     ((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8,
                 );
             }
 
             for i in 0..bpp {
-                current[i] = current[i].wrapping_sub(previous[i] / 2);
+                output[i] = current[i].wrapping_sub(previous[i] / 2);
             }
             Avg
         }
         Paeth => {
-            for i in (bpp..len).rev() {
-                current[i] = current[i].wrapping_sub(filter_paeth(
-                    current[i - bpp],
-                    previous[i],
-                    previous[i - bpp],
-                ));
+            let mut out_chunks = output[bpp..].chunks_exact_mut(CHUNK_SIZE);
+            let mut cur_chunks = current[bpp..].chunks_exact(CHUNK_SIZE);
+            let mut a_chunks = current[..len - bpp].chunks_exact(CHUNK_SIZE);
+            let mut b_chunks = previous[bpp..].chunks_exact(CHUNK_SIZE);
+            let mut c_chunks = previous[..len - bpp].chunks_exact(CHUNK_SIZE);
+
+            for ((((out, cur), a), b), c) in (&mut out_chunks)
+                .zip(&mut cur_chunks)
+                .zip(&mut a_chunks)
+                .zip(&mut b_chunks)
+                .zip(&mut c_chunks)
+            {
+                for i in 0..CHUNK_SIZE {
+                    out[i] = cur[i].wrapping_sub(filter_paeth(a[i], b[i], c[i]));
+                }
+            }
+
+            for ((((out, cur), &a), &b), &c) in out_chunks
+                .into_remainder()
+                .into_iter()
+                .zip(cur_chunks.remainder())
+                .zip(a_chunks.remainder())
+                .zip(b_chunks.remainder())
+                .zip(c_chunks.remainder())
+            {
+                *out = cur.wrapping_sub(filter_paeth(a, b, c));
             }
 
             for i in 0..bpp {
-                current[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
+                output[i] = current[i].wrapping_sub(filter_paeth(0, previous[i], 0));
             }
             Paeth
         }
@@ -261,14 +302,17 @@ pub(crate) fn filter(
     adaptive: AdaptiveFilterType,
     bpp: BytesPerPixel,
     previous: &[u8],
-    current: &mut [u8],
+    current: &[u8],
+    output: &mut [u8],
 ) -> FilterType {
     use FilterType::*;
     let bpp = bpp.into_usize();
     let len = current.len();
 
     match adaptive {
-        AdaptiveFilterType::NonAdaptive => filter_internal(method, bpp, len, previous, current),
+        AdaptiveFilterType::NonAdaptive => {
+            filter_internal(method, bpp, len, previous, current, output)
+        }
         AdaptiveFilterType::Adaptive => {
             // Filter the current buffer with each filter type. Sum the absolute
             // values of each filtered buffer treating the bytes as signed
@@ -282,8 +326,7 @@ pub(crate) fn filter(
             let mut filter_choice = FilterType::NoFilter;
 
             for &filter in [Sub, Up, Avg, Paeth].iter() {
-                scratch.copy_from_slice(current);
-                filter_internal(filter, bpp, len, previous, &mut scratch);
+                filter_internal(filter, bpp, len, previous, current, &mut scratch);
                 let sum = sum_buffer(&scratch);
                 if sum < min_sum {
                     min_sum = sum;
@@ -292,7 +335,7 @@ pub(crate) fn filter(
                 }
             }
 
-            current.copy_from_slice(&filtered_buffer);
+            output.copy_from_slice(&filtered_buffer);
 
             filter_choice
         }
@@ -316,15 +359,16 @@ mod test {
         // A multiple of 8, 6, 4, 3, 2, 1
         const LEN: u8 = 240;
         let previous: Vec<_> = iter::repeat(1).take(LEN.into()).collect();
-        let mut current: Vec<_> = (0..LEN).collect();
+        let current: Vec<_> = (0..LEN).collect();
         let expected = current.clone();
         let adaptive = AdaptiveFilterType::NonAdaptive;
 
-        let mut roundtrip = |kind, bpp: BytesPerPixel| {
-            filter(kind, adaptive, bpp, &previous, &mut current);
-            unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
+        let roundtrip = |kind, bpp: BytesPerPixel| {
+            let mut output = vec![0; LEN.into()];
+            filter(kind, adaptive, bpp, &previous, &current, &mut output);
+            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
             assert_eq!(
-                current, expected,
+                output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",
                 bpp, kind
             );
@@ -359,15 +403,16 @@ mod test {
         // A multiple of 8, 6, 4, 3, 2, 1
         const LEN: u8 = 240;
         let previous: Vec<_> = (0..LEN).collect();
-        let mut current: Vec<_> = (0..LEN).collect();
+        let current: Vec<_> = (0..LEN).collect();
         let expected = current.clone();
         let adaptive = AdaptiveFilterType::NonAdaptive;
 
-        let mut roundtrip = |kind, bpp: BytesPerPixel| {
-            filter(kind, adaptive, bpp, &previous, &mut current);
-            unfilter(kind, bpp, &previous, &mut current).expect("Unfilter worked");
+        let roundtrip = |kind, bpp: BytesPerPixel| {
+            let mut output = vec![0; LEN.into()];
+            filter(kind, adaptive, bpp, &previous, &current, &mut output);
+            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
             assert_eq!(
-                current, expected,
+                output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",
                 bpp, kind
             );

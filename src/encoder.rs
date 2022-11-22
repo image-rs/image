@@ -676,8 +676,14 @@ impl<W: Write> Writer<W> {
         let adaptive_method = self.options.adaptive_filter;
 
         for line in data.chunks(in_len) {
-            current.copy_from_slice(line);
-            let filter_type = filter(filter_method, adaptive_method, bpp, prev, &mut current);
+            let filter_type = filter(
+                filter_method,
+                adaptive_method,
+                bpp,
+                prev,
+                &line,
+                &mut current,
+            );
             zlib.write_all(&[filter_type as u8])?;
             zlib.write_all(&current)?;
             prev = line;
@@ -1561,12 +1567,15 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
         self.to_write -= written;
 
         if self.index == self.line_len {
+            // TODO: reuse this buffer between rows.
+            let mut filtered = vec![0; self.curr_buf.len()];
             let filter_type = filter(
                 self.filter,
                 self.adaptive_filter,
                 self.bpp,
                 &self.prev_buf,
-                &mut self.curr_buf,
+                &self.curr_buf,
+                &mut filtered,
             );
             // This can't fail as the other variant is used only to allow the zlib encoder to finish
             let wrt = match &mut self.writer {
@@ -1575,7 +1584,7 @@ impl<'a, W: Write> Write for StreamWriter<'a, W> {
             };
 
             wrt.write_all(&[filter_type as u8])?;
-            wrt.write_all(&self.curr_buf)?;
+            wrt.write_all(&filtered)?;
             mem::swap(&mut self.prev_buf, &mut self.curr_buf);
             self.index = 0;
         }
@@ -2190,6 +2199,35 @@ mod tests {
             let mut buffer = [0u8; 1];
             decoder.next_frame(&mut buffer[..]).expect("Valid read");
             assert_eq!(buffer, [1]);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn stream_filtering() -> Result<()> {
+        let output = vec![0u8; 1024];
+        let mut cursor = Cursor::new(output);
+
+        let mut encoder = Encoder::new(&mut cursor, 8, 8);
+        encoder.set_color(ColorType::Rgba);
+        encoder.set_filter(FilterType::Paeth);
+        let mut writer = encoder.write_header()?;
+        let mut stream = writer.stream_writer()?;
+
+        for _ in 0..8 {
+            let written = stream.write(&[1; 32])?;
+            assert_eq!(written, 32);
+        }
+        stream.finish()?;
+        drop(writer);
+
+        {
+            cursor.set_position(0);
+            let mut decoder = Decoder::new(cursor).read_info().expect("A valid image");
+            let mut buffer = [0u8; 256];
+            decoder.next_frame(&mut buffer[..]).expect("Valid read");
+            assert_eq!(buffer, [1; 256]);
         }
 
         Ok(())

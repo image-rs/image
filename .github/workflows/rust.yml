@@ -8,7 +8,7 @@ jobs:
   build:
     strategy:
       matrix:
-        rust: ["1.53.0", stable, beta, nightly]
+        rust: ["1.54.0", stable, beta, nightly]
         os: [ubuntu-latest, windows-latest, macos-latest]
         features: [""]
     runs-on: ${{ matrix.os }}

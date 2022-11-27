@@ -55,9 +55,32 @@ impl Default for AdaptiveFilterType {
 }
 
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
+    // This is an optimized version of the paeth filter from the PNG specification, proposed by
+    // Luca Versari for [FPNGE](https://www.lucaversari.it/FJXL_and_FPNGE.pdf). It operates
+    // entirely on unsigned 8-bit quantities, making it more conducive to vectorization.
+    //
+    //     p = a + b - c
+    //     pa = |p - a| = |a + b - c - a| = |b - c| = max(b, c) - min(b, c)
+    //     pb = |p - b| = |a + b - c - b| = |a - c| = max(a, c) - min(a, c)
+    //     pc = |p - c| = |a + b - c - c| = |(b - c) + (a - c)| = ...
+    //
+    // Further optimizing the calculation of `pc` a bit tricker. However, notice that:
+    //
+    //        a > c && b > c
+    //    ==> (a - c) > 0 && (b - c) > 0
+    //    ==> pc > (a - c) && pc > (b - c)
+    //    ==> pc > |a - c| && pc > |b - c|
+    //    ==> pc > pb && pc > pa
+    //
+    // Meaning that if `c` is smaller than `a` and `b`, the value of `pc` is irrelevant. Similar
+    // reasoning applies if `c` is larger than the other two inputs. Assuming that `c >= b` and
+    // `c <= b` or vice versa:
+    //
+    //     pc = ||b - c| - |a - c|| =  |pa - pb| = max(pa, pb) - min(pa, pb)
+    //
     let pa = b.max(c) - c.min(b);
     let pb = a.max(c) - c.min(a);
-    let pc = if (c.min(b) == c) == (c.min(a) == a) {
+    let pc = if (a < c) == (c < b) {
         pa.max(pb) - pa.min(pb)
     } else {
         255

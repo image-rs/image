@@ -235,6 +235,9 @@ fn filter_internal(
 ) -> FilterType {
     use self::FilterType::*;
 
+    // This value was chosen experimentally based on what acheived the best performance. The
+    // Rust compiler does auto-vectorization, and 32-bytes per loop iteration seems to enable
+    // the fastest code when doing so.
     const CHUNK_SIZE: usize = 32;
 
     match method {

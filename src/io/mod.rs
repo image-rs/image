@@ -1,12 +1,15 @@
 //! Input and output of images.
 
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 
 use crate::{error, ImageError, ImageResult};
 
+#[cfg(feature = "std")]
 pub(crate) mod free_functions;
+#[cfg(feature = "std")]
 mod reader;
 
+#[cfg(feature = "std")]
 pub use self::reader::Reader;
 
 /// Set of supported strict limits for a decoder.

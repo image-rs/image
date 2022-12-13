@@ -1,7 +1,9 @@
+use alloc::vec::Vec;
+
+use core::u32;
 use std::io;
 use std::io::{Seek, Write};
 use std::path::Path;
-use std::u32;
 
 #[cfg(feature = "gif")]
 use crate::codecs::gif;
@@ -1133,6 +1135,7 @@ where
 ///
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg, png, ico, pnm, bmp, exr and tiff files are supported.
+#[cfg(feature = "std")]
 pub fn save_buffer<P>(
     path: P,
     buf: &[u8],
@@ -1155,6 +1158,7 @@ where
 /// This will lead to corrupted files if the buffer contains
 /// malformed data. Currently only jpeg, png, ico, bmp, exr and
 /// tiff files are supported.
+#[cfg(feature = "std")]
 pub fn save_buffer_with_format<P>(
     path: P,
     buf: &[u8],
@@ -1182,6 +1186,7 @@ where
 ///
 /// Assumes the writer is buffered. In most cases,
 /// you should wrap your writer in a `BufWriter` for best performance.
+#[cfg(feature = "std")]
 pub fn write_buffer_with_format<W, F>(
     buffered_writer: &mut W,
     buf: &[u8],
@@ -1242,6 +1247,8 @@ mod bench {
 
 #[cfg(test)]
 mod test {
+    use alloc::vec::Vec;
+
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());

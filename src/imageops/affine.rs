@@ -1,5 +1,7 @@
 //! Functions for performing affine transformations.
 
+use alloc::vec::Vec;
+
 use crate::error::{ImageError, ParameterError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
@@ -52,7 +54,7 @@ pub fn rotate90_in<I, Container>(
 where
     I: GenericImageView,
     I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    Container: core::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
@@ -78,7 +80,7 @@ pub fn rotate180_in<I, Container>(
 where
     I: GenericImageView,
     I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    Container: core::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -104,7 +106,7 @@ pub fn rotate270_in<I, Container>(
 where
     I: GenericImageView,
     I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    Container: core::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
@@ -156,7 +158,7 @@ pub fn flip_horizontal_in<I, Container>(
 where
     I: GenericImageView,
     I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    Container: core::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -182,7 +184,7 @@ pub fn flip_vertical_in<I, Container>(
 where
     I: GenericImageView,
     I::Pixel: 'static,
-    Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    Container: core::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
@@ -270,6 +272,7 @@ mod test {
     use crate::image::GenericImage;
     use crate::traits::Pixel;
     use crate::{GrayImage, ImageBuffer};
+    use alloc::vec::Vec;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

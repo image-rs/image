@@ -1,12 +1,14 @@
 //! Contains the generic `ImageBuffer` struct.
+use alloc::vec::Vec;
+use core::fmt;
+use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut, Index, IndexMut, Range};
+use core::slice::{ChunksExact, ChunksExactMut};
 use num_traits::Zero;
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
-use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
+#[cfg(feature = "std")]
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
@@ -1031,6 +1033,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1407,6 +1410,7 @@ mod test {
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::{color, Rgb};
+    use alloc::vec::Vec;
 
     #[test]
     /// Tests if image buffers from slices work

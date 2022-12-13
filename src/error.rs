@@ -13,8 +13,13 @@
 //!
 //! [`ImageError`]: enum.ImageError.html
 
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::fmt;
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::{fmt, io};
+#[cfg(feature = "std")]
+use std::io;
 
 use crate::color::ExtendedColorType;
 use crate::image::ImageFormat;
@@ -61,6 +66,7 @@ pub enum ImageError {
     Unsupported(UnsupportedError),
 
     /// An error occurred while interacting with the environment.
+    #[cfg(feature = "std")]
     IoError(io::Error),
 }
 
@@ -88,6 +94,11 @@ pub enum UnsupportedErrorKind {
     GenericFeature(String),
 }
 
+#[cfg(feature = "std")]
+type Underlying = Option<Box<dyn Error + Send + Sync>>;
+#[cfg(not(feature = "std"))]
+type Underlying = Option<Box<dyn Send + Sync>>;
+
 /// An error was encountered while encoding an image.
 ///
 /// This is used as an opaque representation for the [`ImageError::Encoding`] variant. See its
@@ -97,7 +108,7 @@ pub enum UnsupportedErrorKind {
 #[derive(Debug)]
 pub struct EncodingError {
     format: ImageFormatHint,
-    underlying: Option<Box<dyn Error + Send + Sync>>,
+    underlying: Underlying,
 }
 
 /// An error was encountered in inputs arguments.
@@ -109,7 +120,7 @@ pub struct EncodingError {
 #[derive(Debug)]
 pub struct ParameterError {
     kind: ParameterErrorKind,
-    underlying: Option<Box<dyn Error + Send + Sync>>,
+    underlying: Underlying,
 }
 
 /// Details how a parameter is malformed.
@@ -136,7 +147,7 @@ pub enum ParameterErrorKind {
 #[derive(Debug)]
 pub struct DecodingError {
     format: ImageFormatHint,
-    underlying: Option<Box<dyn Error + Send + Sync>>,
+    underlying: Underlying,
 }
 
 /// Completing the operation would have required more resources than allowed.
@@ -183,6 +194,7 @@ pub enum ImageFormatHint {
     Name(String),
 
     /// A common path extension for the format is known.
+    #[cfg(feature = "std")]
     PathExtension(std::path::PathBuf),
 
     /// The format is not known or could not be determined.
@@ -211,6 +223,7 @@ impl UnsupportedError {
 
 impl DecodingError {
     /// Create a `DecodingError` that stems from an arbitrary error of an underlying decoder.
+    #[cfg(feature = "std")]
     pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
         DecodingError {
             format,
@@ -236,6 +249,7 @@ impl DecodingError {
 
 impl EncodingError {
     /// Create an `EncodingError` that stems from an arbitrary error of an underlying encoder.
+    #[cfg(feature = "std")]
     pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
         EncodingError {
             format,
@@ -286,6 +300,7 @@ impl LimitError {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
         ImageError::IoError(err)
@@ -298,6 +313,7 @@ impl From<ImageFormat> for ImageFormatHint {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<&'_ std::path::Path> for ImageFormatHint {
     fn from(path: &'_ std::path::Path) -> Self {
         match path.extension() {
@@ -332,6 +348,7 @@ impl fmt::Display for ImageError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for ImageError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -380,6 +397,7 @@ impl fmt::Display for UnsupportedError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for UnsupportedError {}
 
 impl fmt::Display for ParameterError {
@@ -408,6 +426,7 @@ impl fmt::Display for ParameterError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for ParameterError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.underlying {
@@ -430,6 +449,7 @@ impl fmt::Display for EncodingError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for EncodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.underlying {
@@ -453,6 +473,7 @@ impl fmt::Display for DecodingError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for DecodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.underlying {
@@ -475,6 +496,7 @@ impl fmt::Display for LimitError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for LimitError {}
 
 impl fmt::Display for ImageFormatHint {

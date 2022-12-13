@@ -83,6 +83,8 @@
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
+// #![no_std]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
@@ -93,6 +95,9 @@
 #![allow(clippy::many_single_char_names)]
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
+
+#[macro_use]
+extern crate alloc;
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -139,12 +144,14 @@ pub use crate::flat::FlatSamples;
 pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
+#[cfg(feature = "std")]
 pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
     save_buffer_with_format, write_buffer_with_format,
 };
 pub use crate::io::free_functions::{guess_format, load};
 
+#[cfg(feature = "std")]
 pub use crate::dynimage::DynamicImage;
 
 pub use crate::animation::{Delay, Frame, Frames};
@@ -254,6 +261,7 @@ mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
 mod color;
+#[cfg(feature = "std")]
 mod dynimage;
 mod image;
 mod traits;

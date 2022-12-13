@@ -41,9 +41,11 @@
 //! }
 //! ```
 //!
-use std::marker::PhantomData;
-use std::ops::{Deref, Index, IndexMut};
-use std::{cmp, error, fmt};
+//!
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, IndexMut};
+use core::{cmp, fmt};
 
 use num_traits::Zero;
 
@@ -1483,6 +1485,7 @@ impl From<Error> for ImageError {
                 write!(f, "Required sample buffer in normal form {:?}", self.0)
             }
         }
+        #[cfg(feature = "std")]
         impl error::Error for NormalFormRequiredError {}
 
         match error {
@@ -1527,6 +1530,7 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl error::Error for Error {}
 
 impl PartialOrd for NormalForm {

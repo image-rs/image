@@ -1,11 +1,13 @@
 #![allow(clippy::too_many_arguments)]
-use std::convert::TryFrom;
-use std::ffi::OsStr;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::convert::TryFrom;
+use core::ffi::OsStr;
+use core::ops::{Deref, DerefMut};
+use core::usize;
 use std::io;
 use std::io::Read;
-use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::usize;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -604,7 +606,7 @@ where
         )));
     }
 
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / core::mem::size_of::<T>()];
     decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
     Ok(buf)
 }
@@ -1318,6 +1320,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use alloc::boxed::Box;
+    use alloc::vec::Vec;
     use std::io;
     use std::path::Path;
 

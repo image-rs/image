@@ -7,6 +7,7 @@ use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::image::ImageFormat;
 use crate::{ImageError, ImageResult};
 
+#[cfg(feature = "std")]
 use super::free_functions;
 
 /// A multi-format image reader.

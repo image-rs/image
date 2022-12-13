@@ -1,7 +1,7 @@
+use core::u32;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
-use std::u32;
 
 use crate::codecs::*;
 
@@ -137,6 +137,7 @@ pub(crate) fn image_dimensions_with_format_impl<R: BufRead + Seek>(
     load_decoder(buffered_read, format, super::Limits::default(), DimVisitor)
 }
 
+#[cfg(feature = "std")]
 #[allow(unused_variables)]
 // Most variables when no features are supported
 pub(crate) fn save_buffer_impl(
@@ -150,6 +151,7 @@ pub(crate) fn save_buffer_impl(
     save_buffer_with_format_impl(path, buf, width, height, color, format)
 }
 
+#[cfg(feature = "std")]
 #[allow(unused_variables)]
 // Most variables when no features are supported
 pub(crate) fn save_buffer_with_format_impl(
@@ -190,6 +192,7 @@ pub(crate) fn save_buffer_with_format_impl(
 }
 
 #[allow(unused_variables)]
+#[cfg(feature = "std")]
 // Most variables when no features are supported
 pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     buffered_write: &mut W,

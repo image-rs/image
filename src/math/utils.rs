@@ -1,6 +1,6 @@
 //! Shared mathematical utility functions.
 
-use std::cmp::max;
+use core::cmp::max;
 
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter

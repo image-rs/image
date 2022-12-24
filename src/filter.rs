@@ -269,20 +269,19 @@ fn filter_internal(
             Sub
         }
         Up => {
-            for i in 0..len {
-                output[i] = current[i].wrapping_sub(previous[i]);
+            for ((out, cur), &prev) in output.iter_mut().zip(current).zip(previous) {
+                *out = cur.wrapping_sub(prev);
             }
             Up
         }
         Avg => {
-            for i in (bpp..len).rev() {
-                output[i] = current[i].wrapping_sub(
-                    ((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8,
-                );
-            }
-
-            for i in 0..bpp {
-                output[i] = current[i].wrapping_sub(previous[i] / 2);
+            for (((out, cur), &cur_minus_bpp), &prev) in output
+                .iter_mut()
+                .zip(current.iter())
+                .zip(core::iter::repeat(&0_u8).take(bpp).chain(current.iter()))
+                .zip(previous.iter())
+            {
+                *out = cur.wrapping_sub(((u16::from(cur_minus_bpp) + u16::from(prev)) / 2) as u8);
             }
             Avg
         }

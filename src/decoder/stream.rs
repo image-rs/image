@@ -120,7 +120,7 @@ pub(crate) enum FormatErrorInner {
     /// Bad framing.
     CrcMismatch {
         /// bytes to skip to try to recover from this error
-        recover: usize,
+        _recover: usize,
         /// Stored CRC32 value
         crc_val: u32,
         /// Calculated CRC32 sum
@@ -566,7 +566,7 @@ impl StreamingDecoder {
                         } else {
                             Err(DecodingError::Format(
                                 FormatErrorInner::CrcMismatch {
-                                    recover: 1,
+                                    _recover: 1,
                                     crc_val: val,
                                     crc_sum: sum,
                                     chunk: type_str,

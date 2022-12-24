@@ -24,3 +24,7 @@ path = "fuzz_targets/decode.rs"
 [[bin]]
 name = "buf_independent"
 path = "fuzz_targets/buf_independent.rs"
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"

@@ -258,7 +258,7 @@ fn filter_internal(
 
             for ((out, cur), &prev) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(prev_chunks.remainder())
             {
@@ -306,7 +306,7 @@ fn filter_internal(
 
             for ((((out, cur), &a), &b), &c) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(a_chunks.remainder())
                 .zip(b_chunks.remainder())

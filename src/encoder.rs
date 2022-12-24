@@ -2331,7 +2331,9 @@ impl Compression {
             Compression::Default => flate2::Compression::default(),
             Compression::Fast => flate2::Compression::fast(),
             Compression::Best => flate2::Compression::best(),
+            #[allow(deprecated)]
             Compression::Huffman => flate2::Compression::none(),
+            #[allow(deprecated)]
             Compression::Rle => flate2::Compression::none(),
         }
     }

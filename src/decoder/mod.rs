@@ -334,6 +334,7 @@ enum InterlaceIter {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum SubframeIdx {
     /// The info has not yet been decoded.
+    #[allow(unused)]
     Uninit,
     /// The initial frame in an IDAT chunk without fcTL chunk applying to it.
     /// Note that this variant precedes `Some` as IDAT frames precede fdAT frames and all fdAT

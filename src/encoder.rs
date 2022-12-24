@@ -675,8 +675,7 @@ impl<W: Write> Writer<W> {
 
         let zlib_encoded = match self.info.compression {
             Compression::Fast => {
-                let mut compressor = fdeflate::Compressor::new(std::io::Cursor::new(Vec::new()));
-                compressor.write_headers()?;
+                let mut compressor = fdeflate::Compressor::new(std::io::Cursor::new(Vec::new()))?;
 
                 let mut current = vec![0; in_len + 1];
                 for line in data.chunks(in_len) {
@@ -694,7 +693,20 @@ impl<W: Write> Writer<W> {
                     prev = line;
                 }
 
-                compressor.finish()?.into_inner()
+                let compressed = compressor.finish()?.into_inner();
+                if compressed.len()
+                    > fdeflate::StoredOnlyCompressor::<()>::compressed_size((in_len + 1) * height)
+                {
+                    let mut compressor =
+                        fdeflate::StoredOnlyCompressor::new(std::io::Cursor::new(Vec::new()))?;
+                    for line in data.chunks(in_len) {
+                        compressor.write_data(&[0])?;
+                        compressor.write_data(line)?;
+                    }
+                    compressor.finish()?.into_inner()
+                } else {
+                    compressed
+                }
             }
             _ => {
                 let mut current = vec![0; in_len];

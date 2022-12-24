@@ -13,7 +13,7 @@ fuzz_target!(|data: &[u8]| {
     }
 });
 
-const METADATA_BYTES: usize = 2;
+const METADATA_BYTES: usize = 3;
 
 fn encode_png(data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
     // we use the first few bytes of the fuzzer input
@@ -28,6 +28,16 @@ fn encode_png(data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
     if height == 0 { return None }
     // randomize filter
     let filter = FilterType::from_u8(data[1])?;
+    // randomize compression
+    let compression = data[2];
+    let compression = match compression {
+        0 => png::Compression::Default,
+        1 => png::Compression::Fast,
+        2 => png::Compression::Best,
+        3 => png::Compression::Huffman,
+        4 => png::Compression::Rle,
+        _ => return None,
+    };
 
     // infer the rest of the parameters
     let bytes_per_pixel = 4;
@@ -46,7 +56,7 @@ fn encode_png(data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_filter(filter);
-        // TODO: also randomize compression?
+        encoder.set_compression(compression);
         let mut writer = encoder.write_header().unwrap();
         writer.write_image_data(data_to_encode).expect("Encoding failed");
     }

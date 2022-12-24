@@ -696,7 +696,7 @@ impl StreamingDecoder {
     fn reserve_current_chunk(&mut self) -> Result<(), DecodingError> {
         // FIXME: use limits, also do so in iccp/zlib decompression.
         const MAX: usize = 0x10_0000;
-        let ref mut buffer = self.current_chunk.raw_bytes;
+        let buffer = &mut self.current_chunk.raw_bytes;
 
         // Double if necessary, but no more than until the limit is reached.
         let reserve_size = MAX.saturating_sub(buffer.capacity()).min(buffer.len());
@@ -826,9 +826,9 @@ impl StreamingDecoder {
         let info = self.info.as_mut().unwrap();
         if info.palette.is_some() {
             // Only one palette is allowed
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::PLTE }.into(),
-            ));
+            ))
         } else {
             info.palette = Some(Cow::Owned(self.current_chunk.raw_bytes.clone()));
             Ok(Decoded::Nothing)
@@ -903,9 +903,9 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::pHYs }.into(),
             ))
         } else if info.pixel_dims.is_some() {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::pHYs }.into(),
-            ));
+            ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let xppu = buf.read_be()?;
@@ -932,9 +932,9 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::cHRM }.into(),
             ))
         } else if info.chrm_chunk.is_some() {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::cHRM }.into(),
-            ));
+            ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let white_x: u32 = buf.read_be()?;
@@ -982,9 +982,9 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::gAMA }.into(),
             ))
         } else if info.gama_chunk.is_some() {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::gAMA }.into(),
-            ));
+            ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let source_gamma: u32 = buf.read_be()?;
@@ -1007,9 +1007,9 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::acTL }.into(),
             ))
         } else if info.srgb.is_some() {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::sRGB }.into(),
-            ));
+            ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
             let raw: u8 = buf.read_be()?; // BE is is nonsense for single bytes, but this way the size is checked.
@@ -1032,9 +1032,9 @@ impl StreamingDecoder {
                 FormatErrorInner::AfterIdat { kind: chunk::iCCP }.into(),
             ))
         } else if info.icc_profile.is_some() {
-            return Err(DecodingError::Format(
+            Err(DecodingError::Format(
                 FormatErrorInner::DuplicateChunk { kind: chunk::iCCP }.into(),
-            ));
+            ))
         } else {
             let mut buf = &self.current_chunk.raw_bytes[..];
 

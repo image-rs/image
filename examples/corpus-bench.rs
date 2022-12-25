@@ -1,9 +1,37 @@
-use std::{env, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
+use clap::Parser;
 use png::Decoder;
+
+#[derive(clap::ValueEnum, Clone)]
+enum Speed {
+    Fast,
+    Default,
+    Best,
+}
+
+#[derive(clap::ValueEnum, Clone)]
+enum Filter {
+    None,
+    Sub,
+    Up,
+    Average,
+    Paeth,
+    Adaptive,
+}
+
+#[derive(clap::Parser)]
+struct Args {
+    directory: Option<PathBuf>,
+    #[arg(short, long, value_enum, default_value_t = Speed::Fast)]
+    speed: Speed,
+    #[arg(short, long, value_enum, default_value_t = Filter::Adaptive)]
+    filter: Filter,
+}
 
 #[inline(never)]
 fn run_encode(
+    args: &Args,
     dimensions: (u32, u32),
     color_type: png::ColorType,
     bit_depth: png::BitDepth,
@@ -13,8 +41,23 @@ fn run_encode(
     let mut encoder = png::Encoder::new(&mut reencoded, dimensions.0, dimensions.1);
     encoder.set_color(color_type);
     encoder.set_depth(bit_depth);
-    encoder.set_compression(png::Compression::Fast);
-    encoder.set_filter(png::FilterType::Paeth);
+    encoder.set_compression(match args.speed {
+        Speed::Fast => png::Compression::Fast,
+        Speed::Default => png::Compression::Default,
+        Speed::Best => png::Compression::Best,
+    });
+    encoder.set_filter(match args.filter {
+        Filter::None => png::FilterType::NoFilter,
+        Filter::Sub => png::FilterType::Sub,
+        Filter::Up => png::FilterType::Up,
+        Filter::Average => png::FilterType::Avg,
+        Filter::Paeth => png::FilterType::Paeth,
+        Filter::Adaptive => png::FilterType::Paeth,
+    });
+    encoder.set_adaptive_filter(match args.filter {
+        Filter::Adaptive => png::AdaptiveFilterType::Adaptive,
+        _ => png::AdaptiveFilterType::NonAdaptive,
+    });
     let mut encoder = encoder.write_header().unwrap();
     encoder.write_image_data(&image).unwrap();
     encoder.finish().unwrap();
@@ -34,6 +77,8 @@ fn main() {
     let mut total_encode_time = 0;
     let mut total_decode_time = 0;
 
+    let args = Args::parse();
+
     println!(
         "{:45} Ratio             Encode                    Decode",
         "Directory"
@@ -45,7 +90,7 @@ fn main() {
 
     let mut image2 = Vec::new();
 
-    let mut pending = vec![PathBuf::from(env::args().nth(1).unwrap_or(".".to_string()))];
+    let mut pending = vec![args.directory.clone().unwrap_or(PathBuf::from("."))];
     while let Some(directory) = pending.pop() {
         let mut dir_uncompressed = 0;
         let mut dir_compressed = 0;
@@ -103,7 +148,7 @@ fn main() {
 
             // Re-encode
             let start = std::time::Instant::now();
-            let reencoded = run_encode((width, height), color_type, bit_depth, &image);
+            let reencoded = run_encode(&args, (width, height), color_type, bit_depth, &image);
             let elapsed = start.elapsed().as_nanos() as u64;
 
             // And decode again

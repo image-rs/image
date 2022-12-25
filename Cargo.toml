@@ -27,16 +27,13 @@ flate2 = "1.0"
 miniz_oxide = "0.6.0"
 
 [dev-dependencies]
+clap = { version = "4.0.32", features = ["derive"] }
 criterion = "0.3.1"
 getopts = "0.2.14"
-term = "0.7"
+glium = { version = "0.32", features = ["glutin"], default-features = false }
 glob = "0.3"
 rand = "0.8.4"
-
-[dev-dependencies.glium]
-version = "0.31"
-features = ["glutin"]
-default-features = false
+term = "0.7"
 
 [features]
 unstable = []

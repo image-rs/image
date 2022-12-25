@@ -668,27 +668,74 @@ impl<W: Write> Writer<W> {
 
         let prev = vec![0; in_len];
         let mut prev = prev.as_slice();
-        let mut current = vec![0; in_len];
 
-        let mut zlib = ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
         let bpp = self.info.bpp_in_prediction();
         let filter_method = self.options.filter;
         let adaptive_method = self.options.adaptive_filter;
 
-        for line in data.chunks(in_len) {
-            let filter_type = filter(
-                filter_method,
-                adaptive_method,
-                bpp,
-                prev,
-                &line,
-                &mut current,
-            );
-            zlib.write_all(&[filter_type as u8])?;
-            zlib.write_all(&current)?;
-            prev = line;
-        }
-        let zlib_encoded = zlib.finish()?;
+        let zlib_encoded = match self.info.compression {
+            Compression::Fast => {
+                let mut compressor = fdeflate::Compressor::new(std::io::Cursor::new(Vec::new()))?;
+
+                let mut current = vec![0; in_len + 1];
+                for line in data.chunks(in_len) {
+                    let filter_type = filter(
+                        filter_method,
+                        adaptive_method,
+                        bpp,
+                        prev,
+                        line,
+                        &mut current[1..],
+                    );
+
+                    current[0] = filter_type as u8;
+                    compressor.write_data(&current)?;
+                    prev = line;
+                }
+
+                let compressed = compressor.finish()?.into_inner();
+                if compressed.len()
+                    > fdeflate::StoredOnlyCompressor::<()>::compressed_size((in_len + 1) * height)
+                {
+                    // Write uncompressed data since the result from fast compression would take
+                    // more space than that.
+                    //
+                    // We always use FilterType::NoFilter here regardless of the filter method
+                    // requested by the user. Doing filtering again would only add performance
+                    // cost for both encoding and subsequent decoding, without improving the
+                    // compression ratio.
+                    let mut compressor =
+                        fdeflate::StoredOnlyCompressor::new(std::io::Cursor::new(Vec::new()))?;
+                    for line in data.chunks(in_len) {
+                        compressor.write_data(&[0])?;
+                        compressor.write_data(line)?;
+                    }
+                    compressor.finish()?.into_inner()
+                } else {
+                    compressed
+                }
+            }
+            _ => {
+                let mut current = vec![0; in_len];
+
+                let mut zlib = ZlibEncoder::new(Vec::new(), self.info.compression.to_options());
+                for line in data.chunks(in_len) {
+                    let filter_type = filter(
+                        filter_method,
+                        adaptive_method,
+                        bpp,
+                        prev,
+                        line,
+                        &mut current,
+                    );
+
+                    zlib.write_all(&[filter_type as u8])?;
+                    zlib.write_all(&current)?;
+                    prev = line;
+                }
+                zlib.finish()?
+            }
+        };
 
         match self.info.frame_control {
             None => {

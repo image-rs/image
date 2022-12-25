@@ -1,11 +1,11 @@
 #![no_main]
 
-use png::FilterType;
+use png::{FilterType, ColorType};
 #[macro_use] extern crate libfuzzer_sys;
 extern crate png;
 
-fuzz_target!(|data: (u8, u8, u8, Vec<u8>)| {
-    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, &data.3) {
+fuzz_target!(|data: (u8, u8, u8, u8, Vec<u8>)| {
+    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, &data.4) {
         let (_info, raw_decoded) = decode_png(&encoded);
         // raw_decoded can be padded with zeroes at the end, not sure if that's correct
         let raw_decoded = &raw_decoded[..raw.len()];
@@ -13,13 +13,18 @@ fuzz_target!(|data: (u8, u8, u8, Vec<u8>)| {
     }
 });
 
-fn encode_png(height: u8, filter: u8, compression: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
-    // Convert untyped bytes to the correct types and validate them
+fn encode_png(height: u8, filter: u8, compression: u8, color_type: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
+    // Convert untyped bytes to the correct types and validate them:
     // height
     let height = height as u32;
     if height == 0 { return None }
     // filter
     let filter = FilterType::from_u8(filter)?;
+    // color type
+    let color_type = ColorType::from_u8(color_type)?;
+    if let ColorType::Indexed = color_type {
+        return None // TODO: palette needs more data, not supported yet
+    }
     // compression
     let compression = match compression {
         0 => png::Compression::Default,
@@ -31,7 +36,7 @@ fn encode_png(height: u8, filter: u8, compression: u8, data: &[u8]) -> Option<(&
     };
 
     // infer the rest of the parameters
-    let bytes_per_pixel = 4;
+    let bytes_per_pixel = color_type.samples() as u32; // safe to cast - actually u8 internally
     let width = data.len() as u32 / height / bytes_per_pixel;
     if width == 0 { return None }
     let total_pixels = height.checked_mul(width)?;
@@ -42,9 +47,9 @@ fn encode_png(height: u8, filter: u8, compression: u8, data: &[u8]) -> Option<(&
     let mut output: Vec<u8> = Vec::new();
     { // scoped so that we could return the resulting Vec at the end
         let mut encoder = png::Encoder::new(&mut output, width, height);
-        // TODO: randomize these settings
-        encoder.set_color(png::ColorType::Rgba);
+        // TODO: randomize bit depth, perhaps other settings
         encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_color(color_type);
         encoder.set_filter(filter);
         encoder.set_compression(compression);
         let mut writer = encoder.write_header().unwrap();

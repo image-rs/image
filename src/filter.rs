@@ -269,16 +269,52 @@ fn filter_internal(
             Sub
         }
         Up => {
-            for i in 0..len {
-                output[i] = current[i].wrapping_sub(previous[i]);
+            let mut out_chunks = output.chunks_exact_mut(CHUNK_SIZE);
+            let mut cur_chunks = current.chunks_exact(CHUNK_SIZE);
+            let mut prev_chunks = previous.chunks_exact(CHUNK_SIZE);
+
+            for ((out, cur), prev) in (&mut out_chunks).zip(&mut cur_chunks).zip(&mut prev_chunks) {
+                for i in 0..CHUNK_SIZE {
+                    out[i] = cur[i].wrapping_sub(prev[i]);
+                }
+            }
+
+            for ((out, cur), &prev) in out_chunks
+                .into_remainder()
+                .into_iter()
+                .zip(cur_chunks.remainder())
+                .zip(prev_chunks.remainder())
+            {
+                *out = cur.wrapping_sub(prev);
             }
             Up
         }
         Avg => {
-            for i in (bpp..len).rev() {
-                output[i] = current[i].wrapping_sub(
-                    ((u16::from(current[i - bpp]) + u16::from(previous[i])) / 2) as u8,
-                );
+            let mut out_chunks = output[bpp..].chunks_exact_mut(CHUNK_SIZE);
+            let mut cur_chunks = current[bpp..].chunks_exact(CHUNK_SIZE);
+            let mut cur_minus_bpp_chunks = current[..len - bpp].chunks_exact(CHUNK_SIZE);
+            let mut prev_chunks = previous[bpp..].chunks_exact(CHUNK_SIZE);
+
+            for (((out, cur), cur_minus_bpp), prev) in (&mut out_chunks)
+                .zip(&mut cur_chunks)
+                .zip(&mut cur_minus_bpp_chunks)
+                .zip(&mut prev_chunks)
+            {
+                for i in 0..CHUNK_SIZE {
+                    out[i] = cur[i].wrapping_sub(
+                        ((u16::from(cur_minus_bpp[i]) + u16::from(prev[i])) / 2) as u8,
+                    );
+                }
+            }
+
+            for (((out, cur), &cur_minus_bpp), &prev) in out_chunks
+                .into_remainder()
+                .into_iter()
+                .zip(cur_chunks.remainder())
+                .zip(cur_minus_bpp_chunks.remainder())
+                .zip(prev_chunks.remainder())
+            {
+                *out = cur.wrapping_sub(((u16::from(cur_minus_bpp) + u16::from(prev)) / 2) as u8);
             }
 
             for i in 0..bpp {

@@ -4,8 +4,8 @@ use png::FilterType;
 #[macro_use] extern crate libfuzzer_sys;
 extern crate png;
 
-fuzz_target!(|data: &[u8]| {
-    if let Some((raw, encoded)) = encode_png(data) {
+fuzz_target!(|data: (u8, u8, u8, Vec<u8>)| {
+    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, &data.3) {
         let (_info, raw_decoded) = decode_png(&encoded);
         // raw_decoded can be padded with zeroes at the end, not sure if that's correct
         let raw_decoded = &raw_decoded[..raw.len()];
@@ -13,23 +13,14 @@ fuzz_target!(|data: &[u8]| {
     }
 });
 
-const METADATA_BYTES: usize = 3;
-
-fn encode_png(data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
-    // we use the first few bytes of the fuzzer input
-    // to randomize the PNG encoding settings
-    // so we need at least that much to be present
-    if data.len() <= METADATA_BYTES {
-        return None;
-    }
-
-    // randomize height
-    let height = data[0] as u32; // max 255
+fn encode_png(height: u8, filter: u8, compression: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
+    // Convert untyped bytes to the correct types and validate them
+    // height
+    let height = height as u32;
     if height == 0 { return None }
-    // randomize filter
-    let filter = FilterType::from_u8(data[1])?;
-    // randomize compression
-    let compression = data[2];
+    // filter
+    let filter = FilterType::from_u8(filter)?;
+    // compression
     let compression = match compression {
         0 => png::Compression::Default,
         1 => png::Compression::Fast,
@@ -41,7 +32,6 @@ fn encode_png(data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
 
     // infer the rest of the parameters
     let bytes_per_pixel = 4;
-    let data = &data[METADATA_BYTES..];
     let width = data.len() as u32 / height / bytes_per_pixel;
     if width == 0 { return None }
     let total_pixels = height.checked_mul(width)?;

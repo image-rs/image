@@ -697,6 +697,13 @@ impl<W: Write> Writer<W> {
                 if compressed.len()
                     > fdeflate::StoredOnlyCompressor::<()>::compressed_size((in_len + 1) * height)
                 {
+                    // Write uncompressed data since the result from fast compression would take
+                    // more space than that.
+                    //
+                    // We always use FilterType::NoFilter here regardless of the filter method
+                    // requested by the user. Doing filtering again would only add performance
+                    // cost for both encoding and subsequent decoding, without improving the
+                    // compression ratio.
                     let mut compressor =
                         fdeflate::StoredOnlyCompressor::new(std::io::Cursor::new(Vec::new()))?;
                     for line in data.chunks(in_len) {

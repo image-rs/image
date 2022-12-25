@@ -318,7 +318,7 @@ fn filter_internal(
             }
 
             for i in 0..bpp {
-                output[i] = current[i].wrapping_sub((u16::from(previous[i]) / 2) as u8);
+                output[i] = current[i].wrapping_sub(previous[i] / 2);
             }
             Avg
         }

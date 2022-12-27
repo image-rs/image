@@ -17,7 +17,7 @@ use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
 use num_traits::Zero;
-use ravif::{encode_rgb, encode_rgba, Config, Img, RGB8, RGBA8};
+use ravif::{Encoder, Img, RGB8, RGBA8};
 use rgb::AsPixels;
 
 /// AVIF Encoder.
@@ -26,7 +26,7 @@ use rgb::AsPixels;
 pub struct AvifEncoder<W> {
     inner: W,
     fallback: Vec<u8>,
-    config: Config,
+    encoder: Encoder,
 }
 
 /// An enumeration over supported AVIF color spaces
@@ -56,7 +56,7 @@ enum RgbColor<'buf> {
 impl<W: Write> AvifEncoder<W> {
     /// Create a new encoder that writes its output to `w`.
     pub fn new(w: W) -> Self {
-        AvifEncoder::new_with_speed_quality(w, 1, 100)
+        AvifEncoder::new_with_speed_quality(w, 4, 80) // `cavif` uses these defaults
     }
 
     /// Create a new encoder with specified speed and quality, that writes its output to `w`.
@@ -67,24 +67,22 @@ impl<W: Write> AvifEncoder<W> {
         let quality = min(quality, 100);
         let speed = min(speed, 10);
 
+        let encoder = Encoder::new()
+            .with_quality(f32::from(quality))
+            .with_alpha_quality(f32::from(quality))
+            .with_speed(speed);
+
         AvifEncoder {
             inner: w,
             fallback: vec![],
-            config: Config {
-                quality: f32::from(quality),
-                alpha_quality: f32::from(quality),
-                speed,
-                premultiplied_alpha: false,
-                color_space: ravif::ColorSpace::RGB,
-                // match core count
-                threads: 0,
-            },
+            encoder,
         }
     }
 
     /// Encode with the specified `color_space`.
     pub fn with_colorspace(mut self, color_space: ColorSpace) -> Self {
-        self.config.color_space = color_space.to_ravif();
+        let encoder = self.encoder;
+        self.encoder = encoder.with_internal_color_space(color_space.to_ravif());
         self
     }
 
@@ -101,20 +99,18 @@ impl<W: Write> AvifEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         self.set_color(color);
-        let config = self.config;
+        let encoder = self.encoder.clone();
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
         let result = match self.encode_as_img(data, width, height, color)? {
-            RgbColor::Rgb8(buffer) => encode_rgb(buffer, &config).map(|(data, _color_size)| data),
-            RgbColor::Rgba8(buffer) => {
-                encode_rgba(buffer, &config).map(|(data, _color_size, _alpha_size)| data)
-            }
+            RgbColor::Rgb8(buffer) => encoder.encode_rgb(buffer),
+            RgbColor::Rgba8(buffer) => encoder.encode_rgba(buffer),
         };
         let data = result.map_err(|err| {
             ImageError::Encoding(EncodingError::new(ImageFormat::Avif.into(), err))
         })?;
-        self.inner.write_all(&data)?;
+        self.inner.write_all(&data.avif_file)?;
         Ok(())
     }
 
@@ -141,7 +137,7 @@ impl<W: Write> AvifEncoder<W> {
                     ParameterErrorKind::DimensionMismatch,
                 ))
             })
-        };
+        }
 
         // Convert to target color type using few buffer allocations.
         fn convert_into<'buf, P>(

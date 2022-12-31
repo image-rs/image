@@ -66,6 +66,7 @@ fn main() {
             encoder.set_depth(bit_depth);
             encoder.set_compression(png::Compression::Fast);
             encoder.set_filter(png::FilterType::Paeth);
+            encoder.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
             let mut encoder = encoder.write_header().unwrap();
             encoder.write_image_data(&image).unwrap();
             encoder.finish().unwrap();

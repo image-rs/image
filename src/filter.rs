@@ -376,39 +376,47 @@ pub(crate) fn filter(
             filter_internal(method, bpp, len, previous, current, output)
         }
         AdaptiveFilterType::Adaptive => {
-            // Filter the current buffer with each filter type. Sum the absolute
-            // values of each filtered buffer treating the bytes as signed
-            // integers. Choose the filter with the smallest sum.
-            let mut filtered_buffer = vec![0; len];
-            filtered_buffer.copy_from_slice(current);
-            let mut scratch = vec![0; len];
-
-            // Initialize min_sum with the NoFilter buffer sum
-            let mut min_sum: usize = sum_buffer(&filtered_buffer);
+            let mut min_sum: u64 = u64::MAX;
             let mut filter_choice = FilterType::NoFilter;
-
             for &filter in [Sub, Up, Avg, Paeth].iter() {
-                filter_internal(filter, bpp, len, previous, current, &mut scratch);
-                let sum = sum_buffer(&scratch);
-                if sum < min_sum {
+                filter_internal(filter, bpp, len, previous, current, output);
+                let sum = sum_buffer(&output);
+                if sum <= min_sum {
                     min_sum = sum;
                     filter_choice = filter;
-                    core::mem::swap(&mut filtered_buffer, &mut scratch);
                 }
             }
 
-            output.copy_from_slice(&filtered_buffer);
-
+            if filter_choice != Paeth {
+                filter_internal(filter_choice, bpp, len, previous, current, output);
+            }
             filter_choice
         }
     }
 }
 
 // Helper function for Adaptive filter buffer summation
-fn sum_buffer(buf: &[u8]) -> usize {
-    buf.iter().fold(0, |acc, &x| {
-        acc.saturating_add(i16::from(x as i8).abs() as usize)
-    })
+fn sum_buffer(buf: &[u8]) -> u64 {
+    const CHUNK_SIZE: usize = 32;
+
+    let mut buf_chunks = buf.chunks_exact(CHUNK_SIZE);
+    let mut sum = 0_u64;
+
+    for chunk in &mut buf_chunks {
+        // At most, `acc` can be `32 * (i8::MIN as u8) = 32 * 128 = 4096`.
+        let mut acc = 0;
+        for &b in chunk {
+            acc += u64::from((b as i8).unsigned_abs());
+        }
+        sum = sum.saturating_add(acc);
+    }
+
+    let mut acc = 0;
+    for &b in buf_chunks.remainder() {
+        acc += u64::from((b as i8).unsigned_abs());
+    }
+
+    sum.saturating_add(acc)
 }
 
 #[cfg(test)]
@@ -510,7 +518,7 @@ mod test {
     // or produce garbage in release mode. The sum of 0..=255u8 should equal the
     // sum of the absolute values of -128_i8..=127, or abs(-128..=0) + 1..=127.
     fn sum_buffer_test() {
-        let sum = (0..=128).sum::<usize>() + (1..=127).sum::<usize>();
+        let sum = (0..=128).sum::<u64>() + (1..=127).sum::<u64>();
         let buf: Vec<u8> = (0_u8..=255).collect();
 
         assert_eq!(sum, crate::filter::sum_buffer(&buf));

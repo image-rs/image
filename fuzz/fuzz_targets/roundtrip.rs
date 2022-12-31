@@ -45,16 +45,14 @@ fn encode_png(height: u8, filter: u8, compression: u8, color_type: u8, data: &[u
     // perform the PNG encoding
     let data_to_encode = &data[..total_bytes as usize];
     let mut output: Vec<u8> = Vec::new();
-    { // scoped so that we could return the resulting Vec at the end
-        let mut encoder = png::Encoder::new(&mut output, width, height);
-        // TODO: randomize bit depth, perhaps other settings
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_color(color_type);
-        encoder.set_filter(filter);
-        encoder.set_compression(compression);
-        let mut writer = encoder.write_header().unwrap();
-        writer.write_image_data(data_to_encode).expect("Encoding failed");
-    }
+    let mut encoder = png::Encoder::new(&mut output, width, height);
+    // TODO: randomize bit depth, perhaps other settings
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_color(color_type);
+    encoder.set_filter(filter);
+    encoder.set_compression(compression);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(data_to_encode).expect("Encoding failed");
 
     Some((data_to_encode, output))
 }

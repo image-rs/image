@@ -40,9 +40,12 @@ impl Compressor {
                         (TINFLStatus::HasMoreOutput, in_consumed, out_consumed)
                     }
                     Err(fdeflate::DecompressionError::NotFDeflate) => {
-                        *self = Compressor::FullZlib(DecompressorOxide::new());
-
+                        // fdeflate guarantees that it will detect non-fdeflate streams before
+                        // consuming any input. If that happens, sanity check that no output
+                        // has been produced and feed the same input to a full zlib decoder.
                         assert_eq!(output_position, 0);
+
+                        *self = Compressor::FullZlib(DecompressorOxide::new());
                         self.decompress(input, output, output_position, end_of_input)
                     }
                     Err(_) => (TINFLStatus::Failed, 0, 0),

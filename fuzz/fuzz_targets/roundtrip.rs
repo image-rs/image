@@ -34,11 +34,9 @@ fn encode_png(width: u8, filter: u8, compression: u8, color_type: u8, bit_depth:
     };
 
     // infer the rest of the parameters
-    let bytes_per_row = raw_row_length_from_width(bit_depth, color_type, width);
-    // not the faintest clue why this -1 is needed but it is needed for bit depths other than 8
-    // because otherwise the encoder will reject the input:
-    // https://github.com/image-rs/image-png/blob/28035fd57312c29b38db5988fe84135de2d50e5d/src/encoder.rs#L657
-    let bytes_per_row = bytes_per_row - 1;
+    // raw_row_length_from_width() will add +1 to the row length in bytes
+    // to account for the first bit in the row indicating the filter, so subtract 1
+    let bytes_per_row = raw_row_length_from_width(bit_depth, color_type, width) - 1;
     let height = data.len() / bytes_per_row;
     let total_bytes = bytes_per_row * height;
     let data_to_encode = &data[..total_bytes];

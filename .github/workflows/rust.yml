@@ -56,6 +56,7 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cross
+          locked: true
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2

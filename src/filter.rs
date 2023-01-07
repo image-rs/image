@@ -54,6 +54,27 @@ impl Default for AdaptiveFilterType {
     }
 }
 
+fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
+    // Decoding seems to optimize better with this algorithm
+    let p = i16::from(a) + i16::from(b) - i16::from(c);
+    let pa = (p - i16::from(a)).abs();
+    let pb = (p - i16::from(b)).abs();
+    let pc = (p - i16::from(c)).abs();
+
+    let mut out = a;
+    let mut min = pa;
+
+    if pb < min {
+        min = pb;
+        out = b;
+    }
+    if pc < min {
+        out = c;
+    }
+
+    out
+}
+
 fn filter_paeth(a: u8, b: u8, c: u8) -> u8 {
     // This is an optimized version of the paeth filter from the PNG specification, proposed by
     // Luca Versari for [FPNGE](https://www.lucaversari.it/FJXL_and_FPNGE.pdf). It operates
@@ -189,35 +210,26 @@ pub(crate) fn unfilter(
             Ok(())
         }
         Paeth => {
-            let current = &mut current[..len];
             let previous = require_length(previous, len)?;
             if bpp > len {
                 return Err("Filtering failed: bytes per pixel is greater than length of row");
             }
 
             for i in 0..bpp {
-                current[i] = current[i].wrapping_add(filter_paeth(0, previous[i], 0));
+                current[i] = current[i].wrapping_add(filter_paeth_decode(0, previous[i], 0));
             }
 
-            let mut current = current.chunks_exact_mut(bpp);
-            let mut previous = previous.chunks_exact(bpp);
-
-            let mut lprevious = current.next().unwrap();
-            let mut lpprevious = previous.next().unwrap();
-
-            for pprevious in previous {
-                let pcurrent = current.next().unwrap();
-
-                for i in 0..bpp {
-                    pcurrent[i] = pcurrent[i].wrapping_add(filter_paeth(
-                        lprevious[i],
-                        pprevious[i],
-                        lpprevious[i],
-                    ));
-                }
-
-                lprevious = pcurrent;
-                lpprevious = pprevious;
+            // Paeth filter pixels:
+            // C B D
+            // A X
+            for (((i, a_index), &b_pixel), &c_pixel) in
+                (bpp..).zip(0..).zip(&previous[bpp..]).zip(previous)
+            {
+                current[i] = current[i].wrapping_add(filter_paeth_decode(
+                    current[a_index],
+                    b_pixel,
+                    c_pixel,
+                ));
             }
 
             Ok(())

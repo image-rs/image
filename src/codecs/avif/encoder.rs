@@ -12,7 +12,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::error::{
     EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::{ColorType, ImageBuffer, ImageFormat, Pixel};
+use crate::{ColorType, ImageBuffer, ImageEncoder, ImageFormat, Pixel};
 use crate::{ImageError, ImageResult};
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod, PodCastError};
@@ -71,25 +71,25 @@ impl<W: Write> AvifEncoder<W> {
             .with_alpha_quality(f32::from(quality))
             .with_speed(speed);
 
-        AvifEncoder {
-            inner: w,
-            encoder,
-        }
+        AvifEncoder { inner: w, encoder }
     }
 
     /// Encode with the specified `color_space`.
     pub fn with_colorspace(mut self, color_space: ColorSpace) -> Self {
-        let encoder = self.encoder;
-        self.encoder = encoder.with_internal_color_space(color_space.to_ravif());
+        self.encoder = self
+            .encoder
+            .with_internal_color_space(color_space.to_ravif());
         self
     }
+}
 
+impl<W: Write> ImageEncoder for AvifEncoder<W> {
     /// Encode image data with the indicated color type.
     ///
     /// The encoder currently requires all data to be RGBA8, it will be converted internally if
     /// necessary. When data is suitably aligned, i.e. u16 channels to two bytes, then the
     /// conversion may be more efficient.
-    pub fn write_image(
+    fn write_image(
         mut self,
         data: &[u8],
         width: u32,
@@ -97,14 +97,13 @@ impl<W: Write> AvifEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         self.set_color(color);
-        let encoder = &self.encoder;
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
         let mut fallback = vec![]; // This vector is used if we need to do a color conversion.
         let result = match Self::encode_as_img(&mut fallback, data, width, height, color)? {
-            RgbColor::Rgb8(buffer) => encoder.encode_rgb(buffer),
-            RgbColor::Rgba8(buffer) => encoder.encode_rgba(buffer),
+            RgbColor::Rgb8(buffer) => self.encoder.encode_rgb(buffer),
+            RgbColor::Rgba8(buffer) => self.encoder.encode_rgba(buffer),
         };
         let data = result.map_err(|err| {
             ImageError::Encoding(EncodingError::new(ImageFormat::Avif.into(), err))
@@ -112,7 +111,9 @@ impl<W: Write> AvifEncoder<W> {
         self.inner.write_all(&data.avif_file)?;
         Ok(())
     }
+}
 
+impl<W: Write> AvifEncoder<W> {
     // Does not currently do anything. Mirrors behaviour of old config function.
     fn set_color(&mut self, _color: ColorType) {
         // self.config.color_space = ColorSpace::RGB;

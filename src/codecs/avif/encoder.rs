@@ -25,7 +25,6 @@ use rgb::AsPixels;
 /// Writes one image into the chosen output.
 pub struct AvifEncoder<W> {
     inner: W,
-    fallback: Vec<u8>,
     encoder: Encoder,
 }
 
@@ -74,7 +73,6 @@ impl<W: Write> AvifEncoder<W> {
 
         AvifEncoder {
             inner: w,
-            fallback: vec![],
             encoder,
         }
     }
@@ -99,11 +97,12 @@ impl<W: Write> AvifEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         self.set_color(color);
-        let encoder = self.encoder.clone();
+        let encoder = &self.encoder;
         // `ravif` needs strongly typed data so let's convert. We can either use a temporarily
         // owned version in our own buffer or zero-copy if possible by using the input buffer.
         // This requires going through `rgb`.
-        let result = match self.encode_as_img(data, width, height, color)? {
+        let mut fallback = vec![]; // This vector is used if we need to do a color conversion.
+        let result = match Self::encode_as_img(&mut fallback, data, width, height, color)? {
             RgbColor::Rgb8(buffer) => encoder.encode_rgb(buffer),
             RgbColor::Rgba8(buffer) => encoder.encode_rgba(buffer),
         };
@@ -120,7 +119,7 @@ impl<W: Write> AvifEncoder<W> {
     }
 
     fn encode_as_img<'buf>(
-        &'buf mut self,
+        fallback: &'buf mut Vec<u8>,
         data: &'buf [u8],
         width: u32,
         height: u32,
@@ -228,32 +227,32 @@ impl<W: Write> AvifEncoder<W> {
             // we need a separate buffer..
             ColorType::L8 => {
                 let image = try_from_raw::<Luma<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ColorType::La8 => {
                 let image = try_from_raw::<LumaA<u8>>(data, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             // we need to really convert data..
             ColorType::L16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Luma<u16>>(&buffer, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ColorType::La16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<LumaA<u16>>(&buffer, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ColorType::Rgb16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgb<u16>>(&buffer, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             ColorType::Rgba16 => {
                 let buffer = cast_buffer(data)?;
                 let image = try_from_raw::<Rgba<u16>>(&buffer, width, height)?;
-                Ok(RgbColor::Rgba8(convert_into(&mut self.fallback, image)))
+                Ok(RgbColor::Rgba8(convert_into(fallback, image)))
             }
             // for cases we do not support at all?
             _ => Err(ImageError::Unsupported(

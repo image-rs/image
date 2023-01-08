@@ -53,7 +53,7 @@ The most important methods for decoders are...
 
 `image` provides the following pixel types:
 + **Rgb**: RGB pixel
-+ **Rgba**: RGBA pixel
++ **Rgba**: RGB with alpha (RGBA pixel)
 + **Luma**: Grayscale pixel
 + **LumaA**: Grayscale with alpha
 

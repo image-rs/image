@@ -273,7 +273,7 @@ pub enum ImageOutputFormat {
     Png,
 
     #[cfg(feature = "jpeg")]
-    /// An Image in JPEG Format with specified quality
+    /// An Image in JPEG Format with specified quality, up to 100
     Jpeg(u8),
 
     #[cfg(feature = "pnm")]

@@ -292,7 +292,7 @@ fn filter_internal(
 
             for ((out, cur), &prev) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(prev_chunks.remainder())
             {
@@ -320,7 +320,7 @@ fn filter_internal(
 
             for (((out, cur), &cur_minus_bpp), &prev) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(cur_minus_bpp_chunks.remainder())
                 .zip(prev_chunks.remainder())
@@ -391,7 +391,7 @@ pub(crate) fn filter(
             let mut filter_choice = FilterType::NoFilter;
             for &filter in [Sub, Up, Avg, Paeth].iter() {
                 filter_internal(filter, bpp, len, previous, current, output);
-                let sum = sum_buffer(&output);
+                let sum = sum_buffer(output);
                 if sum <= min_sum {
                     min_sum = sum;
                     filter_choice = filter;

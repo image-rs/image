@@ -149,7 +149,7 @@ impl ZlibStream {
 
             match status {
                 TINFLStatus::Done => {
-                    self.out_buffer.truncate(self.out_pos as usize);
+                    self.out_buffer.truncate(self.out_pos);
                     image_data.append(&mut self.out_buffer);
                     return Ok(());
                 }

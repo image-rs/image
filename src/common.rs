@@ -365,14 +365,12 @@ impl ScaledFloat {
     /// Slightly inaccurate scaling and quantization.
     /// Clamps the value into the representable range if it is negative or too large.
     pub fn new(value: f32) -> Self {
-        Self {
-            0: Self::forward(value),
-        }
+        Self(Self::forward(value))
     }
 
     /// Fully accurate construction from a value scaled as per specification.
     pub fn from_scaled(val: u32) -> Self {
-        Self { 0: val }
+        Self(val)
     }
 
     /// Get the accurate encoded value.
@@ -382,7 +380,7 @@ impl ScaledFloat {
 
     /// Get the unscaled value as a floating point.
     pub fn into_value(self) -> f32 {
-        Self::reverse(self.0) as f32
+        Self::reverse(self.0)
     }
 
     pub(crate) fn encode_gama<W: Write>(self, w: &mut W) -> encoder::Result<()> {

@@ -605,9 +605,9 @@ impl<R: Read> Reader<R> {
                     let channels = color_type.samples();
                     let trns = get_info!(self).trns.as_ref().unwrap();
                     if bit_depth == 8 {
-                        utils::expand_trns_line(output_buffer, &*trns, channels);
+                        utils::expand_trns_line(output_buffer, trns, channels);
                     } else {
-                        utils::expand_trns_line16(output_buffer, &*trns, channels);
+                        utils::expand_trns_line16(output_buffer, trns, channels);
                     }
                 }
                 _ => (),

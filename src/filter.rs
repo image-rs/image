@@ -56,10 +56,9 @@ impl Default for AdaptiveFilterType {
 
 fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     // Decoding seems to optimize better with this algorithm
-    let p = i16::from(a) + i16::from(b) - i16::from(c);
-    let pa = (p - i16::from(a)).abs();
-    let pb = (p - i16::from(b)).abs();
-    let pc = (p - i16::from(c)).abs();
+    let pa = (i16::from(b) - i16::from(c)).abs();
+    let pb = (i16::from(a) - i16::from(c)).abs();
+    let pc = ((i16::from(a) - i16::from(c)) + (i16::from(b) - i16::from(c))).abs();
 
     let mut out = a;
     let mut min = pa;

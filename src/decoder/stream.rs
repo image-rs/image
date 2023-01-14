@@ -1187,7 +1187,7 @@ impl StreamingDecoder {
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
         let compression_method = *value_slice
-            .get(0)
+            .first()
             .ok_or_else(|| DecodingError::from(TextDecodingError::InvalidCompressionMethod))?;
 
         let text_slice = &value_slice[1..];
@@ -1206,7 +1206,7 @@ impl StreamingDecoder {
         let (keyword_slice, value_slice) = Self::split_keyword(buf)?;
 
         let compression_flag = *value_slice
-            .get(0)
+            .first()
             .ok_or_else(|| DecodingError::from(TextDecodingError::MissingCompressionFlag))?;
 
         let compression_method = *value_slice

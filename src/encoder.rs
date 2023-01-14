@@ -1100,12 +1100,11 @@ impl<'a, W: Write> ChunkWriter<'a, W> {
         // TODO (maybe): find a way to hold two chunks at a time if `usize`
         //               is 64 bits.
         const CAP: usize = std::u32::MAX as usize >> 1;
-        let curr_chunk;
-        if writer.images_written == 0 {
-            curr_chunk = chunk::IDAT;
+        let curr_chunk = if writer.images_written == 0 {
+            chunk::IDAT
         } else {
-            curr_chunk = chunk::fdAT;
-        }
+            chunk::fdAT
+        };
         ChunkWriter {
             writer,
             buffer: vec![0; CAP.min(buf_len)],

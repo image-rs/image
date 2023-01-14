@@ -56,10 +56,9 @@ impl Default for AdaptiveFilterType {
 
 fn filter_paeth_decode(a: u8, b: u8, c: u8) -> u8 {
     // Decoding seems to optimize better with this algorithm
-    let p = i16::from(a) + i16::from(b) - i16::from(c);
-    let pa = (p - i16::from(a)).abs();
-    let pb = (p - i16::from(b)).abs();
-    let pc = (p - i16::from(c)).abs();
+    let pa = (i16::from(b) - i16::from(c)).abs();
+    let pb = (i16::from(a) - i16::from(c)).abs();
+    let pc = ((i16::from(a) - i16::from(c)) + (i16::from(b) - i16::from(c))).abs();
 
     let mut out = a;
     let mut min = pa;
@@ -293,7 +292,7 @@ fn filter_internal(
 
             for ((out, cur), &prev) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(prev_chunks.remainder())
             {
@@ -321,7 +320,7 @@ fn filter_internal(
 
             for (((out, cur), &cur_minus_bpp), &prev) in out_chunks
                 .into_remainder()
-                .into_iter()
+                .iter_mut()
                 .zip(cur_chunks.remainder())
                 .zip(cur_minus_bpp_chunks.remainder())
                 .zip(prev_chunks.remainder())
@@ -392,7 +391,7 @@ pub(crate) fn filter(
             let mut filter_choice = FilterType::NoFilter;
             for &filter in [Sub, Up, Avg, Paeth].iter() {
                 filter_internal(filter, bpp, len, previous, current, output);
-                let sum = sum_buffer(&output);
+                let sum = sum_buffer(output);
                 if sum <= min_sum {
                     min_sum = sum;
                     filter_choice = filter;

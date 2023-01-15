@@ -4,8 +4,8 @@ use png::{FilterType, ColorType, BitDepth};
 #[macro_use] extern crate libfuzzer_sys;
 extern crate png;
 
-fuzz_target!(|data: (u8, u8, u8, u8, u8, Vec<u8>)| {
-    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, data.4, &data.5) {
+fuzz_target!(|data: (u8, u8, u8, u8, u8, u8, Vec<u8>)| {
+    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, data.4, data.5, &data.6) {
         let (_info, raw_decoded) = decode_png(&encoded);
         // raw_decoded can be padded with zeroes at the end, not sure if that's correct
         let raw_decoded = &raw_decoded[..raw.len()];
@@ -13,15 +13,18 @@ fuzz_target!(|data: (u8, u8, u8, u8, u8, Vec<u8>)| {
     }
 });
 
-fn encode_png(width: u8, filter: u8, compression: u8, color_type: u8, bit_depth: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
+fn encode_png(width: u8, filter: u8, compression: u8, color_type: u8, bit_depth: u8, palette_length: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
     // Convert untyped bytes to the correct types and validate them:
     let width = width as u32;
     if width == 0 { return None };
     let filter = FilterType::from_u8(filter)?;
-    let bit_depth = BitDepth::from_u8(bit_depth)?;
+    let mut bit_depth = BitDepth::from_u8(bit_depth)?;
     let color_type = ColorType::from_u8(color_type)?;
+    let mut palette = Vec::<u8>::new();
     if let ColorType::Indexed = color_type {
-        return None // TODO: palette needs more data, not supported yet
+        // when palette_length is provided, infer new bit_depth so that palette_length <= 2 ** bit_depth
+        bit_depth = BitDepth::from_u8((palette_length as f32).log2().ceil() as u8)?;
+        palette = generate_palette(palette_length);
     }
     // compression
     let compression = match compression {
@@ -49,6 +52,9 @@ fn encode_png(width: u8, filter: u8, compression: u8, color_type: u8, bit_depth:
         encoder.set_color(color_type);
         encoder.set_filter(filter);
         encoder.set_compression(compression);
+        if let ColorType::Indexed = color_type {
+            encoder.set_palette(palette)
+        }
         // write_header will return an error given invalid parameters,
         // such as height 0, or invalid color mode and bit depth combination
         let mut writer = encoder.write_header().ok()?;
@@ -81,4 +87,15 @@ fn raw_row_length_from_width(depth: BitDepth, color: ColorType, width: u32) -> u
             whole + fract
         }
     }
+}
+
+fn generate_palette(palette_length: u8) -> Vec<u8> {
+    let mut palette = Vec::<u8>::new();
+    for i in 0..palette_length {
+        palette.push(i);
+        palette.push(i);
+        palette.push(i);
+        palette.push(i);
+    }
+    palette
 }

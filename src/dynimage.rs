@@ -629,27 +629,24 @@ impl DynamicImage {
     pub fn grayscale(&self) -> DynamicImage {
         match *self {
             DynamicImage::ImageLuma8(ref p) => DynamicImage::ImageLuma8(p.clone()),
-            DynamicImage::ImageLumaA8(ref p) => {
-                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
-            }
-            DynamicImage::ImageRgb8(ref p) => DynamicImage::ImageLuma8(imageops::grayscale(p)),
-            DynamicImage::ImageRgba8(ref p) => {
-                DynamicImage::ImageLumaA8(imageops::grayscale_alpha(p))
-            }
+
+            DynamicImage::ImageLumaA8(ref p) => DynamicImage::ImageLumaA8(p.clone()),
+
+            DynamicImage::ImageRgb8(_) => dynamic_map!(*self, |ref p| DynamicImage::ImageLuma8(p.convert())), 
+
+            DynamicImage::ImageRgba8(_) => dynamic_map!(*self, |ref p| DynamicImage::ImageLumaA8(p.convert())),
+
             DynamicImage::ImageLuma16(ref p) => DynamicImage::ImageLuma16(p.clone()),
-            DynamicImage::ImageLumaA16(ref p) => {
-                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
-            }
-            DynamicImage::ImageRgb16(ref p) => DynamicImage::ImageLuma16(imageops::grayscale(p)),
-            DynamicImage::ImageRgba16(ref p) => {
-                DynamicImage::ImageLumaA16(imageops::grayscale_alpha(p))
-            }
-            DynamicImage::ImageRgb32F(ref p) => {
-                DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p))
-            }
-            DynamicImage::ImageRgba32F(ref p) => {
-                DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p))
-            }
+
+            DynamicImage::ImageLumaA16(ref p) => DynamicImage::ImageLumaA16(p.clone()),
+
+            DynamicImage::ImageRgb16(_) => dynamic_map!(*self, |ref p| DynamicImage::ImageLuma16(p.convert())),
+
+            DynamicImage::ImageRgba16(_) => dynamic_map!(*self, |ref p| DynamicImage::ImageLumaA16(p.convert())),
+
+            DynamicImage::ImageRgb32F(ref p) => DynamicImage::ImageRgb32F(imageops::grayscale_with_type(p)),
+
+            DynamicImage::ImageRgba32F(ref p) => DynamicImage::ImageRgba32F(imageops::grayscale_with_type_alpha(p)),
         }
     }
 

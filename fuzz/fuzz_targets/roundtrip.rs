@@ -4,8 +4,8 @@ use png::{FilterType, ColorType, BitDepth};
 #[macro_use] extern crate libfuzzer_sys;
 extern crate png;
 
-fuzz_target!(|data: (u8, u8, u8, u8, u8, u8, Vec<u8>)| {
-    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, data.4, data.5, &data.6) {
+fuzz_target!(|data: (u8, u8, u8, u8, u8, Vec<u8>, Vec<u8>)| {
+    if let Some((raw, encoded)) = encode_png(data.0, data.1, data.2, data.3, data.4, &data.5, &data.6) {
         let (_info, raw_decoded) = decode_png(&encoded);
         // raw_decoded can be padded with zeroes at the end, not sure if that's correct
         let raw_decoded = &raw_decoded[..raw.len()];
@@ -13,18 +13,20 @@ fuzz_target!(|data: (u8, u8, u8, u8, u8, u8, Vec<u8>)| {
     }
 });
 
-fn encode_png(width: u8, filter: u8, compression: u8, color_type: u8, bit_depth: u8, palette_length: u8, data: &[u8]) -> Option<(&[u8], Vec<u8>)> {
+fn encode_png<'a>(width: u8, filter: u8, compression: u8, color_type: u8, raw_bit_depth: u8, raw_palette: &'a [u8], data: &'a [u8]) -> Option<(&'a [u8], Vec<u8>)> {
     // Convert untyped bytes to the correct types and validate them:
     let width = width as u32;
     if width == 0 { return None };
     let filter = FilterType::from_u8(filter)?;
-    let mut bit_depth = BitDepth::from_u8(bit_depth)?;
+    let bit_depth = BitDepth::from_u8(raw_bit_depth)?;
+    let max_palette_length = 3 * u32::pow(2, raw_bit_depth as u32) as usize;
+    let mut palette = raw_palette;
     let color_type = ColorType::from_u8(color_type)?;
-    let mut palette = Vec::<u8>::new();
     if let ColorType::Indexed = color_type {
-        // when palette_length is provided, infer new bit_depth so that palette_length <= 2 ** bit_depth
-        bit_depth = BitDepth::from_u8((palette_length as f32).log2().ceil() as u8)?;
-        palette = generate_palette(palette_length);
+        // when palette is needed, ensure that palette.len() <= 2 ^ bit_depth
+        if raw_palette.len() > max_palette_length {
+            palette = &raw_palette[..max_palette_length];
+        }
     }
     // compression
     let compression = match compression {
@@ -87,15 +89,4 @@ fn raw_row_length_from_width(depth: BitDepth, color: ColorType, width: u32) -> u
             whole + fract
         }
     }
-}
-
-fn generate_palette(palette_length: u8) -> Vec<u8> {
-    let mut palette = Vec::<u8>::new();
-    for i in 0..palette_length {
-        palette.push(i);
-        palette.push(i);
-        palette.push(i);
-        palette.push(i);
-    }
-    palette
 }

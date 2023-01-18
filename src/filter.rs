@@ -312,8 +312,10 @@ fn filter_internal(
                 .zip(&mut prev_chunks)
             {
                 for i in 0..CHUNK_SIZE {
+                    // Bitwise average of two integers without overflow and
+                    // without converting to a wider bit-width
                     out[i] = cur[i].wrapping_sub(
-                        ((u16::from(cur_minus_bpp[i]) + u16::from(prev[i])) / 2) as u8,
+                        (cur_minus_bpp[i] & prev[i]) + ((cur_minus_bpp[i] ^ prev[i]) >> 1),
                     );
                 }
             }
@@ -325,7 +327,7 @@ fn filter_internal(
                 .zip(cur_minus_bpp_chunks.remainder())
                 .zip(prev_chunks.remainder())
             {
-                *out = cur.wrapping_sub(((u16::from(cur_minus_bpp) + u16::from(prev)) / 2) as u8);
+                *out = cur.wrapping_sub((cur_minus_bpp & prev) + ((cur_minus_bpp ^ prev) >> 1));
             }
 
             for i in 0..bpp {

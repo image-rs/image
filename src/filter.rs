@@ -1,3 +1,5 @@
+use core::convert::TryInto;
+
 use crate::common::BytesPerPixel;
 
 /// The byte level filter applied to scanlines to prepare them for compression.
@@ -139,20 +141,6 @@ pub(crate) fn unfilter(
         n ^ (x ^ y) & 0x8080808080808080
     }
 
-    // Average of two integers without overflow or casting to a larger bit-width
-    // http://aggregate.org/MAGIC/#Average%20of%20Integers
-    // The base algorithm:
-    //     (x & y) + ((x ^ y) >> 1)
-    fn swar_avg_u32(x: u32, y: u32) -> u32 {
-        // Calculate 4 averages at once masking out the MSB on the right operand
-        // so right-shifted values don't interfere with their neighbors.
-        (x & y) + (((x ^ y) >> 1) & 0x7f7f7f7f)
-    }
-
-    fn swar_avg_u64(x: u64, y: u64) -> u64 {
-        (x & y) + (((x ^ y) >> 1) & 0x7f7f7f7f7f7f7f7f)
-    }
-
     match filter {
         NoFilter => {}
         Sub => match tbpp {
@@ -260,74 +248,79 @@ pub(crate) fn unfilter(
                 BytesPerPixel::Two => avg_tail_2(current, previous),
                 BytesPerPixel::Three => {
                     assert!(len > 2);
-                    let mut lprev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
+                    let mut lprev = [current[0], current[1], current[2]];
                     for (chunk, above) in current[3..]
                         .chunks_exact_mut(3)
                         .zip(previous[3..].chunks_exact(3))
                     {
-                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], 0]);
-                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
-                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
+                        let new_chunk = [
+                            chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                            chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                            chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                        ];
+                        *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
                         lprev = new_chunk;
                     }
                 }
                 BytesPerPixel::Four => {
                     assert!(len > 3);
-                    let mut lprev =
-                        u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
+                    let mut lprev = [current[0], current[1], current[2], current[3]];
                     for (chunk, above) in current[4..]
                         .chunks_exact_mut(4)
                         .zip(previous[4..].chunks_exact(4))
                     {
-                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], above[3]]);
-                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                        let new_chunk = [
+                            chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                            chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                            chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                            chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                        ];
+                        *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
                         lprev = new_chunk;
                     }
                 }
                 BytesPerPixel::Six => {
                     assert!(len > 5);
-                    let mut lprev = u64::from_ne_bytes([
-                        current[0], current[1], current[2], current[3], current[4], current[5], 0,
-                        0,
-                    ]);
+                    let mut lprev = [
+                        current[0], current[1], current[2], current[3], current[4], current[5],
+                    ];
                     for (chunk, above) in current[6..]
                         .chunks_exact_mut(6)
                         .zip(previous[6..].chunks_exact(6))
                     {
-                        let pprev = u64::from_ne_bytes([
-                            above[0], above[1], above[2], above[3], above[4], above[5], 0, 0,
-                        ]);
-                        let pcurrent = u64::from_ne_bytes([
-                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], 0, 0,
-                        ]);
-                        let new_chunk = swar_add_u64(pcurrent, swar_avg_u64(pprev, lprev));
-                        chunk[..6].copy_from_slice(&new_chunk.to_ne_bytes()[..6]);
+                        let new_chunk = [
+                            chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                            chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                            chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                            chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                            chunk[4].wrapping_add(((above[4] as u16 + lprev[4] as u16) / 2) as u8),
+                            chunk[5].wrapping_add(((above[5] as u16 + lprev[5] as u16) / 2) as u8),
+                        ];
+                        *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
                         lprev = new_chunk;
                     }
                 }
                 BytesPerPixel::Eight => {
                     assert!(len > 7);
-                    let mut lprev = u64::from_ne_bytes([
+                    let mut lprev = [
                         current[0], current[1], current[2], current[3], current[4], current[5],
                         current[6], current[7],
-                    ]);
+                    ];
                     for (chunk, above) in current[8..]
                         .chunks_exact_mut(8)
                         .zip(previous[8..].chunks_exact(8))
                     {
-                        let pprev = u64::from_ne_bytes([
-                            above[0], above[1], above[2], above[3], above[4], above[5], above[6],
-                            above[7],
-                        ]);
-                        let pcurrent = u64::from_ne_bytes([
-                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                            chunk[7],
-                        ]);
-                        let new_chunk = swar_add_u64(pcurrent, swar_avg_u64(pprev, lprev));
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                        let new_chunk = [
+                            chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                            chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                            chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                            chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                            chunk[4].wrapping_add(((above[4] as u16 + lprev[4] as u16) / 2) as u8),
+                            chunk[5].wrapping_add(((above[5] as u16 + lprev[5] as u16) / 2) as u8),
+                            chunk[6].wrapping_add(((above[6] as u16 + lprev[6] as u16) / 2) as u8),
+                            chunk[7].wrapping_add(((above[7] as u16 + lprev[7] as u16) / 2) as u8),
+                        ];
+                        *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
                         lprev = new_chunk;
                     }
                 }

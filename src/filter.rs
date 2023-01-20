@@ -329,21 +329,120 @@ pub(crate) fn unfilter(
             }
         }
         Paeth => {
-            for i in 0..bpp {
-                current[i] = current[i].wrapping_add(filter_paeth_decode(0, previous[i], 0));
-            }
-
             // Paeth filter pixels:
             // C B D
             // A X
-            for (((i, a_index), &b_pixel), &c_pixel) in
-                (bpp..).zip(0..).zip(&previous[bpp..]).zip(previous)
-            {
-                current[i] = current[i].wrapping_add(filter_paeth_decode(
-                    current[a_index],
-                    b_pixel,
-                    c_pixel,
-                ));
+            match tbpp {
+                BytesPerPixel::Three => {
+                    assert!(len > 2);
+                    let mut a_bpp = [0; 3];
+                    let mut c_bpp = [0; 3];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(3).zip(previous.chunks_exact(3))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                        ];
+                        *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Four => {
+                    assert!(len > 3);
+                    let mut a_bpp = [0; 4];
+                    let mut c_bpp = [0; 4];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(4).zip(previous.chunks_exact(4))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                        ];
+                        *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Six => {
+                    assert!(len > 5);
+                    let mut a_bpp = [0; 6];
+                    let mut c_bpp = [0; 6];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(6).zip(previous.chunks_exact(6))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                            chunk[4]
+                                .wrapping_add(filter_paeth_decode(a_bpp[4], b_bpp[4], c_bpp[4])),
+                            chunk[5]
+                                .wrapping_add(filter_paeth_decode(a_bpp[5], b_bpp[5], c_bpp[5])),
+                        ];
+                        *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Eight => {
+                    assert!(len > 7);
+                    let mut a_bpp = [0; 8];
+                    let mut c_bpp = [0; 8];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(8).zip(previous.chunks_exact(8))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                            chunk[4]
+                                .wrapping_add(filter_paeth_decode(a_bpp[4], b_bpp[4], c_bpp[4])),
+                            chunk[5]
+                                .wrapping_add(filter_paeth_decode(a_bpp[5], b_bpp[5], c_bpp[5])),
+                            chunk[6]
+                                .wrapping_add(filter_paeth_decode(a_bpp[6], b_bpp[6], c_bpp[6])),
+                            chunk[7]
+                                .wrapping_add(filter_paeth_decode(a_bpp[7], b_bpp[7], c_bpp[7])),
+                        ];
+                        *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                _ => {
+                    for i in 0..bpp {
+                        current[i] =
+                            current[i].wrapping_add(filter_paeth_decode(0, previous[i], 0));
+                    }
+
+                    for (((i, a_index), &b_pixel), &c_pixel) in
+                        (bpp..).zip(0..).zip(&previous[bpp..]).zip(previous)
+                    {
+                        current[i] = current[i].wrapping_add(filter_paeth_decode(
+                            current[a_index],
+                            b_pixel,
+                            c_pixel,
+                        ));
+                    }
+                }
             }
         }
     }

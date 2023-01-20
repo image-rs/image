@@ -278,29 +278,37 @@ pub(crate) fn unfilter(
                 };
             }
 
-            avg_tail!(avg_tail_2, 2);
             avg_tail!(avg_tail_1, 1);
+            avg_tail!(avg_tail_2, 2);
 
             match tbpp {
-                BytesPerPixel::Eight => {
-                    assert!(len > 7);
-                    let mut lprev = u64::from_ne_bytes([
-                        current[0], current[1], current[2], current[3], current[4], current[5],
-                        current[6], current[7],
-                    ]);
-                    for (chunk, above) in current[8..]
-                        .chunks_exact_mut(8)
-                        .zip(previous[8..].chunks_exact(8))
+                BytesPerPixel::One => avg_tail_1(current, previous),
+                BytesPerPixel::Two => avg_tail_2(current, previous),
+                BytesPerPixel::Three => {
+                    assert!(len > 2);
+                    let mut lprev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
+                    for (chunk, above) in current[3..]
+                        .chunks_exact_mut(3)
+                        .zip(previous[3..].chunks_exact(3))
                     {
-                        let pprev = u64::from_ne_bytes([
-                            above[0], above[1], above[2], above[3], above[4], above[5], above[6],
-                            above[7],
-                        ]);
-                        let pcurrent = u64::from_ne_bytes([
-                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                            chunk[7],
-                        ]);
-                        let new_chunk = swar_add_u64(pcurrent, swar_avg_u64(pprev, lprev));
+                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], 0]);
+                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
+                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
+                        chunk.copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
+                        lprev = new_chunk;
+                    }
+                }
+                BytesPerPixel::Four => {
+                    assert!(len > 3);
+                    let mut lprev =
+                        u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
+                    for (chunk, above) in current[4..]
+                        .chunks_exact_mut(4)
+                        .zip(previous[4..].chunks_exact(4))
+                    {
+                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], above[3]]);
+                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
                         chunk.copy_from_slice(&new_chunk.to_ne_bytes());
                         lprev = new_chunk;
                     }
@@ -326,37 +334,29 @@ pub(crate) fn unfilter(
                         lprev = new_chunk;
                     }
                 }
-                BytesPerPixel::Four => {
-                    assert!(len > 3);
-                    let mut lprev =
-                        u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
-                    for (chunk, above) in current[4..]
-                        .chunks_exact_mut(4)
-                        .zip(previous[4..].chunks_exact(4))
+                BytesPerPixel::Eight => {
+                    assert!(len > 7);
+                    let mut lprev = u64::from_ne_bytes([
+                        current[0], current[1], current[2], current[3], current[4], current[5],
+                        current[6], current[7],
+                    ]);
+                    for (chunk, above) in current[8..]
+                        .chunks_exact_mut(8)
+                        .zip(previous[8..].chunks_exact(8))
                     {
-                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], above[3]]);
-                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
+                        let pprev = u64::from_ne_bytes([
+                            above[0], above[1], above[2], above[3], above[4], above[5], above[6],
+                            above[7],
+                        ]);
+                        let pcurrent = u64::from_ne_bytes([
+                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                            chunk[7],
+                        ]);
+                        let new_chunk = swar_add_u64(pcurrent, swar_avg_u64(pprev, lprev));
                         chunk.copy_from_slice(&new_chunk.to_ne_bytes());
                         lprev = new_chunk;
                     }
                 }
-                BytesPerPixel::Three => {
-                    assert!(len > 2);
-                    let mut lprev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
-                    for (chunk, above) in current[3..]
-                        .chunks_exact_mut(3)
-                        .zip(previous[3..].chunks_exact(3))
-                    {
-                        let pprev = u32::from_ne_bytes([above[0], above[1], above[2], 0]);
-                        let pcurrent = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
-                        let new_chunk = swar_add_u32(pcurrent, swar_avg_u32(pprev, lprev));
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
-                        lprev = new_chunk;
-                    }
-                }
-                BytesPerPixel::Two => avg_tail_2(current, previous),
-                BytesPerPixel::One => avg_tail_1(current, previous),
             }
 
             Ok(())

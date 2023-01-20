@@ -120,17 +120,10 @@ pub(crate) fn unfilter(
     tbpp: BytesPerPixel,
     previous: &[u8],
     current: &mut [u8],
-) -> std::result::Result<(), &'static str> {
+) {
     use self::FilterType::*;
     let bpp = tbpp.into_usize();
     let len = current.len();
-
-    fn require_length(slice: &[u8], length: usize) -> Result<&[u8], &'static str> {
-        match slice.get(..length) {
-            None => Err("Filtering failed: not enough data in previous row"),
-            Some(slice) => Ok(slice),
-        }
-    }
 
     // SIMD Within a Register, see "Unpartitioned Operations With Correction Code"
     // http://aggregate.org/SWAR/over.html
@@ -161,89 +154,70 @@ pub(crate) fn unfilter(
     }
 
     match filter {
-        NoFilter => Ok(()),
-        Sub => {
-            let current = &mut current[..len];
-            if bpp > len {
-                return Err("Filtering failed: bytes per pixel is greater than length of row");
-            }
-
-            match tbpp {
-                BytesPerPixel::Three => {
-                    assert!(len > 2);
-                    let mut prev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
-                    for chunk in current[3..].chunks_exact_mut(3) {
-                        let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
-                        let new_chunk = swar_add_u32(cur, prev);
-                        chunk[..3].copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
-                        prev = new_chunk;
-                    }
-                }
-                BytesPerPixel::Four => {
-                    assert!(len > 3);
-                    let mut prev =
-                        u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
-                    for chunk in current[4..].chunks_exact_mut(4) {
-                        let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                        let new_chunk = swar_add_u32(cur, prev);
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes());
-                        prev = new_chunk;
-                    }
-                }
-                BytesPerPixel::Six => {
-                    assert!(len > 5);
-                    let mut prev = u64::from_ne_bytes([
-                        current[0], current[1], current[2], current[3], current[4], current[5], 0,
-                        0,
-                    ]);
-                    for chunk in current[6..].chunks_exact_mut(6) {
-                        let cur = u64::from_ne_bytes([
-                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], 0, 0,
-                        ]);
-                        let new_chunk = swar_add_u64(cur, prev);
-                        chunk[..6].copy_from_slice(&new_chunk.to_ne_bytes()[..6]);
-                        prev = new_chunk;
-                    }
-                }
-                BytesPerPixel::Eight => {
-                    assert!(len > 7);
-                    let mut prev = u64::from_ne_bytes([
-                        current[0], current[1], current[2], current[3], current[4], current[5],
-                        current[6], current[7],
-                    ]);
-                    for chunk in current[8..].chunks_exact_mut(8) {
-                        let cur = u64::from_ne_bytes([
-                            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                            chunk[7],
-                        ]);
-                        let new_chunk = swar_add_u64(cur, prev);
-                        chunk.copy_from_slice(&new_chunk.to_ne_bytes());
-                        prev = new_chunk;
-                    }
-                }
-                _ => {
-                    for i in bpp..len {
-                        current[i] = current[i].wrapping_add(current[i - bpp]);
-                    }
+        NoFilter => {}
+        Sub => match tbpp {
+            BytesPerPixel::Three => {
+                assert!(len > 2);
+                let mut prev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
+                for chunk in current[3..].chunks_exact_mut(3) {
+                    let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
+                    let new_chunk = swar_add_u32(cur, prev);
+                    chunk[..3].copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
+                    prev = new_chunk;
                 }
             }
-            Ok(())
-        }
+            BytesPerPixel::Four => {
+                assert!(len > 3);
+                let mut prev = u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
+                for chunk in current[4..].chunks_exact_mut(4) {
+                    let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    let new_chunk = swar_add_u32(cur, prev);
+                    chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Six => {
+                assert!(len > 5);
+                let mut prev = u64::from_ne_bytes([
+                    current[0], current[1], current[2], current[3], current[4], current[5], 0, 0,
+                ]);
+                for chunk in current[6..].chunks_exact_mut(6) {
+                    let cur = u64::from_ne_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], 0, 0,
+                    ]);
+                    let new_chunk = swar_add_u64(cur, prev);
+                    chunk[..6].copy_from_slice(&new_chunk.to_ne_bytes()[..6]);
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Eight => {
+                assert!(len > 7);
+                let mut prev = u64::from_ne_bytes([
+                    current[0], current[1], current[2], current[3], current[4], current[5],
+                    current[6], current[7],
+                ]);
+                for chunk in current[8..].chunks_exact_mut(8) {
+                    let cur = u64::from_ne_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ]);
+                    let new_chunk = swar_add_u64(cur, prev);
+                    chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                    prev = new_chunk;
+                }
+            }
+            _ => {
+                for i in bpp..len {
+                    current[i] = current[i].wrapping_add(current[i - bpp]);
+                }
+            }
+        },
         Up => {
-            let current = &mut current[..len];
-            let previous = require_length(previous, len)?;
             for i in 0..len {
                 current[i] = current[i].wrapping_add(previous[i]);
             }
-            Ok(())
         }
         Avg => {
-            let current = &mut current[..len];
-            let previous = require_length(previous, len)?;
-            if bpp > len {
-                return Err("Filtering failed: bytes per pixel is greater than length of row");
-            }
-
             for i in 0..bpp {
                 current[i] = current[i].wrapping_add(previous[i] / 2);
             }
@@ -358,15 +332,8 @@ pub(crate) fn unfilter(
                     }
                 }
             }
-
-            Ok(())
         }
         Paeth => {
-            let previous = require_length(previous, len)?;
-            if bpp > len {
-                return Err("Filtering failed: bytes per pixel is greater than length of row");
-            }
-
             for i in 0..bpp {
                 current[i] = current[i].wrapping_add(filter_paeth_decode(0, previous[i], 0));
             }
@@ -383,8 +350,6 @@ pub(crate) fn unfilter(
                     c_pixel,
                 ));
             }
-
-            Ok(())
         }
     }
 }
@@ -602,7 +567,7 @@ mod test {
         let roundtrip = |kind, bpp: BytesPerPixel| {
             let mut output = vec![0; LEN.into()];
             filter(kind, adaptive, bpp, &previous, &current, &mut output);
-            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
+            unfilter(kind, bpp, &previous, &mut output);
             assert_eq!(
                 output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",
@@ -646,7 +611,7 @@ mod test {
         let roundtrip = |kind, bpp: BytesPerPixel| {
             let mut output = vec![0; LEN.into()];
             filter(kind, adaptive, bpp, &previous, &current, &mut output);
-            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
+            unfilter(kind, bpp, &previous, &mut output);
             assert_eq!(
                 output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",

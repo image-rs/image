@@ -127,70 +127,72 @@ pub(crate) fn unfilter(
     let bpp = tbpp.into_usize();
     let len = current.len();
 
-    // SIMD Within a Register, see "Unpartitioned Operations With Correction Code"
-    // http://aggregate.org/SWAR/over.html
-    fn swar_add_u32(x: u32, y: u32) -> u32 {
-        // Do 7-bit addition so there's no carry over the most significant bit
-        let n = (x & 0x7f7f7f7f) + (y & 0x7f7f7f7f);
-        // 1-bit parity/XOR addition to fill in the missing MSB
-        n ^ (x ^ y) & 0x80808080
-    }
-
-    fn swar_add_u64(x: u64, y: u64) -> u64 {
-        let n = (x & 0x7f7f7f7f7f7f7f7f) + (y & 0x7f7f7f7f7f7f7f7f);
-        n ^ (x ^ y) & 0x8080808080808080
-    }
-
     match filter {
         NoFilter => {}
         Sub => match tbpp {
             BytesPerPixel::Three => {
                 assert!(len > 2);
-                let mut prev = u32::from_ne_bytes([current[0], current[1], current[2], 0]);
+                let mut prev = [current[0], current[1], current[2]];
                 for chunk in current[3..].chunks_exact_mut(3) {
-                    let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], 0]);
-                    let new_chunk = swar_add_u32(cur, prev);
-                    chunk[..3].copy_from_slice(&new_chunk.to_ne_bytes()[..3]);
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                    ];
+                    *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
                     prev = new_chunk;
                 }
             }
             BytesPerPixel::Four => {
                 assert!(len > 3);
-                let mut prev = u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
+                let mut prev = [current[0], current[1], current[2], current[3]];
                 for chunk in current[4..].chunks_exact_mut(4) {
-                    let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                    let new_chunk = swar_add_u32(cur, prev);
-                    chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                    ];
+                    *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
                     prev = new_chunk;
                 }
             }
             BytesPerPixel::Six => {
                 assert!(len > 5);
-                let mut prev = u64::from_ne_bytes([
-                    current[0], current[1], current[2], current[3], current[4], current[5], 0, 0,
-                ]);
+                let mut prev = [
+                    current[0], current[1], current[2], current[3], current[4], current[5],
+                ];
                 for chunk in current[6..].chunks_exact_mut(6) {
-                    let cur = u64::from_ne_bytes([
-                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], 0, 0,
-                    ]);
-                    let new_chunk = swar_add_u64(cur, prev);
-                    chunk[..6].copy_from_slice(&new_chunk.to_ne_bytes()[..6]);
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                        chunk[4].wrapping_add(prev[4]),
+                        chunk[5].wrapping_add(prev[5]),
+                    ];
+                    *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
                     prev = new_chunk;
                 }
             }
             BytesPerPixel::Eight => {
                 assert!(len > 7);
-                let mut prev = u64::from_ne_bytes([
+                let mut prev = [
                     current[0], current[1], current[2], current[3], current[4], current[5],
                     current[6], current[7],
-                ]);
+                ];
                 for chunk in current[8..].chunks_exact_mut(8) {
-                    let cur = u64::from_ne_bytes([
-                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                        chunk[7],
-                    ]);
-                    let new_chunk = swar_add_u64(cur, prev);
-                    chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                        chunk[4].wrapping_add(prev[4]),
+                        chunk[5].wrapping_add(prev[5]),
+                        chunk[6].wrapping_add(prev[6]),
+                        chunk[7].wrapping_add(prev[7]),
+                    ];
+                    *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
                     prev = new_chunk;
                 }
             }

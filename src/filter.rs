@@ -1,3 +1,5 @@
+use core::convert::TryInto;
+
 use crate::common::BytesPerPixel;
 
 /// The byte level filter applied to scanlines to prepare them for compression.
@@ -120,118 +122,367 @@ pub(crate) fn unfilter(
     tbpp: BytesPerPixel,
     previous: &[u8],
     current: &mut [u8],
-) -> std::result::Result<(), &'static str> {
+) {
     use self::FilterType::*;
-    let bpp = tbpp.into_usize();
-    let len = current.len();
 
-    fn require_length(slice: &[u8], length: usize) -> Result<&[u8], &'static str> {
-        match slice.get(..length) {
-            None => Err("Filtering failed: not enough data in previous row"),
-            Some(slice) => Ok(slice),
-        }
-    }
-
+    // [2023/01 @okaneco] - Notes on optimizing decoding filters
+    //
+    // Links:
+    // [PR]: https://github.com/image-rs/image-png/pull/382
+    // [SWAR]: http://aggregate.org/SWAR/over.html
+    // [AVG]: http://aggregate.org/MAGIC/#Average%20of%20Integers
+    //
+    // #382 heavily refactored and optimized the following filters making the
+    // implementation nonobvious. These comments function as a summary of that
+    // PR with an explanation of the choices made below.
+    //
+    // #382 originally started with trying to optimize using a technique called
+    // SWAR, SIMD Within a Register. SWAR uses regular integer types like `u32`
+    // and `u64` as SIMD registers to perform vertical operations in parallel,
+    // usually involving bit-twiddling. This allowed each `BytesPerPixel` (bpp)
+    // pixel to be decoded in parallel: 3bpp and 4bpp in a `u32`, 6bpp and 8pp
+    // in a `u64`. The `Sub` filter looked like the following code block, `Avg`
+    // was similar but used a bitwise average method from [AVG]:
+    // ```
+    // // See "Unpartitioned Operations With Correction Code" from [SWAR]
+    // fn swar_add_u32(x: u32, y: u32) -> u32 {
+    //     // 7-bit addition so there's no carry over the most significant bit
+    //     let n = (x & 0x7f7f7f7f) + (y & 0x7f7f7f7f); // 0x7F = 0b_0111_1111
+    //     // 1-bit parity/XOR addition to fill in the missing MSB
+    //     n ^ (x ^ y) & 0x80808080                     // 0x80 = 0b_1000_0000
+    // }
+    //
+    // let mut prev =
+    //     u32::from_ne_bytes([current[0], current[1], current[2], current[3]]);
+    // for chunk in current[4..].chunks_exact_mut(4) {
+    //     let cur = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    //     let new_chunk = swar_add_u32(cur, prev);
+    //     chunk.copy_from_slice(&new_chunk.to_ne_bytes());
+    //     prev = new_chunk;
+    // }
+    // ```
+    // While this provided a measurable increase, @fintelia found that this idea
+    // could be taken even further by unrolling the chunks component-wise and
+    // avoiding unnecessary byte-shuffling by using byte arrays instead of
+    // `u32::from|to_ne_bytes`. The bitwise operations were no longer necessary
+    // so they were reverted to their obvious arithmetic equivalent. Lastly,
+    // `TryInto` was used instead of `copy_from_slice`. The `Sub` code now
+    // looked like this (with asserts to remove `0..bpp` bounds checks):
+    // ```
+    // assert!(len > 3);
+    // let mut prev = [current[0], current[1], current[2], current[3]];
+    // for chunk in current[4..].chunks_exact_mut(4) {
+    //     let new_chunk = [
+    //         chunk[0].wrapping_add(prev[0]),
+    //         chunk[1].wrapping_add(prev[1]),
+    //         chunk[2].wrapping_add(prev[2]),
+    //         chunk[3].wrapping_add(prev[3]),
+    //     ];
+    //     *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+    //     prev = new_chunk;
+    // }
+    // ```
+    // The compiler was able to optimize the code to be even faster and this
+    // method even sped up Paeth filtering! Assertions were experimentally
+    // added within loop bodies which produced better instructions but no
+    // difference in speed. Finally, the code was refactored to remove manual
+    // slicing and start the previous pixel chunks with arrays of `[0; N]`.
+    // ```
+    // let mut prev = [0; 4];
+    // for chunk in current.chunks_exact_mut(4) {
+    //     let new_chunk = [
+    //         chunk[0].wrapping_add(prev[0]),
+    //         chunk[1].wrapping_add(prev[1]),
+    //         chunk[2].wrapping_add(prev[2]),
+    //         chunk[3].wrapping_add(prev[3]),
+    //     ];
+    //     *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+    //     prev = new_chunk;
+    // }
+    // ```
+    // While we're not manually bit-twiddling anymore, a possible takeaway from
+    // this is to "think in SWAR" when dealing with small byte arrays. Unrolling
+    // array operations and performing them component-wise may unlock previously
+    // unavailable optimizations from the compiler, even when using the
+    // `chunks_exact` methods for their potential auto-vectorization benefits.
     match filter {
-        NoFilter => Ok(()),
-        Sub => {
-            let current = &mut current[..len];
-            for i in bpp..len {
-                current[i] = current[i].wrapping_add(current[i - bpp]);
+        NoFilter => {}
+        Sub => match tbpp {
+            // These variants regressed instruction count with no performance
+            // benefit when converted to use `chunks`, leave as an obvious loop
+            BytesPerPixel::One | BytesPerPixel::Two => {
+                let bpp = tbpp.into_usize();
+                for i in bpp..current.len() {
+                    current[i] = current[i].wrapping_add(current[i - bpp]);
+                }
             }
-            Ok(())
-        }
+            BytesPerPixel::Three => {
+                let mut prev = [0; 3];
+                for chunk in current.chunks_exact_mut(3) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                    ];
+                    *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Four => {
+                let mut prev = [0; 4];
+                for chunk in current.chunks_exact_mut(4) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                    ];
+                    *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Six => {
+                let mut prev = [0; 6];
+                for chunk in current.chunks_exact_mut(6) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                        chunk[4].wrapping_add(prev[4]),
+                        chunk[5].wrapping_add(prev[5]),
+                    ];
+                    *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+            BytesPerPixel::Eight => {
+                let mut prev = [0; 8];
+                for chunk in current.chunks_exact_mut(8) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                        chunk[2].wrapping_add(prev[2]),
+                        chunk[3].wrapping_add(prev[3]),
+                        chunk[4].wrapping_add(prev[4]),
+                        chunk[5].wrapping_add(prev[5]),
+                        chunk[6].wrapping_add(prev[6]),
+                        chunk[7].wrapping_add(prev[7]),
+                    ];
+                    *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
+                }
+            }
+        },
         Up => {
-            let current = &mut current[..len];
-            let previous = require_length(previous, len)?;
-            for i in 0..len {
+            // `chunks_exact[_mut]` won't help here
+            for i in 0..current.len() {
                 current[i] = current[i].wrapping_add(previous[i]);
             }
-            Ok(())
         }
-        Avg => {
-            let current = &mut current[..len];
-            let previous = require_length(previous, len)?;
-            if bpp > len {
-                return Err("Filtering failed: bytes per pixel is greater than length of row");
+        Avg => match tbpp {
+            BytesPerPixel::One => {
+                let mut lprev = [0; 1];
+                for (chunk, above) in current.chunks_exact_mut(1).zip(previous.chunks_exact(1)) {
+                    let new_chunk =
+                        [chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8)];
+                    *TryInto::<&mut [u8; 1]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
             }
-
-            for i in 0..bpp {
-                current[i] = current[i].wrapping_add(previous[i] / 2);
+            BytesPerPixel::Two => {
+                let mut lprev = [0; 2];
+                for (chunk, above) in current.chunks_exact_mut(2).zip(previous.chunks_exact(2)) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                        chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                    ];
+                    *TryInto::<&mut [u8; 2]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
             }
-
-            macro_rules! avg_tail {
-                ($name:ident, $bpp:expr) => {
-                    fn $name(current: &mut [u8], previous: &[u8]) {
-                        let len = current.len();
-                        let current = &mut current[..len];
-                        let previous = &previous[..len];
-
-                        let mut current = current.chunks_exact_mut($bpp);
-                        let mut previous = previous.chunks_exact($bpp);
-
-                        let mut lprevious = current.next().unwrap();
-                        let _ = previous.next();
-
-                        while let Some(pprevious) = previous.next() {
-                            let pcurrent = current.next().unwrap();
-
-                            for i in 0..$bpp {
-                                let lprev = lprevious[i];
-                                let pprev = pprevious[i];
-                                pcurrent[i] = pcurrent[i].wrapping_add(
-                                    ((u16::from(lprev) + u16::from(pprev)) / 2) as u8,
-                                );
-                            }
-
-                            lprevious = pcurrent;
-                        }
-                    }
-                };
+            BytesPerPixel::Three => {
+                let mut lprev = [0; 3];
+                for (chunk, above) in current.chunks_exact_mut(3).zip(previous.chunks_exact(3)) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                        chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                        chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                    ];
+                    *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
             }
-
-            avg_tail!(avg_tail_8, 8);
-            avg_tail!(avg_tail_6, 6);
-            avg_tail!(avg_tail_4, 4);
-            avg_tail!(avg_tail_3, 3);
-            avg_tail!(avg_tail_2, 2);
-            avg_tail!(avg_tail_1, 1);
-
-            match tbpp {
-                BytesPerPixel::Eight => avg_tail_8(current, previous),
-                BytesPerPixel::Six => avg_tail_6(current, previous),
-                BytesPerPixel::Four => avg_tail_4(current, previous),
-                BytesPerPixel::Three => avg_tail_3(current, previous),
-                BytesPerPixel::Two => avg_tail_2(current, previous),
-                BytesPerPixel::One => avg_tail_1(current, previous),
+            BytesPerPixel::Four => {
+                let mut lprev = [0; 4];
+                for (chunk, above) in current.chunks_exact_mut(4).zip(previous.chunks_exact(4)) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                        chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                        chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                        chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                    ];
+                    *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
             }
-
-            Ok(())
-        }
+            BytesPerPixel::Six => {
+                let mut lprev = [0; 6];
+                for (chunk, above) in current.chunks_exact_mut(6).zip(previous.chunks_exact(6)) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                        chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                        chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                        chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                        chunk[4].wrapping_add(((above[4] as u16 + lprev[4] as u16) / 2) as u8),
+                        chunk[5].wrapping_add(((above[5] as u16 + lprev[5] as u16) / 2) as u8),
+                    ];
+                    *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
+            }
+            BytesPerPixel::Eight => {
+                let mut lprev = [0; 8];
+                for (chunk, above) in current.chunks_exact_mut(8).zip(previous.chunks_exact(8)) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(((above[0] as u16 + lprev[0] as u16) / 2) as u8),
+                        chunk[1].wrapping_add(((above[1] as u16 + lprev[1] as u16) / 2) as u8),
+                        chunk[2].wrapping_add(((above[2] as u16 + lprev[2] as u16) / 2) as u8),
+                        chunk[3].wrapping_add(((above[3] as u16 + lprev[3] as u16) / 2) as u8),
+                        chunk[4].wrapping_add(((above[4] as u16 + lprev[4] as u16) / 2) as u8),
+                        chunk[5].wrapping_add(((above[5] as u16 + lprev[5] as u16) / 2) as u8),
+                        chunk[6].wrapping_add(((above[6] as u16 + lprev[6] as u16) / 2) as u8),
+                        chunk[7].wrapping_add(((above[7] as u16 + lprev[7] as u16) / 2) as u8),
+                    ];
+                    *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
+                    lprev = new_chunk;
+                }
+            }
+        },
         Paeth => {
-            let previous = require_length(previous, len)?;
-            if bpp > len {
-                return Err("Filtering failed: bytes per pixel is greater than length of row");
-            }
-
-            for i in 0..bpp {
-                current[i] = current[i].wrapping_add(filter_paeth_decode(0, previous[i], 0));
-            }
-
             // Paeth filter pixels:
             // C B D
             // A X
-            for (((i, a_index), &b_pixel), &c_pixel) in
-                (bpp..).zip(0..).zip(&previous[bpp..]).zip(previous)
-            {
-                current[i] = current[i].wrapping_add(filter_paeth_decode(
-                    current[a_index],
-                    b_pixel,
-                    c_pixel,
-                ));
+            match tbpp {
+                BytesPerPixel::One => {
+                    let mut a_bpp = [0; 1];
+                    let mut c_bpp = [0; 1];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(1).zip(previous.chunks_exact(1))
+                    {
+                        let new_chunk = [chunk[0]
+                            .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0]))];
+                        *TryInto::<&mut [u8; 1]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Two => {
+                    let mut a_bpp = [0; 2];
+                    let mut c_bpp = [0; 2];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(2).zip(previous.chunks_exact(2))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                        ];
+                        *TryInto::<&mut [u8; 2]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Three => {
+                    let mut a_bpp = [0; 3];
+                    let mut c_bpp = [0; 3];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(3).zip(previous.chunks_exact(3))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                        ];
+                        *TryInto::<&mut [u8; 3]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Four => {
+                    let mut a_bpp = [0; 4];
+                    let mut c_bpp = [0; 4];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(4).zip(previous.chunks_exact(4))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                        ];
+                        *TryInto::<&mut [u8; 4]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Six => {
+                    let mut a_bpp = [0; 6];
+                    let mut c_bpp = [0; 6];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(6).zip(previous.chunks_exact(6))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                            chunk[4]
+                                .wrapping_add(filter_paeth_decode(a_bpp[4], b_bpp[4], c_bpp[4])),
+                            chunk[5]
+                                .wrapping_add(filter_paeth_decode(a_bpp[5], b_bpp[5], c_bpp[5])),
+                        ];
+                        *TryInto::<&mut [u8; 6]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
+                BytesPerPixel::Eight => {
+                    let mut a_bpp = [0; 8];
+                    let mut c_bpp = [0; 8];
+                    for (chunk, b_bpp) in current.chunks_exact_mut(8).zip(previous.chunks_exact(8))
+                    {
+                        let new_chunk = [
+                            chunk[0]
+                                .wrapping_add(filter_paeth_decode(a_bpp[0], b_bpp[0], c_bpp[0])),
+                            chunk[1]
+                                .wrapping_add(filter_paeth_decode(a_bpp[1], b_bpp[1], c_bpp[1])),
+                            chunk[2]
+                                .wrapping_add(filter_paeth_decode(a_bpp[2], b_bpp[2], c_bpp[2])),
+                            chunk[3]
+                                .wrapping_add(filter_paeth_decode(a_bpp[3], b_bpp[3], c_bpp[3])),
+                            chunk[4]
+                                .wrapping_add(filter_paeth_decode(a_bpp[4], b_bpp[4], c_bpp[4])),
+                            chunk[5]
+                                .wrapping_add(filter_paeth_decode(a_bpp[5], b_bpp[5], c_bpp[5])),
+                            chunk[6]
+                                .wrapping_add(filter_paeth_decode(a_bpp[6], b_bpp[6], c_bpp[6])),
+                            chunk[7]
+                                .wrapping_add(filter_paeth_decode(a_bpp[7], b_bpp[7], c_bpp[7])),
+                        ];
+                        *TryInto::<&mut [u8; 8]>::try_into(chunk).unwrap() = new_chunk;
+                        a_bpp = new_chunk;
+                        c_bpp = b_bpp.try_into().unwrap();
+                    }
+                }
             }
-
-            Ok(())
         }
     }
 }
@@ -312,8 +563,13 @@ fn filter_internal(
                 .zip(&mut prev_chunks)
             {
                 for i in 0..CHUNK_SIZE {
+                    // Bitwise average of two integers without overflow and
+                    // without converting to a wider bit-width. See:
+                    // http://aggregate.org/MAGIC/#Average%20of%20Integers
+                    // If this is unrolled by component, consider reverting to
+                    // `((cur_minus_bpp[i] as u16 + prev[i] as u16) / 2) as u8`
                     out[i] = cur[i].wrapping_sub(
-                        ((u16::from(cur_minus_bpp[i]) + u16::from(prev[i])) / 2) as u8,
+                        (cur_minus_bpp[i] & prev[i]) + ((cur_minus_bpp[i] ^ prev[i]) >> 1),
                     );
                 }
             }
@@ -325,7 +581,7 @@ fn filter_internal(
                 .zip(cur_minus_bpp_chunks.remainder())
                 .zip(prev_chunks.remainder())
             {
-                *out = cur.wrapping_sub(((u16::from(cur_minus_bpp) + u16::from(prev)) / 2) as u8);
+                *out = cur.wrapping_sub((cur_minus_bpp & prev) + ((cur_minus_bpp ^ prev) >> 1));
             }
 
             for i in 0..bpp {
@@ -447,7 +703,7 @@ mod test {
         let roundtrip = |kind, bpp: BytesPerPixel| {
             let mut output = vec![0; LEN.into()];
             filter(kind, adaptive, bpp, &previous, &current, &mut output);
-            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
+            unfilter(kind, bpp, &previous, &mut output);
             assert_eq!(
                 output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",
@@ -491,7 +747,7 @@ mod test {
         let roundtrip = |kind, bpp: BytesPerPixel| {
             let mut output = vec![0; LEN.into()];
             filter(kind, adaptive, bpp, &previous, &current, &mut output);
-            unfilter(kind, bpp, &previous, &mut output).expect("Unfilter worked");
+            unfilter(kind, bpp, &previous, &mut output);
             assert_eq!(
                 output, expected,
                 "Filtering {:?} with {:?} does not roundtrip",

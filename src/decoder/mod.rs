@@ -773,13 +773,15 @@ impl<R: Read> Reader<R> {
                     Some(filter) => filter,
                 };
 
-                if let Err(message) =
-                    unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen])
-                {
+                if bpp.into_usize() > (1..rowlen).count() {
                     return Err(DecodingError::Format(
-                        FormatErrorInner::BadFilter(message).into(),
+                        FormatErrorInner::BadFilter(
+                            "Filtering failed: bytes per pixel is greater than length of row",
+                        )
+                        .into(),
                     ));
                 }
+                unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen]);
 
                 self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
                 self.scan_start += rowlen;

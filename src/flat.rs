@@ -1039,7 +1039,7 @@ pub enum Error {
     /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
     /// care about the value of the alpha channel even though you need `Rgba`.
     ChannelCountMismatch(u8, u8),
-   
+
     /// Deprecated - ChannelCountMismatch is used instead
     WrongColor(ColorType),
 }

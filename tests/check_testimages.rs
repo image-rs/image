@@ -10,11 +10,11 @@ use std::path::{Component, Path, PathBuf};
 
 use crc32fast::Hasher as Crc32;
 
-const BASE_PATH: [&'static str; 2] = [".", "tests"];
-const TEST_SUITES: [&'static str; 3] = ["pngsuite", "pngsuite-extra", "bugfixes"];
-const APNG_SUITES: [&'static str; 1] = ["animated"];
+const BASE_PATH: [&str; 2] = [".", "tests"];
+const TEST_SUITES: [&str; 3] = ["pngsuite", "pngsuite-extra", "bugfixes"];
+const APNG_SUITES: [&str; 1] = ["animated"];
 
-fn process_images<F>(results_path: &str, test_suites: &[&'static str], func: F)
+fn process_images<F>(results_path: &str, test_suites: &[&str], func: F)
 where
     F: Fn(PathBuf) -> Result<u32, png::DecodingError>,
 {
@@ -34,7 +34,7 @@ where
                     results.insert(format!("{}", path.display()), format!("{}", crc));
                     println!("{}", crc)
                 }
-                Err(_) if path.file_name().unwrap().to_str().unwrap().starts_with("x") => {
+                Err(_) if path.file_name().unwrap().to_str().unwrap().starts_with('x') => {
                     expected_failures.push(format!("{}", path.display()));
                     println!("Expected failure")
                 }
@@ -42,7 +42,7 @@ where
             }
         }
     }
-    let mut path = base.clone();
+    let mut path = base;
     path.push(results_path);
     let mut ref_results = BTreeMap::new();
     let mut failures = vec![];
@@ -85,10 +85,9 @@ where
     );
     for (path, crc) in results.iter() {
         assert_eq!(
-            ref_results.get(path).expect(&format!(
-                "reference for {} is missing, expected {}",
-                path, crc
-            )),
+            ref_results
+                .get(path)
+                .unwrap_or_else(|| panic!("reference for {} is missing, expected {}", path, crc)),
             crc,
             "{}",
             path
@@ -126,9 +125,9 @@ fn render_images_identity() {
         let mut reader = decoder.read_info()?;
         let mut img_data = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut img_data)?;
-        let bits = (info.width as usize * info.color_type.samples() * info.bit_depth as usize + 7
-            & !7)
-            * info.height as usize;
+        let bits =
+            ((info.width as usize * info.color_type.samples() * info.bit_depth as usize + 7) & !7)
+                * info.height as usize;
         // First sanity check:
         assert_eq!(
             img_data.len() * 8,

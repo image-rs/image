@@ -2339,7 +2339,7 @@ mod tests {
             encoder.set_color(ColorType::Grayscale);
 
             let mut writer = encoder.write_header()?;
-            writer.write_image_data(&vec![0; 100])?;
+            writer.write_image_data(&[0; 100])?;
             writer.finish()?;
         }
 
@@ -2373,6 +2373,7 @@ mod tests {
 /// available when the mod is compiled as well.
 impl Compression {
     fn to_options(self) -> flate2::Compression {
+        #[allow(deprecated)]
         match self {
             Compression::Default => flate2::Compression::default(),
             Compression::Fast => flate2::Compression::fast(),

@@ -231,7 +231,8 @@ impl DirEntry {
     }
 
     fn matches_dimensions(&self, width: u32, height: u32) -> bool {
-        u32::from(self.real_width()) == width && u32::from(self.real_height()) == height
+        u32::from(self.real_width()) == width.min(256)
+            && u32::from(self.real_height()) == height.min(256)
     }
 
     fn seek_to_start<R: Read + Seek>(&self, r: &mut R) -> ImageResult<()> {

@@ -1,13 +1,11 @@
 #![allow(clippy::too_many_arguments)]
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::usize;
-
-use exr::image;
 
 use crate::color::{ColorType, ExtendedColorType};
 use crate::error::{
@@ -1388,7 +1386,7 @@ mod tests {
     };
     use crate::color::Rgba;
     use crate::math::Rect;
-    use crate::{GrayImage, ImageBuffer, Luma};
+    use crate::{GrayImage, ImageBuffer};
 
     #[test]
     #[allow(deprecated)]
@@ -1527,7 +1525,7 @@ mod tests {
 
     #[test]
     fn test_saturating_get_pixel() {
-        let source: ImageBuffer<Luma<u8>, Vec<u8>> = ImageBuffer::from_vec(3, 3, vec![
+        let source = GrayImage::from_vec(3, 3, vec![
             0u8, 1u8, 2u8,
             3u8, 4u8, 5u8,
             6u8, 7u8, 8u8,

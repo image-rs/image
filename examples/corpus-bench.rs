@@ -23,9 +23,9 @@ enum Filter {
 #[derive(clap::Parser)]
 struct Args {
     directory: Option<PathBuf>,
-    #[arg(short, long, value_enum, default_value_t = Speed::Fast)]
+    #[clap(short, long, value_enum, default_value_t = Speed::Fast)]
     speed: Speed,
-    #[arg(short, long, value_enum, default_value_t = Filter::Adaptive)]
+    #[clap(short, long, value_enum, default_value_t = Filter::Adaptive)]
     filter: Filter,
 }
 

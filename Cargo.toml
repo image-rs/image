@@ -27,7 +27,7 @@ flate2 = "1.0"
 miniz_oxide = "0.6.0"
 
 [dev-dependencies]
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "3.0", features = ["derive"] }
 criterion = "0.3.1"
 getopts = "0.2.14"
 glium = { version = "0.32", features = ["glutin"], default-features = false }

@@ -955,29 +955,15 @@ pub trait GenericImageView {
     /// 
     /// [`in_bounds`]: #method.in_bounds
     fn saturating_get_pixel(&self, x: i64, y: i64) -> Self::Pixel {
-        #[inline(always)]
-        fn convert(value: i64, bound: u32) -> u32 {
-            value.is_positive()
-                .then(|| {
-                    match u32::try_from(value) {
-                        Ok(value) => {
-                            if value < bound {
-                                value
-                            } else {
-                                bound - 1
-                            }
-                        },
-                        Err(_) => bound,
-                    }
-                }).unwrap_or(0u32)
-        }
+        let (ix, iy, iw, ih) = self.bounds();
 
-        unsafe {
-            self.unsafe_get_pixel(
-                convert(x, self.width()),
-                convert(y, self.height())
-            )
-        }
+        let x0 = ix as i64;
+        let x1 = (ix + iw - 1) as i64;
+
+        let y0 = iy as i64;
+        let y1 = (iy + ih - 1) as i64;
+
+        unsafe { self.unsafe_get_pixel(x.max(x0).min(x1) as u32, y.max(y0).min(y1) as u32) }
     }
 
     /// Returns an Iterator over the pixels of this image.

@@ -923,36 +923,28 @@ pub trait GenericImageView {
 
     /// Returns the pixel located at (x, y) if the location is [`in_bounds`],
     /// otherwise `None` is returned.
-    /// 
+    ///
     /// Location coordinates can be negative.
     ///
     /// # Safety
     ///
     /// The [`in_bounds`] check must work as expected.
-    /// 
+    ///
     /// [`in_bounds`]: #method.in_bounds
     fn checked_get_pixel(&self, x: i64, y: i64) -> Option<Self::Pixel> {
-        if x.is_negative() || y.is_negative() {
-            None
-        } else {
-            match (u32::try_from(x), u32::try_from(y)) {
-                (Ok(x), Ok(y)) => {
-                    if self.in_bounds(x, y) {
-                        Some(unsafe { self.unsafe_get_pixel(x, y) })
-                    } else {
-                        None
-                    }
-                },
-                _ => None
-            }
+        match (u32::try_from(x), u32::try_from(y)) {
+            (Ok(x), Ok(y)) => self
+                .in_bounds(x, y)
+                .then(|| unsafe { self.unsafe_get_pixel(x, y) }),
+            _ => None,
         }
     }
 
     /// Returns the pixel located at (x, y) if the location is [`in_bounds`],
     /// otherwise the nearest bound pixel is returned.
-    /// 
+    ///
     /// Location coordinates can be negative.
-    /// 
+    ///
     /// [`in_bounds`]: #method.in_bounds
     fn saturating_get_pixel(&self, x: i64, y: i64) -> Self::Pixel {
         let (ix, iy, iw, ih) = self.bounds();
@@ -1511,30 +1503,72 @@ mod tests {
 
     #[test]
     fn test_saturating_get_pixel() {
-        let source = GrayImage::from_vec(3, 3, vec![
-            0u8, 1u8, 2u8,
-            3u8, 4u8, 5u8,
-            6u8, 7u8, 8u8,
-        ]).unwrap();
+        #[rustfmt::skip]
+        let source = {
+            GrayImage::from_vec(3, 3, vec![
+                0u8, 1u8, 2u8,
+                3u8, 4u8, 5u8,
+                6u8, 7u8, 8u8
+            ]).unwrap()
+        };
 
         for x in 0..source.width() {
             for y in 0..source.height() {
-                assert_eq!(source.saturating_get_pixel(x as i64, y as i64).to_owned(), *source.get_pixel(x, y));
+                assert_eq!(
+                    source.saturating_get_pixel(x as i64, y as i64).to_owned(),
+                    *source.get_pixel(x, y)
+                );
             }
         }
 
-        assert_eq!(source.saturating_get_pixel(-1, -1).to_owned(), *source.get_pixel(0, 0));
-        assert_eq!(source.saturating_get_pixel(-1, 0).to_owned(), *source.get_pixel(0, 0));
-        assert_eq!(source.saturating_get_pixel(0, -1).to_owned(), *source.get_pixel(0, 0));
-        assert_eq!(source.saturating_get_pixel(3, 3).to_owned(), *source.get_pixel(2, 2));
-        assert_eq!(source.saturating_get_pixel(3, 2).to_owned(), *source.get_pixel(2, 2));
-        assert_eq!(source.saturating_get_pixel(2, 3).to_owned(), *source.get_pixel(2, 2));
-        assert_eq!(source.saturating_get_pixel(3, -1).to_owned(), *source.get_pixel(2, 0));
-        assert_eq!(source.saturating_get_pixel(2, -1).to_owned(), *source.get_pixel(2, 0));
-        assert_eq!(source.saturating_get_pixel(3, 0).to_owned(), *source.get_pixel(2, 0));
-        assert_eq!(source.saturating_get_pixel(-1, 2).to_owned(), *source.get_pixel(0, 2));
-        assert_eq!(source.saturating_get_pixel(-1, 3).to_owned(), *source.get_pixel(0, 2));
-        assert_eq!(source.saturating_get_pixel(0, 3).to_owned(), *source.get_pixel(0, 2));
+        assert_eq!(
+            source.saturating_get_pixel(-1, -1).to_owned(),
+            *source.get_pixel(0, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(-1, 0).to_owned(),
+            *source.get_pixel(0, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(0, -1).to_owned(),
+            *source.get_pixel(0, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(3, 3).to_owned(),
+            *source.get_pixel(2, 2)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(3, 2).to_owned(),
+            *source.get_pixel(2, 2)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(2, 3).to_owned(),
+            *source.get_pixel(2, 2)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(3, -1).to_owned(),
+            *source.get_pixel(2, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(2, -1).to_owned(),
+            *source.get_pixel(2, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(3, 0).to_owned(),
+            *source.get_pixel(2, 0)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(-1, 2).to_owned(),
+            *source.get_pixel(0, 2)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(-1, 3).to_owned(),
+            *source.get_pixel(0, 2)
+        );
+        assert_eq!(
+            source.saturating_get_pixel(0, 3).to_owned(),
+            *source.get_pixel(0, 2)
+        );
     }
 
     #[test]

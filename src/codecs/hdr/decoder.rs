@@ -1,6 +1,5 @@
 use crate::Primitive;
 use num_traits::identities::Zero;
-use scoped_threadpool::Pool;
 #[cfg(test)]
 use std::borrow::Cow;
 use std::convert::TryFrom;
@@ -460,21 +459,14 @@ impl<R: BufRead> HdrDecoder<R> {
         }
 
         let chunks_iter = output_slice.chunks_mut(self.width as usize);
-        let mut pool = Pool::new(8); //
 
-        (pool.scoped(|scope| {
-            for chunk in chunks_iter {
-                let mut buf = vec![Default::default(); self.width as usize];
-                read_scanline(&mut self.r, &mut buf[..])?;
-                let f = &f;
-                scope.execute(move || {
-                    for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                        *dst = f(pix);
-                    }
-                });
+        for chunk in chunks_iter {
+            let mut buf = vec![Default::default(); self.width as usize];
+            read_scanline(&mut self.r, &mut buf[..])?;
+            for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
+                *dst = f(pix);
             }
-            Ok(())
-        }) as Result<(), ImageError>)?;
+        }
         Ok(())
     }
 

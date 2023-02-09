@@ -3,10 +3,67 @@ use super::{stream::FormatErrorInner, DecodingError, CHUNCK_BUFFER_SIZE};
 use miniz_oxide::inflate::core::{decompress, inflate_flags, DecompressorOxide};
 use miniz_oxide::inflate::TINFLStatus;
 
+enum Compressor {
+    FullZlib(DecompressorOxide),
+    FDeflate(fdeflate::Decompressor),
+}
+impl Compressor {
+    fn decompress(
+        &mut self,
+        input: &[u8],
+        output: &mut [u8],
+        output_position: usize,
+        end_of_input: bool,
+    ) -> (TINFLStatus, usize, usize) {
+        match self {
+            Compressor::FullZlib(decompressor) => decompress(
+                decompressor,
+                input,
+                output,
+                output_position,
+                inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
+                    | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
+                    | if end_of_input {
+                        0
+                    } else {
+                        inflate_flags::TINFL_FLAG_HAS_MORE_INPUT
+                    },
+            ),
+            Compressor::FDeflate(decompressor) => {
+                match decompressor.read(input, &mut output[output_position..], end_of_input) {
+                    Ok((in_consumed, out_consumed)) if decompressor.done() => {
+                        assert!(in_consumed <= input.len());
+                        (TINFLStatus::Done, in_consumed, out_consumed)
+                    }
+                    Ok((in_consumed, out_consumed)) => {
+                        assert!(in_consumed <= input.len());
+                        (TINFLStatus::HasMoreOutput, in_consumed, out_consumed)
+                    }
+                    Err(fdeflate::DecompressionError::NotFDeflate) => {
+                        // fdeflate guarantees that it will detect non-fdeflate streams before
+                        // consuming any input. If that happens, sanity check that no output
+                        // has been produced and feed the same input to a full zlib decoder.
+                        assert_eq!(output_position, 0);
+
+                        *self = Compressor::FullZlib(DecompressorOxide::new());
+                        self.decompress(input, output, output_position, end_of_input)
+                    }
+                    Err(_) => (TINFLStatus::Failed, 0, 0),
+                }
+            }
+        }
+    }
+}
+impl Default for Compressor {
+    fn default() -> Self {
+        Compressor::FDeflate(fdeflate::Decompressor::new())
+    }
+}
+
 /// Ergonomics wrapper around `miniz_oxide::inflate::stream` for zlib compressed data.
 pub(super) struct ZlibStream {
     /// Current decoding state.
-    state: Box<DecompressorOxide>,
+    state: Box<Compressor>,
     /// If there has been a call to decompress already.
     started: bool,
     /// A buffer of compressed data.
@@ -35,7 +92,7 @@ pub(super) struct ZlibStream {
 impl ZlibStream {
     pub(crate) fn new() -> Self {
         ZlibStream {
-            state: Box::default(),
+            state: Default::default(),
             started: false,
             in_buffer: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
             in_pos: 0,
@@ -49,7 +106,7 @@ impl ZlibStream {
         self.in_buffer.clear();
         self.out_buffer.clear();
         self.out_pos = 0;
-        *self.state = DecompressorOxide::default();
+        *self.state = Default::default();
     }
 
     /// Fill the decoded buffer as far as possible from `data`.
@@ -59,10 +116,6 @@ impl ZlibStream {
         data: &[u8],
         image_data: &mut Vec<u8>,
     ) -> Result<usize, DecodingError> {
-        const BASE_FLAGS: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
-            | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
-            | inflate_flags::TINFL_FLAG_HAS_MORE_INPUT;
-
         self.prepare_vec_for_appending();
 
         let (status, mut in_consumed, out_consumed) = {
@@ -71,17 +124,13 @@ impl ZlibStream {
             } else {
                 &self.in_buffer[self.in_pos..]
             };
-            decompress(
-                &mut self.state,
-                in_data,
-                self.out_buffer.as_mut_slice(),
-                self.out_pos,
-                BASE_FLAGS,
-            )
+            self.state
+                .decompress(in_data, self.out_buffer.as_mut_slice(), self.out_pos, false)
         };
 
         if !self.in_buffer.is_empty() {
             self.in_pos += in_consumed;
+            in_consumed = 0;
         }
 
         if self.in_buffer.len() == self.in_pos {
@@ -117,9 +166,6 @@ impl ZlibStream {
         &mut self,
         image_data: &mut Vec<u8>,
     ) -> Result<(), DecodingError> {
-        const BASE_FLAGS: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
-            | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
-
         if !self.started {
             return Ok(());
         }
@@ -135,12 +181,11 @@ impl ZlibStream {
                 // TODO: we may be able to avoid the indirection through the buffer here.
                 // First append all buffered data and then create a cursor on the image_data
                 // instead.
-                decompress(
-                    &mut self.state,
+                self.state.decompress(
                     &tail[start..],
                     self.out_buffer.as_mut_slice(),
                     self.out_pos,
-                    BASE_FLAGS,
+                    true,
                 )
             };
 

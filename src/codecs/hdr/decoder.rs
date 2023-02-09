@@ -460,12 +460,14 @@ impl<R: BufRead> HdrDecoder<R> {
 
         let chunks_iter = output_slice.chunks_mut(self.width as usize);
 
+        let mut buf = vec![Default::default(); self.width as usize];
         for chunk in chunks_iter {
-            let mut buf = vec![Default::default(); self.width as usize];
             read_scanline(&mut self.r, &mut buf[..])?;
             for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
                 *dst = f(pix);
             }
+            buf.clear();
+            buf.resize(self.width as usize, Default::default());
         }
         Ok(())
     }

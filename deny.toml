@@ -21,7 +21,9 @@ ignore = []
 multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
-skip = []
+skip = [
+    { name = "windows-sys" }, # console and terminal_size both depend on an old version
+]
 skip-tree = [
     { name = "criterion" },  # dev-dependency
     { name = "quickcheck" }, # dev-dependency

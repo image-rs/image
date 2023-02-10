@@ -150,7 +150,7 @@ jobs:
       run: sudo apt-get -y install clang llvm
     - name: build
       run: |
-        cargo install afl
+        cargo install --force afl
         cd fuzz-afl
         cargo check --bin reproduce_webp
         cargo check --bin reproduce_pnm

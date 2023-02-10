@@ -237,6 +237,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         self.color_type
     }
 
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        self.reader.info().icc_profile.as_ref().map(|x| x.to_vec())
+    }
+
     fn into_reader(self) -> ImageResult<Self::Reader> {
         PngReader::new(self.reader)
     }

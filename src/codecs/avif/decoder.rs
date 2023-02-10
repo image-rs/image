@@ -27,6 +27,7 @@ pub struct AvifDecoder<R> {
     inner: PhantomData<R>,
     picture: dav1d::Picture,
     alpha_picture: Option<dav1d::Picture>,
+    icc_profile: Option<Vec<u8>>,
 }
 
 impl<R: Read> AvifDecoder<R> {
@@ -49,11 +50,13 @@ impl<R: Read> AvifDecoder<R> {
         } else {
             None
         };
+        let icc_profile = ctx.icc_colour_information().ok().map(|x| x.to_vec());
         assert_eq!(picture.bit_depth(), 8);
         Ok(AvifDecoder {
             inner: PhantomData,
             picture,
             alpha_picture,
+            icc_profile,
         })
     }
 }
@@ -83,6 +86,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         ColorType::Rgba8
+    }
+
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        self.icc_profile.clone()
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

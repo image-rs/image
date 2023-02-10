@@ -462,12 +462,12 @@ impl<R: BufRead> HdrDecoder<R> {
 
         let mut buf = vec![Default::default(); self.width as usize];
         for chunk in chunks_iter {
+            // read_scanline overwrites the entire buffer or returns an Err,
+            // so not resetting the buffer here is ok.
             read_scanline(&mut self.r, &mut buf[..])?;
             for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
                 *dst = f(pix);
             }
-            buf.clear();
-            buf.resize(self.width as usize, Default::default());
         }
         Ok(())
     }

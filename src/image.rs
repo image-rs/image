@@ -2,7 +2,6 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
-use core::ffi::OsStr;
 use core::ops::{Deref, DerefMut};
 use core::usize;
 use std::io;
@@ -85,10 +84,11 @@ impl ImageFormat {
     /// let format = ImageFormat::from_extension("jpg");
     /// assert_eq!(format, Some(ImageFormat::Jpeg));
     /// ```
+    #[cfg(features = "std")]
     #[inline]
     pub fn from_extension<S>(ext: S) -> Option<Self>
     where
-        S: AsRef<OsStr>,
+        S: AsRef<std::ffi::OsStr>,
     {
         // thin wrapper function to strip generics
         fn inner(ext: &OsStr) -> Option<ImageFormat> {
@@ -129,6 +129,7 @@ impl ImageFormat {
     ///
     /// # Ok::<(), image::error::ImageError>(())
     /// ```
+    #[cfg(features = "std")]
     #[inline]
     pub fn from_path<P>(path: P) -> ImageResult<Self>
     where
@@ -560,14 +561,14 @@ where
             || width == 0
             || height == 0
         {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
+            return Err(ImageError::Parameter {
+                kind: ParameterErrorKind::DimensionMismatch,
+            });
         }
         if scanline_bytes > usize::max_value() as u64 {
-            return Err(ImageError::Limits(LimitError::from_kind(
-                LimitErrorKind::InsufficientMemory,
-            )));
+            return Err(ImageError::Limits {
+                kind: LimitErrorKind::InsufficientMemory,
+            });
         }
 
         progress_callback(Progress {
@@ -601,9 +602,9 @@ where
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::InsufficientMemory,
-        )));
+        return Err(ImageError::Limits {
+            kind: LimitErrorKind::InsufficientMemory,
+        });
     }
 
     let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / core::mem::size_of::<T>()];
@@ -1027,9 +1028,9 @@ pub trait GenericImage: GenericImageView {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
-            return Err(ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )));
+            return Err(ImageError::Parameter {
+                kind: ParameterErrorKind::DimensionMismatch,
+            });
         }
 
         for k in 0..other.height() {
@@ -1320,11 +1321,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
-    use alloc::vec::Vec;
-    use std::io;
-    use std::path::Path;
-
     use super::{
         load_rect, ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat,
         ImageResult,
@@ -1332,6 +1328,11 @@ mod tests {
     use crate::color::Rgba;
     use crate::math::Rect;
     use crate::{GrayImage, ImageBuffer};
+    use alloc::borrow::ToOwned;
+    use alloc::boxed::Box;
+    use alloc::vec::Vec;
+    use std::io;
+    use std::path::Path;
 
     #[test]
     #[allow(deprecated)]
@@ -1634,6 +1635,7 @@ mod tests {
         assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
     }
 
+    #[cfg(features = "std")]
     #[test]
     fn test_image_format_from_path() {
         fn from_path(s: &str) -> ImageResult<ImageFormat> {
@@ -1825,6 +1827,7 @@ mod tests {
         assert_eq!(&image.into_raw(), &expected);
     }
 
+    #[cfg(features = "std")]
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;

@@ -1081,20 +1081,18 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
         // An internal #[non_exhaustive]
         #[allow(unreachable_patterns)]
         _ => {
-            return Err(ImageError::Unsupported(
-                UnsupportedError::from_format_and_kind(
-                    ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::Color(color_type.into()),
-                ),
-            ))
+            return Err(ImageError::Unsupported {
+                format: ImageFormatHint::Unknown,
+                kind: UnsupportedErrorKind::Color(color_type.into()),
+            })
         }
     };
 
     match image {
         Some(image) => Ok(image),
-        None => Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        ))),
+        None => Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        }),
     }
 }
 

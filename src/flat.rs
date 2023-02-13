@@ -46,8 +46,8 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ops::{Deref, Index, IndexMut};
 use core::{cmp, fmt};
-
 use num_traits::Zero;
+use snafu::prelude::*;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -599,7 +599,9 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE));
+            return Err(Error::WrongColor {
+                underlying: P::COLOR_TYPE,
+            });
         }
 
         let as_ref = self.samples.as_ref();
@@ -1007,7 +1009,7 @@ where
 /// samples in a row major matrix representation. But this error type may be
 /// resused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Snafu, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Error {
     /// The represented image was too large.
     ///
@@ -1017,7 +1019,7 @@ pub enum Error {
     /// The represented image can not use this representation.
     ///
     /// Has an additional value of the normalized form that would be accepted.
-    NormalFormRequired(NormalForm),
+    NormalFormRequired { underlying: NormalForm },
 
     /// The color format did not match the channel count.
     ///
@@ -1028,7 +1030,7 @@ pub enum Error {
     /// directly memory unsafe although that will likely alias pixels. One scenario is when you
     /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
     /// care about the value of the alpha channel even though you need `Rgba`.
-    WrongColor(ColorType),
+    WrongColor { underlying: ColorType },
 }
 
 /// Different normal forms of buffers.
@@ -1478,15 +1480,9 @@ where
 
 impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
-        #[derive(Debug)]
+        #[derive(Snafu, Debug)]
+        #[snafu(display("Required sample buffer in normal form {self.0}"))]
         struct NormalFormRequiredError(NormalForm);
-        impl fmt::Display for NormalFormRequiredError {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "Required sample buffer in normal form {:?}", self.0)
-            }
-        }
-        #[cfg(feature = "std")]
-        impl error::Error for NormalFormRequiredError {}
 
         match error {
             Error::TooLarge => ImageError::Parameter(ParameterError::from_kind(
@@ -1505,33 +1501,6 @@ impl From<Error> for ImageError {
         }
     }
 }
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::TooLarge => write!(f, "The layout is too large"),
-            Error::NormalFormRequired(form) => write!(
-                f,
-                "The layout needs to {}",
-                match form {
-                    NormalForm::ColumnMajorPacked => "be packed and in column major form",
-                    NormalForm::ImagePacked => "be fully packed",
-                    NormalForm::PixelPacked => "have packed pixels",
-                    NormalForm::RowMajorPacked => "be packed and in row major form",
-                    NormalForm::Unaliased => "not have any aliasing channels",
-                }
-            ),
-            Error::WrongColor(color) => write!(
-                f,
-                "The chosen color type does not match the hint {:?}",
-                color
-            ),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl error::Error for Error {}
 
 impl PartialOrd for NormalForm {
     /// Compares the logical preconditions.

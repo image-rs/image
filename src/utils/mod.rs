@@ -1,4 +1,5 @@
 //!  Utilities
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
 use core::iter::repeat;
@@ -95,6 +96,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use alloc::borrow::ToOwned;
+
     #[test]
     fn gray_to_luma8_skip() {
         let check = |bit_depth, w, from, to| {

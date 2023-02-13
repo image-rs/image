@@ -3,6 +3,7 @@
 //! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification)
 //!
 
+use alloc::vec::Vec;
 use std::{
     convert::TryFrom,
     convert::TryInto,
@@ -104,7 +105,9 @@ impl fmt::Display for DecoderError {
 
 impl From<DecoderError> for ImageError {
     fn from(e: DecoderError) -> ImageError {
-        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
+        ImageError::Decoding {
+            format: ImageFormat::WebP.into(),
+        }
     }
 }
 

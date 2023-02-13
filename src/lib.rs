@@ -83,8 +83,7 @@
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
-// #![no_std]
-#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
@@ -98,6 +97,10 @@
 
 #[macro_use]
 extern crate alloc;
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;

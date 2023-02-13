@@ -543,9 +543,9 @@ where
 
 #[cfg(test)]
 mod test {
-
     use super::*;
     use crate::{GrayImage, ImageBuffer};
+    use alloc::string::ToString;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

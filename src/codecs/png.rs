@@ -220,10 +220,10 @@ impl<R: Read> PngDecoder<R> {
 }
 
 fn unsupported_color(ect: ExtendedColorType) -> ImageError {
-    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-        ImageFormat::Png.into(),
-        UnsupportedErrorKind::Color(ect),
-    ))
+    ImageError::Unsupported {
+        format: ImageFormat::Png.into(),
+        kind: UnsupportedErrorKind::Color(ect),
+    }
 }
 
 impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
@@ -668,21 +668,22 @@ impl ImageError {
     fn from_png(err: png::DecodingError) -> ImageError {
         use png::DecodingError::*;
         match err {
+            #[cfg(features = "std")]
             IoError(err) => ImageError::IoError(err),
             // The input image was not a valid PNG.
-            err @ Format(_) => {
-                ImageError::Decoding(DecodingError::new(ImageFormat::Png.into(), err))
-            }
+            err @ Format(_) => ImageError::Decoding {
+                format: ImageFormat::Png.into(),
+            },
             // Other is used when:
             // - The decoder is polled for more animation frames despite being done (or not being animated
             //   in the first place).
             // - The output buffer does not have the required size.
-            err @ Parameter(_) => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::Generic(err.to_string()),
-            )),
-            LimitsExceeded => {
-                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
-            }
+            err @ Parameter(_) => ImageError::Parameter {
+                kind: ParameterErrorKind::Generic(err.to_string()),
+            },
+            LimitsExceeded => ImageError::Limits {
+                kind: LimitErrorKind::InsufficientMemory,
+            },
         }
     }
 }
@@ -749,8 +750,6 @@ mod tests {
 
     #[test]
     fn underlying_error() {
-        use std::error::Error;
-
         let mut not_png =
             std::fs::read("tests/images/png/bugfixes/debug_triangle_corners_widescreen.png")
                 .unwrap();

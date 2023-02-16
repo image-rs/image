@@ -659,6 +659,14 @@ pub struct ImageBuffer<P: Pixel, Container> {
     data: Container,
 }
 
+// transformation into the container - useful for things that want to
+// transform a buffer back into a Vec
+impl<P: Pixel, Container> Into<Container> for ImageBuffer<P, Container> {
+    fn into(self) -> Container {
+        self.data
+    }
+}
+
 // generic implementation, shared along all image buffers
 impl<P, Container> ImageBuffer<P, Container>
 where

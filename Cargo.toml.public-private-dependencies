@@ -37,7 +37,6 @@ num-traits = { version = "0.2.0", public = true }
 gif = { version = "0.11.1", optional = true }
 jpeg = { package = "jpeg-decoder", version = "0.2.1", default-features = false, optional = true }
 png = { version = "0.17.0", optional = true }
-scoped_threadpool = { version = "0.1", optional = true }
 tiff = { version = "0.7.1", optional = true }
 ravif = { version = "0.8.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
@@ -63,7 +62,7 @@ pnm = []
 tga = []
 webp = []
 bmp = []
-hdr = ["scoped_threadpool"]
+hdr = []
 dxt = []
 dds = ["dxt"]
 farbfeld = []

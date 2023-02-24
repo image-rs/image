@@ -2,6 +2,9 @@
 
 use core::cmp::max;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter
 /// will either fill the dimensions to fit inside the smaller constraint

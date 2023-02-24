@@ -8,6 +8,9 @@ use core::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};
 use crate::utils::clamp;

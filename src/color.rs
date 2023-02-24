@@ -4,6 +4,9 @@ use num_traits::{NumCast, ToPrimitive, Zero};
 
 use crate::traits::{Enlargeable, Pixel, Primitive};
 
+#[cfg(not(feature = "std"))]
+use num_traits::float::FloatCore;
+
 /// An enumeration over supported color types and bit depths
 #[derive(Copy, PartialEq, Eq, Debug, Clone, Hash)]
 #[non_exhaustive]

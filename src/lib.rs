@@ -17,14 +17,17 @@
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
-//! use image::io::Reader as ImageReader;
+//! #[cfg(feature = "std")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let bytes = vec![0u8];
 //!
-//! let img = ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img = image::io::Reader::ImageReader::open("myimage.png")?.decode()?;
+//! let img2 = image::io::Reader::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
+//!
+//! #[cfg(not(feature = "std"))]
+//! fn main() {}
 //! ```
 //!
 //! And save them using [`save`] or [`write_to`] methods:
@@ -32,8 +35,9 @@
 //! ```rust,no_run
 //! # use std::io::{Write, Cursor};
 //! # use image::ImageOutputFormat;
+//! #[cfg(all(feature = "png", feature = "std"))]
 //! # use image::DynamicImage;
-//! # #[cfg(feature = "png")]
+//! # #[cfg(all(feature = "png", feature = "std"))]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let img: DynamicImage = unimplemented!();
 //! # let img2: DynamicImage = unimplemented!();
@@ -43,7 +47,7 @@
 //! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
-//! # #[cfg(not(feature = "png"))] fn main() {}
+//! # #[cfg(not(all(feature = "png", feature = "std")))] fn main() {}
 //! ```
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).

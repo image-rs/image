@@ -13,6 +13,7 @@
 //! use image::flat::{FlatSamples, SampleLayout};
 //! use image::imageops::thumbnail;
 //!
+//! #[cfg(feature = "std")]
 //! #[no_mangle]
 //! pub extern "C" fn store_rgb8_compressed(
 //!     data: *const u8, len: usize,

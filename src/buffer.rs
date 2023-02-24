@@ -630,6 +630,7 @@ where
 /// Overlays an image on top of a larger background raster.
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")] {
 /// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
@@ -642,15 +643,18 @@ where
 /// });
 ///
 /// image::imageops::overlay(&mut img, &on_top, 128, 128);
+/// }
 /// ```
 ///
 /// Convert an RgbaImage to a GrayImage.
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")] {
 /// use image::{open, DynamicImage};
 ///
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
+/// }
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
@@ -1364,11 +1368,13 @@ where
     /// use image::GrayImage;
     ///
     /// let image_path = "examples/fractal.png";
+    /// # #[cfg(feature = "std")] {
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba8();
     ///
     /// let gray_image: GrayImage = image.convert();
+    /// }
     /// ```
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =

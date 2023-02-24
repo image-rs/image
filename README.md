@@ -18,21 +18,21 @@ All image processing functions provided operate on types that implement the `Gen
 
 `image` provides implementations of common image format encoders and decoders.
 
-| Format | Decoding | Encoding |
-| ------ | -------- | -------- |
-| PNG    | All supported color types | Same as decoding |
-| JPEG   | Baseline and progressive | Baseline JPEG |
-| GIF    | Yes | Yes |
-| BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
-| ICO    | Yes | Yes |
-| TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
-| WebP   | Yes | Rgb8, Rgba8 \* |
-| AVIF   | Only 8-bit \*\* | Lossy |
-| PNM    | PBM, PGM, PPM, standard PAM | Yes |
-| DDS    | DXT1, DXT3, DXT5 | No |
-| TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
-| OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
-| farbfeld | Yes | Yes |
+| Format   | Decoding                                  | Encoding                                |
+| -------- | ----------------------------------------- | --------------------------------------- |
+| PNG      | All supported color types                 | Same as decoding                        |
+| JPEG     | Baseline and progressive                  | Baseline JPEG                           |
+| GIF      | Yes                                       | Yes                                     |
+| BMP      | Yes                                       | Rgb8, Rgba8, Gray8, GrayA8              |
+| ICO      | Yes                                       | Yes                                     |
+| TIFF     | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8                      |
+| WebP     | Yes                                       | Rgb8, Rgba8 \*                          |
+| AVIF     | Only 8-bit \*\*                           | Lossy                                   |
+| PNM      | PBM, PGM, PPM, standard PAM               | Yes                                     |
+| DDS      | DXT1, DXT3, DXT5                          | No                                      |
+| TGA      | Yes                                       | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
+| OpenEXR  | Rgb32F, Rgba32F (no dwa compression)      | Rgb32F, Rgba32F (no dwa compression)    |
+| farbfeld | Yes                                       | Yes                                     |
 
 - \* Requires the `webp-encoder` feature, uses the libwebp C library.
 - \*\* Requires the `avif-decoder` feature, uses the libdav1d C library.
@@ -60,7 +60,7 @@ The most important methods for decoders are...
 All pixels are parameterised by their component type.
 
 ## Images
-Individual pixels within images are indexed with (0,0) at the top left corner. 
+Individual pixels within images are indexed with (0,0) at the top left corner.
 ### The [`GenericImageView`](https://docs.rs/image/*/image/trait.GenericImageView.html) and [`GenericImage`](https://docs.rs/image/*/image/trait.GenericImage.html) Traits
 
 Traits that provide methods for inspecting (`GenericImageView`) and manipulating (`GenericImage`) images, parameterised over the image's pixel type.
@@ -166,6 +166,7 @@ reader which offer some more control.
 ```rust,no_run
 use image::GenericImageView;
 
+#[cfg(feature = "std")]
 fn main() {
     // Use the open function to load an image from a Path.
     // `open` returns a `DynamicImage` on success.
@@ -180,6 +181,8 @@ fn main() {
     // Write the contents of this image to the Writer in PNG format.
     img.save("test.png").unwrap();
 }
+#[cfg(not(feature = "std"))]
+fn main() {}
 ```
 
 ### Generating Fractals
@@ -225,6 +228,7 @@ fn main() {
     }
 
     // Save the image as “fractal.png”, the format is deduced from the path
+    #[cfg(feature = "std")]
     imgbuf.save("fractal.png").unwrap();
 }
 ```
@@ -242,6 +246,7 @@ fn main() {
     let buffer: &[u8] = unimplemented!(); // Generate the image data
 
     // Save the buffer as "image.png"
+    #[cfg(feature = "std")]
     image::save_buffer("image.png", buffer, 800, 600, image::ColorType::Rgb8).unwrap()
 }
 ```

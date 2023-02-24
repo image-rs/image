@@ -37,6 +37,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 fn truncate_images(decoder: &str) {
     process_images(IMAGE_DIR, Some(decoder), |path| {
         println!("{:?}", path);
@@ -50,51 +51,61 @@ fn truncate_images(decoder: &str) {
     })
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_tga() {
     truncate_images("tga")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_tiff() {
     truncate_images("tiff")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_png() {
     truncate_images("png")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_gif() {
     truncate_images("gif")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_bmp() {
     truncate_images("bmp")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_ico() {
     truncate_images("ico")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_jpg() {
     truncate_images("jpg")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_hdr() {
     truncate_images("hdr");
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_farbfeld() {
     truncate_images("farbfeld");
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn truncate_exr() {
     truncate_images("exr");

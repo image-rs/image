@@ -109,3 +109,39 @@ harness = false
 [[bench]]
 name = "copy_from"
 harness = false
+
+[[example]]
+name = "tile"
+required-features = ["std"]
+
+[[example]]
+name = "fractal"
+required-features = ["std"]
+
+[[example]]
+name = "scaleup"
+required-features = ["std"]
+
+[[example]]
+name = "concat"
+required-features = ["std"]
+
+[[example]]
+name = "gradient"
+required-features = ["std"]
+
+[[example]]
+name = "opening"
+required-features = ["std"]
+
+[[example]]
+name = "decode"
+required-features = ["std"]
+
+[[example]]
+name = "scaledown"
+required-features = ["std"]
+
+[[example]]
+name = "convert"
+required-features = ["std"]

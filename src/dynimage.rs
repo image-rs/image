@@ -1,8 +1,12 @@
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
-
 use core::u32;
+
+#[cfg(feature = "std")]
 use std::io;
+#[cfg(feature = "std")]
 use std::io::{Seek, Write};
+#[cfg(feature = "std")]
 use std::path::Path;
 
 #[cfg(feature = "gif")]
@@ -17,19 +21,21 @@ use crate::buffer_::{
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self, IntoColor};
-use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ImageResult, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
-use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{ImageFormatHint, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{
     GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
 };
 use crate::imageops;
-use crate::io::free_functions;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
+
+#[cfg(feature = "std")]
+use crate::io::free_functions;
 
 /// A Dynamic Image
 ///
@@ -54,6 +60,7 @@ use crate::{Rgb32FImage, Rgba32FImage};
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
+#[cfg(feature = "std")]
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DynamicImage {
@@ -121,50 +128,60 @@ macro_rules! dynamic_map(
         );
 );
 
+#[cfg(feature = "std")]
 impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of gray pixels.
+    #[cfg(feature = "std")]
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
+    #[cfg(feature = "std")]
     pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
+    #[cfg(feature = "std")]
     pub fn new_rgb8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
+    #[cfg(feature = "std")]
     pub fn new_rgba8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray pixels.
+    #[cfg(feature = "std")]
     pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
+    #[cfg(feature = "std")]
     pub fn new_luma_a16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
+    #[cfg(feature = "std")]
     pub fn new_rgb16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
+    #[cfg(feature = "std")]
     pub fn new_rgba16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
+    #[cfg(feature = "std")]
     pub fn new_rgb32f(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb32F(ImageBuffer::new(w, h))
     }
@@ -175,16 +192,19 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
+    #[cfg(feature = "std")]
     pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
         decoder_to_image(decoder)
     }
 
     /// Returns a copy of this image as an RGB image.
+    #[cfg(feature = "std")]
     pub fn to_rgb8(&self) -> RgbImage {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
+    #[cfg(feature = "std")]
     pub fn to_rgb16(&self) -> Rgb16Image {
         dynamic_map!(*self, |ref p| p.convert())
     }
@@ -813,6 +833,7 @@ impl DynamicImage {
     ///
     /// Assumes the writer is buffered. In most cases,
     /// you should wrap your writer in a `BufWriter` for best performance.
+    #[cfg(feature = "std")]
     pub fn write_to<W: Write + Seek, F: Into<ImageOutputFormat>>(
         &self,
         w: &mut W,
@@ -861,6 +882,7 @@ impl DynamicImage {
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
+    #[cfg(feature = "std")]
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -873,6 +895,7 @@ impl DynamicImage {
     ///
     /// See [`save_buffer_with_format`](fn.save_buffer_with_format.html) for
     /// supported types.
+    #[cfg(feature = "std")]
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
         Q: AsRef<Path>,
@@ -1023,6 +1046,7 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
+#[cfg(feature = "std")]
 fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
@@ -1103,6 +1127,7 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
 /// content before its path.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[cfg(feature = "std")]
 pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
@@ -1118,6 +1143,7 @@ where
 /// content before its path or manually supplying the format.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[cfg(feature = "std")]
 pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
@@ -1209,6 +1235,7 @@ where
 /// Try [`io::Reader`] for more advanced uses.
 ///
 /// [`io::Reader`]: io/struct.Reader.html
+#[cfg(feature = "std")]
 pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
     let format = free_functions::guess_format(buffer)?;
     load_from_memory_with_format(buffer, format)
@@ -1223,6 +1250,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 ///
 /// [`load`]: fn.load.html
 /// [`io::Reader`]: io/struct.Reader.html
+#[cfg(feature = "std")]
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
     let b = io::Cursor::new(buf);
@@ -1247,6 +1275,7 @@ mod bench {
 mod test {
     use alloc::vec::Vec;
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_empty_file() {
         assert!(super::load_from_memory(b"").is_err());
@@ -1352,6 +1381,7 @@ mod test {
         let _ = super::DynamicImage::new_luma16(1, 1).into_bytes();
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn issue_1705_can_turn_16bit_image_into_bytes() {
         let pixels = vec![65535u16; 64 * 64];

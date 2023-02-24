@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::u32;
 
 use crc32fast::Hasher as Crc32;
+#[cfg(feature = "std")]
 use image::DynamicImage;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
@@ -149,6 +150,7 @@ fn parse_crc(src: &str) -> Option<u32> {
     u32::from_str_radix(src, 16).ok()
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn check_references() {
     process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {
@@ -159,7 +161,7 @@ fn check_references() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::Unsupported(_)) => return,
+            Err(image::ImageError::Unsupported { format, kind }) => return,
             Err(err) => panic!("{}", err),
         };
 
@@ -258,7 +260,7 @@ fn check_references() {
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
-                    Err(image::ImageError::Unsupported(_)) => return,
+                    Err(image::ImageError::Unsupported { format, kind }) => return,
                     Err(err) => panic!("decoding of {:?} failed with: {}", img_path, err),
                 };
             }

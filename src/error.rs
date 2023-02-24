@@ -173,109 +173,10 @@ pub enum ImageFormatHint {
     Unknown,
 }
 
-impl UnsupportedError {
-    /// Create an `UnsupportedError` for an image with details on the unsupported feature.
-    ///
-    /// If the operation was not connected to a particular image format then the hint may be
-    /// `Unknown`.
-    pub fn from_format_and_kind(format: ImageFormatHint, kind: UnsupportedErrorKind) -> Self {
-        UnsupportedError { format, kind }
-    }
-
-    /// Returns the corresponding `UnsupportedErrorKind` of the error.
-    pub fn kind(&self) -> UnsupportedErrorKind {
-        self.kind.clone()
-    }
-
-    /// Returns the image format associated with this error.
-    pub fn format_hint(&self) -> ImageFormatHint {
-        self.format.clone()
-    }
-}
-
-impl DecodingError {
-    /// Create a `DecodingError` that stems from an arbitrary error of an underlying decoder.
-    #[cfg(feature = "std")]
-    pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
-        DecodingError {
-            format,
-            underlying: Some(err.into()),
-        }
-    }
-
-    /// Create a `DecodingError` for an image format.
-    ///
-    /// The error will not contain any further information but is very easy to create.
-    pub fn from_format_hint(format: ImageFormatHint) -> Self {
-        DecodingError {
-            format,
-            underlying: None,
-        }
-    }
-
-    /// Returns the image format associated with this error.
-    pub fn format_hint(&self) -> ImageFormatHint {
-        self.format.clone()
-    }
-}
-
-impl EncodingError {
-    /// Create an `EncodingError` that stems from an arbitrary error of an underlying encoder.
-    #[cfg(feature = "std")]
-    pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
-        EncodingError {
-            format,
-            underlying: Some(err.into()),
-        }
-    }
-
-    /// Create an `EncodingError` for an image format.
-    ///
-    /// The error will not contain any further information but is very easy to create.
-    pub fn from_format_hint(format: ImageFormatHint) -> Self {
-        EncodingError {
-            format,
-            underlying: None,
-        }
-    }
-
-    /// Return the image format associated with this error.
-    pub fn format_hint(&self) -> ImageFormatHint {
-        self.format.clone()
-    }
-}
-
-impl ParameterError {
-    /// Construct a `ParameterError` directly from a corresponding kind.
-    pub fn from_kind(kind: ParameterErrorKind) -> Self {
-        ParameterError {
-            kind,
-            underlying: None,
-        }
-    }
-
-    /// Returns the corresponding `ParameterErrorKind` of the error.
-    pub fn kind(&self) -> ParameterErrorKind {
-        self.kind.clone()
-    }
-}
-
-impl LimitError {
-    /// Construct a generic `LimitError` directly from a corresponding kind.
-    pub fn from_kind(kind: LimitErrorKind) -> Self {
-        LimitError { kind }
-    }
-
-    /// Returns the corresponding `LimitErrorKind` of the error.
-    pub fn kind(&self) -> LimitErrorKind {
-        self.kind.clone()
-    }
-}
-
 #[cfg(feature = "std")]
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
-        ImageError::IoError(err)
+        ImageError::IoError { err }
     }
 }
 
@@ -291,15 +192,6 @@ impl From<&'_ std::path::Path> for ImageFormatHint {
         match path.extension() {
             Some(ext) => ImageFormatHint::PathExtension(ext.into()),
             None => ImageFormatHint::Unknown,
-        }
-    }
-}
-
-impl From<ImageFormatHint> for UnsupportedError {
-    fn from(hint: ImageFormatHint) -> Self {
-        UnsupportedError {
-            format: hint.clone(),
-            kind: UnsupportedErrorKind::Format(hint),
         }
     }
 }

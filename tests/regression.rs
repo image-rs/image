@@ -75,7 +75,7 @@ fn bad_gif_oom() {
     let error = image::load_from_memory(&data).unwrap_err();
 
     assert!(
-        matches!(error, image::ImageError::Limits(_))
-            | matches!(error, image::ImageError::Unsupported(_))
+        matches!(error, image::ImageError::Limits { kind })
+            | matches!(error, image::ImageError::Unsupported { format, kind })
     );
 }

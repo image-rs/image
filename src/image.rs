@@ -4,15 +4,11 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::ops::{Deref, DerefMut};
 use core::usize;
-use std::io;
-use std::io::Read;
-use std::path::Path;
+// use std::io;
+// use std::io::Read;
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{
-    ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
-    ParameterErrorKind,
-};
+use crate::error::{ImageError, ImageFormatHint, ImageResult, LimitErrorKind, ParameterErrorKind};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -396,11 +392,12 @@ impl ImageReadBuffer {
         }
     }
 
+    #[cfg(feature = "std")]
     #[allow(dead_code)]
     // When no image formats that use it are enabled
-    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> io::Result<usize>
+    pub(crate) fn read<F>(&mut self, buf: &mut [u8], mut read_scanline: F) -> std::io::Result<usize>
     where
-        F: FnMut(&mut [u8]) -> io::Result<usize>,
+        F: FnMut(&mut [u8]) -> std::io::Result<usize>,
     {
         if self.buffer.len() == self.consumed {
             if self.offset == self.total_bytes {
@@ -443,6 +440,7 @@ impl ImageReadBuffer {
 
 /// Decodes a specific region of the image, represented by the rectangle
 /// starting from ```x``` and ```y``` and having ```length``` and ```width```
+#[cfg(feature = "std")]
 #[allow(dead_code)]
 // When no image formats that use it are enabled
 pub(crate) fn load_rect<'a, D, F, F1, F2, E>(
@@ -459,7 +457,7 @@ pub(crate) fn load_rect<'a, D, F, F1, F2, E>(
 where
     D: ImageDecoder<'a>,
     F: Fn(Progress),
-    F1: FnMut(&mut D, u64) -> io::Result<()>,
+    F1: FnMut(&mut D, u64) -> std::io::Result<()>,
     F2: FnMut(&mut D, &mut [u8]) -> Result<(), E>,
     ImageError: From<E>,
 {
@@ -596,6 +594,7 @@ where
 /// of the output buffer is guaranteed.
 ///
 /// Panics if there isn't enough memory to decode the image.
+#[cfg(feature = "std")]
 pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<T>>
 where
     T: crate::traits::Primitive + bytemuck::Pod,
@@ -650,7 +649,10 @@ impl Progress {
 /// The trait that all decoders implement
 pub trait ImageDecoder<'a>: Sized {
     /// The type of reader produced by `into_reader`.
-    type Reader: Read + 'a;
+    #[cfg(feature = "std")]
+    type Reader: std::io::Read + 'a;
+    #[cfg(not(feature = "std"))]
+    type Reader: 'a;
 
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&self) -> (u32, u32);
@@ -666,6 +668,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns a reader that can be used to obtain the bytes of the image. For the best
     /// performance, always try to read at least `scanline_bytes` from the reader at a time. Reading
     /// fewer bytes will cause the reader to perform internal buffering.
+    #[cfg(feature = "std")]
     fn into_reader(self) -> ImageResult<Self::Reader>;
 
     /// Returns the total number of bytes in the decoded image.
@@ -708,12 +711,14 @@ pub trait ImageDecoder<'a>: Sized {
     ///     buf
     /// }
     /// ```
+    #[cfg(feature = "std")]
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         self.read_image_with_progress(buf, |_| {})
     }
 
     /// Same as `read_image` but periodically calls the provided callback to give updates on loading
     /// progress.
+    #[cfg(feature = "std")]
     fn read_image_with_progress<F: Fn(Progress)>(
         self,
         buf: &mut [u8],
@@ -1322,8 +1327,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        load_rect, ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat,
-        ImageResult,
+        ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageResult,
     };
     use crate::color::Rgba;
     use crate::math::Rect;
@@ -1333,6 +1337,9 @@ mod tests {
     use alloc::vec::Vec;
     use std::io;
     use std::path::Path;
+
+    #[cfg(feature = "std")]
+    use super::load_rect;
 
     #[test]
     #[allow(deprecated)]
@@ -1461,6 +1468,7 @@ mod tests {
         view.to_image();
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_load_rect() {
         struct MockDecoder {
@@ -1581,6 +1589,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_load_rect_single_scanline() {
         const DATA: [u8; 25] = [
@@ -1846,6 +1855,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn total_bytes_overflow() {
         struct D;

@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use crate::error::{ImageError, ParameterError, ParameterErrorKind};
+use crate::error::{ImageError, ParameterErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -58,9 +58,9 @@ where
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
+        return Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        });
     }
 
     for y in 0..h0 {
@@ -84,9 +84,9 @@ where
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
+        return Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        });
     }
 
     for y in 0..h0 {
@@ -110,9 +110,9 @@ where
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != h1 || h0 != w1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
+        return Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        });
     }
 
     for y in 0..h0 {
@@ -162,9 +162,9 @@ where
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
+        return Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        });
     }
 
     for y in 0..h0 {
@@ -188,9 +188,9 @@ where
 {
     let ((w0, h0), (w1, h1)) = (image.dimensions(), destination.dimensions());
     if w0 != w1 || h0 != h1 {
-        return Err(ImageError::Parameter(ParameterError::from_kind(
-            ParameterErrorKind::DimensionMismatch,
-        )));
+        return Err(ImageError::Parameter {
+            kind: ParameterErrorKind::DimensionMismatch,
+        });
     }
 
     for y in 0..h0 {
@@ -272,6 +272,7 @@ mod test {
     use crate::image::GenericImage;
     use crate::traits::Pixel;
     use crate::{GrayImage, ImageBuffer};
+    use alloc::string::ToString;
     use alloc::vec::Vec;
 
     macro_rules! assert_pixels_eq {

@@ -5,7 +5,6 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use core::slice::{ChunksExact, ChunksExactMut};
 use num_traits::Zero;
-use std::path::Path;
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 #[cfg(feature = "std")]
@@ -981,6 +980,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -992,7 +992,7 @@ where
     /// The image format is derived from the file extension.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
-        Q: AsRef<Path>,
+        Q: AsRef<std::path::Path>,
         P: PixelWithColorType,
     {
         save_buffer(
@@ -1005,6 +1005,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1018,7 +1019,7 @@ where
     /// supported types.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
-        Q: AsRef<Path>,
+        Q: AsRef<std::path::Path>,
         P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.

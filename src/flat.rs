@@ -50,10 +50,7 @@ use num_traits::Zero;
 use snafu::prelude::*;
 
 use crate::color::ColorType;
-use crate::error::{
-    DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
-    UnsupportedError, UnsupportedErrorKind,
-};
+use crate::error::{ImageError, ImageFormatHint, ParameterErrorKind, UnsupportedErrorKind};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, PixelWithColorType};
 use crate::ImageBuffer;
@@ -640,7 +637,9 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE));
+            return Err(Error::WrongColor {
+                underlying: P::COLOR_TYPE,
+            });
         }
 
         let as_mut = self.samples.as_mut();
@@ -675,11 +674,15 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.layout.is_normal(NormalForm::PixelPacked) {
-            return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
+            return Err(Error::NormalFormRequired {
+                underlying: NormalForm::PixelPacked,
+            });
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor(P::COLOR_TYPE));
+            return Err(Error::WrongColor {
+                underlying: P::COLOR_TYPE,
+            });
         }
 
         let as_mut = self.samples.as_mut();
@@ -771,11 +774,21 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: Deref<Target = [P::Subpixel]>,
     {
         if !self.is_normal(NormalForm::RowMajorPacked) {
-            return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self));
+            return Err((
+                Error::NormalFormRequired {
+                    underlying: NormalForm::RowMajorPacked,
+                },
+                self,
+            ));
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((Error::WrongColor(P::COLOR_TYPE), self));
+            return Err((
+                Error::WrongColor {
+                    underlying: P::COLOR_TYPE,
+                },
+                self,
+            ));
         }
 
         if !self.fits(self.samples.deref().len()) {
@@ -1196,7 +1209,12 @@ where
         Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.inner.is_normal(NormalForm::PixelPacked) {
-            return Err((Error::NormalFormRequired(NormalForm::PixelPacked), self));
+            return Err((
+                Error::NormalFormRequired {
+                    underlying: NormalForm::PixelPacked,
+                },
+                self,
+            ));
         }
 
         // No length check or channel count check required, all the same.
@@ -1480,24 +1498,17 @@ where
 
 impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
-        #[derive(Snafu, Debug)]
-        #[snafu(display("Required sample buffer in normal form {self.0}"))]
-        struct NormalFormRequiredError(NormalForm);
-
         match error {
-            Error::TooLarge => ImageError::Parameter(ParameterError::from_kind(
-                ParameterErrorKind::DimensionMismatch,
-            )),
-            Error::NormalFormRequired(form) => ImageError::Decoding(DecodingError::new(
-                ImageFormatHint::Unknown,
-                NormalFormRequiredError(form),
-            )),
-            Error::WrongColor(color) => {
-                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormatHint::Unknown,
-                    UnsupportedErrorKind::Color(color.into()),
-                ))
-            }
+            Error::TooLarge => ImageError::Parameter {
+                kind: ParameterErrorKind::DimensionMismatch,
+            },
+            Error::NormalFormRequired { underlying } => ImageError::Decoding {
+                format: ImageFormatHint::Unknown,
+            },
+            Error::WrongColor { underlying } => ImageError::Unsupported {
+                format: ImageFormatHint::Unknown,
+                kind: UnsupportedErrorKind::Color(underlying.into()),
+            },
         }
     }
 }

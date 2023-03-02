@@ -13,22 +13,24 @@ impl Compressor {
         input: &[u8],
         output: &mut [u8],
         output_position: usize,
+        ignore_adler32: bool,
         end_of_input: bool,
     ) -> (TINFLStatus, usize, usize) {
         match self {
-            Compressor::FullZlib(decompressor) => decompress(
-                decompressor,
-                input,
-                output,
-                output_position,
-                inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
-                    | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
-                    | if end_of_input {
-                        0
-                    } else {
-                        inflate_flags::TINFL_FLAG_HAS_MORE_INPUT
-                    },
-            ),
+            Compressor::FullZlib(decompressor) => {
+                const BASE_FLAGS: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
+                    | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+
+                let mut flags = BASE_FLAGS;
+                if !end_of_input {
+                    flags |= inflate_flags::TINFL_FLAG_HAS_MORE_INPUT;
+                }
+                if ignore_adler32 {
+                    flags |= inflate_flags::TINFL_FLAG_IGNORE_ADLER32;
+                }
+
+                decompress(decompressor, input, output, output_position, flags)
+            }
             Compressor::FDeflate(decompressor) => {
                 match decompressor.read(input, &mut output[output_position..], end_of_input) {
                     Ok((in_consumed, out_consumed)) if decompressor.done() => {
@@ -46,7 +48,13 @@ impl Compressor {
                         assert_eq!(output_position, 0);
 
                         *self = Compressor::FullZlib(DecompressorOxide::new());
-                        self.decompress(input, output, output_position, end_of_input)
+                        self.decompress(
+                            input,
+                            output,
+                            output_position,
+                            ignore_adler32,
+                            end_of_input,
+                        )
                     }
                     Err(_) => (TINFLStatus::Failed, 0, 0),
                 }
@@ -87,6 +95,12 @@ pub(super) struct ZlibStream {
     out_buffer: Vec<u8>,
     /// The cursor position in the output stream as a buffer index.
     out_pos: usize,
+    /// Ignore and do not calculate the Adler-32 checksum. Defaults to `true`.
+    ///
+    /// This flag overrides `TINFL_FLAG_COMPUTE_ADLER32`.
+    ///
+    /// This flag should not be modified after decompression has started.
+    ignore_adler32: bool,
 }
 
 impl ZlibStream {
@@ -98,15 +112,32 @@ impl ZlibStream {
             in_pos: 0,
             out_buffer: vec![0; 2 * CHUNCK_BUFFER_SIZE],
             out_pos: 0,
+            ignore_adler32: true,
         }
     }
 
     pub(crate) fn reset(&mut self) {
         self.started = false;
         self.in_buffer.clear();
+        self.in_pos = 0;
         self.out_buffer.clear();
         self.out_pos = 0;
         *self.state = Default::default();
+    }
+
+    /// Set the `ignore_adler32` flag. The default is `true`.
+    ///
+    /// This flag cannot be modified after decompression has started until the
+    /// [ZlibStream] is reset.
+    pub(crate) fn set_ignore_adler32(&mut self, flag: bool) {
+        if !self.started {
+            self.ignore_adler32 = flag;
+        }
+    }
+
+    /// Return the `ignore_adler32` flag.
+    pub(crate) fn ignore_adler32(&self) -> bool {
+        self.ignore_adler32
     }
 
     /// Fill the decoded buffer as far as possible from `data`.
@@ -124,8 +155,13 @@ impl ZlibStream {
             } else {
                 &self.in_buffer[self.in_pos..]
             };
-            self.state
-                .decompress(in_data, self.out_buffer.as_mut_slice(), self.out_pos, false)
+            self.state.decompress(
+                in_data,
+                self.out_buffer.as_mut_slice(),
+                self.out_pos,
+                self.ignore_adler32,
+                false,
+            )
         };
 
         if !self.in_buffer.is_empty() {
@@ -185,6 +221,7 @@ impl ZlibStream {
                     &tail[start..],
                     self.out_buffer.as_mut_slice(),
                     self.out_pos,
+                    self.ignore_adler32,
                     true,
                 )
             };

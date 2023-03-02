@@ -393,6 +393,10 @@ impl DecodeConfig {
 }
 
 /// PNG StreamingDecoder (low-level interface)
+///
+/// By default, the decoder does not verify Adler-32 checksum computation. To
+/// enable checksum verification, set it with [`StreamingDecoder::set_ignore_adler32_checksum`]
+/// before starting decompression.
 pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
@@ -446,7 +450,7 @@ impl StreamingDecoder {
         self.current_chunk.crc = Crc32::new();
         self.current_chunk.remaining = 0;
         self.current_chunk.raw_bytes.clear();
-        self.inflater = ZlibStream::new();
+        self.inflater.reset();
         self.info = None;
         self.current_seq_no = None;
         self.apng_seq_handled = false;
@@ -465,6 +469,20 @@ impl StreamingDecoder {
 
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
+    }
+
+    /// Return whether the decoder is set to ignore the Adler-32 checksum.
+    pub fn ignore_adler32_checksum(&self) -> bool {
+        self.inflater.ignore_adler32()
+    }
+
+    /// Set whether to compute and verify the Adler-32 checksum during
+    /// decompression. The decoder defaults to `true`.
+    ///
+    /// This flag cannot be modified after decompression has started until the
+    /// [StreamingDecoder] is reset.
+    pub fn set_ignore_adler32_checksum(&mut self, flag: bool) {
+        self.inflater.set_ignore_adler32(flag);
     }
 
     /// Low level StreamingDecoder interface.
@@ -766,7 +784,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = ZlibStream::new();
+        self.inflater.reset();
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,

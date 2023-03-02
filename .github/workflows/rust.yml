@@ -2,6 +2,7 @@ name: Rust CI
 
 on:
   push:
+  # TODO(interstellar) revert
   #   branches: [ master, next ]
   # pull_request:
   #   branches: [ master, next ]

@@ -98,7 +98,7 @@ avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
 # Requires rustc nightly for feature test.
 benchmarks = []
 
-alloc = ["num-traits/libm", "color_quant/alloc"]
+alloc = ["num-traits/libm", "color_quant/num-traits"]
 
 [[bench]]
 path = "benches/decode.rs"

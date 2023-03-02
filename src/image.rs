@@ -651,8 +651,6 @@ pub trait ImageDecoder<'a>: Sized {
     /// The type of reader produced by `into_reader`.
     #[cfg(feature = "std")]
     type Reader: std::io::Read + 'a;
-    #[cfg(not(feature = "std"))]
-    type Reader: 'a;
 
     /// Returns a tuple containing the width and height of the image
     fn dimensions(&self) -> (u32, u32);

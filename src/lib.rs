@@ -159,7 +159,6 @@ pub use crate::dynimage::{
 #[cfg(feature = "std")]
 pub use crate::io::free_functions::{guess_format, load};
 
-#[cfg(feature = "std")]
 pub use crate::dynimage::DynamicImage;
 
 pub use crate::animation::{Delay, Frame, Frames};
@@ -269,7 +268,6 @@ mod animation;
 #[path = "buffer.rs"]
 mod buffer_;
 mod color;
-#[cfg(feature = "std")]
 mod dynimage;
 mod image;
 mod traits;

@@ -60,7 +60,6 @@ use crate::io::free_functions;
 /// would hardly be feasible as a simple enum, due to the sheer number of combinations of channel
 /// kinds, channel order, and bit depth. Rather, this type provides an opinionated selection with
 /// normalized channel order which can store common pixel values without loss.
-#[cfg(feature = "std")]
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DynamicImage {
@@ -128,60 +127,50 @@ macro_rules! dynamic_map(
         );
 );
 
-#[cfg(feature = "std")]
 impl DynamicImage {
     /// Creates a dynamic image backed by a buffer of gray pixels.
-    #[cfg(feature = "std")]
     pub fn new_luma8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
-    #[cfg(feature = "std")]
     pub fn new_luma_a8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    #[cfg(feature = "std")]
     pub fn new_rgb8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
-    #[cfg(feature = "std")]
     pub fn new_rgba8(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba8(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray pixels.
-    #[cfg(feature = "std")]
     pub fn new_luma16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLuma16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of gray
     /// pixels with transparency.
-    #[cfg(feature = "std")]
     pub fn new_luma_a16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageLumaA16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    #[cfg(feature = "std")]
     pub fn new_rgb16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGBA pixels.
-    #[cfg(feature = "std")]
     pub fn new_rgba16(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgba16(ImageBuffer::new(w, h))
     }
 
     /// Creates a dynamic image backed by a buffer of RGB pixels.
-    #[cfg(feature = "std")]
     pub fn new_rgb32f(w: u32, h: u32) -> DynamicImage {
         DynamicImage::ImageRgb32F(ImageBuffer::new(w, h))
     }
@@ -198,13 +187,11 @@ impl DynamicImage {
     }
 
     /// Returns a copy of this image as an RGB image.
-    #[cfg(feature = "std")]
     pub fn to_rgb8(&self) -> RgbImage {
         dynamic_map!(*self, |ref p| p.convert())
     }
 
     /// Returns a copy of this image as an RGB image.
-    #[cfg(feature = "std")]
     pub fn to_rgb16(&self) -> Rgb16Image {
         dynamic_map!(*self, |ref p| p.convert())
     }

@@ -62,15 +62,14 @@ jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, 
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
 ico = ["bmp", "png"]
 pnm = []
 tga = []
 bmp = []
 hdr = []
-dxt = []
-dds = ["dxt"]
+dds = []
 farbfeld = []
 openexr = ["exr"]
 qoi = ["dep:qoi"]

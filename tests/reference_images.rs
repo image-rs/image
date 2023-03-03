@@ -223,7 +223,7 @@ fn check_references() {
                     use image::AnimationDecoder;
                     let stream = io::BufReader::new(fs::File::open(&img_path).unwrap());
                     let decoder = match image::codecs::png::PngDecoder::new(stream) {
-                        Ok(decoder) => decoder.apng(),
+                        Ok(decoder) => decoder.apng().unwrap(),
                         Err(image::ImageError::Unsupported(_)) => return,
                         Err(err) => {
                             panic!("decoding of {:?} failed with: {}", img_path, err)

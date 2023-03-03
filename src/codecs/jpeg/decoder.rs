@@ -1,7 +1,5 @@
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read};
-use std::marker::PhantomData;
-use std::mem;
+use std::io::Read;
 
 use crate::color::ColorType;
 use crate::error::{
@@ -63,25 +61,7 @@ impl<R: Read> JpegDecoder<R> {
     }
 }
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct JpegReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for JpegReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
-    type Reader = JpegReader<R>;
-
+impl<R: Read> ImageDecoder for JpegDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (
             u32::from(self.metadata.width),
@@ -93,18 +73,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
         ColorType::from_jpeg(self.metadata.pixel_format)
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        self.decoder.icc_profile()
-    }
-
-    fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let mut data = self.decoder.decode().map_err(ImageError::from_jpeg)?;
-        data = match self.decoder.info().unwrap().pixel_format {
-            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
-            _ => data,
-        };
-
-        Ok(JpegReader(Cursor::new(data), PhantomData))
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.decoder.icc_profile().clone())
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -118,6 +88,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
 
         buf.copy_from_slice(&data);
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

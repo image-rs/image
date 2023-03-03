@@ -145,7 +145,6 @@ pub use crate::image::{
     ImageOutputFormat,
     // Iterators
     Pixels,
-    Progress,
     SubImage,
 };
 
@@ -255,9 +254,6 @@ pub mod codecs {
     pub mod bmp;
     #[cfg(feature = "dds")]
     pub mod dds;
-    #[cfg(feature = "dxt")]
-    #[deprecated = "DXT support will be removed or reworked in a future version. Prefer the `squish` crate instead. See https://github.com/image-rs/image/issues/1623"]
-    pub mod dxt;
     #[cfg(feature = "farbfeld")]
     pub mod farbfeld;
     #[cfg(feature = "gif")]
@@ -282,6 +278,9 @@ pub mod codecs {
     pub mod tiff;
     #[cfg(feature = "webp")]
     pub mod webp;
+
+    #[cfg(feature = "dds")]
+    mod dxt;
 }
 
 mod animation;

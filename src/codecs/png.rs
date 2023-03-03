@@ -8,7 +8,7 @@
 
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 
 use png::{BlendOp, DisposeOp};
 
@@ -25,88 +25,6 @@ use crate::{DynamicImage, GenericImage, ImageBuffer, Luma, LumaA, Rgb, Rgba, Rgb
 // http://www.w3.org/TR/PNG-Structure.html
 // The first eight bytes of a PNG file always contain the following (decimal) values:
 pub(crate) const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
-
-/// Png Reader
-///
-/// This reader will try to read the png one row at a time,
-/// however for interlaced png files this is not possible and
-/// these are therefore read at once.
-pub struct PngReader<R: Read> {
-    reader: png::Reader<R>,
-    buffer: Vec<u8>,
-    index: usize,
-}
-
-impl<R: Read> PngReader<R> {
-    fn new(mut reader: png::Reader<R>) -> ImageResult<PngReader<R>> {
-        let len = reader.output_buffer_size();
-        // Since interlaced images do not come in
-        // scanline order it is almost impossible to
-        // read them in a streaming fashion, however
-        // this shouldn't be a too big of a problem
-        // as most interlaced images should fit in memory.
-        let buffer = if reader.info().interlaced {
-            let mut buffer = vec![0; len];
-            reader
-                .next_frame(&mut buffer)
-                .map_err(ImageError::from_png)?;
-            buffer
-        } else {
-            Vec::new()
-        };
-
-        Ok(PngReader {
-            reader,
-            buffer,
-            index: 0,
-        })
-    }
-}
-
-impl<R: Read> Read for PngReader<R> {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        // io::Write::write for slice cannot fail
-        let readed = buf.write(&self.buffer[self.index..]).unwrap();
-
-        let mut bytes = readed;
-        self.index += readed;
-
-        while self.index >= self.buffer.len() {
-            match self.reader.next_row()? {
-                Some(row) => {
-                    // Faster to copy directly to external buffer
-                    let readed = buf.write(row.data()).unwrap();
-                    bytes += readed;
-
-                    self.buffer = row.data()[readed..].to_owned();
-                    self.index = 0;
-                }
-                None => return Ok(bytes),
-            }
-        }
-
-        Ok(bytes)
-    }
-
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        let mut bytes = self.buffer.len();
-        if buf.is_empty() {
-            std::mem::swap(&mut self.buffer, buf);
-        } else {
-            buf.extend_from_slice(&self.buffer);
-            self.buffer.clear();
-        }
-
-        self.index = 0;
-
-        while let Some(row) = self.reader.next_row()? {
-            buf.extend_from_slice(row.data());
-            bytes += row.data().len();
-        }
-
-        Ok(bytes)
-    }
-}
 
 /// PNG decoder
 pub struct PngDecoder<R: Read> {
@@ -225,8 +143,8 @@ impl<R: Read> PngDecoder<R> {
     /// If something is not supported or a limit is violated then the decoding step that requires
     /// them will fail and an error will be returned instead of the frame. No further frames will
     /// be returned.
-    pub fn apng(self) -> ApngDecoder<R> {
-        ApngDecoder::new(self)
+    pub fn apng(self) -> ImageResult<ApngDecoder<R>> {
+        Ok(ApngDecoder::new(self))
     }
 
     /// Returns if the image contains an animation.
@@ -235,8 +153,8 @@ impl<R: Read> PngDecoder<R> {
     /// animation. When it is not the common interpretation is to use it as a thumbnail.
     ///
     /// If a non-animated image is converted into an `ApngDecoder` then its iterator is empty.
-    pub fn is_apng(&self) -> bool {
-        self.reader.info().animation_control.is_some()
+    pub fn is_apng(&self) -> ImageResult<bool> {
+        Ok(self.reader.info().animation_control.is_some())
     }
 }
 
@@ -247,9 +165,7 @@ fn unsupported_color(ect: ExtendedColorType) -> ImageError {
     ))
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
-    type Reader = PngReader<R>;
-
+impl<R: Read> ImageDecoder for PngDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.reader.info().size()
     }
@@ -258,13 +174,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         self.color_type
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        self.reader.info().icc_profile.as_ref().map(|x| x.to_vec())
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
+        Ok(self.reader.info().icc_profile.as_ref().map(|x| x.to_vec()))
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        PngReader::new(self.reader)
-    }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         use byteorder::{BigEndian, ByteOrder, NativeEndian};
@@ -288,9 +201,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PngDecoder<R> {
         Ok(())
     }
 
-    fn scanline_bytes(&self) -> u64 {
-        let width = self.reader.info().width;
-        self.reader.output_line_size(width) as u64
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 
     fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
@@ -811,9 +723,7 @@ mod tests {
             "Image MUST have the Rgb8 format"
         ];
 
-        #[allow(deprecated)]
-        let correct_bytes = dec
-            .into_reader()
+        let correct_bytes = crate::image::decoder_to_vec(dec)
             .expect("Unable to read file")
             .bytes()
             .map(|x| x.expect("Unable to read byte"))

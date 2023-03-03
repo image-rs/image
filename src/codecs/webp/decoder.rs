@@ -1,8 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Error, Read};
-use std::marker::PhantomData;
-use std::{error, fmt, mem};
+use std::{error, fmt};
 
 use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{ImageDecoder, ImageFormat};
@@ -280,25 +279,7 @@ where
     }
 }
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct WebpReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for WebpReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
-    type Reader = WebpReader<R>;
-
+impl<R: Read> ImageDecoder for WebPDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         match &self.image {
             WebPImage::Lossy(vp8_frame) => {
@@ -320,26 +301,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
         }
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        match &self.image {
-            WebPImage::Lossy(vp8_frame) => {
-                let mut data = vec![0; vp8_frame.get_buf_size()];
-                vp8_frame.fill_rgb(data.as_mut_slice());
-                Ok(WebpReader(Cursor::new(data), PhantomData))
-            }
-            WebPImage::Lossless(lossless_frame) => {
-                let mut data = vec![0; lossless_frame.get_buf_size()];
-                lossless_frame.fill_rgba(data.as_mut_slice());
-                Ok(WebpReader(Cursor::new(data), PhantomData))
-            }
-            WebPImage::Extended(extended) => {
-                let mut data = vec![0; extended.get_buf_size()];
-                extended.fill_buf(data.as_mut_slice());
-                Ok(WebpReader(Cursor::new(data), PhantomData))
-            }
-        }
-    }
-
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
@@ -357,12 +318,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
         Ok(())
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        if let WebPImage::Extended(extended) = &self.image {
-            extended.icc_profile()
-        } else {
-            None
-        }
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

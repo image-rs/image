@@ -4,7 +4,7 @@ use crate::{
     error::{
         ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError, UnsupportedErrorKind,
     },
-    image::{ImageDecoder, ImageFormat, ImageReadBuffer},
+    image::{ImageDecoder, ImageFormat},
 };
 use byteorder::ReadBytesExt;
 use std::{
@@ -411,9 +411,7 @@ impl<R: Read + Seek> TgaDecoder<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
-    type Reader = TGAReader<R>;
-
+impl<R: Read + Seek> ImageDecoder for TgaDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -425,23 +423,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
     fn original_color_type(&self) -> ExtendedColorType {
         self.original_color_type
             .unwrap_or_else(|| self.color_type().into())
-    }
-
-    fn scanline_bytes(&self) -> u64 {
-        // This cannot overflow because TGA has a maximum width of u16::MAX_VALUE and
-        // `bytes_per_pixel` is a u8.
-        u64::from(self.color_type.bytes_per_pixel()) * self.width as u64
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(TGAReader {
-            buffer: ImageReadBuffer::new(
-                #[allow(deprecated)]
-                self.scanline_bytes(),
-                self.total_bytes(),
-            ),
-            decoder: self,
-        })
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -492,15 +473,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TgaDecoder<R> {
 
         Ok(())
     }
-}
 
-pub struct TGAReader<R> {
-    buffer: ImageReadBuffer,
-    decoder: TgaDecoder<R>,
-}
-impl<R: Read + Seek> Read for TGAReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let decoder = &mut self.decoder;
-        self.buffer.read(buf, |buf| decoder.read_scanline(buf))
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }

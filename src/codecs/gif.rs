@@ -43,7 +43,7 @@ use crate::error::{
     DecodingError, EncodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind,
     UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, AnimationDecoder, ImageDecoder, ImageFormat};
+use crate::image::{AnimationDecoder, ImageDecoder, ImageFormat};
 use crate::io::Limits;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -93,9 +93,7 @@ impl<R> Read for GifReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
-    type Reader = GifReader<R>;
-
+impl<R: Read> ImageDecoder for GifDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (
             u32::from(self.reader.width()),
@@ -105,24 +103,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
 
     fn color_type(&self) -> ColorType {
         ColorType::Rgba8
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(GifReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
-    }
-
-    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
-        limits.check_support(&crate::io::LimitSupport::default())?;
-
-        let (width, height) = self.dimensions();
-        limits.check_dimensions(width, height)?;
-
-        self.limits = limits;
-
-        Ok(())
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
@@ -229,6 +209,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
         }
 
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

@@ -19,7 +19,6 @@ use crate::error::{
     ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageEncoder, ImageFormat};
-use crate::utils;
 
 /// Decoder for TIFF images.
 pub struct TiffDecoder<R>
@@ -185,9 +184,7 @@ impl<R> Read for TiffReader<R> {
     }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
-    type Reader = TiffReader<R>;
-
+impl<R: Read + Seek> ImageDecoder for TiffDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         self.dimensions
     }
@@ -200,11 +197,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.original_color_type
     }
 
-    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+    fn icc_profile(&mut self) -> ImageResult<Option<Vec<u8>>> {
         if let Some(decoder) = &mut self.inner {
-            decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok()
+            Ok(decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok())
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -226,28 +223,6 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.inner = Some(self.inner.take().unwrap().with_limits(tiff_limits));
 
         Ok(())
-    }
-
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        let buf = match self
-            .inner
-            .unwrap()
-            .read_image()
-            .map_err(ImageError::from_tiff_decode)?
-        {
-            tiff::decoder::DecodingResult::U8(v) => v,
-            tiff::decoder::DecodingResult::U16(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::U32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::U64(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I8(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I16(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::I64(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::F32(v) => utils::vec_copy_to_u8(&v),
-            tiff::decoder::DecodingResult::F64(v) => utils::vec_copy_to_u8(&v),
-        };
-
-        Ok(TiffReader(Cursor::new(buf), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
@@ -298,6 +273,10 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
             }
         }
         Ok(())
+    }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
     }
 }
 

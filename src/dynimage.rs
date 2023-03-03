@@ -1,5 +1,4 @@
-use std::io;
-use std::io::{Seek, Write};
+use std::io::{self, Seek, Write};
 use std::path::Path;
 use std::u32;
 
@@ -189,7 +188,7 @@ impl DynamicImage {
     }
 
     /// Decodes an encoded image into a dynamic image.
-    pub fn from_decoder<'a>(decoder: impl ImageDecoder<'a>) -> ImageResult<Self> {
+    pub fn from_decoder(decoder: impl ImageDecoder) -> ImageResult<Self> {
         decoder_to_image(decoder)
     }
 
@@ -1040,7 +1039,7 @@ impl Default for DynamicImage {
 }
 
 /// Decodes an image and stores it into a dynamic image
-fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicImage> {
+fn decoder_to_image<I: ImageDecoder>(decoder: I) -> ImageResult<DynamicImage> {
     let (w, h) = decoder.dimensions();
     let color_type = decoder.color_type();
 
@@ -1115,8 +1114,7 @@ pub fn open<P>(path: P) -> ImageResult<DynamicImage>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::open_impl(path.as_ref())
+    crate::io::Reader::open(path)?.decode()
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1130,8 +1128,7 @@ pub fn image_dimensions<P>(path: P) -> ImageResult<(u32, u32)>
 where
     P: AsRef<Path>,
 {
-    // thin wrapper function to strip generics before calling open_impl
-    free_functions::image_dimensions_impl(path.as_ref())
+    crate::io::Reader::open(path)?.into_dimensions()
 }
 
 /// Saves the supplied buffer to a file at the path specified.

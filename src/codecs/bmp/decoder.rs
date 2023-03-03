@@ -1,18 +1,18 @@
 use std::cmp::{self, Ordering};
 use std::convert::TryFrom;
-use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::iter::{repeat, Iterator, Rev};
-use std::marker::PhantomData;
 use std::slice::ChunksMut;
-use std::{error, fmt, mem};
+use std::{error, fmt};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
+use crate::ImageDecoderRect;
 use crate::color::ColorType;
 use crate::error::{
     DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
 };
-use crate::image::{self, ImageDecoder, ImageDecoderRect, ImageFormat, Progress};
+use crate::image::{ImageDecoder, ImageFormat, self};
 
 const BITMAPCOREHEADER_SIZE: u32 = 12;
 const BITMAPINFOHEADER_SIZE: u32 = 40;
@@ -1330,25 +1330,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
     }
 }
 
-/// Wrapper struct around a `Cursor<Vec<u8>>`
-pub struct BmpReader<R>(Cursor<Vec<u8>>, PhantomData<R>);
-impl<R> Read for BmpReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        if self.0.position() == 0 && buf.is_empty() {
-            mem::swap(buf, self.0.get_mut());
-            Ok(buf.len())
-        } else {
-            self.0.read_to_end(buf)
-        }
-    }
-}
-
-impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
-    type Reader = BmpReader<R>;
-
+impl<R: Read + Seek> ImageDecoder for BmpDecoder<R> {
     fn dimensions(&self) -> (u32, u32) {
         (self.width as u32, self.height as u32)
     }
@@ -1363,28 +1345,25 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
         }
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
-    }
-
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         self.read_image_data(buf)
     }
+
+    fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
+        (*self).read_image(buf)
+    }
 }
 
-impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for BmpDecoder<R> {
-    fn read_rect_with_progress<F: Fn(Progress)>(
+impl<R: Read + Seek> ImageDecoderRect for BmpDecoder<R> {
+    fn read_rect(
         &mut self,
         x: u32,
         y: u32,
         width: u32,
         height: u32,
         buf: &mut [u8],
-        progress_callback: F,
+        row_pitch: usize,
     ) -> ImageResult<()> {
         let start = self.reader.stream_position()?;
         image::load_rect(
@@ -1393,8 +1372,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for BmpDecoder<R> {
             width,
             height,
             buf,
-            progress_callback,
+            row_pitch,
             self,
+            self.total_bytes() as usize,
             |_, _| Ok(()),
             |s, buf| s.read_image_data(buf),
         )?;
@@ -1428,7 +1408,7 @@ mod test {
         let mut decoder = super::BmpDecoder::new(f).unwrap();
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
-        decoder.read_rect(0, 0, 8, 8, &mut buf).unwrap();
+        decoder.read_rect(0, 0, 8, 8, &mut buf, 8 * 3).unwrap();
     }
 
     #[test]
@@ -1454,7 +1434,7 @@ mod test {
             0x4d, 0x00, 0x2a, 0x00,
         ];
 
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
+        let decoder = BmpDecoder::new(std::io::Cursor::new(&data)).unwrap();
         let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
         assert!(decoder.read_image(&mut buf).is_ok());
     }

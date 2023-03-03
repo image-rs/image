@@ -65,6 +65,8 @@ jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, 
 # TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["std", "gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
+# MUST always compile with either "std" or "alloc"
+# TODO(interstellar) add compile error in case of neither?
 std = ["num-traits/std", "byteorder/std", "color_quant/std"]
 alloc = ["num-traits/libm", "color_quant/num-traits"]
 

@@ -25,15 +25,15 @@ use crate::error::{ImageError, ImageResult, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
 use crate::error::{ImageFormatHint, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
-use crate::image::{
-    GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,
-};
+use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat, ImageOutputFormat};
 use crate::imageops;
 use crate::math::resize_dimensions;
 use crate::traits::Pixel;
 use crate::{image, Luma, LumaA};
 use crate::{Rgb32FImage, Rgba32FImage};
 
+#[cfg(feature = "std")]
+use crate::image::ImageDecoder;
 #[cfg(feature = "std")]
 use crate::io::free_functions;
 

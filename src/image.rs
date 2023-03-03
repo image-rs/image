@@ -647,9 +647,9 @@ impl Progress {
 }
 
 /// The trait that all decoders implement
+#[cfg(feature = "std")]
 pub trait ImageDecoder<'a>: Sized {
     /// The type of reader produced by `into_reader`.
-    #[cfg(feature = "std")]
     type Reader: std::io::Read + 'a;
 
     /// Returns a tuple containing the width and height of the image
@@ -771,6 +771,7 @@ pub trait ImageDecoder<'a>: Sized {
 }
 
 /// Specialized image decoding not be supported by all formats
+#[cfg(feature = "std")]
 pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     /// Decode a rectangular section of the image; see [`read_rect_with_progress()`](#fn.read_rect_with_progress).
     fn read_rect(
@@ -1324,9 +1325,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ColorType, GenericImage, GenericImageView, ImageDecoder, ImageFormat, ImageResult,
-    };
+    use super::{ColorType, GenericImage, GenericImageView, ImageFormat, ImageResult};
     use crate::color::Rgba;
     use crate::math::Rect;
     use crate::{GrayImage, ImageBuffer};
@@ -1337,7 +1336,7 @@ mod tests {
     use std::path::Path;
 
     #[cfg(feature = "std")]
-    use super::load_rect;
+    use super::{load_rect, ImageDecoder};
 
     #[test]
     #[allow(deprecated)]

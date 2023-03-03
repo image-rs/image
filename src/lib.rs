@@ -123,8 +123,6 @@ pub use crate::image::{
     AnimationDecoder,
     GenericImage,
     GenericImageView,
-    ImageDecoder,
-    ImageDecoderRect,
     ImageEncoder,
     ImageFormat,
     ImageOutputFormat,
@@ -156,6 +154,8 @@ pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
     save_buffer_with_format, write_buffer_with_format,
 };
+#[cfg(feature = "std")]
+pub use crate::image::{ImageDecoder, ImageDecoderRect};
 #[cfg(feature = "std")]
 pub use crate::io::free_functions::{guess_format, load};
 

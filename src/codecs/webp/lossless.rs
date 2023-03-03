@@ -105,9 +105,7 @@ impl fmt::Display for DecoderError {
 
 impl From<DecoderError> for ImageError {
     fn from(e: DecoderError) -> ImageError {
-        ImageError::Decoding {
-            format: ImageFormat::WebP.into(),
-        }
+        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
     }
 }
 

@@ -84,24 +84,26 @@ where
 fn check_sample_format(sample_format: u16) -> Result<(), ImageError> {
     match tiff::tags::SampleFormat::from_u16(sample_format) {
         Some(tiff::tags::SampleFormat::Uint) => Ok(()),
-        Some(other) => Err(ImageError::Unsupported {
-            format: ImageFormat::Tiff.into(),
-            kind: UnsupportedErrorKind::GenericFeature(format!(
-                "Unhandled TIFF sample format {:?}",
-                other
-            )),
-        }),
-        None => Err(ImageError::Decoding {
-            format: ImageFormat::Tiff.into(),
-        }),
+        Some(other) => Err(ImageError::Unsupported(
+            UnsupportedError::from_format_and_kind(
+                ImageFormat::Tiff.into(),
+                UnsupportedErrorKind::GenericFeature(format!(
+                    "Unhandled TIFF sample format {:?}",
+                    other
+                )),
+            ),
+        )),
+        None => Err(ImageError::Decoding(DecodingError::from_format_hint(
+            ImageFormat::Tiff.into(),
+        ))),
     }
 }
 
 fn err_unknown_color_type(value: u8) -> ImageError {
-    ImageError::Unsupported {
-        format: ImageFormat::Tiff.into(),
-        kind: UnsupportedErrorKind::Color(ExtendedColorType::Unknown(value)),
-    }
+    ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+        ImageFormat::Tiff.into(),
+        UnsupportedErrorKind::Color(ExtendedColorType::Unknown(value)),
+    ))
 }
 
 impl ImageError {
@@ -110,16 +112,18 @@ impl ImageError {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
             err @ tiff::TiffError::FormatError(_)
             | err @ tiff::TiffError::IntSizeError
-            | err @ tiff::TiffError::UsageError(_) => ImageError::Decoding {
-                format: ImageFormat::Tiff.into(),
-            },
-            tiff::TiffError::UnsupportedError(desc) => ImageError::Unsupported {
-                format: ImageFormat::Tiff.into(),
-                kind: UnsupportedErrorKind::GenericFeature(desc.to_string()),
-            },
-            tiff::TiffError::LimitsExceeded => ImageError::Limits {
-                kind: LimitErrorKind::InsufficientMemory,
-            },
+            | err @ tiff::TiffError::UsageError(_) => {
+                ImageError::Decoding(DecodingError::new(ImageFormat::Tiff.into(), err))
+            }
+            tiff::TiffError::UnsupportedError(desc) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(desc.to_string()),
+                ))
+            }
+            tiff::TiffError::LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
         }
     }
 
@@ -128,16 +132,18 @@ impl ImageError {
             tiff::TiffError::IoError(err) => ImageError::IoError(err),
             err @ tiff::TiffError::FormatError(_)
             | err @ tiff::TiffError::IntSizeError
-            | err @ tiff::TiffError::UsageError(_) => ImageError::Encoding {
-                format: ImageFormat::Tiff.into(),
-            },
-            tiff::TiffError::UnsupportedError(desc) => ImageError::Unsupported {
-                format: ImageFormat::Tiff.into(),
-                kind: UnsupportedErrorKind::GenericFeature(desc.to_string()),
-            },
-            tiff::TiffError::LimitsExceeded => ImageError::Limits {
-                kind: LimitErrorKind::InsufficientMemory,
-            },
+            | err @ tiff::TiffError::UsageError(_) => {
+                ImageError::Encoding(EncodingError::new(ImageFormat::Tiff.into(), err))
+            }
+            tiff::TiffError::UnsupportedError(desc) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormat::Tiff.into(),
+                    UnsupportedErrorKind::GenericFeature(desc.to_string()),
+                ))
+            }
+            tiff::TiffError::LimitsExceeded => {
+                ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+            }
         }
     }
 }

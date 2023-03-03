@@ -88,6 +88,7 @@
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "alloc", feature(error_in_core))]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]

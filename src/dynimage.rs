@@ -21,9 +21,9 @@ use crate::buffer_::{
     Rgb16Image, RgbImage, Rgba16Image, RgbaImage,
 };
 use crate::color::{self, IntoColor};
-use crate::error::{ImageError, ImageResult, ParameterErrorKind};
+use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
 // FIXME: These imports exist because we don't support all of our own color types.
-use crate::error::{ImageFormatHint, UnsupportedErrorKind};
+use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat, ImageOutputFormat};
 use crate::imageops;
@@ -1092,18 +1092,20 @@ fn decoder_to_image<'a, I: ImageDecoder<'a>>(decoder: I) -> ImageResult<DynamicI
         // An internal #[non_exhaustive]
         #[allow(unreachable_patterns)]
         _ => {
-            return Err(ImageError::Unsupported {
-                format: ImageFormatHint::Unknown,
-                kind: UnsupportedErrorKind::Color(color_type.into()),
-            })
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Color(color_type.into()),
+                ),
+            ))
         }
     };
 
     match image {
         Some(image) => Ok(image),
-        None => Err(ImageError::Parameter {
-            kind: ParameterErrorKind::DimensionMismatch,
-        }),
+        None => Err(ImageError::Parameter(ParameterError::from_kind(
+            ParameterErrorKind::DimensionMismatch,
+        ))),
     }
 }
 

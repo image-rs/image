@@ -34,7 +34,6 @@ bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes c
 byteorder = { version = "1.3.2", default-features = false }
 num-rational = { version = "0.4", default-features = false }
 num-traits = { version = "0.2", default-features = false }
-snafu = { version = "0.7", default-features = false }
 gif = { version = "0.12", optional = true, default-features = false }
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
 png = { version = "0.17.6", optional = true }
@@ -66,7 +65,7 @@ jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, 
 # TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["std", "gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
-std = ["snafu/std", "num-traits/std", "byteorder/std", "gif/default", "color_quant/std"]
+std = ["num-traits/std", "byteorder/std", "gif/default", "color_quant/std"]
 ico = ["bmp", "png"]
 pnm = []
 tga = []

@@ -4,11 +4,17 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::ops::{Deref, DerefMut};
 use core::usize;
-// use std::io;
-// use std::io::Read;
+
+#[cfg(feature = "std")]
+use std::io;
+#[cfg(feature = "std")]
+use std::io::Read;
 
 use crate::color::{ColorType, ExtendedColorType};
-use crate::error::{ImageError, ImageFormatHint, ImageResult, LimitErrorKind, ParameterErrorKind};
+use crate::error::{
+    ImageError, ImageFormatHint, ImageResult, LimitError, LimitErrorKind, ParameterError,
+    ParameterErrorKind,
+};
 use crate::math::Rect;
 use crate::traits::Pixel;
 use crate::ImageBuffer;
@@ -559,14 +565,14 @@ where
             || width == 0
             || height == 0
         {
-            return Err(ImageError::Parameter {
-                kind: ParameterErrorKind::DimensionMismatch,
-            });
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
         if scanline_bytes > usize::max_value() as u64 {
-            return Err(ImageError::Limits {
-                kind: LimitErrorKind::InsufficientMemory,
-            });
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
         }
 
         progress_callback(Progress {
@@ -601,9 +607,9 @@ where
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
-        return Err(ImageError::Limits {
-            kind: LimitErrorKind::InsufficientMemory,
-        });
+        return Err(ImageError::Limits(LimitError::from_kind(
+            LimitErrorKind::InsufficientMemory,
+        )));
     }
 
     let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / core::mem::size_of::<T>()];
@@ -1032,9 +1038,9 @@ pub trait GenericImage: GenericImageView {
         // Do bounds checking here so we can use the non-bounds-checking
         // functions to copy pixels.
         if self.width() < other.width() + x || self.height() < other.height() + y {
-            return Err(ImageError::Parameter {
-                kind: ParameterErrorKind::DimensionMismatch,
-            });
+            return Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )));
         }
 
         for k in 0..other.height() {

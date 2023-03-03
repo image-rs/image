@@ -89,22 +89,20 @@ impl Limits {
         Ok(())
     }
 
-    /// This function checks the `max_image_width` and `max_image_height` limits given
-    /// the image width and height.
     pub fn check_dimensions(&self, width: u32, height: u32) -> ImageResult<()> {
         if let Some(max_width) = self.max_image_width {
             if width > max_width {
-                return Err(ImageError::Limits {
-                    kind: error::LimitErrorKind::DimensionError,
-                });
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
         if let Some(max_height) = self.max_image_height {
             if height > max_height {
-                return Err(ImageError::Limits {
-                    kind: error::LimitErrorKind::DimensionError,
-                });
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::DimensionError,
+                )));
             }
         }
 
@@ -116,9 +114,9 @@ impl Limits {
     pub fn reserve(&mut self, amount: u64) -> ImageResult<()> {
         if let Some(max_alloc) = self.max_alloc.as_mut() {
             if *max_alloc < amount {
-                return Err(ImageError::Limits {
-                    kind: error::LimitErrorKind::InsufficientMemory,
-                });
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
             }
 
             *max_alloc -= amount;
@@ -132,9 +130,9 @@ impl Limits {
         match u64::try_from(amount) {
             Ok(n) => self.reserve(n),
             Err(_) if self.max_alloc.is_some() => {
-                return Err(ImageError::Limits {
-                    kind: error::LimitErrorKind::InsufficientMemory,
-                });
+                return Err(ImageError::Limits(error::LimitError::from_kind(
+                    error::LimitErrorKind::InsufficientMemory,
+                )));
             }
             Err(_) => {
                 // Out of bounds, but we weren't asked to consider any limit.

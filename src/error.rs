@@ -16,7 +16,12 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::fmt;
-use snafu::{prelude::*, Error};
+
+// TODO(interstellar) error_in_core; and re-add feature-gate
+#[cfg(feature = "alloc")]
+use core::error::Error;
+#[cfg(feature = "std")]
+use std::error::Error;
 #[cfg(feature = "std")]
 use std::io;
 
@@ -27,21 +32,14 @@ use crate::image::ImageFormat;
 ///
 /// This high level enum allows, by variant matching, a rough separation of concerns between
 /// underlying IO, the caller, format specifications, and the `image` implementation.
-#[derive(Snafu, Debug)]
+#[derive(Debug)]
 pub enum ImageError {
     /// An error was encountered while decoding.
     ///
     /// This means that the input data did not conform to the specification of some image format,
     /// or that no format could be determined, or that it did not match format specific
     /// requirements set by the caller.
-    ///
-    /// An error was encountered while decoding an image.
-    ///
-    /// This is used as an opaque representation for the [`ImageError::Decoding`] variant. See its
-    /// documentation for more information.
-    ///
-    /// [`ImageError::Decoding`]: enum.ImageError.html#variant.Decoding
-    Decoding { format: ImageFormatHint },
+    Decoding(DecodingError),
 
     /// An error was encountered while encoding.
     ///
@@ -49,40 +47,19 @@ pub enum ImageError {
     /// specification has no representation for its color space or because a necessary conversion
     /// is ambiguous. In some cases it might also happen that the dimensions can not be used with
     /// the format.
-    ///
-    /// An error was encountered while encoding an image.
-    ///
-    /// This is used as an opaque representation for the [`ImageError::Encoding`] variant. See its
-    /// documentation for more information.
-    ///
-    /// [`ImageError::Encoding`]: enum.ImageError.html#variant.Encoding
-    Encoding { format: ImageFormatHint },
+    Encoding(EncodingError),
 
     /// An error was encountered in input arguments.
     ///
     /// This is a catch-all case for strictly internal operations such as scaling, conversions,
     /// etc. that involve no external format specifications.
-    ///
-    /// An error was encountered in inputs arguments.
-    ///
-    /// This is used as an opaque representation for the [`ImageError::Parameter`] variant. See its
-    /// documentation for more information.
-    ///
-    /// [`ImageError::Parameter`]: enum.ImageError.html#variant.Parameter
-    Parameter { kind: ParameterErrorKind },
+    Parameter(ParameterError),
 
     /// Completing the operation would have required more resources than allowed.
     ///
     /// Errors of this type are limits set by the user or environment, *not* inherent in a specific
     /// format or operation that was executed.
-    ///
-    /// Completing the operation would have required more resources than allowed.
-    ///
-    /// This is used as an opaque representation for the [`ImageError::Limits`] variant. See its
-    /// documentation for more information.
-    ///
-    /// [`ImageError::Limits`]: enum.ImageError.html#variant.Limits
-    Limits { kind: LimitErrorKind },
+    Limits(LimitError),
 
     /// An operation can not be completed by the chosen abstraction.
     ///
@@ -90,20 +67,22 @@ pub enum ImageError {
     /// * it requires a disabled feature,
     /// * the implementation does not yet exist, or
     /// * no abstraction for a lower level could be found.
-    ///
-    /// The implementation for an operation was not provided.
-    ///
-    /// See the variant [`Unsupported`] for more documentation.
-    ///
-    /// [`Unsupported`]: enum.ImageError.html#variant.Unsupported
-    Unsupported {
-        format: ImageFormatHint,
-        kind: UnsupportedErrorKind,
-    },
+    Unsupported(UnsupportedError),
 
     /// An error occurred while interacting with the environment.
     #[cfg(feature = "std")]
-    IoError { err: io::Error },
+    IoError(io::Error),
+}
+
+/// The implementation for an operation was not provided.
+///
+/// See the variant [`Unsupported`] for more documentation.
+///
+/// [`Unsupported`]: enum.ImageError.html#variant.Unsupported
+#[derive(Debug)]
+pub struct UnsupportedError {
+    format: ImageFormatHint,
+    kind: UnsupportedErrorKind,
 }
 
 /// Details what feature is not supported.
@@ -119,6 +98,30 @@ pub enum UnsupportedErrorKind {
     GenericFeature(String),
 }
 
+/// An error was encountered while encoding an image.
+///
+/// This is used as an opaque representation for the [`ImageError::Encoding`] variant. See its
+/// documentation for more information.
+///
+/// [`ImageError::Encoding`]: enum.ImageError.html#variant.Encoding
+#[derive(Debug)]
+pub struct EncodingError {
+    format: ImageFormatHint,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
+}
+
+/// An error was encountered in inputs arguments.
+///
+/// This is used as an opaque representation for the [`ImageError::Parameter`] variant. See its
+/// documentation for more information.
+///
+/// [`ImageError::Parameter`]: enum.ImageError.html#variant.Parameter
+#[derive(Debug)]
+pub struct ParameterError {
+    kind: ParameterErrorKind,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
+}
+
 /// Details how a parameter is malformed.
 #[derive(Clone, Debug, Hash, PartialEq)]
 #[non_exhaustive]
@@ -132,6 +135,30 @@ pub enum ParameterErrorKind {
     Generic(String),
     /// The end of the image has been reached.
     NoMoreData,
+}
+
+/// An error was encountered while decoding an image.
+///
+/// This is used as an opaque representation for the [`ImageError::Decoding`] variant. See its
+/// documentation for more information.
+///
+/// [`ImageError::Decoding`]: enum.ImageError.html#variant.Decoding
+#[derive(Debug)]
+pub struct DecodingError {
+    format: ImageFormatHint,
+    underlying: Option<Box<dyn Error + Send + Sync>>,
+}
+
+/// Completing the operation would have required more resources than allowed.
+///
+/// This is used as an opaque representation for the [`ImageError::Limits`] variant. See its
+/// documentation for more information.
+///
+/// [`ImageError::Limits`]: enum.ImageError.html#variant.Limits
+#[derive(Debug)]
+pub struct LimitError {
+    kind: LimitErrorKind,
+    // do we need an underlying error?
 }
 
 /// Indicates the limit that prevented an operation from completing.
@@ -173,10 +200,107 @@ pub enum ImageFormatHint {
     Unknown,
 }
 
+impl UnsupportedError {
+    /// Create an `UnsupportedError` for an image with details on the unsupported feature.
+    ///
+    /// If the operation was not connected to a particular image format then the hint may be
+    /// `Unknown`.
+    pub fn from_format_and_kind(format: ImageFormatHint, kind: UnsupportedErrorKind) -> Self {
+        UnsupportedError { format, kind }
+    }
+
+    /// Returns the corresponding `UnsupportedErrorKind` of the error.
+    pub fn kind(&self) -> UnsupportedErrorKind {
+        self.kind.clone()
+    }
+
+    /// Returns the image format associated with this error.
+    pub fn format_hint(&self) -> ImageFormatHint {
+        self.format.clone()
+    }
+}
+
+impl DecodingError {
+    /// Create a `DecodingError` that stems from an arbitrary error of an underlying decoder.
+    pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
+        DecodingError {
+            format,
+            underlying: Some(err.into()),
+        }
+    }
+
+    /// Create a `DecodingError` for an image format.
+    ///
+    /// The error will not contain any further information but is very easy to create.
+    pub fn from_format_hint(format: ImageFormatHint) -> Self {
+        DecodingError {
+            format,
+            underlying: None,
+        }
+    }
+
+    /// Returns the image format associated with this error.
+    pub fn format_hint(&self) -> ImageFormatHint {
+        self.format.clone()
+    }
+}
+
+impl EncodingError {
+    /// Create an `EncodingError` that stems from an arbitrary error of an underlying encoder.
+    pub fn new(format: ImageFormatHint, err: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
+        EncodingError {
+            format,
+            underlying: Some(err.into()),
+        }
+    }
+
+    /// Create an `EncodingError` for an image format.
+    ///
+    /// The error will not contain any further information but is very easy to create.
+    pub fn from_format_hint(format: ImageFormatHint) -> Self {
+        EncodingError {
+            format,
+            underlying: None,
+        }
+    }
+
+    /// Return the image format associated with this error.
+    pub fn format_hint(&self) -> ImageFormatHint {
+        self.format.clone()
+    }
+}
+
+impl ParameterError {
+    /// Construct a `ParameterError` directly from a corresponding kind.
+    pub fn from_kind(kind: ParameterErrorKind) -> Self {
+        ParameterError {
+            kind,
+            underlying: None,
+        }
+    }
+
+    /// Returns the corresponding `ParameterErrorKind` of the error.
+    pub fn kind(&self) -> ParameterErrorKind {
+        self.kind.clone()
+    }
+}
+
+impl LimitError {
+    /// Construct a generic `LimitError` directly from a corresponding kind.
+    pub fn from_kind(kind: LimitErrorKind) -> Self {
+        LimitError { kind }
+    }
+
+    /// Returns the corresponding `LimitErrorKind` of the error.
+    pub fn kind(&self) -> LimitErrorKind {
+        self.kind.clone()
+    }
+}
+
 #[cfg(feature = "std")]
 impl From<io::Error> for ImageError {
     fn from(err: io::Error) -> ImageError {
-        ImageError::IoError { err }
+        ImageError::IoError(err)
     }
 }
 
@@ -196,8 +320,190 @@ impl From<&'_ std::path::Path> for ImageFormatHint {
     }
 }
 
+impl From<ImageFormatHint> for UnsupportedError {
+    fn from(hint: ImageFormatHint) -> Self {
+        UnsupportedError {
+            format: hint.clone(),
+            kind: UnsupportedErrorKind::Format(hint),
+        }
+    }
+}
+
 /// Result of an image decoding/encoding process
 pub type ImageResult<T> = Result<T, ImageError>;
+
+impl fmt::Display for ImageError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            #[cfg(feature = "std")]
+            ImageError::IoError(err) => err.fmt(fmt),
+            ImageError::Decoding(err) => err.fmt(fmt),
+            ImageError::Encoding(err) => err.fmt(fmt),
+            ImageError::Parameter(err) => err.fmt(fmt),
+            ImageError::Limits(err) => err.fmt(fmt),
+            ImageError::Unsupported(err) => err.fmt(fmt),
+        }
+    }
+}
+
+impl Error for ImageError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            #[cfg(feature = "std")]
+            ImageError::IoError(err) => err.source(),
+            ImageError::Decoding(err) => err.source(),
+            ImageError::Encoding(err) => err.source(),
+            ImageError::Parameter(err) => err.source(),
+            ImageError::Limits(err) => err.source(),
+            ImageError::Unsupported(err) => err.source(),
+        }
+    }
+}
+
+impl fmt::Display for UnsupportedError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match &self.kind {
+            UnsupportedErrorKind::Format(ImageFormatHint::Unknown) => {
+                write!(fmt, "The image format could not be determined",)
+            }
+            #[cfg(feature = "std")]
+            UnsupportedErrorKind::Format(format @ ImageFormatHint::PathExtension(_)) => write!(
+                fmt,
+                "The file extension {} was not recognized as an image format",
+                format,
+            ),
+            UnsupportedErrorKind::Format(format) => {
+                write!(fmt, "The image format {} is not supported", format,)
+            }
+            UnsupportedErrorKind::Color(color) => write!(
+                fmt,
+                "The decoder for {} does not support the color type `{:?}`",
+                self.format, color,
+            ),
+            UnsupportedErrorKind::GenericFeature(message) => match &self.format {
+                ImageFormatHint::Unknown => write!(
+                    fmt,
+                    "The decoder does not support the format feature {}",
+                    message,
+                ),
+                other => write!(
+                    fmt,
+                    "The decoder for {} does not support the format features {}",
+                    other, message,
+                ),
+            },
+        }
+    }
+}
+
+impl Error for UnsupportedError {}
+
+impl fmt::Display for ParameterError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match &self.kind {
+            ParameterErrorKind::DimensionMismatch => write!(
+                fmt,
+                "The Image's dimensions are either too \
+                 small or too large"
+            ),
+            ParameterErrorKind::FailedAlready => write!(
+                fmt,
+                "The end the image stream has been reached due to a previous error"
+            ),
+            ParameterErrorKind::Generic(message) => {
+                write!(fmt, "The parameter is malformed: {}", message,)
+            }
+            ParameterErrorKind::NoMoreData => write!(fmt, "The end of the image has been reached",),
+        }?;
+
+        if let Some(underlying) = &self.underlying {
+            write!(fmt, "\n{}", underlying)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Error for ParameterError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
+    }
+}
+
+impl fmt::Display for EncodingError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match &self.underlying {
+            Some(underlying) => write!(
+                fmt,
+                "Format error encoding {}:\n{}",
+                self.format, underlying,
+            ),
+            None => write!(fmt, "Format error encoding {}", self.format,),
+        }
+    }
+}
+
+impl Error for EncodingError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
+    }
+}
+
+impl fmt::Display for DecodingError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match &self.underlying {
+            None => match self.format {
+                ImageFormatHint::Unknown => write!(fmt, "Format error"),
+                _ => write!(fmt, "Format error decoding {}", self.format),
+            },
+            Some(underlying) => {
+                write!(fmt, "Format error decoding {}: {}", self.format, underlying)
+            }
+        }
+    }
+}
+
+impl Error for DecodingError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.underlying {
+            None => None,
+            Some(source) => Some(&**source),
+        }
+    }
+}
+
+impl fmt::Display for LimitError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self.kind {
+            LimitErrorKind::InsufficientMemory => write!(fmt, "Insufficient memory"),
+            LimitErrorKind::DimensionError => write!(fmt, "Image is too large"),
+            LimitErrorKind::Unsupported { .. } => {
+                write!(fmt, "The following strict limits are specified but not supported by the opertation: ")?;
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Error for LimitError {}
+
+impl fmt::Display for ImageFormatHint {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            ImageFormatHint::Exact(format) => write!(fmt, "{:?}", format),
+            ImageFormatHint::Name(name) => write!(fmt, "`{}`", name),
+            #[cfg(feature = "std")]
+            ImageFormatHint::PathExtension(ext) => write!(fmt, "`.{:?}`", ext),
+            ImageFormatHint::Unknown => write!(fmt, "`Unknown`"),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

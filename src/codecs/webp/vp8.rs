@@ -718,9 +718,7 @@ impl fmt::Display for DecoderError {
 
 impl From<DecoderError> for ImageError {
     fn from(e: DecoderError) -> ImageError {
-        ImageError::Decoding {
-            format: ImageFormat::WebP.into(),
-        }
+        ImageError::Decoding(DecodingError::new(ImageFormat::WebP.into(), e))
     }
 }
 
@@ -1319,10 +1317,12 @@ impl<R: Read> Vp8Decoder<R> {
         if !self.frame.keyframe {
             // 9.7 refresh golden frame and altref frame
             // FIXME: support this?
-            return Err(ImageError::Unsupported {
-                format: ImageFormat::WebP.into(),
-                kind: UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
-            });
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
+                ),
+            ));
         } else {
             // Refresh entropy probs ?????
             let _ = self.b.read_literal(1);
@@ -1342,10 +1342,12 @@ impl<R: Read> Vp8Decoder<R> {
             self.prob_intra = 0;
 
             // FIXME: support this?
-            return Err(ImageError::Unsupported {
-                format: ImageFormat::WebP.into(),
-                kind: UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
-            });
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature("Non-keyframe frames".to_owned()),
+                ),
+            ));
         } else {
             // Reset motion vectors
         }
@@ -1376,10 +1378,12 @@ impl<R: Read> Vp8Decoder<R> {
         };
 
         if inter_predicted {
-            return Err(ImageError::Unsupported {
-                format: ImageFormat::WebP.into(),
-                kind: UnsupportedErrorKind::GenericFeature("VP8 inter-prediction".to_owned()),
-            });
+            return Err(ImageError::Unsupported(
+                UnsupportedError::from_format_and_kind(
+                    ImageFormat::WebP.into(),
+                    UnsupportedErrorKind::GenericFeature("VP8 inter-prediction".to_owned()),
+                ),
+            ));
         }
 
         if self.frame.keyframe {

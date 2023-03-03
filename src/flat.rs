@@ -42,16 +42,23 @@
 //! }
 //! ```
 //!
-//!
 use alloc::vec::Vec;
+use core::cmp;
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, Index, IndexMut};
-use core::{cmp, fmt};
 use num_traits::Zero;
-use snafu::prelude::*;
+
+#[cfg(feature = "alloc")]
+use core::error;
+#[cfg(feature = "std")]
+use std::error;
 
 use crate::color::ColorType;
-use crate::error::{ImageError, ImageFormatHint, ParameterErrorKind, UnsupportedErrorKind};
+use crate::error::{
+    DecodingError, ImageError, ImageFormatHint, ParameterError, ParameterErrorKind,
+    UnsupportedError, UnsupportedErrorKind,
+};
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Pixel, PixelWithColorType};
 use crate::ImageBuffer;
@@ -597,9 +604,7 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsRef<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor {
-                underlying: P::COLOR_TYPE,
-            });
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_ref = self.samples.as_ref();
@@ -638,9 +643,7 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsMut<[P::Subpixel]>,
     {
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor {
-                underlying: P::COLOR_TYPE,
-            });
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_mut = self.samples.as_mut();
@@ -675,15 +678,11 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.layout.is_normal(NormalForm::PixelPacked) {
-            return Err(Error::NormalFormRequired {
-                underlying: NormalForm::PixelPacked,
-            });
+            return Err(Error::NormalFormRequired(NormalForm::PixelPacked));
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err(Error::WrongColor {
-                underlying: P::COLOR_TYPE,
-            });
+            return Err(Error::WrongColor(P::COLOR_TYPE));
         }
 
         let as_mut = self.samples.as_mut();
@@ -775,21 +774,11 @@ impl<Buffer> FlatSamples<Buffer> {
         Buffer: Deref<Target = [P::Subpixel]>,
     {
         if !self.is_normal(NormalForm::RowMajorPacked) {
-            return Err((
-                Error::NormalFormRequired {
-                    underlying: NormalForm::RowMajorPacked,
-                },
-                self,
-            ));
+            return Err((Error::NormalFormRequired(NormalForm::RowMajorPacked), self));
         }
 
         if self.layout.channels != P::CHANNEL_COUNT {
-            return Err((
-                Error::WrongColor {
-                    underlying: P::COLOR_TYPE,
-                },
-                self,
-            ));
+            return Err((Error::WrongColor(P::COLOR_TYPE), self));
         }
 
         if !self.fits(self.samples.deref().len()) {
@@ -1023,7 +1012,7 @@ where
 /// samples in a row major matrix representation. But this error type may be
 /// resused for other import functions. A more versatile user may also try to
 /// correct the underlying representation depending on the error variant.
-#[derive(Snafu, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Error {
     /// The represented image was too large.
     ///
@@ -1033,7 +1022,7 @@ pub enum Error {
     /// The represented image can not use this representation.
     ///
     /// Has an additional value of the normalized form that would be accepted.
-    NormalFormRequired { underlying: NormalForm },
+    NormalFormRequired(NormalForm),
 
     /// The color format did not match the channel count.
     ///
@@ -1044,7 +1033,7 @@ pub enum Error {
     /// directly memory unsafe although that will likely alias pixels. One scenario is when you
     /// want to construct an `Rgba` image but have only 3 bytes per pixel and for some reason don't
     /// care about the value of the alpha channel even though you need `Rgba`.
-    WrongColor { underlying: ColorType },
+    WrongColor(ColorType),
 }
 
 /// Different normal forms of buffers.
@@ -1210,12 +1199,7 @@ where
         Buffer: AsMut<[P::Subpixel]>,
     {
         if !self.inner.is_normal(NormalForm::PixelPacked) {
-            return Err((
-                Error::NormalFormRequired {
-                    underlying: NormalForm::PixelPacked,
-                },
-                self,
-            ));
+            return Err((Error::NormalFormRequired(NormalForm::PixelPacked), self));
         }
 
         // No length check or channel count check required, all the same.
@@ -1499,20 +1483,58 @@ where
 
 impl From<Error> for ImageError {
     fn from(error: Error) -> ImageError {
+        #[derive(Debug)]
+        struct NormalFormRequiredError(NormalForm);
+        impl fmt::Display for NormalFormRequiredError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "Required sample buffer in normal form {:?}", self.0)
+            }
+        }
+        impl error::Error for NormalFormRequiredError {}
+
         match error {
-            Error::TooLarge => ImageError::Parameter {
-                kind: ParameterErrorKind::DimensionMismatch,
-            },
-            Error::NormalFormRequired { underlying } => ImageError::Decoding {
-                format: ImageFormatHint::Unknown,
-            },
-            Error::WrongColor { underlying } => ImageError::Unsupported {
-                format: ImageFormatHint::Unknown,
-                kind: UnsupportedErrorKind::Color(underlying.into()),
-            },
+            Error::TooLarge => ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::DimensionMismatch,
+            )),
+            Error::NormalFormRequired(form) => ImageError::Decoding(DecodingError::new(
+                ImageFormatHint::Unknown,
+                NormalFormRequiredError(form),
+            )),
+            Error::WrongColor(color) => {
+                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
+                    ImageFormatHint::Unknown,
+                    UnsupportedErrorKind::Color(color.into()),
+                ))
+            }
         }
     }
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::TooLarge => write!(f, "The layout is too large"),
+            Error::NormalFormRequired(form) => write!(
+                f,
+                "The layout needs to {}",
+                match form {
+                    NormalForm::ColumnMajorPacked => "be packed and in column major form",
+                    NormalForm::ImagePacked => "be fully packed",
+                    NormalForm::PixelPacked => "have packed pixels",
+                    NormalForm::RowMajorPacked => "be packed and in row major form",
+                    NormalForm::Unaliased => "not have any aliasing channels",
+                }
+            ),
+            Error::WrongColor(color) => write!(
+                f,
+                "The chosen color type does not match the hint {:?}",
+                color
+            ),
+        }
+    }
+}
+
+impl error::Error for Error {}
 
 impl PartialOrd for NormalForm {
     /// Compares the logical preconditions.

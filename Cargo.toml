@@ -65,39 +65,40 @@ jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, 
 # TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["std", "gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
-std = ["num-traits/std", "byteorder/std", "gif/default", "color_quant/std"]
-ico = ["bmp", "png"]
-pnm = []
-tga = []
-bmp = []
-hdr = ["scoped_threadpool"]
-dxt = []
+std = ["num-traits/std", "byteorder/std", "color_quant/std"]
+alloc = ["num-traits/libm", "color_quant/num-traits"]
+
+gif = ["std", "gif/default"]
+ico = ["std", "bmp", "png"]
+pnm = ["std"]
+tga = ["std"]
+bmp = ["std"]
+hdr = ["std", "scoped_threadpool"]
+dxt = ["std"]
 dds = ["dxt"]
-farbfeld = []
-openexr = ["exr"]
-qoi = ["dep:qoi"]
+farbfeld = ["std"]
+openexr = ["std", "exr"]
+qoi = ["std", "dep:qoi"]
 
 # Enables WebP decoder support.
-webp = []
+webp = ["std"]
 # Non-default, not included in `webp`. Requires native dependency libwebp.
-webp-encoder = ["libwebp"]
+webp-encoder = ["std", "libwebp"]
 
 # Enables multi-threading.
 # Requires latest stable Rust.
-jpeg_rayon = ["jpeg/rayon"]
+jpeg_rayon = ["std", "jpeg/rayon"]
 # Non-default, enables avif support.
 # Requires latest stable Rust.
-avif = ["avif-encoder"]
+avif = ["std", "avif-encoder"]
 # Requires latest stable Rust and recent nasm (>= 2.14).
-avif-encoder = ["ravif", "rgb"]
+avif-encoder = ["std", "ravif", "rgb"]
 # Non-default, even in `avif`. Requires stable Rust and native dependency libdav1d.
-avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
+avif-decoder = ["std", "mp4parse", "dcv-color-primitives", "dav1d"]
 
 # Build some inline benchmarks. Useful only during development.
 # Requires rustc nightly for feature test.
-benchmarks = []
-
-alloc = ["num-traits/libm", "color_quant/num-traits"]
+benchmarks = ["std"]
 
 [[bench]]
 path = "benches/decode.rs"

@@ -121,6 +121,19 @@ jobs:
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
+  no_std_check:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: build
+      run: |
+        cargo install cargo-no-std-check
+        cargo no-std-check --no-default-features --features=alloc
+
   clippy:
     runs-on: ubuntu-20.04
     steps:

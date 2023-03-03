@@ -31,6 +31,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn check_regressions() {
     process_images(REGRESSION_DIR, None, |path| {
@@ -41,6 +42,7 @@ fn check_regressions() {
 /// Check that BMP files with large values could cause OOM issues are rejected.
 ///
 /// The images are postfixed with `bad_bmp` to not be loaded by the other test.
+#[cfg(feature = "std")]
 #[test]
 fn bad_bmps() {
     let path: PathBuf = BASE_PATH
@@ -60,6 +62,7 @@ fn bad_bmps() {
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn bad_gif_oom() {
     let data = [

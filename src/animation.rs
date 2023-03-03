@@ -1,5 +1,9 @@
-use std::iter::Iterator;
-use std::time::Duration;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::cmp::Ordering::Equal;
+use core::cmp::Ordering::Less;
+use core::iter::Iterator;
+use core::time::Duration;
 
 use num_rational::Ratio;
 
@@ -179,7 +183,7 @@ impl Delay {
     /// Note that `denom_bound` bounds nominator and denominator of all intermediate
     /// approximations and the end result.
     fn closest_bounded_fraction(denom_bound: u32, nom: u32, denom: u32) -> (u32, u32) {
-        use std::cmp::Ordering::{self, *};
+        use core::cmp::Ordering::{self, *};
         assert!(0 < denom);
         assert!(0 < denom_bound);
         assert!(nom < denom);

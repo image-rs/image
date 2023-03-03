@@ -13,6 +13,7 @@
 //! use image::flat::{FlatSamples, SampleLayout};
 //! use image::imageops::thumbnail;
 //!
+//! #[cfg(feature = "std")]
 //! #[no_mangle]
 //! pub extern "C" fn store_rgb8_compressed(
 //!     data: *const u8, len: usize,
@@ -41,11 +42,17 @@
 //! }
 //! ```
 //!
-use std::marker::PhantomData;
-use std::ops::{Deref, Index, IndexMut};
-use std::{cmp, error, fmt};
-
+use alloc::vec::Vec;
+use core::cmp;
+use core::fmt;
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, IndexMut};
 use num_traits::Zero;
+
+#[cfg(feature = "alloc")]
+use core::error;
+#[cfg(feature = "std")]
+use std::error;
 
 use crate::color::ColorType;
 use crate::error::{

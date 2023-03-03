@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use std::convert::TryInto;
 use std::io::{self, Cursor, Error, Read};
 use std::{error, fmt};

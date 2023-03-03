@@ -12,6 +12,8 @@
 //! of the VP8 format
 //!
 
+use alloc::borrow::ToOwned;
+use alloc::vec::Vec;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryInto;
 use std::default::Default;
@@ -2579,6 +2581,7 @@ fn predict_bhupred(a: &mut [u8], x0: usize, y0: usize, stride: usize) {
 
 #[cfg(test)]
 mod test {
+    use alloc::vec::Vec;
 
     #[cfg(feature = "benchmarks")]
     extern crate test;

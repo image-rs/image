@@ -2,10 +2,14 @@
 
 // See http://cs.brown.edu/courses/cs123/lectures/08_Image_Processing_IV.pdf
 // for some of the theory behind image scaling and convolution
-
-use std::f32;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::f32;
 
 use num_traits::{NumCast, ToPrimitive, Zero};
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use crate::image::{GenericImage, GenericImageView};
 use crate::traits::{Enlargeable, Pixel, Primitive};

@@ -2,9 +2,10 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, next ]
-  pull_request:
-    branches: [ master, next ]
+  # TODO(interstellar) revert
+  #   branches: [ master, next ]
+  # pull_request:
+  #   branches: [ master, next ]
 
 jobs:
   build:

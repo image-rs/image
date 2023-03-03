@@ -1,12 +1,13 @@
 //! Contains the generic `ImageBuffer` struct.
+use alloc::vec::Vec;
+use core::fmt;
+use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut, Index, IndexMut, Range};
+use core::slice::{ChunksExact, ChunksExactMut};
 use num_traits::Zero;
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
-use std::path::Path;
-use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
+#[cfg(feature = "std")]
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
@@ -629,6 +630,7 @@ where
 /// Overlays an image on top of a larger background raster.
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")] {
 /// use image::{GenericImage, GenericImageView, ImageBuffer, open};
 ///
 /// let on_top = open("path/to/some.png").unwrap().into_rgb8();
@@ -641,15 +643,18 @@ where
 /// });
 ///
 /// image::imageops::overlay(&mut img, &on_top, 128, 128);
+/// }
 /// ```
 ///
 /// Convert an RgbaImage to a GrayImage.
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")] {
 /// use image::{open, DynamicImage};
 ///
 /// let rgba = open("path/to/some.png").unwrap().into_rgba8();
 /// let gray = DynamicImage::ImageRgba8(rgba).into_luma8();
+/// }
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImageBuffer<P: Pixel, Container> {
@@ -979,6 +984,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -990,7 +996,7 @@ where
     /// The image format is derived from the file extension.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
-        Q: AsRef<Path>,
+        Q: AsRef<std::path::Path>,
         P: PixelWithColorType,
     {
         save_buffer(
@@ -1003,6 +1009,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1016,7 +1023,7 @@ where
     /// supported types.
     pub fn save_with_format<Q>(&self, path: Q, format: ImageFormat) -> ImageResult<()>
     where
-        Q: AsRef<Path>,
+        Q: AsRef<std::path::Path>,
         P: PixelWithColorType,
     {
         // This is valid as the subpixel is u8.
@@ -1031,6 +1038,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<P, Container> ImageBuffer<P, Container>
 where
     P: Pixel,
@@ -1360,11 +1368,13 @@ where
     /// use image::GrayImage;
     ///
     /// let image_path = "examples/fractal.png";
+    /// # #[cfg(feature = "std")] {
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba8();
     ///
     /// let gray_image: GrayImage = image.convert();
+    /// }
     /// ```
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
         let mut buffer: ImageBuffer<ToType, Vec<ToType::Subpixel>> =
@@ -1407,6 +1417,7 @@ mod test {
     use crate::math::Rect;
     use crate::GenericImage as _;
     use crate::{color, Rgb};
+    use alloc::vec::Vec;
 
     #[test]
     /// Tests if image buffers from slices work

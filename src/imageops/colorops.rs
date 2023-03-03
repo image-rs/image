@@ -1,7 +1,10 @@
 //! Functions for altering and converting the color of pixelbufs
-
+use alloc::vec::Vec;
+use core::f64::consts::PI;
 use num_traits::NumCast;
-use std::f64::consts::PI;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use crate::color::{FromColor, IntoColor, Luma, LumaA, Rgba};
 use crate::image::{GenericImage, GenericImageView};
@@ -543,9 +546,9 @@ where
 
 #[cfg(test)]
 mod test {
-
     use super::*;
     use crate::{GrayImage, ImageBuffer};
+    use alloc::string::ToString;
 
     macro_rules! assert_pixels_eq {
         ($actual:expr, $expected:expr) => {{

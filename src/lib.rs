@@ -17,14 +17,18 @@
 //!
 //! ```rust,no_run
 //! use std::io::Cursor;
-//! use image::io::Reader as ImageReader;
+//! #[cfg(feature = "std")]
 //! # fn main() -> Result<(), image::ImageError> {
+//! use image::io::Reader as ImageReader;
 //! # let bytes = vec![0u8];
 //!
 //! let img = ImageReader::open("myimage.png")?.decode()?;
 //! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
+//!
+//! #[cfg(not(feature = "std"))]
+//! fn main() {}
 //! ```
 //!
 //! And save them using [`save`] or [`write_to`] methods:
@@ -32,8 +36,9 @@
 //! ```rust,no_run
 //! # use std::io::{Write, Cursor};
 //! # use image::ImageOutputFormat;
+//! #[cfg(all(feature = "png", feature = "std"))]
 //! # use image::DynamicImage;
-//! # #[cfg(feature = "png")]
+//! # #[cfg(all(feature = "png", feature = "std"))]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let img: DynamicImage = unimplemented!();
 //! # let img2: DynamicImage = unimplemented!();
@@ -43,7 +48,7 @@
 //! img2.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
 //! # Ok(())
 //! # }
-//! # #[cfg(not(feature = "png"))] fn main() {}
+//! # #[cfg(not(all(feature = "png", feature = "std")))] fn main() {}
 //! ```
 //!
 //! With default features, the crate includes support for [many common image formats](codecs/index.html#supported-formats).
@@ -83,6 +88,8 @@
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html
 //! [`ImageDecoder`]: trait.ImageDecoder.html
 //! [`ImageEncoder`]: trait.ImageEncoder.html
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "alloc", feature(error_in_core))]
 #![warn(missing_docs)]
 #![warn(unused_qualifications)]
 #![deny(unreachable_pub)]
@@ -93,6 +100,13 @@
 #![allow(clippy::many_single_char_names)]
 // it's a backwards compatibility break
 #![allow(clippy::wrong_self_convention, clippy::enum_variant_names)]
+
+#[macro_use]
+extern crate alloc;
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
 
 #[cfg(all(test, feature = "benchmarks"))]
 extern crate test;
@@ -111,8 +125,6 @@ pub use crate::image::{
     AnimationDecoder,
     GenericImage,
     GenericImageView,
-    ImageDecoder,
-    ImageDecoderRect,
     ImageEncoder,
     ImageFormat,
     ImageOutputFormat,
@@ -139,10 +151,14 @@ pub use crate::flat::FlatSamples;
 pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 
 // Opening and loading images
+#[cfg(feature = "std")]
 pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
     save_buffer_with_format, write_buffer_with_format,
 };
+#[cfg(feature = "std")]
+pub use crate::image::{ImageDecoder, ImageDecoderRect};
+#[cfg(feature = "std")]
 pub use crate::io::free_functions::{guess_format, load};
 
 pub use crate::dynimage::DynamicImage;

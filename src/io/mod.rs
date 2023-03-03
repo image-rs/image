@@ -1,12 +1,15 @@
 //! Input and output of images.
 
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 
 use crate::{error, ImageError, ImageResult};
 
+#[cfg(feature = "std")]
 pub(crate) mod free_functions;
+#[cfg(feature = "std")]
 mod reader;
 
+#[cfg(feature = "std")]
 pub use self::reader::Reader;
 
 /// Set of supported strict limits for a decoder.
@@ -86,8 +89,6 @@ impl Limits {
         Ok(())
     }
 
-    /// This function checks the `max_image_width` and `max_image_height` limits given
-    /// the image width and height.
     pub fn check_dimensions(&self, width: u32, height: u32) -> ImageResult<()> {
         if let Some(max_width) = self.max_image_width {
             if width > max_width {

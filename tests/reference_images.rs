@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::u32;
 
 use crc32fast::Hasher as Crc32;
+#[cfg(feature = "std")]
 use image::DynamicImage;
 
 const BASE_PATH: [&str; 2] = [".", "tests"];
@@ -149,6 +150,7 @@ fn parse_crc(src: &str) -> Option<u32> {
     u32::from_str_radix(src, 16).ok()
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn check_references() {
     process_images(REFERENCE_DIR, Some("png"), |base, path, decoder| {

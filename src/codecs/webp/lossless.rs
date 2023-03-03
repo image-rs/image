@@ -3,6 +3,7 @@
 //! [Lossless spec](https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification)
 //!
 
+use alloc::vec::Vec;
 use std::{
     convert::TryFrom,
     convert::TryInto,

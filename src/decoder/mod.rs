@@ -1,8 +1,8 @@
 mod stream;
 mod zlib;
 
-use self::stream::{DecodeConfig, FormatErrorInner, CHUNCK_BUFFER_SIZE};
-pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
+pub use self::stream::{DecodeOptions, Decoded, DecodingError, StreamingDecoder};
+use self::stream::{FormatErrorInner, CHUNCK_BUFFER_SIZE};
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::mem;
@@ -74,7 +74,6 @@ pub struct Decoder<R: Read> {
     transform: Transformations,
     /// Limits on resources the Decoder is allowed to use
     limits: Limits,
-    decode_config: DecodeConfig,
 }
 
 /// A row of data with interlace information attached.
@@ -141,7 +140,19 @@ impl<R: Read> Decoder<R> {
             },
             transform: Transformations::IDENTITY,
             limits,
-            decode_config: DecodeConfig::default(),
+        }
+    }
+
+    /// Create a new decoder configuration with custom `DecodeOptions`.
+    pub fn new_with_options(r: R, decode_options: DecodeOptions) -> Decoder<R> {
+        Decoder {
+            read_decoder: ReadDecoder {
+                reader: BufReader::with_capacity(CHUNCK_BUFFER_SIZE, r),
+                decoder: StreamingDecoder::new_with_options(decode_options),
+                at_eof: false,
+            },
+            transform: Transformations::IDENTITY,
+            limits: Limits::default(),
         }
     }
 
@@ -192,9 +203,6 @@ impl<R: Read> Decoder<R> {
     /// Reads all meta data until the first IDAT chunk
     pub fn read_info(mut self) -> Result<Reader<R>, DecodingError> {
         self.read_header_info()?;
-        self.read_decoder
-            .decoder
-            .set_decode_config(self.decode_config);
 
         let mut reader = Reader::new(self.read_decoder, self.transform, self.limits);
         reader.read_until_image_data(true)?;
@@ -221,7 +229,9 @@ impl<R: Read> Decoder<R> {
     /// assert!(decoder.read_info().is_ok());
     /// ```
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
-        self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
+        self.read_decoder
+            .decoder
+            .set_ignore_text_chunk(ignore_text_chunk);
     }
 }
 

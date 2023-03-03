@@ -125,13 +125,19 @@ impl ZlibStream {
         *self.state = Default::default();
     }
 
-    /// Set the `ignore_adler32` flag. The default is `true`.
+    /// Set the `ignore_adler32` flag and return `true` if the flag was
+    /// successfully set.
+    ///
+    /// The default is `true`.
     ///
     /// This flag cannot be modified after decompression has started until the
     /// [ZlibStream] is reset.
-    pub(crate) fn set_ignore_adler32(&mut self, flag: bool) {
+    pub(crate) fn set_ignore_adler32(&mut self, flag: bool) -> bool {
         if !self.started {
             self.ignore_adler32 = flag;
+            true
+        } else {
+            false
         }
     }
 

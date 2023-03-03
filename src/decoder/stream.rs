@@ -380,13 +380,33 @@ impl From<TextDecodingError> for DecodingError {
     }
 }
 
-/// Decode config
-#[derive(Default)]
-pub(crate) struct DecodeConfig {
+/// Decoder configuration options
+#[derive(Clone)]
+pub struct DecodeOptions {
+    ignore_adler32: bool,
     ignore_text_chunk: bool,
 }
 
-impl DecodeConfig {
+impl Default for DecodeOptions {
+    fn default() -> Self {
+        Self {
+            ignore_adler32: true,
+            ignore_text_chunk: false,
+        }
+    }
+}
+
+impl DecodeOptions {
+    /// When set, the decoder will not compute and verify the Adler-32 checksum.
+    ///
+    /// Defaults to `true`.
+    pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) {
+        self.ignore_adler32 = ignore_adler32;
+    }
+
+    /// Ignore text chunks while decoding.
+    ///
+    /// Defaults to `false`.
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.ignore_text_chunk = ignore_text_chunk;
     }
@@ -395,7 +415,7 @@ impl DecodeConfig {
 /// PNG StreamingDecoder (low-level interface)
 ///
 /// By default, the decoder does not verify Adler-32 checksum computation. To
-/// enable checksum verification, set it with [`StreamingDecoder::set_ignore_adler32_checksum`]
+/// enable checksum verification, set it with [`StreamingDecoder::set_ignore_adler32`]
 /// before starting decompression.
 pub struct StreamingDecoder {
     state: Option<State>,
@@ -409,7 +429,7 @@ pub struct StreamingDecoder {
     /// Stores where in decoding an `fdAT` chunk we are.
     apng_seq_handled: bool,
     have_idat: bool,
-    decode_config: DecodeConfig,
+    decode_options: DecodeOptions,
 }
 
 struct ChunkState {
@@ -432,15 +452,22 @@ impl StreamingDecoder {
     ///
     /// Allocates the internal buffers.
     pub fn new() -> StreamingDecoder {
+        StreamingDecoder::new_with_options(DecodeOptions::default())
+    }
+
+    pub fn new_with_options(decode_options: DecodeOptions) -> StreamingDecoder {
+        let mut inflater = ZlibStream::new();
+        inflater.set_ignore_adler32(decode_options.ignore_adler32);
+
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: ChunkState::default(),
-            inflater: ZlibStream::new(),
+            inflater,
             info: None,
             current_seq_no: None,
             apng_seq_handled: false,
             have_idat: false,
-            decode_config: DecodeConfig::default(),
+            decode_options,
         }
     }
 
@@ -463,26 +490,30 @@ impl StreamingDecoder {
     }
 
     /// Set decode config
-    pub(crate) fn set_decode_config(&mut self, decode_config: DecodeConfig) {
-        self.decode_config = decode_config;
+    // FIXME: Remove if there isn't a use for this function
+    #[allow(dead_code)]
+    pub(crate) fn set_decode_config(&mut self, decode_config: DecodeOptions) {
+        self.decode_options = decode_config;
     }
 
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
-        self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
+        self.decode_options.set_ignore_text_chunk(ignore_text_chunk);
     }
 
     /// Return whether the decoder is set to ignore the Adler-32 checksum.
-    pub fn ignore_adler32_checksum(&self) -> bool {
+    pub fn ignore_adler32(&self) -> bool {
         self.inflater.ignore_adler32()
     }
 
     /// Set whether to compute and verify the Adler-32 checksum during
-    /// decompression. The decoder defaults to `true`.
+    /// decompression. Return `true` if the flag was successfully set.
+    ///
+    /// The decoder defaults to `true`.
     ///
     /// This flag cannot be modified after decompression has started until the
     /// [StreamingDecoder] is reset.
-    pub fn set_ignore_adler32_checksum(&mut self, flag: bool) {
-        self.inflater.set_ignore_adler32(flag);
+    pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) -> bool {
+        self.inflater.set_ignore_adler32(ignore_adler32)
     }
 
     /// Low level StreamingDecoder interface.
@@ -742,9 +773,9 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
-            chunk::tEXt if !self.decode_config.ignore_text_chunk => self.parse_text(),
-            chunk::zTXt if !self.decode_config.ignore_text_chunk => self.parse_ztxt(),
-            chunk::iTXt if !self.decode_config.ignore_text_chunk => self.parse_itxt(),
+            chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
+            chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
+            chunk::iTXt if !self.decode_options.ignore_text_chunk => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {

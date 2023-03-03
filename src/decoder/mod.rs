@@ -233,6 +233,15 @@ impl<R: Read> Decoder<R> {
             .decoder
             .set_ignore_text_chunk(ignore_text_chunk);
     }
+
+    /// Set the decoder to ignore and not verify the Adler-32 checksum
+    /// and CRC code.
+    pub fn ignore_checksums(&mut self, ignore_checksums: bool) {
+        self.read_decoder
+            .decoder
+            .set_ignore_adler32(ignore_checksums);
+        self.read_decoder.decoder.set_ignore_crc(ignore_checksums);
+    }
 }
 
 struct ReadDecoder<R: Read> {

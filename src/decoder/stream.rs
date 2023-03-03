@@ -384,6 +384,7 @@ impl From<TextDecodingError> for DecodingError {
 #[derive(Clone)]
 pub struct DecodeOptions {
     ignore_adler32: bool,
+    ignore_crc: bool,
     ignore_text_chunk: bool,
 }
 
@@ -391,6 +392,7 @@ impl Default for DecodeOptions {
     fn default() -> Self {
         Self {
             ignore_adler32: true,
+            ignore_crc: false,
             ignore_text_chunk: false,
         }
     }
@@ -402,6 +404,20 @@ impl DecodeOptions {
     /// Defaults to `true`.
     pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) {
         self.ignore_adler32 = ignore_adler32;
+    }
+
+    /// When set, the decoder will not compute and verify the CRC code.
+    ///
+    /// Defaults to `false`.
+    pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
+        self.ignore_crc = ignore_crc;
+    }
+
+    /// Flag to ignore computing and verifying the Adler-32 checksum and CRC
+    /// code.
+    pub fn set_ignore_checksums(&mut self, ignore_checksums: bool) {
+        self.ignore_adler32 = ignore_checksums;
+        self.ignore_crc = ignore_checksums;
     }
 
     /// Ignore text chunks while decoding.
@@ -516,6 +532,14 @@ impl StreamingDecoder {
         self.inflater.set_ignore_adler32(ignore_adler32)
     }
 
+    /// Set whether to compute and verify the Adler-32 checksum during
+    /// decompression. Return `true` if the flag was successfully set.
+    ///
+    /// The decoder defaults to `false`.
+    pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
+        self.decode_options.set_ignore_crc(ignore_crc)
+    }
+
     /// Low level StreamingDecoder interface.
     ///
     /// Allows to stream partial data to the encoder. Returns a tuple containing the bytes that have
@@ -593,8 +617,10 @@ impl StreamingDecoder {
                             return Ok((0, Decoded::ImageDataFlushed));
                         }
                         self.current_chunk.type_ = type_str;
-                        self.current_chunk.crc.reset();
-                        self.current_chunk.crc.update(&type_str.0);
+                        if !self.decode_options.ignore_crc {
+                            self.current_chunk.crc.reset();
+                            self.current_chunk.crc.update(&type_str.0);
+                        }
                         self.current_chunk.remaining = length;
                         self.apng_seq_handled = false;
                         self.current_chunk.raw_bytes.clear();
@@ -602,8 +628,16 @@ impl StreamingDecoder {
                         Ok((1, Decoded::ChunkBegin(length, type_str)))
                     }
                     Crc(type_str) => {
-                        let sum = self.current_chunk.crc.clone().finalize();
-                        if CHECKSUM_DISABLED || val == sum {
+                        // If ignore_crc is set, do not calculate CRC. We set
+                        // sum=val so that it short-circuits to true in the next
+                        // if-statement block
+                        let sum = if self.decode_options.ignore_crc {
+                            val
+                        } else {
+                            self.current_chunk.crc.clone().finalize()
+                        };
+
+                        if val == sum || CHECKSUM_DISABLED {
                             self.state = Some(State::U32(U32Value::Length));
                             if type_str == IEND {
                                 Ok((1, Decoded::ImageEnd))

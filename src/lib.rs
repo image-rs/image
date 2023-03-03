@@ -19,10 +19,11 @@
 //! use std::io::Cursor;
 //! #[cfg(feature = "std")]
 //! # fn main() -> Result<(), image::ImageError> {
+//! use image::io::Reader as ImageReader;
 //! # let bytes = vec![0u8];
 //!
-//! let img = image::io::Reader::ImageReader::open("myimage.png")?.decode()?;
-//! let img2 = image::io::Reader::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
+//! let img = ImageReader::open("myimage.png")?.decode()?;
+//! let img2 = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?.decode()?;
 //! # Ok(())
 //! # }
 //!

@@ -161,7 +161,7 @@ fn check_references() {
             // Do not fail on unsupported error
             // This might happen because the testsuite contains unsupported images
             // or because a specific decoder included via a feature.
-            Err(image::ImageError::Unsupported { format, kind }) => return,
+            Err(image::ImageError::Unsupported(_)) => return,
             Err(err) => panic!("{}", err),
         };
 
@@ -260,7 +260,7 @@ fn check_references() {
                     // Do not fail on unsupported error
                     // This might happen because the testsuite contains unsupported images
                     // or because a specific decoder included via a feature.
-                    Err(image::ImageError::Unsupported { format, kind }) => return,
+                    Err(image::ImageError::Unsupported(_)) => return,
                     Err(err) => panic!("decoding of {:?} failed with: {}", img_path, err),
                 };
             }

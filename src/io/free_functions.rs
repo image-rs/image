@@ -192,7 +192,6 @@ pub(crate) fn save_buffer_with_format_impl(
 }
 
 #[allow(unused_variables)]
-#[cfg(feature = "std")]
 // Most variables when no features are supported
 pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     buffered_write: &mut W,

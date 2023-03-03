@@ -86,14 +86,13 @@ impl ImageFormat {
     /// let format = ImageFormat::from_extension("jpg");
     /// assert_eq!(format, Some(ImageFormat::Jpeg));
     /// ```
-    #[cfg(features = "std")]
-    #[inline]
+    #[cfg(feature = "std")]
     pub fn from_extension<S>(ext: S) -> Option<Self>
     where
         S: AsRef<std::ffi::OsStr>,
     {
         // thin wrapper function to strip generics
-        fn inner(ext: &OsStr) -> Option<ImageFormat> {
+        fn inner(ext: &std::ffi::OsStr) -> Option<ImageFormat> {
             let ext = ext.to_str()?.to_ascii_lowercase();
 
             Some(match ext.as_str() {
@@ -131,14 +130,13 @@ impl ImageFormat {
     ///
     /// # Ok::<(), image::error::ImageError>(())
     /// ```
-    #[cfg(features = "std")]
-    #[inline]
+    #[cfg(feature = "std")]
     pub fn from_path<P>(path: P) -> ImageResult<Self>
     where
-        P: AsRef<Path>,
+        P: AsRef<std::path::Path>,
     {
         // thin wrapper function to strip generics
-        fn inner(path: &Path) -> ImageResult<ImageFormat> {
+        fn inner(path: &std::path::Path) -> ImageResult<ImageFormat> {
             let exact_ext = path.extension();
             exact_ext
                 .and_then(ImageFormat::from_extension)
@@ -1647,7 +1645,7 @@ mod tests {
         assert_eq!(output[0..9], [6, 7, 11, 12, 16, 17, 21, 22, 0]);
     }
 
-    #[cfg(features = "std")]
+    #[cfg(feature = "std")]
     #[test]
     fn test_image_format_from_path() {
         fn from_path(s: &str) -> ImageResult<ImageFormat> {
@@ -1839,7 +1837,7 @@ mod tests {
         assert_eq!(&image.into_raw(), &expected);
     }
 
-    #[cfg(features = "std")]
+    #[cfg(feature = "std")]
     #[test]
     fn image_formats_are_recognized() {
         use ImageFormat::*;

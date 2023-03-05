@@ -563,28 +563,16 @@ impl<R: Read> Reader<R> {
         };
 
         if transform == Transformations::IDENTITY {
-            return Ok(self
-                .next_raw_interlaced_row(rowlen)?
-                .map(|data| InterlacedRow {
-                    data,
-                    interlace,
-                }));
+            return Ok(Some(InterlacedRow {
+                data: self.next_raw_interlaced_row(rowlen)?,
+                interlace,
+            }));
         }
 
         // swap buffer to circumvent borrow issues
         let mut buffer = mem::take(&mut self.processed);
-        let got_next = if let Some(row) = self.next_raw_interlaced_row(rowlen)? {
-            (&mut buffer[..]).write_all(row)?;
-            true
-        } else {
-            false
-        };
-        // swap back
+        (&mut buffer[..]).write_all(self.next_raw_interlaced_row(rowlen)?)?;
         self.processed = buffer;
-
-        if !got_next {
-            return Ok(None);
-        }
 
         let (color_type, bit_depth, trns) = {
             let info = self.info();
@@ -759,7 +747,7 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next raw scanline of the image interlace pass.
     /// The scanline is filtered against the previous scanline according to the specification.
-    fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<Option<&[u8]>, DecodingError> {
+    fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<&[u8], DecodingError> {
         // Read image data until we have at least one full row (but possibly more than one).
         while self.current.len() - self.scan_start < rowlen {
             if self.subframe.consumed_and_flushed {
@@ -785,7 +773,9 @@ impl<R: Read> Reader<R> {
                             FormatErrorInner::UnexpectedEndOfChunk.into(),
                         ));
                     } else {
-                        return Ok(None);
+                        return Err(DecodingError::Format(
+                            FormatErrorInner::NoMoreImageData.into(),
+                        ));
                     }
                 }
                 _ => (),
@@ -805,7 +795,7 @@ impl<R: Read> Reader<R> {
         // Save the current row for the next pass.
         self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
 
-        Ok(Some(&self.prev[1..rowlen]))
+        Ok(&self.prev[1..rowlen])
     }
 }
 

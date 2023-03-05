@@ -34,15 +34,15 @@ impl<R: Read> AvifDecoder<R> {
     /// Create a new decoder that reads its input from `r`.
     pub fn new(mut r: R) -> ImageResult<Self> {
         let ctx = read_avif(&mut r, ParseStrictness::Normal).map_err(error_map)?;
-        let mut primary_decoder = dav1d::Decoder::new();
-        let coded = ctx.primary_item_coded_data();
+        let mut primary_decoder = dav1d::Decoder::new().map_err(error_map)?;
+        let coded = ctx.primary_item_coded_data().to_owned();
         primary_decoder
             .send_data(coded, None, None, None)
             .map_err(error_map)?;
         let picture = primary_decoder.get_picture().map_err(error_map)?;
-        let alpha_item = ctx.alpha_item_coded_data();
+        let alpha_item = ctx.alpha_item_coded_data().to_owned();
         let alpha_picture = if !alpha_item.is_empty() {
-            let mut alpha_decoder = dav1d::Decoder::new();
+            let mut alpha_decoder = dav1d::Decoder::new().map_err(error_map)?;
             alpha_decoder
                 .send_data(alpha_item, None, None, None)
                 .map_err(error_map)?;
@@ -111,7 +111,6 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
                 PixelLayout::I420 => dcp::PixelFormat::I420,
                 PixelLayout::I422 => dcp::PixelFormat::I422,
                 PixelLayout::I444 => dcp::PixelFormat::I444,
-                PixelLayout::Unknown => panic!("Unknown pixel layout"),
             };
             let src_format = dcp::ImageFormat {
                 pixel_format,
@@ -120,7 +119,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for AvifDecoder<R> {
             };
             let dst_format = dcp::ImageFormat {
                 pixel_format: dcp::PixelFormat::Rgba,
-                color_space: dcp::ColorSpace::Lrgb,
+                color_space: dcp::ColorSpace::Rgb,
                 num_planes: 1,
             };
             let (width, height) = self.dimensions();

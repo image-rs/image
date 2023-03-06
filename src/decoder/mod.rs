@@ -373,7 +373,23 @@ impl<R: Read> Reader<R> {
     /// Requires IHDR before the IDAT and fcTL before fdAT.
     fn read_until_image_data(&mut self, initial_frame: bool) -> Result<OutputInfo, DecodingError> {
         if initial_frame {
-            self.validate_buffer_sizes()?;
+            // Check if the decoding buffer of a single raw line has a valid size.
+            if self.info().checked_raw_row_length().is_none() {
+                return Err(DecodingError::LimitsExceeded);
+            }
+
+            // Check if the output buffer has a valid size.
+            let (width, height) = self.info().size();
+            let (color, depth) = self.output_color_type();
+            let rowlen = color
+                .checked_raw_row_length(depth, width)
+                .ok_or(DecodingError::LimitsExceeded)?
+                - 1;
+            let height: usize = std::convert::TryFrom::try_from(height)
+                .map_err(|_| DecodingError::LimitsExceeded)?;
+            if rowlen.checked_mul(height).is_none() {
+                return Err(DecodingError::LimitsExceeded);
+            }
         } else {
             let subframe_idx = match self.decoder.info().unwrap().frame_control() {
                 None => SubframeIdx::Initial,
@@ -425,7 +441,16 @@ impl<R: Read> Reader<R> {
             // TODO: reuse the results obtained during the above check.
             self.subframe = SubframeInfo::new(info);
         }
-        self.allocate_out_buf()?;
+
+        // Allocate output buffer.
+        let width = self.subframe.width;
+        let bytes = self.limits.bytes;
+        let buflen = match self.line_size(width) {
+            Some(buflen) if buflen <= bytes => buflen,
+            // Should we differentiate between platform limits and others?
+            _ => return Err(DecodingError::LimitsExceeded),
+        };
+        self.processed.resize(buflen, 0u8);
 
         // Instead of allocating a new buffer for prev, we simply clear and
         // reuse the buffer we used for chunk decoding.
@@ -437,23 +462,14 @@ impl<R: Read> Reader<R> {
     }
 
     fn output_info(&self) -> OutputInfo {
-        let width = self.subframe.width;
-        let height = self.subframe.height;
-
         let (color_type, bit_depth) = self.output_color_type();
-
         OutputInfo {
-            width,
-            height,
+            width: self.subframe.width,
+            height: self.subframe.height,
             color_type,
             bit_depth,
-            line_size: self.output_line_size(width),
+            line_size: self.output_line_size(self.subframe.width),
         }
-    }
-
-    fn reset_current(&mut self) {
-        self.current.clear();
-        self.scan_start = 0;
     }
 
     /// Get information on the image.
@@ -491,7 +507,8 @@ impl<R: Read> Reader<R> {
             ));
         }
 
-        self.reset_current();
+        self.current.clear();
+        self.scan_start = 0;
         let width = self.info().width;
         if self.info().interlaced {
             while let Some(InterlacedRow {
@@ -658,28 +675,6 @@ impl<R: Read> Reader<R> {
         size * height as usize
     }
 
-    fn validate_buffer_sizes(&self) -> Result<(), DecodingError> {
-        // Check if the decoding buffer of a single raw line has a valid size.
-        if self.info().checked_raw_row_length().is_none() {
-            return Err(DecodingError::LimitsExceeded);
-        }
-
-        // Check if the output buffer has a valid size.
-        if self.checked_output_buffer_size().is_none() {
-            return Err(DecodingError::LimitsExceeded);
-        }
-
-        Ok(())
-    }
-
-    fn checked_output_buffer_size(&self) -> Option<usize> {
-        let (width, height) = self.info().size();
-        let (color, depth) = self.output_color_type();
-        let rowlen = color.checked_raw_row_length(depth, width)? - 1;
-        let height: usize = std::convert::TryFrom::try_from(height).ok()?;
-        rowlen.checked_mul(height)
-    }
-
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let (color, depth) = self.output_color_type();
@@ -712,18 +707,6 @@ impl<R: Read> Reader<R> {
 
         // Without the filter method byte
         color.checked_raw_row_length(depth, width).map(|n| n - 1)
-    }
-
-    fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
-        let width = self.subframe.width;
-        let bytes = self.limits.bytes;
-        let buflen = match self.line_size(width) {
-            Some(buflen) if buflen <= bytes => buflen,
-            // Should we differentiate between platform limits and others?
-            _ => return Err(DecodingError::LimitsExceeded),
-        };
-        self.processed.resize(buflen, 0u8);
-        Ok(())
     }
 
     fn next_pass(&mut self) -> Option<(usize, InterlaceInfo)> {

@@ -557,16 +557,15 @@ impl<R: Read> Reader<R> {
         };
 
         if transform == Transformations::IDENTITY {
+            self.next_raw_interlaced_row(rowlen)?;
             return Ok(Some(InterlacedRow {
-                data: self.next_raw_interlaced_row(rowlen)?,
+                data: &self.prev[1..rowlen],
                 interlace,
             }));
         }
 
-        // swap buffer to circumvent borrow issues
-        let mut buffer = mem::take(&mut self.processed);
-        (&mut buffer[..]).write_all(self.next_raw_interlaced_row(rowlen)?)?;
-        self.processed = buffer;
+        self.next_raw_interlaced_row(rowlen)?;
+        self.processed[..rowlen - 1].copy_from_slice(&self.prev[1..rowlen]);
 
         let (color_type, bit_depth, trns) = {
             let info = self.info();
@@ -705,9 +704,10 @@ impl<R: Read> Reader<R> {
         }
     }
 
-    /// Returns the next raw scanline of the image interlace pass.
+    /// Write the next raw interlaced row into `self.prev`.
+    ///
     /// The scanline is filtered against the previous scanline according to the specification.
-    fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<&[u8], DecodingError> {
+    fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<(), DecodingError> {
         // Read image data until we have at least one full row (but possibly more than one).
         while self.current.len() - self.scan_start < rowlen {
             if self.subframe.consumed_and_flushed {
@@ -754,7 +754,7 @@ impl<R: Read> Reader<R> {
         // Save the current row for the next pass.
         self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
 
-        Ok(&self.prev[1..rowlen])
+        Ok(())
     }
 }
 

@@ -196,7 +196,19 @@ impl<R: Read> Decoder<R> {
             .decoder
             .set_decode_config(self.decode_config);
 
-        let mut reader = Reader::new(self.read_decoder, self.transform, self.limits);
+        let mut reader = Reader {
+            decoder: self.read_decoder,
+            bpp: BytesPerPixel::One,
+            subframe: SubframeInfo::not_yet_init(),
+            fctl_read: 0,
+            next_frame: SubframeIdx::Initial,
+            prev: Vec::new(),
+            current: Vec::new(),
+            scan_start: 0,
+            transform: self.transform,
+            processed: Vec::new(),
+            limits: self.limits,
+        };
 
         // Check if the decoding buffer of a single raw line has a valid size.
         if reader.info().checked_raw_row_length().is_none() {
@@ -370,23 +382,6 @@ macro_rules! get_info(
 );
 
 impl<R: Read> Reader<R> {
-    /// Creates a new PNG reader
-    fn new(read_decoder: ReadDecoder<R>, t: Transformations, limits: Limits) -> Reader<R> {
-        Reader {
-            decoder: read_decoder,
-            bpp: BytesPerPixel::One,
-            subframe: SubframeInfo::not_yet_init(),
-            fctl_read: 0,
-            next_frame: SubframeIdx::Initial,
-            prev: Vec::new(),
-            current: Vec::new(),
-            scan_start: 0,
-            transform: t,
-            processed: Vec::new(),
-            limits,
-        }
-    }
-
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
     fn read_until_image_data(&mut self) -> Result<(), DecodingError> {

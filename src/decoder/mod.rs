@@ -375,12 +375,6 @@ enum SubframeIdx {
     End,
 }
 
-macro_rules! get_info(
-    ($this:expr) => {
-        $this.decoder.info().unwrap()
-    }
-);
-
 impl<R: Read> Reader<R> {
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
@@ -590,13 +584,13 @@ impl<R: Read> Reader<R> {
         let mut len = output_buffer.len();
         if transform.contains(Transformations::EXPAND) {
             match color_type {
-                Indexed => expand_paletted(output_buffer, get_info!(self))?,
+                Indexed => expand_paletted(output_buffer, self.decoder.info().unwrap())?,
                 Grayscale | GrayscaleAlpha if bit_depth < 8 => {
-                    expand_gray_u8(output_buffer, get_info!(self))
+                    expand_gray_u8(output_buffer, self.decoder.info().unwrap())
                 }
                 Grayscale | Rgb if trns => {
                     let channels = color_type.samples();
-                    let trns = get_info!(self).trns.as_ref().unwrap();
+                    let trns = self.decoder.info().unwrap().trns.as_ref().unwrap();
                     if bit_depth == 8 {
                         utils::expand_trns_line(output_buffer, trns, channels);
                     } else {

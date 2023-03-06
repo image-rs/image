@@ -415,26 +415,19 @@ impl<R: Read> Reader<R> {
                 _ => {}
             }
         }
-        {
-            let info = match self.decoder.info() {
-                Some(info) => info,
-                None => return Err(DecodingError::Format(FormatErrorInner::MissingIhdr.into())),
-            };
-            self.bpp = info.bpp_in_prediction();
-            // Check if the output buffer can be represented at all.
-            // Now we can init the subframe info.
-            // TODO: reuse the results obtained during the above check.
-            self.subframe = SubframeInfo::new(info);
-        }
+
+        let info = self
+            .decoder
+            .info()
+            .ok_or(DecodingError::Format(FormatErrorInner::MissingIhdr.into()))?;
+        self.bpp = info.bpp_in_prediction();
+        self.subframe = SubframeInfo::new(info);
 
         // Allocate output buffer.
-        let width = self.subframe.width;
-        let bytes = self.limits.bytes;
-        let buflen = match self.line_size(width) {
-            Some(buflen) if buflen <= bytes => buflen,
-            // Should we differentiate between platform limits and others?
-            _ => return Err(DecodingError::LimitsExceeded),
-        };
+        let buflen = self
+            .line_size(self.subframe.width)
+            .filter(|&x| x <= self.limits.bytes)
+            .ok_or(DecodingError::LimitsExceeded)?;
         self.processed.resize(buflen, 0u8);
 
         self.prev.clear();

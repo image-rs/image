@@ -197,8 +197,26 @@ impl<R: Read> Decoder<R> {
             .set_decode_config(self.decode_config);
 
         let mut reader = Reader::new(self.read_decoder, self.transform, self.limits);
-        reader.read_until_image_data(true)?;
 
+        // Check if the decoding buffer of a single raw line has a valid size.
+        if reader.info().checked_raw_row_length().is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        // Check if the output buffer has a valid size.
+        let (width, height) = reader.info().size();
+        let (color, depth) = reader.output_color_type();
+        let rowlen = color
+            .checked_raw_row_length(depth, width)
+            .ok_or(DecodingError::LimitsExceeded)?
+            - 1;
+        let height: usize =
+            std::convert::TryFrom::try_from(height).map_err(|_| DecodingError::LimitsExceeded)?;
+        if rowlen.checked_mul(height).is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        reader.read_until_image_data()?;
         Ok(reader)
     }
 
@@ -371,44 +389,16 @@ impl<R: Read> Reader<R> {
 
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
-    fn read_until_image_data(&mut self, initial_frame: bool) -> Result<OutputInfo, DecodingError> {
-        if initial_frame {
-            // Check if the decoding buffer of a single raw line has a valid size.
-            if self.info().checked_raw_row_length().is_none() {
-                return Err(DecodingError::LimitsExceeded);
-            }
-
-            // Check if the output buffer has a valid size.
-            let (width, height) = self.info().size();
-            let (color, depth) = self.output_color_type();
-            let rowlen = color
-                .checked_raw_row_length(depth, width)
-                .ok_or(DecodingError::LimitsExceeded)?
-                - 1;
-            let height: usize = std::convert::TryFrom::try_from(height)
-                .map_err(|_| DecodingError::LimitsExceeded)?;
-            if rowlen.checked_mul(height).is_none() {
-                return Err(DecodingError::LimitsExceeded);
-            }
-        } else {
-            let subframe_idx = match self.decoder.info().unwrap().frame_control() {
-                None => SubframeIdx::Initial,
-                Some(_) => SubframeIdx::Some(self.fctl_read - 1),
-            };
-
-            if self.next_frame == subframe_idx {
-                return Ok(self.output_info());
-            } else if self.next_frame == SubframeIdx::End {
-                return Err(DecodingError::Parameter(
-                    ParameterErrorKind::PolledAfterEndOfImage.into(),
-                ));
-            }
-        }
-
-        let mut buf = Vec::new();
+    fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
         loop {
-            buf.clear();
-            match self.decoder.decode_next(&mut buf)? {
+            // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
+            // know that we will stop before reading any image data from the stream. Thus pass an
+            // empty buffer and assert that remains empty.
+            let mut buf = Vec::new();
+            let state = self.decoder.decode_next(&mut buf)?;
+            assert!(buf.is_empty());
+
+            match state {
                 Some(Decoded::ChunkBegin(_, chunk::IDAT))
                 | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
                 Some(Decoded::FrameControl(_)) => {
@@ -452,24 +442,10 @@ impl<R: Read> Reader<R> {
         };
         self.processed.resize(buflen, 0u8);
 
-        // Instead of allocating a new buffer for prev, we simply clear and
-        // reuse the buffer we used for chunk decoding.
-        buf.clear();
-        buf.resize(self.subframe.rowlen, 0);
-        self.prev = buf;
+        self.prev.clear();
+        self.prev.resize(self.subframe.rowlen, 0);
 
-        Ok(self.output_info())
-    }
-
-    fn output_info(&self) -> OutputInfo {
-        let (color_type, bit_depth) = self.output_color_type();
-        OutputInfo {
-            width: self.subframe.width,
-            height: self.subframe.height,
-            color_type,
-            bit_depth,
-            line_size: self.output_line_size(self.subframe.width),
-        }
+        Ok(())
     }
 
     /// Get information on the image.
@@ -493,10 +469,20 @@ impl<R: Read> Reader<R> {
     /// Output lines will be written in row-major, packed matrix with width and height of the read
     /// frame (or subframe), all samples are in big endian byte order where this matters.
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<OutputInfo, DecodingError> {
-        // Advance until we've read the info / fcTL for this frame.
-        let info = self.read_until_image_data(false)?;
-        // TODO 16 bit
-        let (color_type, bit_depth) = self.output_color_type();
+        let subframe_idx = match self.decoder.info().unwrap().frame_control() {
+            None => SubframeIdx::Initial,
+            Some(_) => SubframeIdx::Some(self.fctl_read - 1),
+        };
+
+        if self.next_frame == SubframeIdx::End {
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
+            ));
+        } else if self.next_frame != subframe_idx {
+            // Advance until we've read the info / fcTL for this frame.
+            self.read_until_image_data()?;
+        }
+
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Parameter(
                 ParameterErrorKind::ImageBufferSize {
@@ -506,6 +492,15 @@ impl<R: Read> Reader<R> {
                 .into(),
             ));
         }
+
+        let (color_type, bit_depth) = self.output_color_type();
+        let output_info = OutputInfo {
+            width: self.subframe.width,
+            height: self.subframe.height,
+            color_type,
+            bit_depth,
+            line_size: self.output_line_size(self.subframe.width),
+        };
 
         self.current.clear();
         self.scan_start = 0;
@@ -555,7 +550,7 @@ impl<R: Read> Reader<R> {
             SubframeIdx::Some(idx) => SubframeIdx::Some(idx + 1),
         };
 
-        Ok(info)
+        Ok(output_info)
     }
 
     /// Returns the next processed row of the image

@@ -81,6 +81,13 @@ impl<W: Write> AvifEncoder<W> {
             .with_internal_color_space(color_space.to_ravif());
         self
     }
+
+    /// Configures `rayon` thread pool size.
+    /// The default `None` is to use all threads in the default `rayon` thread pool.
+    pub fn with_num_threads(mut self, num_threads: Option<usize>) -> Self {
+        self.encoder = self.encoder.with_num_threads(num_threads);
+        self
+    }
 }
 
 impl<W: Write> ImageEncoder for AvifEncoder<W> {

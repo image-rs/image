@@ -505,13 +505,6 @@ impl StreamingDecoder {
         self.info.as_ref()
     }
 
-    /// Set decode config
-    // FIXME: Remove if there isn't a use for this function
-    #[allow(dead_code)]
-    pub(crate) fn set_decode_config(&mut self, decode_config: DecodeOptions) {
-        self.decode_options = decode_config;
-    }
-
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.decode_options.set_ignore_text_chunk(ignore_text_chunk);
     }
@@ -527,7 +520,7 @@ impl StreamingDecoder {
     /// The decoder defaults to `true`.
     ///
     /// This flag cannot be modified after decompression has started until the
-    /// [StreamingDecoder] is reset.
+    /// [`StreamingDecoder`] is reset.
     pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) -> bool {
         self.inflater.set_ignore_adler32(ignore_adler32)
     }

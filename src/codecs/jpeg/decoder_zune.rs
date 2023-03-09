@@ -1,10 +1,85 @@
-use crate::{ImageError, ColorType, error::{DecodingError, UnsupportedErrorKind, UnsupportedError, LimitError}, ImageFormat, color};
+use std::convert::TryFrom;
+use std::io::{self, Cursor, Read};
+
+use crate::{
+    error::{DecodingError, LimitError, UnsupportedError, UnsupportedErrorKind},
+    ColorType, ImageDecoder, ImageError, ImageFormat, ImageResult,
+};
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
-pub struct ZuneJpegDecoder<R> {
-    decoder: jpeg::Decoder<R>,
-    metadata: jpeg::ImageInfo,
+pub struct ZuneJpegDecoder {
+    input: Vec<u8>,
+    orig_color_space: ZuneColorSpace,
+    width: u16,
+    height: u16,
+}
+
+impl ZuneJpegDecoder {
+    pub fn new<R: Read>(mut r: R) -> ImageResult<ZuneJpegDecoder> {
+        let mut input = Vec::new();
+        r.read_to_end(&mut input)?;
+        let mut decoder = zune_jpeg::JpegDecoder::new(&input);
+        decoder
+            .decode_headers()
+            .map_err(ImageError::from_zune_jpeg)?;
+        // now that we've decoded the headers we can `.unwrap()`
+        // all these functions that only fail if called before decoding the headers
+        let (width, height) = decoder.dimensions().unwrap();
+        let orig_color_space = decoder.get_output_colorspace().unwrap();
+        Ok(ZuneJpegDecoder {
+            input,
+            orig_color_space,
+            width,
+            height,
+        })
+    }
+}
+
+/// Wrapper struct around a `Cursor<Vec<u8>>`
+pub struct ZuneJpegReader(Cursor<Vec<u8>>);
+impl Read for ZuneJpegReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        if self.0.position() == 0 && buf.is_empty() {
+            std::mem::swap(buf, self.0.get_mut());
+            Ok(buf.len())
+        } else {
+            self.0.read_to_end(buf)
+        }
+    }
+}
+
+impl<'a> ImageDecoder<'a> for ZuneJpegDecoder {
+    type Reader = ZuneJpegReader;
+
+    fn dimensions(&self) -> (u32, u32) {
+        (u32::from(self.width), u32::from(self.height))
+    }
+
+    fn color_type(&self) -> ColorType {
+        ColorType::from_zune_jpeg(self.orig_color_space)
+    }
+
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        None // zune-jpeg doesn't support it
+    }
+
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
+        let data = decoder.decode().map_err(ImageError::from_zune_jpeg)?;
+        Ok(ZuneJpegReader(Cursor::new(data)))
+    }
+
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
+        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
+        let data = decoder.decode().map_err(ImageError::from_zune_jpeg)?;
+        buf.copy_from_slice(&data);
+        Ok(())
+    }
 }
 
 impl ColorType {
@@ -32,6 +107,13 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     }
 }
 
+fn new_zune_decoder(input: &[u8], orig_color_space: ZuneColorSpace) -> zune_jpeg::JpegDecoder {
+    let target_color_space = to_supported_color_space(orig_color_space);
+    let options =
+        zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
+    zune_jpeg::JpegDecoder::new_with_options(options, &input)
+}
+
 impl ImageError {
     fn from_zune_jpeg(err: zune_jpeg::errors::DecodeErrors) -> ImageError {
         use zune_jpeg::errors::DecodeErrors::*;
@@ -40,10 +122,10 @@ impl ImageError {
                 ImageFormat::Jpeg.into(),
                 UnsupportedErrorKind::GenericFeature(format!("{:?}", desc)),
             )),
-            LargeDimensions(_) => ImageError::Limits(LimitError::from_kind(crate::error::LimitErrorKind::DimensionError)),
-            err => {
-                ImageError::Decoding(DecodingError::new(ImageFormat::Jpeg.into(), err))
-            }
+            LargeDimensions(_) => ImageError::Limits(LimitError::from_kind(
+                crate::error::LimitErrorKind::DimensionError,
+            )),
+            err => ImageError::Decoding(DecodingError::new(ImageFormat::Jpeg.into(), err)),
         }
     }
 }

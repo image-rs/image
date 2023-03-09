@@ -48,7 +48,7 @@ exr = { version = "1.5.0", optional = true }
 qoi = { version = "0.4", optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
 zune-jpeg = { version = "0.3.12", path = "../zune-image/zune-jpeg" }
-zune-core = "0.2.1"
+zune-core = { version = "0.2.1", path = "../zune-image/zune-core" }
 
 [dev-dependencies]
 crc32fast = "1.2.0"

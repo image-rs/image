@@ -74,7 +74,20 @@ impl<'a> ImageDecoder<'a> for ZuneJpegDecoder {
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
+        let advertised_len = self.total_bytes();
+        let actual_len = buf.len() as u64;
+
+        if actual_len != advertised_len {
+            return Err(ImageError::Decoding(DecodingError::new(
+                ImageFormat::Jpeg.into(),
+                format!(
+                    "Length of the decoded data {actual_len}\
+                    doesn't match the advertised dimensions of the image\
+                    that imply length {advertised_len}"
+                ),
+            )));
+        }
+
         let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
         let data = decoder.decode().map_err(ImageError::from_zune_jpeg)?;
         buf.copy_from_slice(&data);

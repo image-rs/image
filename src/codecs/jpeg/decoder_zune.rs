@@ -106,6 +106,7 @@ impl ColorType {
             RGBA => ColorType::Rgba8,
             Luma => ColorType::L8,
             LumaA => ColorType::La8,
+            // to_supported_color_space() doesn't return any of the other variants
             _ => unreachable!(),
         }
     }

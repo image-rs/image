@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::io::{self, Cursor, Read};
 
 use crate::{

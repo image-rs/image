@@ -296,10 +296,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(IcoReader(
-            Cursor::new(image::decoder_to_vec(self)?),
-            PhantomData,
-        ))
+        let mut buf = vec![0; self.total_bytes() as usize];
+        self.read_image(&mut buf)?;
+        Ok(IcoReader(Cursor::new(buf), PhantomData))
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {

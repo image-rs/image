@@ -616,10 +616,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for PnmDecoder<R> {
     fn into_reader(self) -> ImageResult<Self::Reader> {
         let mut buf = vec![0; self.total_bytes() as usize];
         self.read_image(&mut buf)?;
-        Ok(PnmReader(
-            Cursor::new(buf),
-            PhantomData,
-        ))
+        Ok(PnmReader(Cursor::new(buf), PhantomData))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

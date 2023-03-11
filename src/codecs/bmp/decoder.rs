@@ -1518,10 +1518,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        Ok(BmpReader(
-            Cursor::new(self.get_image_data()?),
-            PhantomData,
-        ))
+        Ok(BmpReader(Cursor::new(self.get_image_data()?), PhantomData))
     }
 
     fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {

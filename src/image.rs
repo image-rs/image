@@ -619,7 +619,8 @@ where
         // and an allocation must be freed with the same size and alignment with which it was allocated,
         // so we have to create a Vec<T> up front and initialize it,
         // so that we could slice it and then change the layout of the slice, which is valid.
-        let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+        let mut buf =
+            vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
         decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
         Ok(buf)
     }

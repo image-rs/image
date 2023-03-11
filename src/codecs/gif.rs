@@ -108,8 +108,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        let mut buf = vec![0; self.total_bytes() as usize];
+        self.read_image(&mut buf)?;
         Ok(GifReader(
-            Cursor::new(image::decoder_to_vec(self)?),
+            Cursor::new(buf),
             PhantomData,
         ))
     }

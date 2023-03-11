@@ -608,9 +608,9 @@ where
     if TypeId::of::<T>() == TypeId::of::<u8>() {
         // It's faster to read u8 without zeroing the buffer first.
         // On top of that, some implementations such as JPEG produce a `Vec<u8>` up front,
-        // so going through the other codepath would cause a memcpy() and double the memory usage.
+        // so going through the other codepath would cause a memcpy().
         // A single large allocation here is actually OK because the memory won't be provisioned until
-        // we actuall write to it, so this doesn't increase actual memory usage
+        // we actually write to it, so this doesn't increase actual memory usage
         let mut buf: Vec<u8> = Vec::with_capacity(total_bytes.unwrap());
         decoder.into_reader()?.read_to_end(&mut buf)?;
         Ok(bytemuck::allocation::cast_vec(buf))

@@ -3,7 +3,6 @@ use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
-use std::mem::{size_of, align_of};
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::usize;
@@ -606,9 +605,7 @@ where
     }
 
     use std::any::TypeId;
-    // TypeId can have hash collisions, so we also guard on size_of and align_of just to be sure.
-    // This is all const-folded during monomorphization and has no runtime impact.
-    if TypeId::of::<T>() == TypeId::of::<u8>() && size_of::<T>() == 1 && align_of::<T>() == 1 {
+    if TypeId::of::<T>() == TypeId::of::<u8>() {
         // It's faster to read u8 without zeroing the buffer first.
         // On top of that, some implementations such as JPEG produce a `Vec<u8>` up front,
         // so going through the other codepath would cause a memcpy() and double the memory usage.
@@ -616,7 +613,7 @@ where
         // we actuall write to it, so this doesn't increase actual memory usage
         let mut buf: Vec<u8> = Vec::with_capacity(total_bytes.unwrap());
         decoder.into_reader()?.read_to_end(&mut buf)?;
-        Ok(buf) // FIXME: doesn't compile - u8 is not the same type as T
+        Ok(bytemuck::allocation::cast_vec(buf))
     } else {
         // The input and output types may not be layout-compatible (same size and alignment),
         // and an allocation must be freed with the same size and alignment with which it was allocated,

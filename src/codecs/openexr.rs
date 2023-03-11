@@ -23,7 +23,6 @@
 use exr::prelude::*;
 
 use crate::error::{DecodingError, EncodingError, ImageFormatHint};
-use crate::image::decoder_to_vec;
 use crate::{
     ColorType, ExtendedColorType, ImageDecoder, ImageEncoder, ImageError, ImageFormat, ImageResult,
     Progress,
@@ -138,7 +137,9 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for OpenExrDecoder<R> {
     /// Use `read_image` instead if possible,
     /// as this method creates a whole new buffer just to contain the entire image.
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?))
+        let mut buf = vec![0; self.total_bytes() as usize];
+        self.read_image(&mut buf)?;
+        Ok(Cursor::new(buf))
     }
 
     fn scanline_bytes(&self) -> u64 {
@@ -386,6 +387,7 @@ mod test {
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
     use crate::{ImageBuffer, Rgb, Rgba};
+    use crate::image::decoder_to_vec;
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 

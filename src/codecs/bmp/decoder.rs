@@ -1512,9 +1512,11 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
         }
     }
 
-    fn into_reader(self) -> ImageResult<Self::Reader> {
+    fn into_reader(mut self) -> ImageResult<Self::Reader> {
+        let mut buf: Vec<u8> = vec![0; self.total_bytes() as usize];
+        self.read_image_data(&mut buf)?;
         Ok(BmpReader(
-            Cursor::new(image::decoder_to_vec(self)?),
+            Cursor::new(buf),
             PhantomData,
         ))
     }

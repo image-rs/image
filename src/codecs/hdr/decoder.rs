@@ -199,8 +199,10 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
+        let mut buf = vec![0; self.total_bytes() as usize];
+        self.read_image(&mut buf)?;
         Ok(HdrReader(
-            Cursor::new(image::decoder_to_vec(self)?),
+            Cursor::new(buf),
             PhantomData,
         ))
     }

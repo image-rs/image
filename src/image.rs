@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
+use std::mem::{size_of, align_of};
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::usize;
@@ -595,7 +596,7 @@ where
 /// Panics if there isn't enough memory to decode the image.
 pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResult<Vec<T>>
 where
-    T: crate::traits::Primitive + bytemuck::Pod,
+    T: crate::traits::Primitive + bytemuck::Pod + std::any::Any,
 {
     let total_bytes = usize::try_from(decoder.total_bytes());
     if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
@@ -604,9 +605,27 @@ where
         )));
     }
 
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
-    decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
-    Ok(buf)
+    use std::any::TypeId;
+    // TypeId can have hash collisions, so we also guard on size_of and align_of just to be sure.
+    // This is all const-folded during monomorphization and has no runtime impact.
+    if TypeId::of::<T>() == TypeId::of::<u8>() && size_of::<T>() == 1 && align_of::<T>() == 1 {
+        // It's faster to read u8 without zeroing the buffer first.
+        // On top of that, some implementations such as JPEG produce a `Vec<u8>` up front,
+        // so going through the other codepath would cause a memcpy() and double the memory usage.
+        // A single large allocation here is actually OK because the memory won't be provisioned until
+        // we actuall write to it, so this doesn't increase actual memory usage
+        let mut buf: Vec<u8> = Vec::with_capacity(total_bytes.unwrap());
+        decoder.into_reader()?.read_to_end(&mut buf)?;
+        Ok(buf) // FIXME: doesn't compile - u8 is not the same type as T
+    } else {
+        // The input and output types may not be layout-compatible (same size and alignment),
+        // and an allocation must be freed with the same size and alignment with which it was allocated,
+        // so we have to create a Vec<T> up front and initialize it,
+        // so that we could slice it and then change the layout of the slice, which is valid.
+        let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+        decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
+        Ok(buf)
+    }
 }
 
 /// Represents the progress of an image operation.

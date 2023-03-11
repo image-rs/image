@@ -386,8 +386,8 @@ mod test {
 
     use crate::buffer_::{Rgb32FImage, Rgba32FImage};
     use crate::error::{LimitError, LimitErrorKind};
-    use crate::{ImageBuffer, Rgb, Rgba};
     use crate::image::decoder_to_vec;
+    use crate::{ImageBuffer, Rgb, Rgba};
 
     const BASE_PATH: &[&str] = &[".", "tests", "images", "exr"];
 

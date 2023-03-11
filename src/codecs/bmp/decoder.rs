@@ -1450,7 +1450,15 @@ impl<R: Read + Seek> BmpDecoder<R> {
     /// Read the actual data of the image. This function is deliberately not public because it
     /// cannot be called multiple times without seeking back the underlying reader in between.
     pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        let data = match self.image_type {
+        buf.copy_from_slice(&self.get_image_data()?);
+        Ok(())
+    }
+
+    /// Read the actual data of the image and return it as a Vec.
+    /// This function is deliberately not public because it
+    /// cannot be called multiple times without seeking back the underlying reader in between.
+    pub(crate) fn get_image_data(&mut self) -> ImageResult<Vec<u8>> {
+        match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(),
             ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
             ImageType::RGB24 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB24),
@@ -1472,10 +1480,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                 Some(_) => self.read_32_bit_pixel_data(),
                 None => Err(DecoderError::BitfieldMasksMissing(32).into()),
             },
-        }?;
-
-        buf.copy_from_slice(&data);
-        Ok(())
+        }
     }
 }
 
@@ -1513,10 +1518,8 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for BmpDecoder<R> {
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let mut buf: Vec<u8> = vec![0; self.total_bytes() as usize];
-        self.read_image_data(&mut buf)?;
         Ok(BmpReader(
-            Cursor::new(buf),
+            Cursor::new(self.get_image_data()?),
             PhantomData,
         ))
     }

@@ -61,6 +61,16 @@ impl<R: Read> JpegDecoder<R> {
 
         Ok(result)
     }
+
+    // Returns the image data as a Vec<u8> with color conversions already performed
+    fn get_image_data(mut self) -> ImageResult<Vec<u8>> {
+        let mut data = self.decoder.decode().map_err(ImageError::from_jpeg)?;
+        data = match self.decoder.info().unwrap().pixel_format {
+            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
+            _ => data,
+        };
+        Ok(data)
+    }
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`
@@ -97,26 +107,13 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
         self.decoder.icc_profile().clone()
     }
 
-    fn into_reader(mut self) -> ImageResult<Self::Reader> {
-        let mut data = self.decoder.decode().map_err(ImageError::from_jpeg)?;
-        data = match self.decoder.info().unwrap().pixel_format {
-            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
-            _ => data,
-        };
-
-        Ok(JpegReader(Cursor::new(data), PhantomData))
+    fn into_reader(self) -> ImageResult<Self::Reader> {
+        Ok(JpegReader(Cursor::new(self.get_image_data()?), PhantomData))
     }
 
-    fn read_image(mut self, buf: &mut [u8]) -> ImageResult<()> {
+    fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
-
-        let mut data = self.decoder.decode().map_err(ImageError::from_jpeg)?;
-        data = match self.decoder.info().unwrap().pixel_format {
-            jpeg::PixelFormat::CMYK32 => cmyk_to_rgb(&data),
-            _ => data,
-        };
-
-        buf.copy_from_slice(&data);
+        buf.copy_from_slice(&self.get_image_data()?);
         Ok(())
     }
 
@@ -131,23 +128,19 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
             )));
         }
 
-        use std::any::TypeId;
-        if TypeId::of::<T>() == TypeId::of::<u8>() {
-            // It's faster to read u8 without zeroing the buffer first.
-            // On top of that, JPEG decoders produce a `Vec<u8>` up front,
-            // so going through the other codepath would cause a memcpy().
-            let mut buf: Vec<u8> = Vec::new();
-            self.into_reader()?.read_to_end(&mut buf)?;
-            Ok(bytemuck::allocation::cast_vec(buf))
-        } else {
-            // The input and output types may not be layout-compatible (same size and alignment),
-            // and an allocation must be freed with the same size and alignment with which it was allocated,
-            // so we have to create a Vec<T> up front and initialize it,
-            // so that we could slice it and then change the layout of the slice, which is valid.
-            let mut buf =
-                vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
-            self.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
-            Ok(buf)
+        let data: Vec<u8> = self.get_image_data()?;
+        match bytemuck::allocation::try_cast_vec(data) {
+            Ok(new_vec) => Ok(new_vec),
+            Err((_, old_vec)) => {
+                // T has alignment larger than 1
+                // and the old Vec<u8> is actually laid out in memory in such a way
+                // that it's insufficiently aligned for casting to T.
+                // So we have to perform a copying conversion to T.
+                let mut new_vec = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+                let destination: &mut [u8] = bytemuck::cast_slice_mut(new_vec.as_mut_slice());
+                destination.copy_from_slice(&old_vec);
+                Ok(new_vec)
+            },
         }
     }
 }

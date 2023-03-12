@@ -728,15 +728,14 @@ impl<R: Read> Reader<R> {
                     self.subframe.consumed_and_flushed = true;
                 }
                 None => {
-                    if !self.current.is_empty() {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::UnexpectedEndOfChunk.into(),
-                        ));
-                    } else {
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::NoMoreImageData.into(),
-                        ));
-                    }
+                    return Err(DecodingError::Format(
+                        if self.current.is_empty() {
+                            FormatErrorInner::NoMoreImageData
+                        } else {
+                            FormatErrorInner::UnexpectedEndOfChunk
+                        }
+                        .into(),
+                    ));
                 }
                 _ => (),
             }

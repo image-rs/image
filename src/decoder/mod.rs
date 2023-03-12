@@ -196,9 +196,39 @@ impl<R: Read> Decoder<R> {
             .decoder
             .set_decode_config(self.decode_config);
 
-        let mut reader = Reader::new(self.read_decoder, self.transform, self.limits);
-        reader.read_until_image_data(true)?;
+        let mut reader = Reader {
+            decoder: self.read_decoder,
+            bpp: BytesPerPixel::One,
+            subframe: SubframeInfo::not_yet_init(),
+            fctl_read: 0,
+            next_frame: SubframeIdx::Initial,
+            prev: Vec::new(),
+            current: Vec::new(),
+            scan_start: 0,
+            transform: self.transform,
+            processed: Vec::new(),
+            limits: self.limits,
+        };
 
+        // Check if the decoding buffer of a single raw line has a valid size.
+        if reader.info().checked_raw_row_length().is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        // Check if the output buffer has a valid size.
+        let (width, height) = reader.info().size();
+        let (color, depth) = reader.output_color_type();
+        let rowlen = color
+            .checked_raw_row_length(depth, width)
+            .ok_or(DecodingError::LimitsExceeded)?
+            - 1;
+        let height: usize =
+            std::convert::TryFrom::try_from(height).map_err(|_| DecodingError::LimitsExceeded)?;
+        if rowlen.checked_mul(height).is_none() {
+            return Err(DecodingError::LimitsExceeded);
+        }
+
+        reader.read_until_image_data()?;
         Ok(reader)
     }
 
@@ -255,7 +285,7 @@ impl<R: Read> ReadDecoder<R> {
         Ok(None)
     }
 
-    fn finished_decoding(&mut self) -> Result<(), DecodingError> {
+    fn finish_decoding(&mut self) -> Result<(), DecodingError> {
         while !self.at_eof {
             let buf = self.reader.fill_buf()?;
             if buf.is_empty() {
@@ -345,54 +375,19 @@ enum SubframeIdx {
     End,
 }
 
-macro_rules! get_info(
-    ($this:expr) => {
-        $this.decoder.info().unwrap()
-    }
-);
-
 impl<R: Read> Reader<R> {
-    /// Creates a new PNG reader
-    fn new(read_decoder: ReadDecoder<R>, t: Transformations, limits: Limits) -> Reader<R> {
-        Reader {
-            decoder: read_decoder,
-            bpp: BytesPerPixel::One,
-            subframe: SubframeInfo::not_yet_init(),
-            fctl_read: 0,
-            next_frame: SubframeIdx::Initial,
-            prev: Vec::new(),
-            current: Vec::new(),
-            scan_start: 0,
-            transform: t,
-            processed: Vec::new(),
-            limits,
-        }
-    }
-
     /// Reads all meta data until the next frame data starts.
     /// Requires IHDR before the IDAT and fcTL before fdAT.
-    fn read_until_image_data(&mut self, initial_frame: bool) -> Result<OutputInfo, DecodingError> {
-        if initial_frame {
-            self.validate_buffer_sizes()?;
-        } else {
-            let subframe_idx = match self.decoder.info().unwrap().frame_control() {
-                None => SubframeIdx::Initial,
-                Some(_) => SubframeIdx::Some(self.fctl_read - 1),
-            };
-
-            if self.next_frame == subframe_idx {
-                return Ok(self.output_info());
-            } else if self.next_frame == SubframeIdx::End {
-                return Err(DecodingError::Parameter(
-                    ParameterErrorKind::PolledAfterEndOfImage.into(),
-                ));
-            }
-        }
-
-        let mut buf = Vec::new();
+    fn read_until_image_data(&mut self) -> Result<(), DecodingError> {
         loop {
-            buf.clear();
-            match self.decoder.decode_next(&mut buf)? {
+            // This is somewhat ugly. The API requires us to pass a buffer to decode_next but we
+            // know that we will stop before reading any image data from the stream. Thus pass an
+            // empty buffer and assert that remains empty.
+            let mut buf = Vec::new();
+            let state = self.decoder.decode_next(&mut buf)?;
+            assert!(buf.is_empty());
+
+            match state {
                 Some(Decoded::ChunkBegin(_, chunk::IDAT))
                 | Some(Decoded::ChunkBegin(_, chunk::fdAT)) => break,
                 Some(Decoded::FrameControl(_)) => {
@@ -414,46 +409,25 @@ impl<R: Read> Reader<R> {
                 _ => {}
             }
         }
-        {
-            let info = match self.decoder.info() {
-                Some(info) => info,
-                None => return Err(DecodingError::Format(FormatErrorInner::MissingIhdr.into())),
-            };
-            self.bpp = info.bpp_in_prediction();
-            // Check if the output buffer can be represented at all.
-            // Now we can init the subframe info.
-            // TODO: reuse the results obtained during the above check.
-            self.subframe = SubframeInfo::new(info);
-        }
-        self.allocate_out_buf()?;
 
-        // Instead of allocating a new buffer for prev, we simply clear and
-        // reuse the buffer we used for chunk decoding.
-        buf.clear();
-        buf.resize(self.subframe.rowlen, 0);
-        self.prev = buf;
+        let info = self
+            .decoder
+            .info()
+            .ok_or(DecodingError::Format(FormatErrorInner::MissingIhdr.into()))?;
+        self.bpp = info.bpp_in_prediction();
+        self.subframe = SubframeInfo::new(info);
 
-        Ok(self.output_info())
-    }
+        // Allocate output buffer.
+        let buflen = self
+            .line_size(self.subframe.width)
+            .filter(|&x| x <= self.limits.bytes)
+            .ok_or(DecodingError::LimitsExceeded)?;
+        self.processed.resize(buflen, 0u8);
 
-    fn output_info(&self) -> OutputInfo {
-        let width = self.subframe.width;
-        let height = self.subframe.height;
+        self.prev.clear();
+        self.prev.resize(self.subframe.rowlen, 0);
 
-        let (color_type, bit_depth) = self.output_color_type();
-
-        OutputInfo {
-            width,
-            height,
-            color_type,
-            bit_depth,
-            line_size: self.output_line_size(width),
-        }
-    }
-
-    fn reset_current(&mut self) {
-        self.current.clear();
-        self.scan_start = 0;
+        Ok(())
     }
 
     /// Get information on the image.
@@ -461,31 +435,6 @@ impl<R: Read> Reader<R> {
     /// The structure will change as new frames of an animated image are decoded.
     pub fn info(&self) -> &Info {
         self.decoder.info().unwrap()
-    }
-
-    /// Call after decoding an image, to advance expected state to the next.
-    fn finished_frame(&mut self) {
-        // Should only be called after frame is done, so we have an info.
-        let info = self.info();
-
-        let past_end_subframe = match info.animation_control() {
-            // a non-APNG has no subframes
-            None => 0,
-            // otherwise the count is the past-the-end index. It can not be 0 per spec.
-            Some(ac) => ac.num_frames,
-        };
-
-        self.next_frame = match self.next_frame {
-            SubframeIdx::End => unreachable!("Next frame called when already at image end"),
-            // Reached the end of non-animated image.
-            SubframeIdx::Initial if past_end_subframe == 0 => SubframeIdx::End,
-            // An animated image, expecting first subframe.
-            SubframeIdx::Initial => SubframeIdx::Some(0),
-            // This was the last subframe, slightly fuzzy condition in case of programmer error.
-            SubframeIdx::Some(idx) if past_end_subframe <= idx + 1 => SubframeIdx::End,
-            // Expecting next subframe.
-            SubframeIdx::Some(idx) => SubframeIdx::Some(idx + 1),
-        }
     }
 
     /// Decodes the next frame into `buf`.
@@ -502,10 +451,20 @@ impl<R: Read> Reader<R> {
     /// Output lines will be written in row-major, packed matrix with width and height of the read
     /// frame (or subframe), all samples are in big endian byte order where this matters.
     pub fn next_frame(&mut self, buf: &mut [u8]) -> Result<OutputInfo, DecodingError> {
-        // Advance until we've read the info / fcTL for this frame.
-        let info = self.read_until_image_data(false)?;
-        // TODO 16 bit
-        let (color_type, bit_depth) = self.output_color_type();
+        let subframe_idx = match self.decoder.info().unwrap().frame_control() {
+            None => SubframeIdx::Initial,
+            Some(_) => SubframeIdx::Some(self.fctl_read - 1),
+        };
+
+        if self.next_frame == SubframeIdx::End {
+            return Err(DecodingError::Parameter(
+                ParameterErrorKind::PolledAfterEndOfImage.into(),
+            ));
+        } else if self.next_frame != subframe_idx {
+            // Advance until we've read the info / fcTL for this frame.
+            self.read_until_image_data()?;
+        }
+
         if buf.len() < self.output_buffer_size() {
             return Err(DecodingError::Parameter(
                 ParameterErrorKind::ImageBufferSize {
@@ -516,7 +475,17 @@ impl<R: Read> Reader<R> {
             ));
         }
 
-        self.reset_current();
+        let (color_type, bit_depth) = self.output_color_type();
+        let output_info = OutputInfo {
+            width: self.subframe.width,
+            height: self.subframe.height,
+            color_type,
+            bit_depth,
+            line_size: self.output_line_size(self.subframe.width),
+        };
+
+        self.current.clear();
+        self.scan_start = 0;
         let width = self.info().width;
         if self.info().interlaced {
             while let Some(InterlacedRow {
@@ -538,14 +507,32 @@ impl<R: Read> Reader<R> {
                 len += (&mut buf[len..]).write(row)?;
             }
         }
+
         // Advance over the rest of data for this (sub-)frame.
         if !self.subframe.consumed_and_flushed {
-            self.decoder.finished_decoding()?;
+            self.decoder.finish_decoding()?;
         }
-        // Advance our state to expect the next frame.
-        self.finished_frame();
 
-        Ok(info)
+        // Advance our state to expect the next frame.
+        let past_end_subframe = match self.info().animation_control() {
+            // a non-APNG has no subframes
+            None => 0,
+            // otherwise the count is the past-the-end index. It can not be 0 per spec.
+            Some(ac) => ac.num_frames,
+        };
+        self.next_frame = match self.next_frame {
+            SubframeIdx::End => unreachable!("Next frame called when already at image end"),
+            // Reached the end of non-animated image.
+            SubframeIdx::Initial if past_end_subframe == 0 => SubframeIdx::End,
+            // An animated image, expecting first subframe.
+            SubframeIdx::Initial => SubframeIdx::Some(0),
+            // This was the last subframe, slightly fuzzy condition in case of programmer error.
+            SubframeIdx::Some(idx) if past_end_subframe <= idx + 1 => SubframeIdx::End,
+            // Expecting next subframe.
+            SubframeIdx::Some(idx) => SubframeIdx::Some(idx + 1),
+        };
+
+        Ok(output_info)
     }
 
     /// Returns the next processed row of the image
@@ -556,11 +543,7 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next processed row of the image
     pub fn next_interlaced_row(&mut self) -> Result<Option<InterlacedRow>, DecodingError> {
-        match self.next_interlaced_row_impl() {
-            Err(err) => Err(err),
-            Ok(None) => Ok(None),
-            Ok(s) => Ok(s),
-        }
+        self.next_interlaced_row_impl()
     }
 
     /// Fetch the next interlaced row and filter it according to our own transformations.
@@ -568,30 +551,28 @@ impl<R: Read> Reader<R> {
         use crate::common::ColorType::*;
         let transform = self.transform;
 
+        let (rowlen, interlace) = match self.next_pass() {
+            Some((rowlen, interlace)) => (rowlen, interlace),
+            None => return Ok(None),
+        };
+
         if transform == Transformations::IDENTITY {
-            return self.next_raw_interlaced_row();
+            return Ok(Some(InterlacedRow {
+                data: self.next_raw_interlaced_row(rowlen)?,
+                interlace,
+            }));
         }
 
         // swap buffer to circumvent borrow issues
         let mut buffer = mem::take(&mut self.processed);
-        let (got_next, adam7) = if let Some(row) = self.next_raw_interlaced_row()? {
-            (&mut buffer[..]).write_all(row.data)?;
-            (true, row.interlace)
-        } else {
-            (false, InterlaceInfo::Null)
-        };
-        // swap back
+        (&mut buffer[..]).write_all(self.next_raw_interlaced_row(rowlen)?)?;
         self.processed = buffer;
-
-        if !got_next {
-            return Ok(None);
-        }
 
         let (color_type, bit_depth, trns) = {
             let info = self.info();
             (info.color_type, info.bit_depth as u8, info.trns.is_some())
         };
-        let output_buffer = if let InterlaceInfo::Adam7 { width, .. } = adam7 {
+        let output_buffer = if let InterlaceInfo::Adam7 { width, .. } = interlace {
             let width = self
                 .line_size(width)
                 .expect("Adam7 interlaced rows are shorter than the buffer.");
@@ -603,13 +584,13 @@ impl<R: Read> Reader<R> {
         let mut len = output_buffer.len();
         if transform.contains(Transformations::EXPAND) {
             match color_type {
-                Indexed => expand_paletted(output_buffer, get_info!(self))?,
+                Indexed => expand_paletted(output_buffer, self.decoder.info().unwrap())?,
                 Grayscale | GrayscaleAlpha if bit_depth < 8 => {
-                    expand_gray_u8(output_buffer, get_info!(self))
+                    expand_gray_u8(output_buffer, self.decoder.info().unwrap())
                 }
                 Grayscale | Rgb if trns => {
                     let channels = color_type.samples();
-                    let trns = get_info!(self).trns.as_ref().unwrap();
+                    let trns = self.decoder.info().unwrap().trns.as_ref().unwrap();
                     if bit_depth == 8 {
                         utils::expand_trns_line(output_buffer, trns, channels);
                     } else {
@@ -629,7 +610,7 @@ impl<R: Read> Reader<R> {
 
         Ok(Some(InterlacedRow {
             data: &output_buffer[..len],
-            interlace: adam7,
+            interlace,
         }))
     }
 
@@ -671,28 +652,6 @@ impl<R: Read> Reader<R> {
         size * height as usize
     }
 
-    fn validate_buffer_sizes(&self) -> Result<(), DecodingError> {
-        // Check if the decoding buffer of a single raw line has a valid size.
-        if self.info().checked_raw_row_length().is_none() {
-            return Err(DecodingError::LimitsExceeded);
-        }
-
-        // Check if the output buffer has a valid size.
-        if self.checked_output_buffer_size().is_none() {
-            return Err(DecodingError::LimitsExceeded);
-        }
-
-        Ok(())
-    }
-
-    fn checked_output_buffer_size(&self) -> Option<usize> {
-        let (width, height) = self.info().size();
-        let (color, depth) = self.output_color_type();
-        let rowlen = color.checked_raw_row_length(depth, width)? - 1;
-        let height: usize = std::convert::TryFrom::try_from(height).ok()?;
-        rowlen.checked_mul(height)
-    }
-
     /// Returns the number of bytes required to hold a deinterlaced row.
     pub fn output_line_size(&self, width: u32) -> usize {
         let (color, depth) = self.output_color_type();
@@ -727,18 +686,6 @@ impl<R: Read> Reader<R> {
         color.checked_raw_row_length(depth, width).map(|n| n - 1)
     }
 
-    fn allocate_out_buf(&mut self) -> Result<(), DecodingError> {
-        let width = self.subframe.width;
-        let bytes = self.limits.bytes;
-        let buflen = match self.line_size(width) {
-            Some(buflen) if buflen <= bytes => buflen,
-            // Should we differentiate between platform limits and others?
-            _ => return Err(DecodingError::LimitsExceeded),
-        };
-        self.processed.resize(buflen, 0u8);
-        Ok(())
-    }
-
     fn next_pass(&mut self) -> Option<(usize, InterlaceInfo)> {
         match self.subframe.interlace {
             InterlaceIter::Adam7(ref mut adam7) => {
@@ -760,74 +707,54 @@ impl<R: Read> Reader<R> {
 
     /// Returns the next raw scanline of the image interlace pass.
     /// The scanline is filtered against the previous scanline according to the specification.
-    fn next_raw_interlaced_row(&mut self) -> Result<Option<InterlacedRow<'_>>, DecodingError> {
-        let bpp = self.bpp;
-        let (rowlen, passdata) = match self.next_pass() {
-            Some((rowlen, passdata)) => (rowlen, passdata),
-            None => return Ok(None),
-        };
-        loop {
-            if self.current.len() - self.scan_start >= rowlen {
-                let row = &mut self.current[self.scan_start..];
-                let filter = match FilterType::from_u8(row[0]) {
-                    None => {
-                        self.scan_start += rowlen;
-                        return Err(DecodingError::Format(
-                            FormatErrorInner::UnknownFilterMethod(row[0]).into(),
-                        ));
-                    }
-                    Some(filter) => filter,
-                };
+    fn next_raw_interlaced_row(&mut self, rowlen: usize) -> Result<&[u8], DecodingError> {
+        // Read image data until we have at least one full row (but possibly more than one).
+        while self.current.len() - self.scan_start < rowlen {
+            if self.subframe.consumed_and_flushed {
+                return Err(DecodingError::Format(
+                    FormatErrorInner::NoMoreImageData.into(),
+                ));
+            }
 
-                if bpp.into_usize() > (1..rowlen).count() {
+            // Clear the current buffer before appending more data.
+            if self.scan_start > 0 {
+                self.current.drain(..self.scan_start).for_each(drop);
+                self.scan_start = 0;
+            }
+
+            match self.decoder.decode_next(&mut self.current)? {
+                Some(Decoded::ImageData) => {}
+                Some(Decoded::ImageDataFlushed) => {
+                    self.subframe.consumed_and_flushed = true;
+                }
+                None => {
                     return Err(DecodingError::Format(
-                        FormatErrorInner::BadFilter(
-                            "Filtering failed: bytes per pixel is greater than length of row",
-                        )
+                        if self.current.is_empty() {
+                            FormatErrorInner::NoMoreImageData
+                        } else {
+                            FormatErrorInner::UnexpectedEndOfChunk
+                        }
                         .into(),
                     ));
                 }
-                unfilter(filter, bpp, &self.prev[1..rowlen], &mut row[1..rowlen]);
-
-                self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
-                self.scan_start += rowlen;
-
-                return Ok(Some(InterlacedRow {
-                    data: &self.prev[1..rowlen],
-                    interlace: passdata,
-                }));
-            } else {
-                if self.subframe.consumed_and_flushed {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::NoMoreImageData.into(),
-                    ));
-                }
-
-                // Clear the current buffer before appending more data.
-                if self.scan_start > 0 {
-                    self.current.drain(..self.scan_start).for_each(drop);
-                    self.scan_start = 0;
-                }
-
-                let val = self.decoder.decode_next(&mut self.current)?;
-                match val {
-                    Some(Decoded::ImageData) => {}
-                    Some(Decoded::ImageDataFlushed) => {
-                        self.subframe.consumed_and_flushed = true;
-                    }
-                    None => {
-                        if !self.current.is_empty() {
-                            return Err(DecodingError::Format(
-                                FormatErrorInner::UnexpectedEndOfChunk.into(),
-                            ));
-                        } else {
-                            return Ok(None);
-                        }
-                    }
-                    _ => (),
-                }
+                _ => (),
             }
         }
+
+        // Get a reference to the current row and point scan_start to the next one.
+        let row = &mut self.current[self.scan_start..];
+        self.scan_start += rowlen;
+
+        // Unfilter the row.
+        let filter = FilterType::from_u8(row[0]).ok_or(DecodingError::Format(
+            FormatErrorInner::UnknownFilterMethod(row[0]).into(),
+        ))?;
+        unfilter(filter, self.bpp, &self.prev[1..rowlen], &mut row[1..rowlen]);
+
+        // Save the current row for the next pass.
+        self.prev[..rowlen].copy_from_slice(&row[..rowlen]);
+
+        Ok(&self.prev[1..rowlen])
     }
 }
 

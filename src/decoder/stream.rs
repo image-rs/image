@@ -200,9 +200,6 @@ pub(crate) enum FormatErrorInner {
     },
     /// The image data chunk was too short for the expected pixel count.
     NoMoreImageData,
-    // TODO: strictly type this.
-    /// Filtering of a row has failed.
-    BadFilter(&'static str),
     /// Bad text encoding
     BadTextEncoding(TextDecodingError),
 }
@@ -311,7 +308,6 @@ impl fmt::Display for FormatError {
                     _ => write!(fmt, "Error number {:?}.", err),
                 }
             }
-            BadFilter(message) => write!(fmt, "{}.", message),
             // TODO: Wrap more info in the enum variant
             BadTextEncoding(tde) => {
                 match tde {

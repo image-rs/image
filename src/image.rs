@@ -597,16 +597,7 @@ pub(crate) fn decoder_to_vec<'a, T>(decoder: impl ImageDecoder<'a>) -> ImageResu
 where
     T: crate::traits::Primitive + bytemuck::Pod,
 {
-    let total_bytes = usize::try_from(decoder.total_bytes());
-    if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
-        return Err(ImageError::Limits(LimitError::from_kind(
-            LimitErrorKind::InsufficientMemory,
-        )));
-    }
-
-    let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
-    decoder.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
-    Ok(buf)
+    decoder.read_to_vec()
 }
 
 /// Represents the progress of an image operation.
@@ -749,6 +740,25 @@ pub trait ImageDecoder<'a>: Sized {
         }
 
         Ok(())
+    }
+
+    /// Reads all of the bytes of a decoder into a Vec<T>.
+    ///
+    /// Panics if there isn't enough memory to decode the image.
+    fn read_to_vec<T>(self) -> ImageResult<Vec<T>>
+    where
+        T: crate::traits::Primitive + bytemuck::Pod,
+    {
+        let total_bytes = usize::try_from(self.total_bytes());
+        if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
+        }
+
+        let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+        self.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
+        Ok(buf)
     }
 
     /// Set decoding limits for this decoder. See [`Limits`] for the different kinds of

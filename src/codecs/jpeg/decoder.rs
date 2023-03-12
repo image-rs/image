@@ -118,6 +118,10 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
         Ok(())
     }
 
+    // `jpeg_decoder` crate always returns a `Vec<u8>`
+    // and provides no option to read into a pre-allocated buffer.
+    // So we specialize this method to simply return the Vec whenever possible
+    // for a 10% to 15% reduction in decoding time.
     fn read_to_vec<T>(self) -> ImageResult<Vec<T>>
     where
         T: crate::traits::Primitive + bytemuck::Pod,

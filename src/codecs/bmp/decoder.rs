@@ -118,8 +118,8 @@ impl<'a> Iterator for RowIterator<'a> {
 /// All errors that can occur when attempting to parse a BMP
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum DecoderError {
-    // We ran out of data while we still had rows to fill in.
-    RleDataTooShort,
+    // Failed to decompress RLE data.
+    CorruptRleData,
 
     /// The bitfield mask interleaves set and unset bits
     BitfieldMaskNonContiguous,
@@ -164,7 +164,7 @@ enum DecoderError {
 impl fmt::Display for DecoderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecoderError::RleDataTooShort => f.write_str("Not enough RLE data"),
+            DecoderError::CorruptRleData => f.write_str("Corrupt RLE data"),
             DecoderError::BitfieldMaskNonContiguous => f.write_str("Non-contiguous bitfield mask"),
             DecoderError::BitfieldMaskInvalid => f.write_str("Invalid bitfield mask"),
             DecoderError::BitfieldMaskMissing(bb) => {
@@ -266,62 +266,10 @@ fn num_bytes(width: i32, length: i32, channels: usize) -> Option<usize> {
     }
 }
 
-/// The maximum starting number of pixels in the pixel buffer, might want to tweak this.
-///
-/// For images that specify large sizes, we don't allocate the full buffer right away
-/// to somewhat mitigate trying to make the decoder run out of memory by sending a bogus image.
-/// This is somewhat of a workaround as ideally we would check against the expected file size
-/// but that's not possible through the Read and Seek traits alone and would require the encoder
-/// to provided with it from the caller.
-///
-/// NOTE: This is multiplied by 3 or 4 depending on the number of channels to get the maximum
-/// starting buffer size. This amounts to about 134 mb for a buffer with 4 channels.
-const MAX_INITIAL_PIXELS: usize = 8192 * 4096;
-
-/// Sets all bytes in an mutable iterator over slices of bytes to 0.
-fn blank_bytes<'a, T: Iterator<Item = &'a mut [u8]>>(iterator: T) {
-    for chunk in iterator {
-        for b in chunk {
-            *b = 0;
-        }
-    }
-}
-
-/// Extend the buffer to `full_size`, copying existing data to the end of the buffer. Returns slice
-/// pointing to the part of the buffer that is not yet filled in.
-///
-/// If blank is true, the bytes in the new buffer that are not filled in are set to 0.
-/// This is used for rle-encoded images as the decoding process for these may not fill in all the
-/// pixels.
-///
-/// As BMP images are usually stored with the rows upside-down we have to write the image data
-/// starting at the end of the buffer and thus we have to make sure the existing data is put at the
-/// end of the buffer.
-#[inline(never)]
-#[cold]
-fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u8] {
-    let old_size = buffer.len();
-    let extend = full_size - buffer.len();
-
-    buffer.resize(full_size, 0);
-
-    // Move the existing data to the end of the buffer
-    buffer.copy_within(0..old_size, extend);
-
-    let (ret, _) = buffer.split_at_mut(extend);
-
-    if blank {
-        for b in ret.iter_mut() {
-            *b = 0;
-        }
-    };
-    ret
-}
-
 /// Call the provided function on each row of the provided buffer, returning Err if the provided
 /// function returns an error, extends the buffer if it's not large enough.
 fn with_rows<F>(
-    buffer: &mut Vec<u8>,
+    buffer: &mut [u8],
     width: i32,
     height: i32,
     channels: usize,
@@ -335,32 +283,16 @@ where
     // though we check anyhow, as it somehow seems to increase performance slightly.
     let row_width = channels.checked_mul(width as usize).unwrap();
     let full_image_size = row_width.checked_mul(height as usize).unwrap();
+    assert_eq!(buffer.len(), full_image_size);
 
     if !top_down {
         for row in buffer.chunks_mut(row_width).rev() {
             func(row)?;
         }
-
-        // If we need more space, extend the buffer.
-        if buffer.len() < full_image_size {
-            let new_space = extend_buffer(buffer, full_image_size, false);
-            for row in new_space.chunks_mut(row_width).rev() {
-                func(row)?;
-            }
-        }
     } else {
         for row in buffer.chunks_mut(row_width) {
             func(row)?;
         }
-        if buffer.len() < full_image_size {
-            // If the image is stored in top-down order, we can simply use the extend function
-            // from vec to extend the buffer..
-            buffer.resize(full_image_size, 0);
-            let len = buffer.len();
-            for row in buffer[len - row_width..].chunks_mut(row_width) {
-                func(row)?;
-            }
-        };
     }
     Ok(())
 }
@@ -569,63 +501,6 @@ enum RLEInsn {
     Delta(u8, u8),
     Absolute(u8, Vec<u8>),
     PixelRun(u8, u8),
-}
-
-struct RLEInsnIterator<'a, R: 'a + Read> {
-    r: &'a mut R,
-    image_type: ImageType,
-}
-
-impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
-    type Item = RLEInsn;
-
-    fn next(&mut self) -> Option<RLEInsn> {
-        let control_byte = match self.r.read_u8() {
-            Ok(b) => b,
-            Err(_) => return None,
-        };
-
-        match control_byte {
-            RLE_ESCAPE => {
-                let op = match self.r.read_u8() {
-                    Ok(b) => b,
-                    Err(_) => return None,
-                };
-
-                match op {
-                    RLE_ESCAPE_EOL => Some(RLEInsn::EndOfRow),
-                    RLE_ESCAPE_EOF => Some(RLEInsn::EndOfFile),
-                    RLE_ESCAPE_DELTA => {
-                        let xdelta = match self.r.read_u8() {
-                            Ok(n) => n,
-                            Err(_) => return None,
-                        };
-                        let ydelta = match self.r.read_u8() {
-                            Ok(n) => n,
-                            Err(_) => return None,
-                        };
-                        Some(RLEInsn::Delta(xdelta, ydelta))
-                    }
-                    _ => {
-                        let mut length = op as usize;
-                        if self.image_type == ImageType::RLE4 {
-                            length = (length + 1) / 2;
-                        }
-                        length += length & 1;
-                        let mut buffer = vec![0; length];
-                        match self.r.read_exact(&mut buffer) {
-                            Ok(()) => Some(RLEInsn::Absolute(op, buffer)),
-                            Err(_) => None,
-                        }
-                    }
-                }
-            }
-            _ => match self.r.read_u8() {
-                Ok(palette_index) => Some(RLEInsn::PixelRun(control_byte, palette_index)),
-                Err(_) => None,
-            },
-        }
-    }
 }
 
 impl<R: Read + Seek> BmpDecoder<R> {
@@ -1071,20 +946,6 @@ impl<R: Read + Seek> BmpDecoder<R> {
         }
     }
 
-    /// Create a buffer to hold the decoded pixel data.
-    ///
-    /// The buffer will be large enough to hold the whole image if it requires less than
-    /// `MAX_INITIAL_PIXELS` times the number of channels bytes (adjusted to line up with the
-    /// width of a row).
-    fn create_pixel_data(&self) -> Vec<u8> {
-        let row_width = self.num_channels() * self.width as usize;
-        let max_pixels = self.num_channels() * MAX_INITIAL_PIXELS;
-        // Make sure the maximum size is whole number of rows.
-        let max_starting_size = max_pixels + row_width - (max_pixels % row_width);
-        // The buffer has its bytes initially set to 0xFF as the ICO decoder relies on it.
-        vec![0; cmp::min(row_width * self.height as usize, max_starting_size)]
-    }
-
     fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
         let stride = self.width as usize * self.num_channels();
         if self.top_down {
@@ -1098,8 +959,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         }
     }
 
-    fn read_palettized_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = self.create_pixel_data();
+    fn read_palettized_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         let num_channels = self.num_channels();
         let row_byte_length = ((i32::from(self.bit_count) * self.width + 31) / 32 * 4) as usize;
         let mut indices = vec![0; row_byte_length];
@@ -1112,11 +972,11 @@ impl<R: Read + Seek> BmpDecoder<R> {
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
         if num_channels == 4 {
-            pixel_data.chunks_exact_mut(4).for_each(|c| c[3] = 0xFF);
+            buf.chunks_exact_mut(4).for_each(|c| c[3] = 0xFF);
         }
 
         with_rows(
-            &mut pixel_data,
+            buf,
             self.width,
             self.height,
             num_channels,
@@ -1147,11 +1007,14 @@ impl<R: Read + Seek> BmpDecoder<R> {
             },
         )?;
 
-        Ok(pixel_data)
+        Ok(())
     }
 
-    fn read_16_bit_pixel_data(&mut self, bitfields: Option<&Bitfields>) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = self.create_pixel_data();
+    fn read_16_bit_pixel_data(
+        &mut self,
+        buf: &mut [u8],
+        bitfields: Option<&Bitfields>,
+    ) -> ImageResult<()> {
         let num_channels = self.num_channels();
         let row_padding_len = self.width as usize % 2 * 2;
         let row_padding = &mut [0; 2][..row_padding_len];
@@ -1164,7 +1027,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
         with_rows(
-            &mut pixel_data,
+            buf,
             self.width,
             self.height,
             num_channels,
@@ -1188,12 +1051,11 @@ impl<R: Read + Seek> BmpDecoder<R> {
             },
         )?;
 
-        Ok(pixel_data)
+        Ok(())
     }
 
     /// Read image data from a reader in 32-bit formats that use bitfields.
-    fn read_32_bit_pixel_data(&mut self) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = self.create_pixel_data();
+    fn read_32_bit_pixel_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         let num_channels = self.num_channels();
 
         let bitfields = self.bitfields.as_ref().unwrap();
@@ -1202,7 +1064,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         reader.seek(SeekFrom::Start(self.data_offset))?;
 
         with_rows(
-            &mut pixel_data,
+            buf,
             self.width,
             self.height,
             num_channels,
@@ -1226,12 +1088,15 @@ impl<R: Read + Seek> BmpDecoder<R> {
             },
         )?;
 
-        Ok(pixel_data)
+        Ok(())
     }
 
     /// Read image data from a reader where the colours are stored as 8-bit values (24 or 32-bit).
-    fn read_full_byte_pixel_data(&mut self, format: &FormatFullBytes) -> ImageResult<Vec<u8>> {
-        let mut pixel_data = self.create_pixel_data();
+    fn read_full_byte_pixel_data(
+        &mut self,
+        buf: &mut [u8],
+        format: &FormatFullBytes,
+    ) -> ImageResult<()> {
         let num_channels = self.num_channels();
         let row_padding_len = match *format {
             FormatFullBytes::RGB24 => (4 - (self.width as usize * 3) % 4) % 4,
@@ -1244,7 +1109,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let reader = &mut self.reader;
 
         with_rows(
-            &mut pixel_data,
+            buf,
             self.width,
             self.height,
             num_channels,
@@ -1276,220 +1141,200 @@ impl<R: Read + Seek> BmpDecoder<R> {
             },
         )?;
 
-        Ok(pixel_data)
+        Ok(())
     }
 
-    fn read_rle_data(&mut self, image_type: ImageType) -> ImageResult<Vec<u8>> {
+    fn read_rle_data(&mut self, buf: &mut [u8], image_type: ImageType) -> ImageResult<()> {
         // Seek to the start of the actual image data.
         self.reader.seek(SeekFrom::Start(self.data_offset))?;
 
-        let full_image_size =
-            num_bytes(self.width, self.height, self.num_channels()).ok_or_else(|| {
-                ImageError::Unsupported(UnsupportedError::from_format_and_kind(
-                    ImageFormat::Bmp.into(),
-                    UnsupportedErrorKind::GenericFeature(format!(
-                        "Image dimensions ({}x{} w/{} channels) are too large",
-                        self.width,
-                        self.height,
-                        self.num_channels()
-                    )),
-                ))
-            })?;
-        let mut pixel_data = self.create_pixel_data();
-        let (skip_pixels, skip_rows, eof_hit) =
-            self.read_rle_data_step(&mut pixel_data, image_type, 0, 0)?;
-        // Extend the buffer if there is still data left.
-        // If eof_hit is true, it means that we hit an end-of-file marker in the last step and
-        // we won't extend the buffer further to avoid small files with a large specified size causing memory issues.
-        // This is only a rudimentary check, a file could still create a large buffer, but the
-        // file would now have to at least have some data in it.
-        if pixel_data.len() < full_image_size && !eof_hit {
-            let new = extend_buffer(&mut pixel_data, full_image_size, true);
-            self.read_rle_data_step(new, image_type, skip_pixels, skip_rows)?;
-        }
-        if pixel_data.len() < full_image_size {
-            return Err(DecoderError::RleDataTooShort.into());
-        }
-
-        Ok(pixel_data)
-    }
-
-    fn read_rle_data_step(
-        &mut self,
-        mut pixel_data: &mut [u8],
-        image_type: ImageType,
-        skip_pixels: u8,
-        skip_rows: u8,
-    ) -> ImageResult<(u8, u8, bool)> {
         let num_channels = self.num_channels();
+        let p = self.palette.as_ref().unwrap();
 
-        let mut delta_rows_left = 0;
-        let mut delta_pixels_left = skip_pixels;
-        let mut eof_hit = false;
+        // Handling deltas in the RLE scheme means that we need to manually
+        // iterate through rows and pixels.  Even if we didn't have to handle
+        // deltas, we have to ensure that a single runlength doesn't straddle
+        // two rows.
+        let mut row_iter = self.rows(buf);
 
-        // Scope the borrowing of pixel_data by the row iterator.
-        {
-            // Handling deltas in the RLE scheme means that we need to manually
-            // iterate through rows and pixels.  Even if we didn't have to handle
-            // deltas, we have to ensure that a single runlength doesn't straddle
-            // two rows.
-            let mut row_iter = self.rows(&mut pixel_data);
-            // If we have previously hit a delta value,
-            // blank the rows that are to be skipped.
-            blank_bytes((&mut row_iter).take(skip_rows.into()));
-            let mut insns_iter = RLEInsnIterator {
-                r: &mut self.reader,
-                image_type,
-            };
-            let p = self.palette.as_ref().unwrap();
+        while let Some(row) = row_iter.next() {
+            let mut pixel_iter = row.chunks_mut(num_channels);
 
-            'row_loop: while let Some(row) = row_iter.next() {
-                let mut pixel_iter = row.chunks_mut(num_channels);
-                // Blank delta skipped pixels if any.
-                blank_bytes((&mut pixel_iter).take(delta_pixels_left.into()));
-                delta_pixels_left = 0;
+            let mut x = 0;
+            loop {
+                let instruction = {
+                    let control_byte = self.reader.read_u8()?;
+                    match control_byte {
+                        RLE_ESCAPE => {
+                            let op = self.reader.read_u8()?;
 
-                'rle_loop: loop {
-                    if let Some(insn) = insns_iter.next() {
-                        match insn {
-                            RLEInsn::EndOfFile => {
-                                blank_bytes(pixel_iter);
-                                blank_bytes(row_iter);
-                                eof_hit = true;
-                                break 'row_loop;
-                            }
-                            RLEInsn::EndOfRow => {
-                                blank_bytes(pixel_iter);
-                                break 'rle_loop;
-                            }
-                            RLEInsn::Delta(x_delta, y_delta) => {
-                                if y_delta > 0 {
-                                    for n in 1..y_delta {
-                                        if let Some(row) = row_iter.next() {
-                                            // The msdn site on bitmap compression doesn't specify
-                                            // what happens to the values skipped when encountering
-                                            // a delta code, however IE and the windows image
-                                            // preview seems to replace them with black pixels,
-                                            // so we stick to that.
-                                            for b in row {
-                                                *b = 0;
-                                            }
-                                        } else {
-                                            delta_pixels_left = x_delta;
-                                            // We've reached the end of the buffer.
-                                            delta_rows_left = y_delta - n;
-                                            break 'row_loop;
-                                        }
-                                    }
+                            match op {
+                                RLE_ESCAPE_EOL => RLEInsn::EndOfRow,
+                                RLE_ESCAPE_EOF => RLEInsn::EndOfFile,
+                                RLE_ESCAPE_DELTA => {
+                                    let xdelta = self.reader.read_u8()?;
+                                    let ydelta = self.reader.read_u8()?;
+                                    RLEInsn::Delta(xdelta, ydelta)
                                 }
-
-                                for _ in 0..x_delta {
-                                    if let Some(pixel) = pixel_iter.next() {
-                                        for b in pixel {
-                                            *b = 0;
-                                        }
-                                    } else {
-                                        // We can't go any further in this row.
-                                        break;
+                                _ => {
+                                    let mut length = op as usize;
+                                    if self.image_type == ImageType::RLE4 {
+                                        length = (length + 1) / 2;
                                     }
-                                }
-                            }
-                            RLEInsn::Absolute(length, indices) => {
-                                // Absolute mode cannot span rows, so if we run
-                                // out of pixels to process, we should stop
-                                // processing the image.
-                                match image_type {
-                                    ImageType::RLE8 => {
-                                        if !set_8bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            indices.iter(),
-                                            length as usize,
-                                        ) {
-                                            break 'row_loop;
-                                        }
-                                    }
-                                    ImageType::RLE4 => {
-                                        if !set_4bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            indices.iter(),
-                                            length as usize,
-                                        ) {
-                                            break 'row_loop;
-                                        }
-                                    }
-                                    _ => panic!(),
-                                }
-                            }
-                            RLEInsn::PixelRun(n_pixels, palette_index) => {
-                                // A pixel run isn't allowed to span rows, but we
-                                // simply continue on to the next row if we run
-                                // out of pixels to set.
-                                match image_type {
-                                    ImageType::RLE8 => {
-                                        if !set_8bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            repeat(&palette_index),
-                                            n_pixels as usize,
-                                        ) {
-                                            break 'rle_loop;
-                                        }
-                                    }
-                                    ImageType::RLE4 => {
-                                        if !set_4bit_pixel_run(
-                                            &mut pixel_iter,
-                                            p,
-                                            repeat(&palette_index),
-                                            n_pixels as usize,
-                                        ) {
-                                            break 'rle_loop;
-                                        }
-                                    }
-                                    _ => panic!(),
+                                    length += length & 1;
+                                    let mut buffer = vec![0; length];
+                                    self.reader.read_exact(&mut buffer)?;
+                                    RLEInsn::Absolute(op, buffer)
                                 }
                             }
                         }
-                    } else {
-                        // We ran out of data while we still had rows to fill in.
-                        return Err(DecoderError::RleDataTooShort.into());
+                        _ => {
+                            let palette_index = self.reader.read_u8()?;
+                            RLEInsn::PixelRun(control_byte, palette_index)
+                        }
+                    }
+                };
+
+                match instruction {
+                    RLEInsn::EndOfFile => {
+                        pixel_iter.for_each(|p| p.fill(0));
+                        row_iter.for_each(|r| r.fill(0));
+                        return Ok(());
+                    }
+                    RLEInsn::EndOfRow => {
+                        pixel_iter.for_each(|p| p.fill(0));
+                        break;
+                    }
+                    RLEInsn::Delta(x_delta, y_delta) => {
+                        // The msdn site on bitmap compression doesn't specify
+                        // what happens to the values skipped when encountering
+                        // a delta code, however IE and the windows image
+                        // preview seems to replace them with black pixels,
+                        // so we stick to that.
+
+                        if y_delta > 0 {
+                            // Zero out the remainder of the current row.
+                            pixel_iter.for_each(|p| p.fill(0));
+
+                            // If any full rows are skipped, zero them out.
+                            for _ in 1..y_delta {
+                                let row = row_iter.next().ok_or(DecoderError::CorruptRleData)?;
+                                row.fill(0);
+                            }
+
+                            // Set the pixel iterator to the start of the next row.
+                            pixel_iter = row_iter
+                                .next()
+                                .ok_or(DecoderError::CorruptRleData)?
+                                .chunks_mut(num_channels);
+
+                            // Zero out the pixels up to the current point in the row.
+                            for _ in 0..x {
+                                pixel_iter
+                                    .next()
+                                    .ok_or(DecoderError::CorruptRleData)?
+                                    .fill(0);
+                            }
+                        }
+
+                        for _ in 0..x_delta {
+                            let pixel = pixel_iter.next().ok_or(DecoderError::CorruptRleData)?;
+                            pixel.fill(0);
+                        }
+                        x += x_delta as usize;
+                    }
+                    RLEInsn::Absolute(length, indices) => {
+                        // Absolute mode cannot span rows, so if we run
+                        // out of pixels to process, we should stop
+                        // processing the image.
+                        match image_type {
+                            ImageType::RLE8 => {
+                                if !set_8bit_pixel_run(
+                                    &mut pixel_iter,
+                                    p,
+                                    indices.iter(),
+                                    length as usize,
+                                ) {
+                                    return Err(DecoderError::CorruptRleData.into());
+                                }
+                            }
+                            ImageType::RLE4 => {
+                                if !set_4bit_pixel_run(
+                                    &mut pixel_iter,
+                                    p,
+                                    indices.iter(),
+                                    length as usize,
+                                ) {
+                                    return Err(DecoderError::CorruptRleData.into());
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                        x += length as usize;
+                    }
+                    RLEInsn::PixelRun(n_pixels, palette_index) => {
+                        // A pixel run isn't allowed to span rows, but we
+                        // simply continue on to the next row if we run
+                        // out of pixels to set.
+                        match image_type {
+                            ImageType::RLE8 => {
+                                if !set_8bit_pixel_run(
+                                    &mut pixel_iter,
+                                    p,
+                                    repeat(&palette_index),
+                                    n_pixels as usize,
+                                ) {
+                                    return Err(DecoderError::CorruptRleData.into());
+                                }
+                            }
+                            ImageType::RLE4 => {
+                                if !set_4bit_pixel_run(
+                                    &mut pixel_iter,
+                                    p,
+                                    repeat(&palette_index),
+                                    n_pixels as usize,
+                                ) {
+                                    return Err(DecoderError::CorruptRleData.into());
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                        x += n_pixels as usize;
                     }
                 }
             }
         }
-        Ok((delta_pixels_left, delta_rows_left, eof_hit))
+
+        Ok(())
     }
 
     /// Read the actual data of the image. This function is deliberately not public because it
     /// cannot be called multiple times without seeking back the underlying reader in between.
     pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        let data = match self.image_type {
-            ImageType::Palette => self.read_palettized_pixel_data(),
-            ImageType::RGB16 => self.read_16_bit_pixel_data(Some(&R5_G5_B5_COLOR_MASK)),
-            ImageType::RGB24 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB24),
-            ImageType::RGB32 => self.read_full_byte_pixel_data(&FormatFullBytes::RGB32),
-            ImageType::RGBA32 => self.read_full_byte_pixel_data(&FormatFullBytes::RGBA32),
-            ImageType::RLE8 => self.read_rle_data(ImageType::RLE8),
-            ImageType::RLE4 => self.read_rle_data(ImageType::RLE4),
+        buf.fill(2); // TODO: remove
+        match self.image_type {
+            ImageType::Palette => self.read_palettized_pixel_data(buf),
+            ImageType::RGB16 => self.read_16_bit_pixel_data(buf, Some(&R5_G5_B5_COLOR_MASK)),
+            ImageType::RGB24 => self.read_full_byte_pixel_data(buf, &FormatFullBytes::RGB24),
+            ImageType::RGB32 => self.read_full_byte_pixel_data(buf, &FormatFullBytes::RGB32),
+            ImageType::RGBA32 => self.read_full_byte_pixel_data(buf, &FormatFullBytes::RGBA32),
+            ImageType::RLE8 => self.read_rle_data(buf, ImageType::RLE8),
+            ImageType::RLE4 => self.read_rle_data(buf, ImageType::RLE4),
             ImageType::Bitfields16 => match self.bitfields {
-                Some(_) => self.read_16_bit_pixel_data(None),
+                Some(_) => self.read_16_bit_pixel_data(buf, None),
                 None => Err(DecoderError::BitfieldMasksMissing(16).into()),
             },
             ImageType::Bitfields32 => match self.bitfields {
                 Some(R8_G8_B8_COLOR_MASK) => {
-                    self.read_full_byte_pixel_data(&FormatFullBytes::Format888)
+                    self.read_full_byte_pixel_data(buf, &FormatFullBytes::Format888)
                 }
                 Some(R8_G8_B8_A8_COLOR_MASK) => {
-                    self.read_full_byte_pixel_data(&FormatFullBytes::RGBA32)
+                    self.read_full_byte_pixel_data(buf, &FormatFullBytes::RGBA32)
                 }
-                Some(_) => self.read_32_bit_pixel_data(),
+                Some(_) => self.read_32_bit_pixel_data(buf),
                 None => Err(DecoderError::BitfieldMasksMissing(32).into()),
             },
-        }?;
-
-        buf.copy_from_slice(&data);
-        Ok(())
+        }
     }
 }
 
@@ -1592,54 +1437,5 @@ mod test {
 
         let mut buf: Vec<u8> = vec![0; 8 * 8 * 3];
         decoder.read_rect(0, 0, 8, 8, &mut *buf).unwrap();
-    }
-
-    #[test]
-    fn read_rle_too_short() {
-        let data = vec![
-            0x42, 0x4d, 0x04, 0xee, 0xfe, 0xff, 0xff, 0x10, 0xff, 0x00, 0x04, 0x00, 0x00, 0x00,
-            0x7c, 0x00, 0x00, 0x00, 0x0c, 0x41, 0x00, 0x00, 0x07, 0x10, 0x00, 0x00, 0x01, 0x00,
-            0x04, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00,
-            0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xfe, 0x21,
-            0xff, 0x00, 0x66, 0x61, 0x72, 0x62, 0x66, 0x65, 0x6c, 0x64, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0xff, 0xd8, 0xff, 0x00, 0x00, 0x19, 0x51, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfa, 0xff, 0x00, 0x00, 0x00,
-            0x00, 0x01, 0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00,
-            0x00, 0x00, 0x00, 0x2d, 0x31, 0x31, 0x35, 0x36, 0x00, 0xff, 0x00, 0x00, 0x52, 0x3a,
-            0x37, 0x30, 0x7e, 0x71, 0x63, 0x91, 0x5a, 0x04, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2d, 0x35, 0x37, 0x00, 0xff, 0x00, 0x00, 0x52,
-            0x3a, 0x37, 0x30, 0x7e, 0x71, 0x63, 0x91, 0x5a, 0x04, 0x05, 0x3c, 0x00, 0x00, 0x11,
-            0x00, 0x5d, 0x7a, 0x82, 0xb7, 0xca, 0x2d, 0x31, 0xff, 0xff, 0xc7, 0x95, 0x33, 0x2e,
-            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x00,
-            0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x66, 0x00, 0x4d,
-            0x4d, 0x00, 0x2a, 0x00,
-        ];
-
-        let decoder = BmpDecoder::new(Cursor::new(&data)).unwrap();
-        let mut buf = vec![0; usize::try_from(decoder.total_bytes()).unwrap()];
-        assert!(decoder.read_image(&mut buf).is_err());
-    }
-
-    #[test]
-    fn test_extend_buffer() {
-        // (input, extend_to)
-        let test_cases: &[(&[u8], usize)] = &[
-            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 20),
-            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 13),
-            (&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 50),
-            (&[0, 1, 2, 3], 5),
-            (&[0, 1, 2, 3], 15),
-            (&[0, 1, 2, 3], 50),
-        ];
-
-        for test_case in test_cases {
-            let mut as_vec = test_case.0.to_vec();
-            let extended_by = test_case.1 - test_case.0.len();
-            let allocated = extend_buffer(&mut as_vec, test_case.1, false);
-            assert_eq!(allocated.len(), extended_by);
-            assert_eq!(&as_vec[extended_by..], test_case.0);
-        }
     }
 }

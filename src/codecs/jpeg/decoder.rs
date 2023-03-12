@@ -5,7 +5,8 @@ use std::mem;
 
 use crate::color::ColorType;
 use crate::error::{
-    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind, LimitError, LimitErrorKind,
+    DecodingError, ImageError, ImageResult, LimitError, LimitErrorKind, UnsupportedError,
+    UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
 
@@ -136,11 +137,12 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
                 // and the old Vec<u8> is actually laid out in memory in such a way
                 // that it's insufficiently aligned for casting to T.
                 // So we have to perform a copying conversion to T.
-                let mut new_vec = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+                let mut new_vec =
+                    vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
                 let destination: &mut [u8] = bytemuck::cast_slice_mut(new_vec.as_mut_slice());
                 destination.copy_from_slice(&old_vec);
                 Ok(new_vec)
-            },
+            }
         }
     }
 }

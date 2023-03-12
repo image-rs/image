@@ -756,7 +756,8 @@ pub trait ImageDecoder<'a>: Sized {
             )));
         }
 
-        let mut buf = vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+        let mut buf =
+            vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
         self.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
         Ok(buf)
     }

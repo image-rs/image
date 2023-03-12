@@ -5,7 +5,7 @@ use std::mem;
 
 use crate::color::ColorType;
 use crate::error::{
-    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind,
+    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind, LimitError, LimitErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
 
@@ -118,6 +118,37 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
 
         buf.copy_from_slice(&data);
         Ok(())
+    }
+
+    fn read_to_vec<T>(self) -> ImageResult<Vec<T>>
+    where
+        T: crate::traits::Primitive + bytemuck::Pod,
+    {
+        let total_bytes = usize::try_from(self.total_bytes());
+        if total_bytes.is_err() || total_bytes.unwrap() > isize::max_value() as usize {
+            return Err(ImageError::Limits(LimitError::from_kind(
+                LimitErrorKind::InsufficientMemory,
+            )));
+        }
+
+        use std::any::TypeId;
+        if TypeId::of::<T>() == TypeId::of::<u8>() {
+            // It's faster to read u8 without zeroing the buffer first.
+            // On top of that, JPEG decoders produce a `Vec<u8>` up front,
+            // so going through the other codepath would cause a memcpy().
+            let mut buf: Vec<u8> = Vec::new();
+            self.into_reader()?.read_to_end(&mut buf)?;
+            Ok(bytemuck::allocation::cast_vec(buf))
+        } else {
+            // The input and output types may not be layout-compatible (same size and alignment),
+            // and an allocation must be freed with the same size and alignment with which it was allocated,
+            // so we have to create a Vec<T> up front and initialize it,
+            // so that we could slice it and then change the layout of the slice, which is valid.
+            let mut buf =
+                vec![num_traits::Zero::zero(); total_bytes.unwrap() / std::mem::size_of::<T>()];
+            self.read_image(bytemuck::cast_slice_mut(buf.as_mut_slice()))?;
+            Ok(buf)
+        }
     }
 }
 

@@ -303,7 +303,7 @@ fn extend_buffer(buffer: &mut Vec<u8>, full_size: usize, blank: bool) -> &mut [u
     let old_size = buffer.len();
     let extend = full_size - buffer.len();
 
-    buffer.resize(full_size, 0xFF);
+    buffer.resize(full_size, 0);
 
     // Move the existing data to the end of the buffer
     buffer.copy_within(0..old_size, extend);
@@ -355,7 +355,7 @@ where
         if buffer.len() < full_image_size {
             // If the image is stored in top-down order, we can simply use the extend function
             // from vec to extend the buffer..
-            buffer.resize(full_image_size, 0xFF);
+            buffer.resize(full_image_size, 0);
             let len = buffer.len();
             for row in buffer[len - row_width..].chunks_mut(row_width) {
                 func(row)?;
@@ -1082,7 +1082,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
         // Make sure the maximum size is whole number of rows.
         let max_starting_size = max_pixels + row_width - (max_pixels % row_width);
         // The buffer has its bytes initially set to 0xFF as the ICO decoder relies on it.
-        vec![0xFF; cmp::min(row_width * self.height as usize, max_starting_size)]
+        vec![0; cmp::min(row_width * self.height as usize, max_starting_size)]
     }
 
     fn rows<'a>(&self, pixel_data: &'a mut [u8]) -> RowIterator<'a> {
@@ -1110,6 +1110,10 @@ impl<R: Read + Seek> BmpDecoder<R> {
         let skip_palette = self.indexed_color;
 
         reader.seek(SeekFrom::Start(self.data_offset))?;
+
+        if num_channels == 4 {
+            pixel_data.chunks_exact_mut(4).for_each(|c| c[3] = 0xFF);
+        }
 
         with_rows(
             &mut pixel_data,
@@ -1172,8 +1176,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 && bitfields.a.len != 0 {
-                        pixel[3] = bitfields.a.read(data);
+                    if num_channels == 4 {
+                        if bitfields.a.len != 0 {
+                            pixel[3] = bitfields.a.read(data);
+                        } else {
+                            pixel[3] = 0xFF;
+                        }
                     }
                 }
                 reader.read_exact(row_padding)
@@ -1206,8 +1214,12 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     pixel[0] = bitfields.r.read(data);
                     pixel[1] = bitfields.g.read(data);
                     pixel[2] = bitfields.b.read(data);
-                    if num_channels == 4 && bitfields.a.len != 0 {
-                        pixel[3] = bitfields.a.read(data);
+                    if num_channels == 4 {
+                        if bitfields.a.len != 0 {
+                            pixel[3] = bitfields.a.read(data);
+                        } else {
+                            pixel[3] = 0xff;
+                        }
                     }
                 }
                 Ok(())
@@ -1256,6 +1268,8 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     // Read the alpha channel if present
                     if *format == FormatFullBytes::RGBA32 {
                         reader.read_exact(&mut pixel[3..4])?;
+                    } else if num_channels == 4 {
+                        pixel[3] = 0xFF;
                     }
                 }
                 reader.read_exact(row_padding)

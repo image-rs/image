@@ -1311,7 +1311,6 @@ impl<R: Read + Seek> BmpDecoder<R> {
     /// Read the actual data of the image. This function is deliberately not public because it
     /// cannot be called multiple times without seeking back the underlying reader in between.
     pub(crate) fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
-        buf.fill(2); // TODO: remove
         match self.image_type {
             ImageType::Palette => self.read_palettized_pixel_data(buf),
             ImageType::RGB16 => self.read_16_bit_pixel_data(buf, Some(&R5_G5_B5_COLOR_MASK)),

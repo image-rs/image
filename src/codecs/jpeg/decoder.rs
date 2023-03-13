@@ -119,8 +119,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
         }
 
         let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
-        let data = decoder.decode().map_err(ImageError::from_jpeg)?;
-        buf.copy_from_slice(&data);
+        decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
         Ok(())
     }
 }

@@ -4,8 +4,7 @@ mod zlib;
 use self::stream::{DecodeConfig, FormatErrorInner, CHUNCK_BUFFER_SIZE};
 pub use self::stream::{Decoded, DecodingError, StreamingDecoder};
 
-use std::borrow::Cow;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::mem;
 use std::ops::Range;
 
@@ -503,9 +502,11 @@ impl<R: Read> Reader<R> {
                 utils::expand_pass(buf, width, row, pass, line, samples * (bit_depth as u8));
             }
         } else {
-            let mut len = 0;
-            while let Some(Row { data: row, .. }) = self.next_row()? {
-                len += (&mut buf[len..]).write(row)?;
+            for row in buf
+                .chunks_exact_mut(output_info.line_size)
+                .take(self.subframe.height as usize)
+            {
+                self.next_interlaced_row_impl(self.subframe.rowlen, row)?;
             }
         }
 
@@ -515,12 +516,11 @@ impl<R: Read> Reader<R> {
         }
 
         // Advance our state to expect the next frame.
-        let past_end_subframe = match self.info().animation_control() {
-            // a non-APNG has no subframes
-            None => 0,
-            // otherwise the count is the past-the-end index. It can not be 0 per spec.
-            Some(ac) => ac.num_frames,
-        };
+        let past_end_subframe = self
+            .info()
+            .animation_control()
+            .map(|ac| ac.num_frames)
+            .unwrap_or(0);
         self.next_frame = match self.next_frame {
             SubframeIdx::End => unreachable!("Next frame called when already at image end"),
             // Reached the end of non-animated image.
@@ -556,11 +556,13 @@ impl<R: Read> Reader<R> {
         };
         let output_line_size = self.output_line_size(width);
 
+        // TODO: change the interface of `next_interlaced_row` to take an output buffer instead of
+        // making us return a reference to a buffer that we own.
         let mut output_buffer = mem::take(&mut self.processed);
         let ret = self.next_interlaced_row_impl(rowlen, &mut output_buffer[..output_line_size]);
         self.processed = output_buffer;
-
         ret?;
+
         Ok(Some(InterlacedRow {
             data: &self.processed[..output_line_size],
             interlace,
@@ -573,8 +575,6 @@ impl<R: Read> Reader<R> {
         rowlen: usize,
         output_buffer: &mut [u8],
     ) -> Result<(), DecodingError> {
-        use crate::common::ColorType::*;
-
         self.next_raw_interlaced_row(rowlen)?;
         let row = &self.prev[1..rowlen];
 
@@ -586,15 +586,15 @@ impl<R: Read> Reader<R> {
         let expand = self.transform.contains(Transformations::EXPAND);
         let strip16 = bit_depth == 16 && self.transform.contains(Transformations::STRIP_16);
         match color_type {
-            Indexed if expand => {
+            ColorType::Indexed if expand => {
                 output_buffer[..row.len()].copy_from_slice(row);
                 expand_paletted(output_buffer, self.decoder.info().unwrap())?;
             }
-            Grayscale | GrayscaleAlpha if bit_depth < 8 && expand => {
+            ColorType::Grayscale | ColorType::GrayscaleAlpha if bit_depth < 8 && expand => {
                 output_buffer[..row.len()].copy_from_slice(row);
                 expand_gray_u8(output_buffer, self.decoder.info().unwrap())
             }
-            Grayscale | Rgb if trns && expand => {
+            ColorType::Grayscale | ColorType::Rgb if trns && expand => {
                 let channels = color_type.samples();
                 let trns_value = self.decoder.info().unwrap().trns.as_ref().unwrap();
                 if bit_depth == 8 {
@@ -606,7 +606,9 @@ impl<R: Read> Reader<R> {
                     utils::expand_trns_line16(row, output_buffer, trns_value, channels);
                 }
             }
-            Grayscale | GrayscaleAlpha | Rgb | Rgba if strip16 => {
+            ColorType::Grayscale | ColorType::GrayscaleAlpha | ColorType::Rgb | ColorType::Rgba
+                if strip16 =>
+            {
                 for i in 0..row.len() / 2 {
                     output_buffer[i] = row[2 * i];
                 }

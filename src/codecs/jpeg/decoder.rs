@@ -57,10 +57,12 @@ impl<R: Read> JpegDecoder<R> {
     /// applied, is returned.
     pub fn scale(
         &mut self,
-        requested_width: u16,
-        requested_height: u16,
+        _requested_width: u16,
+        _requested_height: u16,
     ) -> ImageResult<(u16, u16)> {
-        todo!(); // TODO: implement using subsampling
+        // zune-jpeg doesn't support this yet:
+        // https://github.com/etemesi254/zune-image/issues/103
+        Ok((self.width, self.height))
     }
 }
 

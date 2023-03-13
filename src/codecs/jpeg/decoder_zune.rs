@@ -99,8 +99,8 @@ impl ColorType {
         let colorspace = to_supported_color_space(colorspace);
         use zune_core::colorspace::ColorSpace::*;
         match colorspace {
-            // TODO: are these always 8-bit? I've asked at
-            // https://github.com/etemesi254/zune-image/discussions/99
+            // As of zune-jpeg 0.3.13 the output is always 8-bit,
+            // but support for 16-bit JPEG might be added in the future.
             RGB => ColorType::Rgb8,
             RGBA => ColorType::Rgba8,
             Luma => ColorType::L8,

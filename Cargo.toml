@@ -24,7 +24,7 @@ bitflags = "1.0"
 crc32fast = "1.2.0"
 fdeflate = "0.2.1"
 flate2 = "1.0"
-miniz_oxide = "0.6.0"
+miniz_oxide = { version = "0.7.1", features = ["simd"] }
 
 [dev-dependencies]
 clap = { version = "3.0", features = ["derive"] }

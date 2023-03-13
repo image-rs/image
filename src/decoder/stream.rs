@@ -376,19 +376,59 @@ impl From<TextDecodingError> for DecodingError {
     }
 }
 
-/// Decode config
-#[derive(Default)]
-pub(crate) struct DecodeConfig {
+/// Decoder configuration options
+#[derive(Clone)]
+pub struct DecodeOptions {
+    ignore_adler32: bool,
+    ignore_crc: bool,
     ignore_text_chunk: bool,
 }
 
-impl DecodeConfig {
+impl Default for DecodeOptions {
+    fn default() -> Self {
+        Self {
+            ignore_adler32: true,
+            ignore_crc: false,
+            ignore_text_chunk: false,
+        }
+    }
+}
+
+impl DecodeOptions {
+    /// When set, the decoder will not compute and verify the Adler-32 checksum.
+    ///
+    /// Defaults to `true`.
+    pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) {
+        self.ignore_adler32 = ignore_adler32;
+    }
+
+    /// When set, the decoder will not compute and verify the CRC code.
+    ///
+    /// Defaults to `false`.
+    pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
+        self.ignore_crc = ignore_crc;
+    }
+
+    /// Flag to ignore computing and verifying the Adler-32 checksum and CRC
+    /// code.
+    pub fn set_ignore_checksums(&mut self, ignore_checksums: bool) {
+        self.ignore_adler32 = ignore_checksums;
+        self.ignore_crc = ignore_checksums;
+    }
+
+    /// Ignore text chunks while decoding.
+    ///
+    /// Defaults to `false`.
     pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
         self.ignore_text_chunk = ignore_text_chunk;
     }
 }
 
 /// PNG StreamingDecoder (low-level interface)
+///
+/// By default, the decoder does not verify Adler-32 checksum computation. To
+/// enable checksum verification, set it with [`StreamingDecoder::set_ignore_adler32`]
+/// before starting decompression.
 pub struct StreamingDecoder {
     state: Option<State>,
     current_chunk: ChunkState,
@@ -401,7 +441,7 @@ pub struct StreamingDecoder {
     /// Stores where in decoding an `fdAT` chunk we are.
     apng_seq_handled: bool,
     have_idat: bool,
-    decode_config: DecodeConfig,
+    decode_options: DecodeOptions,
 }
 
 struct ChunkState {
@@ -424,15 +464,22 @@ impl StreamingDecoder {
     ///
     /// Allocates the internal buffers.
     pub fn new() -> StreamingDecoder {
+        StreamingDecoder::new_with_options(DecodeOptions::default())
+    }
+
+    pub fn new_with_options(decode_options: DecodeOptions) -> StreamingDecoder {
+        let mut inflater = ZlibStream::new();
+        inflater.set_ignore_adler32(decode_options.ignore_adler32);
+
         StreamingDecoder {
             state: Some(State::Signature(0, [0; 7])),
             current_chunk: ChunkState::default(),
-            inflater: ZlibStream::new(),
+            inflater,
             info: None,
             current_seq_no: None,
             apng_seq_handled: false,
             have_idat: false,
-            decode_config: DecodeConfig::default(),
+            decode_options,
         }
     }
 
@@ -442,7 +489,7 @@ impl StreamingDecoder {
         self.current_chunk.crc = Crc32::new();
         self.current_chunk.remaining = 0;
         self.current_chunk.raw_bytes.clear();
-        self.inflater = ZlibStream::new();
+        self.inflater.reset();
         self.info = None;
         self.current_seq_no = None;
         self.apng_seq_handled = false;
@@ -454,13 +501,32 @@ impl StreamingDecoder {
         self.info.as_ref()
     }
 
-    /// Set decode config
-    pub(crate) fn set_decode_config(&mut self, decode_config: DecodeConfig) {
-        self.decode_config = decode_config;
+    pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
+        self.decode_options.set_ignore_text_chunk(ignore_text_chunk);
     }
 
-    pub fn set_ignore_text_chunk(&mut self, ignore_text_chunk: bool) {
-        self.decode_config.set_ignore_text_chunk(ignore_text_chunk);
+    /// Return whether the decoder is set to ignore the Adler-32 checksum.
+    pub fn ignore_adler32(&self) -> bool {
+        self.inflater.ignore_adler32()
+    }
+
+    /// Set whether to compute and verify the Adler-32 checksum during
+    /// decompression. Return `true` if the flag was successfully set.
+    ///
+    /// The decoder defaults to `true`.
+    ///
+    /// This flag cannot be modified after decompression has started until the
+    /// [`StreamingDecoder`] is reset.
+    pub fn set_ignore_adler32(&mut self, ignore_adler32: bool) -> bool {
+        self.inflater.set_ignore_adler32(ignore_adler32)
+    }
+
+    /// Set whether to compute and verify the Adler-32 checksum during
+    /// decompression. Return `true` if the flag was successfully set.
+    ///
+    /// The decoder defaults to `false`.
+    pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
+        self.decode_options.set_ignore_crc(ignore_crc)
     }
 
     /// Low level StreamingDecoder interface.
@@ -540,8 +606,10 @@ impl StreamingDecoder {
                             return Ok((0, Decoded::ImageDataFlushed));
                         }
                         self.current_chunk.type_ = type_str;
-                        self.current_chunk.crc.reset();
-                        self.current_chunk.crc.update(&type_str.0);
+                        if !self.decode_options.ignore_crc {
+                            self.current_chunk.crc.reset();
+                            self.current_chunk.crc.update(&type_str.0);
+                        }
                         self.current_chunk.remaining = length;
                         self.apng_seq_handled = false;
                         self.current_chunk.raw_bytes.clear();
@@ -549,8 +617,16 @@ impl StreamingDecoder {
                         Ok((1, Decoded::ChunkBegin(length, type_str)))
                     }
                     Crc(type_str) => {
-                        let sum = self.current_chunk.crc.clone().finalize();
-                        if CHECKSUM_DISABLED || val == sum {
+                        // If ignore_crc is set, do not calculate CRC. We set
+                        // sum=val so that it short-circuits to true in the next
+                        // if-statement block
+                        let sum = if self.decode_options.ignore_crc {
+                            val
+                        } else {
+                            self.current_chunk.crc.clone().finalize()
+                        };
+
+                        if val == sum || CHECKSUM_DISABLED {
                             self.state = Some(State::U32(U32Value::Length));
                             if type_str == IEND {
                                 Ok((1, Decoded::ImageEnd))
@@ -720,9 +796,9 @@ impl StreamingDecoder {
             chunk::cHRM => self.parse_chrm(),
             chunk::sRGB => self.parse_srgb(),
             chunk::iCCP => self.parse_iccp(),
-            chunk::tEXt if !self.decode_config.ignore_text_chunk => self.parse_text(),
-            chunk::zTXt if !self.decode_config.ignore_text_chunk => self.parse_ztxt(),
-            chunk::iTXt if !self.decode_config.ignore_text_chunk => self.parse_itxt(),
+            chunk::tEXt if !self.decode_options.ignore_text_chunk => self.parse_text(),
+            chunk::zTXt if !self.decode_options.ignore_text_chunk => self.parse_ztxt(),
+            chunk::iTXt if !self.decode_options.ignore_text_chunk => self.parse_itxt(),
             _ => Ok(Decoded::PartialChunk(type_str)),
         } {
             Err(err) => {
@@ -762,7 +838,7 @@ impl StreamingDecoder {
             }
             0
         });
-        self.inflater = ZlibStream::new();
+        self.inflater.reset();
         let fc = FrameControl {
             sequence_number: next_seq_no,
             width: buf.read_be()?,

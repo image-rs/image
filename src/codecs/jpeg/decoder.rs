@@ -4,7 +4,7 @@ use std::mem;
 
 use crate::color::ColorType;
 use crate::error::{
-    DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind, LimitError,
+    DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
 
@@ -28,9 +28,7 @@ impl<R: Read> JpegDecoder<R> {
         let mut r = r;
         r.read_to_end(&mut input)?;
         let mut decoder = zune_jpeg::JpegDecoder::new(&input);
-        decoder
-            .decode_headers()
-            .map_err(ImageError::from_jpeg)?;
+        decoder.decode_headers().map_err(ImageError::from_jpeg)?;
         // now that we've decoded the headers we can `.unwrap()`
         // all these functions that only fail if called before decoding the headers
         let (width, height) = decoder.dimensions().unwrap();

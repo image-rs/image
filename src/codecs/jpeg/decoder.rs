@@ -42,19 +42,10 @@ impl<R: Read> JpegDecoder<R> {
         })
     }
 
-    /// Configure the decoder to scale the image during decoding.
-    ///
-    /// This efficiently scales the image by the smallest supported
-    /// scale factor that produces an image larger than or equal to
-    /// the requested size in at least one axis. The currently
-    /// implemented scale factors are 1/8, 1/4, 1/2 and 1.
-    ///
-    /// To generate a thumbnail of an exact size, pass the desired
-    /// size and then scale to the final size using a traditional
-    /// resampling algorithm.
-    ///
-    /// The size of the image to be loaded, with the scale factor
-    /// applied, is returned.
+    /// Some decoders support scaling the image during decoding,
+    /// but the current backend, `zune-jpeg`, doesn't,
+    /// so this function currently does nothing
+    /// and always returns the original dimensions.
     pub fn scale(
         &mut self,
         _requested_width: u16,

@@ -88,8 +88,7 @@ impl<'a> ImageDecoder<'a> for ZuneJpegDecoder {
         }
 
         let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
-        let data = decoder.decode().map_err(ImageError::from_zune_jpeg)?;
-        buf.copy_from_slice(&data);
+        decoder.decode_into(buf).map_err(ImageError::from_zune_jpeg)?;
         Ok(())
     }
 }

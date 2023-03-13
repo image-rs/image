@@ -35,7 +35,6 @@ byteorder = "1.3.2"
 num-rational = { version = "0.4", default-features = false }
 num-traits = "0.2.0"
 gif = { version = "0.12", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
 png = { version = "0.17.6", optional = true }
 tiff = { version = "0.8.0", optional = true }
 ravif = { version = "0.11.0", optional = true }
@@ -47,8 +46,8 @@ color_quant = "1.1"
 exr = { version = "1.5.0", optional = true }
 qoi = { version = "0.4", optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
-zune-core = { version = "0.2.1" }
-zune-jpeg = { version = "0.3.13" }
+zune-core = { version = "0.2.1", default-features = false, optional = true }
+zune-jpeg = { version = "0.3.13", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -56,15 +55,13 @@ num-complex = "0.4"
 glob = "0.3"
 quickcheck = "1"
 criterion = "0.3"
-# Keep this in sync with the jpeg dependency above. This is used to enable the platform_independent
-# feature when testing, so `cargo test` works correctly.
-jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, features = ["platform_independent"] }
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0
 default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
 ico = ["bmp", "png"]
+jpeg = ["dep:zune-core", "dep:zune-jpeg"]
 pnm = []
 tga = []
 bmp = []
@@ -80,9 +77,8 @@ webp = []
 # Non-default, not included in `webp`. Requires native dependency libwebp.
 webp-encoder = ["libwebp"]
 
-# Enables multi-threading.
-# Requires latest stable Rust.
-jpeg_rayon = ["jpeg/rayon"]
+# Dummy feature for backwards compatibility
+jpeg_rayon = ["jpeg"]
 # Non-default, enables avif support.
 # Requires latest stable Rust.
 avif = ["avif-encoder"]

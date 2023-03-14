@@ -86,11 +86,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
 
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
         let mut decoder = zune_jpeg::JpegDecoder::new(&self.input);
-        if let Ok(_) = decoder.decode_headers() {
-            decoder.icc_profile()
-        } else {
-            None
-        }
+        decoder.decode_headers().ok()?;
+        decoder.icc_profile()
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

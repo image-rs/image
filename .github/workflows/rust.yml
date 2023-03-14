@@ -157,7 +157,7 @@ jobs:
         cargo afl check --bin fuzz_webp
         cargo afl check --bin fuzz_pnm
       env:
-        RUSTFLAGS: "-C target-cpu=skylake" # TODO: remove once https://github.com/mcountryman/simd-adler32/pull/9 is merged
+        RUSTFLAGS: ""
 
   build_fuzz_cargo-fuzz:
     name: "Fuzz targets (cargo-fuzz)"

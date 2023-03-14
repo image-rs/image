@@ -16,6 +16,7 @@ pub struct JpegDecoder<R> {
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
+    icc: Option<Vec<u8>>,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
     phantom: PhantomData<R>,
@@ -33,11 +34,13 @@ impl<R: Read> JpegDecoder<R> {
         // all these functions that only fail if called before decoding the headers
         let (width, height) = decoder.dimensions().unwrap();
         let orig_color_space = decoder.get_output_colorspace().unwrap();
+        let icc = decoder.icc_profile();
         Ok(JpegDecoder {
             input,
             orig_color_space,
             width,
             height,
+            icc,
             phantom: PhantomData,
         })
     }
@@ -85,7 +88,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        None // zune-jpeg doesn't support it
+        self.icc.clone()
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

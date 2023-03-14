@@ -7,6 +7,7 @@ use crate::error::{
     DecodingError, ImageError, ImageResult, LimitError, UnsupportedError, UnsupportedErrorKind,
 };
 use crate::image::{ImageDecoder, ImageFormat};
+use crate::io::Limits;
 
 type ZuneColorSpace = zune_core::colorspace::ColorSpace;
 
@@ -16,6 +17,7 @@ pub struct JpegDecoder<R> {
     orig_color_space: ZuneColorSpace,
     width: u16,
     height: u16,
+    limits: Limits,
     // For API compatibility with the previous jpeg_decoder wrapper.
     // Can be removed later, which would be an API break.
     phantom: PhantomData<R>,
@@ -33,11 +35,15 @@ impl<R: Read> JpegDecoder<R> {
         // all these functions that only fail if called before decoding the headers
         let (width, height) = decoder.dimensions().unwrap();
         let orig_color_space = decoder.get_output_colorspace().unwrap();
+        // Limits are disabled by default for backwards compatibility with jpeg_decoder
+        // which did not support limits, so enabling them would break crate users
+        let limits = Limits::no_limits();
         Ok(JpegDecoder {
             input,
             orig_color_space,
             width,
             height,
+            limits,
             phantom: PhantomData,
         })
     }
@@ -91,7 +97,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
         let data = decoder.decode().map_err(ImageError::from_jpeg)?;
         Ok(JpegReader(Cursor::new(data), PhantomData))
     }
@@ -111,7 +117,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
             )));
         }
 
-        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space);
+        let mut decoder = new_zune_decoder(&self.input, self.orig_color_space, self.limits);
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
         Ok(())
     }
@@ -143,10 +149,20 @@ fn to_supported_color_space(orig: ZuneColorSpace) -> ZuneColorSpace {
     }
 }
 
-fn new_zune_decoder(input: &[u8], orig_color_space: ZuneColorSpace) -> zune_jpeg::JpegDecoder {
+fn new_zune_decoder(
+    input: &[u8],
+    orig_color_space: ZuneColorSpace,
+    limits: Limits,
+) -> zune_jpeg::JpegDecoder {
     let target_color_space = to_supported_color_space(orig_color_space);
-    let options =
+    let mut options =
         zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
+    if let Some(max_width) = limits.max_image_width {
+        options = options.set_max_width(max_width as usize); // u32 to usize never truncates
+    };
+    if let Some(max_height) = limits.max_image_height {
+        options = options.set_max_height(max_height as usize); // u32 to usize never truncates
+    };
     zune_jpeg::JpegDecoder::new_with_options(options, &input)
 }
 

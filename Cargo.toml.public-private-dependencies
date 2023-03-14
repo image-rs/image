@@ -2,9 +2,12 @@ cargo-features = ["public-dependency"]
 
 [package]
 name = "image"
-version = "0.24.0-alpha"
+version = "0.24.5"
 edition = "2018"
-rust-version = "1.56"
+resolver = "2"
+
+# note: when changed, also update test runner in `.github/workflows/rust.yml`
+rust-version = "1.61.0"
 
 license = "MIT"
 description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
@@ -31,20 +34,22 @@ path = "./src/lib.rs"
 [dependencies]
 bytemuck = { version = "1.7.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder = "1.3.2"
-num-iter = "0.1.32"
 num-rational = { version = "0.4", default-features = false }
 num-traits = { version = "0.2.0", public = true }
-gif = { version = "0.11.1", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.2.1", default-features = false, optional = true }
-png = { version = "0.17.0", optional = true }
-tiff = { version = "0.7.1", optional = true }
-ravif = { version = "0.8.0", optional = true }
+gif = { version = "0.12", optional = true }
+png = { version = "0.17.6", optional = true }
+tiff = { version = "0.8.0", optional = true }
+ravif = { version = "0.11.0", optional = true }
 rgb = { version = "0.8.25", optional = true }
 mp4parse = { version = "0.12.0", optional = true }
 dav1d = { version = "0.6.0", optional = true }
 dcv-color-primitives = { version = "0.4.0", optional = true }
-exr = { version = "1.4.1", optional = true }
 color_quant = { version = "1.1", public = true }
+exr = { version = "1.5.0", optional = true }
+qoi = { version = "0.4", optional = true }
+libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
+zune-core = { version = "0.2.1", default-features = false, optional = true }
+zune-jpeg = { version = "0.3.14", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -55,22 +60,27 @@ criterion = "0.3"
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr"]
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
 
 ico = ["bmp", "png"]
+jpeg = ["dep:zune-core", "dep:zune-jpeg"]
 pnm = []
 tga = []
-webp = []
 bmp = []
 hdr = []
 dxt = []
 dds = ["dxt"]
 farbfeld = []
 openexr = ["exr"]
+qoi = ["dep:qoi"]
 
-# Enables multi-threading.
-# Requires latest stable Rust.
-jpeg_rayon = ["jpeg/rayon"]
+# Enables WebP decoder support.
+webp = []
+# Non-default, not included in `webp`. Requires native dependency libwebp.
+webp-encoder = ["libwebp"]
+
+# Dummy feature for backwards compatibility
+jpeg_rayon = ["jpeg"]
 # Non-default, enables avif support.
 # Requires latest stable Rust.
 avif = ["avif-encoder"]

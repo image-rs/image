@@ -121,6 +121,11 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
         decoder.decode_into(buf).map_err(ImageError::from_jpeg)?;
         Ok(())
     }
+
+    fn set_limits(&mut self, limits: Limits) -> ImageResult<()> {
+        self.limits = limits;
+        Ok(())
+    }
 }
 
 impl ColorType {

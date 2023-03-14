@@ -629,9 +629,8 @@ impl<'a, R: Read> Iterator for RLEInsnIterator<'a, R> {
 }
 
 impl<R: Read + Seek> BmpDecoder<R> {
-    /// Create a new decoder that decodes from the stream ```r```
-    pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
-        let mut decoder = BmpDecoder {
+    fn new_decoder(reader: R) -> BmpDecoder<R> {
+        BmpDecoder {
             reader,
 
             bmp_header_type: BMPHeaderType::Info,
@@ -650,35 +649,29 @@ impl<R: Read + Seek> BmpDecoder<R> {
             colors_used: 0,
             palette: None,
             bitfields: None,
-        };
+        }
+    }
 
+    /// Create a new decoder that decodes from the stream ```r```
+    pub fn new(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = Self::new_decoder(reader);
+        decoder.read_metadata()?;
+        Ok(decoder)
+    }
+
+    /// Create a new decoder that decodes from the stream ```r``` without first
+    /// reading a BITMAPFILEHEADER. This is useful for decoding the CF_DIB format
+    /// directly from the Windows clipboard.
+    pub fn new_without_file_header(reader: R) -> ImageResult<BmpDecoder<R>> {
+        let mut decoder = Self::new_decoder(reader);
+        decoder.no_file_header = true;
         decoder.read_metadata()?;
         Ok(decoder)
     }
 
     #[cfg(feature = "ico")]
     pub(crate) fn new_with_ico_format(reader: R) -> ImageResult<BmpDecoder<R>> {
-        let mut decoder = BmpDecoder {
-            reader,
-
-            bmp_header_type: BMPHeaderType::Info,
-            indexed_color: false,
-
-            width: 0,
-            height: 0,
-            data_offset: 0,
-            top_down: false,
-            no_file_header: false,
-            add_alpha_channel: false,
-            has_loaded_metadata: false,
-            image_type: ImageType::Palette,
-
-            bit_count: 0,
-            colors_used: 0,
-            palette: None,
-            bitfields: None,
-        };
-
+        let mut decoder = Self::new_decoder(reader);
         decoder.read_metadata_in_ico_format()?;
         Ok(decoder)
     }
@@ -1626,6 +1619,28 @@ mod test {
             let allocated = extend_buffer(&mut as_vec, test_case.1, false);
             assert_eq!(allocated.len(), extended_by);
             assert_eq!(&as_vec[extended_by..], test_case.0);
+        }
+    }
+
+    #[test]
+    fn test_no_header() {
+        let tests = [
+            "Info_R8_G8_B8.bmp",
+            "Info_A8_R8_G8_B8.bmp",
+            "Info_8_Bit.bmp",
+            "Info_4_Bit.bmp",
+            "Info_1_Bit.bmp",
+        ];
+
+        for name in &tests {
+            let path = format!("tests/images/bmp/images/{name}");
+            let ref_img = crate::open(&path).unwrap();
+            let mut data = std::fs::read(&path).unwrap();
+            // skip the BITMAPFILEHEADER
+            let slice = &mut data[14..];
+            let decoder = BmpDecoder::new_without_file_header(Cursor::new(slice)).unwrap();
+            let no_hdr_img = crate::DynamicImage::from_decoder(decoder).unwrap();
+            assert_eq!(ref_img, no_hdr_img);
         }
     }
 }

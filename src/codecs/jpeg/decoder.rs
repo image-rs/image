@@ -162,12 +162,14 @@ fn new_zune_decoder(
     let target_color_space = to_supported_color_space(orig_color_space);
     let mut options =
         zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(target_color_space);
-    if let Some(max_width) = limits.max_image_width {
-        options = options.set_max_width(max_width as usize); // u32 to usize never truncates
-    };
-    if let Some(max_height) = limits.max_image_height {
-        options = options.set_max_height(max_height as usize); // u32 to usize never truncates
-    };
+    options = options.set_max_width(match limits.max_image_width {
+        Some(max_width) => max_width as usize, // u32 to usize never truncates
+        None => usize::MAX,
+    });
+    options = options.set_max_height(match limits.max_image_height {
+        Some(max_height) => max_height as usize, // u32 to usize never truncates
+        None => usize::MAX,
+    });
     zune_jpeg::JpegDecoder::new_with_options(options, &input)
 }
 

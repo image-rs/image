@@ -1,77 +1,11 @@
 use super::{stream::FormatErrorInner, DecodingError, CHUNCK_BUFFER_SIZE};
 
-use miniz_oxide::inflate::core::{decompress, inflate_flags, DecompressorOxide};
-use miniz_oxide::inflate::TINFLStatus;
-
-enum Compressor {
-    FullZlib(DecompressorOxide),
-    FDeflate(fdeflate::Decompressor),
-}
-impl Compressor {
-    fn decompress(
-        &mut self,
-        input: &[u8],
-        output: &mut [u8],
-        output_position: usize,
-        ignore_adler32: bool,
-        end_of_input: bool,
-    ) -> (TINFLStatus, usize, usize) {
-        match self {
-            Compressor::FullZlib(decompressor) => {
-                const BASE_FLAGS: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
-                    | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
-
-                let mut flags = BASE_FLAGS;
-                if !end_of_input {
-                    flags |= inflate_flags::TINFL_FLAG_HAS_MORE_INPUT;
-                }
-                if ignore_adler32 {
-                    flags |= inflate_flags::TINFL_FLAG_IGNORE_ADLER32;
-                }
-
-                decompress(decompressor, input, output, output_position, flags)
-            }
-            Compressor::FDeflate(decompressor) => {
-                match decompressor.read(input, &mut output[output_position..], end_of_input) {
-                    Ok((in_consumed, out_consumed)) if decompressor.done() => {
-                        assert!(in_consumed <= input.len());
-                        (TINFLStatus::Done, in_consumed, out_consumed)
-                    }
-                    Ok((in_consumed, out_consumed)) => {
-                        assert!(in_consumed <= input.len());
-                        (TINFLStatus::HasMoreOutput, in_consumed, out_consumed)
-                    }
-                    Err(fdeflate::DecompressionError::NotFDeflate) => {
-                        // fdeflate guarantees that it will detect non-fdeflate streams before
-                        // consuming any input. If that happens, sanity check that no output
-                        // has been produced and feed the same input to a full zlib decoder.
-                        assert_eq!(output_position, 0);
-
-                        *self = Compressor::FullZlib(DecompressorOxide::new());
-                        self.decompress(
-                            input,
-                            output,
-                            output_position,
-                            ignore_adler32,
-                            end_of_input,
-                        )
-                    }
-                    Err(_) => (TINFLStatus::Failed, 0, 0),
-                }
-            }
-        }
-    }
-}
-impl Default for Compressor {
-    fn default() -> Self {
-        Compressor::FDeflate(fdeflate::Decompressor::new())
-    }
-}
+use fdeflate::Decompressor;
 
 /// Ergonomics wrapper around `miniz_oxide::inflate::stream` for zlib compressed data.
 pub(super) struct ZlibStream {
     /// Current decoding state.
-    state: Box<Compressor>,
+    state: Box<fdeflate::Decompressor>,
     /// If there has been a call to decompress already.
     started: bool,
     /// A buffer of compressed data.
@@ -106,7 +40,7 @@ pub(super) struct ZlibStream {
 impl ZlibStream {
     pub(crate) fn new() -> Self {
         ZlibStream {
-            state: Default::default(),
+            state: Box::new(Decompressor::new()),
             started: false,
             in_buffer: Vec::with_capacity(CHUNCK_BUFFER_SIZE),
             in_pos: 0,
@@ -122,7 +56,7 @@ impl ZlibStream {
         self.in_pos = 0;
         self.out_buffer.clear();
         self.out_pos = 0;
-        *self.state = Default::default();
+        *self.state = Decompressor::new();
     }
 
     /// Set the `ignore_adler32` flag and return `true` if the flag was
@@ -155,20 +89,22 @@ impl ZlibStream {
     ) -> Result<usize, DecodingError> {
         self.prepare_vec_for_appending();
 
-        let (status, mut in_consumed, out_consumed) = {
-            let in_data = if self.in_buffer.is_empty() {
-                data
-            } else {
-                &self.in_buffer[self.in_pos..]
-            };
-            self.state.decompress(
-                in_data,
-                self.out_buffer.as_mut_slice(),
-                self.out_pos,
-                self.ignore_adler32,
-                false,
-            )
+        if !self.started && self.ignore_adler32 {
+            self.state.ignore_adler32();
+        }
+
+        let in_data = if self.in_buffer.is_empty() {
+            data
+        } else {
+            &self.in_buffer[self.in_pos..]
         };
+
+        let (mut in_consumed, out_consumed) = self
+            .state
+            .read(in_data, self.out_buffer.as_mut_slice(), self.out_pos, false)
+            .map_err(|err| {
+                DecodingError::Format(FormatErrorInner::CorruptFlateStream { err }.into())
+            })?;
 
         if !self.in_buffer.is_empty() {
             self.in_pos += in_consumed;
@@ -189,14 +125,7 @@ impl ZlibStream {
         self.out_pos += out_consumed;
         self.transfer_finished_data(image_data);
 
-        match status {
-            TINFLStatus::Done | TINFLStatus::HasMoreOutput | TINFLStatus::NeedsMoreInput => {
-                Ok(in_consumed)
-            }
-            err => Err(DecodingError::Format(
-                FormatErrorInner::CorruptFlateStream { err }.into(),
-            )),
-        }
+        Ok(in_consumed)
     }
 
     /// Called after all consecutive IDAT chunks were handled.
@@ -219,40 +148,31 @@ impl ZlibStream {
         loop {
             self.prepare_vec_for_appending();
 
-            let (status, in_consumed, out_consumed) = {
-                // TODO: we may be able to avoid the indirection through the buffer here.
-                // First append all buffered data and then create a cursor on the image_data
-                // instead.
-                self.state.decompress(
+            let (in_consumed, out_consumed) = self
+                .state
+                .read(
                     &tail[start..],
                     self.out_buffer.as_mut_slice(),
                     self.out_pos,
-                    self.ignore_adler32,
                     true,
                 )
-            };
+                .map_err(|err| {
+                    DecodingError::Format(FormatErrorInner::CorruptFlateStream { err }.into())
+                })?;
 
             start += in_consumed;
             self.out_pos += out_consumed;
 
-            match status {
-                TINFLStatus::Done => {
-                    self.out_buffer.truncate(self.out_pos);
-                    image_data.append(&mut self.out_buffer);
-                    return Ok(());
-                }
-                TINFLStatus::HasMoreOutput => {
-                    let transferred = self.transfer_finished_data(image_data);
-                    assert!(
-                        transferred > 0 || in_consumed > 0 || out_consumed > 0,
-                        "No more forward progress made in stream decoding."
-                    );
-                }
-                err => {
-                    return Err(DecodingError::Format(
-                        FormatErrorInner::CorruptFlateStream { err }.into(),
-                    ));
-                }
+            if self.state.is_done() {
+                self.out_buffer.truncate(self.out_pos);
+                image_data.append(&mut self.out_buffer);
+                return Ok(());
+            } else {
+                let transferred = self.transfer_finished_data(image_data);
+                assert!(
+                    transferred > 0 || in_consumed > 0 || out_consumed > 0,
+                    "No more forward progress made in stream decoding."
+                );
             }
         }
     }

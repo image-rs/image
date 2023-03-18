@@ -22,7 +22,7 @@ include = [
 [dependencies]
 bitflags = "1.0"
 crc32fast = "1.2.0"
-fdeflate = "0.2.1"
+fdeflate = "0.3.0"
 flate2 = "1.0"
 miniz_oxide = { version = "0.7.1", features = ["simd"] }
 

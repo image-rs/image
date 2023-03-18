@@ -196,7 +196,7 @@ pub(crate) enum FormatErrorInner {
     // Errors specific to the IDAT/fDAT chunks.
     /// The compression of the data stream was faulty.
     CorruptFlateStream {
-        err: miniz_oxide::inflate::TINFLStatus,
+        err: fdeflate::DecompressionError,
     },
     /// The image data chunk was too short for the expected pixel count.
     NoMoreImageData,
@@ -291,22 +291,7 @@ impl fmt::Display for FormatError {
             NoMoreImageData => write!(fmt, "IDAT or fDAT chunk is has not enough data for image."),
             CorruptFlateStream { err } => {
                 write!(fmt, "Corrupt deflate stream. ")?;
-                use miniz_oxide::inflate::TINFLStatus;
-                match err {
-                    TINFLStatus::Adler32Mismatch => write!(fmt, "Adler32 checksum failed."),
-                    TINFLStatus::BadParam => write!(fmt, "Invalid input parameters."),
-                    // The Done status should already have been handled.
-                    TINFLStatus::Done => write!(fmt, "Unexpected done status."),
-                    TINFLStatus::FailedCannotMakeProgress => {
-                        write!(fmt, "Unexpected end of data.")
-                    }
-                    // The HasMoreOutput status should already have been handled.
-                    TINFLStatus::HasMoreOutput => write!(fmt, "Has more output."),
-                    // The HasMoreInput status should already have been handled.
-                    TINFLStatus::NeedsMoreInput => write!(fmt, "Needs more input."),
-                    // Write out the error number in case a new has been added.
-                    _ => write!(fmt, "Error number {:?}.", err),
-                }
+                write!(fmt, "{:?}", err)
             }
             // TODO: Wrap more info in the enum variant
             BadTextEncoding(tde) => {

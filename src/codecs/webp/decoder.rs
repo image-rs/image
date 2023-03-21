@@ -196,6 +196,15 @@ impl<R: Read> WebPDecoder<R> {
 
         Ok(())
     }
+
+    /// Returns true if the image as described by the bitstream is animated.
+    pub fn has_animation(&self) -> bool {
+        match &self.image {
+            WebPImage::Lossy(_) => false,
+            WebPImage::Lossless(_) => false,
+            WebPImage::Extended(extended) => extended.has_animation(),
+        }
+    }
 }
 
 pub(crate) fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>

@@ -82,6 +82,10 @@ impl ExtendedImage {
         (self.info.canvas_width, self.info.canvas_height)
     }
 
+    pub(crate) fn has_animation(&self) -> bool {
+        self.info._animation
+    }
+
     pub(crate) fn color_type(&self) -> ColorType {
         match &self.image {
             ExtendedImageData::Animation { frames, .. } => &frames[0].image,

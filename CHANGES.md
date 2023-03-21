@@ -19,6 +19,14 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
 
+### Version 0.24.6
+
+- Add support for QOI.
+- ImageDecoders now expose ICC profiles on supported formats.
+- Add support for BMPs without a file header.
+- Improved AVIF encoder.
+- WebP decoding fixes.
+
 ### Version 0.24.5
 
 Structural changes:

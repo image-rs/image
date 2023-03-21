@@ -1,5 +1,18 @@
 ## Unreleased
 
+## 0.17.8
+
+* Increased MSRV to 1.57.0.
+* Substantially optimized encoding and decoding:
+  - Autovectorize filtering and unfiltering.
+  - Make the "fast" compression preset use fdeflate.
+  - Switch decompression to always use fdeflate.
+  - Updated to miniz_oxide 0.7.
+  - Added an option to ignore checksums.
+* Added corpus-bench example which measures the compression ratio and time to
+  re-encode and subsequently decode a corpus of images.
+* More fuzz testing.
+
 ## 0.17.7
 
 * Fixed handling broken tRNS chunk.

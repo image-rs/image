@@ -47,6 +47,7 @@ color_quant = "1.1"
 exr = { version = "1.5.0", optional = true }
 qoi = { version = "0.4", optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
+serde = { version = "1.0.159", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -60,7 +61,7 @@ jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, 
 
 [features]
 # TODO: Add "avif" to this list while preparing for 0.24.0
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
+default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dxt", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi", "serde"]
 
 ico = ["bmp", "png"]
 pnm = []
@@ -88,6 +89,8 @@ avif = ["avif-encoder"]
 avif-encoder = ["ravif", "rgb"]
 # Non-default, even in `avif`. Requires stable Rust and native dependency libdav1d.
 avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
+# Enable serde for dependent crates.
+serde = ["dep:serde", "rgb/serde", "num-complex/serde", "num-rational/serde"]
 
 # Build some inline benchmarks. Useful only during development.
 # Requires rustc nightly for feature test.

@@ -4,8 +4,12 @@ use std::convert::TryFrom;
 
 use crate::{error, ImageError, ImageResult};
 
+#[cfg(feature = "serde")]
+mod de;
 pub(crate) mod free_functions;
 mod reader;
+#[cfg(feature = "serde")]
+mod ser;
 
 pub use self::reader::Reader;
 

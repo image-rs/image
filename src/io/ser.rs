@@ -1,8 +1,6 @@
-use crate::{ColorType, DynamicImage, ImageBuffer, ImageEncoder, Pixel, RgbaImage};
-use num_traits::Zero;
-use serde::de::{MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::Formatter;
+use crate::{ColorType, DynamicImage};
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 
 impl Serialize for ColorType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -31,11 +29,11 @@ impl Serialize for DynamicImage {
     where
         S: Serializer,
     {
-        let mut ser = serializer.serialize_struct("DynamicImage", 4);
-        ser.serialize_field("type", &self.color());
-        ser.serialize_field("width", &self.width());
-        ser.serialize_field("height", &self.height());
-        ser.serialize_field("data", &self.as_bytes());
+        let mut ser = serializer.serialize_struct("DynamicImage", 4)?;
+        ser.serialize_field("type", &self.color())?;
+        ser.serialize_field("width", &self.width())?;
+        ser.serialize_field("height", &self.height())?;
+        ser.serialize_field("data", &self.as_bytes())?;
         ser.end()
     }
 }

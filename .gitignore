@@ -20,3 +20,7 @@
 /.rust/
 rusti.sh
 Cargo.lock
+
+# IDE
+.idea/
+*.iml

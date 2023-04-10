@@ -45,7 +45,7 @@ impl<'de> Deserialize<'de> for DynamicImage {
     }
 }
 
-pub struct DynamicImageVisitor {
+struct DynamicImageVisitor {
     color_type: String,
     width: u32,
     height: u32,
@@ -53,7 +53,7 @@ pub struct DynamicImageVisitor {
 }
 
 impl DynamicImageVisitor {
-    pub fn to_image<E: serde::de::Error>(self) -> Result<DynamicImage, E> {
+    fn to_image<E: serde::de::Error>(self) -> Result<DynamicImage, E> {
         let color = match self.color_type.as_str() {
             "ImageLuma8" => ColorType::L8,
             "ImageLumaA8" => ColorType::La8,
@@ -97,49 +97,56 @@ impl DynamicImageVisitor {
                 Some(image) => Ok(DynamicImage::ImageRgba8(image)),
                 None => Err(E::custom("Invalid rgba8 image data")),
             },
-            ColorType::L16 => ImageBuffer::from_raw(
-                self.width,
-                self.height,
-                view_as_u16(&self.data, "Invalid luma16 image data")?,
-            )
-            .ok_or(E::custom("Invalid luma16 image data")),
-            ColorType::La16 => {}
-            ColorType::Rgb16 => {}
-            ColorType::Rgba16 => {}
-            ColorType::Rgb32F => {
-                image.copy_from_slice(&self.data);
-                Ok(DynamicImage::ImageRgb32F(image))
-            }
-            ColorType::Rgba32F => {
-                image.copy_from_slice(&self.data);
-                Ok(DynamicImage::ImageRgba32F(image))
-            }
+            ColorType::L16 => view_as_u16(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageLuma16)
+                .ok_or(E::custom("Invalid luma16 image data")),
+            ColorType::La16 => view_as_u16(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageLumaA16)
+                .ok_or(E::custom("Invalid lumaA16 image data")),
+            ColorType::Rgb16 => view_as_u16(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageRgb16)
+                .ok_or(E::custom("Invalid rgb16 image data")),
+            ColorType::Rgba16 => view_as_u16(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageRgba16)
+                .ok_or(E::custom("Invalid rgba16 image data")),
+            ColorType::Rgb32F => view_as_f32(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageRgb32F)
+                .ok_or(E::custom("Invalid rgb32f image data")),
+            ColorType::Rgba32F => view_as_f32(&self.data)
+                .and_then(|view| ImageBuffer::from_raw(self.width, self.height, view))
+                .map(DynamicImage::ImageRgba32F)
+                .ok_or(E::custom("Invalid rgba32f image data")),
         }
     }
 }
 
-/// SAFETY: it is safe to view `Vec<u8>` as `&[u16]` because the length is even
-pub fn view_as_u16<'a, E: serde::de::Error>(
-    data: &'a [u8],
-    assert: &'static str,
-) -> Result<&'a [u16], E> {
+fn view_as_u16(data: &[u8]) -> Option<Vec<u16>> {
     if data.len() % 2 != 0 {
-        Err(E::custom(assert))?;
+        return None;
     }
-    let view = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u16, data.len() / 2) };
-    Ok(view)
+    Some(
+        data.chunks_exact(2)
+            .into_iter()
+            .map(|a| u16::from_ne_bytes([a[0], a[1]]))
+            .collect(),
+    )
 }
 
-/// SAFETY: it is safe to view `Vec<u8>` as `&[f32]` because the length is multiple of 4
-pub fn view_as_f32<'a, E: serde::de::Error>(
-    data: &'a [u8],
-    assert: &'static str,
-) -> Result<&'a [f32], E> {
+fn view_as_f32(data: &[u8]) -> Option<Vec<f32>> {
     if data.len() % 4 != 0 {
-        Err(E::custom(assert))?;
+        return None;
     }
-    let view = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const f32, data.len() / 4) };
-    Ok(view)
+    Some(
+        data.chunks_exact(4)
+            .into_iter()
+            .map(|a| f32::from_ne_bytes([a[0], a[1], a[2], a[3]]))
+            .collect(),
+    )
 }
 
 impl<'de> Visitor<'de> for DynamicImageVisitor {

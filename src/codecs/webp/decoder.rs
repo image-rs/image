@@ -4,9 +4,9 @@ use std::io::{self, Cursor, Error, Read};
 use std::marker::PhantomData;
 use std::{error, fmt, mem};
 
-use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{color, AnimationDecoder, Frames};
+use crate::{color, AnimationDecoder, Frames, Rgba};
 
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
@@ -203,6 +203,18 @@ impl<R: Read> WebPDecoder<R> {
             WebPImage::Lossy(_) => false,
             WebPImage::Lossless(_) => false,
             WebPImage::Extended(extended) => extended.has_animation(),
+        }
+    }
+
+    /// Sets the background color if the image is an extended and animated webp.
+    pub fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
+        match &mut self.image {
+            WebPImage::Extended(image) => image.set_background_color(color),
+            _ => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "Background color can only be set on animated webp".to_owned(),
+                ),
+            ))),
         }
     }
 }

@@ -9,6 +9,7 @@ authors = ["The image-rs Developers"]
 repository = "https://github.com/image-rs/image-png.git"
 
 edition = "2018"
+rust-version = "1.57"
 include = [
     "/LICENSE-MIT",
     "/LICENSE-APACHE",

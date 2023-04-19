@@ -208,12 +208,21 @@ pub(crate) fn unfilter(
     match filter {
         NoFilter => {}
         Sub => match tbpp {
-            // These variants regressed instruction count with no performance
-            // benefit when converted to use `chunks`, leave as an obvious loop
-            BytesPerPixel::One | BytesPerPixel::Two => {
-                let bpp = tbpp.into_usize();
-                for i in bpp..current.len() {
-                    current[i] = current[i].wrapping_add(current[i - bpp]);
+            BytesPerPixel::One => {
+                current.iter_mut().reduce(|&mut prev, curr| {
+                    *curr = curr.wrapping_add(prev);
+                    curr
+                });
+            }
+            BytesPerPixel::Two => {
+                let mut prev = [0; 2];
+                for chunk in current.chunks_exact_mut(2) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                    ];
+                    *TryInto::<&mut [u8; 2]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
                 }
             }
             BytesPerPixel::Three => {
@@ -275,9 +284,8 @@ pub(crate) fn unfilter(
             }
         },
         Up => {
-            // `chunks_exact[_mut]` won't help here
-            for i in 0..current.len() {
-                current[i] = current[i].wrapping_add(previous[i]);
+            for (curr, &above) in current.iter_mut().zip(previous) {
+                *curr = curr.wrapping_add(above);
             }
         }
         Avg => match tbpp {

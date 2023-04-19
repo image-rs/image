@@ -208,12 +208,15 @@ pub(crate) fn unfilter(
     match filter {
         NoFilter => {}
         Sub => match tbpp {
-            // These variants regressed instruction count with no performance
-            // benefit when converted to use `chunks`, leave as an obvious loop
-            BytesPerPixel::One | BytesPerPixel::Two => {
-                let bpp = tbpp.into_usize();
-                for i in bpp..current.len() {
-                    current[i] = current[i].wrapping_add(current[i - bpp]);
+            BytesPerPixel::One => {
+                current.iter_mut().reduce(|&mut prev, curr| {
+                    *curr = curr.wrapping_add(prev);
+                    curr
+                });
+            }
+            BytesPerPixel::Two => {
+                for i in 2..current.len() {
+                    current[i] = current[i].wrapping_add(current[i - 2]);
                 }
             }
             BytesPerPixel::Three => {

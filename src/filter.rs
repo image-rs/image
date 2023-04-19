@@ -215,8 +215,14 @@ pub(crate) fn unfilter(
                 });
             }
             BytesPerPixel::Two => {
-                for i in 2..current.len() {
-                    current[i] = current[i].wrapping_add(current[i - 2]);
+                let mut prev = [0; 2];
+                for chunk in current.chunks_exact_mut(2) {
+                    let new_chunk = [
+                        chunk[0].wrapping_add(prev[0]),
+                        chunk[1].wrapping_add(prev[1]),
+                    ];
+                    *TryInto::<&mut [u8; 2]>::try_into(chunk).unwrap() = new_chunk;
+                    prev = new_chunk;
                 }
             }
             BytesPerPixel::Three => {

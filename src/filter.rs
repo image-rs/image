@@ -284,9 +284,8 @@ pub(crate) fn unfilter(
             }
         },
         Up => {
-            // `chunks_exact[_mut]` won't help here
-            for i in 0..current.len() {
-                current[i] = current[i].wrapping_add(previous[i]);
+            for (curr, &above) in current.iter_mut().zip(previous) {
+                *curr = curr.wrapping_add(above);
             }
         }
         Avg => match tbpp {

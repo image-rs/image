@@ -197,19 +197,24 @@ impl<W: Write> BitWriter<W> {
         }
 
         self.nbits += size;
-        self.accumulator |= u32::from(bits) << (32 - self.nbits) as usize;
+
+        let mut tmp_accumulator = self.accumulator | u32::from(bits) << (32 - self.nbits) as usize;
 
         while self.nbits >= 8 {
-            let byte = self.accumulator >> 24;
+            let byte = tmp_accumulator >> 24;
             self.w.write_all(&[byte as u8])?;
 
             if byte == 0xFF {
-                self.w.write_all(&[0x00])?;
+                // set top byte to 0 so we can avoid calling write_all twice
+                // which causes a bunch of branching and inlines to be emitted
+                tmp_accumulator &= 0x00ffffff;
+            } else {
+                self.nbits -= 8;
+                tmp_accumulator <<= 8;
             }
-
-            self.nbits -= 8;
-            self.accumulator <<= 8;
         }
+
+        self.accumulator = tmp_accumulator;
 
         Ok(())
     }
@@ -1131,38 +1136,66 @@ mod tests {
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_encode_coefficient(b: &mut Bencher) {
+        b.iter(|| test::black_box(encode_coefficient(test::black_box(-100))));
+
+        b.iter(|| test::black_box(encode_coefficient(test::black_box(100))));
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_bitwriter(b: &mut Bencher) {
+        let mut output = Vec::with_capacity(65536);
+        let mut bitwriter = BitWriter::new(&mut output);
+
         b.iter(|| {
-            test::black_box(encode_coefficient(test::black_box(-100)));
-            test::black_box(encode_coefficient(test::black_box(100)))
-        })
+            let val = test::black_box(1);
+            let len = test::black_box(1);
+
+            bitwriter.write_bits(val, len).unwrap();
+        });
+
+        test::black_box(bitwriter);
+        test::black_box(output);
     }
 
     #[cfg(feature = "benchmarks")]
     #[bench]
     fn bench_encode_block(b: &mut Bencher) {
+        let mut output = Vec::with_capacity(65536);
+
+        static BLOCK: [i32; 64] = [
+            -416, 180, 100, 71, -42, 20, 20, -51, -18, -19, -182, -151, 120, 120, 120, 120, -120,
+            22, 441, 120, 660, 120, 100, 101, -123, 0, -132, 0, 0, 0, 0, -12, -121, 442, 10, 10,
+            10, 0, 0, 0, 0, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            10,
+        ];
+
+        // allocate a large buffer that we walk through so that we don't get unrealistic behavior with everything in the L1 cache
+        let mut memoryvec = Vec::new();
+        memoryvec.resize(1024 * 1024, BLOCK);
+
+        let mut numiter = 0;
+        let mut bitwriter = BitWriter::new(&mut output);
+
         b.iter(|| {
-            let mut output = Vec::with_capacity(256);
-            let mut bitwriter = BitWriter::new(&mut output);
-
-            static BLOCK: [i32; 64] = [
-                -416, 180, 100, 71, -42, 20, 20, -51, -18, -19, -182, -151, 120, 120, 120, 120,
-                -120, 22, 441, 120, 660, 120, 100, 101, -123, 0, -132, 0, 0, 0, 0, -12, -121, 442,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0,
-            ];
-
             bitwriter
                 .write_block(
-                    &test::black_box(BLOCK),
-                    0,
+                    &memoryvec[numiter % (1024 * 1024)],
+                    test::black_box(0),
                     &test::black_box(STD_LUMA_DC_HUFF_LUT),
                     &test::black_box(STD_LUMA_AC_HUFF_LUT),
                 )
                 .unwrap();
-            bitwriter.pad_byte().unwrap();
 
-            test::black_box(bitwriter);
-        })
+            numiter += 1;
+        });
+
+        bitwriter.pad_byte().unwrap();
+        drop(bitwriter);
+
+        b.bytes = output.len() as u64 / (numiter as u64);
+
+        test::black_box(output);
     }
 
     #[cfg(feature = "benchmarks")]
@@ -1170,7 +1203,10 @@ mod tests {
     fn bench_jpeg_encoder_new(b: &mut Bencher) {
         b.iter(|| {
             let mut y = vec![];
-            let _x = JpegEncoder::new(&mut y);
+            let x = JpegEncoder::new(&mut y);
+
+            test::black_box(x);
+            test::black_box(y);
         })
     }
 }

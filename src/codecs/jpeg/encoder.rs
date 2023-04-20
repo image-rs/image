@@ -777,7 +777,7 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {
     // since this is inlined, in the main AC case the compiler figures out that coefficient cannot be zero, so BSR on x86 doesn't need a branch
     if let Some(nz) = NonZeroI32::new(coefficient) {
-        let leading_zeros = nz.unsigned_abs().leading_zeros() as u8;
+        let leading_zeros = nz.abs().leading_zeros() as u8;
 
         // first shift right signed by 31 to make everything 1 if negative,
         // then shift right unsigned to make the leading bits 0

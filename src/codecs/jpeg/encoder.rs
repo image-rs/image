@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::io::{self, Write};
+use std::num::NonZeroI32;
 
 use crate::error::{
     ImageError, ImageResult, ParameterError, ParameterErrorKind, UnsupportedError,
@@ -189,6 +190,7 @@ impl<W: Write> BitWriter<W> {
         }
     }
 
+    #[inline]
     fn write_bits(&mut self, bits: u16, size: u8) -> io::Result<()> {
         if size == 0 {
             return Ok(());
@@ -216,6 +218,7 @@ impl<W: Write> BitWriter<W> {
         self.write_bits(0x7F, 7)
     }
 
+    #[inline]
     fn huffman_encode(&mut self, val: u8, table: &[(u8, u16); 256]) -> io::Result<()> {
         let (size, code) = table[val as usize];
 
@@ -765,24 +768,23 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
     }
 }
 
+#[inline]
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {
-    let mut magnitude = coefficient.unsigned_abs() as u16;
-    let mut num_bits = 0u8;
+    // since this is inlined, in the main AC case the compiler figures out that coefficient cannot be zero, so BSR on x86 doesn't need a branch
+    if let Some(nz) = NonZeroI32::new(coefficient) {
+        let leading_zeros = nz.unsigned_abs().leading_zeros() as u8;
 
-    while magnitude > 0 {
-        magnitude >>= 1;
-        num_bits += 1;
-    }
+        // first shift right signed by 31 to make everything 1 if negative,
+        // then shift right unsigned to make the leading bits 0
+        let adjustment = ((nz.get() >> 31) as u32) >> leading_zeros;
 
-    let mask = (1 << num_bits as usize) - 1;
+        let n = (nz.get() as u32).wrapping_add(adjustment) as u16; // turn v into a 2s complement of s bits
+        let s = 32 - leading_zeros;
 
-    let val = if coefficient < 0 {
-        (coefficient - 1) as u16 & mask
+        return (s, n);
     } else {
-        coefficient as u16 & mask
-    };
-
-    (num_bits, val)
+        return (0, 0);
+    }
 }
 
 #[inline]
@@ -863,8 +865,9 @@ mod tests {
     use super::super::JpegDecoder;
     use super::{
         build_frame_header, build_huffman_segment, build_jfif_header, build_quantization_segment,
-        build_scan_header, Component, JpegEncoder, PixelDensity, DCCLASS, LUMADESTINATION,
-        STD_LUMA_DC_CODE_LENGTHS, STD_LUMA_DC_VALUES,
+        build_scan_header, encode_coefficient, BitWriter, Component, JpegEncoder, PixelDensity,
+        DCCLASS, LUMADESTINATION, STD_LUMA_AC_HUFF_LUT, STD_LUMA_DC_CODE_LENGTHS,
+        STD_LUMA_DC_HUFF_LUT, STD_LUMA_DC_VALUES,
     };
 
     fn decode(encoded: &[u8]) -> Vec<u8> {
@@ -1074,6 +1077,92 @@ mod tests {
         expected.push(1);
         expected.extend_from_slice(&[0; 64]);
         assert_eq!(buf, expected)
+    }
+
+    #[test]
+    fn test_encode_coefficient() {
+        for i in -32768..=32767 {
+            let (s, n) = encode_coefficient(i);
+
+            assert_eq!(s as u32, 32 - i.unsigned_abs().leading_zeros());
+
+            let n2 = if i > 0 { i } else { i - 1 + (1 << s) } as u16;
+            assert_eq!(n, n2, "s={0}", s);
+        }
+    }
+
+    #[test]
+    fn encode_block_all_zero() {
+        let mut output = Vec::new();
+        let mut bitwriter = BitWriter::new(&mut output);
+
+        let block = [0i32; 64];
+        bitwriter
+            .write_block(&block, 0, &STD_LUMA_DC_HUFF_LUT, &STD_LUMA_AC_HUFF_LUT)
+            .unwrap();
+        bitwriter.pad_byte().unwrap();
+
+        assert_eq!(output[..], [43u8])
+    }
+
+    /// This is the sample block from the JPEG standard, there is only one canonical way to encode this
+    #[test]
+    fn encode_block_sample_block() {
+        let mut output = Vec::new();
+        let mut bitwriter = BitWriter::new(&mut output);
+
+        let block: [i32; 64] = [
+            -416, 18, 10, 7, -2, 2, 0, -1, -8, -1, -1, -1, 0, 0, 0, 0, -2, 2, 4, 0, 0, 0, 0, 0, -1,
+            0, -1, 0, 0, 0, 0, -1, -1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        bitwriter
+            .write_block(&block, 0, &STD_LUMA_DC_HUFF_LUT, &STD_LUMA_AC_HUFF_LUT)
+            .unwrap();
+        bitwriter.pad_byte().unwrap();
+
+        assert_eq!(
+            output[..],
+            [252, 95, 212, 173, 212, 93, 78, 24, 15, 48, 43, 112, 223, 135, 249, 252, 43]
+        )
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_coefficient(b: &mut Bencher) {
+        b.iter(|| {
+            test::black_box(encode_coefficient(test::black_box(-100)));
+            test::black_box(encode_coefficient(test::black_box(100)))
+        })
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_block(b: &mut Bencher) {
+        b.iter(|| {
+            let mut output = Vec::with_capacity(256);
+            let mut bitwriter = BitWriter::new(&mut output);
+
+            static BLOCK: [i32; 64] = [
+                -416, 180, 100, 71, -42, 20, 20, -51, -18, -19, -182, -151, 120, 120, 120, 120,
+                -120, 22, 441, 120, 660, 120, 100, 101, -123, 0, -132, 0, 0, 0, 0, -12, -121, 442,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0,
+            ];
+
+            bitwriter
+                .write_block(
+                    &test::black_box(BLOCK),
+                    0,
+                    &test::black_box(STD_LUMA_DC_HUFF_LUT),
+                    &test::black_box(STD_LUMA_AC_HUFF_LUT),
+                )
+                .unwrap();
+            bitwriter.pad_byte().unwrap();
+
+            test::black_box(bitwriter);
+        })
     }
 
     #[cfg(feature = "benchmarks")]

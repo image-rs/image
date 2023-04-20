@@ -810,7 +810,7 @@ where
 
     #[inline(always)]
     fn pixel_indices(&self, x: u32, y: u32) -> Option<Range<usize>> {
-        if x >= self.width || y >= self.height {
+        if x > self.width || y > self.height {
             return None;
         }
 

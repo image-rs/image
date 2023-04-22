@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::io::{self, Write};
 use std::num::NonZeroI32;
 
@@ -186,41 +187,56 @@ impl<W: Write> BitWriter<W> {
         BitWriter {
             w,
             accumulator: 0,
-            nbits: 0,
+            nbits: 32,
         }
     }
 
     #[inline]
     fn write_bits(&mut self, bits: u16, size: u8) -> io::Result<()> {
-        if size == 0 {
-            return Ok(());
-        }
+        self.nbits -= size;
+        // use wrapping_shl allow for nop for 0 bits
+        self.accumulator |= u32::from(bits).wrapping_shl(u32::from(self.nbits));
 
-        self.nbits += size;
+        // flush 16 bits at a time, since then we are guaranteed to always fit another 16 bits
+        if self.nbits <= 16 {
+            let bits_to_write = (self.accumulator >> 16) as u16;
 
-        let mut tmp_accumulator = self.accumulator | u32::from(bits) << (32 - self.nbits) as usize;
-
-        while self.nbits >= 8 {
-            let byte = tmp_accumulator >> 24;
-            self.w.write_all(&[byte as u8])?;
-
-            if byte == 0xFF {
-                // set top byte to 0 so we can avoid calling write_all twice
-                // which causes a bunch of branching and inlines to be emitted
-                tmp_accumulator &= 0x00ffffff;
+            // test to see if there are any 0xff bytes that need to be escaped, then
+            // take slow path to flush the accumulator (less than 1% of the time)
+            if (bits_to_write & 0x8080 & !bits_to_write.wrapping_add(0x0101)) != 0 {
+                return self.flush_bits_slow();
             } else {
-                self.nbits -= 8;
-                tmp_accumulator <<= 8;
+                self.w.write_all(&bits_to_write.to_be_bytes())?;
+
+                self.accumulator <<= 16;
+                self.nbits += 16;
             }
         }
 
-        self.accumulator = tmp_accumulator;
+        Ok(())
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn flush_bits_slow(&mut self) -> io::Result<()> {
+        while self.nbits <= 24 {
+            let byte = self.accumulator >> 24;
+            self.w.write_all(&[byte as u8])?;
+
+            if byte == 0xFF {
+                self.w.write_all(&[0x00])?;
+            }
+
+            self.nbits += 8;
+            self.accumulator <<= 8;
+        }
 
         Ok(())
     }
 
     fn pad_byte(&mut self) -> io::Result<()> {
-        self.write_bits(0x7F, 7)
+        self.write_bits(0x7F, 7)?;
+        self.flush_bits_slow()
     }
 
     #[inline]
@@ -234,7 +250,7 @@ impl<W: Write> BitWriter<W> {
         self.write_bits(code, size)
     }
 
-    fn write_block(
+    fn write_block_old(
         &mut self,
         block: &[i32; 64],
         prevdc: i32,
@@ -273,6 +289,72 @@ impl<W: Write> BitWriter<W> {
 
         if block[UNZIGZAG[63] as usize] == 0 {
             self.huffman_encode(0x00, actable)?;
+        }
+
+        Ok(dcval)
+    }
+
+    fn write_block(
+        &mut self,
+        block: &[i32; 64],
+        prevdc: i32,
+        dctable: &[(u8, u16); 256],
+        actable: &[(u8, u16); 256],
+    ) -> io::Result<i32> {
+        // Differential DC encoding
+        let dcval = block[0];
+        let diff = dcval - prevdc;
+        let (size, value) = encode_coefficient(diff);
+
+        self.huffman_encode(size, dctable)?;
+        self.write_bits(value, size)?;
+
+        // Figure F.2
+        let mut bpos = 1;
+        loop {
+            let mut tmp = block[UNZIGZAG[bpos] as usize];
+            bpos += 1;
+
+            let size;
+            let value;
+            let symbol;
+
+            if tmp == 0 {
+                let mut zero_run = 0;
+
+                loop {
+                    if bpos == 64 {
+                        self.huffman_encode(0x00, actable)?;
+                        return Ok(dcval);
+                    }
+
+                    tmp = block[UNZIGZAG[bpos] as usize];
+                    bpos += 1;
+                    zero_run += 1;
+
+                    if tmp != 0 {
+                        while zero_run > 15 {
+                            self.huffman_encode(0xF0, actable)?;
+                            zero_run -= 16;
+                        }
+
+                        (size, value) = encode_coefficient(tmp as i32);
+                        symbol = (zero_run << 4) | size;
+
+                        break;
+                    }
+                }
+            } else {
+                (size, value) = encode_coefficient(tmp as i32);
+                symbol = size;
+            }
+
+            self.huffman_encode(symbol, actable)?;
+            self.write_bits(value, size)?;
+
+            if bpos == 64 {
+                break;
+            }
         }
 
         Ok(dcval)
@@ -1097,6 +1179,33 @@ mod tests {
     }
 
     #[test]
+    fn test_bitwriter() {
+        let mut output = Vec::new();
+        let mut bitwriter = BitWriter::new(&mut output);
+
+        bitwriter.write_bits(0, 0).unwrap();
+        bitwriter.write_bits(1, 1).unwrap();
+        bitwriter.write_bits(0, 1).unwrap();
+
+        for i in 1..15 {
+            // test bit pattern 10, 110, 1110, 11110, etc
+            bitwriter
+                .write_bits(((1u32 << i) - 2) as u16, i + 1)
+                .unwrap();
+        }
+
+        bitwriter.pad_byte().unwrap();
+
+        assert_eq!(
+            output[..],
+            [
+                132, 206, 121, 243, 243, 249, 254, 127, 207, 252, 255, 0, 231, 255, 0, 159, 255, 0,
+                127
+            ]
+        )
+    }
+
+    #[test]
     fn encode_block_all_zero() {
         let mut output = Vec::new();
         let mut bitwriter = BitWriter::new(&mut output);
@@ -1180,6 +1289,46 @@ mod tests {
         b.iter(|| {
             bitwriter
                 .write_block(
+                    &memoryvec[numiter % (1024 * 1024)],
+                    test::black_box(0),
+                    &test::black_box(STD_LUMA_DC_HUFF_LUT),
+                    &test::black_box(STD_LUMA_AC_HUFF_LUT),
+                )
+                .unwrap();
+
+            numiter += 1;
+        });
+
+        bitwriter.pad_byte().unwrap();
+        drop(bitwriter);
+
+        b.bytes = output.len() as u64 / (numiter as u64);
+
+        test::black_box(output);
+    }
+
+    #[cfg(feature = "benchmarks")]
+    #[bench]
+    fn bench_encode_block_old(b: &mut Bencher) {
+        let mut output = Vec::with_capacity(65536);
+
+        static BLOCK: [i32; 64] = [
+            -416, 180, 100, 71, -42, 20, 20, -51, -18, -19, -182, -151, 120, 120, 120, 120, -120,
+            22, 441, 120, 660, 120, 100, 101, -123, 0, -132, 0, 0, 0, 0, -12, -121, 442, 10, 10,
+            10, 0, 0, 0, 0, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            10,
+        ];
+
+        // allocate a large buffer that we walk through so that we don't get unrealistic behavior with everything in the L1 cache
+        let mut memoryvec = Vec::new();
+        memoryvec.resize(1024 * 1024, BLOCK);
+
+        let mut numiter = 0;
+        let mut bitwriter = BitWriter::new(&mut output);
+
+        b.iter(|| {
+            bitwriter
+                .write_block_old(
                     &memoryvec[numiter % (1024 * 1024)],
                     test::black_box(0),
                     &test::black_box(STD_LUMA_DC_HUFF_LUT),

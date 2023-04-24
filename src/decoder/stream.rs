@@ -1121,6 +1121,7 @@ impl StreamingDecoder {
                 }
                 buf = &buf[consumed_bytes..];
             }
+            inflater.finish_compressed_chunks(&mut profile)?;
 
             info.icc_profile = Some(Cow::Owned(profile));
             Ok(Decoded::Nothing)

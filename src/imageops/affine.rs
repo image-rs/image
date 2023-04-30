@@ -63,8 +63,7 @@ where
 
     for y in 0..h0 {
         for x in 0..w0 {
-            let p = image.get_pixel(x, y);
-            destination.put_pixel(h0 - y - 1, x, p);
+            image.pixel(x, y).map(|p| destination[(h0 - y - 1, x)] = *p);
         }
     }
     Ok(())
@@ -89,8 +88,9 @@ where
 
     for y in 0..h0 {
         for x in 0..w0 {
-            let p = image.get_pixel(x, y);
-            destination.put_pixel(w0 - x - 1, h0 - y - 1, p);
+            image
+                .pixel(x, y)
+                .map(|p| destination[(w0 - x - 1, h0 - y - 1)] = *p);
         }
     }
     Ok(())
@@ -115,8 +115,7 @@ where
 
     for y in 0..h0 {
         for x in 0..w0 {
-            let p = image.get_pixel(x, y);
-            destination.put_pixel(y, w0 - x - 1, p);
+            image.pixel(x, y).map(|p| destination[(y, w0 - x - 1)] = *p);
         }
     }
     Ok(())
@@ -167,8 +166,7 @@ where
 
     for y in 0..h0 {
         for x in 0..w0 {
-            let p = image.get_pixel(x, y);
-            destination.put_pixel(w0 - x - 1, y, p);
+            image.pixel(x, y).map(|p| destination[(w0 - x - 1, y)] = *p);
         }
     }
     Ok(())
@@ -193,8 +191,7 @@ where
 
     for y in 0..h0 {
         for x in 0..w0 {
-            let p = image.get_pixel(x, y);
-            destination.put_pixel(x, h0 - 1 - y, p);
+            image.pixel(x, y).map(|p| destination[(x, h0 - 1 - y)] = *p);
         }
     }
     Ok(())
@@ -206,14 +203,14 @@ pub fn rotate180_in_place<I: GenericImage>(image: &mut I) {
 
     for y in 0..height / 2 {
         for x in 0..width {
-            let p = image.get_pixel(x, y);
-
             let x2 = width - x - 1;
             let y2 = height - y - 1;
 
-            let p2 = image.get_pixel(x2, y2);
-            image.put_pixel(x, y, p2);
-            image.put_pixel(x2, y2, p);
+            // TODO: A `swap` function could be useful here and below
+            let p = *image.pixel(x, y).unwrap();
+            let p2 = *image.pixel(x2, y2).unwrap();
+            image.pixel_mut(x, y).map(|p| *p = p2);
+            image.pixel_mut(x2, y2).map(|p2| *p2 = p);
         }
     }
 
@@ -221,12 +218,12 @@ pub fn rotate180_in_place<I: GenericImage>(image: &mut I) {
         let middle = height / 2;
 
         for x in 0..width / 2 {
-            let p = image.get_pixel(x, middle);
             let x2 = width - x - 1;
 
-            let p2 = image.get_pixel(x2, middle);
-            image.put_pixel(x, middle, p2);
-            image.put_pixel(x2, middle, p);
+            let p = *image.pixel(x, middle).unwrap();
+            let p2 = *image.pixel(x2, middle).unwrap();
+            image.pixel_mut(x, middle).map(|p| *p = p2);
+            image.pixel_mut(x2, middle).map(|p2| *p2 = p);
         }
     }
 }
@@ -238,10 +235,11 @@ pub fn flip_horizontal_in_place<I: GenericImage>(image: &mut I) {
     for y in 0..height {
         for x in 0..width / 2 {
             let x2 = width - x - 1;
-            let p2 = image.get_pixel(x2, y);
-            let p = image.get_pixel(x, y);
-            image.put_pixel(x2, y, p);
-            image.put_pixel(x, y, p2);
+
+            let p2 = *image.pixel(x2, y).unwrap();
+            let p = *image.pixel(x, y).unwrap();
+            image.pixel_mut(x2, y).map(|p2| *p2 = p);
+            image.pixel_mut(x, y).map(|p| *p = p2);
         }
     }
 }
@@ -253,10 +251,11 @@ pub fn flip_vertical_in_place<I: GenericImage>(image: &mut I) {
     for y in 0..height / 2 {
         for x in 0..width {
             let y2 = height - y - 1;
-            let p2 = image.get_pixel(x, y2);
-            let p = image.get_pixel(x, y);
-            image.put_pixel(x, y2, p);
-            image.put_pixel(x, y, p2);
+
+            let p2 = *image.pixel(x, y2).unwrap();
+            let p = *image.pixel(x, y).unwrap();
+            image.pixel_mut(x, y2).map(|p2| *p2 = p);
+            image.pixel_mut(x, y).map(|p| *p = p2);
         }
     }
 }

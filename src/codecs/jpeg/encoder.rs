@@ -795,9 +795,11 @@ fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
 #[inline]
 fn pixel_at_or_near<I: GenericImageView>(source: &I, x: u32, y: u32) -> I::Pixel {
     if source.in_bounds(x, y) {
-        source.get_pixel(x, y)
+        *source.pixel(x, y).unwrap()
     } else {
-        source.get_pixel(x.min(source.width() - 1), y.min(source.height() - 1))
+        *source
+            .pixel(x.min(source.width() - 1), y.min(source.height() - 1))
+            .unwrap()
     }
 }
 

@@ -929,6 +929,20 @@ pub trait GenericImageView {
         self.get_pixel(x, y)
     }
 
+    /// Returns a reference to the pixel located at (x, y). Indexed from top left.
+    fn pixel(&self, x: u32, y: u32) -> Option<&Self::Pixel>;
+
+    /// Returns a reference to the pixel located at (x, y). Indexed from top left.
+    ///
+    /// This function can be implemented in a way that ignores bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: #method.in_bounds
+    unsafe fn pixel_unchecked(&self, x: u32, y: u32) -> &Self::Pixel;
+
     /// Returns an Iterator over the pixels of this image.
     /// The iterator yields the coordinates of each pixel
     /// along with their value
@@ -962,29 +976,6 @@ pub trait GenericImageView {
 
 /// A trait for manipulating images.
 pub trait GenericImage: GenericImageView {
-    /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// Panics for dynamic images (this method is deprecated and will be removed).
-    ///
-    /// ## Known issues
-    ///
-    /// This requires the buffer to contain a unique set of continuous channels in the exact order
-    /// and byte representation that the pixel type requires. This is somewhat restrictive.
-    ///
-    /// TODO: Maybe use some kind of entry API? this would allow pixel type conversion on the fly
-    /// while still doing only one array lookup:
-    ///
-    /// ```ignore
-    /// let px = image.pixel_entry_at(x,y);
-    /// px.set_from_rgba(rgba)
-    /// ```
-    #[deprecated(since = "0.24.0", note = "Use `get_pixel` and `put_pixel` instead.")]
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
-
     /// Put a pixel at location (x, y). Indexed from top left.
     ///
     /// # Panics
@@ -1004,12 +995,19 @@ pub trait GenericImage: GenericImageView {
         self.put_pixel(x, y, pixel);
     }
 
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    #[deprecated(
-        since = "0.24.0",
-        note = "Use iterator `pixels_mut` to blend the pixels directly"
-    )]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel);
+    /// Returns a mutable reference to the pixel at location (x, y). Indexed from top left.
+    fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel>;
+
+    /// Returns a mutable reference to the pixel at location (x, y). Indexed from top left.
+    ///
+    /// This function can be implemented in a way that ignores bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
+    unsafe fn pixel_mut_unchecked(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
 
     /// Copies all of the pixels from another image into this image.
     ///
@@ -1300,6 +1298,16 @@ where
     fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
+
+    fn pixel(&self, x: u32, y: u32) -> Option<&Self::Pixel> {
+        self.image.pixel(x + self.xoffset, y + self.yoffset)
+    }
+
+    unsafe fn pixel_unchecked(&self, x: u32, y: u32) -> &Self::Pixel {
+        self.image
+            .pixel(x + self.xoffset, y + self.yoffset)
+            .unwrap()
+    }
 }
 
 #[allow(deprecated)]
@@ -1308,19 +1316,17 @@ where
     I: DerefMut,
     I::Target: GenericImage + Sized,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
-        self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.image
             .put_pixel(x + self.xoffset, y + self.yoffset, pixel)
     }
 
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        self.image
-            .blend_pixel(x + self.xoffset, y + self.yoffset, pixel)
+    fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel> {
+        self.image.pixel_mut(x + self.xoffset, y + self.yoffset)
+    }
+
+    unsafe fn pixel_mut_unchecked(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+        self.pixel_mut(x, y).unwrap()
     }
 }
 
@@ -1341,20 +1347,23 @@ mod tests {
     #[allow(deprecated)]
     /// Test that alpha blending works as expected
     fn test_image_alpha_blending() {
+        use crate::Pixel;
+
         let mut target = ImageBuffer::new(1, 1);
-        target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
-        target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
+        let pixel = target.pixel_mut(0, 0).unwrap();
+        *pixel = Rgba([255u8, 0, 0, 255]);
+        assert!(*pixel == Rgba([255, 0, 0, 255]));
+        pixel.blend(&Rgba([0, 255, 0, 255]));
+        assert!(*pixel == Rgba([0, 255, 0, 255]));
 
         // Blending an alpha channel onto a solid background
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
+        pixel.blend(&Rgba([255, 0, 0, 127]));
+        assert!(*pixel == Rgba([127, 127, 0, 255]));
 
         // Blending two alpha channels
-        target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
-        target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+        *pixel = Rgba([0, 255, 0, 127]);
+        pixel.blend(&Rgba([255, 0, 0, 127]));
+        assert!(*pixel == Rgba([169, 85, 0, 190]));
     }
 
     #[test]
@@ -1393,16 +1402,16 @@ mod tests {
         {
             let mut sub1 = source.sub_image(0, 0, 2, 2);
             let mut sub2 = sub1.sub_image(1, 1, 1, 1);
-            sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
+            *sub2.pixel_mut(0, 0).unwrap() = Rgba([0, 0, 0, 0]);
         }
 
         assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
 
         let view1 = source.view(0, 0, 2, 2);
-        assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
+        assert_eq!(source[(1, 1)], *view1.pixel(1, 1).unwrap());
 
         let view2 = view1.view(1, 1, 1, 1);
-        assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+        assert_eq!(source[(1, 1)], *view2.pixel(0, 0).unwrap());
     }
 
     #[test]

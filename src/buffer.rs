@@ -1162,6 +1162,16 @@ where
         let indices = self.pixel_indices_unchecked(x, y);
         *<P as Pixel>::from_slice(self.data.get_unchecked(indices))
     }
+
+    fn pixel(&self, x: u32, y: u32) -> Option<&P> {
+        self.get_pixel_checked(x, y)
+    }
+
+    #[inline(always)]
+    unsafe fn pixel_unchecked(&self, x: u32, y: u32) -> &P {
+        let indices = self.pixel_indices_unchecked(x, y);
+        <P as Pixel>::from_slice(self.data.get_unchecked(indices))
+    }
 }
 
 impl<P, Container> GenericImage for ImageBuffer<P, Container>
@@ -1169,10 +1179,6 @@ where
     P: Pixel,
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        self.get_pixel_mut(x, y)
-    }
-
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }
@@ -1185,11 +1191,14 @@ where
         *p = pixel
     }
 
-    /// Put a pixel at location (x, y), taking into account alpha channels
-    ///
-    /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
-    fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
-        self.get_pixel_mut(x, y).blend(&p)
+    fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
+        self.get_pixel_mut_checked(x, y)
+    }
+
+    #[inline(always)]
+    unsafe fn pixel_mut_unchecked(&mut self, x: u32, y: u32) -> &mut P {
+        let indices = self.pixel_indices_unchecked(x, y);
+        <P as Pixel>::from_slice_mut(self.data.get_unchecked_mut(indices))
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {

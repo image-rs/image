@@ -354,10 +354,8 @@ where
             let mut t = (0.0, 0.0, 0.0, 0.0);
 
             for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(x, left + i as u32);
-
                 #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
+                let (k1, k2, k3, k4) = image.pixel(x, left + i as u32).unwrap().channels4();
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
                     NumCast::from(k2).unwrap(),
@@ -375,7 +373,7 @@ where
             // This is not necessarily Rgba.
             let t = Pixel::from_channels(t.0, t.1, t.2, t.3);
 
-            out.put_pixel(x, outy, t);
+            out[(x, outy)] = t;
         }
     }
 
@@ -517,8 +515,7 @@ where
 
     for y in bottom..top {
         for x in left..right {
-            let k = image.get_pixel(x, y);
-            sum.add_pixel(k);
+            image.pixel(x, y).map(|k| sum.add_pixel(*k));
         }
     }
 
@@ -550,11 +547,8 @@ where
     let mut sum_left = ThumbnailSum::zeroed();
     let mut sum_right = ThumbnailSum::zeroed();
     for x in bottom..top {
-        let k_left = image.get_pixel(left, x);
-        sum_left.add_pixel(k_left);
-
-        let k_right = image.get_pixel(left + 1, x);
-        sum_right.add_pixel(k_right);
+        image.pixel(left, x).map(|l| sum_left.add_pixel(*l));
+        image.pixel(left + 1, x).map(|r| sum_right.add_pixel(*r));
     }
 
     // Now we approximate: left/n*(1-fract) + right/n*fract
@@ -594,11 +588,8 @@ where
     let mut sum_bot = ThumbnailSum::zeroed();
     let mut sum_top = ThumbnailSum::zeroed();
     for x in left..right {
-        let k_bot = image.get_pixel(x, bottom);
-        sum_bot.add_pixel(k_bot);
-
-        let k_top = image.get_pixel(x, bottom + 1);
-        sum_top.add_pixel(k_top);
+        image.pixel(x, bottom).map(|b| sum_bot.add_pixel(*b));
+        image.pixel(x, bottom + 1).map(|t| sum_top.add_pixel(*t));
     }
 
     // Now we approximate: bot/n*fract + top/n*(1-fract)
@@ -632,13 +623,13 @@ where
     S: Primitive + Enlargeable,
 {
     #[allow(deprecated)]
-    let k_bl = image.get_pixel(left, bottom).channels4();
+    let k_bl = image.pixel(left, bottom).unwrap().channels4();
     #[allow(deprecated)]
-    let k_tl = image.get_pixel(left, bottom + 1).channels4();
+    let k_tl = image.pixel(left, bottom + 1).unwrap().channels4();
     #[allow(deprecated)]
-    let k_br = image.get_pixel(left + 1, bottom).channels4();
+    let k_br = image.pixel(left + 1, bottom).unwrap().channels4();
     #[allow(deprecated)]
-    let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
+    let k_tr = image.pixel(left + 1, bottom + 1).unwrap().channels4();
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
@@ -712,10 +703,8 @@ where
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
-                let p = image.get_pixel(x0 as u32, y0 as u32);
-
                 #[allow(deprecated)]
-                let (k1, k2, k3, k4) = p.channels4();
+                let (k1, k2, k3, k4) = image.pixel(x0 as u32, y0 as u32).unwrap().channels4();
 
                 let vec: (f32, f32, f32, f32) = (
                     NumCast::from(k1).unwrap(),
@@ -839,7 +828,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let a = image.get_pixel(x, y);
+            let a = image.pixel(x, y).unwrap();
             let b = tmp.get_pixel_mut(x, y);
 
             let p = a.map2(b, |c, d| {

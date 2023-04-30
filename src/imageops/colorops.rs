@@ -73,10 +73,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 
     for y in 0..height {
         for x in 0..width {
-            let mut p = image.get_pixel(x, y);
-            p.invert();
-
-            image.put_pixel(x, y, p);
+            image.pixel_mut(x, y).map(|p| p.invert());
         }
     }
 }
@@ -134,16 +131,15 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
-                let c: f32 = NumCast::from(b).unwrap();
+            if let Some(p) = image.pixel_mut(x, y) {
+                *p = p.map(|b| {
+                    let c: f32 = NumCast::from(b).unwrap();
+                    let d = ((c / max - 0.5) * percent + 0.5) * max;
+                    let e = clamp(d, 0.0, max);
 
-                let d = ((c / max - 0.5) * percent + 0.5) * max;
-                let e = clamp(d, 0.0, max);
-
-                NumCast::from(e).unwrap()
-            });
-
-            image.put_pixel(x, y, f);
+                    NumCast::from(e).unwrap()
+                });
+            }
         }
     }
 }
@@ -198,17 +194,17 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
-                |b| {
-                    let c: i32 = NumCast::from(b).unwrap();
-                    let d = clamp(c + value, 0, max);
+            if let Some(p) = image.pixel_mut(x, y) {
+                *p = p.map_with_alpha(
+                    |b| {
+                        let c: i32 = NumCast::from(b).unwrap();
+                        let d = clamp(c + value, 0, max);
 
-                    NumCast::from(d).unwrap()
-                },
-                |alpha| alpha,
-            );
-
-            image.put_pixel(x, y, e);
+                        NumCast::from(d).unwrap()
+                    },
+                    |alpha| alpha,
+                );
+            }
         }
     }
 }
@@ -247,7 +243,7 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
     for (x, y, pixel) in out.enumerate_pixels_mut() {
-        let p = image.get_pixel(x, y);
+        let p = image.pixel(x, y).unwrap();
 
         #[allow(deprecated)]
         let (k1, k2, k3, k4) = p.channels4();
@@ -313,8 +309,7 @@ where
     // TODO find a way to use pixels?
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-
+            let pixel = image.pixel_mut(x, y).unwrap();
             #[allow(deprecated)]
             let (k1, k2, k3, k4) = pixel.channels4();
 
@@ -342,7 +337,7 @@ where
                 NumCast::from(clamp(vec.3, 0.0, max)).unwrap(),
             );
 
-            image.put_pixel(x, y, outpixel);
+            *pixel = outpixel;
         }
     }
 }

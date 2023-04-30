@@ -226,11 +226,11 @@ where
 
     for y in 0..range_height {
         for x in 0..range_width {
-            let p = top.get_pixel(origin_top_x + x, origin_top_y + y);
-            let mut bottom_pixel = bottom.get_pixel(origin_bottom_x + x, origin_bottom_y + y);
-            bottom_pixel.blend(&p);
-
-            bottom.put_pixel(origin_bottom_x + x, origin_bottom_y + y, bottom_pixel);
+            if let Some(p) = top.pixel(origin_top_x + x, origin_top_y + y) {
+                bottom
+                    .pixel_mut(origin_bottom_x + x, origin_bottom_y + y)
+                    .map(|bottom_pixel| bottom_pixel.blend(&p));
+            }
         }
     }
 }
@@ -287,7 +287,7 @@ where
         });
 
         for x in 0..img.width() {
-            img.put_pixel(x, y, pixel);
+            img.pixel_mut(x, y).map(|p| *p = pixel);
         }
     }
 }
@@ -320,7 +320,7 @@ where
         });
 
         for y in 0..img.height() {
-            img.put_pixel(x, y, pixel);
+            img.pixel_mut(x, y).map(|p| *p = pixel);
         }
     }
 }
@@ -340,8 +340,11 @@ where
 
     for y in 0..range_height {
         for x in 0..range_width {
-            let p = top.get_pixel(origin_top_x + x, origin_top_y + y);
-            bottom.put_pixel(origin_bottom_x + x, origin_bottom_y + y, p);
+            if let Some(p) = top.pixel(origin_top_x + x, origin_top_y + y) {
+                bottom
+                    .pixel_mut(origin_bottom_x + x, origin_bottom_y + y)
+                    .map(|bot| *bot = *p);
+            }
         }
     }
 }

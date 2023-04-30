@@ -1418,6 +1418,26 @@ where
 
         *P::from_slice(&buffer[..channels])
     }
+
+    fn pixel(&self, x: u32, y: u32) -> Option<&Self::Pixel> {
+        if !self.inner.in_bounds(0, x, y) {
+            return None;
+        }
+
+        let base_index = self.inner.in_bounds_index(0, x, y);
+        let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
+        let pixel_range = base_index..base_index + channel_count;
+
+        self.inner
+            .samples
+            .as_ref()
+            .get(pixel_range)
+            .map(|p| P::from_slice(p))
+    }
+
+    unsafe fn pixel_unchecked(&self, x: u32, y: u32) -> &Self::Pixel {
+        self.pixel(x, y).unwrap()
+    }
 }
 
 impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
@@ -1461,13 +1481,33 @@ where
 
         *P::from_slice(&buffer[..channels])
     }
+
+    fn pixel(&self, x: u32, y: u32) -> Option<&Self::Pixel> {
+        if !self.inner.in_bounds(0, x, y) {
+            return None;
+        }
+
+        let base_index = self.inner.in_bounds_index(0, x, y);
+        let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
+        let pixel_range = base_index..base_index + channel_count;
+
+        self.inner
+            .samples
+            .as_ref()
+            .get(pixel_range)
+            .map(|p| P::from_slice(p))
+    }
+
+    unsafe fn pixel_unchecked(&self, x: u32, y: u32) -> &Self::Pixel {
+        self.pixel(x, y).unwrap()
+    }
 }
 
 impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 where
     Buffer: AsMut<[P::Subpixel]> + AsRef<[P::Subpixel]>,
 {
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         if !self.inner.in_bounds(0, x, y) {
             panic_pixel_out_of_bounds((x, y), self.dimensions())
         }
@@ -1475,17 +1515,27 @@ where
         let base_index = self.inner.in_bounds_index(0, x, y);
         let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
-        P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
+        *P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range]) = pixel;
     }
 
-    #[allow(deprecated)]
-    fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        *self.get_pixel_mut(x, y) = pixel;
+    fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel> {
+        if !self.inner.in_bounds(0, x, y) {
+            return None;
+        }
+
+        let base_index = self.inner.in_bounds_index(0, x, y);
+        let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
+        let pixel_range = base_index..base_index + channel_count;
+
+        self.inner
+            .samples
+            .as_mut()
+            .get_mut(pixel_range)
+            .map(|p| P::from_slice_mut(p))
     }
 
-    #[allow(deprecated)]
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        self.get_pixel_mut(x, y).blend(&pixel);
+    unsafe fn pixel_mut_unchecked(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+        self.pixel_mut(x, y).unwrap()
     }
 }
 
@@ -1642,7 +1692,7 @@ mod tests {
             assert_eq!(view.dimensions(), (3, 3));
             #[allow(deprecated)]
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as u16, 2 * i as u16 + 1]);
+                *view.pixel_mut(i % 3, i / 3).unwrap() = LumaA([2 * i as u16, 2 * i as u16 + 1]);
             }
         }
 

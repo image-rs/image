@@ -966,6 +966,16 @@ impl GenericImageView for DynamicImage {
     fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
         dynamic_map!(*self, |ref p| p.get_pixel(x, y).to_rgba().into_color())
     }
+
+    /// Do not use. This function is unimplemented.
+    fn pixel(&self, _: u32, _: u32) -> Option<&Self::Pixel> {
+        unimplemented!()
+    }
+
+    /// Do not use. This function is unimplemented.
+    unsafe fn pixel_unchecked(&self, _: u32, _: u32) -> &Self::Pixel {
+        unimplemented!()
+    }
 }
 
 #[allow(deprecated)]
@@ -987,29 +997,13 @@ impl GenericImage for DynamicImage {
         }
     }
 
-    fn blend_pixel(&mut self, x: u32, y: u32, pixel: color::Rgba<u8>) {
-        match *self {
-            DynamicImage::ImageLuma8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma()),
-            DynamicImage::ImageLumaA8(ref mut p) => p.blend_pixel(x, y, pixel.to_luma_alpha()),
-            DynamicImage::ImageRgb8(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb()),
-            DynamicImage::ImageRgba8(ref mut p) => p.blend_pixel(x, y, pixel),
-            DynamicImage::ImageLuma16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma().into_color())
-            }
-            DynamicImage::ImageLumaA16(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_luma_alpha().into_color())
-            }
-            DynamicImage::ImageRgb16(ref mut p) => p.blend_pixel(x, y, pixel.to_rgb().into_color()),
-            DynamicImage::ImageRgba16(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-            DynamicImage::ImageRgb32F(ref mut p) => {
-                p.blend_pixel(x, y, pixel.to_rgb().into_color())
-            }
-            DynamicImage::ImageRgba32F(ref mut p) => p.blend_pixel(x, y, pixel.into_color()),
-        }
+    /// Do not use. This function is unimplemented.
+    fn pixel_mut(&mut self, _: u32, _: u32) -> Option<&mut Self::Pixel> {
+        unimplemented!()
     }
 
-    /// Do not use is function: It is unimplemented!
-    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
+    /// Do not use. This function is unimplemented.
+    unsafe fn pixel_mut_unchecked(&mut self, _: u32, _: u32) -> &mut Self::Pixel {
         unimplemented!()
     }
 }

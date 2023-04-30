@@ -1653,7 +1653,7 @@ mod test {
 #[cfg(feature = "benchmarks")]
 mod benchmarks {
     use super::{ConvertBuffer, GrayImage, ImageBuffer, Pixel, RgbImage};
-    use crate::GenericImage;
+    use crate::GenericImageView;
     use test;
 
     #[bench]

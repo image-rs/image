@@ -392,6 +392,109 @@ where
     }
 }
 
+/// Enumerate the pixels of an image per blocks.
+pub struct EnumeratePixelsBlocks<'a, P: Pixel + 'a>
+where
+    <P as Pixel>::Subpixel: 'a,
+{
+    pixels: Pixels<'a, P>,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    block: u32,
+    block_min_x: u32,
+    block_min_y: u32,
+    block_max_x: u32,
+    block_max_y: u32,
+}
+
+impl<'a, P: Pixel + 'a> Iterator for EnumeratePixelsBlocks<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    type Item = (u32, u32, &'a P);
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<(u32, u32, &'a P)> {
+        // TODO: find a way to increment and compare in the if.
+        // I tried the following function without any success.
+        //
+        // let increment = |v: &mut u32, n: u32| -> u32 { *v=*v+n; *v };
+        //
+        // It is heartbreaking not to have something similar to: x+=1 < n,
+        // because it duplicates the evaluated expression in each if statement.
+
+        if self.x+1 < self.block_max_x {
+            self.x += 1;
+        }
+        else if self.y+1 < self.block_max_y {
+            self.x = self.block_min_x;
+            self.y += 1;
+        }
+        else if self.block_min_x + self.block < self.width {
+            self.block_min_x += self.block;
+            self.x = self.block_min_x;
+            self.y = self.block_min_y;
+            self.block_max_x = std::cmp::min(self.width, self.block_min_x+self.block);
+        }
+        else if self.block_min_y + self.block < self.height {
+            self.block_min_y += self.block;
+            self.block_min_x = 0;
+            self.x = self.block_min_x;
+            self.y = self.block_min_y;
+            self.block_max_x = std::cmp::min(self.width, self.block);
+            self.block_max_y = std::cmp::min(self.height, self.block_min_y+self.block);
+        }
+        let (x, y) = (self.x, self.y);
+        self.pixels.next().map(|p| (x, y, p))
+    }
+
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a, P: Pixel + 'a> ExactSizeIterator for EnumeratePixelsBlocks<'a, P>
+where
+    P::Subpixel: 'a,
+{
+    fn len(&self) -> usize {
+        self.pixels.len()
+    }
+}
+
+impl<P: Pixel> Clone for EnumeratePixelsBlocks<'_, P> {
+    fn clone(&self) -> Self {
+        EnumeratePixelsBlocks {
+            pixels: self.pixels.clone(),
+            ..*self
+        }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumeratePixelsBlocks<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("EnumeratePixelsBlocks")
+            .field("pixels", &self.pixels)
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("block", &self.block)
+            .field("block_min_x", &self.block_min_x)
+            .field("block_min_y", &self.block_min_y)
+            .field("block_max_x", &self.block_max_x)
+            .field("block_max_y", &self.block_max_y)
+            .finish()
+    }
+}
+
 /// Enumerate the rows of an image.
 pub struct EnumerateRows<'a, P: Pixel + 'a>
 where
@@ -744,6 +847,26 @@ where
             x: 0,
             y: 0,
             width: self.width,
+        }
+    }
+
+    /// Enumerates over the pixels of the image per block of
+    /// specified size.
+    /// The iterator yields the coordinates of each pixel
+    /// along with a reference to them.
+    /// The iteration starts from the top left block and .
+    pub fn enumerate_pixels_blocks(&self, block: u32) -> EnumeratePixelsBlocks<P> {
+        EnumeratePixelsBlocks {
+            pixels: self.pixels(),
+            x: 0,
+            y: 0,
+            width: self.width,
+            height: self.height,
+            block: block,
+            block_min_x: 0,
+            block_min_y: 0,
+            block_max_x: std::cmp::min(self.width, block),
+            block_max_y: std::cmp::min(self.height, block),
         }
     }
 

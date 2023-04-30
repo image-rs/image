@@ -614,7 +614,7 @@ where
 /// Create a simple canvas and paint a small cross.
 ///
 /// ```
-/// use image::{RgbImage, Rgb};
+/// use image::{GenericImage, RgbImage, Rgb};
 ///
 /// let mut img = RgbImage::new(32, 32);
 ///
@@ -1414,6 +1414,26 @@ mod test {
 
         assert_eq!(a.pixel(1, 0), Some(&WHITE));
         assert_eq!(*a.pixel(1, 0).unwrap(), a[(1, 0)]);
+    }
+
+    #[test]
+    fn pixel_i64() {
+        use crate::{GenericImage, GenericImageView};
+
+        let mut image = RgbImage::from_raw(3, 3, vec![255; 27]).unwrap();
+        assert!(image.pixel_i64(0, 3).is_none());
+        assert!(image.pixel_i64(3, 0).is_none());
+        assert!(image.pixel_i64(-1, 0).is_none());
+        assert!(image.pixel_i64(0, -1).is_none());
+        assert!(image.pixel_i64(-32, -32).is_none());
+        assert!(image.pixel_mut_i64(0, 3).is_none());
+        assert!(image.pixel_mut_i64(3, 0).is_none());
+        assert!(image.pixel_mut_i64(-1, 0).is_none());
+        assert!(image.pixel_mut_i64(0, -1).is_none());
+        assert!(image.pixel_mut_i64(-32, -32).is_none());
+        assert_eq!(image.pixel_i64(0, 2).unwrap(), &Rgb([255; 3]));
+        *image.pixel_mut_i64(0, 2).unwrap() = Rgb([0; 3]);
+        assert_eq!(image.pixel_i64(0, 2).unwrap(), &Rgb([0; 3]));
     }
 
     #[test]

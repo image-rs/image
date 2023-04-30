@@ -932,6 +932,14 @@ pub trait GenericImageView {
     /// Returns a reference to the pixel located at (x, y). Indexed from top left.
     fn pixel(&self, x: u32, y: u32) -> Option<&Self::Pixel>;
 
+    /// Returns a reference to the pixel located at (x, y) using signed integer
+    /// coordinates. Indexed from top left.
+    fn pixel_i64(&self, x: i64, y: i64) -> Option<&Self::Pixel> {
+        let x = u32::try_from(x).ok()?;
+        let y = u32::try_from(y).ok()?;
+        self.pixel(x, y)
+    }
+
     /// Returns a reference to the pixel located at (x, y). Indexed from top left.
     ///
     /// This function can be implemented in a way that ignores bounds checking.
@@ -997,6 +1005,14 @@ pub trait GenericImage: GenericImageView {
 
     /// Returns a mutable reference to the pixel at location (x, y). Indexed from top left.
     fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel>;
+
+    /// Returns a mutable reference to the pixel at location (x, y) using signed integer
+    /// coordinates. Indexed from top left.
+    fn pixel_mut_i64(&mut self, x: i64, y: i64) -> Option<&mut Self::Pixel> {
+        let x = u32::try_from(x).ok()?;
+        let y = u32::try_from(y).ok()?;
+        self.pixel_mut(x, y)
+    }
 
     /// Returns a mutable reference to the pixel at location (x, y). Indexed from top left.
     ///

@@ -399,11 +399,11 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 0, 0);
-        assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(16, 0) == Rgb([0u8, 0, 0]));
-        assert!(*target.get_pixel(0, 15) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(0, 16) == Rgb([0u8, 0, 0]));
+        assert!(target[(0, 0)] == Rgb([255u8, 0, 0]));
+        assert!(target[(15, 0)] == Rgb([255u8, 0, 0]));
+        assert!(target[(16, 0)] == Rgb([0u8, 0, 0]));
+        assert!(target[(0, 15)] == Rgb([255u8, 0, 0]));
+        assert!(target[(0, 16)] == Rgb([0u8, 0, 0]));
     }
 
     #[test]
@@ -412,9 +412,9 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 1, 1);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
+        assert!(target[(0, 0)] == Rgb([0, 0, 0]));
+        assert!(target[(1, 1)] == Rgb([255u8, 0, 0]));
+        assert!(target[(31, 31)] == Rgb([255u8, 0, 0]));
     }
 
     #[test]
@@ -424,9 +424,9 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 33, 33);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([0, 0, 0]));
+        assert!(target[(0, 0)] == Rgb([0, 0, 0]));
+        assert!(target[(1, 1)] == Rgb([0, 0, 0]));
+        assert!(target[(31, 31)] == Rgb([0, 0, 0]));
     }
 
     #[test]
@@ -441,9 +441,9 @@ mod tests {
             i64::from(u32::max_value() - 31),
             i64::from(u32::max_value() - 31),
         );
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
+        assert!(target[(0, 0)] == Rgb([0, 0, 0]));
+        assert!(target[(1, 1)] == Rgb([0, 0, 0]));
+        assert!(target[(15, 15)] == Rgb([0, 0, 0]));
     }
 
     use super::{horizontal_gradient, vertical_gradient};
@@ -458,8 +458,8 @@ mod tests {
 
         horizontal_gradient(&mut img, &start, &end);
 
-        assert_eq!(img.get_pixel(0, 0), &start);
-        assert_eq!(img.get_pixel(img.width() - 1, 0), &end);
+        assert_eq!(img[(0, 0)], start);
+        assert_eq!(img[(img.width() - 1, 0)], end);
     }
 
     #[test]
@@ -472,8 +472,8 @@ mod tests {
 
         vertical_gradient(&mut img, &start, &end);
 
-        assert_eq!(img.get_pixel(0, 0), &start);
-        assert_eq!(img.get_pixel(0, img.height() - 1), &end);
+        assert_eq!(img[(0, 0)], start);
+        assert_eq!(img[(0, img.height() - 1)], end);
     }
 
     #[test]

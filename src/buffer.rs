@@ -758,40 +758,6 @@ where
         }
     }
 
-    /// Gets a reference to the pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
-    #[inline]
-    pub fn get_pixel(&self, x: u32, y: u32) -> &P {
-        match self.pixel_indices(x, y) {
-            None => panic!(
-                "Image index {:?} out of bounds {:?}",
-                (x, y),
-                (self.width, self.height)
-            ),
-            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
-        }
-    }
-
-    /// Gets a reference to the pixel at location `(x, y)` or returns `None` if
-    /// the index is out of the bounds `(width, height)`.
-    pub fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get(i..i + num_channels)
-            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
-    }
-
     /// Test that the image fits inside the buffer.
     ///
     /// Verifies that the maximum image of pixels inside the bounds is smaller than the provided
@@ -934,50 +900,6 @@ where
             width,
         }
     }
-
-    /// Gets a reference to the mutable pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
-    #[inline]
-    pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        match self.pixel_indices(x, y) {
-            None => panic!(
-                "Image index {:?} out of bounds {:?}",
-                (x, y),
-                (self.width, self.height)
-            ),
-            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
-        }
-    }
-
-    /// Gets a reference to the mutable pixel at location `(x, y)` or returns
-    /// `None` if the index is out of the bounds `(width, height)`.
-    pub fn get_pixel_mut_checked(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        if x >= self.width {
-            return None;
-        }
-        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
-        let i = (y as usize)
-            .saturating_mul(self.width as usize)
-            .saturating_add(x as usize)
-            .saturating_mul(num_channels);
-
-        self.data
-            .get_mut(i..i + num_channels)
-            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
-    }
-
-    /// Puts a pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
-    #[inline]
-    pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
-    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -1108,7 +1030,14 @@ where
     type Output = P;
 
     fn index(&self, (x, y): (u32, u32)) -> &P {
-        self.get_pixel(x, y)
+        match self.pixel_indices(x, y) {
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
+            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+        }
     }
 }
 
@@ -1118,7 +1047,14 @@ where
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
-        self.get_pixel_mut(x, y)
+        match self.pixel_indices(x, y) {
+            None => panic!(
+                "Image index {:?} out of bounds {:?}",
+                (x, y),
+                (self.width, self.height)
+            ),
+            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+        }
     }
 }
 
@@ -1153,7 +1089,7 @@ where
     }
 
     fn get_pixel(&self, x: u32, y: u32) -> P {
-        *self.get_pixel(x, y)
+        self[(x, y)]
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.
@@ -1164,7 +1100,18 @@ where
     }
 
     fn pixel(&self, x: u32, y: u32) -> Option<&P> {
-        self.get_pixel_checked(x, y)
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize)
+            .saturating_mul(num_channels);
+
+        self.data
+            .get(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice(pixel_indices))
     }
 
     #[inline(always)]
@@ -1180,7 +1127,7 @@ where
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
+        self[(x, y)] = pixel
     }
 
     /// Puts a pixel at location (x, y), ignoring bounds checking.
@@ -1192,7 +1139,18 @@ where
     }
 
     fn pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
-        self.get_pixel_mut_checked(x, y)
+        if x >= self.width {
+            return None;
+        }
+        let num_channels = <P as Pixel>::CHANNEL_COUNT as usize;
+        let i = (y as usize)
+            .saturating_mul(self.width as usize)
+            .saturating_add(x as usize)
+            .saturating_mul(num_channels);
+
+        self.data
+            .get_mut(i..i + num_channels)
+            .map(|pixel_indices| <P as Pixel>::from_slice_mut(pixel_indices))
     }
 
     #[inline(always)]
@@ -1427,34 +1385,35 @@ mod test {
     }
 
     #[test]
-    fn get_pixel() {
+    fn index() {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
         }
-        assert_eq!(a.get_pixel(0, 1)[0], 255)
+        assert_eq!(a[(0, 1)][0], 255)
     }
 
     #[test]
-    fn get_pixel_checked() {
+    fn pixel() {
+        use crate::{GenericImage, GenericImageView};
         let mut a: RgbImage = ImageBuffer::new(10, 10);
-        a.get_pixel_mut_checked(0, 1).map(|b| b[0] = 255);
+        a.pixel_mut(0, 1).map(|b| b[0] = 255);
 
-        assert_eq!(a.get_pixel_checked(0, 1), Some(&Rgb([255, 0, 0])));
-        assert_eq!(a.get_pixel_checked(0, 1).unwrap(), a.get_pixel(0, 1));
-        assert_eq!(a.get_pixel_checked(10, 0), None);
-        assert_eq!(a.get_pixel_checked(0, 10), None);
-        assert_eq!(a.get_pixel_mut_checked(10, 0), None);
-        assert_eq!(a.get_pixel_mut_checked(0, 10), None);
+        assert_eq!(a.pixel(0, 1), Some(&Rgb([255, 0, 0])));
+        assert_eq!(*a.pixel(0, 1).unwrap(), a[(0, 1)]);
+        assert_eq!(a.pixel(10, 0), None);
+        assert_eq!(a.pixel(0, 10), None);
+        assert_eq!(a.pixel_mut(10, 0), None);
+        assert_eq!(a.pixel_mut(0, 10), None);
 
         // From image/issues/1672
         const WHITE: Rgb<u8> = Rgb([255_u8, 255, 255]);
         let mut a = RgbImage::new(2, 1);
         a.put_pixel(1, 0, WHITE);
 
-        assert_eq!(a.get_pixel_checked(1, 0), Some(&WHITE));
-        assert_eq!(a.get_pixel_checked(1, 0).unwrap(), a.get_pixel(1, 0));
+        assert_eq!(a.pixel(1, 0), Some(&WHITE));
+        assert_eq!(*a.pixel(1, 0).unwrap(), a[(1, 0)]);
     }
 
     #[test]

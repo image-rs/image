@@ -1405,7 +1405,7 @@ mod tests {
             *sub2.pixel_mut(0, 0).unwrap() = Rgba([0, 0, 0, 0]);
         }
 
-        assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
+        assert_eq!(source[(1, 1)], Rgba([0, 0, 0, 0]));
 
         let view1 = source.view(0, 0, 2, 2);
         assert_eq!(source[(1, 1)], *view1.pixel(1, 1).unwrap());

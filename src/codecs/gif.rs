@@ -206,7 +206,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
                 let frame_y = y.wrapping_sub(frame.top);
 
                 if frame_x < frame.width && frame_y < frame.height {
-                    *pixel = *frame_buffer.get_pixel(frame_x, frame_y);
+                    *pixel = frame_buffer[(frame_x, frame_y)];
                 } else {
                     // this is only necessary in case the buffer is not zeroed
                     *pixel = Rgba([0, 0, 0, 0]);
@@ -230,9 +230,6 @@ struct GifFrameIterator<R: Read> {
 impl<R: Read> GifFrameIterator<R> {
     fn new(decoder: GifDecoder<R>) -> GifFrameIterator<R> {
         let (width, height) = decoder.dimensions();
-
-        // TODO: Avoid this cast
-        let (width, height) = (width as u32, height as u32);
 
         // intentionally ignore the background color for web compatibility
 
@@ -330,7 +327,7 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             && (self.width, self.height) == frame_buffer.dimensions()
         {
             for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                let previous_pixel = &mut self.non_disposed_frame[(x, y)];
                 blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
             }
             frame_buffer
@@ -338,10 +335,10 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
             ImageBuffer::from_fn(self.width, self.height, |x, y| {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);
-                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                let previous_pixel = &mut self.non_disposed_frame[(x, y)];
 
                 if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
-                    let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
+                    let mut pixel = frame_buffer[(frame_x, frame_y)];
                     blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
                     pixel
                 } else {

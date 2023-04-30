@@ -829,7 +829,7 @@ where
     for y in 0..height {
         for x in 0..width {
             let a = image.pixel(x, y).unwrap();
-            let b = tmp.get_pixel_mut(x, y);
+            let b = tmp.pixel_mut(x, y).unwrap();
 
             let p = a.map2(b, |c, d| {
                 let ic: i32 = NumCast::from(c).unwrap();

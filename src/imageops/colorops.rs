@@ -469,7 +469,7 @@ macro_rules! do_dithering(
     ($map:expr, $image:expr, $err:expr, $x:expr, $y:expr) => (
         {
             let old_pixel = $image[($x, $y)];
-            let new_pixel = $image.get_pixel_mut($x, $y);
+            let new_pixel = &mut $image[($x, $y)];
             $map.map_color(new_pixel);
             for ((e, &old), &new) in $err.iter_mut()
                                         .zip(old_pixel.channels().iter())
@@ -493,28 +493,28 @@ where
     for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
-        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
-        diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
+        diffuse_err(&mut image[(x + 1, y)], err, 7);
+        diffuse_err(&mut image[(x, y + 1)], err, 5);
+        diffuse_err(&mut image[(x + 1, y + 1)], err, 1);
         for x in 1..width - 1 {
             do_dithering!(color_map, image, err, x, y);
-            diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
-            diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-            diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
-            diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
+            diffuse_err(&mut image[(x + 1, y)], err, 7);
+            diffuse_err(&mut image[(x - 1, y + 1)], err, 3);
+            diffuse_err(&mut image[(x, y + 1)], err, 5);
+            diffuse_err(&mut image[(x + 1, y + 1)], err, 1);
         }
         let x = width - 1;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
+        diffuse_err(&mut image[(x - 1, y + 1)], err, 3);
+        diffuse_err(&mut image[(x, y + 1)], err, 5);
     }
     let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
-    diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+    diffuse_err(&mut image[(x + 1, y)], err, 7);
     for x in 1..width - 1 {
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+        diffuse_err(&mut image[(x + 1, y)], err, 7);
     }
     let x = width - 1;
     do_dithering!(color_map, image, err, x, y);

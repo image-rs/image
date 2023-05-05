@@ -51,7 +51,7 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct WebPExtendedInfo {
     _icc_profile: bool,
     _alpha: bool,
@@ -60,6 +60,7 @@ pub(crate) struct WebPExtendedInfo {
     _animation: bool,
     canvas_width: u32,
     canvas_height: u32,
+    icc_profile: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -84,6 +85,10 @@ impl ExtendedImage {
 
     pub(crate) fn has_animation(&self) -> bool {
         self.info._animation
+    }
+
+    pub(crate) fn icc_profile(&self) -> Option<Vec<u8>> {
+        self.info.icc_profile.clone()
     }
 
     pub(crate) fn color_type(&self) -> ColorType {
@@ -144,16 +149,15 @@ impl ExtendedImage {
 
     pub(crate) fn read_extended_chunks<R: Read>(
         reader: &mut R,
-        info: WebPExtendedInfo,
+        mut info: WebPExtendedInfo,
     ) -> ImageResult<ExtendedImage> {
         let mut anim_info: Option<WebPAnimatedInfo> = None;
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
-
         //go until end of file and while chunk headers are valid
         while let Some((mut cursor, chunk)) = read_chunk(reader)? {
             match chunk {
-                WebPRiffChunk::ICCP | WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
+                WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
                 }
                 WebPRiffChunk::ANIM => {
@@ -176,6 +180,11 @@ impl ExtendedImage {
 
                         static_frame = Some(img);
                     }
+                }
+                WebPRiffChunk::ICCP => {
+                    let mut icc_profile = Vec::new();
+                    cursor.read_to_end(&mut icc_profile)?;
+                    info.icc_profile = Some(icc_profile);
                 }
                 WebPRiffChunk::VP8 => {
                     if static_frame.is_none() {
@@ -557,6 +566,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
         _animation: animation,
         canvas_width,
         canvas_height,
+        icc_profile: None,
     };
 
     Ok(info)

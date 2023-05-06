@@ -336,6 +336,14 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
         }
         Ok(())
     }
+
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        if let WebPImage::Extended(extended) = &self.image {
+            extended.icc_profile()
+        } else {
+            None
+        }
+    }
 }
 
 impl<'a, R: 'a + Read> AnimationDecoder<'a> for WebPDecoder<R> {

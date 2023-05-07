@@ -147,6 +147,54 @@ impl ExtendedImage {
         Frames::new(Box::new(frame_iter))
     }
 
+    pub(crate) fn as_frames<'a>(&'a self) -> Frames<'a> {
+        struct FrameIterator<'a> {
+            image: &'a ExtendedImage,
+            index: usize,
+            canvas: RgbaImage,
+        }
+
+        impl<'a> Iterator for FrameIterator<'a> {
+            type Item = ImageResult<Frame>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                if let ExtendedImageData::Animation { frames, anim_info } = &self.image.image {
+                    let frame = frames.get(self.index);
+                    match frame {
+                        Some(anim_image) => {
+                            self.index += 1;
+                            ExtendedImage::draw_subimage(
+                                &mut self.canvas,
+                                anim_image,
+                                anim_info.background_color,
+                            )
+                        }
+                        None => None,
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+
+        let width = self.info.canvas_width;
+        let height = self.info.canvas_height;
+        let background_color =
+            if let ExtendedImageData::Animation { ref anim_info, .. } = self.image {
+                anim_info.background_color
+            } else {
+                Rgba([0, 0, 0, 0])
+            };
+
+        let frame_iter = FrameIterator {
+            image: &self,
+            index: 0,
+            canvas: RgbaImage::from_pixel(width, height, background_color),
+        };
+
+        Frames::new(Box::new(frame_iter))
+    }
+
     pub(crate) fn read_extended_chunks<R: Read>(
         reader: &mut R,
         mut info: WebPExtendedInfo,
@@ -324,10 +372,13 @@ impl ExtendedImage {
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
-            ExtendedImageData::Static(image) => image,
+            ExtendedImageData::Animation { .. } => {
+                if let Some(Ok(frame)) = self.as_frames().into_iter().nth(0) {
+                    buf.copy_from_slice(frame.buffer());
+                }
+            }
+            ExtendedImageData::Static(image) => image.fill_buf(buf),
         }
-        .fill_buf(buf);
     }
 
     pub(crate) fn get_buf_size(&self) -> usize {

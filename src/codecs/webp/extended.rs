@@ -5,7 +5,7 @@ use std::{error, fmt};
 use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
-use crate::error::DecodingError;
+use crate::error::{DecodingError, ParameterError, ParameterErrorKind};
 use crate::image::ImageFormat;
 use crate::{
     ColorType, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage,
@@ -337,6 +337,20 @@ impl ExtendedImage {
             ExtendedImageData::Static(image) => image,
         }
         .get_buf_size()
+    }
+
+    pub(crate) fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
+        match &mut self.image {
+            ExtendedImageData::Animation { anim_info, .. } => {
+                anim_info.background_color = color;
+                Ok(())
+            }
+            _ => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "Background color can only be set on animated webp".to_owned(),
+                ),
+            ))),
+        }
     }
 }
 

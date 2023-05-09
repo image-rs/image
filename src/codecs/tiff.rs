@@ -175,6 +175,14 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for TiffDecoder<R> {
         self.color_type
     }
 
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        if let Some(decoder) = &mut self.inner {
+            decoder.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok()
+        } else {
+            None
+        }
+    }
+
     fn set_limits(&mut self, limits: crate::io::Limits) -> ImageResult<()> {
         limits.check_support(&crate::io::LimitSupport::default())?;
 

@@ -5,7 +5,7 @@ use std::{error, fmt};
 use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
-use crate::error::DecodingError;
+use crate::error::{DecodingError, ParameterError, ParameterErrorKind};
 use crate::image::ImageFormat;
 use crate::{
     ColorType, Delay, Frame, Frames, ImageError, ImageResult, Rgb, RgbImage, Rgba, RgbaImage,
@@ -51,7 +51,7 @@ impl From<DecoderError> for ImageError {
 
 impl error::Error for DecoderError {}
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct WebPExtendedInfo {
     _icc_profile: bool,
     _alpha: bool,
@@ -60,6 +60,7 @@ pub(crate) struct WebPExtendedInfo {
     _animation: bool,
     canvas_width: u32,
     canvas_height: u32,
+    icc_profile: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -80,6 +81,14 @@ pub(crate) struct ExtendedImage {
 impl ExtendedImage {
     pub(crate) fn dimensions(&self) -> (u32, u32) {
         (self.info.canvas_width, self.info.canvas_height)
+    }
+
+    pub(crate) fn has_animation(&self) -> bool {
+        self.info._animation
+    }
+
+    pub(crate) fn icc_profile(&self) -> Option<Vec<u8>> {
+        self.info.icc_profile.clone()
     }
 
     pub(crate) fn color_type(&self) -> ColorType {
@@ -140,16 +149,15 @@ impl ExtendedImage {
 
     pub(crate) fn read_extended_chunks<R: Read>(
         reader: &mut R,
-        info: WebPExtendedInfo,
+        mut info: WebPExtendedInfo,
     ) -> ImageResult<ExtendedImage> {
         let mut anim_info: Option<WebPAnimatedInfo> = None;
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
-
         //go until end of file and while chunk headers are valid
         while let Some((mut cursor, chunk)) = read_chunk(reader)? {
             match chunk {
-                WebPRiffChunk::ICCP | WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
+                WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
                 }
                 WebPRiffChunk::ANIM => {
@@ -172,6 +180,11 @@ impl ExtendedImage {
 
                         static_frame = Some(img);
                     }
+                }
+                WebPRiffChunk::ICCP => {
+                    let mut icc_profile = Vec::new();
+                    cursor.read_to_end(&mut icc_profile)?;
+                    info.icc_profile = Some(icc_profile);
                 }
                 WebPRiffChunk::VP8 => {
                     if static_frame.is_none() {
@@ -324,6 +337,20 @@ impl ExtendedImage {
             ExtendedImageData::Static(image) => image,
         }
         .get_buf_size()
+    }
+
+    pub(crate) fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
+        match &mut self.image {
+            ExtendedImageData::Animation { anim_info, .. } => {
+                anim_info.background_color = color;
+                Ok(())
+            }
+            _ => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "Background color can only be set on animated webp".to_owned(),
+                ),
+            ))),
+        }
     }
 }
 
@@ -553,6 +580,7 @@ pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPE
         _animation: animation,
         canvas_width,
         canvas_height,
+        icc_profile: None,
     };
 
     Ok(info)

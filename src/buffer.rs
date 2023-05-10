@@ -974,6 +974,7 @@ where
     /// # Panics
     ///
     /// Panics if `(x, y)` is out of the bounds `(width, height)`.
+    #[inline]
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
         *self.get_pixel_mut(x, y) = pixel
     }

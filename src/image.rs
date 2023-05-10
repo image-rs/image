@@ -660,6 +660,14 @@ pub trait ImageDecoder<'a>: Sized {
         self.color_type().into()
     }
 
+    /// Returns the ICC color profile embedded in the image
+    ///
+    /// For formats that don't support embedded profiles this function will always return `None`.
+    /// This feature is currently only supported for the JPEG, PNG, and AVIF formats.
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        None
+    }
+
     /// Returns a reader that can be used to obtain the bytes of the image. For the best
     /// performance, always try to read at least `scanline_bytes` from the reader at a time. Reading
     /// fewer bytes will cause the reader to perform internal buffering.

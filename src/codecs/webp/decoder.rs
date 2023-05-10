@@ -4,9 +4,9 @@ use std::io::{self, Cursor, Error, Read};
 use std::marker::PhantomData;
 use std::{error, fmt, mem};
 
-use crate::error::{DecodingError, ImageError, ImageResult};
+use crate::error::{DecodingError, ImageError, ImageResult, ParameterError, ParameterErrorKind};
 use crate::image::{ImageDecoder, ImageFormat};
-use crate::{color, AnimationDecoder, Frames};
+use crate::{color, AnimationDecoder, Frames, Rgba};
 
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
@@ -196,6 +196,27 @@ impl<R: Read> WebPDecoder<R> {
 
         Ok(())
     }
+
+    /// Returns true if the image as described by the bitstream is animated.
+    pub fn has_animation(&self) -> bool {
+        match &self.image {
+            WebPImage::Lossy(_) => false,
+            WebPImage::Lossless(_) => false,
+            WebPImage::Extended(extended) => extended.has_animation(),
+        }
+    }
+
+    /// Sets the background color if the image is an extended and animated webp.
+    pub fn set_background_color(&mut self, color: Rgba<u8>) -> ImageResult<()> {
+        match &mut self.image {
+            WebPImage::Extended(image) => image.set_background_color(color),
+            _ => Err(ImageError::Parameter(ParameterError::from_kind(
+                ParameterErrorKind::Generic(
+                    "Background color can only be set on animated webp".to_owned(),
+                ),
+            ))),
+        }
+    }
 }
 
 pub(crate) fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>
@@ -326,6 +347,14 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
             }
         }
         Ok(())
+    }
+
+    fn icc_profile(&mut self) -> Option<Vec<u8>> {
+        if let WebPImage::Extended(extended) = &self.image {
+            extended.icc_profile()
+        } else {
+            None
+        }
     }
 }
 

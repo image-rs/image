@@ -1389,7 +1389,7 @@ where
 
     fn bounds(&self) -> (u32, u32, u32, u32) {
         let (w, h) = self.dimensions();
-        (0, w, 0, h)
+        (0, 0, w, h)
     }
 
     fn in_bounds(&self, x: u32, y: u32) -> bool {

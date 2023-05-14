@@ -93,10 +93,10 @@ impl ExtendedImage {
 
     pub(crate) fn color_type(&self) -> ColorType {
         match &self.image {
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
-            ExtendedImageData::Static(image) => image,
+            // animation frames are always rendered to RGBA8 (see into_frames() function below)
+            ExtendedImageData::Animation { .. } => ColorType::Rgba8,
+            ExtendedImageData::Static(image) => image.color_type(),
         }
-        .color_type()
     }
 
     pub(crate) fn into_frames<'a>(self) -> Frames<'a> {
@@ -373,9 +373,8 @@ impl ExtendedImage {
         match &self.image {
             // will always have at least one frame
             ExtendedImageData::Animation { .. } => {
-                if let Some(Ok(frame)) = self.as_frames().into_iter().nth(0) {
-                    buf.copy_from_slice(frame.buffer());
-                }
+                let frame = self.as_frames().nth(0).unwrap().ok().unwrap();
+                buf.copy_from_slice(frame.buffer());
             }
             ExtendedImageData::Static(image) => image.fill_buf(buf),
         }
@@ -384,10 +383,9 @@ impl ExtendedImage {
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
-            ExtendedImageData::Static(image) => image,
+            ExtendedImageData::Animation { .. } => self.as_frames().nth(0).unwrap().ok().unwrap().buffer().len(),
+            ExtendedImageData::Static(image) => image.get_buf_size(),
         }
-        .get_buf_size()
     }
 }
 

@@ -25,8 +25,10 @@ skip = [
     { name = "miniz_oxide" }, # exr crate uses an old version
 ]
 skip-tree = [
+    { name = "windows-sys" }, # console and terminal_size both depend on an old version
     { name = "criterion" },  # dev-dependency
     { name = "quickcheck" }, # dev-dependency
+    { name = "dav1d" }, # TODO: needs upgrade
 ]
 
 

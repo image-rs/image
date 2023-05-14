@@ -323,21 +323,33 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for WebPDecoder<R> {
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         match &self.image {
             WebPImage::Lossy(vp8_frame) => {
-                assert_eq!(buf.len(), vp8_frame.get_buf_size(),
+                assert_eq!(
+                    buf.len(),
+                    vp8_frame.get_buf_size(),
                     "Buffer size mismatch, got {} but need {}",
-                    buf.len(), vp8_frame.get_buf_size());
+                    buf.len(),
+                    vp8_frame.get_buf_size()
+                );
                 vp8_frame.fill_rgb(buf);
             }
             WebPImage::Lossless(lossless_frame) => {
-                assert_eq!(buf.len(), lossless_frame.get_buf_size(),
+                assert_eq!(
+                    buf.len(),
+                    lossless_frame.get_buf_size(),
                     "Buffer size mismatch, got {} but need {}",
-                    buf.len(), lossless_frame.get_buf_size());
+                    buf.len(),
+                    lossless_frame.get_buf_size()
+                );
                 lossless_frame.fill_rgba(buf);
             }
             WebPImage::Extended(extended) => {
-                assert_eq!(buf.len(), extended.get_buf_size(),
+                assert_eq!(
+                    buf.len(),
+                    extended.get_buf_size(),
                     "Buffer size mismatch, got {} but need {}",
-                    buf.len(), extended.get_buf_size());
+                    buf.len(),
+                    extended.get_buf_size()
+                );
                 extended.fill_buf(buf);
             }
         }

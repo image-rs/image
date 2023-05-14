@@ -383,7 +383,14 @@ impl ExtendedImage {
     pub(crate) fn get_buf_size(&self) -> usize {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { .. } => self.as_frames().nth(0).unwrap().ok().unwrap().buffer().len(),
+            ExtendedImageData::Animation { .. } => self
+                .as_frames()
+                .nth(0)
+                .unwrap()
+                .ok()
+                .unwrap()
+                .buffer()
+                .len(),
             ExtendedImageData::Static(image) => image.get_buf_size(),
         }
     }

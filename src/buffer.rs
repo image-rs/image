@@ -10,7 +10,7 @@ use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba};
 use crate::dynimage::{save_buffer, save_buffer_with_format, write_buffer_with_format};
 use crate::error::ImageResult;
 use crate::flat::{FlatSamples, SampleLayout};
-use crate::image::{GenericImage, GenericImageView, ImageFormat, ImageOutputFormat};
+use crate::image::{GenericImage, GenericImageView, ImageEncoder, ImageFormat, ImageOutputFormat};
 use crate::math::Rect;
 use crate::traits::{EncodableLayout, Pixel, PixelWithColorType};
 use crate::utils::expand_packed;
@@ -1059,6 +1059,28 @@ where
             self.height(),
             <P as PixelWithColorType>::COLOR_TYPE,
             format,
+        )
+    }
+}
+
+impl<P, Container> ImageBuffer<P, Container>
+where
+    P: Pixel,
+    [P::Subpixel]: EncodableLayout,
+    Container: Deref<Target = [P::Subpixel]>,
+{
+    /// Writes the buffer with the given encoder.
+    pub fn write_with_encoder<E>(&self, encoder: E) -> ImageResult<()>
+    where
+        E: ImageEncoder,
+        P: PixelWithColorType,
+    {
+        // This is valid as the subpixel is u8.
+        encoder.write_image(
+            self.inner_pixels().as_bytes(),
+            self.width(),
+            self.height(),
+            <P as PixelWithColorType>::COLOR_TYPE,
         )
     }
 }

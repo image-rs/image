@@ -187,6 +187,51 @@ impl ImageFormat {
         }
     }
 
+    /// Return the MIME type for this image format or "application/octet-stream" if no MIME type
+    /// exists for the format.
+    ///
+    /// Some notes on a few of the MIME types:
+    ///
+    /// - The portable anymap format has a separate MIME type for the pixmap, graymap and bitmap
+    ///   formats, but this method returns the general "image/x-portable-anymap" MIME type.
+    /// - The Targa format has two common MIME types, "image/x-targa"  and "image/x-tga"; this
+    ///   method returns "image/x-targa" for that format.
+    /// - The QOI MIME type is still a work in progress. This method returns "image/x-qoi" for
+    ///   that format.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let mime_type = ImageFormat::Png.to_mime_type();
+    /// assert_eq!(mime_type, "image/png");
+    /// ```
+    pub fn to_mime_type(&self) -> &'static str {
+        match self {
+            ImageFormat::Avif => "image/avif",
+            ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::Png => "image/png",
+            ImageFormat::Gif => "image/gif",
+            ImageFormat::WebP => "image/webp",
+            ImageFormat::Tiff => "image/tiff",
+            // the targa MIME type has two options, but this one seems to be used more
+            ImageFormat::Tga => "image/x-targa",
+            ImageFormat::Dds => "image/vnd-ms.dds",
+            ImageFormat::Bmp => "image/bmp",
+            ImageFormat::Ico => "image/x-icon",
+            ImageFormat::Hdr => "image/vnd.radiance",
+            ImageFormat::OpenExr => "image/x-exr",
+            // return the most general MIME type
+            ImageFormat::Pnm => "image/x-portable-anymap",
+            // Qoi's MIME type is being worked on.
+            // See: https://github.com/phoboslab/qoi/issues/167
+            ImageFormat::Qoi => "image/x-qoi",
+            // farbfield's MIME type taken from https://www.wikidata.org/wiki/Q28206109
+            ImageFormat::Farbfeld => "application/octet-stream",
+        }
+    }
+
     /// Return if the ImageFormat can be decoded by the lib.
     #[inline]
     pub fn can_read(&self) -> bool {

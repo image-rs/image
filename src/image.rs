@@ -187,6 +187,44 @@ impl ImageFormat {
         }
     }
 
+    /// Return the MIME type for this image format.
+    ///
+    /// Sometimes multiple MIME types exist for a format, so this method attempts to return the one
+    /// used most often.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use image::ImageFormat;
+    ///
+    /// let mime_type = ImageFormat::Png.to_mime_type();
+    /// assert_eq!(mime_type, "image/png");
+    /// ```
+    pub fn to_mime_type(&self) -> &'static str {
+        match self {
+            ImageFormat::Avif => "image/avif",
+            ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::Png => "image/png",
+            ImageFormat::Gif => "image/gif",
+            ImageFormat::WebP => "image/webp",
+            ImageFormat::Tiff => "image/tiff",
+            // the targa MIME type has two options, but this one seems to be used more
+            ImageFormat::Tga => "image/x-targa",
+            ImageFormat::Dds => "image/vnd-ms.dds",
+            ImageFormat::Bmp => "image/bmp",
+            ImageFormat::Ico => "image/x-icon",
+            ImageFormat::Hdr => "image/vnd.radiance",
+            ImageFormat::OpenExr => "image/x-exr",
+            // return the most general MIME type
+            ImageFormat::Pnm => "image/x-portable-anymap",
+            // Qoi's MIME type is being worked on.
+            // See: https://github.com/phoboslab/qoi/issues/167
+            ImageFormat::Qoi => "image/x-qoi",
+            // farbfield's MIME type taken from https://www.wikidata.org/wiki/Q28206109
+            ImageFormat::Farbfeld => "application/octet-stream",
+        }
+    }
+
     /// Return if the ImageFormat can be decoded by the lib.
     #[inline]
     pub fn can_read(&self) -> bool {
@@ -260,44 +298,6 @@ impl ImageFormat {
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::Qoi => &["qoi"],
-        }
-    }
-
-    /// Return the MIME type for this image format.
-    ///
-    /// Sometimes multiple MIME types exist for a format, so this method attempts to return the one
-    /// used most often.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use image::ImageFormat;
-    ///
-    /// let mime_type = ImageFormat::Png.to_mime_type();
-    /// assert_eq!(mime_type, "image/png");
-    /// ```
-    pub fn to_mime_type(&self) -> &'static str {
-        match self {
-            ImageFormat::Avif => "image/avif",
-            ImageFormat::Jpeg => "image/jpeg",
-            ImageFormat::Png => "image/png",
-            ImageFormat::Gif => "image/gif",
-            ImageFormat::WebP => "image/webp",
-            ImageFormat::Tiff => "image/tiff",
-            // the targa MIME type has two options, but this one seems to be used more
-            ImageFormat::Tga => "image/x-targa",
-            ImageFormat::Dds => "image/vnd-ms.dds",
-            ImageFormat::Bmp => "image/bmp",
-            ImageFormat::Ico => "image/x-icon",
-            ImageFormat::Hdr => "image/vnd.radiance",
-            ImageFormat::OpenExr => "image/x-exr",
-            // return the most general MIME type
-            ImageFormat::Pnm => "image/x-portable-anymap",
-            // Qoi's MIME type is being worked on.
-            // See: https://github.com/phoboslab/qoi/issues/167
-            ImageFormat::Qoi => "image/x-qoi",
-            // farbfield's MIME type taken from https://www.wikidata.org/wiki/Q28206109
-            ImageFormat::Farbfeld => "application/octet-stream",
         }
     }
 }

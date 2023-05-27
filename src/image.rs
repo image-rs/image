@@ -187,10 +187,17 @@ impl ImageFormat {
         }
     }
 
-    /// Return the MIME type for this image format.
+    /// Return the MIME type for this image format or "application/octet-stream" if no MIME type
+    /// exists for the format.
     ///
-    /// Sometimes multiple MIME types exist for a format, so this method attempts to return the one
-    /// used most often.
+    /// Some notes on a few of the MIME types:
+    ///
+    /// - The portable anymap format has a separate MIME type for the pixmap, graymap and bitmap
+    ///   formats, but this method returns the general "image/x-portable-anymap" MIME type.
+    /// - The Targa format has two common MIME types, "image/x-targa"  and "image/x-tga"; this
+    ///   method returns "image/x-targa" for that format.
+    /// - The QOI MIME type is still a work in progress. This method returns "image/x-qoi" for
+    ///   that format.
     ///
     /// # Example
     ///

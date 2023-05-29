@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.17.9
+
+* Fixed a bug in ICC profile decompression.
+* Improved unfilter performance.
+
 ## 0.17.8
 
 * Increased MSRV to 1.57.0.

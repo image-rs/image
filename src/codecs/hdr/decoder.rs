@@ -157,9 +157,9 @@ impl<R: BufRead> HdrAdapter<R> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.take() {
             Some(decoder) => {
-                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
+                let img: Vec<Rgb<f32>> = decoder.read_image_hdr()?;
                 for (i, Rgb(data)) in img.into_iter().enumerate() {
-                    buf[(i * 3)..][..3].copy_from_slice(&data);
+                    buf[(i * 12)..][..12].copy_from_slice(bytemuck::cast_slice(&data));
                 }
 
                 Ok(())
@@ -195,7 +195,7 @@ impl<'a, R: 'a + BufRead> ImageDecoder<'a> for HdrAdapter<R> {
     }
 
     fn color_type(&self) -> ColorType {
-        ColorType::Rgb8
+        ColorType::Rgb32F
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {

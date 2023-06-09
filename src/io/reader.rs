@@ -1,4 +1,8 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
@@ -145,12 +149,29 @@ impl Reader<BufReader<File>> {
     where
         P: AsRef<Path>,
     {
-        Self::open_impl(path.as_ref())
+        Self::open_impl_with_custom_flags(path.as_ref(),0)
+    }
+    /// Open a file to read with the provided custom flags, format will be guessed from path.
+    ///
+    /// This will not attempt any io operation on the opened file.
+    ///
+    /// If you want to inspect the content for a better guess on the format, which does not depend
+    /// on file extensions, follow this call with a call to [`with_guessed_format`].
+    ///
+    /// [`with_guessed_format`]: #method.with_guessed_format
+    pub fn open_with_custom_flags<P>(path: P,custom_flags:i32) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        Self::open_impl_with_custom_flags(path.as_ref(),custom_flags)
     }
 
-    fn open_impl(path: &Path) -> io::Result<Self> {
+    fn open_file_with_custom_flags(path: &Path,custom_flags:i32)->io::Result<File>{
+        OpenOptions::new().read(true).custom_flags(custom_flags).open(path)
+    }
+    fn open_impl_with_custom_flags(path: &Path,custom_flags:i32) -> io::Result<Self> {
         Ok(Reader {
-            inner: BufReader::new(File::open(path)?),
+            inner: BufReader::new(Self::open_file_with_custom_flags(path, custom_flags)?),
             format: ImageFormat::from_path(path).ok(),
             limits: super::Limits::default(),
         })

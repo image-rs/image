@@ -1097,7 +1097,21 @@ where
     P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling open_impl
-    free_functions::open_impl(path.as_ref())
+    free_functions::open_impl_with_custom_flags(path.as_ref(),0)
+}
+/// Open the image located at the path specified with the flags specified.
+/// The image's format is determined from the path's file extension.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path.
+///
+/// [`io::Reader`]: io/struct.Reader.html
+pub fn open_with_custom_flags<P>(path: P,custom_flags:i32) -> ImageResult<DynamicImage>
+where
+    P: AsRef<Path>,
+{
+    // thin wrapper function to strip generics before calling open_impl
+    free_functions::open_impl_with_custom_flags(path.as_ref(),custom_flags)
 }
 
 /// Read a tuple containing the (width, height) of the image located at the specified path.
@@ -1112,7 +1126,21 @@ where
     P: AsRef<Path>,
 {
     // thin wrapper function to strip generics before calling open_impl
-    free_functions::image_dimensions_impl(path.as_ref())
+    free_functions::image_dimensions_impl_with_custom_flags(path.as_ref(),0)
+}
+/// Read a tuple containing the (width, height) of the image located at the specified path with specified flags.
+/// This is faster than fully loading the image and then getting its dimensions.
+///
+/// Try [`io::Reader`] for more advanced uses, including guessing the format based on the file's
+/// content before its path or manually supplying the format.
+///
+/// [`io::Reader`]: io/struct.Reader.html
+pub fn image_dimensions_with_custom_flags<P>(path: P,custom_flags:i32) -> ImageResult<(u32, u32)>
+where
+    P: AsRef<Path>,
+{
+    // thin wrapper function to strip generics before calling open_impl
+    free_functions::image_dimensions_impl_with_custom_flags(path.as_ref(),custom_flags)
 }
 
 /// Saves the supplied buffer to a file at the path specified.

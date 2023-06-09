@@ -1,4 +1,8 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
 use std::io::{BufRead, BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::u32;
@@ -17,9 +21,13 @@ use crate::{
     ImageOutputFormat,
 };
 
-pub(crate) fn open_impl(path: &Path) -> ImageResult<DynamicImage> {
-    let buffered_read = BufReader::new(File::open(path).map_err(ImageError::IoError)?);
-
+fn open_file_with_custom_flags(path: &Path,custom_flags:i32)->Result<File, ImageError>{
+    OpenOptions::new().read(true).custom_flags(custom_flags).open(path).map_err(ImageError::IoError)
+}
+pub(crate) fn open_impl_with_custom_flags(path: &Path,custom_flags:i32) -> ImageResult<DynamicImage> {
+    
+    let buffered_read = BufReader::new(open_file_with_custom_flags(path, custom_flags)?);
+    println!("{:?}",buffered_read);
     load(buffered_read, ImageFormat::from_path(path)?)
 }
 
@@ -113,9 +121,9 @@ pub(crate) fn load_inner<R: BufRead + Seek>(
     load_decoder(r, format, limits.clone(), LoadVisitor(limits))
 }
 
-pub(crate) fn image_dimensions_impl(path: &Path) -> ImageResult<(u32, u32)> {
+pub(crate) fn image_dimensions_impl_with_custom_flags(path: &Path,custom_flags:i32) -> ImageResult<(u32, u32)> {
     let format = image::ImageFormat::from_path(path)?;
-    let reader = BufReader::new(File::open(path)?);
+    let reader = BufReader::new(open_file_with_custom_flags(path, custom_flags)?);
     image_dimensions_with_format_impl(reader, format)
 }
 

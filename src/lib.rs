@@ -141,7 +141,7 @@ pub use crate::traits::{EncodableLayout, Pixel, PixelWithColorType, Primitive};
 // Opening and loading images
 pub use crate::dynimage::{
     image_dimensions, load_from_memory, load_from_memory_with_format, open, save_buffer,
-    save_buffer_with_format, write_buffer_with_format,
+    save_buffer_with_format, write_buffer_with_format,open_with_custom_flags,image_dimensions_with_custom_flags
 };
 pub use crate::io::free_functions::{guess_format, load};
 

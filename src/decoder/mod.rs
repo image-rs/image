@@ -206,7 +206,7 @@ impl<R: Read> Decoder<R> {
             current: Vec::new(),
             scan_start: 0,
             transform: self.transform,
-            processed: Vec::new(),
+            scratch_buffer: Vec::new(),
             limits: self.limits,
         };
 
@@ -336,8 +336,10 @@ pub struct Reader<R: Read> {
     scan_start: usize,
     /// Output transformations
     transform: Transformations,
-    /// Processed line
-    processed: Vec<u8>,
+    /// This buffer is only used so that `next_row` and `next_interlaced_row` can return reference
+    /// to a byte slice. In a future version of this library, this buffer will be removed and
+    /// `next_row` and `next_interlaced_row` will write directly into a user provided output buffer.
+    scratch_buffer: Vec<u8>,
     /// How resources we can spend (for example, on allocation).
     limits: Limits,
 }
@@ -422,7 +424,6 @@ impl<R: Read> Reader<R> {
         if buflen > self.limits.bytes {
             return Err(DecodingError::LimitsExceeded);
         }
-        self.processed.resize(buflen, 0u8);
 
         self.prev.clear();
         self.prev.resize(self.subframe.rowlen, 0);
@@ -558,13 +559,14 @@ impl<R: Read> Reader<R> {
 
         // TODO: change the interface of `next_interlaced_row` to take an output buffer instead of
         // making us return a reference to a buffer that we own.
-        let mut output_buffer = mem::take(&mut self.processed);
-        let ret = self.next_interlaced_row_impl(rowlen, &mut output_buffer[..output_line_size]);
-        self.processed = output_buffer;
+        let mut output_buffer = mem::take(&mut self.scratch_buffer);
+        output_buffer.resize(output_line_size, 0u8);
+        let ret = self.next_interlaced_row_impl(rowlen, &mut output_buffer);
+        self.scratch_buffer = output_buffer;
         ret?;
 
         Ok(Some(InterlacedRow {
-            data: &self.processed[..output_line_size],
+            data: &self.scratch_buffer[..output_line_size],
             interlace,
         }))
     }

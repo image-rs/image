@@ -612,7 +612,11 @@ impl<R: Read> Reader<R> {
             || self.transform.contains(Transformations::ALPHA);
         let strip16 = bit_depth == 16 && self.transform.contains(Transformations::STRIP_16);
         let info = self.decoder.info().unwrap();
-        let trns = trns.then_some(info.trns.as_deref());
+        let trns = if trns {
+            Some(info.trns.as_deref())
+        } else {
+            None
+        };
         match (color_type, trns) {
             (ColorType::Indexed, _) if expand => {
                 output_buffer[..row.len()].copy_from_slice(row);

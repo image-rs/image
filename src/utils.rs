@@ -44,15 +44,7 @@ pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, ch
         .zip(output.chunks_exact_mut(channels + 1))
     {
         output[..channels].copy_from_slice(input);
-        output[channels] = if let Some(trns) = trns {
-            if input == trns {
-                0
-            } else {
-                0xFF
-            }
-        } else {
-            0xFF
-        };
+        output[channels] = if Some(input) == trns { 0 } else { 0xFF };
     }
 }
 
@@ -62,14 +54,9 @@ pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, 
         .zip(output.chunks_exact_mut(channels * 2 + 2))
     {
         output[..channels * 2].copy_from_slice(input);
-        if let Some(trns) = trns {
-            if input == trns {
-                output[channels * 2] = 0;
-                output[channels * 2 + 1] = 0
-            } else {
-                output[channels * 2] = 0xFF;
-                output[channels * 2 + 1] = 0xFF
-            }
+        if Some(input) == trns {
+            output[channels * 2] = 0;
+            output[channels * 2 + 1] = 0
         } else {
             output[channels * 2] = 0xFF;
             output[channels * 2 + 1] = 0xFF
@@ -90,15 +77,7 @@ pub fn expand_trns_and_strip_line16(
         for i in 0..channels {
             output[i] = input[i * 2];
         }
-        output[channels] = if let Some(trns) = trns {
-            if input == trns {
-                0
-            } else {
-                0xFF
-            }
-        } else {
-            0xFF
-        };
+        output[channels] = if Some(input) == trns { 0 } else { 0xFF };
     }
 }
 

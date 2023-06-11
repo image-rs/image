@@ -882,15 +882,15 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
     };
     if let Some(trns) = trns {
         utils::unpack_bits(buffer, 2, info.bit_depth as u8, |pixel, chunk| {
-            if let Some(trns) = trns {
+            chunk[1] = if let Some(trns) = trns {
                 if pixel == trns[0] {
-                    chunk[1] = 0
+                    0
                 } else {
-                    chunk[1] = 0xFF
+                    0xFF
                 }
             } else {
-                chunk[1] = 0xFF
-            }
+                0xFF
+            };
             chunk[0] = pixel * scaling_factor
         })
     } else {

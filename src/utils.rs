@@ -38,52 +38,41 @@ where
     }
 }
 
-pub fn expand_trns_line(buf: &mut [u8], trns: &[u8], channels: usize) {
-    // Return early if empty. This enables to subtract `channels` later without overflow.
-    if buf.len() < (channels + 1) {
-        return;
-    }
-
-    let i = (0..=buf.len() / (channels + 1) * channels - channels)
-        .rev()
-        .step_by(channels);
-    let j = (0..=buf.len() - (channels + 1)).rev().step_by(channels + 1);
-    for (i, j) in i.zip(j) {
-        let i_pixel = i;
-        let j_chunk = j;
-        if &buf[i_pixel..i_pixel + channels] == trns {
-            buf[j_chunk + channels] = 0
-        } else {
-            buf[j_chunk + channels] = 0xFF
-        }
-        for k in (0..channels).rev() {
-            buf[j_chunk + k] = buf[i_pixel + k];
-        }
+pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+    for (input, output) in input
+        .chunks_exact(channels)
+        .zip(output.chunks_exact_mut(channels + 1))
+    {
+        output[..channels].copy_from_slice(input);
+        output[channels] = if input == trns { 0 } else { 0xFF };
     }
 }
 
-pub fn expand_trns_line16(buf: &mut [u8], trns: &[u8], channels: usize) {
-    let c2 = 2 * channels;
-    // Return early if empty. This enables to subtract `channels` later without overflow.
-    if buf.len() < (c2 + 2) {
-        return;
-    }
-
-    let i = (0..=buf.len() / (c2 + 2) * c2 - c2).rev().step_by(c2);
-    let j = (0..=buf.len() - (c2 + 2)).rev().step_by(c2 + 2);
-    for (i, j) in i.zip(j) {
-        let i_pixel = i;
-        let j_chunk = j;
-        if &buf[i_pixel..i_pixel + c2] == trns {
-            buf[j_chunk + c2] = 0;
-            buf[j_chunk + c2 + 1] = 0
+pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+    for (input, output) in input
+        .chunks_exact(channels * 2)
+        .zip(output.chunks_exact_mut(channels * 2 + 2))
+    {
+        output[..channels * 2].copy_from_slice(input);
+        if input == trns {
+            output[channels * 2] = 0;
+            output[channels * 2 + 1] = 0
         } else {
-            buf[j_chunk + c2] = 0xFF;
-            buf[j_chunk + c2 + 1] = 0xFF
+            output[channels * 2] = 0xFF;
+            output[channels * 2 + 1] = 0xFF
+        };
+    }
+}
+
+pub fn expand_trns_and_strip_line16(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+    for (input, output) in input
+        .chunks_exact(channels * 2)
+        .zip(output.chunks_exact_mut(channels + 1))
+    {
+        for i in 0..channels {
+            output[i] = input[i * 2];
         }
-        for k in (0..c2).rev() {
-            buf[j_chunk + k] = buf[i_pixel + k];
-        }
+        output[channels] = if input == trns { 0 } else { 0xFF };
     }
 }
 

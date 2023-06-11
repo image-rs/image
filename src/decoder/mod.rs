@@ -885,7 +885,7 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
                     chunk[1] = 0xFF
                 }
             } else {
-                chunk[1] = 0
+                chunk[1] = 0xFF
             }
             chunk[0] = pixel * scaling_factor
         })

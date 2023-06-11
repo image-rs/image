@@ -51,7 +51,7 @@ pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, ch
                 0xFF
             }
         } else {
-            0
+            0xFF
         };
     }
 }
@@ -71,8 +71,8 @@ pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, 
                 output[channels * 2 + 1] = 0xFF
             }
         } else {
-            output[channels * 2] = 0;
-            output[channels * 2 + 1] = 0
+            output[channels * 2] = 0xFF;
+            output[channels * 2 + 1] = 0xFF
         };
     }
 }
@@ -97,7 +97,7 @@ pub fn expand_trns_and_strip_line16(
                 0xFF
             }
         } else {
-            0
+            0xFF
         };
     }
 }

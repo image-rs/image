@@ -38,33 +38,51 @@ where
     }
 }
 
-pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+pub fn expand_trns_line(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, channels: usize) {
     for (input, output) in input
         .chunks_exact(channels)
         .zip(output.chunks_exact_mut(channels + 1))
     {
         output[..channels].copy_from_slice(input);
-        output[channels] = if input == trns { 0 } else { 0xFF };
+        output[channels] = if let Some(trns) = trns {
+            if input == trns {
+                0
+            } else {
+                0xFF
+            }
+        } else {
+            0
+        };
     }
 }
 
-pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+pub fn expand_trns_line16(input: &[u8], output: &mut [u8], trns: Option<&[u8]>, channels: usize) {
     for (input, output) in input
         .chunks_exact(channels * 2)
         .zip(output.chunks_exact_mut(channels * 2 + 2))
     {
         output[..channels * 2].copy_from_slice(input);
-        if input == trns {
+        if let Some(trns) = trns {
+            if input == trns {
+                output[channels * 2] = 0;
+                output[channels * 2 + 1] = 0
+            } else {
+                output[channels * 2] = 0xFF;
+                output[channels * 2 + 1] = 0xFF
+            }
+        } else {
             output[channels * 2] = 0;
             output[channels * 2 + 1] = 0
-        } else {
-            output[channels * 2] = 0xFF;
-            output[channels * 2 + 1] = 0xFF
         };
     }
 }
 
-pub fn expand_trns_and_strip_line16(input: &[u8], output: &mut [u8], trns: &[u8], channels: usize) {
+pub fn expand_trns_and_strip_line16(
+    input: &[u8],
+    output: &mut [u8],
+    trns: Option<&[u8]>,
+    channels: usize,
+) {
     for (input, output) in input
         .chunks_exact(channels * 2)
         .zip(output.chunks_exact_mut(channels + 1))
@@ -72,7 +90,15 @@ pub fn expand_trns_and_strip_line16(input: &[u8], output: &mut [u8], trns: &[u8]
         for i in 0..channels {
             output[i] = input[i * 2];
         }
-        output[channels] = if input == trns { 0 } else { 0xFF };
+        output[channels] = if let Some(trns) = trns {
+            if input == trns {
+                0
+            } else {
+                0xFF
+            }
+        } else {
+            0
+        };
     }
 }
 

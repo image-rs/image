@@ -144,6 +144,32 @@ fn render_images_identity() {
 }
 
 #[test]
+fn render_images_alpha() {
+    process_images("results_alpha.txt", &TEST_SUITES, |path| {
+        let mut decoder = png::Decoder::new(File::open(&path)?);
+        decoder.set_transformations(png::Transformations::ALPHA);
+        let mut reader = decoder.read_info()?;
+        let mut img_data = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut img_data)?;
+        let bits =
+            ((info.width as usize * info.color_type.samples() * info.bit_depth as usize + 7) & !7)
+                * info.height as usize;
+        // First sanity check:
+        assert_eq!(
+            img_data.len() * 8,
+            bits,
+            "path: {} info: {:?} bits: {}",
+            path.display(),
+            info,
+            bits
+        );
+        let mut crc = Crc32::new();
+        crc.update(&img_data);
+        Ok(crc.finalize())
+    })
+}
+
+#[test]
 fn apng_images() {
     process_images("results_apng.txt", &APNG_SUITES, |path: PathBuf| {
         let frame_count: usize = {

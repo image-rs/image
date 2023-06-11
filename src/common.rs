@@ -727,13 +727,15 @@ bitflags! {
     "]
     pub struct Transformations: u32 {
         /// No transformation
-        const IDENTITY            = 0x0000; // read and write */
+        const IDENTITY            = 0x00000; // read and write */
         /// Strip 16-bit samples to 8 bits
-        const STRIP_16            = 0x0001; // read only */
+        const STRIP_16            = 0x00001; // read only */
         /// Expand paletted images to RGB; expand grayscale images of
         /// less than 8-bit depth to 8-bit depth; and expand tRNS chunks
         /// to alpha channels.
-        const EXPAND              = 0x0010; // read only */
+        const EXPAND              = 0x00010; // read only */
+        /// Expand paletted images to include an alpha channel. Implies `EXPAND`.
+        const ALPHA               = 0x10000; // read only */
     }
 }
 

@@ -1,0 +1,191 @@
+tests/pngsuite/PngSuite.png: 3282604020
+tests/pngsuite/basi0g01.png: 1268178934
+tests/pngsuite/basi0g02.png: 2223305964
+tests/pngsuite/basi0g04.png: 1407150044
+tests/pngsuite/basi0g08.png: 3655540678
+tests/pngsuite/basi0g16.png: 3172340221
+tests/pngsuite/basi2c08.png: 800407606
+tests/pngsuite/basi2c16.png: 1899574946
+tests/pngsuite/basi3p01.png: 1300509092
+tests/pngsuite/basi3p02.png: 3839604412
+tests/pngsuite/basi3p04.png: 1730119695
+tests/pngsuite/basi3p08.png: 961709698
+tests/pngsuite/basi4a08.png: 2960547948
+tests/pngsuite/basi4a16.png: 1382339331
+tests/pngsuite/basi6a08.png: 2806903596
+tests/pngsuite/basi6a16.png: 1663961642
+tests/pngsuite/basn0g01.png: 1268178934
+tests/pngsuite/basn0g02.png: 2223305964
+tests/pngsuite/basn0g04.png: 1407150044
+tests/pngsuite/basn0g08.png: 3655540678
+tests/pngsuite/basn0g16.png: 3172340221
+tests/pngsuite/basn2c08.png: 800407606
+tests/pngsuite/basn2c16.png: 1899574946
+tests/pngsuite/basn3p01.png: 1300509092
+tests/pngsuite/basn3p02.png: 3839604412
+tests/pngsuite/basn3p04.png: 1730119695
+tests/pngsuite/basn3p08.png: 961709698
+tests/pngsuite/basn4a08.png: 2960547948
+tests/pngsuite/basn4a16.png: 1382339331
+tests/pngsuite/basn6a08.png: 2806903596
+tests/pngsuite/basn6a16.png: 1663961642
+tests/pngsuite/bgai4a08.png: 2960547948
+tests/pngsuite/bgai4a16.png: 1382339331
+tests/pngsuite/bgan6a08.png: 2806903596
+tests/pngsuite/bgan6a16.png: 1663961642
+tests/pngsuite/bgbn4a08.png: 2960547948
+tests/pngsuite/bggn4a16.png: 1382339331
+tests/pngsuite/bgwn6a08.png: 2806903596
+tests/pngsuite/bgyn6a16.png: 1663961642
+tests/pngsuite/ccwn2c08.png: 1084663420
+tests/pngsuite/ccwn3p08.png: 2442313642
+tests/pngsuite/cdfn2c08.png: 720559608
+tests/pngsuite/cdhn2c08.png: 600507161
+tests/pngsuite/cdsn2c08.png: 3625926251
+tests/pngsuite/cdun2c08.png: 2273986211
+tests/pngsuite/ch1n3p04.png: 1730119695
+tests/pngsuite/ch2n3p08.png: 961709698
+tests/pngsuite/cm0n0g04.png: 1906798148
+tests/pngsuite/cm7n0g04.png: 1906798148
+tests/pngsuite/cm9n0g04.png: 1906798148
+tests/pngsuite/cs3n2c16.png: 3222217624
+tests/pngsuite/cs3n3p08.png: 3788303508
+tests/pngsuite/cs5n2c08.png: 2216934552
+tests/pngsuite/cs5n3p08.png: 2216934552
+tests/pngsuite/cs8n2c08.png: 168253622
+tests/pngsuite/cs8n3p08.png: 168253622
+tests/pngsuite/ct0n0g04.png: 1906798148
+tests/pngsuite/ct1n0g04.png: 1906798148
+tests/pngsuite/cten0g04.png: 4226097854
+tests/pngsuite/ctfn0g04.png: 1949281759
+tests/pngsuite/ctgn0g04.png: 489870302
+tests/pngsuite/cthn0g04.png: 1611555525
+tests/pngsuite/ctjn0g04.png: 226535597
+tests/pngsuite/ctzn0g04.png: 1906798148
+tests/pngsuite/f00n0g08.png: 4217278324
+tests/pngsuite/f00n2c08.png: 2597630091
+tests/pngsuite/f01n0g08.png: 1898545807
+tests/pngsuite/f01n2c08.png: 3810330354
+tests/pngsuite/f02n0g08.png: 1269593792
+tests/pngsuite/f02n2c08.png: 3121433383
+tests/pngsuite/f03n0g08.png: 4242942599
+tests/pngsuite/f03n2c08.png: 1831428469
+tests/pngsuite/f04n0g08.png: 3938580170
+tests/pngsuite/f04n2c08.png: 3318004397
+tests/pngsuite/f99n0g04.png: 487785975
+tests/pngsuite/g03n0g16.png: 786655754
+tests/pngsuite/g03n2c08.png: 4136119327
+tests/pngsuite/g03n3p04.png: 323125065
+tests/pngsuite/g04n0g16.png: 693411146
+tests/pngsuite/g04n2c08.png: 2461854947
+tests/pngsuite/g04n3p04.png: 2218902895
+tests/pngsuite/g05n0g16.png: 2877514813
+tests/pngsuite/g05n2c08.png: 1968032885
+tests/pngsuite/g05n3p04.png: 663277128
+tests/pngsuite/g07n0g16.png: 3119221606
+tests/pngsuite/g07n2c08.png: 810337521
+tests/pngsuite/g07n3p04.png: 964161794
+tests/pngsuite/g10n0g16.png: 2830928000
+tests/pngsuite/g10n2c08.png: 1844853900
+tests/pngsuite/g10n3p04.png: 2165175821
+tests/pngsuite/g25n0g16.png: 1957698543
+tests/pngsuite/g25n2c08.png: 4092665921
+tests/pngsuite/g25n3p04.png: 4218548137
+tests/pngsuite/oi1n0g16.png: 3172340221
+tests/pngsuite/oi1n2c16.png: 1899574946
+tests/pngsuite/oi2n0g16.png: 3172340221
+tests/pngsuite/oi2n2c16.png: 1899574946
+tests/pngsuite/oi4n0g16.png: 3172340221
+tests/pngsuite/oi4n2c16.png: 1899574946
+tests/pngsuite/oi9n0g16.png: 3172340221
+tests/pngsuite/oi9n2c16.png: 1899574946
+tests/pngsuite/pp0n2c16.png: 1899574946
+tests/pngsuite/pp0n6a08.png: 249584737
+tests/pngsuite/ps1n0g08.png: 3655540678
+tests/pngsuite/ps1n2c16.png: 1899574946
+tests/pngsuite/ps2n0g08.png: 3655540678
+tests/pngsuite/ps2n2c16.png: 1899574946
+tests/pngsuite/s01i3p01.png: 2674052579
+tests/pngsuite/s01n3p01.png: 2674052579
+tests/pngsuite/s02i3p01.png: 4237659839
+tests/pngsuite/s02n3p01.png: 4237659839
+tests/pngsuite/s03i3p01.png: 4113962449
+tests/pngsuite/s03n3p01.png: 4113962449
+tests/pngsuite/s04i3p01.png: 3458935464
+tests/pngsuite/s04n3p01.png: 3458935464
+tests/pngsuite/s05i3p02.png: 1912183391
+tests/pngsuite/s05n3p02.png: 1912183391
+tests/pngsuite/s06i3p02.png: 386379374
+tests/pngsuite/s06n3p02.png: 386379374
+tests/pngsuite/s07i3p02.png: 4087511840
+tests/pngsuite/s07n3p02.png: 4087511840
+tests/pngsuite/s08i3p02.png: 783702580
+tests/pngsuite/s08n3p02.png: 783702580
+tests/pngsuite/s09i3p02.png: 1154653108
+tests/pngsuite/s09n3p02.png: 1154653108
+tests/pngsuite/s32i3p04.png: 2484130469
+tests/pngsuite/s32n3p04.png: 2484130469
+tests/pngsuite/s33i3p04.png: 3489781867
+tests/pngsuite/s33n3p04.png: 3489781867
+tests/pngsuite/s34i3p04.png: 399499693
+tests/pngsuite/s34n3p04.png: 399499693
+tests/pngsuite/s35i3p04.png: 3100131453
+tests/pngsuite/s35n3p04.png: 3100131453
+tests/pngsuite/s36i3p04.png: 3585001115
+tests/pngsuite/s36n3p04.png: 3585001115
+tests/pngsuite/s37i3p04.png: 2706780708
+tests/pngsuite/s37n3p04.png: 2706780708
+tests/pngsuite/s38i3p04.png: 3182374538
+tests/pngsuite/s38n3p04.png: 3182374538
+tests/pngsuite/s39i3p04.png: 1555689769
+tests/pngsuite/s39n3p04.png: 1555689769
+tests/pngsuite/s40i3p04.png: 3207180197
+tests/pngsuite/s40n3p04.png: 3207180197
+tests/pngsuite/tbbn0g04.png: 2375338924
+tests/pngsuite/tbbn2c16.png: 3690889999
+tests/pngsuite/tbbn3p08.png: 2639711591
+tests/pngsuite/tbgn2c16.png: 3690889999
+tests/pngsuite/tbgn3p08.png: 2639711591
+tests/pngsuite/tbrn2c08.png: 57733001
+tests/pngsuite/tbwn0g16.png: 3296731563
+tests/pngsuite/tbwn3p08.png: 2639711591
+tests/pngsuite/tbyn3p08.png: 2639711591
+tests/pngsuite/tm3n3p02.png: 3889866741
+tests/pngsuite/tp0n0g08.png: 1385763676
+tests/pngsuite/tp0n2c08.png: 1738351796
+tests/pngsuite/tp0n3p08.png: 319463781
+tests/pngsuite/tp1n3p08.png: 2639711591
+tests/pngsuite/xc1n0g08.png: Expected failure
+tests/pngsuite/xc9n2c08.png: Expected failure
+tests/pngsuite/xcrn0g04.png: Expected failure
+tests/pngsuite/xcsn0g01.png: Expected failure
+tests/pngsuite/xd0n2c08.png: Expected failure
+tests/pngsuite/xd3n2c08.png: Expected failure
+tests/pngsuite/xd9n2c08.png: Expected failure
+tests/pngsuite/xdtn0g01.png: Expected failure
+tests/pngsuite/xhdn0g08.png: Expected failure
+tests/pngsuite/xlfn0g04.png: Expected failure
+tests/pngsuite/xs1n0g01.png: Expected failure
+tests/pngsuite/xs2n0g01.png: Expected failure
+tests/pngsuite/xs4n0g01.png: Expected failure
+tests/pngsuite/xs7n0g01.png: Expected failure
+tests/pngsuite/z00n2c08.png: 1730743317
+tests/pngsuite/z03n2c08.png: 1730743317
+tests/pngsuite/z06n2c08.png: 1730743317
+tests/pngsuite/z09n2c08.png: 1730743317
+tests/pngsuite-extra/basi3p01_2.png: 4023530527
+tests/pngsuite-extra/basi3p02_2.png: 313298351
+tests/bugfixes/acid2.png: 2380843583
+tests/bugfixes/gama-srgb-order-issue#304.png: 275287206
+tests/bugfixes/invalid_palette_index.png: 4178597885
+tests/bugfixes/issue#202.png: 29900969
+tests/bugfixes/issue#403.png: 3888432178
+tests/bugfixes/large-text-chunks-issue#337.png: 1268178934
+tests/bugfixes/x_consecutive_idat.png: Expected failure
+tests/bugfixes/x_ihdr_missing.png: Expected failure
+tests/bugfixes/x_image-issue#1075.png: Expected failure
+tests/bugfixes/x_interlaced_chck.png: Expected failure
+tests/bugfixes/x_issue#214.png: Expected failure
+tests/bugfixes/x_issue#230.0.png: Expected failure
+tests/bugfixes/x_issue#230.1.png: Expected failure
+tests/bugfixes/x_unexpected_eof.png: Expected failure

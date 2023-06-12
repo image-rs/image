@@ -81,6 +81,8 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
         image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         #[cfg(feature = "qoi")]
         image::ImageFormat::Qoi => visitor.visit_decoder(qoi::QoiDecoder::new(r)?),
+        #[cfg(feature = "jxl")]
+        image::ImageFormat::Jxl => visitor.visit_decoder(jxl::JxlDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(
             ImageFormatHint::Exact(format).into(),
         )),
@@ -263,7 +265,8 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
     }
 }
 
-static MAGIC_BYTES: [(&[u8], ImageFormat); 23] = [
+#[rustfmt::skip]
+static MAGIC_BYTES: [(&[u8], ImageFormat); 25] = [
     (b"\x89PNG\r\n\x1a\n", ImageFormat::Png),
     (&[0xff, 0xd8, 0xff], ImageFormat::Jpeg),
     (b"GIF89a", ImageFormat::Gif),
@@ -287,6 +290,8 @@ static MAGIC_BYTES: [(&[u8], ImageFormat); 23] = [
     (b"\0\0\0\x1cftypavif", ImageFormat::Avif),
     (&[0x76, 0x2f, 0x31, 0x01], ImageFormat::OpenExr), // = &exr::meta::magic_number::BYTES
     (b"qoif", ImageFormat::Qoi),
+    (&[0xff, 0x0a], ImageFormat::Jxl),
+    (&[0x00, 0x00, 0x00, 0x0C, 0x4A, 0x58, 0x4C, 0x20, 0x0D, 0x0A, 0x87, 0x0A], ImageFormat::Jxl),
 ];
 
 /// Guess image format from memory block

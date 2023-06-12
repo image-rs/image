@@ -70,6 +70,9 @@ pub enum ImageFormat {
 
     /// An Image in QOI format.
     Qoi,
+
+    /// An Image in JPEG XL format.
+    Jxl,
 }
 
 impl ImageFormat {
@@ -108,6 +111,7 @@ impl ImageFormat {
                 "pbm" | "pam" | "ppm" | "pgm" => ImageFormat::Pnm,
                 "ff" | "farbfeld" => ImageFormat::Farbfeld,
                 "qoi" => ImageFormat::Qoi,
+                "jxl" => ImageFormat::Jxl,
                 _ => return None,
             })
         }
@@ -183,6 +187,7 @@ impl ImageFormat {
             // Qoi's MIME type is being worked on.
             // See: https://github.com/phoboslab/qoi/issues/167
             "image/x-qoi" => Some(ImageFormat::Qoi),
+            "image/jxl" => Some(ImageFormat::Jxl),
             _ => None,
         }
     }
@@ -211,6 +216,7 @@ impl ImageFormat {
         match self {
             ImageFormat::Avif => "image/avif",
             ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::Jxl => "image/jxl",
             ImageFormat::Png => "image/png",
             ImageFormat::Gif => "image/gif",
             ImageFormat::WebP => "image/webp",
@@ -252,6 +258,7 @@ impl ImageFormat {
             ImageFormat::Farbfeld => true,
             ImageFormat::Avif => true,
             ImageFormat::Qoi => true,
+            ImageFormat::Jxl => true,
         }
     }
 
@@ -275,6 +282,7 @@ impl ImageFormat {
             ImageFormat::OpenExr => true,
             ImageFormat::Dds => false,
             ImageFormat::Qoi => true,
+            ImageFormat::Jxl => false,
         }
     }
 
@@ -305,6 +313,7 @@ impl ImageFormat {
             // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
             ImageFormat::Avif => &["avif"],
             ImageFormat::Qoi => &["qoi"],
+            ImageFormat::Jxl => &["jxl"],
         }
     }
 }
@@ -708,7 +717,7 @@ pub trait ImageDecoder<'a>: Sized {
     /// Returns the ICC color profile embedded in the image
     ///
     /// For formats that don't support embedded profiles this function will always return `None`.
-    /// This feature is currently only supported for the JPEG, PNG, and AVIF formats.
+    /// This feature is currently only supported for the JPEG, PNG, AVIF and JXL formats.
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
         None
     }
@@ -1878,7 +1887,7 @@ mod tests {
     fn image_formats_are_recognized() {
         use ImageFormat::*;
         const ALL_FORMATS: &'static [ImageFormat] = &[
-            Avif, Png, Jpeg, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
+            Avif, Png, Jpeg, Jxl, Gif, WebP, Pnm, Tiff, Tga, Dds, Bmp, Ico, Hdr, Farbfeld, OpenExr,
         ];
         for &format in ALL_FORMATS {
             let mut file = Path::new("file.nothing").to_owned();

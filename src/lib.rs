@@ -192,6 +192,7 @@ pub mod flat;
 /// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
 /// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
 /// | farbfeld | Yes | Yes |
+/// | JPEG XL  | Yes | No |
 ///
 /// ## A note on format specific features
 ///
@@ -234,6 +235,8 @@ pub mod codecs {
     pub mod ico;
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
+    #[cfg(feature = "jxl")]
+    pub mod jxl;
     #[cfg(feature = "exr")]
     pub mod openexr;
     #[cfg(feature = "png")]

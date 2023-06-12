@@ -46,7 +46,7 @@ dcv-color-primitives = { version = "0.4.0", optional = true }
 color_quant = "1.1"
 exr = { version = "1.5.0", optional = true }
 qoi = { version = "0.4", optional = true }
-jxl = { package = "jxl-oxide", path = "/home/vert/rpmbuild/SOURCES/jxl-oxide/crates/jxl-oxide", version = "0.2.0", optional = true }
+jxl-oxide = { version = "0.2.0", optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -72,8 +72,8 @@ dxt = []
 dds = ["dxt"]
 farbfeld = []
 openexr = ["exr"]
+jxl = ["jxl-oxide"] 
 qoi = ["dep:qoi"]
-jxl = ["dep:jxl"]
 
 # Enables WebP decoder support.
 webp = []

@@ -9,7 +9,7 @@ use crate::{
 };
 use std::io::{Cursor, Read};
 
-use jxl::{JxlImage, PixelFormat, Render};
+use jxl_oxide::{JxlImage, PixelFormat, Render};
 
 /// JPEG XL decoder
 pub struct JxlDecoder<R> {
@@ -21,11 +21,12 @@ pub struct JxlDecoder<R> {
 
 impl<R: Read> JxlDecoder<R> {
     /// Creates a new decoder that decodes from the stream ```r```
+     
     pub fn new(r: R) -> ImageResult<JxlDecoder<R>> {
         let mut image = JxlImage::from_reader(r).map_err(|_| {
             ImageError::Decoding(DecodingError::new(
                 ImageFormat::Jxl.into(),
-                "Failsed to parse image",
+                "Failed to parse image",
             ))
         })?;
         let mut keyframes = Vec::new();
@@ -35,20 +36,21 @@ impl<R: Read> JxlDecoder<R> {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Jxl.into(), e))
             })?;
             match result {
-                jxl::RenderResult::Done(frame) => keyframes.push(frame),
-                jxl::RenderResult::NeedMoreData => {
+                jxl_oxide::RenderResult::Done(frame) => keyframes.push(frame),
+                jxl_oxide::RenderResult::NeedMoreData => {
                     return Err(ImageError::Decoding(DecodingError::new(
                         ImageFormat::Jxl.into(),
                         "Unexpected end of file",
                     )))
                 }
-                jxl::RenderResult::NoMoreFrames => break,
+                jxl_oxide::RenderResult::NoMoreFrames => break,
             }
         }
         let pixfmt = renderer.pixel_format();
         let metadata = &image.image_header().metadata;
         let bits_per_sample = metadata.bit_depth.bits_per_sample();
         let bitdepth = BitDepth::new(bits_per_sample);
+
 
         let colortype = match (pixfmt, bitdepth) {
             (PixelFormat::Gray, BitDepth::Eight) => ColorType::L8,
@@ -101,7 +103,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JxlDecoder<R> {
     }
 
     fn into_reader(self) -> ImageResult<Self::Reader> {
-        Ok(Cursor::new(decoder_to_vec(self)?))
+            let data = decoder_to_vec(self)?;
+            Ok(Cursor::new(data))
     }
 
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
@@ -141,6 +144,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JxlDecoder<R> {
     }
 }
 
+
 #[derive(Debug, PartialEq)]
 enum BitDepth {
     Eight,
@@ -154,6 +158,6 @@ impl BitDepth {
             17.. => Self::ThirtyTwo,
             9.. => Self::Sixteen,
             _ => Self::Eight,
-        }
+      }
     }
 }

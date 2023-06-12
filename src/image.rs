@@ -1716,6 +1716,7 @@ mod tests {
         assert_eq!(from_path("./a.Ppm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.pgm").unwrap(), ImageFormat::Pnm);
         assert_eq!(from_path("./a.AViF").unwrap(), ImageFormat::Avif);
+        //TODO: add jxl
         assert!(from_path("./a.txt").is_err());
         assert!(from_path("./a").is_err());
     }

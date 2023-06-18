@@ -81,7 +81,7 @@ pub(crate) fn load_decoder<R: BufRead + Seek, V: DecoderVisitor>(
         image::ImageFormat::Farbfeld => visitor.visit_decoder(farbfeld::FarbfeldDecoder::new(r)?),
         #[cfg(feature = "qoi")]
         image::ImageFormat::Qoi => visitor.visit_decoder(qoi::QoiDecoder::new(r)?),
-        #[cfg(feature = "jxl")]
+        #[cfg(feature = "jxl-decoder")]
         image::ImageFormat::Jxl => visitor.visit_decoder(jxl::JxlDecoder::new(r)?),
         _ => Err(ImageError::Unsupported(
             ImageFormatHint::Exact(format).into(),

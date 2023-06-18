@@ -6,6 +6,7 @@ use crate::{
     error::{DecodingError, UnsupportedError, UnsupportedErrorKind},
     image::decoder_to_vec,
     ColorType, ExtendedColorType, ImageDecoder, ImageError, ImageFormat, ImageResult,
+    io::Limits,
 };
 use std::io::{Cursor, Read};
 
@@ -15,22 +16,36 @@ use jxl_oxide::{JxlImage, PixelFormat, Render};
 pub struct JxlDecoder<R> {
     image: JxlImage<R>,
     bitdepth: BitDepth,
+    pixfmt: PixelFormat,
     colortype: ColorType,
     keyframes: Vec<Render>,
 }
 
 impl<R: Read> JxlDecoder<R> {
-    /// Creates a new decoder that decodes from the stream ```r```
+    /// With limits
      
     pub fn new(r: R) -> ImageResult<JxlDecoder<R>> {
+        Self::with_limits(r, Limits::default())
+    }
+    /// Creates a new decoder that decodes from the stream ```r```
+    pub fn with_limits(r: R, limits: Limits) -> ImageResult<JxlDecoder<R>> {
+        limits.check_support(&crate::io::LimitSupport::default())?;
+        //limits.max_image_width = Some(7680); //TODO: hard coded to 8k for testing
+        //limits.max_image_height = Some(4320);
         let mut image = JxlImage::from_reader(r).map_err(|_| {
             ImageError::Decoding(DecodingError::new(
                 ImageFormat::Jxl.into(),
                 "Failed to parse image",
             ))
         })?;
+        let metadata = &image.image_header().metadata;
+        let bits_per_sample = metadata.bit_depth.bits_per_sample();
+        let bitdepth = BitDepth::new(bits_per_sample);
+        limits.check_dimensions(image.image_header().size.width, image.image_header().size.width)?;
         let mut keyframes = Vec::new();
         let mut renderer = image.renderer();
+        //TODO: check max bytes
+        //let max_bytes = usize::try_from(limits.max_alloc.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
         loop {
             let result = renderer.render_next_frame().map_err(|e| {
                 ImageError::Decoding(DecodingError::new(ImageFormat::Jxl.into(), e))
@@ -47,17 +62,17 @@ impl<R: Read> JxlDecoder<R> {
             }
         }
         let pixfmt = renderer.pixel_format();
-        let metadata = &image.image_header().metadata;
-        let bits_per_sample = metadata.bit_depth.bits_per_sample();
-        let bitdepth = BitDepth::new(bits_per_sample);
-
 
         let colortype = match (pixfmt, bitdepth) {
             (PixelFormat::Gray, BitDepth::Eight) => ColorType::L8,
             (PixelFormat::Gray, BitDepth::Sixteen) => ColorType::L16,
+            //imagers doens't support 32bit gray
+            (PixelFormat::Gray, BitDepth::ThirtyTwo) => ColorType::L16,
             //
             (PixelFormat::Graya, BitDepth::Eight) => ColorType::La8,
             (PixelFormat::Graya, BitDepth::Sixteen) => ColorType::La16,
+            //imagers doens't support 32bit gray
+            (PixelFormat::Graya, BitDepth::ThirtyTwo) => ColorType::La16,
             //
             (PixelFormat::Rgb, BitDepth::Eight) => ColorType::Rgb8,
             (PixelFormat::Rgb, BitDepth::Sixteen) => ColorType::Rgb16,
@@ -77,6 +92,7 @@ impl<R: Read> JxlDecoder<R> {
         Ok(Self {
             image,
             bitdepth: BitDepth::new(bits_per_sample),
+            pixfmt,
             colortype,
             keyframes,
         })
@@ -108,7 +124,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JxlDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        self.image.embedded_icc().map(Vec::from)
+        Option::from(self.image.rendered_icc())
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
@@ -122,7 +138,14 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JxlDecoder<R> {
                 ))
             })?
             .image();
-        match self.bitdepth {
+        let mut bdepth = self.bitdepth;
+        if self.pixfmt == PixelFormat::Gray || self.pixfmt == PixelFormat::Graya {
+            if bdepth == BitDepth::ThirtyTwo {
+                //manually cast 32bit gray down to 16bit as a workaround
+                 bdepth = BitDepth::Sixteen
+            }
+        };
+        match bdepth {
             BitDepth::Eight => {
                 for (b, s) in buf.iter_mut().zip(fb.buf()) {
                     *b = (*s * 255.0 + 0.5).clamp(0.0, 255.0) as u8;

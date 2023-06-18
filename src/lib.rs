@@ -187,13 +187,12 @@ pub mod flat;
 /// | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
 /// | WebP   | Yes | Rgb8, Rgba8 |
 /// | AVIF   | Only 8-bit | Lossy |
-/// | JXL    | Rgb, Rgba | No |
 /// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 /// | DDS    | DXT1, DXT3, DXT5 | No |
 /// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
 /// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
 /// | farbfeld | Yes | Yes |
-/// | JPEG XL  | Yes | No |
+/// | JPEG XL  | Rgb, Rgba, Gray, Graya | No |
 ///
 /// ## A note on format specific features
 ///
@@ -236,7 +235,7 @@ pub mod codecs {
     pub mod ico;
     #[cfg(feature = "jpeg")]
     pub mod jpeg;
-    #[cfg(feature = "jxl")]
+    #[cfg(feature = "jxl-decoder")]
     pub mod jxl;
     #[cfg(feature = "exr")]
     pub mod openexr;

@@ -265,11 +265,11 @@ where
         }
     }
 
-    let chunk = WebPRiffChunk::from_fourcc(chunk_fourcc)?;
+    let chunk = WebPRiffChunk::from_fourcc(chunk_fourcc);
 
     let cursor = read_len_cursor(r)?;
 
-    Ok(Some((cursor, chunk)))
+    Ok(Some((cursor, chunk?)))
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`

@@ -155,7 +155,7 @@ impl ExtendedImage {
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
         //go until end of file and while chunk headers are valid
-        while let Some((mut cursor, chunk)) = read_chunk(reader)? {
+        while let Some((mut cursor, chunk)) = read_extended_chunk(reader)? {
             match chunk {
                 WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
@@ -534,6 +534,23 @@ struct AnimatedFrame {
     use_alpha_blending: bool,
     dispose: bool,
     image: WebPStatic,
+}
+
+/// Reads a chunk, but silently ignores unknown chunks at the end of a file
+fn read_extended_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
+where
+    R: Read,
+{
+    let mut unknown_chunk = Ok(());
+
+    loop {
+        match read_chunk(r) {
+            Ok(None) => return Ok(None),
+            Ok(chunk) => return unknown_chunk.and(Ok(chunk)),
+            Err(err @ ImageError::Decoding(_)) => unknown_chunk = unknown_chunk.and(Err(err)),
+            Err(err) => return Err(err),
+        }
+    }
 }
 
 pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPExtendedInfo> {

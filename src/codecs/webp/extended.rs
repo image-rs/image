@@ -2,7 +2,9 @@ use std::convert::TryInto;
 use std::io::{self, Cursor, Error, Read};
 use std::{error, fmt};
 
-use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
+use super::decoder::{
+    read_chunk, read_fourcc, read_len_cursor, DecoderError::ChunkHeaderInvalid, WebPRiffChunk,
+};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::{DecodingError, ParameterError, ParameterErrorKind};
@@ -543,14 +545,15 @@ where
 {
     let mut unknown_chunk = Ok(());
 
-    loop {
-        match read_chunk(r) {
-            Ok(None) => return Ok(None),
-            Ok(chunk) => return unknown_chunk.and(Ok(chunk)),
-            Err(err @ ImageError::Decoding(_)) => unknown_chunk = unknown_chunk.and(Err(err)),
-            Err(err) => return Err(err),
+    while let Some(chunk) = read_fourcc(r)? {
+        let cursor = read_len_cursor(r)?;
+        match chunk {
+            Ok(chunk) => return unknown_chunk.and(Ok(Some((cursor, chunk)))),
+            Err(err) => unknown_chunk = unknown_chunk.and(Err(err)),
         }
     }
+
+    Ok(None)
 }
 
 pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPExtendedInfo> {

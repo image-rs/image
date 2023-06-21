@@ -223,21 +223,19 @@ pub(crate) fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>
 where
     R: Read,
 {
-    let mut len = u64::from(r.read_u32::<LittleEndian>()?);
+    let unpadded_len = u64::from(r.read_u32::<LittleEndian>()?);
 
-    if len % 2 == 1 {
-        // RIFF chunks containing an uneven number of bytes append
-        // an extra 0x00 at the end of the chunk
-        //
-        // The addition cannot overflow since we have a u64 that was created from a u32
-        len += 1;
-    }
+    // RIFF chunks containing an uneven number of bytes append
+    // an extra 0x00 at the end of the chunk
+    //
+    // The addition cannot overflow since we have a u64 that was created from a u32
+    let len = unpadded_len + (unpadded_len % 2);
 
     let mut framedata = Vec::new();
     r.by_ref().take(len).read_to_end(&mut framedata)?;
 
     //remove padding byte
-    if len % 2 == 1 {
+    if unpadded_len % 2 == 1 {
         framedata.pop();
     }
 

@@ -94,7 +94,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for JpegDecoder<R> {
     }
 
     fn icc_profile(&mut self) -> Option<Vec<u8>> {
-        self.decoder.icc_profile().clone()
+        self.decoder.icc_profile()
     }
 
     fn into_reader(mut self) -> ImageResult<Self::Reader> {

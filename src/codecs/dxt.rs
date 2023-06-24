@@ -162,7 +162,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for DxtDecoder<R> {
         let encoded_scanline_bytes =
             self.variant.encoded_bytes_per_block() as u64 * u64::from(self.width_blocks);
 
-        let start = self.inner.seek(SeekFrom::Current(0))?;
+        let start = self.inner.stream_position()?;
         image::load_rect(
             x,
             y,

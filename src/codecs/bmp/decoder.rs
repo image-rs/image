@@ -784,7 +784,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
     fn read_metadata(&mut self) -> ImageResult<()> {
         if !self.has_loaded_metadata {
             self.read_file_header()?;
-            let bmp_header_offset = self.reader.seek(SeekFrom::Current(0))?;
+            let bmp_header_offset = self.reader.stream_position()?;
             let bmp_header_size = self.reader.read_u32::<LittleEndian>()?;
             let bmp_header_end = bmp_header_offset + u64::from(bmp_header_size);
 
@@ -839,7 +839,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
 
             if self.no_file_header {
                 // Use the offset of the end of metadata instead of reading a BMP file header.
-                self.data_offset = self.reader.seek(SeekFrom::Current(0))?;
+                self.data_offset = self.reader.stream_position()?;
             }
 
             self.has_loaded_metadata = true;
@@ -1386,7 +1386,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for BmpDecoder<R> {
         buf: &mut [u8],
         progress_callback: F,
     ) -> ImageResult<()> {
-        let start = self.reader.seek(SeekFrom::Current(0))?;
+        let start = self.reader.stream_position()?;
         image::load_rect(
             x,
             y,

@@ -98,9 +98,9 @@ impl fmt::Display for IcoEntryImageFormat {
     }
 }
 
-impl Into<ImageFormat> for IcoEntryImageFormat {
-    fn into(self) -> ImageFormat {
-        match self {
+impl From<IcoEntryImageFormat> for ImageFormat {
+    fn from(val: IcoEntryImageFormat) -> Self {
+        match val {
             IcoEntryImageFormat::Png => ImageFormat::Png,
             IcoEntryImageFormat::Bmp => ImageFormat::Bmp,
         }
@@ -115,7 +115,7 @@ pub struct IcoDecoder<R: Read> {
 
 enum InnerDecoder<R: Read> {
     Bmp(BmpDecoder<R>),
-    Png(PngDecoder<R>),
+    Png(Box<PngDecoder<R>>),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -255,7 +255,7 @@ impl DirEntry {
         self.seek_to_start(&mut r)?;
 
         if is_png {
-            Ok(Png(PngDecoder::new(r)?))
+            Ok(Png(Box::new(PngDecoder::new(r)?)))
         } else {
             Ok(Bmp(BmpDecoder::new_with_ico_format(r)?))
         }
@@ -359,7 +359,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoder<'a> for IcoDecoder<R> {
                 decoder.read_image_data(buf)?;
 
                 let r = decoder.reader();
-                let image_end = r.seek(SeekFrom::Current(0))?;
+                let image_end = r.stream_position()?;
                 let data_end = u64::from(self.selected_entry.image_offset)
                     + u64::from(self.selected_entry.image_length);
 

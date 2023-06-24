@@ -16,10 +16,9 @@ jobs:
         features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
-        override: true
     - name: Cache Cargo Dependencies
       uses: Swatinem/rust-cache@v2
       with:
@@ -83,57 +82,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --release
     - name: test
       run: cargo test -v --release
 
   test_avif:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif"
 
   test_avif_decoding:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    - uses: dtolnay/rust-toolchain@stable
     - name: build
       run: cargo build -v --no-default-features --features="avif-decoder"
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
   clippy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        override: true
         components: clippy
-    - uses: actions-rs/cargo@v1
-      with:
-        args: clippy --all-features -- -D warnings
+    - run: cargo clippy --all-features -- -D warnings
       env:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
@@ -142,10 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: install-deps
       run: sudo apt-get -y install clang llvm
     - name: build
@@ -164,10 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
         cargo install cargo-fuzz
@@ -183,10 +163,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: |
         mv ./Cargo.toml.public-private-dependencies ./Cargo.toml
@@ -198,10 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - name: build
       run: cargo build -v --benches --features=benchmarks
 
@@ -209,19 +183,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        override: true
         components: rustfmt
     - name: Run rustfmt check
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
+      run: cargo fmt -- --check
 
   cargo-deny:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1
@@ -231,11 +200,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
       - name: Install or use cached `cargo-msrv`
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-msrv
-
       - name: Verify Minimum Rust Version
         run: cargo-msrv verify

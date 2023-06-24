@@ -2,7 +2,9 @@ use std::convert::TryInto;
 use std::io::{self, Cursor, Error, Read};
 use std::{error, fmt};
 
-use super::decoder::{read_chunk, DecoderError::ChunkHeaderInvalid, WebPRiffChunk};
+use super::decoder::{
+    read_chunk, read_fourcc, read_len_cursor, DecoderError::ChunkHeaderInvalid, WebPRiffChunk,
+};
 use super::lossless::{LosslessDecoder, LosslessFrame};
 use super::vp8::{Frame as VP8Frame, Vp8Decoder};
 use crate::error::{DecodingError, ParameterError, ParameterErrorKind};
@@ -155,7 +157,7 @@ impl ExtendedImage {
         let mut anim_frames: Vec<AnimatedFrame> = Vec::new();
         let mut static_frame: Option<WebPStatic> = None;
         //go until end of file and while chunk headers are valid
-        while let Some((mut cursor, chunk)) = read_chunk(reader)? {
+        while let Some((mut cursor, chunk)) = read_extended_chunk(reader)? {
             match chunk {
                 WebPRiffChunk::EXIF | WebPRiffChunk::XMP => {
                     //ignore these chunks
@@ -534,6 +536,24 @@ struct AnimatedFrame {
     use_alpha_blending: bool,
     dispose: bool,
     image: WebPStatic,
+}
+
+/// Reads a chunk, but silently ignores unknown chunks at the end of a file
+fn read_extended_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
+where
+    R: Read,
+{
+    let mut unknown_chunk = Ok(());
+
+    while let Some(chunk) = read_fourcc(r)? {
+        let cursor = read_len_cursor(r)?;
+        match chunk {
+            Ok(chunk) => return unknown_chunk.and(Ok(Some((cursor, chunk)))),
+            Err(err) => unknown_chunk = unknown_chunk.and(Err(err)),
+        }
+    }
+
+    Ok(None)
 }
 
 pub(crate) fn read_extended_header<R: Read>(reader: &mut R) -> ImageResult<WebPExtendedInfo> {

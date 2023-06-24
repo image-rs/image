@@ -223,34 +223,29 @@ pub(crate) fn read_len_cursor<R>(r: &mut R) -> ImageResult<Cursor<Vec<u8>>>
 where
     R: Read,
 {
-    let mut len = u64::from(r.read_u32::<LittleEndian>()?);
+    let unpadded_len = u64::from(r.read_u32::<LittleEndian>()?);
 
-    if len % 2 == 1 {
-        // RIFF chunks containing an uneven number of bytes append
-        // an extra 0x00 at the end of the chunk
-        //
-        // The addition cannot overflow since we have a u64 that was created from a u32
-        len += 1;
-    }
+    // RIFF chunks containing an uneven number of bytes append
+    // an extra 0x00 at the end of the chunk
+    //
+    // The addition cannot overflow since we have a u64 that was created from a u32
+    let len = unpadded_len + (unpadded_len % 2);
 
     let mut framedata = Vec::new();
     r.by_ref().take(len).read_to_end(&mut framedata)?;
 
     //remove padding byte
-    if len % 2 == 1 {
+    if unpadded_len % 2 == 1 {
         framedata.pop();
     }
 
     Ok(io::Cursor::new(framedata))
 }
 
-/// Reads a chunk
-/// Returns an error if the chunk header is not a valid webp header or some other reading error
+/// Reads a chunk header FourCC
 /// Returns None if and only if we hit end of file reading the four character code of the chunk
-pub(crate) fn read_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
-where
-    R: Read,
-{
+/// The inner error is `Err` if and only if the chunk header FourCC is present but unknown
+pub(crate) fn read_fourcc<R: Read>(r: &mut R) -> ImageResult<Option<ImageResult<WebPRiffChunk>>> {
     let mut chunk_fourcc = [0; 4];
     let result = r.read_exact(&mut chunk_fourcc);
 
@@ -265,11 +260,24 @@ where
         }
     }
 
-    let chunk = WebPRiffChunk::from_fourcc(chunk_fourcc)?;
+    let chunk = WebPRiffChunk::from_fourcc(chunk_fourcc);
+    Ok(Some(chunk))
+}
 
-    let cursor = read_len_cursor(r)?;
-
-    Ok(Some((cursor, chunk)))
+/// Reads a chunk
+/// Returns an error if the chunk header is not a valid webp header or some other reading error
+/// Returns None if and only if we hit end of file reading the four character code of the chunk
+pub(crate) fn read_chunk<R>(r: &mut R) -> ImageResult<Option<(Cursor<Vec<u8>>, WebPRiffChunk)>>
+where
+    R: Read,
+{
+    if let Some(chunk) = read_fourcc(r)? {
+        let chunk = chunk?;
+        let cursor = read_len_cursor(r)?;
+        Ok(Some((cursor, chunk)))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Wrapper struct around a `Cursor<Vec<u8>>`

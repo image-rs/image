@@ -131,11 +131,9 @@ impl Limits {
     pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
         match u64::try_from(amount) {
             Ok(n) => self.reserve(n),
-            Err(_) if self.max_alloc.is_some() => {
-                Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory,
-                )))
-            }
+            Err(_) if self.max_alloc.is_some() => Err(ImageError::Limits(
+                error::LimitError::from_kind(error::LimitErrorKind::InsufficientMemory),
+            )),
             Err(_) => {
                 // Out of bounds, but we weren't asked to consider any limit.
                 Ok(())

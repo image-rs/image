@@ -177,21 +177,24 @@ pub mod flat;
 ///
 /// # Supported formats
 ///
+/// <!--- NOTE: Make sure to keep this table in sync with the README -->
+///
 /// | Format | Decoding | Encoding |
 /// | ------ | -------- | -------- |
-/// | PNG    | All supported color types | Same as decoding |
-/// | JPEG   | Baseline and progressive | Baseline JPEG |
-/// | GIF    | Yes | Yes |
+/// | AVIF   | Only 8-bit | Lossy |
 /// | BMP    | Yes | Rgb8, Rgba8, Gray8, GrayA8 |
+/// | DDS    | DXT1, DXT3, DXT5 | No |
+/// | Farbfeld | Yes | Yes |
+/// | GIF    | Yes | Yes |
 /// | ICO    | Yes | Yes |
+/// | JPEG   | Baseline and progressive | Baseline JPEG |
+/// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
+/// | PNG    | All supported color types | Same as decoding |
+/// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
+/// | QOI    | Yes | Yes |
+/// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
 /// | TIFF   | Baseline(no fax support) + LZW + PackBits | Rgb8, Rgba8, Gray8 |
 /// | WebP   | Yes | Rgb8, Rgba8 |
-/// | AVIF   | Only 8-bit | Lossy |
-/// | PNM    | PBM, PGM, PPM, standard PAM | Yes |
-/// | DDS    | DXT1, DXT3, DXT5 | No |
-/// | TGA    | Yes | Rgb8, Rgba8, Bgr8, Bgra8, Gray8, GrayA8 |
-/// | OpenEXR  | Rgb32F, Rgba32F (no dwa compression) | Rgb32F, Rgba32F (no dwa compression) |
-/// | farbfeld | Yes | Yes |
 ///
 /// ## A note on format specific features
 ///

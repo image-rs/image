@@ -79,7 +79,7 @@ impl<R: Read> Read for PngReader<R> {
                     let readed = buf.write(row.data()).unwrap();
                     bytes += readed;
 
-                    self.buffer = (&row.data()[readed..]).to_owned();
+                    self.buffer = row.data()[readed..].to_owned();
                     self.index = 0;
                 }
                 None => return Ok(bytes),

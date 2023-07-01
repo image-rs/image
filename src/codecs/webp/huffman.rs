@@ -142,8 +142,8 @@ impl HuffmanTree {
         let mut num_symbols = 0;
         let mut root_symbol = 0;
 
-        for symbol in 0..code_lengths.len() {
-            if code_lengths[symbol] > 0 {
+        for (symbol, length) in code_lengths.iter().enumerate() {
+            if *length > 0 {
                 num_symbols += 1;
                 root_symbol = symbol.try_into().unwrap();
             }

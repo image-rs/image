@@ -26,7 +26,7 @@ impl<W: Write> HdrEncoder<W> {
         w.write_all(b"FORMAT=32-bit_rle_rgbe\n\n")?;
         w.write_all(format!("-Y {} +X {}\n", height, width).as_bytes())?;
 
-        if width < 8 || width > 32_768 {
+        if !(8..=32_768).contains(&width) {
             for &pix in data {
                 write_rgbe8(w, to_rgbe8(pix))?;
             }

@@ -211,7 +211,7 @@ impl ExtendedImage {
         }
 
         let image = if let Some(info) = anim_info {
-            if anim_frames.len() == 0 {
+            if anim_frames.is_empty() {
                 return Err(ImageError::IoError(Error::from(
                     io::ErrorKind::UnexpectedEof,
                 )));

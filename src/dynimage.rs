@@ -16,8 +16,6 @@ use crate::buffer_::{
 };
 use crate::color::{self, IntoColor};
 use crate::error::{ImageError, ImageResult, ParameterError, ParameterErrorKind};
-// FIXME: These imports exist because we don't support all of our own color types.
-use crate::error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::FlatSamples;
 use crate::image::{
     GenericImage, GenericImageView, ImageDecoder, ImageEncoder, ImageFormat, ImageOutputFormat,

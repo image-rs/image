@@ -229,7 +229,7 @@ impl<'a, R: 'a + Read + Seek> ImageDecoderRect<'a> for FarbfeldDecoder<R> {
     ) -> ImageResult<()> {
         // A "scanline" (defined as "shortest non-caching read" in the doc) is just one channel in this case
 
-        let start = self.reader.seek(SeekFrom::Current(0))?;
+        let start = self.reader.stream_position()?;
         image::load_rect(
             x,
             y,

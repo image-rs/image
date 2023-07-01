@@ -752,7 +752,7 @@ fn build_quantization_segment(m: &mut Vec<u8>, precision: u8, identifier: u8, qt
 }
 
 fn encode_coefficient(coefficient: i32) -> (u8, u16) {
-    let mut magnitude = coefficient.abs() as u16;
+    let mut magnitude = coefficient.unsigned_abs() as u16;
     let mut num_bits = 0u8;
 
     while magnitude > 0 {

@@ -506,7 +506,7 @@ trait HeaderReader: BufRead {
             #[allow(deprecated)]
             let (identifier, rest) = line
                 .trim_left()
-                .split_at(line.find(char::is_whitespace).unwrap_or_else(|| line.len()));
+                .split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
             match identifier {
                 "ENDHDR" => break,
                 "HEIGHT" => parse_single_value_line(&mut height, rest, PnmHeaderLine::Height)?,
@@ -683,7 +683,7 @@ where
 
     let token = reader
         .bytes()
-        .skip_while(|v| v.as_ref().ok().map(&is_separator).unwrap_or(false))
+        .skip_while(|v| v.as_ref().ok().map(is_separator).unwrap_or(false))
         .take_while(|v| v.as_ref().ok().map(|c| !is_separator(c)).unwrap_or(false))
         .collect::<Result<Vec<u8>, _>>()?;
 

@@ -197,7 +197,7 @@ impl<R: BufRead + Seek> Reader<R> {
         let mut start = [0; 16];
 
         // Save current offset, read start, restore offset.
-        let cur = self.inner.seek(SeekFrom::Current(0))?;
+        let cur = self.inner.stream_position()?;
         let len = io::copy(
             // Accept shorter files but read at most 16 bytes.
             &mut self.inner.by_ref().take(16),

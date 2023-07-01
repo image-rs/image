@@ -12,10 +12,12 @@ pub use self::reader::Reader;
 /// Set of supported strict limits for a decoder.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct LimitSupport {
     _non_exhaustive: (),
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for LimitSupport {
     fn default() -> LimitSupport {
         LimitSupport {
@@ -47,6 +49,7 @@ impl Default for LimitSupport {
 /// [`ImageDecoder::set_limits`]: ../trait.ImageDecoder.html#method.set_limits
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_copy_implementations)]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct Limits {
     /// The maximum allowed image width. This limit is strict. The default is no limit.
     pub max_image_width: Option<u32>,
@@ -128,11 +131,9 @@ impl Limits {
     pub fn reserve_usize(&mut self, amount: usize) -> ImageResult<()> {
         match u64::try_from(amount) {
             Ok(n) => self.reserve(n),
-            Err(_) if self.max_alloc.is_some() => {
-                return Err(ImageError::Limits(error::LimitError::from_kind(
-                    error::LimitErrorKind::InsufficientMemory,
-                )));
-            }
+            Err(_) if self.max_alloc.is_some() => Err(ImageError::Limits(
+                error::LimitError::from_kind(error::LimitErrorKind::InsufficientMemory),
+            )),
             Err(_) => {
                 // Out of bounds, but we weren't asked to consider any limit.
                 Ok(())

@@ -123,7 +123,7 @@ impl fmt::Display for LineType {
     }
 }
 
-/// Adapter to conform to ```ImageDecoder``` trait
+/// Adapter to conform to `ImageDecoder` trait
 #[derive(Debug)]
 pub struct HdrAdapter<R: Read> {
     inner: Option<HdrDecoder<R>>,
@@ -257,13 +257,13 @@ pub struct Rgbe8Pixel {
     pub e: u8,
 }
 
-/// Creates ```Rgbe8Pixel``` from components
+/// Creates `Rgbe8Pixel` from components
 pub fn rgbe8(r: u8, g: u8, b: u8, e: u8) -> Rgbe8Pixel {
     Rgbe8Pixel { c: [r, g, b], e }
 }
 
 impl Rgbe8Pixel {
-    /// Converts ```Rgbe8Pixel``` into ```Rgb<f32>``` linearly
+    /// Converts `Rgbe8Pixel` into `Rgb<f32>` linearly
     #[inline]
     pub fn to_hdr(self) -> Rgb<f32> {
         if self.e == 0 {
@@ -279,25 +279,25 @@ impl Rgbe8Pixel {
         }
     }
 
-    /// Converts ```Rgbe8Pixel``` into ```Rgb<T>``` with scale=1 and gamma=2.2
+    /// Converts `Rgbe8Pixel` into `Rgb<T>` with scale=1 and gamma=2.2
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
     /// # Panic
     ///
-    /// Panics when ```T::max_value()``` cannot be represented as f32.
+    /// Panics when `T::max_value()` cannot be represented as f32.
     #[inline]
     pub fn to_ldr<T: Primitive + Zero>(self) -> Rgb<T> {
         self.to_ldr_scale_gamma(1.0, 2.2)
     }
 
-    /// Converts Rgbe8Pixel into Rgb<T> using provided scale and gamma
+    /// Converts `Rgbe8Pixel` into `Rgb<T>` using provided scale and gamma
     ///
     /// color_ldr = (color_hdr*scale)<sup>gamma</sup>
     ///
     /// # Panic
     ///
-    /// Panics when T::max_value() cannot be represented as f32.
+    /// Panics when `T::max_value()` cannot be represented as f32.
     /// Panics when scale or gamma is NaN
     #[inline]
     pub fn to_ldr_scale_gamma<T: Primitive + Zero>(self, scale: f32, gamma: f32) -> Rgb<T> {
@@ -328,15 +328,15 @@ impl Rgbe8Pixel {
 }
 
 impl<R: BufRead> HdrDecoder<R> {
-    /// Reads Radiance HDR image header from stream ```r```
+    /// Reads Radiance HDR image header from stream `r`
     /// if the header is valid, creates HdrDecoder
     /// strict mode is enabled
     pub fn new(reader: R) -> ImageResult<HdrDecoder<R>> {
         HdrDecoder::with_strictness(reader, true)
     }
 
-    /// Reads Radiance HDR image header from stream ```reader```,
-    /// if the header is valid, creates ```HdrDecoder```.
+    /// Reads Radiance HDR image header from stream `reader`,
+    /// if the header is valid, creates `HdrDecoder`.
     ///
     /// strict enables strict mode
     ///
@@ -422,7 +422,7 @@ impl<R: BufRead> HdrDecoder<R> {
         })
     } // end with_strictness
 
-    /// Returns file metadata. Refer to ```HdrMetadata``` for details.
+    /// Returns file metadata. Refer to `HdrMetadata` for details.
     pub fn metadata(&self) -> HdrMetadata {
         self.meta.clone()
     }
@@ -472,7 +472,7 @@ impl<R: BufRead> HdrDecoder<R> {
         Ok(())
     }
 
-    /// Consumes decoder and returns a vector of Rgb<u8> pixels.
+    /// Consumes decoder and returns a vector of `Rgb<u8>` pixels.
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
         let mut ret = vec![Rgb([0, 0, 0]); self.width as usize * self.height as usize];
@@ -480,7 +480,7 @@ impl<R: BufRead> HdrDecoder<R> {
         Ok(ret)
     }
 
-    /// Consumes decoder and returns a vector of Rgb<f32> pixels.
+    /// Consumes decoder and returns a vector of `Rgb<f32>` pixels.
     ///
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
         let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];

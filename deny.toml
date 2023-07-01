@@ -29,6 +29,7 @@ skip-tree = [
     { name = "criterion" },  # dev-dependency
     { name = "quickcheck" }, # dev-dependency
     { name = "dav1d" }, # TODO: needs upgrade
+    { name = "clap" },
 ]
 
 

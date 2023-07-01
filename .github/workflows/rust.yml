@@ -11,6 +11,7 @@ jobs:
     name: Run tests and doctests on ubuntu
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         rust: ["1.61.0", stable, beta, nightly]
         features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
@@ -23,6 +24,9 @@ jobs:
       uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
+    - name: Install MSRV Cargo.lock
+      if: ${{ matrix.rust == '1.61.0' }}
+      run: mv Cargo.lock.msrv Cargo.lock
     - name: build
       run: cargo build -v --no-default-features --features "$FEATURES"
       env:

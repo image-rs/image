@@ -208,5 +208,7 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-msrv
+      - name: Install MSRV Cargo.lock
+        run: mv Cargo.lock.msrv Cargo.lock
       - name: Verify Minimum Rust Version
         run: cargo-msrv verify

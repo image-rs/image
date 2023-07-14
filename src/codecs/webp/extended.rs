@@ -261,8 +261,7 @@ impl ExtendedImage {
         let has_alpha = anim_image.image.has_alpha();
         let pixel_len: u32 = anim_image.image.color_type().bytes_per_pixel().into();
 
-        'x:
-        for x in 0..anim_image.width {
+        'x: for x in 0..anim_image.width {
             for y in 0..anim_image.height {
                 let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
                 // Negative offsets are not possible due to unsigned ints

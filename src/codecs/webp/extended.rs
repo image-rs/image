@@ -326,10 +326,27 @@ impl ExtendedImage {
     pub(crate) fn fill_buf(&self, buf: &mut [u8]) {
         match &self.image {
             // will always have at least one frame
-            ExtendedImageData::Animation { frames, .. } => &frames[0].image,
-            ExtendedImageData::Static(image) => image,
+            ExtendedImageData::Animation { frames, anim_info } => {
+                let first_frame = &frames[0];
+                let (canvas_width, canvas_height) = self.dimensions();
+                if canvas_width == first_frame.width && canvas_height == first_frame.height {
+                    first_frame.image.fill_buf(buf);
+                } else {
+                    let bg_color = match &self.info._alpha {
+                        true => Rgba::from([0, 0, 0, 0]),
+                        false => anim_info.background_color,
+                    };
+                    let mut canvas = RgbaImage::from_pixel(canvas_width, canvas_height, bg_color);
+                    let _ = ExtendedImage::draw_subimage(&mut canvas, first_frame, bg_color)
+                        .unwrap()
+                        .unwrap();
+                    buf.copy_from_slice(canvas.into_raw().as_slice());
+                }
+            }
+            ExtendedImageData::Static(image) => {
+                image.fill_buf(buf);
+            }
         }
-        .fill_buf(buf);
     }
 
     pub(crate) fn get_buf_size(&self) -> usize {

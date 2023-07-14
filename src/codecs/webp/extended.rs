@@ -261,9 +261,19 @@ impl ExtendedImage {
         let has_alpha = anim_image.image.has_alpha();
         let pixel_len: u32 = anim_image.image.color_type().bytes_per_pixel().into();
 
+        'x:
         for x in 0..anim_image.width {
             for y in 0..anim_image.height {
                 let canvas_index: (u32, u32) = (x + anim_image.offset_x, y + anim_image.offset_y);
+                // Negative offsets are not possible due to unsigned ints
+                // If we go out of bounds by height, still continue by x
+                if canvas_index.1 >= canvas.height() {
+                    continue 'x;
+                }
+                // If we go out of bounds by width, it doesn't make sense to continue at all
+                if canvas_index.0 >= canvas.width() {
+                    break 'x;
+                }
                 let index: usize = ((y * anim_image.width + x) * pixel_len).try_into().unwrap();
                 canvas[canvas_index] = if anim_image.use_alpha_blending && has_alpha {
                     let buffer: [u8; 4] = buffer[index..][..4].try_into().unwrap();

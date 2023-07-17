@@ -304,6 +304,101 @@ where
     out
 }
 
+/// Linearly bisample from an image using coordinates in [0,1].
+pub fn sample_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+
+    let ui = w as f32 * u - 0.5;
+    let vi = h as f32 * v - 0.5;
+    interpolate_bilinear(
+        img,
+        ui.max(0.).min((w - 1) as f32),
+        vi.max(0.).min((h - 1) as f32),
+    )
+}
+
+/// Linearly bisample from an image using coordinates in [0,w-1] and [0,h-1].
+pub fn interpolate_bilinear<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    let uf = x.floor();
+    let vf = y.floor();
+    let uc = (x + 1.).min((w - 1) as f32);
+    let vc = (y + 1.).min((h - 1) as f32);
+
+    // clamp coords to the range of the image
+    let coords = [[uf, vf], [uf, vc], [uc, vf], [uc, vc]];
+
+    assert!(coords
+        .iter()
+        .all(|&[u, v]| { img.in_bounds(u as u32, v as u32) }));
+    let samples = coords.map(|[u, v]| img.get_pixel(u as u32, v as u32));
+    assert!(P::CHANNEL_COUNT <= 4);
+
+    // convert samples to f32
+    // currently rgba is the largest one,
+    // so just store as many items as necessary,
+    // because there's not a simple way to be generic over all of them.
+    let [sff, sfc, scf, scc] = samples.map(|s| {
+        let mut out = [0.; 4];
+        for (i, c) in s.channels().iter().enumerate() {
+            out[i] = c.to_f32().unwrap();
+        }
+        out
+    });
+    // weights
+    let [ufw, vfw] = [x - uf, y - vf];
+    let [ucw, vcw] = [1. - ufw, 1. - vfw];
+
+    // https://en.wikipedia.org/wiki/Bilinear_interpolation#Weighted_mean
+    // the distance between pixels is 1 so there is no denominator
+    let wff = ucw * vcw;
+    let wfc = ucw * vfw;
+    let wcf = ufw * vcw;
+    let wcc = ufw * vfw;
+    assert!(f32::abs((wff + wfc + wcf + wcc) - 1.) < 1e-3);
+
+    // hack to get around not being able to construct a generic Pixel
+    let mut out = samples[0];
+    for (i, c) in out.channels_mut().iter_mut().enumerate() {
+        let v = wff * sff[i] + wfc * sfc[i] + wcf * scf[i] + wcc * scc[i];
+        // this rounding may introduce quantization errors,
+        // but cannot do anything about it.
+        *c = <P::Subpixel as NumCast>::from(v.round()).unwrap_or({
+            if v < 0.0 {
+                P::Subpixel::DEFAULT_MIN_VALUE
+            } else {
+                P::Subpixel::DEFAULT_MAX_VALUE
+            }
+        })
+    }
+    Some(out)
+}
+
 // Sample the columns of the supplied image using the provided filter.
 // The width of the image remains unchanged.
 // ```new_height``` is the desired height of the new image
@@ -866,7 +961,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, FilterType};
+    use super::{resize, sample_bilinear, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
@@ -889,6 +984,59 @@ mod tests {
         let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
         let resize = img.resize(img.width(), img.height(), FilterType::Triangle);
         assert!(img.pixels().eq(resize.pixels()))
+    }
+
+    #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_bilinear() {
+        use std::path::Path;
+        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_bilinear(&img, 0., 0.).is_some());
+        assert!(sample_bilinear(&img, 1., 0.).is_some());
+        assert!(sample_bilinear(&img, 0., 1.).is_some());
+        assert!(sample_bilinear(&img, 1., 1.).is_some());
+        assert!(sample_bilinear(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_bilinear(&img, 1.2, 0.5).is_none());
+        assert!(sample_bilinear(&img, 0.5, 1.2).is_none());
+        assert!(sample_bilinear(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_bilinear(&img, -0.1, 0.2).is_none());
+        assert!(sample_bilinear(&img, 0.2, -0.1).is_none());
+        assert!(sample_bilinear(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
+    fn test_sample_bilinear_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+        assert_eq!(sample_bilinear(&img, 0.5, 0.5), Some(Rgba([64; 4])));
+        assert_eq!(sample_bilinear(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_bilinear(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 0.0),
+            Some(Rgba([128, 0, 128, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.0, 0.5),
+            Some(Rgba([128, 128, 0, 0]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 0.5, 1.0),
+            Some(Rgba([0, 128, 0, 128]))
+        );
+        assert_eq!(
+            sample_bilinear(&img, 1.0, 0.5),
+            Some(Rgba([0, 0, 128, 128]))
+        );
     }
 
     #[bench]

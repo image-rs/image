@@ -9,7 +9,7 @@ use deflate::write::ZlibEncoder;
 use crate::chunk::{self, ChunkType};
 use crate::common::{
     AnimationControl, BitDepth, BlendOp, BytesPerPixel, ColorType, Compression, DisposeOp,
-    FrameControl, Info, ParameterError, ParameterErrorKind, ScaledFloat, PixelDimensions,
+    FrameControl, Info, ParameterError, ParameterErrorKind, PixelDimensions, ScaledFloat,
 };
 use crate::filter::{filter, AdaptiveFilterType, FilterType};
 use crate::text_metadata::{
@@ -403,7 +403,7 @@ impl<'a, W: Write> Encoder<'a, W> {
             Err(EncodingError::Format(FormatErrorKind::NotAnimated.into()))
         }
     }
-    pub fn set_pixel_dims(&mut self, pixel_dims: Option<PixelDimensions>){
+    pub fn set_pixel_dims(&mut self, pixel_dims: Option<PixelDimensions>) {
         self.info.pixel_dims = pixel_dims
     }
     /// Convenience function to add tEXt chunks to [`Info`] struct

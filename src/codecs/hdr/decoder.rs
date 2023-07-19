@@ -156,14 +156,7 @@ impl<R: BufRead> HdrAdapter<R> {
     fn read_image_data(&mut self, buf: &mut [u8]) -> ImageResult<()> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
         match self.inner.take() {
-            Some(decoder) => {
-                let img: Vec<Rgb<u8>> = decoder.read_image_ldr()?;
-                for (i, Rgb(data)) in img.into_iter().enumerate() {
-                    buf[(i * 3)..][..3].copy_from_slice(&data);
-                }
-
-                Ok(())
-            }
+            Some(decoder) => decoder.read_image_ldr_buf(buf),
             None => Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::NoMoreData,
             ))),
@@ -444,13 +437,28 @@ impl<R: BufRead> HdrDecoder<R> {
 
     /// Consumes decoder and returns a vector of transformed pixels
     pub fn read_image_transform<T: Send, F: Send + Sync + Fn(Rgbe8Pixel) -> T>(
+        self,
+        f: F,
+        output_slice: &mut [T],
+    ) -> ImageResult<()> {
+        // a bit hacky, but this function was in the public API and
+        // thus needs to preserve it's signature.
+        self.read_image_transform_flat(move |v| [f(v)], output_slice)
+    }
+
+    /// Consumes decoder and returns a vector of transformed pixels
+    fn read_image_transform_flat<
+        T: Send,
+        F: Send + Sync + Fn(Rgbe8Pixel) -> [T; N],
+        const N: usize,
+    >(
         mut self,
         f: F,
         output_slice: &mut [T],
     ) -> ImageResult<()> {
         assert_eq!(
             output_slice.len(),
-            self.width as usize * self.height as usize
+            self.width as usize * self.height as usize * N
         );
 
         // Don't read anything if image is empty
@@ -458,15 +466,17 @@ impl<R: BufRead> HdrDecoder<R> {
             return Ok(());
         }
 
-        let chunks_iter = output_slice.chunks_mut(self.width as usize);
+        let chunks_iter = output_slice.chunks_mut(self.width as usize * N);
 
         let mut buf = vec![Default::default(); self.width as usize];
         for chunk in chunks_iter {
             // read_scanline overwrites the entire buffer or returns an Err,
             // so not resetting the buffer here is ok.
             read_scanline(&mut self.r, &mut buf[..])?;
-            for (dst, &pix) in chunk.iter_mut().zip(buf.iter()) {
-                *dst = f(pix);
+            for (dst, &pix) in chunk.chunks_mut(N).zip(buf.iter()) {
+                for (d, s) in dst.iter_mut().zip(IntoIterator::into_iter(f(pix))) {
+                    *d = s;
+                }
             }
         }
         Ok(())
@@ -475,17 +485,22 @@ impl<R: BufRead> HdrDecoder<R> {
     /// Consumes decoder and returns a vector of `Rgb<u8>` pixels.
     /// scale = 1, gamma = 2.2
     pub fn read_image_ldr(self) -> ImageResult<Vec<Rgb<u8>>> {
-        let mut ret = vec![Rgb([0, 0, 0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_ldr(), &mut ret[..])?;
-        Ok(ret)
+        let sz = (self.width * self.height) as usize;
+        let mut buf = vec![Rgb([0; 3]); sz];
+        self.read_image_transform(|pix| pix.to_ldr(), &mut buf[..])?;
+        Ok(buf)
     }
-
+    fn read_image_ldr_buf(self, buf: &mut [u8]) -> ImageResult<()> {
+        let sz = (self.width * self.height * 3) as usize;
+        assert!(buf.len() >= sz);
+        self.read_image_transform_flat(|pix| pix.to_ldr().0, &mut buf[..sz])
+    }
     /// Consumes decoder and returns a vector of `Rgb<f32>` pixels.
-    ///
     pub fn read_image_hdr(self) -> ImageResult<Vec<Rgb<f32>>> {
-        let mut ret = vec![Rgb([0.0, 0.0, 0.0]); self.width as usize * self.height as usize];
-        self.read_image_transform(|pix| pix.to_hdr(), &mut ret[..])?;
-        Ok(ret)
+        let sz = (self.width * self.height) as usize;
+        let mut buf = vec![Rgb([0.0f32; 3]); sz];
+        self.read_image_transform(|pix| pix.to_hdr(), &mut buf[..])?;
+        Ok(buf)
     }
 }
 
@@ -971,15 +986,14 @@ fn split_at_first_test() {
 //   or return None to indicate end of file
 fn read_line_u8<R: BufRead>(r: &mut R) -> ::std::io::Result<Option<Vec<u8>>> {
     let mut ret = Vec::with_capacity(16);
-    match r.read_until(b'\n', &mut ret) {
-        Ok(0) => Ok(None),
-        Ok(_) => {
-            if let Some(&b'\n') = ret[..].last() {
+    match r.read_until(b'\n', &mut ret)? {
+        0 => Ok(None),
+        _ => {
+            if let Some(&b'\n') = ret.last() {
                 let _ = ret.pop();
             }
             Ok(Some(ret))
         }
-        Err(err) => Err(err),
     }
 }
 

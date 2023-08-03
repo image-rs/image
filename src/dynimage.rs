@@ -1164,7 +1164,7 @@ where
 /// This will lead to corrupted writers if the buffer contains
 /// malformed data.
 ///
-/// See [`ImageOutputFormat`](../enum.ImageOutputFormat.html) for
+/// See [`ImageOutputFormat`](enum.ImageOutputFormat.html) for
 /// supported types.
 ///
 /// Assumes the writer is buffered. In most cases,

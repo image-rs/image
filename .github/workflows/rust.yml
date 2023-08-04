@@ -56,7 +56,7 @@ jobs:
     - name: build
       run: cargo build -v --all-features
     - name: test
-      if: ${{ matrix.rust != "1.61.0" }}
+      if: ${{ matrix.rust != '1.61.0' }}
       run: cargo test -v --all-features && cargo doc -v --all-features
 
   build_big_endian:

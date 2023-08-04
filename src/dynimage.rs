@@ -854,6 +854,11 @@ impl DynamicImage {
         }
     }
 
+    /// Encode this image with the provided encoder.
+    pub fn write_with_encoder(&self, encoder: impl ImageEncoder) -> ImageResult<()> {
+        dynamic_map!(self, |ref p| p.write_with_encoder(encoder))
+    }
+
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.

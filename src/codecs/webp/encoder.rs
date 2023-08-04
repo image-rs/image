@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::iter::FromIterator;
 use std::slice::ChunksExact;
 
-#[cfg(feature = "webp-encoder")]
+#[cfg(feature = "webp-native")]
 use libwebp::{Encoder, PixelLayout, WebPMemory};
 
 use crate::error::{ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
@@ -72,7 +72,7 @@ impl<W: Write> WebPEncoder<W> {
     ///
     /// Defaults to lossy encoding, see [`WebPQuality::DEFAULT`].
     #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    #[cfg(feature = "webp-encoder")]
+    #[cfg(feature = "webp-native")]
     pub fn new(w: W) -> Self {
         #[allow(deprecated)]
         WebPEncoder::new_with_quality(w, WebPQuality::default())
@@ -80,7 +80,7 @@ impl<W: Write> WebPEncoder<W> {
 
     /// Create a new encoder with the specified quality, that writes its output to `w`.
     #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
-    #[cfg(feature = "webp-encoder")]
+    #[cfg(feature = "webp-native")]
     pub fn new_with_quality(w: W, quality: WebPQuality) -> Self {
         Self {
             writer: w,
@@ -645,7 +645,7 @@ impl<W: Write> WebPEncoder<W> {
         Ok(())
     }
 
-    #[cfg(feature = "webp-encoder")]
+    #[cfg(feature = "webp-native")]
     fn encode_lossy(
         mut self,
         data: &[u8],
@@ -719,9 +719,9 @@ impl<W: Write> WebPEncoder<W> {
         if let WebPQuality(Quality::Lossless) = self.quality {
             self.encode_lossless(data, width, height, color)
         } else {
-            #[cfg(feature = "webp-encoder")]
+            #[cfg(feature = "webp-native")]
             return self.encode_lossy(data, width, height, color);
-            #[cfg(not(feature = "webp-encoder"))]
+            #[cfg(not(feature = "webp-native"))]
             unreachable!()
         }
     }
@@ -767,7 +767,7 @@ mod tests {
 }
 
 #[cfg(test)]
-#[cfg(feature = "webp-encoder")]
+#[cfg(feature = "webp-native")]
 mod native_tests {
     use crate::codecs::webp::{WebPEncoder, WebPQuality};
     use crate::{ColorType, ImageEncoder};

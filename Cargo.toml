@@ -31,24 +31,29 @@ include = [
     "/benches/",
 ]
 
+# Crate build related
+exclude = ["src/png/testdata/*", "examples/*", "tests/*"]
+
 [dependencies]
 bytemuck = { version = "1.8.0", features = ["extern_crate_alloc"] } # includes cast_vec
 byteorder = "1.3.2"
-num-traits = "0.2.0"
-gif = { version = "0.13", optional = true }
-jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
-png = { version = "0.17.6", optional = true }
-tiff = { version = "0.9.0", optional = true }
-ravif = { version = "0.11.0", optional = true }
-rgb = { version = "0.8.25", optional = true }
-mp4parse = { version = "0.17.0", optional = true }
-dav1d = { version = "0.10.2", optional = true }
-dcv-color-primitives = { version = "0.6.1", optional = true }
+num-traits = { version = "0.2.0" }
+
+# Optional dependencies
 color_quant = { version = "1.1", optional = true }
+dav1d = { version = "0.6.0", optional = true }
+dcv-color-primitives = { version = "0.4.0", optional = true }
 exr = { version = "1.5.0", optional = true }
-qoi = { version = "0.4", optional = true }
+gif = { version = "0.12", optional = true }
+jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, optional = true }
 libwebp = { package = "webp", version = "0.2.2", default-features = false, optional = true }
+mp4parse = { version = "0.17.0", optional = true }
+png = { version = "0.17.6", optional = true }
+qoi = { version = "0.4", optional = true }
+ravif = { version = "0.11.0", default-features = false, optional = true }
 rayon = { version = "1.7.0", optional = true }
+rgb = { version = "0.8.25", optional = true }
+tiff = { version = "0.9.0", optional = true }
 
 [dev-dependencies]
 crc32fast = "1.2.0"
@@ -61,39 +66,31 @@ criterion = "0.5.0"
 jpeg = { package = "jpeg-decoder", version = "0.3.0", default-features = false, features = ["platform_independent"] }
 
 [features]
-# TODO: Add "avif" to this list while preparing for 0.24.0
-default = ["gif", "jpeg", "ico", "png", "pnm", "tga", "tiff", "webp", "bmp", "hdr", "dds", "farbfeld", "jpeg_rayon", "openexr", "qoi"]
+default = ["rayon", "default-formats"]
 
-ico = ["bmp", "png"]
-pnm = []
-tga = []
+# Format features
+default-formats = ["avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"]
+avif = ["dep:ravif", "dep:rgb"]
 bmp = []
-hdr = []
 dds = []
-farbfeld = []
-openexr = ["exr"]
-qoi = ["dep:qoi"]
+exr = ["dep:exr"]
+ff = []
 gif = ["dep:gif", "dep:color_quant"]
-
-# Enables WebP decoder support.
+hdr = []
+ico = ["bmp", "png"]
+jpeg = ["dep:jpeg"]
+png = ["dep:png"]
+pnm = []
+qoi = ["dep:qoi"]
+tga = []
+tiff = ["dep:tiff"]
 webp = []
-# Non-default, not included in `webp`. Requires native dependency libwebp.
-webp-encoder = ["libwebp", "webp"]
 
-# Enables multi-threading.
-# Requires latest stable Rust.
-jpeg_rayon = ["jpeg/rayon"]
-# Non-default, enables avif support.
-# Requires latest stable Rust.
-avif = ["avif-encoder"]
-# Requires latest stable Rust and recent nasm (>= 2.14).
-avif-encoder = ["ravif", "rgb"]
-# Non-default, even in `avif`. Requires stable Rust and native dependency libdav1d.
-avif-decoder = ["mp4parse", "dcv-color-primitives", "dav1d"]
-
-# Build some inline benchmarks. Useful only during development.
-# Requires rustc nightly for feature test.
-benchmarks = []
+# Other features
+rayon = ["dep:rayon", "jpeg?/rayon"] # Enables multi-threading
+webp-native = ["dep:libwebp"] # Enable native dependency libwebp.
+avif-native = ["dep:mp4parse", "dep:dcv-color-primitives", "dep:dav1d"] # Enable native dependency libdav1d (requires rustc 1.64.0)
+benchmarks = [] # Build some inline benchmarks. Useful only during development (requires nightly Rust)
 
 [[bench]]
 path = "benches/decode.rs"

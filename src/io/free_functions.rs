@@ -119,7 +119,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageOutputFormat::Bmp => {
             bmp::BmpEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
-        #[cfg(feature = "farbfeld")]
+        #[cfg(feature = "ff")]
         ImageOutputFormat::Farbfeld => {
             farbfeld::FarbfeldEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
@@ -135,7 +135,7 @@ pub(crate) fn write_buffer_impl<W: std::io::Write + Seek>(
         ImageOutputFormat::Tiff => {
             tiff::TiffEncoder::new(buffered_write).write_image(buf, width, height, color)
         }
-        #[cfg(feature = "avif-encoder")]
+        #[cfg(feature = "avif")]
         ImageOutputFormat::Avif => {
             avif::AvifEncoder::new(buffered_write).write_image(buf, width, height, color)
         }

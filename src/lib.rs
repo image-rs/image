@@ -248,13 +248,13 @@ pub mod flat;
 ///
 /// Re-exports of dependencies that reach version `1` will be discussed when it happens.
 pub mod codecs {
-    #[cfg(any(feature = "avif-encoder", feature = "avif-decoder"))]
+    #[cfg(any(feature = "avif", feature = "avif-native"))]
     pub mod avif;
     #[cfg(feature = "bmp")]
     pub mod bmp;
     #[cfg(feature = "dds")]
     pub mod dds;
-    #[cfg(feature = "farbfeld")]
+    #[cfg(feature = "ff")]
     pub mod farbfeld;
     #[cfg(feature = "gif")]
     pub mod gif;

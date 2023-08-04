@@ -54,10 +54,12 @@ jobs:
       if: ${{ matrix.rust == '1.61.0' }}
       run: mv Cargo.lock.msrv Cargo.lock
     - name: build
-      run: cargo build -v --all-features
+      run: cargo build -v --features webp,webp-encoder
     - name: test
       if: ${{ matrix.rust != '1.61.0' }}
-      run: cargo test -v --all-features && cargo doc -v --all-features
+      run: >
+        cargo test -v --features webp,webp-encoder &&
+        cargo doc -v --features webp,webp-encoder
 
   build_big_endian:
     name: Run tests on big endian architecture

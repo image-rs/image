@@ -94,7 +94,11 @@ impl<W: Write> WebPEncoder<W> {
         };
 
         // Validate dimensions upfront to avoid panics.
-        if !SampleLayout::row_major_packed(color.channel_count(), width, height).fits(data.len()) {
+        if width == 0
+            || height == 0
+            || !SampleLayout::row_major_packed(color.channel_count(), width, height)
+                .fits(data.len())
+        {
             return Err(ImageError::Parameter(ParameterError::from_kind(
                 ParameterErrorKind::DimensionMismatch,
             )));

@@ -2,19 +2,43 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
   pull_request:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
+  schedule:
+    - cron: '5 16 * * 6'
 
 jobs:
-  build:
-    name: Run tests and doctests on ubuntu
+  test_features:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.61.0", stable, beta, nightly]
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+    - name: build
+      run: cargo build -v --no-default-features --features "$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
+    - name: test
+      run: >
+        cargo test -v --no-default-features --features "$FEATURES" &&
+        cargo doc -v --no-default-features --features "$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
+
+  test_toolchains:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: ["1.61.0", nightly, beta]
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@v1
@@ -28,27 +52,21 @@ jobs:
       if: ${{ matrix.rust == '1.61.0' }}
       run: mv Cargo.lock.msrv Cargo.lock
     - name: build
-      run: cargo build -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
+      run: cargo build -v --features webp,webp-encoder
     - name: test
-      if: ${{ matrix.rust == 'stable' || matrix.rust == 'beta' || matrix.rust == 'nightly' }}
+      if: ${{ matrix.rust != '1.61.0' }}
       run: >
-        cargo test -v --no-default-features --features "$FEATURES" &&
-        cargo doc -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
+        cargo test -v --features webp,webp-encoder &&
+        cargo doc -v --features webp,webp-encoder
 
-  build_big_endian:
-    name: Run tests on big endian architecture
-
+  test_big_endian:
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        features: ['', default, webp, webp-encoder]
 
     # we are using the cross project for cross compilation to mips:
     # https://github.com/cross-rs/cross
@@ -82,18 +100,8 @@ jobs:
         env:
           FEATURES: ${{ matrix.features }}
 
-  test_defaults:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: dtolnay/rust-toolchain@stable
-    - name: build
-      run: cargo build -v --release
-    - name: test
-      run: cargo test -v --release
-
   test_avif:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install nasm
@@ -103,7 +111,7 @@ jobs:
       run: cargo build -v --no-default-features --features="avif"
 
   test_avif_decoding:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -115,7 +123,7 @@ jobs:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
   clippy:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -163,7 +171,6 @@ jobs:
         done
 
   public_private_dependencies:
-    name: "Public private dependencies"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -194,13 +201,12 @@ jobs:
       run: cargo fmt -- --check
 
   cargo-deny:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   verify_msrv:
-    name: Verify Minimum Supported Rust Version in Cargo.toml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

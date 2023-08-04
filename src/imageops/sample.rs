@@ -304,7 +304,7 @@ where
     out
 }
 
-/// Linearly sample from an image using coordinates in [0,1].
+/// Linearly sample from an image using coordinates in [0, 1].
 pub fn sample_bilinear<P: Pixel>(
     img: &impl GenericImageView<Pixel = P>,
     u: f32,
@@ -328,7 +328,7 @@ pub fn sample_bilinear<P: Pixel>(
     )
 }
 
-/// Sample from an image using coordinates in [0,1], taking the nearest coordinate.
+/// Sample from an image using coordinates in [0, 1], taking the nearest coordinate.
 pub fn sample_nearest<P: Pixel>(
     img: &impl GenericImageView<Pixel = P>,
     u: f32,
@@ -347,7 +347,12 @@ pub fn sample_nearest<P: Pixel>(
     interpolate_nearest(img, ui, vi)
 }
 
-/// Linearly bisample from an image using coordinates in [0,w-1] and [0,h-1].
+/// Sample from an image using coordinates in [0, w-1] and [0, h-1], taking the
+/// nearest pixel.
+///
+/// Coordinates outside the image bounds will return `None`, however the
+/// behavior for points within half a pixel of the image bounds may change in
+/// the future.
 pub fn interpolate_nearest<P: Pixel>(
     img: &impl GenericImageView<Pixel = P>,
     x: f32,
@@ -367,7 +372,7 @@ pub fn interpolate_nearest<P: Pixel>(
     Some(img.get_pixel(x.round() as u32, y.round() as u32))
 }
 
-/// Linearly bisample from an image using coordinates in [0,w-1] and [0,h-1].
+/// Linearly sample from an image using coordinates in [0, w-1] and [0, h-1].
 pub fn interpolate_bilinear<P: Pixel>(
     img: &impl GenericImageView<Pixel = P>,
     x: f32,

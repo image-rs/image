@@ -9,7 +9,7 @@ on:
     - cron: '5 16 * * 6'
 
 jobs:
-  build:
+  test_features:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,7 +33,7 @@ jobs:
       env:
         FEATURES: ${{ matrix.features }}
 
-  build_other_toolchains:
+  test_toolchains:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -59,7 +59,7 @@ jobs:
         cargo test -v --features webp,webp-encoder &&
         cargo doc -v --features webp,webp-encoder
 
-  build_big_endian:
+  test_big_endian:
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.

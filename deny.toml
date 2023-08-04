@@ -22,10 +22,9 @@ multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
 skip = [
-    { name = "miniz_oxide" }, # exr crate uses an old version
+    { name = "num-derive" } # ravif transatively depends on 0.3 and 0.4.
 ]
 skip-tree = [
-    { name = "windows-sys" }, # console and terminal_size both depend on an old version
     { name = "criterion" },  # dev-dependency
     { name = "quickcheck" }, # dev-dependency
     { name = "dav1d" }, # TODO: needs upgrade

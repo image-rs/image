@@ -68,6 +68,7 @@ where
             }
             tiff::ColorType::GrayA(n) => return Err(err_unknown_color_type(n.saturating_mul(2))),
             tiff::ColorType::RGB(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
+            tiff::ColorType::YCbCr(n) => return Err(err_unknown_color_type(n.saturating_mul(3))),
             tiff::ColorType::RGBA(n) | tiff::ColorType::CMYK(n) => {
                 return Err(err_unknown_color_type(n.saturating_mul(4)))
             }

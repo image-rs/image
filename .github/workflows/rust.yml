@@ -10,7 +10,6 @@ on:
 
 jobs:
   build:
-    name: Run tests and doctests on ubuntu
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -35,7 +34,6 @@ jobs:
         FEATURES: ${{ matrix.features }}
 
   build_other_toolchains:
-    name: Run tests and doctests on ubuntu
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -62,8 +60,6 @@ jobs:
         cargo doc -v --features webp,webp-encoder
 
   build_big_endian:
-    name: Run tests on big endian architecture
-
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.
@@ -175,7 +171,6 @@ jobs:
         done
 
   public_private_dependencies:
-    name: "Public private dependencies"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -212,7 +207,6 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   verify_msrv:
-    name: Verify Minimum Supported Rust Version in Cargo.toml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

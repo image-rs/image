@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
   pull_request:
-    branches: [ master, next ]
+    branches: [ master, main, next ]
 
 jobs:
   build:
@@ -13,8 +13,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: ["1.61.0", stable, beta, nightly]
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        rust: stable
+        features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder]
+        include:
+          - rust: beta
+            features: ['', default, webp, webp-encoder]
+          - rust: nightly
+            features: ['', default, webp, webp-encoder]
+          - rust: "1.61.0"
+            features: ['', default, webp, webp-encoder]
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@v1
@@ -45,10 +52,10 @@ jobs:
     # github actions does not support big endian systems directly, but it does support QEMU.
     # so we install qemu, then build and run the tests in an emulated mips system.
     # note: you can also use this approach to test for big endian locally.
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder, '']
+        features: ['', default, webp, webp-encoder]
 
     # we are using the cross project for cross compilation to mips:
     # https://github.com/cross-rs/cross
@@ -93,7 +100,7 @@ jobs:
       run: cargo test -v --release
 
   test_avif:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install nasm
@@ -103,7 +110,7 @@ jobs:
       run: cargo build -v --no-default-features --features="avif"
 
   test_avif_decoding:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -115,7 +122,7 @@ jobs:
         SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
 
   clippy:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: install-dependencies
       run: sudo apt update && sudo apt install ninja-build meson nasm
@@ -194,7 +201,7 @@ jobs:
       run: cargo fmt -- --check
 
   cargo-deny:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1

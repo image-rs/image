@@ -31,8 +31,7 @@
 //!
 //! ```rust,no_run
 //! # use std::io::{Write, Cursor};
-//! # use image::ImageOutputFormat;
-//! # use image::DynamicImage;
+//! # use image::{DynamicImage, ImageOutputFormat};
 //! # #[cfg(feature = "png")]
 //! # fn main() -> Result<(), image::ImageError> {
 //! # let img: DynamicImage = unimplemented!();
@@ -73,11 +72,40 @@
 //!
 //! # Low level encoding/decoding API
 //!
-//! The [`ImageDecoder`] and [`ImageDecoderRect`] traits are implemented for many image file
-//! formats. They decode image data by directly on raw byte slices. Given an ImageDecoder, you can
-//! produce a DynamicImage via [`DynamicImage::from_decoder`].
+//! Implementations of [`ImageEncoder`] provides low level control over encoding:
+//! ```rust,no_run
+//! # use std::io::Write;
+//! # use image::DynamicImage;
+//! # use image::ImageEncoder;
+//! # #[cfg(feature = "jpeg")]
+//! # fn main() -> Result<(), image::ImageError> {
+//! # use image::codecs::jpeg::JpegEncoder;
+//! # let img: DynamicImage = unimplemented!();
+//! # let writer: Box<dyn Write> = unimplemented!();
+//! let encoder = JpegEncoder::new_with_quality(&mut writer, 95);
+//! img.write_with_encoder(encoder)?;
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "jpeg"))] fn main() {}
+//! ```
+//! While [`ImageDecoder`] and [`ImageDecoderRect`] give access to more advanced decoding options:
 //!
-//! [`ImageEncoder`] provides the analogous functionality for encoding image data.
+//! ```rust,no_run
+//! # use std::io::Read;
+//! # use image::DynamicImage;
+//! # use image::ImageDecoder;
+//! # #[cfg(feature = "png")]
+//! # fn main() -> Result<(), image::ImageError> {
+//! # use image::codecs::png::PngDecoder;
+//! # let img: DynamicImage = unimplemented!();
+//! # let reader: Box<dyn Read> = unimplemented!();
+//! let decoder = PngDecoder::new(&mut reader)?;
+//! let icc = decoder.icc_profile();
+//! let img = DynamicImage::from_decoder(decoder)?;
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "png"))] fn main() {}
+//! ```
 //!
 //! [`DynamicImage::from_decoder`]: enum.DynamicImage.html#method.from_decoder
 //! [`ImageDecoderRect`]: trait.ImageDecoderRect.html

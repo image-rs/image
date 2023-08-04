@@ -15,15 +15,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [stable]
         features: ['', default, gif, jpeg, png, tiff, ico, pnm, tga, webp, bmp, hdr, dxt, dds, farbfeld, openexr, jpeg_rayon, webp-encoder]
-        include:
-          - rust: beta
-            features: ['', default, webp, webp-encoder]
-          - rust: nightly
-            features: ['', default, webp, webp-encoder]
-          - rust: "1.61.0"
-            features: ['', default, webp, webp-encoder]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: dtolnay/rust-toolchain@v1
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+    - name: build
+      run: cargo build -v --no-default-features --features "$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
+    - name: test
+      run: >
+        cargo test -v --no-default-features --features "$FEATURES" &&
+        cargo doc -v --no-default-features --features "$FEATURES"
+      env:
+        FEATURES: ${{ matrix.features }}
+
+  build_other_toolchains:
+    name: Run tests and doctests on ubuntu
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: ["1.61.0", nightly, beta]
     steps:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@v1
@@ -37,16 +54,10 @@ jobs:
       if: ${{ matrix.rust == '1.61.0' }}
       run: mv Cargo.lock.msrv Cargo.lock
     - name: build
-      run: cargo build -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
+      run: cargo build -v --all-features
     - name: test
-      if: ${{ matrix.rust == 'stable' || matrix.rust == 'beta' || matrix.rust == 'nightly' }}
-      run: >
-        cargo test -v --no-default-features --features "$FEATURES" &&
-        cargo doc -v --no-default-features --features "$FEATURES"
-      env:
-        FEATURES: ${{ matrix.features }}
+      if: ${{ matrix.rust != "1.61.0" }}
+      run: cargo test -v --all-features && cargo doc -v --all-features
 
   build_big_endian:
     name: Run tests on big endian architecture
@@ -90,16 +101,6 @@ jobs:
           cross test --target mips-unknown-linux-gnu --verbose -v --no-default-features --features "$FEATURES"
         env:
           FEATURES: ${{ matrix.features }}
-
-  test_defaults:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: dtolnay/rust-toolchain@stable
-    - name: build
-      run: cargo build -v --release
-    - name: test
-      run: cargo test -v --release
 
   test_avif:
     runs-on: ubuntu-latest

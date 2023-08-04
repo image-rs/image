@@ -304,7 +304,7 @@ where
     out
 }
 
-/// Linearly bisample from an image using coordinates in [0,1].
+/// Linearly sample from an image using coordinates in [0,1].
 pub fn sample_bilinear<P: Pixel>(
     img: &impl GenericImageView<Pixel = P>,
     u: f32,
@@ -326,6 +326,45 @@ pub fn sample_bilinear<P: Pixel>(
         ui.max(0.).min((w - 1) as f32),
         vi.max(0.).min((h - 1) as f32),
     )
+}
+
+/// Sample from an image using coordinates in [0,1], taking the nearest coordinate.
+pub fn sample_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    u: f32,
+    v: f32,
+) -> Option<P> {
+    if ![u, v].iter().all(|c| (0.0..=1.0).contains(c)) {
+        return None;
+    }
+
+    let (w, h) = img.dimensions();
+    let ui = w as f32 * u - 0.5;
+    let ui = ui.max(0.).min((w.saturating_sub(1)) as f32);
+
+    let vi = h as f32 * v - 0.5;
+    let vi = vi.max(0.).min((h.saturating_sub(1)) as f32);
+    interpolate_nearest(img, ui, vi)
+}
+
+/// Linearly bisample from an image using coordinates in [0,w-1] and [0,h-1].
+pub fn interpolate_nearest<P: Pixel>(
+    img: &impl GenericImageView<Pixel = P>,
+    x: f32,
+    y: f32,
+) -> Option<P> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if !(0.0..=((w - 1) as f32)).contains(&x) {
+        return None;
+    }
+    if !(0.0..=((h - 1) as f32)).contains(&y) {
+        return None;
+    }
+
+    Some(img.get_pixel(x.round() as u32, y.round() as u32))
 }
 
 /// Linearly bisample from an image using coordinates in [0,w-1] and [0,h-1].
@@ -961,7 +1000,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{resize, sample_bilinear, FilterType};
+    use super::{resize, sample_bilinear, sample_nearest, FilterType};
     use crate::{GenericImageView, ImageBuffer, RgbImage};
     #[cfg(feature = "benchmarks")]
     use test;
@@ -1006,6 +1045,25 @@ mod tests {
         assert!(sample_bilinear(&img, -0.1, -0.1).is_none());
     }
     #[test]
+    #[cfg(feature = "png")]
+    fn test_sample_nearest() {
+        use std::path::Path;
+        let img = crate::open(&Path::new("./examples/fractal.png")).unwrap();
+        assert!(sample_nearest(&img, 0., 0.).is_some());
+        assert!(sample_nearest(&img, 1., 0.).is_some());
+        assert!(sample_nearest(&img, 0., 1.).is_some());
+        assert!(sample_nearest(&img, 1., 1.).is_some());
+        assert!(sample_nearest(&img, 0.5, 0.5).is_some());
+
+        assert!(sample_nearest(&img, 1.2, 0.5).is_none());
+        assert!(sample_nearest(&img, 0.5, 1.2).is_none());
+        assert!(sample_nearest(&img, 1.2, 1.2).is_none());
+
+        assert!(sample_nearest(&img, -0.1, 0.2).is_none());
+        assert!(sample_nearest(&img, 0.2, -0.1).is_none());
+        assert!(sample_nearest(&img, -0.1, -0.1).is_none());
+    }
+    #[test]
     fn test_sample_bilinear_correctness() {
         use crate::Rgba;
         let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
@@ -1037,6 +1095,28 @@ mod tests {
             sample_bilinear(&img, 1.0, 0.5),
             Some(Rgba([0, 0, 128, 128]))
         );
+    }
+    #[test]
+    fn test_sample_nearest_correctness() {
+        use crate::Rgba;
+        let img = ImageBuffer::from_fn(2, 2, |x, y| match (x, y) {
+            (0, 0) => Rgba([255, 0, 0, 0]),
+            (0, 1) => Rgba([0, 255, 0, 0]),
+            (1, 0) => Rgba([0, 0, 255, 0]),
+            (1, 1) => Rgba([0, 0, 0, 255]),
+            _ => panic!(),
+        });
+
+        assert_eq!(sample_nearest(&img, 0.0, 0.0), Some(Rgba([255, 0, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 1.0), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 1.0, 1.0), Some(Rgba([0, 0, 0, 255])));
+
+        assert_eq!(sample_nearest(&img, 0.5, 0.5), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 0.5, 0.0), Some(Rgba([0, 0, 255, 0])));
+        assert_eq!(sample_nearest(&img, 0.0, 0.5), Some(Rgba([0, 255, 0, 0])));
+        assert_eq!(sample_nearest(&img, 0.5, 1.0), Some(Rgba([0, 0, 0, 255])));
+        assert_eq!(sample_nearest(&img, 1.0, 0.5), Some(Rgba([0, 0, 0, 255])));
     }
 
     #[bench]

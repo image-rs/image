@@ -64,15 +64,30 @@ impl<W: Write> WebPEncoder<W> {
     /// Create a new encoder that writes its output to `w`.
     ///
     /// Defaults to lossy encoding, see [`WebPQuality::DEFAULT`].
+    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
     pub fn new(w: W) -> Self {
         WebPEncoder::new_with_quality(w, WebPQuality::default())
     }
 
     /// Create a new encoder with the specified quality, that writes its output to `w`.
+    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
     pub fn new_with_quality(w: W, quality: WebPQuality) -> Self {
         Self {
             inner: w,
             quality,
+            chunk_buffer: Vec::new(),
+            buffer: 0,
+            nbits: 0,
+        }
+    }
+
+    /// Create a new encoder that writes its output to `w`.
+    ///
+    /// Uses "VP8L" lossless encoding.
+    pub fn new_lossless(w: W) -> Self {
+        Self {
+            inner: w,
+            quality: WebPQuality::lossless(),
             chunk_buffer: Vec::new(),
             buffer: 0,
             nbits: 0,
@@ -138,6 +153,13 @@ impl<W: Write> WebPEncoder<W> {
         Ok(())
     }
 
+    // fn build_huffman_tree(frequencies: &[u32], lengths: &mut [u8], codes: &mut [u16]) {
+    //     if frequencies.iter().filter(|&&f| f > 0).count() == 1 {
+    //         todo!();
+    //     }
+
+    // }
+
     fn encode_lossless(mut self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
         if width == 0
             || width > 16383
@@ -174,9 +196,7 @@ impl<W: Write> WebPEncoder<W> {
         self.write_bits(0x0, 3)?; // version
 
         // transforms
-        if !is_color {
-            self.write_bits(0b101, 3)?;
-        }
+        self.write_bits(0b101, 3)?;
         self.write_bits(0x0, 1)?;
 
         // color cache
@@ -185,7 +205,65 @@ impl<W: Write> WebPEncoder<W> {
         // meta-huffman codes
         self.write_bits(0x0, 1)?;
 
-        // huffman codes
+        // compute subtract green transform
+        let mut pixels = data.to_vec();
+        match color_type {
+            ColorType::L8 | ColorType::La8 => {}
+            ColorType::Rgb8 => {
+                for pixel in pixels.chunks_exact_mut(3) {
+                    pixel[0] = pixel[0].wrapping_sub(pixel[1]);
+                    pixel[2] = pixel[2].wrapping_sub(pixel[1]);
+                }
+            }
+            ColorType::Rgba8 => {
+                for pixel in pixels.chunks_exact_mut(3) {
+                    pixel[0] = pixel[0].wrapping_sub(pixel[1]);
+                    pixel[2] = pixel[2].wrapping_sub(pixel[1]);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        // compute frequencies
+        let mut frequencies = [[0u32; 256]; 4];
+        match color_type {
+            ColorType::L8 => {
+                for &pixel in buf {
+                    frequencies[0][pixel as usize] += 1;
+                }
+            }
+            ColorType::La8 => {
+                for pixel in buf.chunks_exact(2) {
+                    frequencies[0][pixel[0] as usize] += 1;
+                    frequencies[3][pixel[1] as usize] += 1;
+                }
+            }
+            ColorType::Rgb8 => {
+                for pixel in buf.chunks_exact(3) {
+                    frequencies[1][pixel[1] as usize] += 1;
+                    frequencies[0][pixel[0] as usize] += 1;
+                    frequencies[2][pixel[2] as usize] += 1;
+                }
+            }
+            ColorType::Rgba8 => {
+                for pixel in buf.chunks_exact(4) {
+                    frequencies[1][pixel[1] as usize] += 1;
+                    frequencies[0][pixel[0] as usize] += 1;
+                    frequencies[2][pixel[2] as usize] += 1;
+                    frequencies[3][pixel[3] as usize] += 1;
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        // compute huffman codes
+        let mut lengths = [vec![8u8; 256]; 4];
+        let mut codes = [vec![0u16; 256]; 4];
+        for i in 0..256 {
+            codes[i] = (i as u8).reverse_bits() as u16;
+        }
+
+        // write huffman codes
         self.write_flat_huffman_tree()?;
         if is_color {
             self.write_flat_huffman_tree()?;
@@ -205,28 +283,28 @@ impl<W: Write> WebPEncoder<W> {
         match color_type {
             ColorType::L8 => {
                 for &pixel in buf {
-                    self.write_bits(pixel.reverse_bits() as u64, 8)?;
+                    self.write_bits(codes[0][pixel] as u64, lengths[0][pixel])?;
                 }
             }
             ColorType::La8 => {
                 for pixel in buf.chunks_exact(2) {
-                    self.write_bits(pixel[0].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[1].reverse_bits() as u64, 8)?;
+                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
+                    self.write_bits(codes[3][pixel[1]] as u64, lengths[3][pixel[1]])?;
                 }
             }
             ColorType::Rgb8 => {
                 for pixel in buf.chunks_exact(3) {
-                    self.write_bits(pixel[1].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[0].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[2].reverse_bits() as u64, 8)?;
+                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
+                    self.write_bits(codes[1][pixel[1]] as u64, lengths[1][pixel[1]])?;
+                    self.write_bits(codes[2][pixel[2]] as u64, lengths[2][pixel[2]])?;
                 }
             }
             ColorType::Rgba8 => {
                 for pixel in buf.chunks_exact(4) {
-                    self.write_bits(pixel[1].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[0].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[2].reverse_bits() as u64, 8)?;
-                    self.write_bits(pixel[3].reverse_bits() as u64, 8)?;
+                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
+                    self.write_bits(codes[1][pixel[1]] as u64, lengths[1][pixel[1]])?;
+                    self.write_bits(codes[2][pixel[2]] as u64, lengths[2][pixel[2]])?;
+                    self.write_bits(codes[3][pixel[3]] as u64, lengths[3][pixel[3]])?;
                 }
             }
             _ => unreachable!(),
@@ -327,11 +405,19 @@ mod tests {
 
     #[test]
     fn write_webp() {
-        let img = crate::open("/home/jonathan/git/image/tests/images/tiff/testsuite/rgb-3c-16b.tiff").unwrap().to_rgba8();
+        let img =
+            crate::open("/home/jonathan/git/image/tests/images/tiff/testsuite/rgb-3c-16b.tiff")
+                .unwrap()
+                .to_rgba8();
 
         let mut output = Vec::new();
         super::WebpEncoder::new(&mut output)
-            .write_image(&img.inner_pixels(), img.width(), img.height(), crate::ColorType::Rgba8)
+            .write_image(
+                &img.inner_pixels(),
+                img.width(),
+                img.height(),
+                crate::ColorType::Rgba8,
+            )
             .unwrap();
 
         crate::load_from_memory_with_format(&output, crate::ImageFormat::WebP).unwrap();

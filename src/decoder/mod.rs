@@ -619,12 +619,10 @@ impl<R: Read> Reader<R> {
         };
         match (color_type, trns) {
             (ColorType::Indexed, _) if expand => {
-                output_buffer[..row.len()].copy_from_slice(row);
-                expand_paletted(output_buffer, info, trns)?;
+                expand_paletted(row, output_buffer, info, trns)?;
             }
             (ColorType::Grayscale | ColorType::GrayscaleAlpha, _) if bit_depth < 8 && expand => {
-                output_buffer[..row.len()].copy_from_slice(row);
-                expand_gray_u8(output_buffer, info, trns)
+                expand_gray_u8(row, output_buffer, info, trns)
             }
             (ColorType::Grayscale | ColorType::Rgb, Some(trns)) if expand => {
                 let channels = color_type.samples();
@@ -811,6 +809,7 @@ impl SubframeInfo {
 }
 
 fn expand_paletted(
+    row: &[u8],
     buffer: &mut [u8],
     info: &Info,
     trns: Option<Option<&[u8]>>,
@@ -842,7 +841,7 @@ fn expand_paletted(
                     &[]
                 };
 
-                utils::unpack_bits(buffer, 4, info.bit_depth as u8, |i, chunk| {
+                utils::unpack_bits(row, buffer, 4, info.bit_depth as u8, |i, chunk| {
                     let (rgb, a) = (
                         palette
                             .get(3 * i as usize..3 * i as usize + 3)
@@ -855,7 +854,7 @@ fn expand_paletted(
                     chunk[3] = a;
                 });
             } else {
-                utils::unpack_bits(buffer, 3, info.bit_depth as u8, |i, chunk| {
+                utils::unpack_bits(row, buffer, 3, info.bit_depth as u8, |i, chunk| {
                     let rgb = palette
                         .get(3 * i as usize..3 * i as usize + 3)
                         .unwrap_or(&black);
@@ -873,7 +872,7 @@ fn expand_paletted(
     }
 }
 
-fn expand_gray_u8(buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
+fn expand_gray_u8(row: &[u8], buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
     let rescale = true;
     let scaling_factor = if rescale {
         (255) / ((1u16 << info.bit_depth as u8) - 1) as u8
@@ -881,7 +880,7 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
         1
     };
     if let Some(trns) = trns {
-        utils::unpack_bits(buffer, 2, info.bit_depth as u8, |pixel, chunk| {
+        utils::unpack_bits(row, buffer, 2, info.bit_depth as u8, |pixel, chunk| {
             chunk[1] = if let Some(trns) = trns {
                 if pixel == trns[0] {
                     0
@@ -894,7 +893,7 @@ fn expand_gray_u8(buffer: &mut [u8], info: &Info, trns: Option<Option<&[u8]>>) {
             chunk[0] = pixel * scaling_factor
         })
     } else {
-        utils::unpack_bits(buffer, 1, info.bit_depth as u8, |val, chunk| {
+        utils::unpack_bits(row, buffer, 1, info.bit_depth as u8, |val, chunk| {
             chunk[0] = val * scaling_factor
         })
     }

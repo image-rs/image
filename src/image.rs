@@ -361,7 +361,7 @@ pub enum ImageOutputFormat {
     /// An image in QOI Format
     Qoi,
 
-    #[cfg(any(feature = "webp-encoder", feature = "webp"))]
+    #[cfg(feature = "webp")]
     /// An image in WebP Format.
     WebP,
 
@@ -397,7 +397,7 @@ impl From<ImageFormat> for ImageOutputFormat {
 
             #[cfg(feature = "avif-encoder")]
             ImageFormat::Avif => ImageOutputFormat::Avif,
-            #[cfg(feature = "webp-encoder")]
+            #[cfg(feature = "webp")]
             ImageFormat::WebP => ImageOutputFormat::WebP,
 
             #[cfg(feature = "qoi")]

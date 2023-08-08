@@ -76,7 +76,7 @@ qoi = ["dep:qoi"]
 # Enables WebP decoder support.
 webp = []
 # Non-default, not included in `webp`. Requires native dependency libwebp.
-webp-encoder = ["libwebp"]
+webp-encoder = ["libwebp", "webp"]
 
 # Enables multi-threading.
 # Requires latest stable Rust.

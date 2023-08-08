@@ -361,7 +361,7 @@ pub enum ImageOutputFormat {
     /// An image in QOI Format
     Qoi,
 
-    #[cfg(feature = "webp-encoder")]
+    #[cfg(any(feature = "webp-encoder", feature = "webp"))]
     /// An image in WebP Format.
     WebP,
 

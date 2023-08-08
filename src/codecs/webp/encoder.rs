@@ -3,8 +3,9 @@
 /// Uses the simple encoding API from the [libwebp] library.
 ///
 /// [libwebp]: https://developers.google.com/speed/webp/docs/api#simple_encoding_api
-use std::io::Write;
+use std::io::{self, Write};
 
+#[cfg(feature = "webp-encoder")]
 use libwebp::{Encoder, PixelLayout, WebPMemory};
 
 use crate::error::{
@@ -15,7 +16,7 @@ use crate::{ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
 /// WebP Encoder.
 pub struct WebPEncoder<W> {
-    inner: W,
+    writer: W,
     quality: WebPQuality,
 
     chunk_buffer: Vec<u8>,
@@ -65,15 +66,18 @@ impl<W: Write> WebPEncoder<W> {
     ///
     /// Defaults to lossy encoding, see [`WebPQuality::DEFAULT`].
     #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
+    #[cfg(feature = "webp-encoder")]
     pub fn new(w: W) -> Self {
+        #[allow(deprecated)]
         WebPEncoder::new_with_quality(w, WebPQuality::default())
     }
 
     /// Create a new encoder with the specified quality, that writes its output to `w`.
     #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
+    #[cfg(feature = "webp-encoder")]
     pub fn new_with_quality(w: W, quality: WebPQuality) -> Self {
         Self {
-            inner: w,
+            writer: w,
             quality,
             chunk_buffer: Vec::new(),
             buffer: 0,
@@ -86,7 +90,7 @@ impl<W: Write> WebPEncoder<W> {
     /// Uses "VP8L" lossless encoding.
     pub fn new_lossless(w: W) -> Self {
         Self {
-            inner: w,
+            writer: w,
             quality: WebPQuality::lossless(),
             chunk_buffer: Vec::new(),
             buffer: 0,
@@ -160,7 +164,13 @@ impl<W: Write> WebPEncoder<W> {
 
     // }
 
-    fn encode_lossless(mut self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
+    fn encode_lossless(
+        mut self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        color: ColorType,
+    ) -> ImageResult<()> {
         if width == 0
             || width > 16383
             || height == 0
@@ -173,7 +183,7 @@ impl<W: Write> WebPEncoder<W> {
             )));
         }
 
-        let (is_color, is_alpha) = match color_type {
+        let (is_color, is_alpha) = match color {
             ColorType::L8 => (false, false),
             ColorType::La8 => (false, true),
             ColorType::Rgb8 => (true, false),
@@ -182,7 +192,7 @@ impl<W: Write> WebPEncoder<W> {
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(
                         ImageFormat::WebP.into(),
-                        UnsupportedErrorKind::Color(color_type.into()),
+                        UnsupportedErrorKind::Color(color.into()),
                     ),
                 ))
             }
@@ -195,8 +205,18 @@ impl<W: Write> WebPEncoder<W> {
         self.write_bits(is_alpha as u64, 1)?; // alpha used
         self.write_bits(0x0, 3)?; // version
 
-        // transforms
+        // subtract green transform
         self.write_bits(0b101, 3)?;
+
+        // predictor transform
+        self.write_bits(0b111001, 6)?;
+        self.write_bits(0x0, 1)?; // no color cache
+        self.write_single_entry_huffman_tree(2)?;
+        for _ in 0..4 {
+            self.write_single_entry_huffman_tree(0)?;
+        }
+
+        // transforms done
         self.write_bits(0x0, 1)?;
 
         // color cache
@@ -207,7 +227,7 @@ impl<W: Write> WebPEncoder<W> {
 
         // compute subtract green transform
         let mut pixels = data.to_vec();
-        match color_type {
+        match color {
             ColorType::L8 | ColorType::La8 => {}
             ColorType::Rgb8 => {
                 for pixel in pixels.chunks_exact_mut(3) {
@@ -216,7 +236,7 @@ impl<W: Write> WebPEncoder<W> {
                 }
             }
             ColorType::Rgba8 => {
-                for pixel in pixels.chunks_exact_mut(3) {
+                for pixel in pixels.chunks_exact_mut(4) {
                     pixel[0] = pixel[0].wrapping_sub(pixel[1]);
                     pixel[2] = pixel[2].wrapping_sub(pixel[1]);
                 }
@@ -224,29 +244,46 @@ impl<W: Write> WebPEncoder<W> {
             _ => unreachable!(),
         }
 
+        // compute predictor transform
+        let channels = color.channel_count() as usize;
+        let row_bytes = width as usize * channels;
+        for y in (1..height as usize).rev() {
+            let (prev, current) =
+                pixels[(y - 1) * row_bytes..][..row_bytes * 2].split_at_mut(row_bytes);
+            for i in 0..row_bytes {
+                current[i] = current[i].wrapping_sub(prev[i]);
+            }
+        }
+        for i in (channels..row_bytes as usize).rev() {
+            pixels[i] = pixels[i].wrapping_sub(pixels[i - channels]);
+        }
+        if is_alpha {
+            pixels[channels - 1] = pixels[channels - 1].wrapping_sub(255);
+        }
+
         // compute frequencies
         let mut frequencies = [[0u32; 256]; 4];
-        match color_type {
+        match color {
             ColorType::L8 => {
-                for &pixel in buf {
+                for &pixel in &pixels {
                     frequencies[0][pixel as usize] += 1;
                 }
             }
             ColorType::La8 => {
-                for pixel in buf.chunks_exact(2) {
+                for pixel in pixels.chunks_exact(2) {
                     frequencies[0][pixel[0] as usize] += 1;
                     frequencies[3][pixel[1] as usize] += 1;
                 }
             }
             ColorType::Rgb8 => {
-                for pixel in buf.chunks_exact(3) {
+                for pixel in pixels.chunks_exact(3) {
                     frequencies[1][pixel[1] as usize] += 1;
                     frequencies[0][pixel[0] as usize] += 1;
                     frequencies[2][pixel[2] as usize] += 1;
                 }
             }
             ColorType::Rgba8 => {
-                for pixel in buf.chunks_exact(4) {
+                for pixel in pixels.chunks_exact(4) {
                     frequencies[1][pixel[1] as usize] += 1;
                     frequencies[0][pixel[0] as usize] += 1;
                     frequencies[2][pixel[2] as usize] += 1;
@@ -256,11 +293,23 @@ impl<W: Write> WebPEncoder<W> {
             _ => unreachable!(),
         }
 
-        // compute huffman codes
-        let mut lengths = [vec![8u8; 256]; 4];
-        let mut codes = [vec![0u16; 256]; 4];
-        for i in 0..256 {
-            codes[i] = (i as u8).reverse_bits() as u16;
+        // "compute" huffman codes (TODO: actually compute them)
+        let lengths = [
+            vec![8u8; 256],
+            vec![8u8; 256],
+            vec![8u8; 256],
+            vec![8u8; 256],
+        ];
+        let mut codes = [
+            vec![0u16; 256],
+            vec![0u16; 256],
+            vec![0u16; 256],
+            vec![0u16; 256],
+        ];
+        for i in 0..4 {
+            for j in 0..256 {
+                codes[i][j] = (j as u8).reverse_bits() as u16;
+            }
         }
 
         // write huffman codes
@@ -275,36 +324,63 @@ impl<W: Write> WebPEncoder<W> {
         if is_alpha {
             self.write_flat_huffman_tree()?;
         } else {
-            self.write_single_entry_huffman_tree(255)?;
+            self.write_single_entry_huffman_tree(0)?;
         }
         self.write_single_entry_huffman_tree(0)?;
 
         // image data
-        match color_type {
+        match color {
             ColorType::L8 => {
-                for &pixel in buf {
-                    self.write_bits(codes[0][pixel] as u64, lengths[0][pixel])?;
+                for &pixel in &pixels {
+                    self.write_bits(codes[0][pixel as usize] as u64, lengths[0][pixel as usize])?;
                 }
             }
             ColorType::La8 => {
-                for pixel in buf.chunks_exact(2) {
-                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
-                    self.write_bits(codes[3][pixel[1]] as u64, lengths[3][pixel[1]])?;
+                for pixel in pixels.chunks_exact(2) {
+                    self.write_bits(
+                        codes[0][pixel[0] as usize] as u64,
+                        lengths[0][pixel[0] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[3][pixel[1] as usize] as u64,
+                        lengths[3][pixel[1] as usize],
+                    )?;
                 }
             }
             ColorType::Rgb8 => {
-                for pixel in buf.chunks_exact(3) {
-                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
-                    self.write_bits(codes[1][pixel[1]] as u64, lengths[1][pixel[1]])?;
-                    self.write_bits(codes[2][pixel[2]] as u64, lengths[2][pixel[2]])?;
+                for pixel in pixels.chunks_exact(3) {
+                    self.write_bits(
+                        codes[1][pixel[1] as usize] as u64,
+                        lengths[1][pixel[1] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[0][pixel[0] as usize] as u64,
+                        lengths[0][pixel[0] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[2][pixel[2] as usize] as u64,
+                        lengths[2][pixel[2] as usize],
+                    )?;
                 }
             }
             ColorType::Rgba8 => {
-                for pixel in buf.chunks_exact(4) {
-                    self.write_bits(codes[0][pixel[0]] as u64, lengths[0][pixel[0]])?;
-                    self.write_bits(codes[1][pixel[1]] as u64, lengths[1][pixel[1]])?;
-                    self.write_bits(codes[2][pixel[2]] as u64, lengths[2][pixel[2]])?;
-                    self.write_bits(codes[3][pixel[3]] as u64, lengths[3][pixel[3]])?;
+                for pixel in pixels.chunks_exact(4) {
+                    self.write_bits(
+                        codes[1][pixel[1] as usize] as u64,
+                        lengths[1][pixel[1] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[0][pixel[0] as usize] as u64,
+                        lengths[0][pixel[0] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[2][pixel[2] as usize] as u64,
+                        lengths[2][pixel[2] as usize],
+                    )?;
+                    self.write_bits(
+                        codes[3][pixel[3] as usize] as u64,
+                        lengths[3][pixel[3] as usize],
+                    )?;
                 }
             }
             _ => unreachable!(),
@@ -327,20 +403,14 @@ impl<W: Write> WebPEncoder<W> {
         Ok(())
     }
 
-    /// Encode image data with the indicated color type.
-    ///
-    /// The encoder requires image data be Rgb8 or Rgba8.
-    pub fn encode(
+    #[cfg(feature = "webp-encoder")]
+    fn encode_lossy(
         mut self,
         data: &[u8],
         width: u32,
         height: u32,
         color: ColorType,
     ) -> ImageResult<()> {
-        if let Quality::Lossless = self.quality {
-            return self.encode_lossless(data, width, height);
-        }
-
         // TODO: convert color types internally?
         let layout = match color {
             ColorType::Rgb8 => PixelLayout::Rgb,
@@ -381,8 +451,22 @@ impl<W: Write> WebPEncoder<W> {
             )));
         }
 
-        self.inner.write_all(&encoded)?;
-        Ok(())
+        self.writer.write_all(&encoded)?;
+        return Ok(());
+    }
+
+    /// Encode image data with the indicated color type.
+    ///
+    /// The encoder requires image data be Rgb8 or Rgba8.
+    pub fn encode(self, data: &[u8], width: u32, height: u32, color: ColorType) -> ImageResult<()> {
+        if let WebPQuality(Quality::Lossless) = self.quality {
+            self.encode_lossless(data, width, height, color)
+        } else {
+            #[cfg(feature = "webp-encoder")]
+            return self.encode_lossy(data, width, height, color);
+            #[cfg(not(feature = "webp-encoder"))]
+            unreachable!()
+        }
     }
 }
 
@@ -411,7 +495,7 @@ mod tests {
                 .to_rgba8();
 
         let mut output = Vec::new();
-        super::WebpEncoder::new(&mut output)
+        super::WebPEncoder::new_lossless(&mut output)
             .write_image(
                 &img.inner_pixels(),
                 img.width(),
@@ -451,6 +535,7 @@ mod tests {
             // Encode it into a memory buffer.
             let mut encoded_img = Vec::new();
             {
+                #[allow(deprecated)]
                 let encoder =
                     WebPEncoder::new_with_quality(&mut encoded_img, WebPQuality::lossless());
                 encoder
@@ -498,6 +583,7 @@ mod tests {
             let mut buffer = Vec::<u8>::new();
             for webp_quality in [WebPQuality::lossless(), WebPQuality::lossy(quality)] {
                 buffer.clear();
+                #[allow(deprecated)]
                 let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
                 if !encoder
                     .write_image(&image.data, image.width, image.height, image.color)
@@ -514,6 +600,7 @@ mod tests {
             for color in [ColorType::Rgb8, ColorType::Rgba8] {
                 for webp_quality in [WebPQuality::lossless(), WebPQuality::lossy(quality)] {
                     buffer.clear();
+                    #[allow(deprecated)]
                     let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
                     // Ignore errors.
                     let _ = encoder

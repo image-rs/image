@@ -252,7 +252,7 @@ impl<W: Write> WebPEncoder<W> {
                 current[i] = current[i].wrapping_sub(prev[i]);
             }
         }
-        for i in (channels..row_bytes as usize).rev() {
+        for i in (channels..row_bytes).rev() {
             pixels[i] = pixels[i].wrapping_sub(pixels[i - channels]);
         }
         if is_alpha {
@@ -304,9 +304,9 @@ impl<W: Write> WebPEncoder<W> {
             vec![0u16; 256],
             vec![0u16; 256],
         ];
-        for i in 0..4 {
-            for j in 0..256 {
-                codes[i][j] = (j as u8).reverse_bits() as u16;
+        for code in codes.iter_mut() {
+            for i in 0..256 {
+                code[i] = (i as u8).reverse_bits() as u16;
             }
         }
 
@@ -450,7 +450,7 @@ impl<W: Write> WebPEncoder<W> {
         }
 
         self.writer.write_all(&encoded)?;
-        return Ok(());
+        Ok(())
     }
 
     /// Encode image data with the indicated color type.

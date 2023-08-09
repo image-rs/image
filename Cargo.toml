@@ -1,6 +1,6 @@
 [package]
 name = "image"
-version = "0.24.6"
+version = "0.24.7"
 edition = "2018"
 resolver = "2"
 
@@ -8,7 +8,7 @@ resolver = "2"
 rust-version = "1.61.0"
 
 license = "MIT"
-description = "Imaging library written in Rust. Provides basic filters and decoders for the most common image formats."
+description = "Imaging library. Provides basic image processing and encoders/decoders for common image formats."
 authors = ["The image-rs Developers"]
 readme = "README.md"
 

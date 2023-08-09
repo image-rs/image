@@ -1,11 +1,9 @@
-# Rust Image Release Notes
-
-Rust image aims to be a pure-Rust implementation of various popular image formats. Accompanying reading/write support, rust image provides basic imaging processing function. See `README.md` for further details.
+# Release Notes
 
 ## Known issues
- - Not all Interlaced (progressive) or animated images are well supported.
- - The color space information of pixels is not clearly communicated.
- - Initialization via byte-based buffers and ffi is a work-in-progress.
+- Many decoders will panic on malicous input. In most cases, this is caused by
+  not enforcing memory limits, though other panics have been seen from fuzzing.
+- The color space information of pixels is not clearly communicated.
 
 ## Changes
 
@@ -18,6 +16,20 @@ Rust image aims to be a pure-Rust implementation of various popular image format
   `ImageDecoder`.
   See ongoing work on [`image-canvas`](https://github.com/image-rs/canvas) if
   you want to participate.
+
+### Version 0.24.7
+
+New features:
+- Added `{ImageBuffer, DynamicImage}::write_with_encoder` to simplify writing
+  images with custom settings.
+- Expose ICC profiles stored in tiff and wepb files.
+- Added option to set the background color of animated webp images.
+- New methods for sampling and interpolation of `GenericImageView`s
+
+Bug fixes:
+- Fix panic on empty dxt.
+- Fix several panics in webp decoder.
+- Allow unknown chunks at the end of webp files.
 
 ### Version 0.24.6
 

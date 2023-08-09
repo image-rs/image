@@ -482,8 +482,7 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::codecs::webp::{WebPEncoder, WebPQuality};
-    use crate::{ColorType, ImageEncoder};
+    use crate::ImageEncoder;
 
     #[test]
     fn write_webp() {
@@ -510,6 +509,13 @@ mod tests {
 
         assert_eq!(img, img2);
     }
+}
+
+#[cfg(test)]
+#[cfg(feature = "webp-encoder")]
+mod native_tests {
+    use crate::codecs::webp::{WebPEncoder, WebPQuality};
+    use crate::{ColorType, ImageEncoder};
 
     #[derive(Debug, Clone)]
     struct MockImage {

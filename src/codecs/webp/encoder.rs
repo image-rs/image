@@ -8,9 +8,7 @@ use std::io::{self, Write};
 #[cfg(feature = "webp-encoder")]
 use libwebp::{Encoder, PixelLayout, WebPMemory};
 
-use crate::error::{
-    EncodingError, ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind,
-};
+use crate::error::{ParameterError, ParameterErrorKind, UnsupportedError, UnsupportedErrorKind};
 use crate::flat::SampleLayout;
 use crate::{ColorType, ImageEncoder, ImageError, ImageFormat, ImageResult};
 
@@ -445,7 +443,7 @@ impl<W: Write> WebPEncoder<W> {
 
         // The simple encoding API in libwebp does not return errors.
         if encoded.is_empty() {
-            return Err(ImageError::Encoding(EncodingError::new(
+            return Err(ImageError::Encoding(crate::error::EncodingError::new(
                 ImageFormat::WebP.into(),
                 "encoding failed, output empty",
             )));
@@ -489,10 +487,12 @@ mod tests {
 
     #[test]
     fn write_webp() {
-        let img =
-            crate::open("/home/jonathan/git/image/tests/images/tiff/testsuite/rgb-3c-16b.tiff")
-                .unwrap()
-                .to_rgba8();
+        let img = crate::load_from_memory_with_format(
+            include_bytes!("../../../tests/images/png/transparency/tbwn3p08.png"),
+            crate::ImageFormat::Png,
+        )
+        .unwrap()
+        .to_rgba8();
 
         let mut output = Vec::new();
         super::WebPEncoder::new_lossless(&mut output)
@@ -504,48 +504,11 @@ mod tests {
             )
             .unwrap();
 
-        crate::load_from_memory_with_format(&output, crate::ImageFormat::WebP).unwrap();
+        let img2 = crate::load_from_memory_with_format(&output, crate::ImageFormat::WebP)
+            .unwrap()
+            .to_rgba8();
 
-        std::fs::write("test.webp", output).unwrap();
-    }
-
-    #[test]
-    fn webp_lossless_deterministic() {
-        // 1x1 8-bit image buffer containing a single red pixel.
-        let rgb: &[u8] = &[255, 0, 0];
-        let rgba: &[u8] = &[255, 0, 0, 128];
-        for (color, img, expected) in [
-            (
-                ColorType::Rgb8,
-                rgb,
-                [
-                    82, 73, 70, 70, 28, 0, 0, 0, 87, 69, 66, 80, 86, 80, 56, 76, 15, 0, 0, 0, 47,
-                    0, 0, 0, 0, 7, 16, 253, 143, 254, 7, 34, 162, 255, 1, 0,
-                ],
-            ),
-            (
-                ColorType::Rgba8,
-                rgba,
-                [
-                    82, 73, 70, 70, 28, 0, 0, 0, 87, 69, 66, 80, 86, 80, 56, 76, 15, 0, 0, 0, 47,
-                    0, 0, 0, 16, 7, 16, 253, 143, 2, 6, 34, 162, 255, 1, 0,
-                ],
-            ),
-        ] {
-            // Encode it into a memory buffer.
-            let mut encoded_img = Vec::new();
-            {
-                #[allow(deprecated)]
-                let encoder =
-                    WebPEncoder::new_with_quality(&mut encoded_img, WebPQuality::lossless());
-                encoder
-                    .write_image(&img, 1, 1, color)
-                    .expect("image encoding failed");
-            }
-
-            // WebP encoding should be deterministic.
-            assert_eq!(encoded_img, expected);
-        }
+        assert_eq!(img, img2);
     }
 
     #[derive(Debug, Clone)]

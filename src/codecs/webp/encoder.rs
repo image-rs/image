@@ -304,9 +304,9 @@ impl<W: Write> WebPEncoder<W> {
             vec![0u16; 256],
             vec![0u16; 256],
         ];
-        for code in codes.iter_mut() {
-            for i in 0..256 {
-                code[i] = (i as u8).reverse_bits() as u16;
+        for code_group in codes.iter_mut() {
+            for (i, code) in code_group.iter_mut().enumerate() {
+                *code = (i as u8).reverse_bits() as u16;
             }
         }
 

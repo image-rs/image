@@ -482,16 +482,11 @@ impl<W: Write> ImageEncoder for WebPEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ImageEncoder;
+    use crate::{ImageEncoder, RgbaImage};
 
     #[test]
     fn write_webp() {
-        let img = crate::load_from_memory_with_format(
-            include_bytes!("../../../tests/images/png/transparency/tbwn3p08.png"),
-            crate::ImageFormat::Png,
-        )
-        .unwrap()
-        .to_rgba8();
+        let img = RgbaImage::from_raw(10, 6, (0..240).collect()).unwrap();
 
         let mut output = Vec::new();
         super::WebPEncoder::new_lossless(&mut output)

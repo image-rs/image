@@ -22,7 +22,7 @@
 New features:
 - Added `{ImageBuffer, DynamicImage}::write_with_encoder` to simplify writing
   images with custom settings.
-- Expose ICC profiles stored in tiff and wepb files.
+- Expose ICC profiles stored in tiff and webp files.
 - Added option to set the background color of animated webp images.
 - New methods for sampling and interpolation of `GenericImageView`s
 

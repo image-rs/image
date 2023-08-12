@@ -507,7 +507,7 @@ impl StreamingDecoder {
     }
 
     /// Set whether to compute and verify the Adler-32 checksum during
-    /// decompression. Return `true` if the flag was successfully set.
+    /// decompression.
     ///
     /// The decoder defaults to `false`.
     pub fn set_ignore_crc(&mut self, ignore_crc: bool) {
@@ -717,7 +717,9 @@ impl StreamingDecoder {
                         Ok((0, Decoded::Nothing))
                     } else {
                         let buf = &buf[..n as usize];
-                        crc.update(buf);
+                        if !self.decode_options.ignore_crc {
+                            crc.update(buf);
+                        }
                         raw_bytes.extend_from_slice(buf);
 
                         *remaining -= n;

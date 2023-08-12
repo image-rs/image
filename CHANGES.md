@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.17.10
+
+* Added Transformations::ALPHA
+* Enable encoding pixel dimensions
+
 ## 0.17.9
 
 * Fixed a bug in ICC profile decompression.

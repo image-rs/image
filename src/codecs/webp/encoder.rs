@@ -1,4 +1,5 @@
 //! Encoding of WebP images.
+use std::collections::BinaryHeap;
 ///
 /// Uses the simple encoding API from the [libwebp] library.
 ///
@@ -137,30 +138,191 @@ impl<W: Write> WebPEncoder<W> {
         Ok(())
     }
 
-    fn write_flat_huffman_tree(&mut self) -> io::Result<()> {
-        self.write_bits(0, 1)?; // normal huffman tree
-        self.write_bits(8, 4)?; // num_code_lengths - 4
+    fn build_huffman_tree(
+        &mut self,
+        frequencies: &[u32],
+        lengths: &mut [u8],
+        codes: &mut [u16],
+        length_limit: u8,
+    ) -> bool {
+        assert_eq!(frequencies.len(), lengths.len());
+        assert_eq!(frequencies.len(), codes.len());
 
-        // code_length_code_lengths = [0, 0, 0, 0, 0, 0, 0, 0, 1]
-        for _ in 0..11 {
-            self.write_bits(0, 3)?;
+        if frequencies.iter().filter(|&&f| f > 0).count() <= 1 {
+            lengths.fill(0);
+            codes.fill(0);
+            return false;
         }
-        self.write_bits(1, 3)?;
 
-        // max_symbol = 256
-        self.write_bits(1, 1)?;
-        self.write_bits(3, 3)?;
-        self.write_bits(254, 8)?;
+        #[derive(Eq, PartialEq, Copy, Clone, Ord, Debug)]
+        struct Item(u32, u16);
+        impl PartialOrd for Item {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                other.0.partial_cmp(&self.0)
+            }
+        }
+
+        // Build a huffman tree
+        let mut nodes = BinaryHeap::new();
+        let mut internal_nodes = Vec::new();
+        for (i, &frequency) in frequencies.iter().enumerate() {
+            if frequency > 0 {
+                nodes.push(Item(frequency, i as u16));
+            }
+        }
+        while nodes.len() > 1 {
+            let Item(frequency1, index1) = nodes.pop().unwrap();
+            let Item(frequency2, index2) = nodes.pop().unwrap();
+            nodes.push(Item(
+                frequency1 + frequency2,
+                internal_nodes.len() as u16 + frequencies.len() as u16,
+            ));
+            internal_nodes.push((index1, index2));
+        }
+
+        // Walk the tree to assign code lengths
+        lengths.fill(0);
+        let mut stack = Vec::new();
+        stack.push((nodes.pop().unwrap().1, 0));
+        while let Some((node, depth)) = stack.pop() {
+            let node = node as usize;
+            if node < frequencies.len() {
+                lengths[node] = depth as u8;
+            } else {
+                let (left, right) = internal_nodes[(node - frequencies.len()) as usize];
+                stack.push((left, depth + 1));
+                stack.push((right, depth + 1));
+            }
+        }
+
+        // Limit the codes to length length_limit
+        let mut max_length = 0;
+        for &length in lengths.iter() {
+            max_length = max_length.max(length);
+        }
+        if max_length > length_limit {
+            let mut counts = [0u32; 16];
+            for &length in lengths.iter() {
+                counts[length.min(length_limit) as usize] += 1;
+            }
+
+            let mut total = 0;
+            for i in 1..=length_limit as usize {
+                total += counts[i] << (length_limit as usize - i);
+            }
+
+            {
+                while total > 1u32 << length_limit {
+                    let mut i = length_limit as usize - 1;
+                    while counts[i] == 0 {
+                        i -= 1;
+                    }
+                    counts[i] -= 1;
+                    counts[length_limit as usize] -= 1;
+                    counts[i + 1] += 2;
+                    total -= 1;
+                }
+            }
+
+            let mut new_total = 0;
+            for i in 1..=length_limit as usize {
+                new_total += counts[i] << (length_limit as usize - i);
+            }
+            assert_eq!(total, new_total);
+
+            // assign new lengths
+            let mut len = length_limit;
+            let mut indexes = frequencies.iter().copied().enumerate().collect::<Vec<_>>();
+            indexes.sort_unstable_by_key(|&(_, frequency)| frequency);
+            for &(i, frequency) in indexes.iter() {
+                if frequency > 0 {
+                    while counts[len as usize] == 0 {
+                        len -= 1;
+                    }
+                    lengths[i] = len;
+                    counts[len as usize] -= 1;
+                }
+            }
+        }
+
+        // Assign codes
+        codes.fill(0);
+        let mut code = 0u32;
+        for len in 1..=length_limit {
+            for (i, &length) in lengths.iter().enumerate() {
+                if length == len {
+                    codes[i] = (code as u16).reverse_bits() >> (16 - len);
+                    code += 1;
+                }
+            }
+            code <<= 1;
+        }
+        assert_eq!(code, 2 << length_limit);
+
+        true
+    }
+
+    fn write_huffman_tree(
+        &mut self,
+        frequencies: &[u32],
+        lengths: &mut [u8],
+        codes: &mut [u16],
+    ) -> io::Result<()> {
+        if !self.build_huffman_tree(frequencies, lengths, codes, 15) {
+            let symbol = frequencies
+                .iter()
+                .position(|&frequency| frequency > 0)
+                .unwrap_or(0);
+            return self.write_single_entry_huffman_tree(symbol as u8);
+        }
+
+        let mut code_length_lengths = [0u8; 16];
+        let mut code_length_codes = [0u16; 16];
+        let mut code_length_frequencies = [0u32; 16];
+        for &length in lengths.iter() {
+            code_length_frequencies[length as usize] += 1;
+        }
+        let single_code_length_length = !self.build_huffman_tree(
+            &code_length_frequencies,
+            &mut code_length_lengths,
+            &mut code_length_codes,
+            7,
+        );
+
+        const CODE_LENGTH_ORDER: [usize; 19] = [
+            17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        ];
+
+        // Write the huffman tree
+        self.write_bits(0, 1)?; // normal huffman tree
+        self.write_bits(19 - 4, 4)?; // num_code_lengths - 4
+
+        for &i in CODE_LENGTH_ORDER.iter() {
+            if i > 15 || code_length_frequencies[i] == 0 {
+                self.write_bits(0, 3)?;
+            } else if single_code_length_length {
+                self.write_bits(1, 3)?;
+            } else {
+                self.write_bits(code_length_lengths[i] as u64, 3)?;
+            }
+        }
+
+        self.write_bits(1, 1)?; // max_symbol is stored
+        self.write_bits(3, 3)?; // max_symbol_nbits / 2 - 2
+        self.write_bits(254, 8)?; // max_symbol - 2
+
+        // Write the huffman codes
+        if !single_code_length_length {
+            for &len in lengths.iter() {
+                self.write_bits(
+                    code_length_codes[len as usize] as u64,
+                    code_length_lengths[len as usize],
+                )?;
+            }
+        }
 
         Ok(())
     }
-
-    // fn build_huffman_tree(frequencies: &[u32], lengths: &mut [u8], codes: &mut [u16]) {
-    //     if frequencies.iter().filter(|&&f| f > 0).count() == 1 {
-    //         todo!();
-    //     }
-
-    // }
 
     fn encode_lossless(
         mut self,
@@ -170,9 +332,9 @@ impl<W: Write> WebPEncoder<W> {
         color: ColorType,
     ) -> ImageResult<()> {
         if width == 0
-            || width > 16383
+            || width > 16384
             || height == 0
-            || height > 16383
+            || height > 16384
             || !SampleLayout::row_major_packed(color.channel_count(), width, height)
                 .fits(data.len())
         {
@@ -264,12 +426,12 @@ impl<W: Write> WebPEncoder<W> {
         match color {
             ColorType::L8 => {
                 for &pixel in &pixels {
-                    frequencies[0][pixel as usize] += 1;
+                    frequencies[1][pixel as usize] += 1;
                 }
             }
             ColorType::La8 => {
                 for pixel in pixels.chunks_exact(2) {
-                    frequencies[0][pixel[0] as usize] += 1;
+                    frequencies[1][pixel[0] as usize] += 1;
                     frequencies[3][pixel[1] as usize] += 1;
                 }
             }
@@ -291,36 +453,19 @@ impl<W: Write> WebPEncoder<W> {
             _ => unreachable!(),
         }
 
-        // "compute" huffman codes (TODO: actually compute them)
-        let lengths = [
-            vec![8u8; 256],
-            vec![8u8; 256],
-            vec![8u8; 256],
-            vec![8u8; 256],
-        ];
-        let mut codes = [
-            vec![0u16; 256],
-            vec![0u16; 256],
-            vec![0u16; 256],
-            vec![0u16; 256],
-        ];
-        for code_group in codes.iter_mut() {
-            for (i, code) in code_group.iter_mut().enumerate() {
-                *code = (i as u8).reverse_bits() as u16;
-            }
-        }
-
-        // write huffman codes
-        self.write_flat_huffman_tree()?;
+        // compute and write huffman codes
+        let mut lengths = [[0u8; 256]; 4];
+        let mut codes = [[0u16; 256]; 4];
+        self.write_huffman_tree(&frequencies[1], &mut lengths[1], &mut codes[1])?;
         if is_color {
-            self.write_flat_huffman_tree()?;
-            self.write_flat_huffman_tree()?;
+            self.write_huffman_tree(&frequencies[0], &mut lengths[0], &mut codes[0])?;
+            self.write_huffman_tree(&frequencies[2], &mut lengths[2], &mut codes[2])?;
         } else {
             self.write_single_entry_huffman_tree(0)?;
             self.write_single_entry_huffman_tree(0)?;
         }
         if is_alpha {
-            self.write_flat_huffman_tree()?;
+            self.write_huffman_tree(&frequencies[3], &mut lengths[3], &mut codes[3])?;
         } else {
             self.write_single_entry_huffman_tree(0)?;
         }
@@ -330,55 +475,46 @@ impl<W: Write> WebPEncoder<W> {
         match color {
             ColorType::L8 => {
                 for &pixel in &pixels {
-                    self.write_bits(codes[0][pixel as usize] as u64, lengths[0][pixel as usize])?;
+                    self.write_bits(codes[1][pixel as usize] as u64, lengths[1][pixel as usize])?;
                 }
             }
             ColorType::La8 => {
                 for pixel in pixels.chunks_exact(2) {
-                    self.write_bits(
-                        codes[0][pixel[0] as usize] as u64,
-                        lengths[0][pixel[0] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[3][pixel[1] as usize] as u64,
-                        lengths[3][pixel[1] as usize],
-                    )?;
+                    let len0 = lengths[1][pixel[0] as usize];
+                    let len3 = lengths[3][pixel[1] as usize];
+
+                    let code = codes[1][pixel[0] as usize] as u64 |
+                        (codes[3][pixel[1] as usize] as u64) << len0;
+
+                    self.write_bits(code, len0 + len3)?;
                 }
             }
             ColorType::Rgb8 => {
                 for pixel in pixels.chunks_exact(3) {
-                    self.write_bits(
-                        codes[1][pixel[1] as usize] as u64,
-                        lengths[1][pixel[1] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[0][pixel[0] as usize] as u64,
-                        lengths[0][pixel[0] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[2][pixel[2] as usize] as u64,
-                        lengths[2][pixel[2] as usize],
-                    )?;
+                    let len1 = lengths[1][pixel[1] as usize];
+                    let len0 = lengths[0][pixel[0] as usize];
+                    let len2 = lengths[2][pixel[2] as usize];
+
+                    let code = codes[1][pixel[1] as usize] as u64 |
+                        (codes[0][pixel[0] as usize] as u64) << len1 |
+                        (codes[2][pixel[2] as usize] as u64) << (len1 + len0);
+
+                    self.write_bits(code, len1 + len0 + len2)?;
                 }
             }
             ColorType::Rgba8 => {
                 for pixel in pixels.chunks_exact(4) {
-                    self.write_bits(
-                        codes[1][pixel[1] as usize] as u64,
-                        lengths[1][pixel[1] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[0][pixel[0] as usize] as u64,
-                        lengths[0][pixel[0] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[2][pixel[2] as usize] as u64,
-                        lengths[2][pixel[2] as usize],
-                    )?;
-                    self.write_bits(
-                        codes[3][pixel[3] as usize] as u64,
-                        lengths[3][pixel[3] as usize],
-                    )?;
+                    let len1 = lengths[1][pixel[1] as usize];
+                    let len0 = lengths[0][pixel[0] as usize];
+                    let len2 = lengths[2][pixel[2] as usize];
+                    let len3 = lengths[3][pixel[3] as usize];
+
+                    let code = codes[1][pixel[1] as usize] as u64 |
+                        (codes[0][pixel[0] as usize] as u64) << len1 |
+                        (codes[2][pixel[2] as usize] as u64) << (len1 + len0) |
+                        (codes[3][pixel[3] as usize] as u64) << (len1 + len0 + len2);
+
+                    self.write_bits(code, len1 + len0 + len2 + len3)?;
                 }
             }
             _ => unreachable!(),

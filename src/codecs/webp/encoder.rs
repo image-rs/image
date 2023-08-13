@@ -154,11 +154,16 @@ impl<W: Write> WebPEncoder<W> {
             return false;
         }
 
-        #[derive(Eq, PartialEq, Copy, Clone, Ord, Debug)]
+        #[derive(Eq, PartialEq, Copy, Clone, Debug)]
         struct Item(u32, u16);
+        impl Ord for Item {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                other.0.cmp(&self.0)
+            }
+        }
         impl PartialOrd for Item {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                other.0.partial_cmp(&self.0)
+                Some(self.cmp(other))
             }
         }
 
@@ -189,7 +194,7 @@ impl<W: Write> WebPEncoder<W> {
             if node < frequencies.len() {
                 lengths[node] = depth as u8;
             } else {
-                let (left, right) = internal_nodes[(node - frequencies.len()) as usize];
+                let (left, right) = internal_nodes[node - frequencies.len()];
                 stack.push((left, depth + 1));
                 stack.push((right, depth + 1));
             }
@@ -207,28 +212,25 @@ impl<W: Write> WebPEncoder<W> {
             }
 
             let mut total = 0;
-            for i in 1..=length_limit as usize {
-                total += counts[i] << (length_limit as usize - i);
-            }
-
+            for (i, count) in counts
+                .iter()
+                .enumerate()
+                .skip(1)
+                .take(length_limit as usize)
             {
-                while total > 1u32 << length_limit {
-                    let mut i = length_limit as usize - 1;
-                    while counts[i] == 0 {
-                        i -= 1;
-                    }
-                    counts[i] -= 1;
-                    counts[length_limit as usize] -= 1;
-                    counts[i + 1] += 2;
-                    total -= 1;
-                }
+                total += count << (length_limit as usize - i);
             }
 
-            let mut new_total = 0;
-            for i in 1..=length_limit as usize {
-                new_total += counts[i] << (length_limit as usize - i);
+            while total > 1u32 << length_limit {
+                let mut i = length_limit as usize - 1;
+                while counts[i] == 0 {
+                    i -= 1;
+                }
+                counts[i] -= 1;
+                counts[length_limit as usize] -= 1;
+                counts[i + 1] += 2;
+                total -= 1;
             }
-            assert_eq!(total, new_total);
 
             // assign new lengths
             let mut len = length_limit;

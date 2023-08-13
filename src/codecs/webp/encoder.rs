@@ -483,8 +483,8 @@ impl<W: Write> WebPEncoder<W> {
                     let len0 = lengths[1][pixel[0] as usize];
                     let len3 = lengths[3][pixel[1] as usize];
 
-                    let code = codes[1][pixel[0] as usize] as u64 |
-                        (codes[3][pixel[1] as usize] as u64) << len0;
+                    let code = codes[1][pixel[0] as usize] as u64
+                        | (codes[3][pixel[1] as usize] as u64) << len0;
 
                     self.write_bits(code, len0 + len3)?;
                 }
@@ -495,9 +495,9 @@ impl<W: Write> WebPEncoder<W> {
                     let len0 = lengths[0][pixel[0] as usize];
                     let len2 = lengths[2][pixel[2] as usize];
 
-                    let code = codes[1][pixel[1] as usize] as u64 |
-                        (codes[0][pixel[0] as usize] as u64) << len1 |
-                        (codes[2][pixel[2] as usize] as u64) << (len1 + len0);
+                    let code = codes[1][pixel[1] as usize] as u64
+                        | (codes[0][pixel[0] as usize] as u64) << len1
+                        | (codes[2][pixel[2] as usize] as u64) << (len1 + len0);
 
                     self.write_bits(code, len1 + len0 + len2)?;
                 }
@@ -509,10 +509,10 @@ impl<W: Write> WebPEncoder<W> {
                     let len2 = lengths[2][pixel[2] as usize];
                     let len3 = lengths[3][pixel[3] as usize];
 
-                    let code = codes[1][pixel[1] as usize] as u64 |
-                        (codes[0][pixel[0] as usize] as u64) << len1 |
-                        (codes[2][pixel[2] as usize] as u64) << (len1 + len0) |
-                        (codes[3][pixel[3] as usize] as u64) << (len1 + len0 + len2);
+                    let code = codes[1][pixel[1] as usize] as u64
+                        | (codes[0][pixel[0] as usize] as u64) << len1
+                        | (codes[2][pixel[2] as usize] as u64) << (len1 + len0)
+                        | (codes[3][pixel[3] as usize] as u64) << (len1 + len0 + len2);
 
                     self.write_bits(code, len1 + len0 + len2 + len3)?;
                 }

@@ -6,6 +6,7 @@ use std::collections::BinaryHeap;
 /// [libwebp]: https://developers.google.com/speed/webp/docs/api#simple_encoding_api
 use std::io::{self, Write};
 use std::iter::FromIterator;
+use std::slice::ChunksExact;
 
 #[cfg(feature = "webp-encoder")]
 use libwebp::{Encoder, PixelLayout, WebPMemory};
@@ -343,6 +344,60 @@ impl<W: Write> WebPEncoder<W> {
         (symbol, extra_bits as u8)
     }
 
+    #[inline(always)]
+    fn count_run(
+        pixel: &[u8],
+        it: &mut std::iter::Peekable<ChunksExact<u8>>,
+        frequencies1: &mut [u32; 280],
+    ) {
+        let mut run_length = 0;
+        while run_length < 4096 && it.peek() == Some(&pixel) {
+            run_length += 1;
+            it.next();
+        }
+        if run_length > 0 {
+            if run_length <= 4 {
+                let symbol = 256 + run_length - 1;
+                frequencies1[symbol] += 1;
+            } else {
+                let (symbol, _extra_bits) = Self::length_to_symbol(run_length as u16);
+                frequencies1[256 + symbol as usize] += 1;
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn write_run(
+        &mut self,
+        pixel: &[u8],
+        it: &mut std::iter::Peekable<ChunksExact<u8>>,
+        codes1: &[u16; 280],
+        lengths1: &[u8; 280],
+    ) -> io::Result<()> {
+        let mut run_length = 0;
+        while run_length < 4096 && it.peek() == Some(&pixel) {
+            run_length += 1;
+            it.next();
+        }
+        if run_length > 0 {
+            if run_length <= 4 {
+                let symbol = 256 + run_length - 1;
+                self.write_bits(codes1[symbol] as u64, lengths1[symbol])?;
+            } else {
+                let (symbol, extra_bits) = Self::length_to_symbol(run_length as u16);
+                self.write_bits(
+                    codes1[256 + symbol as usize] as u64,
+                    lengths1[256 + symbol as usize],
+                )?;
+                self.write_bits(
+                    (run_length as u64 - 1) & ((1 << extra_bits) - 1),
+                    extra_bits,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn encode_lossless(
         mut self,
         data: &[u8],
@@ -444,27 +499,45 @@ impl<W: Write> WebPEncoder<W> {
         let mut frequencies1 = [0u32; 280];
         let mut frequencies2 = [0u32; 256];
         let mut frequencies3 = [0u32; 256];
-
         let mut it = pixels.chunks_exact(4).peekable();
-        while let Some(pixel) = it.next() {
-            frequencies0[pixel[0] as usize] += 1;
-            frequencies1[pixel[1] as usize] += 1;
-            frequencies2[pixel[2] as usize] += 1;
-            frequencies3[pixel[3] as usize] += 1;
-
-            let mut run_length = 0;
-            while run_length < 4096 && it.peek() == Some(&pixel) {
-                run_length += 1;
-                it.next();
-            }
-            if run_length > 0 {
-                if run_length <= 4 {
-                    frequencies1[256 + run_length - 1] += 1;
-                } else {
-                    let symbol = Self::length_to_symbol(run_length as u16).0 as usize;
-                    frequencies1[256 + symbol] += 1;
+        match color {
+            ColorType::L8 => {
+                frequencies0[0] = 1;
+                frequencies2[0] = 1;
+                frequencies3[0] = 1;
+                while let Some(pixel) = it.next() {
+                    frequencies1[pixel[1] as usize] += 1;
+                    Self::count_run(pixel, &mut it, &mut frequencies1);
                 }
             }
+            ColorType::La8 => {
+                frequencies0[0] = 1;
+                frequencies2[0] = 1;
+                while let Some(pixel) = it.next() {
+                    frequencies1[pixel[1] as usize] += 1;
+                    frequencies3[pixel[3] as usize] += 1;
+                    Self::count_run(pixel, &mut it, &mut frequencies1);
+                }
+            }
+            ColorType::Rgb8 => {
+                frequencies3[0] = 1;
+                while let Some(pixel) = it.next() {
+                    frequencies0[pixel[0] as usize] += 1;
+                    frequencies1[pixel[1] as usize] += 1;
+                    frequencies2[pixel[2] as usize] += 1;
+                    Self::count_run(pixel, &mut it, &mut frequencies1);
+                }
+            }
+            ColorType::Rgba8 => {
+                while let Some(pixel) = it.next() {
+                    frequencies0[pixel[0] as usize] += 1;
+                    frequencies1[pixel[1] as usize] += 1;
+                    frequencies2[pixel[2] as usize] += 1;
+                    frequencies3[pixel[3] as usize] += 1;
+                    Self::count_run(pixel, &mut it, &mut frequencies1);
+                }
+            }
+            _ => unreachable!(),
         }
 
         // compute and write huffman codes
@@ -491,48 +564,70 @@ impl<W: Write> WebPEncoder<W> {
         }
         self.write_single_entry_huffman_tree(1)?;
 
+        // Write image data
         let mut it = pixels.chunks_exact(4).peekable();
-        while let Some(pixel) = it.next() {
-            let len1 = lengths1[pixel[1] as usize];
-            let len0 = lengths0[pixel[0] as usize];
-            let len2 = lengths2[pixel[2] as usize];
-            let len3 = lengths3[pixel[3] as usize];
-
-            let code = codes1[pixel[1] as usize] as u64
-                | (codes0[pixel[0] as usize] as u64) << len1
-                | (codes2[pixel[2] as usize] as u64) << (len1 + len0)
-                | (codes3[pixel[3] as usize] as u64) << (len1 + len0 + len2);
-
-            self.write_bits(code, len1 + len0 + len2 + len3)?;
-
-            let mut run_length = 0;
-            while run_length < 4096 && it.peek() == Some(&pixel) {
-                run_length += 1;
-                it.next();
-            }
-            if run_length > 0 {
-                if run_length <= 4 {
-                    let symbol = 256 + run_length - 1;
-                    self.write_bits(codes1[symbol] as u64, lengths1[symbol])?;
-                } else {
-                    let (symbol, extra_bits) = Self::length_to_symbol(run_length as u16);
+        match color {
+            ColorType::L8 => {
+                while let Some(pixel) = it.next() {
                     self.write_bits(
-                        codes1[256 + symbol as usize] as u64,
-                        lengths1[256 + symbol as usize],
+                        codes1[pixel[1] as usize] as u64,
+                        lengths1[pixel[1] as usize],
                     )?;
-                    self.write_bits(
-                        (run_length as u64 - 1) & ((1 << extra_bits) - 1),
-                        extra_bits,
-                    )?;
+                    self.write_run(pixel, &mut it, &codes1, &lengths1)?;
                 }
             }
+            ColorType::La8 => {
+                while let Some(pixel) = it.next() {
+                    let len1 = lengths1[pixel[1] as usize];
+                    let len3 = lengths3[pixel[3] as usize];
+
+                    let code = codes1[pixel[1] as usize] as u64
+                        | (codes3[pixel[3] as usize] as u64) << len1;
+
+                    self.write_bits(code, len1 + len3)?;
+                    self.write_run(pixel, &mut it, &codes1, &lengths1)?;
+                }
+            }
+            ColorType::Rgb8 => {
+                while let Some(pixel) = it.next() {
+                    let len1 = lengths1[pixel[1] as usize];
+                    let len0 = lengths0[pixel[0] as usize];
+                    let len2 = lengths2[pixel[2] as usize];
+
+                    let code = codes1[pixel[1] as usize] as u64
+                        | (codes0[pixel[0] as usize] as u64) << len1
+                        | (codes2[pixel[2] as usize] as u64) << (len1 + len0);
+
+                    self.write_bits(code, len1 + len0 + len2)?;
+                    self.write_run(pixel, &mut it, &codes1, &lengths1)?;
+                }
+            }
+            ColorType::Rgba8 => {
+                while let Some(pixel) = it.next() {
+                    let len1 = lengths1[pixel[1] as usize];
+                    let len0 = lengths0[pixel[0] as usize];
+                    let len2 = lengths2[pixel[2] as usize];
+                    let len3 = lengths3[pixel[3] as usize];
+
+                    let code = codes1[pixel[1] as usize] as u64
+                        | (codes0[pixel[0] as usize] as u64) << len1
+                        | (codes2[pixel[2] as usize] as u64) << (len1 + len0)
+                        | (codes3[pixel[3] as usize] as u64) << (len1 + len0 + len2);
+
+                    self.write_bits(code, len1 + len0 + len2 + len3)?;
+                    self.write_run(pixel, &mut it, &codes1, &lengths1)?;
+                }
+            }
+            _ => unreachable!(),
         }
 
+        // flush writer
         self.flush()?;
         if self.chunk_buffer.len() % 2 == 1 {
             self.chunk_buffer.push(0);
         }
 
+        // write container
         self.writer.write_all(b"RIFF")?;
         self.writer
             .write_all(&(self.chunk_buffer.len() as u32 + 12).to_le_bytes())?;

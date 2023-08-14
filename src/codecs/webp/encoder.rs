@@ -337,7 +337,7 @@ impl<W: Write> WebPEncoder<W> {
 
     fn length_to_symbol(len: u16) -> (u16, u8) {
         let len = len - 1;
-        let highest_bit = len.ilog2() as u16;
+        let highest_bit = 15 - len.leading_zeros() as u16; // TODO: use ilog2 once MSRV >= 1.67
         let second_highest_bit = (len >> (highest_bit - 1)) & 1;
         let extra_bits = highest_bit - 1;
         let symbol = 2 * highest_bit + second_highest_bit;

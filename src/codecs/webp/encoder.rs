@@ -309,9 +309,15 @@ impl<W: Write> WebPEncoder<W> {
             }
         }
 
-        self.write_bits(1, 1)?; // max_symbol is stored
-        self.write_bits(3, 3)?; // max_symbol_nbits / 2 - 2
-        self.write_bits(254, 8)?; // max_symbol - 2
+        match lengths.len() {
+            256 => {
+                self.write_bits(1, 1)?; // max_symbol is stored
+                self.write_bits(3, 3)?; // max_symbol_nbits / 2 - 2
+                self.write_bits(254, 8)?; // max_symbol - 2
+            }
+            280 => self.write_bits(0, 1)?,
+            _ => unreachable!(),
+        }
 
         // Write the huffman codes
         if !single_code_length_length {
@@ -324,6 +330,15 @@ impl<W: Write> WebPEncoder<W> {
         }
 
         Ok(())
+    }
+
+    fn length_to_symbol(len: u16) -> (u16, u8) {
+        let len = len - 1;
+        let highest_bit = len.ilog2() as u16;
+        let second_highest_bit = (len >> (highest_bit - 1)) & 1;
+        let extra_bits = highest_bit - 1;
+        let symbol = 2 * highest_bit + second_highest_bit;
+        (symbol, extra_bits as u8)
     }
 
     fn encode_lossless(
@@ -387,139 +402,128 @@ impl<W: Write> WebPEncoder<W> {
         // meta-huffman codes
         self.write_bits(0x0, 1)?;
 
-        // compute subtract green transform
-        let mut pixels = data.to_vec();
-        match color {
-            ColorType::L8 | ColorType::La8 => {}
-            ColorType::Rgb8 => {
-                for pixel in pixels.chunks_exact_mut(3) {
-                    pixel[0] = pixel[0].wrapping_sub(pixel[1]);
-                    pixel[2] = pixel[2].wrapping_sub(pixel[1]);
-                }
-            }
-            ColorType::Rgba8 => {
-                for pixel in pixels.chunks_exact_mut(4) {
-                    pixel[0] = pixel[0].wrapping_sub(pixel[1]);
-                    pixel[2] = pixel[2].wrapping_sub(pixel[1]);
-                }
-            }
+        // expand to RGBA
+        let mut pixels = match color {
+            ColorType::L8 => data.iter().flat_map(|&p| [p, p, p, 255]).collect(),
+            ColorType::La8 => data
+                .chunks_exact(2)
+                .flat_map(|p| [p[0], p[0], p[0], p[1]])
+                .collect(),
+            ColorType::Rgb8 => data
+                .chunks_exact(3)
+                .flat_map(|p| [p[0], p[1], p[2], 255])
+                .collect(),
+            ColorType::Rgba8 => data.to_vec(),
             _ => unreachable!(),
+        };
+
+        // compute subtract green transform
+        for pixel in pixels.chunks_exact_mut(4) {
+            pixel[0] = pixel[0].wrapping_sub(pixel[1]);
+            pixel[2] = pixel[2].wrapping_sub(pixel[1]);
         }
 
         // compute predictor transform
-        let channels = color.channel_count() as usize;
-        let row_bytes = width as usize * channels;
+        let row_bytes = width as usize * 4;
         for y in (1..height as usize).rev() {
             let (prev, current) =
                 pixels[(y - 1) * row_bytes..][..row_bytes * 2].split_at_mut(row_bytes);
-            for i in 0..row_bytes {
-                current[i] = current[i].wrapping_sub(prev[i]);
+            for (c, p) in current.iter_mut().zip(prev) {
+                *c = c.wrapping_sub(*p);
             }
         }
-        for i in (channels..row_bytes).rev() {
-            pixels[i] = pixels[i].wrapping_sub(pixels[i - channels]);
+        for i in (4..row_bytes).rev() {
+            pixels[i] = pixels[i].wrapping_sub(pixels[i - 4]);
         }
-        if is_alpha {
-            pixels[channels - 1] = pixels[channels - 1].wrapping_sub(255);
-        }
+        pixels[3] = pixels[3].wrapping_sub(255);
 
         // compute frequencies
-        let mut frequencies = [[0u32; 256]; 4];
-        match color {
-            ColorType::L8 => {
-                for &pixel in &pixels {
-                    frequencies[1][pixel as usize] += 1;
+        let mut frequencies0 = [0u32; 256];
+        let mut frequencies1 = [0u32; 280];
+        let mut frequencies2 = [0u32; 256];
+        let mut frequencies3 = [0u32; 256];
+
+        let mut it = pixels.chunks_exact(4).peekable();
+        while let Some(pixel) = it.next() {
+            frequencies0[pixel[0] as usize] += 1;
+            frequencies1[pixel[1] as usize] += 1;
+            frequencies2[pixel[2] as usize] += 1;
+            frequencies3[pixel[3] as usize] += 1;
+
+            let mut run_length = 0;
+            while run_length < 4096 && it.peek() == Some(&pixel) {
+                run_length += 1;
+                it.next();
+            }
+            if run_length > 0 {
+                if run_length <= 4 {
+                    frequencies1[256 + run_length - 1] += 1;
+                } else {
+                    let symbol = Self::length_to_symbol(run_length as u16).0 as usize;
+                    frequencies1[256 + symbol] += 1;
                 }
             }
-            ColorType::La8 => {
-                for pixel in pixels.chunks_exact(2) {
-                    frequencies[1][pixel[0] as usize] += 1;
-                    frequencies[3][pixel[1] as usize] += 1;
-                }
-            }
-            ColorType::Rgb8 => {
-                for pixel in pixels.chunks_exact(3) {
-                    frequencies[1][pixel[1] as usize] += 1;
-                    frequencies[0][pixel[0] as usize] += 1;
-                    frequencies[2][pixel[2] as usize] += 1;
-                }
-            }
-            ColorType::Rgba8 => {
-                for pixel in pixels.chunks_exact(4) {
-                    frequencies[1][pixel[1] as usize] += 1;
-                    frequencies[0][pixel[0] as usize] += 1;
-                    frequencies[2][pixel[2] as usize] += 1;
-                    frequencies[3][pixel[3] as usize] += 1;
-                }
-            }
-            _ => unreachable!(),
         }
 
         // compute and write huffman codes
-        let mut lengths = [[0u8; 256]; 4];
-        let mut codes = [[0u16; 256]; 4];
-        self.write_huffman_tree(&frequencies[1], &mut lengths[1], &mut codes[1])?;
+        let mut lengths0 = [0u8; 256];
+        let mut lengths1 = [0u8; 280];
+        let mut lengths2 = [0u8; 256];
+        let mut lengths3 = [0u8; 256];
+        let mut codes0 = [0u16; 256];
+        let mut codes1 = [0u16; 280];
+        let mut codes2 = [0u16; 256];
+        let mut codes3 = [0u16; 256];
+        self.write_huffman_tree(&frequencies1, &mut lengths1, &mut codes1)?;
         if is_color {
-            self.write_huffman_tree(&frequencies[0], &mut lengths[0], &mut codes[0])?;
-            self.write_huffman_tree(&frequencies[2], &mut lengths[2], &mut codes[2])?;
+            self.write_huffman_tree(&frequencies0, &mut lengths0, &mut codes0)?;
+            self.write_huffman_tree(&frequencies2, &mut lengths2, &mut codes2)?;
         } else {
             self.write_single_entry_huffman_tree(0)?;
             self.write_single_entry_huffman_tree(0)?;
         }
         if is_alpha {
-            self.write_huffman_tree(&frequencies[3], &mut lengths[3], &mut codes[3])?;
+            self.write_huffman_tree(&frequencies3, &mut lengths3, &mut codes3)?;
         } else {
             self.write_single_entry_huffman_tree(0)?;
         }
-        self.write_single_entry_huffman_tree(0)?;
+        self.write_single_entry_huffman_tree(1)?;
 
-        // image data
-        match color {
-            ColorType::L8 => {
-                for &pixel in &pixels {
-                    self.write_bits(codes[1][pixel as usize] as u64, lengths[1][pixel as usize])?;
+        let mut it = pixels.chunks_exact(4).peekable();
+        while let Some(pixel) = it.next() {
+            let len1 = lengths1[pixel[1] as usize];
+            let len0 = lengths0[pixel[0] as usize];
+            let len2 = lengths2[pixel[2] as usize];
+            let len3 = lengths3[pixel[3] as usize];
+
+            let code = codes1[pixel[1] as usize] as u64
+                | (codes0[pixel[0] as usize] as u64) << len1
+                | (codes2[pixel[2] as usize] as u64) << (len1 + len0)
+                | (codes3[pixel[3] as usize] as u64) << (len1 + len0 + len2);
+
+            self.write_bits(code, len1 + len0 + len2 + len3)?;
+
+            let mut run_length = 0;
+            while run_length < 4096 && it.peek() == Some(&pixel) {
+                run_length += 1;
+                it.next();
+            }
+            if run_length > 0 {
+                if run_length <= 4 {
+                    let symbol = 256 + run_length - 1;
+                    self.write_bits(codes1[symbol] as u64, lengths1[symbol])?;
+                } else {
+                    let (symbol, extra_bits) = Self::length_to_symbol(run_length as u16);
+                    self.write_bits(
+                        codes1[256 + symbol as usize] as u64,
+                        lengths1[256 + symbol as usize],
+                    )?;
+                    self.write_bits(
+                        (run_length as u64 - 1) & ((1 << extra_bits) - 1),
+                        extra_bits,
+                    )?;
                 }
             }
-            ColorType::La8 => {
-                for pixel in pixels.chunks_exact(2) {
-                    let len0 = lengths[1][pixel[0] as usize];
-                    let len3 = lengths[3][pixel[1] as usize];
-
-                    let code = codes[1][pixel[0] as usize] as u64
-                        | (codes[3][pixel[1] as usize] as u64) << len0;
-
-                    self.write_bits(code, len0 + len3)?;
-                }
-            }
-            ColorType::Rgb8 => {
-                for pixel in pixels.chunks_exact(3) {
-                    let len1 = lengths[1][pixel[1] as usize];
-                    let len0 = lengths[0][pixel[0] as usize];
-                    let len2 = lengths[2][pixel[2] as usize];
-
-                    let code = codes[1][pixel[1] as usize] as u64
-                        | (codes[0][pixel[0] as usize] as u64) << len1
-                        | (codes[2][pixel[2] as usize] as u64) << (len1 + len0);
-
-                    self.write_bits(code, len1 + len0 + len2)?;
-                }
-            }
-            ColorType::Rgba8 => {
-                for pixel in pixels.chunks_exact(4) {
-                    let len1 = lengths[1][pixel[1] as usize];
-                    let len0 = lengths[0][pixel[0] as usize];
-                    let len2 = lengths[2][pixel[2] as usize];
-                    let len3 = lengths[3][pixel[3] as usize];
-
-                    let code = codes[1][pixel[1] as usize] as u64
-                        | (codes[0][pixel[0] as usize] as u64) << len1
-                        | (codes[2][pixel[2] as usize] as u64) << (len1 + len0)
-                        | (codes[3][pixel[3] as usize] as u64) << (len1 + len0 + len2);
-
-                    self.write_bits(code, len1 + len0 + len2 + len3)?;
-                }
-            }
-            _ => unreachable!(),
         }
 
         self.flush()?;

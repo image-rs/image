@@ -5,6 +5,7 @@ use std::collections::BinaryHeap;
 ///
 /// [libwebp]: https://developers.google.com/speed/webp/docs/api#simple_encoding_api
 use std::io::{self, Write};
+use std::iter::FromIterator;
 
 #[cfg(feature = "webp-encoder")]
 use libwebp::{Encoder, PixelLayout, WebPMemory};
@@ -168,21 +169,22 @@ impl<W: Write> WebPEncoder<W> {
         }
 
         // Build a huffman tree
-        let mut nodes = BinaryHeap::new();
         let mut internal_nodes = Vec::new();
-        for (i, &frequency) in frequencies.iter().enumerate() {
-            if frequency > 0 {
-                nodes.push(Item(frequency, i as u16));
-            }
-        }
+        let mut nodes = BinaryHeap::from_iter(
+            frequencies
+                .iter()
+                .enumerate()
+                .filter(|(_, &frequency)| frequency > 0)
+                .map(|(i, &frequency)| Item(frequency, i as u16)),
+        );
         while nodes.len() > 1 {
             let Item(frequency1, index1) = nodes.pop().unwrap();
-            let Item(frequency2, index2) = nodes.pop().unwrap();
-            nodes.push(Item(
-                frequency1 + frequency2,
-                internal_nodes.len() as u16 + frequencies.len() as u16,
-            ));
-            internal_nodes.push((index1, index2));
+            let mut root = nodes.peek_mut().unwrap();
+            internal_nodes.push((index1, root.1));
+            *root = Item(
+                frequency1 + root.0,
+                internal_nodes.len() as u16 + frequencies.len() as u16 - 1,
+            );
         }
 
         // Walk the tree to assign code lengths

@@ -1266,7 +1266,7 @@ impl<P: Pixel> ImageBuffer<P, Vec<P::Subpixel>> {
     ///
     /// # Panics
     ///
-    /// Panics when the resulting image is larger the the maximum size of a vector.
+    /// Panics when the resulting image is larger than the maximum size of a vector.
     pub fn new(width: u32, height: u32) -> ImageBuffer<P, Vec<P::Subpixel>> {
         let size = Self::image_buffer_len(width, height)
             .expect("Buffer length in `ImageBuffer::new` overflows usize");

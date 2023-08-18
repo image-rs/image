@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         rust: ["1.57.0", stable, beta, nightly]
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -18,6 +19,8 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         override: true
+    - if: ${{ matrix.rust == '1.57.0' }}
+      run: mv Cargo.lock.msrv Cargo.lock
     - name: build
       run: |
         cargo build --verbose

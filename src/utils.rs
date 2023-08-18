@@ -3,15 +3,16 @@ use std::iter::StepBy;
 use std::ops::Range;
 
 #[inline(always)]
-pub fn unpack_bits<F>(row: &[u8], buf: &mut [u8], channels: usize, bit_depth: u8, func: F)
+pub fn unpack_bits<F>(input: &[u8], output: &mut [u8], channels: usize, bit_depth: u8, func: F)
 where
     F: Fn(u8, &mut [u8]),
 {
-    let mask = ((1u16 << bit_depth) - 1) as u8;
+    // Only [1, 2, 4, 8] are valid bit depths
+    assert!(matches!(bit_depth, 1 | 2 | 4 | 8));
 
-    let mut buf_chunks = buf.chunks_exact_mut(channels);
+    let mut buf_chunks = output.chunks_exact_mut(channels);
 
-    // `shift` iterates through these ranges for each bit depth:
+    // `shift` iterates through the corresponding bit depth sequence:
     // 1 => &[7, 6, 5, 4, 3, 2, 1, 0],
     // 2 => &[6, 4, 2, 0],
     // 4 => &[4, 0],
@@ -20,16 +21,27 @@ where
     // `(0..8).step_by(bit_depth.into()).rev()` doesn't always optimize well so
     // shifts are calculated instead. (2023-08, Rust 1.71)
 
-    for &curr in row.iter() {
-        let mut shift = 8 - bit_depth as i32;
+    if bit_depth == 8 {
+        for (&curr, chunk) in input.iter().zip(&mut buf_chunks) {
+            func(curr, chunk);
+        }
+    } else {
+        let mask = ((1u16 << bit_depth) - 1) as u8;
 
-        while shift >= 0 {
-            if let Some(chunk) = buf_chunks.next() {
-                let pixel = (curr >> shift) & mask;
-                func(pixel, chunk);
-            } else {
-                return;
+        let mut iter = input.iter();
+
+        // These variables are initialized in the loop
+        let mut shift = -1;
+        let mut curr = 0;
+
+        while let Some(chunk) = buf_chunks.next() {
+            if shift < 0 {
+                shift = 8 - bit_depth as i32;
+                curr = *iter.next().expect("input for unpack bits is not empty");
             }
+
+            let pixel = (curr >> shift) & mask;
+            func(pixel, chunk);
 
             shift -= bit_depth as i32;
         }

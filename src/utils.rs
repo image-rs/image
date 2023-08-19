@@ -9,8 +9,12 @@ where
 {
     // Only [1, 2, 4, 8] are valid bit depths
     assert!(matches!(bit_depth, 1 | 2 | 4 | 8));
+    // Check that `input` is capable of producing a buffer as long as `output`:
+    // number of shift lookups per bit depth * channels * input length
+    assert!((8 / bit_depth as usize * channels).saturating_mul(input.len()) >= output.len());
 
     let mut buf_chunks = output.chunks_exact_mut(channels);
+    let mut iter = input.iter();
 
     // `shift` iterates through the corresponding bit depth sequence:
     // 1 => &[7, 6, 5, 4, 3, 2, 1, 0],
@@ -22,19 +26,17 @@ where
     // shifts are calculated instead. (2023-08, Rust 1.71)
 
     if bit_depth == 8 {
-        for (&curr, chunk) in input.iter().zip(&mut buf_chunks) {
+        for (&curr, chunk) in iter.zip(&mut buf_chunks) {
             func(curr, chunk);
         }
     } else {
         let mask = ((1u16 << bit_depth) - 1) as u8;
 
-        let mut iter = input.iter();
-
         // These variables are initialized in the loop
         let mut shift = -1;
         let mut curr = 0;
 
-        while let Some(chunk) = buf_chunks.next() {
+        for chunk in buf_chunks {
             if shift < 0 {
                 shift = 8 - bit_depth as i32;
                 curr = *iter.next().expect("input for unpack bits is not empty");

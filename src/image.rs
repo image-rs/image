@@ -762,8 +762,8 @@ pub trait ImageDecoder<'a>: Sized {
         self.read_image_with_progress(buf, |_| {})
     }
 
-    /// Same as `read_image` but periodically calls the provided callback to give updates on loading
-    /// progress.
+    /// Same as `read_image_with_progress_mut`, but the callback cannot mutate state.
+    /// Use `read_image_with_progress_mut` if you want to mutate your state from within the callback.
     fn read_image_with_progress<F: Fn(Progress)>(
         self,
         buf: &mut [u8],
@@ -794,6 +794,22 @@ pub trait ImageDecoder<'a>: Sized {
         }
 
         Ok(())
+    }
+
+    /// Same as `read_image` but periodically calls the provided callback to give updates on loading
+    /// progress.
+    // TODO find a way to offer only _mut versions, eliminating refcells
+    fn read_image_with_progress_mut<F: FnMut(Progress)>(
+        self,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()> {
+        let mutable_callback_cell = std::cell::RefCell::new(progress_callback);
+        self.read_image_with_progress(buf, |progress| {
+            if let Ok(mut progress_callback) = mutable_callback_cell.try_borrow_mut() {
+                progress_callback(progress)
+            }
+        })
     }
 
     /// Set decoding limits for this decoder. See [`Limits`] for the different kinds of
@@ -831,6 +847,17 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         self.read_rect_with_progress(x, y, width, height, buf, |_| {})
     }
 
+    /// Same as `read_rect_with_progress_mut`, but the callback is not mutable.
+    fn read_rect_with_progress<F: Fn(Progress)>(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        buf: &mut [u8],
+        progress_callback: F,
+    ) -> ImageResult<()>;
+
     /// Decode a rectangular section of the image, periodically reporting progress.
     ///
     /// The output buffer will be filled with fields specified by
@@ -843,7 +870,8 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
     ///
     /// This function will panic if the output buffer isn't at least
     /// `color_type().bytes_per_pixel() * color_type().channel_count() * width * height` bytes long.
-    fn read_rect_with_progress<F: Fn(Progress)>(
+    // TODO find a way to offer only _mut versions, eliminating refcells
+    fn read_rect_with_progress_mut<F: FnMut(Progress)>(
         &mut self,
         x: u32,
         y: u32,
@@ -851,7 +879,14 @@ pub trait ImageDecoderRect<'a>: ImageDecoder<'a> + Sized {
         height: u32,
         buf: &mut [u8],
         progress_callback: F,
-    ) -> ImageResult<()>;
+    ) -> ImageResult<()> {
+        let mutable_callback_cell = std::cell::RefCell::new(progress_callback);
+        self.read_rect_with_progress(x, y, width, height, buf,|progress| {
+            if let Ok(mut progress_callback) = mutable_callback_cell.try_borrow_mut() {
+                progress_callback(progress)
+            }
+        })
+    }
 }
 
 /// AnimationDecoder trait
@@ -879,6 +914,39 @@ pub trait ImageEncoder {
         height: u32,
         color_type: ColorType,
     ) -> ImageResult<()>;
+
+    /// Writes all the bytes in an image to the encoder.
+    ///
+    /// This function takes a slice of bytes of the pixel data of the image
+    /// and encodes them. Unlike particular format encoders inherent impl encode
+    /// methods where endianness is not specified, here image data bytes should
+    /// always be in native endian. The implementor will reorder the endianess
+    /// as necessary for the target encoding format.
+    ///
+    /// See also `ImageDecoder::read_image` which reads byte buffers into
+    /// native endian.
+    ///
+    /// The progress callback is a function that is called occasionally,
+    /// and can be used to update, for example, a progress bar.
+    /// The granularity of those updates is implementation-defined
+    /// and might not be very accurate in some implementations.
+    fn write_image_with_progress<F: FnMut(Progress)>(
+        self,
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        color_type: ColorType,
+        mut progress: F,
+    ) -> ImageResult<()> where Self:Sized {
+        let max_progress = buf.len() as u64;
+        // TODO force implementations to implement this function instead of write_image()?
+        progress(Progress::new(0, max_progress));
+
+        self.write_image(buf, width, height, color_type);
+
+        progress(Progress::new(max_progress, max_progress));
+        Ok(())
+    }
 }
 
 /// Immutable pixel iterator

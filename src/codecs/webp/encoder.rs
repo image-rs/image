@@ -681,6 +681,7 @@ impl<W: Write> WebPEncoder<W> {
         let encoder = Encoder::new(data, layout, width, height);
         let encoded: WebPMemory = match self.quality.0 {
             Quality::Lossless => encoder.encode_lossless(),
+            #[allow(deprecated)]
             Quality::Lossy(quality) => encoder.encode(quality as f32),
         };
 
@@ -788,7 +789,7 @@ mod native_tests {
         fn fuzz_webp_valid_image(image: MockImage, quality: u8) -> bool {
             // Check valid images do not panic.
             let mut buffer = Vec::<u8>::new();
-            for webp_quality in [WebPQuality::lossless(), WebPQuality::lossy(quality)] {
+            for webp_quality in [WebPQuality::lossless(), #[allow(deprecated)] WebPQuality::lossy(quality)] {
                 buffer.clear();
                 #[allow(deprecated)]
                 let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);
@@ -805,7 +806,7 @@ mod native_tests {
             // Check random (usually invalid) parameters do not panic.
             let mut buffer = Vec::<u8>::new();
             for color in [ColorType::Rgb8, ColorType::Rgba8] {
-                for webp_quality in [WebPQuality::lossless(), WebPQuality::lossy(quality)] {
+                for webp_quality in [WebPQuality::lossless(), #[allow(deprecated)] WebPQuality::lossy(quality)] {
                     buffer.clear();
                     #[allow(deprecated)]
                     let encoder = WebPEncoder::new_with_quality(&mut buffer, webp_quality);

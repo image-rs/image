@@ -32,6 +32,7 @@ pub struct WebPQuality(Quality);
 #[derive(Debug, Copy, Clone)]
 enum Quality {
     Lossless,
+    #[deprecated = "Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
     Lossy(u8),
 }
 
@@ -51,13 +52,16 @@ impl WebPQuality {
     /// Lossy encoding. 0 = low quality, small size; 100 = high quality, large size.
     ///
     /// Values are clamped from 0 to 100.
+    #[deprecated = "Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
     pub fn lossy(quality: u8) -> Self {
+        #[allow(deprecated)]
         Self(Quality::Lossy(quality.clamp(Self::MIN, Self::MAX)))
     }
 }
 
 impl Default for WebPQuality {
     fn default() -> Self {
+        #[allow(deprecated)]
         Self::lossy(WebPQuality::DEFAULT)
     }
 }
@@ -66,7 +70,7 @@ impl<W: Write> WebPEncoder<W> {
     /// Create a new encoder that writes its output to `w`.
     ///
     /// Defaults to lossy encoding, see [`WebPQuality::DEFAULT`].
-    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
+    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
     #[cfg(feature = "webp-encoder")]
     pub fn new(w: W) -> Self {
         #[allow(deprecated)]
@@ -74,7 +78,7 @@ impl<W: Write> WebPEncoder<W> {
     }
 
     /// Create a new encoder with the specified quality, that writes its output to `w`.
-    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: github.com/image-rs/image/issues/XXXX"]
+    #[deprecated = "Use `new_lossless` instead. Lossy encoding will be removed in a future version. See: https://github.com/image-rs/image/issues/1984"]
     #[cfg(feature = "webp-encoder")]
     pub fn new_with_quality(w: W, quality: WebPQuality) -> Self {
         Self {

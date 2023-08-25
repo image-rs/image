@@ -1260,7 +1260,9 @@ ENDHDR
 
     #[test]
     fn issue_1616_overflow() {
-        let data = [80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56];
+        let data = [
+            80, 54, 10, 52, 50, 57, 52, 56, 50, 57, 52, 56, 35, 56, 10, 52, 10, 48, 10, 12, 12, 56,
+        ];
         // Validate: we have a header. Note: we might already calculate that this will fail but
         // then we could not return information about the header to the caller.
         let decoder = PnmDecoder::new(&data[..]).unwrap();

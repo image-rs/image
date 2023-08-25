@@ -720,7 +720,7 @@ impl<R: Read + Seek> BmpDecoder<R> {
                     ),
                 ));
             }
-            11 | 12 | 13 => {
+            11..=13 => {
                 // CMYK types are not implemented yet.
                 return Err(ImageError::Unsupported(
                     UnsupportedError::from_format_and_kind(

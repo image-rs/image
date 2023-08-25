@@ -267,9 +267,9 @@ impl<R: Read> DdsDecoder<R> {
                     // The enum integer values were taken from https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
                     // DXT1 represents the different BC1 variants, DTX3 represents the different BC2 variants and DTX5 represents the different BC3 variants
                     match dx10_header.dxgi_format {
-                        70 | 71 | 72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
-                        73 | 74 | 75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
-                        76 | 77 | 78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
+                        70..=72 => DxtVariant::DXT1, // DXGI_FORMAT_BC1_TYPELESS, DXGI_FORMAT_BC1_UNORM or DXGI_FORMAT_BC1_UNORM_SRGB
+                        73..=75 => DxtVariant::DXT3, // DXGI_FORMAT_BC2_TYPELESS, DXGI_FORMAT_BC2_UNORM or DXGI_FORMAT_BC2_UNORM_SRGB
+                        76..=78 => DxtVariant::DXT5, // DXGI_FORMAT_BC3_TYPELESS, DXGI_FORMAT_BC3_UNORM or DXGI_FORMAT_BC3_UNORM_SRGB
                         _ => {
                             return Err(ImageError::Unsupported(
                                 UnsupportedError::from_format_and_kind(

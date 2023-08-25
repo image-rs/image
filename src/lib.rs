@@ -277,7 +277,7 @@ pub mod codecs {
     pub mod tga;
     #[cfg(feature = "tiff")]
     pub mod tiff;
-    #[cfg(any(feature = "webp", feature = "webp-encoder"))]
+    #[cfg(feature = "webp")]
     pub mod webp;
 }
 
